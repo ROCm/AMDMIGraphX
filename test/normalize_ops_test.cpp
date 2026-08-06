@@ -26,7 +26,6 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/functional.hpp>
-#include <migraphx/dim_like.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/sym.hpp>
@@ -65,37 +64,6 @@ struct normalize_test_op
                                const std::vector<migraphx::argument>&) const
     {
         return migraphx::argument{output_shape};
-    }
-};
-
-// A bound attribute that can hold a symbolic value has to declare use_sym, otherwise its
-// normalized value could not be stored back. This operator deliberately leaves it out.
-struct no_use_sym_test_op
-{
-    std::vector<int64_t> axes             = {};
-    std::vector<migraphx::dim_like> bound = {};
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::pack(f(self.axes, "axes"), f(self.bound, "bound"));
-    }
-
-    migraphx::value attributes() const
-    {
-        migraphx::value normalize;
-        normalize["bound"] = migraphx::value::array{migraphx::op::normalize_attribute::clip_max,
-                                                    migraphx::op::normalize_attribute::clip_min,
-                                                    migraphx::op::normalize_attribute::include_max,
-                                                    migraphx::op::normalize_attribute::use_len,
-                                                    migraphx::op::normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
-    }
-
-    std::string name() const { return "normalize_ops_test::no_use_sym_op"; }
-    migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
-    {
-        return inputs[0];
     }
 };
 
@@ -236,7 +204,7 @@ static migraphx::module create_dyn_slice(const migraphx::shape& data_shape,
 
 static migraphx::value sym_bound(const migraphx::sym::expr& e)
 {
-    return migraphx::value::array{migraphx::to_value(dd{e})};
+    return migraphx::value::array{migraphx::to_value(e)};
 }
 
 TEST_CASE(dyn_slice_sym_ends_clamped_test)
@@ -268,7 +236,7 @@ TEST_CASE(dyn_slice_sym_ends_below_len_test)
 
 TEST_CASE(dyn_slice_sym_ends_at_len_test)
 {
-    // n >= 5 is provable, so the bound collapses to the axis length and demotes to an integer.
+    // n >= 5 is provable, so the bound collapses to the literal axis length.
     auto n = var("n", {6, 9});
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
 
@@ -303,14 +271,13 @@ TEST_CASE(dyn_slice_sym_mixed_bounds_test)
     auto m1 = create_dyn_slice(s,
                                {{"axes", {1, 3}},
                                 {"starts", {0, 0}},
-                                {"ends", migraphx::value::array{migraphx::to_value(dd{n}), 9}}},
+                                {"ends", migraphx::value::array{migraphx::to_value(n), 9}}},
                                2);
     auto m2 = create_dyn_slice(
         s,
         {{"axes", {1, 3}},
          {"starts", {0, 0}},
-         {"ends",
-          migraphx::value::array{migraphx::to_value(dd{migraphx::sym::min(n, lit(3))}), 5}}},
+         {"ends", migraphx::value::array{migraphx::to_value(migraphx::sym::min(n, lit(3))), 5}}},
         2);
     run_pass(m1);
 
@@ -383,22 +350,6 @@ TEST_CASE(dyn_slice_sym_nonfixed_axis_throws)
     EXPECT(test::throws<migraphx::exception>(
         [&] { create_dyn_slice(s, {{"axes", {0}}, {"starts", {0}}, {"ends", sym_bound(n)}}); },
         "cannot normalize against a non-fixed axis"));
-}
-
-TEST_CASE(sym_value_without_use_sym_throws)
-{
-    // Normalizing a symbolic value into an attribute that did not opt in is rejected instead of
-    // silently leaving the bound unnormalized.
-    auto n = var("n", {1, 8});
-    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
-
-    EXPECT(test::throws<migraphx::exception>(
-        [&] {
-            migraphx::module m;
-            auto data = m.add_parameter("data", s);
-            m.add_instruction(no_use_sym_test_op{{3}, {dd{n}}}, data);
-        },
-        "symbolic values are not supported"));
 }
 
 static migraphx::module create_test_op(const std::vector<int64_t>& axes)

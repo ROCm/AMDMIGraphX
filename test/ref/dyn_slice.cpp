@@ -87,11 +87,10 @@ TEST_CASE(dyn_slice_sym_ends_test)
     auto starts = mm->add_parameter("starts", bounds_shape);
     auto ends   = mm->add_parameter("ends", bounds_shape);
     mm->add_instruction(
-        migraphx::make_op(
-            "dyn_slice",
-            {{"axes", {2}},
-             {"starts", {1}},
-             {"ends", migraphx::value::array{migraphx::to_value(dd{var("n", {1, 3})})}}}),
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {2}},
+                           {"starts", {1}},
+                           {"ends", migraphx::value::array{migraphx::to_value(var("n", {1, 3}))}}}),
         l0,
         starts,
         ends);
@@ -135,11 +134,10 @@ TEST_CASE(dyn_slice_sym_starts_test)
     auto starts = mm->add_parameter("starts", bounds_shape);
     auto ends   = mm->add_parameter("ends", bounds_shape);
     mm->add_instruction(
-        migraphx::make_op(
-            "dyn_slice",
-            {{"axes", {2}},
-             {"starts", migraphx::value::array{migraphx::to_value(dd{var("m", {0, 2})})}},
-             {"ends", {3}}}),
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {2}},
+                           {"starts", migraphx::value::array{migraphx::to_value(var("m", {0, 2}))}},
+                           {"ends", {3}}}),
         l0,
         starts,
         ends);
@@ -173,11 +171,10 @@ TEST_CASE(dyn_slice_sym_both_bounds_test)
     auto starts = mm->add_parameter("starts", bounds_shape);
     auto ends   = mm->add_parameter("ends", bounds_shape);
     mm->add_instruction(
-        migraphx::make_op(
-            "dyn_slice",
-            {{"axes", {2}},
-             {"starts", migraphx::value::array{migraphx::to_value(dd{var("m", {0, 1})})}},
-             {"ends", migraphx::value::array{migraphx::to_value(dd{var("n", {1, 3})})}}}),
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {2}},
+                           {"starts", migraphx::value::array{migraphx::to_value(var("m", {0, 1}))}},
+                           {"ends", migraphx::value::array{migraphx::to_value(var("n", {1, 3}))}}}),
         l0,
         starts,
         ends);
@@ -254,8 +251,8 @@ TEST_CASE(dyn_slice_sym_bounds_multi_axes_test)
                           {{"axes", {1, 2}},
                            {"starts", {1, 0}},
                            {"ends",
-                            migraphx::value::array{migraphx::to_value(dd{var("n", {1, 2})}),
-                                                   migraphx::to_value(dd{var("m", {1, 3})})}}}),
+                            migraphx::value::array{migraphx::to_value(var("n", {1, 2})),
+                                                   migraphx::to_value(var("m", {1, 3}))}}}),
         l0,
         starts,
         ends);
@@ -290,11 +287,10 @@ TEST_CASE(dyn_slice_runtime_bounds_clamped_test)
     auto starts = mm->add_parameter("starts", bounds_shape);
     auto ends   = mm->add_parameter("ends", bounds_shape);
     mm->add_instruction(
-        migraphx::make_op(
-            "dyn_slice",
-            {{"axes", {2}},
-             {"starts", migraphx::value::array{migraphx::to_value(dd{var("m", {0, 1})})}},
-             {"ends", migraphx::value::array{migraphx::to_value(dd{var("n", {1, 8})})}}}),
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {2}},
+                           {"starts", migraphx::value::array{migraphx::to_value(var("m", {0, 1}))}},
+                           {"ends", migraphx::value::array{migraphx::to_value(var("n", {1, 8}))}}}),
         l0,
         starts,
         ends);
@@ -362,11 +358,10 @@ TEST_CASE(dyn_slice_end_before_start_error_test)
     auto starts = mm->add_parameter("starts", bounds_shape);
     auto ends   = mm->add_parameter("ends", bounds_shape);
     mm->add_instruction(
-        migraphx::make_op(
-            "dyn_slice",
-            {{"axes", {2}},
-             {"starts", migraphx::value::array{migraphx::to_value(dd{var("m", {0, 3})})}},
-             {"ends", migraphx::value::array{migraphx::to_value(dd{var("n", {0, 3})})}}}),
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {2}},
+                           {"starts", migraphx::value::array{migraphx::to_value(var("m", {0, 3}))}},
+                           {"ends", migraphx::value::array{migraphx::to_value(var("n", {0, 3}))}}}),
         l0,
         starts,
         ends);

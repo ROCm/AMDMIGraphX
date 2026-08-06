@@ -28,10 +28,10 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/dim_like.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
 
 namespace migraphx {
@@ -41,9 +41,9 @@ namespace op {
 /// Slice operator whose bounds are only known at run time.
 ///
 /// The starts and ends are always supplied as inputs. The attribute of the same name describes
-/// that input at compile time: either a concrete value or a symbolic dynamic_dimension whose
-/// expression evaluates to what the input will hold at run time. The axes have to be known when
-/// the shape is computed, so they are an attribute only.
+/// that input at compile time with an expression that evaluates to what the input will hold at
+/// run time; a constant bound is a sym::lit. The axes have to be known when the shape is
+/// computed, so they are an attribute only.
 ///
 /// An end before its start is rejected: at run time by compute(), and when the shape is computed
 /// for the bounds that put the end before the start over their whole range. A slice that is only
@@ -61,8 +61,8 @@ namespace op {
 struct dyn_slice
 {
     std::vector<int64_t> axes{};
-    std::vector<dim_like> starts{};
-    std::vector<dim_like> ends{};
+    std::vector<sym::expr> starts{};
+    std::vector<sym::expr> ends{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -80,14 +80,12 @@ struct dyn_slice
                                                 normalize_attribute::clip_min,
                                                 normalize_attribute::include_max,
                                                 normalize_attribute::use_len,
-                                                normalize_attribute::include_min,
-                                                normalize_attribute::use_sym};
+                                                normalize_attribute::include_min};
         normalize_axes["ends"]   = value::array{normalize_attribute::clip_max,
                                               normalize_attribute::clip_min,
                                               normalize_attribute::include_max,
                                               normalize_attribute::use_len,
-                                              normalize_attribute::include_min,
-                                              normalize_attribute::use_sym};
+                                              normalize_attribute::include_min};
         return {{"normalize_axes", normalize_axes}, {"fillcolor", "#FFA500" /* orange */}};
     }
 
@@ -100,6 +98,13 @@ struct dyn_slice
         {
             MIGRAPHX_THROW("DYN_SLICE: axes, starts, and ends attributes must all be set and "
                            "have the same length");
+        }
+        auto empty_expr = [](const sym::expr& e) { return e.empty(); };
+        if(std::any_of(starts.begin(), starts.end(), empty_expr) or
+           std::any_of(ends.begin(), ends.end(), empty_expr))
+        {
+            MIGRAPHX_THROW("DYN_SLICE: starts and ends attributes cannot hold an empty "
+                           "expression");
         }
         // The inputs carry the run-time value of the starts and ends attributes, so there is one
         // entry per sliced axis.
@@ -125,14 +130,12 @@ struct dyn_slice
         if(input_shape.dynamic() and not input_shape.symbolic())
             MIGRAPHX_THROW("DYN_SLICE: data input must have a static or symbolic shape");
 
-        auto sym_in      = input_shape.to_symbolic();
-        auto dds         = sym_in.dyn_dims();
-        auto start_exprs = to_sym_exprs(starts);
-        auto end_exprs   = to_sym_exprs(ends);
+        auto sym_in = input_shape.to_symbolic();
+        auto dds    = sym_in.dyn_dims();
         std::vector<sym::expr> extents(axes.size());
-        std::transform(end_exprs.begin(),
-                       end_exprs.end(),
-                       start_exprs.begin(),
+        std::transform(ends.begin(),
+                       ends.end(),
+                       starts.begin(),
                        extents.begin(),
                        [](const auto& end, const auto& start) { return end - start; });
         auto zero = sym::lit(std::int64_t{0});

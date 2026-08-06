@@ -86,22 +86,6 @@ inline std::vector<int64_t> to_ints(const std::vector<dim_like>& dims)
     return result;
 }
 
-/// Converts each entry to a symbolic expression. A range-based dynamic_dimension has no
-/// expression to convert, so it is rejected.
-inline std::vector<sym::expr> to_sym_exprs(const std::vector<dim_like>& dims)
-{
-    std::vector<sym::expr> result(dims.size());
-    std::transform(dims.begin(), dims.end(), result.begin(), [](const dim_like& d) -> sym::expr {
-        if(std::holds_alternative<int64_t>(d))
-            return sym::lit(std::get<int64_t>(d));
-        if(not is_symbolic(d))
-            MIGRAPHX_THROW("DIM_LIKE: cannot convert a range-based dimension to a symbolic "
-                           "expression");
-        return std::get<shape::dynamic_dimension>(d).sym_expr;
-    });
-    return result;
-}
-
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const dim_like& d);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, dim_like& d);
 

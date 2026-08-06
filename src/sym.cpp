@@ -2352,6 +2352,13 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         e = sym::expr{};
         return;
     }
+    // A bare number is a literal, so an attribute holding expressions can still be written with
+    // plain integers, as in make_op("dyn_slice", {{"starts", {1}}}).
+    if(not v.is_object())
+    {
+        e = sym::lit(value_to_sym_scalar(v));
+        return;
+    }
     auto type = v.at("type").get_string();
     if(type == "literal")
     {

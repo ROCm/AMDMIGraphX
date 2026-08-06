@@ -1039,6 +1039,23 @@ TEST_CASE(serialize_integer)
     EXPECT(round_trip(lit(42)) == lit(42));
 }
 
+TEST_CASE(from_value_bare_number_is_literal)
+{
+    // A plain number deserializes as a literal so an attribute of expressions can be written
+    // with integers instead of spelling out the literal object.
+    EXPECT(migraphx::from_value<se>(migraphx::value(0)) == lit(0));
+    EXPECT(migraphx::from_value<se>(migraphx::value(42)) == lit(42));
+    EXPECT(migraphx::from_value<se>(migraphx::value(-5)) == lit(-5));
+    EXPECT(migraphx::from_value<se>(migraphx::value(1.5)) == lit(1.5));
+}
+
+TEST_CASE(from_value_bare_number_array)
+{
+    auto v = migraphx::value::array{1, 2, 3};
+    auto r = migraphx::from_value<std::vector<se>>(v);
+    EXPECT(r == std::vector<se>{lit(1), lit(2), lit(3)});
+}
+
 TEST_CASE(serialize_symbol)
 {
     auto h = var("h");
@@ -1256,9 +1273,9 @@ TEST_CASE(cmp_empty_with_nonempty_throws)
 
 TEST_CASE(cmp_stride_ordering_4d)
 {
-    auto c  = var("c", {1, 512});
-    auto h  = var("h", {1, 256});
-    auto w  = var("w", {1, 256});
+    auto c         = var("c", {1, 512});
+    auto h         = var("h", {1, 256});
+    auto w         = var("w", {1, 256});
     auto s0        = c * h * w;
     auto s1        = h * w;
     const auto& s2 = w;
@@ -1304,8 +1321,8 @@ TEST_CASE(cmp_repeated_pooling)
 
 TEST_CASE(cmp_strides_after_conv)
 {
-    auto h     = var("h", {7, 128});
-    auto w     = var("w", {2, 128});
+    auto h         = var("h", {7, 128});
+    auto w         = var("w", {2, 128});
     auto new_h     = (h - 3) / 2 + 1;
     auto s0        = new_h * w;
     const auto& s1 = w;
@@ -1384,9 +1401,9 @@ TEST_CASE(cmp_symmetry_lt_gt)
 
 TEST_CASE(cmp_transitivity_strides)
 {
-    auto c  = var("c", {2, 512});
-    auto h  = var("h", {2, 256});
-    auto w  = var("w", {2, 256});
+    auto c         = var("c", {2, 512});
+    auto h         = var("h", {2, 256});
+    auto w         = var("w", {2, 256});
     auto s0        = c * h * w;
     auto s1        = h * w;
     const auto& s2 = w;

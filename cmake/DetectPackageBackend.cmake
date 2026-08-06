@@ -28,14 +28,15 @@
 #   "therock"  - TheRock environment (amdrocm-xxx deb/rpm packages)
 #   "default"  - Traditional ROCm with deb/rpm packages
 #
-# Preferred usage (explicit):
-#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x ..
+# Preferred usage:
+#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DGPU_TARGETS="gfx942;gfx950" ..
+#
+# MIGRAPHX_THEROCK_GPU_ARCH is an optional package-architecture override. It is
+# primarily for TheRock (<=7.14) repositories whose package suffix is a GPU family
+# (for example gfx94x) rather than the raw GPU_TARGETS value (gfx942).
 #
 # If MIGRAPHX_PACKAGE_BACKEND is not set, falls back to auto-detection via
 # dpkg/rpm to check for installed amdrocm-runtime packages.
-#
-# When MIGRAPHX_PACKAGE_BACKEND=therock, MIGRAPHX_THEROCK_GPU_ARCH must be set
-# to the target GPU architecture family that follows TheRock packaging requirements.
 
 function(_detect_therock_via_package_manager)
     set(_found FALSE)
@@ -77,7 +78,9 @@ function(detect_package_backend)
         if(_MIGRAPHX_THEROCK_DETECTED)
             set(_default_backend "therock")
             message(STATUS "MIGraphX package backend auto-detected: therock (amdrocm-runtime found)")
-            message(STATUS "  Hint: prefer explicit -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=<arch>")
+            message(STATUS
+                "  Hint: prefer explicit -DMIGRAPHX_PACKAGE_BACKEND=therock "
+                "-DGPU_TARGETS=<arch>[;<arch>...]")
         else()
             set(_default_backend "default")
         endif()
@@ -96,15 +99,30 @@ function(detect_package_backend)
 
     if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
         if(DEFINED ENV{GPU_ARCH_FOR_THEROCK})
-            # Env name drops MIGRAPHX_ prefix to avoid the "unused MIGRAPHX_* env" warning.
+            # TheRock <=7.14 package-architecture override.
             set(_default_gpu_arch "$ENV{GPU_ARCH_FOR_THEROCK}")
+        elseif(GPU_TARGETS)
+            set(_default_gpu_arch "")
+            foreach(_gpu_target IN LISTS GPU_TARGETS)
+                string(REGEX REPLACE ":.*$" "" _gpu_arch "${_gpu_target}")
+                list(APPEND _default_gpu_arch "${_gpu_arch}")
+            endforeach()
+            list(REMOVE_DUPLICATES _default_gpu_arch)
         else()
             set(_default_gpu_arch "")
         endif()
         set(MIGRAPHX_THEROCK_GPU_ARCH "${_default_gpu_arch}" CACHE STRING
-            "TheRock GPU architecture family suffix (e.g. gfx120x ..)")
+            "Optional TheRock package architecture override. Defaults to GPU_TARGETS; use a legacy package family such as gfx94x when required.")
 
-        message(STATUS "MIGraphX package backend: therock (GPU arch: ${MIGRAPHX_THEROCK_GPU_ARCH})")
+        if(MIGRAPHX_THEROCK_GPU_ARCH)
+            message(STATUS
+                "MIGraphX package backend: therock "
+                "(package arches: ${MIGRAPHX_THEROCK_GPU_ARCH})")
+        else()
+            message(STATUS
+                "MIGraphX package backend: therock "
+                "(no package arches; using all-device meta packages)")
+        endif()
     else()
         message(STATUS "MIGraphX package backend: default (traditional ROCm)")
     endif()

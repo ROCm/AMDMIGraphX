@@ -106,7 +106,8 @@ verify::tolerance get_tolerances(const program& p,
 
 namespace {
 
-using trace_function = std::function<void(instruction_ref, const argument&)>;
+using trace_function      = std::function<void(instruction_ref, const argument&)>;
+using substitute_function = std::function<optional<argument>(instruction_ref, const argument&)>;
 
 // Captures ref outputs by debug symbol and compares each target op at its terminal symbol.
 struct verify_callback
@@ -144,8 +145,7 @@ struct verify_callback
         };
     }
 
-    // A fused op carries every symbol it absorbed; the one traced last in the reference is the
-    // output it actually produces. Returns end() when none were traced.
+    // A fused op carries every symbol it absorbed; the last one traced is the output it produces.
     ref_map::const_iterator terminal(instruction_ref ins) const
     {
         auto result = ref_outputs.end();
@@ -160,32 +160,35 @@ struct verify_callback
         return result;
     }
 
-    trace_function compare()
+    // Scores the op, then feeds the reference forward so later ops run on known-good inputs and
+    // each error is the op's own.
+    substitute_function compare()
     {
-        return [this](instruction_ref ins, const argument& output) {
-            // Weights and other constants carry the node's symbol but are not its output.
+        return [this](instruction_ref ins, const argument& output) -> optional<argument> {
+            // Constants carry the node's symbol but are not its output.
             if(ins->can_eval())
-                return;
+                return nullopt;
             auto it = terminal(ins);
             if(it == ref_outputs.end())
-                return;
+                return nullopt;
             const auto& ref = it->second;
-            // Skip shape-changing views so they can't overwrite the real producer.
+            // Reshapes and slices inherit the symbol; only the op whose lens match produced it.
             if(not shape::same_lens(ref.output.get_shape(), output.get_shape()))
-                return;
-            // Match to the reference type (differs with --ref-use-double) before comparing.
-            auto target_arg = output.get_shape().type() == ref.output.get_shape().type()
-                                  ? output
-                                  : output.convert(ref.output.get_shape().type());
-            double rms      = 0;
-            bool passed     = false;
-            visit_all(target_arg, ref.output)([&](auto t, auto r) {
+                return nullopt;
+            // The reference can differ in type (--ref-use-double) and layout, so restate it in the
+            // target's shape; fill copies in logical order and converts.
+            argument ref_arg{output.get_shape()};
+            ref.output.visit([&](auto s) { ref_arg.fill(s.begin(), s.end()); });
+            double rms  = 0;
+            bool passed = false;
+            visit_all(output, ref_arg)([&](auto t, auto r) {
                 passed = verify::verify_range_with_tolerance(t, verify::expected{r}, tols, &rms);
             });
-            // NaN never compares greater, so map it to infinity to rank it as the worst layer.
+            // NaN never compares greater, so rank it worst.
             if(std::isnan(rms))
                 rms = std::numeric_limits<double>::infinity();
             results[it->first] = {it->first, ins->name(), ref.order, rms, passed};
+            return ref_arg;
         };
     }
 
@@ -205,8 +208,8 @@ struct verify_callback
         return result;
     }
 
-    // The failing layer with the largest error, earliest on ties.
-    optional<layer_result> largest_divergence() const
+    // The failing layer with the largest error of its own.
+    optional<layer_result> divergence_source() const
     {
         auto failed = failures();
         if(failed.empty())
@@ -243,7 +246,7 @@ static std::vector<argument> run_target(program p,
                                         const compile_options& options,
                                         const verify_options& vo,
                                         const parameter_map& inputs,
-                                        trace_function trace = nullptr)
+                                        substitute_function substitute = nullptr)
 {
     if(vo.compiled_model.empty())
     {
@@ -269,8 +272,8 @@ static std::vector<argument> run_target(program p,
         m[x.first] = options.offload_copy ? arg : t.copy_to(arg);
     }
     execution_environment exec_env{};
-    exec_env.trace = std::move(trace);
-    auto gpu_out   = p.eval(m, exec_env);
+    exec_env.substitute = std::move(substitute);
+    auto gpu_out        = p.eval(m, exec_env);
     std::vector<argument> output(gpu_out.size());
     log::info() << p;
     std::transform(gpu_out.begin(), gpu_out.end(), output.begin(), [&](auto& argu) {
@@ -297,6 +300,7 @@ static optional<verify_callback> run_layerwise_compare(const program& p,
     vcb.tols = tols;
     run_ref(p, options, vo, inputs, vcb.capture());
     run_target(p, t, options, vo, inputs, vcb.compare());
+    log::info() << "Layers compared: " << vcb.results.size();
     return vcb;
 }
 
@@ -495,16 +499,16 @@ void verify_bisected_program(const program& p,
                              const parameter_map& inputs,
                              verify::tolerance tols)
 {
-    // Reports the worst layer by symbol, unlike the bisect loop below which reports the first
+    // Reports the source layer by symbol, unlike the bisect loop below which reports the first
     // failing trim count.
     if(vo.no_rebuild)
     {
         auto vcb = run_layerwise_compare(p, t, options, vo, inputs, tols);
         if(not vcb)
             return;
-        auto failure = vcb->largest_divergence();
+        auto failure = vcb->divergence_source();
         if(failure)
-            std::cout << "Largest divergence at: " << failure->symbol << " (" << failure->op << ")"
+            std::cout << "Failure introduced at: " << failure->symbol << " (" << failure->op << ")"
                       << std::endl;
         else
             log::info() << "MIGraphX verification passed successfully.";

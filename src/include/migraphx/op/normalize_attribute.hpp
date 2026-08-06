@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,6 +52,10 @@ namespace op {
  *  Include or exclude the maximum value/index for range checking and clipping.
  * 7. `normalize_padding`:
  *  To normalize the padding to `2*(pad ndim)` dimensions.
+ * 8. `use_sym` vs. `no_sym` (default):
+ *  Whether the attribute can hold a symbolic value, which requires it to be a `dim_like`.
+ *  Such an attribute is normalized symbolically when either the attribute or the axis it is
+ *  normalized against is symbolic. Only meaningful together with `use_len`.
  */
 enum class normalize_attribute
 {
@@ -61,7 +65,8 @@ enum class normalize_attribute
     clip_min,
     include_max,
     include_min,
-    normalize_padding
+    normalize_padding,
+    use_sym
 };
 
 } // namespace op

@@ -58,7 +58,8 @@ namespace op {
  * ends: constant slice ending indices (optional)
  *
  * Parameters:
- * data: the input tensor to slice (dynamic or static shape)
+ * data: the input tensor to slice (static or range-based dynamic shape; a symbolic shape is
+ * rejected because the output extent cannot be expressed with integer bounds, use dyn_slice)
  * input_starts: starting indices of slice (optional, static shape)
  * input_ends: ending indices of slice (optional, static shape)
  * input_axes: axes to slice over (optional, static shape)
@@ -263,6 +264,8 @@ struct slice
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
+        if(inputs.front().symbolic())
+            MIGRAPHX_THROW("SLICE: symbolic input shapes are not supported, use dyn_slice");
         if(inputs.size() != 1)
             return compute_two_or_more(inputs);
 
@@ -271,17 +274,10 @@ struct slice
         if(set_attributes != all_set)
             MIGRAPHX_THROW("SLICE 1_arg: Invalid 1 input and attributes configuration");
 
-        // TODO: support slicing non-fixed symbolic dims (output dim would be
-        // a sym::expr derived from starts/ends and the symbolic axis bound).
         if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
                return not input_shape.dyn_dims()[axis].is_fixed();
            }))
         {
-            if(input_shape.symbolic())
-            {
-                MIGRAPHX_THROW(
-                    "SLICE 1_arg: slicing is not allowed on non-fixed symbolic input axis ");
-            }
             // Attributes are not normalized for this case, so they can be negative or
             // out-of-bounds. Using a relaxed dimension bound for now instead of calculating the
             // tightest possible bound.
@@ -301,13 +297,8 @@ struct slice
         auto dds = input_shape.dyn_dims();
         for(auto axis : this->axes)
         {
-            dds[axis] = input_shape.symbolic()
-                            ? shape::dynamic_dimension{sym::lit(new_lens[axis])}
-                            : shape::dynamic_dimension{new_lens[axis], new_lens[axis]};
+            dds[axis] = {new_lens[axis], new_lens[axis]};
         }
-
-        if(input_shape.symbolic())
-            return shape{input_shape.type(), dds, input_shape.dyn_strides()};
         return shape{input_shape.type(), dds};
     }
 

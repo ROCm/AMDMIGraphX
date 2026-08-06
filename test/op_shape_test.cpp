@@ -1408,6 +1408,244 @@ TEST_CASE(dot_sym_k_vs_range)
     expect_shape(expected, migraphx::make_op("dot"), s_a, s_b);
 }
 
+TEST_CASE(dyn_slice_static)
+{
+    // Concrete bounds over a static input stay static: a slice is just a view.
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    // dyn_slice takes its bounds as inputs, with one element per sliced axis.
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}),
+                 input,
+                 bounds,
+                 bounds);
+}
+
+TEST_CASE(dyn_slice_static_clamped_bounds)
+{
+    // Out of range bounds are clipped and negative bounds resolved against the axis length.
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {-2}}, {"ends", {10}}}),
+                 input,
+                 bounds,
+                 bounds);
+}
+
+TEST_CASE(dyn_slice_negative_axis)
+{
+    // A negative axis attribute is normalized against the input rank.
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("dyn_slice", {{"axes", {-1}}, {"starts", {1}}, {"ends", {3}}}),
+                 input,
+                 bounds,
+                 bounds);
+}
+
+TEST_CASE(dyn_slice_symbolic_end_static_input)
+{
+    // Static input + symbolic end bound: the output is symbolic, so it is not demoted to static.
+    auto n  = var("n", {1, 16});
+    auto op = migraphx::make_op("dyn_slice",
+                                {{"axes", {0}},
+                                 {"starts", {0}},
+                                 {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+
+    // end=n is clamped to the axis length 10: dim = min(n, 10).
+    migraphx::shape sin{migraphx::shape::float_type, {10}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{migraphx::sym::min(n, lit(10))}}, {lit(1)}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    expect_shape(sout, op, sin, bounds, bounds);
+    EXPECT(sout.symbolic());
+    EXPECT(not sout.is_fixed());
+    EXPECT(sout.to_static({{n, 7}}) == migraphx::shape{migraphx::shape::float_type, {7}, {1}});
+    EXPECT(sout.to_static({{n, 10}}) == migraphx::shape{migraphx::shape::float_type, {10}, {1}});
+}
+
+TEST_CASE(dyn_slice_symbolic_bounds)
+{
+    // The sliced extent (ends - starts) must be non-negative across the whole variable
+    // range, so each var range is chosen to keep end >= start.
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    {
+        // Symbolic end clamped to the axis length 12: dim = min(n, 12) - 2.
+        auto m  = var("m", {1, 16});
+        auto n  = var("n", {2, 16});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {1}},
+                                     {"starts", {2}},
+                                     {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{m}, dd{lit(12)}}};
+        migraphx::shape sout{migraphx::shape::float_type,
+                             {dd{m}, dd{migraphx::sym::min(n, lit(12)) - lit(2)}},
+                             sin.dyn_strides()};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.symbolic());
+        EXPECT(not sout.is_fixed());
+        EXPECT(sout.to_static({{m, 4}, {n, 9}}) ==
+               migraphx::shape{migraphx::shape::float_type, {4, 7}, {12, 1}});
+    }
+    {
+        // Symbolic end provably >= the axis length collapses to the length: extent is concrete.
+        auto n  = var("n", {13, 20});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}},
+                                     {"starts", {2}},
+                                     {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(12)}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{lit(10)}, dd{lit(4)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin, bounds, bounds);
+    }
+    {
+        // Symbolic start: dim = 8 - n (n <= 8 keeps the extent non-negative).
+        auto n  = var("n", {1, 8});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}},
+                                     {"starts", migraphx::value::array{migraphx::to_value(dd{n})}},
+                                     {"ends", {8}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(10)}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{lit(8) - n}, dd{lit(4)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.symbolic());
+    }
+}
+
+TEST_CASE(dyn_slice_sym_data_fixed_axis)
+{
+    // Symbolic input sliced on a fixed axis: the symbol on the other axis is untouched and the
+    // result matches slicing the equivalent static shape.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 5}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(2)}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin, bounds, bounds);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map), bounds, bounds}));
+}
+
+TEST_CASE(dyn_slice_sym_data_symbolic_axis)
+{
+    // Slicing the non-fixed symbolic axis: the concrete end is clamped against the axis symbol
+    // rather than a compile-time length, so the extent stays symbolic.
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}});
+
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{migraphx::sym::min(lit(2), n)}, dd{m}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin, bounds, bounds);
+    EXPECT(sout.to_static({{n, 5}, {m, 3}}) ==
+           migraphx::shape{migraphx::shape::float_type, {2, 3}, {3, 1}});
+    EXPECT(sout.to_static({{n, 1}, {m, 3}}) ==
+           migraphx::shape{migraphx::shape::float_type, {1, 3}, {3, 1}});
+}
+
+TEST_CASE(dyn_slice_sym_multiple_axes)
+{
+    // Slice two axes at once; the symbol at the untouched axis survives.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
+    auto op =
+        migraphx::make_op("dyn_slice", {{"axes", {0, 2}}, {"starts", {1, 2}}, {"ends", {4, 5}}});
+
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(6)}, dd{n}, dd{lit(8)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(3)}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin, bounds, bounds);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map), bounds, bounds}));
+}
+
+TEST_CASE(dyn_slice_sym_nonstandard_layout)
+{
+    // Non-standard symbolic input: the slice must preserve the permutation.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+
+    auto sin = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(7)}}, {0, 2, 3, 1});
+    auto op   = migraphx::make_op("dyn_slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {6}}});
+    auto sout = op.compute_shape({sin, bounds, bounds});
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map), bounds, bounds}));
+}
+
+TEST_CASE(dyn_slice_wrong_number_of_inputs_error)
+{
+    // The bounds are the only inputs: the axes are an attribute, not a fourth input.
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+    throws_shape(op, input, bounds);
+    throws_shape(op, input, bounds, bounds, bounds);
+}
+
+TEST_CASE(dyn_slice_bounds_input_rank_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds_2d{migraphx::shape::int64_type, {1, 1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+    throws_shape(op, input, bounds_2d, bounds_2d);
+}
+
+TEST_CASE(dyn_slice_dynamic_bounds_input_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape dyn_bounds{migraphx::shape::int64_type, {dd{1, 4}}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+    throws_shape(op, input, dyn_bounds, dyn_bounds);
+}
+
+TEST_CASE(dyn_slice_bounds_input_length_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    // One axis is sliced, so a two element bounds input does not match.
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+    throws_shape(op, input, bounds, bounds);
+}
+
+TEST_CASE(dyn_slice_attribute_length_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {0, 1}}, {"ends", {2, 3}}});
+    throws_shape(op, input, bounds, bounds);
+}
+
+TEST_CASE(dyn_slice_missing_attribute_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    throws_shape(
+        migraphx::make_op("dyn_slice", {{"starts", {1}}, {"ends", {3}}}), input, bounds, bounds);
+}
+
+TEST_CASE(dyn_slice_range_dynamic_data_error)
+{
+    // A range-based dynamic dimension has no expression to build a symbolic extent from.
+    migraphx::shape input{migraphx::shape::float_type, {{2, 4}, {3, 3}}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    throws_shape(migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}),
+                 input,
+                 bounds,
+                 bounds);
+}
+
 TEST_CASE(broadcast_for_dot_static)
 {
     migraphx::shape s0{migraphx::shape::float_type, {481, 356}};
@@ -5585,96 +5823,39 @@ TEST_CASE(slice_dyn_nonfixed_keeps_other_optimals)
                  input);
 }
 
-TEST_CASE(slice_sym)
+TEST_CASE(slice_sym_throws)
 {
-    auto n                                      = var("n", {1, 8});
-    auto m                                      = var("m", {1, 16});
-    auto k                                      = var("k", {1, 64});
-    std::unordered_map<se, std::size_t> sym_map = {{n, 3}, {m, 5}, {k, 7}};
+    // slice has no way to express a symbolic output extent, so a symbolic input is rejected
+    // whatever the sliced axis looks like. dyn_slice handles these instead.
+    auto n        = var("n", {1, 8});
+    auto k        = var("k", {3, 3});
+    auto op_axis0 = migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}});
+    auto op_axis1 = migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}});
 
-    auto expect_matches_static = [&](const migraphx::operation& op,
-                                     const migraphx::shape& sin,
-                                     const migraphx::shape& sym_out) {
-        EXPECT(sym_out.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
-    };
-
-    {
-        // Slice axis 0 (first); sym at axis 1.
-        auto op = migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}});
-        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(5)}, dd{n}, dd{lit(4)}}};
-        migraphx::shape sout{
-            migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}, sin.dyn_strides()};
-        expect_shape(sout, op, sin);
-        expect_matches_static(op, sin, sout);
-    }
-    {
-        // Slice axis 1 (middle); syms at axes 0 and 2.
-        auto op = migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {6}}});
-        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{lit(8)}, dd{m}}};
-        migraphx::shape sout{
-            migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{m}}, sin.dyn_strides()};
-        expect_shape(sout, op, sin);
-        expect_matches_static(op, sin, sout);
-    }
-    {
-        // Slice axis 3 (last) on a 4D shape; syms at axes 0, 1, 2.
-        auto op = migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {3}}});
-        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}, dd{lit(10)}}};
-        migraphx::shape sout{
-            migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}, dd{lit(3)}}, sin.dyn_strides()};
-        expect_shape(sout, op, sin);
-        expect_matches_static(op, sin, sout);
-    }
-}
-
-TEST_CASE(slice_sym_multiple_axes)
-{
-    // Slice axes 0 and 2 at once; sym at axis 1 is untouched.
-    auto n                                      = var("n", {1, 8});
-    std::unordered_map<se, std::size_t> sym_map = {{n, 4}};
-
-    auto op = migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {1, 2}}, {"ends", {4, 5}}});
-    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(6)}, dd{n}, dd{lit(8)}}};
-    migraphx::shape sout{
-        migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(3)}}, sin.dyn_strides()};
-    expect_shape(sout, op, sin);
-    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
-}
-
-TEST_CASE(slice_sym_fixed_bound_var)
-{
-    // var("k", {3, 3}) is fixed (collapsed bound), so slicing the axis is allowed.
-    auto k                                      = var("k", {3, 3});
-    auto n                                      = var("n", {1, 8});
-    std::unordered_map<se, std::size_t> sym_map = {{n, 5}};
-
-    auto op = migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}});
-    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{k}, dd{lit(4)}}};
-    migraphx::shape sout{
-        migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(4)}}, sin.dyn_strides()};
-    expect_shape(sout, op, sin);
-    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
-}
-
-TEST_CASE(slice_sym_non_fixed_throws)
-{
-    // Slicing on a non-fixed symbolic axis is rejected (same contract as range).
-    auto n = var("n", {1, 8});
-    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(4)}, dd{n}, dd{lit(8)}}};
-    throws_shape(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), sin);
-}
-
-TEST_CASE(slice_sym_nonstandard_layout)
-{
-    // Non-standard symbolic input: the slice must preserve the permutation
-    auto n                                      = var("n", {1, 8});
-    std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
-
-    auto sin = migraphx::shape::from_permutation(
-        migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(7)}}, {0, 2, 3, 1});
-    auto op   = migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {6}}});
-    auto sout = op.compute_shape({sin});
-    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+    // Fixed sliced axis, symbol on another axis.
+    throws_shape(op_axis0,
+                 migraphx::shape{migraphx::shape::float_type, {dd{lit(5)}, dd{n}, dd{lit(4)}}});
+    // Non-fixed symbolic sliced axis.
+    throws_shape(op_axis1,
+                 migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{n}, dd{lit(8)}}});
+    // A collapsed-bound symbol is fixed, but the shape is still symbolic.
+    throws_shape(op_axis1,
+                 migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{k}, dd{lit(4)}}});
+    // Multiple sliced axes.
+    throws_shape(
+        migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {1, 2}}, {"ends", {4, 5}}}),
+        migraphx::shape{migraphx::shape::float_type, {dd{lit(6)}, dd{n}, dd{lit(8)}}});
+    // Non-standard layout.
+    throws_shape(migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {6}}}),
+                 migraphx::shape::from_permutation(migraphx::shape::float_type,
+                                                   {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(7)}},
+                                                   {0, 2, 3, 1}));
+    // Variable bounds over symbolic data, which used to degrade to a range.
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    throws_shape(migraphx::make_op("slice", {{"axes", {0}}}),
+                 migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}},
+                 bounds,
+                 bounds);
 }
 
 TEST_CASE(test_scan_slice1)

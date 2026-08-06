@@ -665,7 +665,19 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             if(plan.algo == "block")
             {
                 if(tile.has_value() and plan.assign == "assign_none")
-                    tc.solutions.push_back({{"algo", "block_tile"}});
+                {
+                    // For the cache-bound tiled reduction a smaller workgroup
+                    // that leaves about 4 elements per lane pipelines enough
+                    // loads to often beat the default block size, so offer
+                    // both and let benchmarking decide
+                    std::size_t max_block = tile->size == 2 ? 512 : 256;
+                    add_block_size_solutions(
+                        tc,
+                        "block_tile",
+                        compute_block_size(
+                            ctx, std::max<std::size_t>(plan.relements / 4, 1), max_block),
+                        compute_block_size(ctx, plan.relements, max_block));
+                }
                 add_block_size_solutions(tc,
                                          "block",
                                          compute_block_size(ctx, plan.relements, 256),

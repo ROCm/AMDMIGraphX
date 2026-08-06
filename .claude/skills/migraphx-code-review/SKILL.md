@@ -1,6 +1,6 @@
 ---
-description: "Code review the changed MIGraphX code for correctness bugs, language-specific pitfalls, C/C++ API-ABI breakage, missing test coverage, and convention violations, with a verify pass that drops false positives. The quality checklist is delegated to /migraphx-simplify rather than repeated. Effort levels low through max; --comment posts inline PR comments, --fix applies every class of finding including the quality cleanups. A bare --fix or --comment after a review already ran this session applies or posts that review's findings instead of reviewing again. --select opens a checkbox picker so only the chosen findings are fixed or posted."
-allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git blame:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git branch:*), Bash(git fetch:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh api:*), Bash(grep:*), Bash(find:*), Read, Grep, Glob, Edit, Agent, Skill, ReportFindings, AskUserQuestion, mcp__github_inline_comment__create_inline_comment, mcp__review-picker__select_findings
+description: "Code review the changed MIGraphX code for correctness bugs, language-specific pitfalls, C/C++ API-ABI breakage, missing test coverage, and convention violations, with a verify pass that drops false positives. The quality checklist is delegated to /migraphx-simplify rather than repeated. Effort levels low through max; --comment posts inline PR comments, --fix applies every class of finding, including the quality findings that clear Angle G's bar. A bare --fix or --comment after a review already ran this session applies or posts that review's findings instead of reviewing again. --select opens a checkbox picker so only the chosen findings are fixed or posted."
+allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git blame:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git branch:*), Bash(git fetch:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh api:*), Bash(grep:*), Bash(find:*), Read, Grep, Glob, Edit, Write, Agent, Skill, ReportFindings, AskUserQuestion, mcp__github_inline_comment__create_inline_comment, mcp__review-picker__select_findings
 ---
 
 # migraphx-code-review
@@ -32,25 +32,31 @@ from memory: quote it from the file you read.
 
 Open with the stance for the level:
 
+- **low** — You are doing a **fast sanity pass**, not a review: surface only
+  bugs that are obvious from the hunk itself, and say plainly that this was a
+  shallow pass so nobody mistakes a clean result for a clean diff.
 - **medium** — You are reviewing for **precision**: every finding you surface
   should be one a maintainer would act on.
 - **high** — You are reviewing for **recall**: catch every real bug a careful
   reviewer would catch in one sitting. Catching real bugs matters more than
   avoiding false positives. Err on the side of surfacing.
 - **xhigh / max** — You are reviewing for **recall** at extra-high (or maximum)
-  effort: catch every real bug.  At this level, catching real bugs matters more
-  than avoiding false positives — A missed bug ships. Err on the side of
-  surfacing.
+  effort: catch every real bug. Catching real bugs matters more than avoiding
+  false positives, because a missed bug ships. Err on the side of surfacing.
 
 ## Reusing a completed review
 
 If a review from this skill already completed earlier in this session and the
-invocation adds nothing but `--fix`, `--comment`, and/or `--select`, do **not**
-review again.
-Act on the findings that review already reported: skip every phase below and go
-straight to *Applying fixes* and *Posting to GitHub* with the existing findings
-list. Say in one line that you are applying the findings from the earlier review
-rather than running a new one.
+invocation adds nothing but `--fix` and/or `--comment` — optionally with
+`--select` — do **not** review again. Act on the findings that review already
+reported: skip Phases 0–3 and *Output*, and go straight to *Choosing which
+findings to act on* (when `--select` was passed), then *Applying fixes* and
+*Posting to GitHub*, with the existing findings list. Say in one line that you
+are applying the findings from the earlier review rather than running a new one.
+
+`--select` on its own is not a reuse trigger, because it acts on nothing by
+itself. Treat it the same as no flag at all: run a fresh review, then say the
+flag had nothing to act on.
 
 Run a fresh review instead when any of these holds:
 
@@ -59,15 +65,18 @@ Run a fresh review instead when any of these holds:
   new review, even alongside `--fix`;
 - the diff moved since that review ran, so its findings may no longer point at
   the current lines. Check with one `git status --short` (plus `git diff --stat`
-  when a hunk-level check is needed) against the file list Phase 0 gathered. Your
-  own `--fix` edits from an earlier invocation do not count as movement; changes
-  the user made do. When it moved, review again and say why.
+  when a hunk-level check is needed) against the file list the earlier review
+  worked from — Phase 0's list, or, after a `low` review, the files its diff
+  touched. Your own `--fix` edits from an earlier invocation do not count as
+  movement; changes the user made do. When it moved, review again and say why.
 
 ---
 
 ## `low` effort — one diff pass, no verify, ≤4 findings
 
-Run only the two turns below; skip every phase that follows.
+Run only the two turns below: skip Phases 0–3 and the *Output* section. The flag
+sections still apply — `--fix`, `--comment`, and `--select` behave exactly as
+they do at any other level, acting on the findings Turn 2 produced.
 
 ### Turn 1 — read
 
@@ -94,9 +103,10 @@ hunk. Test coverage is deliberately not reviewed at this level — it starts at
 
 Report at most **4 findings**, most-severe first, in one `ReportFindings` call
 with `{level, findings}` — each entry has `file`, `line`, `summary`,
-`short_summary` (≤60 characters), and `failure_scenario`. If nothing qualifies,
-call it with an empty findings array. Do not also print the findings as text.
-If `ReportFindings` is unavailable, print one line per finding as
+`short_summary` (≤60 characters), `failure_scenario`, and `category` (at this
+level that is `correctness` or `quality`, since nothing else is in scope). If
+nothing qualifies, call it with an empty findings array. Do not also print the
+findings as text. If `ReportFindings` is unavailable, print one line per finding as
 `path/to/file.cpp:123 — what's wrong and the concrete failure`, or exactly
 `(none)`.
 
@@ -126,7 +136,8 @@ Then classify the changed files — the conditional angles below are gated on th
   6. MLIR-facing C++ — `src/targets/gpu/mlir.cpp`,
      `src/targets/gpu/fuse_mlir.cpp`
   7. ONNX / TF parsers — `src/onnx/**`, `src/tf/**`
-  8. C++ host — everything else under `src/**` and `test/**`
+  8. C++ host — every remaining `.cpp`/`.hpp`, wherever it lives (`src/**`,
+     `test/**`, and the API generator inputs under `tools/api/**`)
 - **C/C++ API surface**: the generator inputs `tools/api/migraphx.h`,
   `tools/api/api.cpp` and `src/api/migraphx.py`; the hand-written
   `src/api/include/migraphx/migraphx.hpp`; and the generated
@@ -146,10 +157,12 @@ one angle it owns. Each angle surfaces up to the level's candidate cap — 6 at
 `medium` and `high`, 8 at `xhigh` and `max`. Each candidate has `file`, `line`,
 a one-line `summary`, and a concrete `failure_scenario`.
 
-**Core angles** (A, B, C, Languages, Quality, Conventions, Tests, Precedent)
-always run.
-**Conditional angles** (API/ABI, IR contracts) run when Phase 0 says their
-surface was touched; at `xhigh` and `max` run the IR-contract angle regardless.
+**Core angles always run**: A (diff scan), B (removed behavior), C (cross-file),
+D (language pitfalls — one agent per language present), G (quality), H
+(conventions), I (test coverage), J (review precedent).
+**Conditional angles** run when Phase 0 says their surface was touched: E
+(C/C++ API and ABI) and F (IR and extension contracts). At `xhigh` and `max`,
+run F regardless.
 
 Pass every candidate with a nameable failure scenario through — finders that
 silently drop half-believed candidates bypass the verify step and are the
@@ -213,8 +226,10 @@ context. Each hunts the pitfalls its language actually has:
   swallowed, subprocess quoting and shell injection, iteration over a mutating
   container, float formatting assumptions; in `src/py/` also pybind11 issues —
   reference lifetime versus the underlying C++ object, GIL handling around
-  long-running calls, buffer-protocol shapes and strides, and a new C++ API with
-  no binding.
+  long-running calls, and buffer-protocol shapes and strides. (A new public C++
+  API with no binding at all belongs to Angle E when Phase 0 says the API
+  surface was touched; when Angle E is not running, report it here so it is not
+  missed.)
 - **Bash** — unquoted expansions and word splitting, `[` versus `[[`, unguarded
   `cd`, glob expansion on empty matches, a failure silently swallowed by a
   pipeline where the rest of the script checks its exit codes, plus the
@@ -276,14 +291,15 @@ Check that surface for compatibility and durability:
     and `migraphx_onnx_options_t` have a `_create` plus one `_set_*` per option —
     which absorbs a new option without touching the entry point that consumes it.
 - Check that the C++ header's inline wrappers stay in step with the C entry
-  points they wrap, and that additions are reflected in the Python bindings and
-  covered under `test/api`.
+  points they wrap, and that additions are reflected in the Python bindings.
+  Missing `test/api` or `test/py` coverage is Angle I's finding, not this
+  angle's — report the surface mismatch here and leave the coverage gap there.
 
 ### Angle F — IR and extension-contract auditor *(when the IR surface changed, and always at xhigh/max)*
 
-Read the relevant "Extension Patterns" section of `AGENTS.md` — *Adding an
-Operation*, *Adding an Optimization Pass*, *Adding a Backend Target*, and the
-type-erasure notes — and check the diff against the contracts stated there,
+Read the relevant part of `AGENTS.md` § *Extension Patterns* — *Adding an
+Operation*, *Adding an Optimization Pass*, *Adding a Backend Target* — plus
+§ *Type Erasure System*, and check the diff against the contracts stated there,
 quoting the rule you are checking. (The type-erasure templates are
 `tools/include/*.hpp`; `make generate` runs `tools/te.py` over them and writes
 `src/include/migraphx/<name>.hpp`.) Report each violation as a finding: an
@@ -313,8 +329,10 @@ operator-only change, which invalidates every saved `.mxr` for nothing.
 Read `.claude/skills/migraphx-simplify/SKILL.md` and run **its Phase 1 review
 angles** — reuse, simplification, efficiency, altitude, safety, comments — over
 this diff. Use that skill's checklists as written; do not restate them here and
-do not re-derive your own version. These findings are reported like any other,
-and `--fix` applies them along with the rest.
+do not re-derive your own version. What that pass produces is the raw material
+for this angle, not its output: keep a quality finding only if it clears the bar
+set below, and report the ones that do like any other finding, with `--fix`
+applying them along with the rest.
 
 Then expand past it. That skill is tuned to local cleanups; this review wants
 the larger defect those cleanups hint at. For each thing you would have flagged
@@ -333,8 +351,11 @@ it is real:
 - a change that treats a symptom while the root cause stays.
 
 Drop pure nits: if `/migraphx-simplify` would fix it in one edit and nothing
-larger follows from it, it is not worth a finding here. Tag every finding from
-this angle with `category: quality` so they can be ranked and applied as a group.
+larger follows from it, it is not worth a finding here. That deliberately
+narrows the output to the findings that carry weight — this review is not a
+substitute for running `/migraphx-simplify`, which still catches the local
+cleanups it drops. Tag every finding from this angle with `category: quality` so
+they can be ranked and applied as a group.
 
 ### Angle H — conventions
 
@@ -342,13 +363,19 @@ Read the convention sources that govern the changed code and check the diff
 against them:
 
 1. `AGENTS.md` at the repo root — the tracked, canonical version.
-2. `CLAUDE.md` at the repo root, and the user-level `~/.claude/CLAUDE.md`.
+2. `CLAUDE.md` at the repo root, and the user-level `~/.claude/CLAUDE.md` if it
+   exists.
 3. Any `AGENTS.md`, `CLAUDE.md`, or `CLAUDE.local.md` in a directory that is an
    ancestor of a changed file (a directory's file applies only at or below it).
 
 Only flag a violation when you can quote the exact rule and the exact line that
 breaks it — no style preferences, no "spirit of the doc" inferences. Name the
 file the rule came from and quote it so the report can cite it.
+
+The test rules written in `AGENTS.md` are yours, not Angle I's or Angle J's: the
+expected-module form for pass tests, one verify class per `.cpp`, and the
+numerical-verification guidance. Angle I reports that a test is *missing*; you
+report a test that exists but breaks one of those written rules, quoting it.
 
 **When no documented rule covers the situation**, do not invent one and do not
 stay silent. Grep two or three of the closest comparable files — another
@@ -361,8 +388,10 @@ than taste. Incidental differences are not findings.
 Convention candidates use the same `file`/`line`/`summary` shape; in
 `failure_scenario`, state the concrete cost — which rule is broken, or which
 established pattern the code now contradicts — instead of a crash. Correctness,
-API/ABI, and IR-contract findings always outrank quality, test-coverage, and
-convention findings when the output cap forces a cut.
+API/ABI, and IR-contract findings outrank quality, test-coverage, and convention
+findings when the output cap forces a cut. The one exception is set by Angle I:
+a missing regression test for a bug this diff fixes ranks with the correctness
+findings, not below them.
 
 ### Angle I — test coverage
 
@@ -380,17 +409,20 @@ Flag:
 - changed kernel or GPU numerics with no `test/verify` case;
 - a new C API entry point with no `test/api` coverage, and a new Python binding
   with no `test/py` coverage;
-- a test that was added but does not actually exercise the change — it would
-  pass with the change reverted, or it asserts nothing about the new behavior;
 - edge cases the change newly makes reachable that the added tests skip, from
   the list in `AGENTS.md` § *Test Best Practices* (zero-length dimensions,
   dynamic shapes at extreme min/max, mixed type promotion, broadcasting
   asymmetries, reduction axis ordering);
 - a deleted or disabled test — updating one is fine when the IR legitimately
-  changed, but never deleting or disabling one to make a change pass;
-- an added test that ignores the repo's test conventions where that will cause
-  real friction — for example a verify test sharing a file with another verify
-  class.
+  changed, but never deleting or disabling one to make a change pass.
+
+This angle asks whether the coverage **exists**. Whether an existing test is
+*written* the way reviewers require — it doesn't reach the changed path, it
+asserts nothing that would fail with the change reverted, it carries ops it
+doesn't need, it runs extra passes that mask the path — belongs to Angle J. A
+test that breaks a rule stated in `AGENTS.md`, such as a verify test sharing a
+file with another verify class, belongs to Angle H so the finding quotes the
+written rule.
 
 Before flagging, Grep the mirrored test file for a case that already covers the
 path — do not ask for coverage that exists. Do not flag coverage for docs-only,
@@ -422,15 +454,17 @@ the quote instead, so the finding cites the written rule rather than a PR.
   read the ones that remain through the memoized `MIGRAPHX_<NAME>{}` objects
   rather than at the use site (#4710).
 - A test that sets an environment variable — the value leaks into every later
-  test in the same process. Add a parameter to the pass and pass it in, e.g.
-  `run_pass({.dyn_dim_bucket_by_optimals = true})` (#4911, #5064, #4294).
+  test in the same process. Add a parameter to the pass and pass it in, the way
+  `test/fuse_attention.cpp` does with
+  `run_pass(p1, {.flash_decoding_num_splits = 2})` (#4294, #4911, #5064).
 - An enable/disable flag that is never set to false anywhere, or left behind
   after the feature became the default; a flag gating behavior that should
   simply always be on needs a stated reason why it can't be (#4725, #4732,
   #4770, #5030, #5036, #5064).
 - A new environment variable where an existing one already covers the case, or
-  several boolean knobs where one value-taking knob would do — e.g.
-  `MIGRAPHX_DISABLE_ELIMINATE_TYPES=int64_t,uint64_t` (#4535, #4580).
+  several boolean knobs where one knob taking a value would do — reviewers asked
+  for a single variable listing the types to disable rather than one flag per
+  type (#4535, #4580).
 - An env variable declared inside a device kernel, which cannot work (#4363).
 - A CMake workaround enabled for everyone instead of an opt-in cache flag
   guarded on the compiler or condition that actually needs it (#4920, #4941,
@@ -527,11 +561,11 @@ the quote instead, so the finding cites the written rule rather than a PR.
   `ins->normalized_operator()`; assert the invariant if it should already hold
   (#4891).
 - `==` / `!=` on symbolic dimensions where the comparison should ignore variable
-  metadata — a `sym::expr` carries constraints and optimals, so use `same_value`
-  / `same_symbol` (or `as_symbol` first) to compare structural form (#4924,
-  #4925, #4977). Use `shape::same_lens()` for length comparison because it also
-  works for dynamic shapes (#4881), and `ndim()` rather than `lens().size()`
-  (#4521, #4591).
+  metadata — a `sym::expr` carries constraints and optimals, so use
+  `sym::same_symbol` (calling `sym::as_symbol` first when needed) to compare
+  structural form (#4924, #4925, #4977). Use `shape::same_lens()` for length
+  comparison because it also works for dynamic shapes (#4881), and `ndim()`
+  rather than `lens().size()` (#4521, #4591).
 - A dynamic-shape `compute_shape` that ignores `intersection()` semantics or
   picks a min bound it cannot justify (#4924, #5015, #5043).
 - Attribute combinations left unvalidated in `compute_shape` — empty or
@@ -565,9 +599,12 @@ the quote instead, so the finding cites the written rule rather than a PR.
   `user_data` pair (#4290, #4409, #4483, #4496, #4527).
 
 **State, lifetime, and thread safety**
-- A `mutable` member used to write from a `const` method; hold the state behind
-  a `shared_ptr` initialized in the constructor or `finalize` instead — there is
-  a cppcheck rule for this (#4101, #4204, #4549).
+- A `const` method that mutates, whether through a `mutable` member or through
+  the impl pointer; hold the state behind a `shared_ptr` initialized in the
+  constructor or in `finalize` instead (#4101, #4204, #4549). Cppcheck catches
+  the bare `mutable` member, so report the design problem it points at — a
+  lazily built cache that is never destroyed, or a getter that computes and
+  stores — rather than the keyword.
 - A namespace-scope object with a global constructor; wrap it in a function with
   a `static` local and return a reference (#4015, #4037, #4109, #4111, #4197,
   #4469).
@@ -592,16 +629,17 @@ the quote instead, so the finding cites the written rule rather than a PR.
 
 **Naming**
 - A name that doesn't say what the code does or doesn't match the local
-  convention: encode the side effect (`block_sync_copy_index_if_n` when the
-  function calls `__syncthreads`), match existing suffixes (`_n`, not `_limit`),
-  prefix by subsystem (`replace_onnx_external_weights`), read predicates as
-  predicates (`has_symbolic_strides`), state the relation in a threshold
+  convention: encode the side effect (reviewers renamed a kernel helper to
+  `block_sync_copy_index_if_n` because it calls `__syncthreads`), match existing
+  suffixes (`_n`, not `_limit`), prefix an ONNX-only helper with its subsystem,
+  read predicates as predicates (`has_*`), state the relation in a threshold
   (`min_partition_threshold`), and prefer a precise verb over a vague one
-  (#4893, #4957, #5049, #5105, #5030).
-- A name that stops being true when scope widens — `lower_hip_ops` once it also
-  handles `gpu::contiguous` (#5030); a name that collides with an established
-  meaning in this codebase (`ctx`, `half`, `time`); and cryptic abbreviations in
-  user-facing output (`[w]` for `[warn]`) (#4194, #4384, #4469, #4810).
+  (#4893, #4957, #5030, #5049, #5105).
+- A name that stops being true when scope widens — reviewers rejected a
+  `lower_hip_ops` pass name once it also handled `gpu::contiguous` (#5030); a
+  name that collides with an established meaning in this codebase (`ctx`,
+  `half`, `time`); and cryptic abbreviations in user-facing output (`[w]` for
+  `[warn]`) (#4194, #4384, #4469, #4810).
 - Renaming an existing shared function needs a stated reason (#4893).
 
 **How the test is written** — Angle I asks whether a test exists; this asks
@@ -619,17 +657,19 @@ whether the one that exists is written the way reviewers require.
   output, so the path under test is masked; write the replacement instructions
   directly instead of producing them with `fuse_pointwise` (#4626, #4891, #4893,
   #5064).
-- A test that does not actually reach the changed code — it must use ops that
-  survive to the new matcher rather than being rewritten away first (#4176,
-  #4388).
+- A test that does not actually pin the change — either it never reaches the
+  changed code because its ops are rewritten away before the new matcher sees
+  them, or it reaches the code but asserts nothing that would fail with the
+  change reverted (#4176, #4388).
 - A test gated on an environment variable or wrapped in `try`/`catch`; check
   every precondition explicitly so the test always runs (#4294). Test against
   `migraphx::module` rather than `migraphx::program` when the pass takes a
   module (#4294).
 - An assertion derived by calling the code under test — state expected shapes
-  literally in `op_shape_test` rather than computing them with `compute_shape()`,
-  and never assert by counting instructions or matching printed text (#4699,
-  #4992, #5030, #5060, #5105).
+  literally in `op_shape_test` rather than computing them with `compute_shape()`
+  (#4699). Asserting by instruction count or printed text instead of building
+  the expected module breaks a written `AGENTS.md` rule, so Angle H owns that
+  one (#4992, #5030, #5060, #5105).
 - A "dynamic shape" test whose inputs are all static (#4704).
 - A new kernel, mode, or optimization tested only for the type or config it was
   developed against when it claims to support more; a new compile mode should
@@ -641,9 +681,9 @@ whether the one that exists is written the way reviewers require.
 - An ONNX operator change with only a verify test — parse tests are white-box
   and should build the expected program by hand (#4067, #4093).
 
-  The expected-module form for pass tests and one verify class per `.cpp` are
-  written rules in `AGENTS.md`; Angle H owns those, and a deleted or disabled
-  test belongs to Angle I.
+The expected-module form for pass tests and one verify class per `.cpp` are
+written rules in `AGENTS.md`; Angle H owns those, and a deleted or disabled test
+belongs to Angle I.
 
 **ONNX and spec conformance**
 - Behavior branched on the opset version where checking whether the input or
@@ -718,9 +758,11 @@ whether the one that exists is written the way reviewers require.
   flags changed in the build instead of `.clang-tidy` (for example adding a
   cheap-copy type to `AllowedTypes`), or a warning disabled globally to silence
   one site (#4143, #4190, #4801, #4911, #4952, #4977).
-- **Unrelated changes bundled in.** Drive-by formatting, `.gitignore` edits, a
-  refactor, and a second feature belong in their own PRs; a large refactor should
-  land first as a no-functional-change PR so the behavior change is reviewable
+- **Unrelated changes bundled in**, at PR granularity — `/migraphx-simplify`
+  already flags an unrequested refactor for separation, so what this adds is
+  where the split falls: drive-by formatting, `.gitignore` edits, and a second
+  feature each belong in their own PR, and a large refactor should land first as
+  a no-functional-change PR so the behavior change on top of it is reviewable
   (#4363, #4626, #4663, #4725, #4760, #4803, #4911, #4952).
 - A new `TODO` that isn't tracked — file an issue and reference it, or say
   concretely what remains (#4174, #4246, #4875, #4893, #4894).
@@ -740,9 +782,10 @@ whether the one that exists is written the way reviewers require.
 - A new parallel entry point where an existing options struct could take one
   more defaulted field — combinations of overloads multiply fast (#4701, #4770,
   #4780, #4823).
-- A C++ API addition not mirrored in the Python bindings, or a new enum or
-  constant not mirrored in `migraphx.h` with its `convert_to_*` overloads
-  (#4701, #4770).
+- A new enum or constant added to a public C++ header but not mirrored into the
+  C API with the conversion overloads that carry it across the boundary — the
+  established form is the `to_shape_type` pair in `tools/api/api.cpp`, one
+  overload each way (#4770).
 - A public API extended ahead of a design that covers the known cases — expose
   the minimal accessor instead (#4803).
 - A change that makes users include a different header or link new targets —
@@ -768,8 +811,10 @@ whether the one that exists is written the way reviewers require.
 
 ## Phase 2 — Verify (1-vote)
 
-Dedup candidates that point at the same line or mechanism, keeping the one with
-the most concrete failure scenario. For each remaining candidate, run **one
+Dedup candidates that point at the same line **and** the same mechanism, keeping
+the one with the most concrete failure scenario. Two candidates on one line that
+describe different mechanisms are two findings — Phase 1 recorded both on
+purpose, so do not collapse them. For each remaining candidate, run **one
 verifier** via the `Agent` tool: give it the diff, the relevant file(s), and the
 candidate, and have it return exactly one of:
 
@@ -799,9 +844,14 @@ At **high** and above, verify recall-biased:
 
 Before confirming or refuting a claim about strides, packing, broadcasting, or
 dynamic dimensions, read the relevant part of `src/include/migraphx/shape.hpp`
-rather than reasoning from the name. At **xhigh** and **max** this is recall
-mode — a single non-REFUTED vote carries the finding; do NOT drop on
-uncertainty.
+rather than reasoning from the name.
+
+Every level that reaches Phase 2 runs exactly one verifier per candidate —
+`medium` and above; `low` has no verify step at all. At **high** and above, any
+candidate the verifier does not REFUTE survives to the report: uncertainty is
+not a reason to drop it, because that is what the PLAUSIBLE verdict is for and
+the reader sees the verdict. At **medium** the precision stance governs instead
+— keep a PLAUSIBLE candidate only when a maintainer would act on it.
 
 ## Phase 3 — Sweep for gaps *(xhigh, max)*
 
@@ -826,11 +876,18 @@ Call the `ReportFindings` tool once to report this review's results with
 `{level, findings}`. `findings` is at most the level's cap, ranked most-severe
 first; each entry has `file`, `line`, `summary`, `short_summary` — the claim
 compressed to ≤60 characters, no rationale or consequence clause —
-`failure_scenario`, `category`, and the `verdict` from Phase 2. Use categories
-such as `correctness`, `language-pitfall`, `api-abi`, `ir-contract`,
-`conventions`, `test-coverage`, `quality` for everything from Angle G, and
-`precedent` for an Angle J finding that fits none of the others. If
-more than the cap survive, keep the most severe. If nothing survives
+`failure_scenario`, `category`, and the `verdict` from Phase 2.
+
+Pick `category` by which angle produced the finding: `correctness` (A, B, C),
+`language-pitfall` (D), `api-abi` (E), `ir-contract` (F), `quality` (G),
+`conventions` (H), `test-coverage` (I), and `precedent` (J). When an Angle J
+finding fits one of the earlier categories better — a symbolic-comparison bug is
+`correctness` — use that one and keep the PR citation in `failure_scenario`.
+
+If more than the cap survive, keep the most severe: correctness, API/ABI, and
+IR-contract findings outrank quality, test-coverage, and convention findings,
+with one exception — a missing regression test for a bug this diff fixes ranks
+with the correctness findings. If nothing survives
 verification, call it with an empty array. Do not also print the findings as
 text, and do not create or publish an artifact of the review — the tool call is
 the report.
@@ -844,7 +901,9 @@ the level's cap:
     "file": "src/targets/gpu/lowering.cpp",
     "line": 123,
     "summary": "one-sentence statement of the bug",
+    "short_summary": "claim in ≤60 characters",
     "category": "correctness",
+    "verdict": "CONFIRMED",
     "failure_scenario": "concrete inputs/state → wrong output/crash"
   }
 ]
@@ -857,9 +916,11 @@ Ranked most-severe first. If nothing survives verification, return `[]`.
 If the `Agent` tool isn't available, the multi-agent fan-out and the subagent
 verify pass can't run. Work through every angle above yourself, in this same
 context, in one pass — including one pass per language present — and do not skip
-angles for lack of fan-out. Phase 2 becomes dedup and self-check: dedup
-near-duplicates, then re-check each remaining candidate against the diff before
-keeping it, dropping anything you can't back with a concrete failure scenario.
+angles for lack of fan-out. Phase 2 becomes dedup and self-check: dedup only
+candidates that share both a line and a mechanism, then re-check each remaining
+candidate against the diff and assign it the same CONFIRMED / PLAUSIBLE /
+REFUTED verdict a verifier would — drop what you can REFUTE against the code,
+not what you are merely unsure of.
 State clearly in your summary that this was a single-pass review without the
 fan-out, so whoever reads it isn't misled about what actually ran.
 
@@ -869,10 +930,12 @@ Only when the `--select` flag was passed. It filters what `--fix` and
 `--comment` act on; on its own it changes nothing, so if neither of those was
 also passed, say the flag had nothing to act on and stop after the report.
 
-Run this **after** the `ReportFindings` call that reports the review — the user
-picks from findings they can already see — and **before** applying or posting
-anything. Offer every reported finding, in the same ranked order, using the
-first of these that works:
+Run this once the findings are visible to the user and **before** applying or
+posting anything — normally right after this invocation's `ReportFindings` call,
+or, on the reuse path where no new report is produced, after restating the
+earlier review's findings in rank order so the user has something to pick from.
+Offer every reported finding, in that same ranked order, using the first of
+these that works:
 
 1. `mcp__review-picker__select_findings` — a checkbox dialog. Pass one item per
    finding with `id` set to its 1-based rank and `label` set to
@@ -891,9 +954,11 @@ selection as "act on nothing" — never fall back to applying everything, becaus
 the user asked to choose. In a headless run where no picker can be answered, do
 the same and say the selection could not be made.
 
-Every reported finding still appears in the follow-up `ReportFindings` call.
-The ones the user did not select carry `outcome: skipped`; say they were skipped
-as unselected, and do not argue for them.
+Every reported finding still appears in the follow-up `ReportFindings` call —
+the one `--fix` always makes, and on a `--select --comment` run with no `--fix`,
+a call you make after posting so the unselected findings do not sit unresolved
+in the UI. The ones the user did not select carry `outcome: skipped`; say they
+were skipped as unselected, and do not argue for them.
 
 The checkbox dialog comes from a small MCP server kept with this skill at
 `.claude/mcp/select_findings.mjs`. It is not registered by default — enable it
@@ -906,15 +971,18 @@ and restart the session. Without it, `--select` falls through to
 
 Only when the `--fix` flag was passed. The findings list is either the one this
 invocation just produced, or — per *Reusing a completed review* — the one an
-earlier review in this session reported; in the reuse case start here without
-re-reviewing. When `--select` was also passed, act only on the findings chosen
-there. Apply every class of finding to the working tree — correctness,
-language-pitfall, API/ABI, IR-contract, and convention findings, **and the
-`quality` findings from Angle G**. For those, apply the fix
-`/migraphx-simplify` would have made
-(that skill's Phase 2 describes how it applies its own findings); running this
-review with `--fix` should leave the tree in the state a bug-fix pass followed by
-`/migraphx-simplify` would have.
+earlier review in this session reported; on the reuse path you arrive here
+directly, without re-reviewing and after the selection step when `--select` was
+passed. When `--select` was also passed, act only on the findings chosen
+there. Apply every finding to the working tree, whatever its `category` —
+including `category: quality`. For a quality finding, apply the fix
+`/migraphx-simplify` would have made (that skill's Phase 2 describes how it
+applies its own findings).
+
+Either way the tree ends up short of a full `/migraphx-simplify` run: at
+`medium` and above because Angle G reports only the quality findings that clear
+its bar, and at `low` because no quality review ran at all. Say which case
+applies and suggest running `/migraphx-simplify` for the local cleanups.
 
 For `test-coverage` findings, add the missing test when it is a small,
 clearly-derivable case that follows the patterns already in the mirrored test
@@ -939,8 +1007,9 @@ Without `--fix`, do not modify any file — the report is the only output.
 
 Only when the `--comment` flag was passed. The findings list is either the one
 this invocation just produced, or — per *Reusing a completed review* — the one an
-earlier review in this session reported; in the reuse case start here without
-re-reviewing, and post against the PR that review targeted. When `--select` was
+earlier review in this session reported; on the reuse path you arrive here
+directly, without re-reviewing and after the selection step when `--select` was
+passed, and post against the PR that review targeted. When `--select` was
 also passed, post only the findings chosen there. If the review target is a
 GitHub PR, post each finding as an inline PR comment via
 `mcp__github_inline_comment__create_inline_comment` (one call per finding;
@@ -1015,8 +1084,8 @@ builds are slow and this is a reading task. Report what the code says.
 
 ## After the review
 
-After the findings are reported (and applied, when `--fix` was passed): if
-`/verify` has NOT run this session and the diff has a runtime surface (not
-test-only or docs-only per the pre-ship exemptions), invoke `/verify` now — this
-review checks that the diff reads right; `/verify` checks that it runs right.
-State which you did.
+The report — plus the applied edits when `--fix` was passed — is the whole
+deliverable. This review checks that the diff *reads* right; nothing here
+checks that it *runs* right, so when the diff has a runtime surface, close by
+naming in one line what still needs to be built and tested before it ships.
+Do not run those builds or tests yourself; see *Out of scope*.

@@ -45,6 +45,10 @@ namespace op {
 /// expression evaluates to what the input will hold at run time. The axes have to be known when
 /// the shape is computed, so they are an attribute only.
 ///
+/// An end before its start is rejected: at run time by compute(), and when the shape is computed
+/// for the bounds that put the end before the start over their whole range. A slice that is only
+/// empty (end equal to start) is allowed and produces a zero-length dimension.
+///
 /// Attributes:
 /// axes: axes to slice over
 /// starts: slice starting indices
@@ -125,21 +129,27 @@ struct dyn_slice
         auto dds         = sym_in.dyn_dims();
         auto start_exprs = to_sym_exprs(starts);
         auto end_exprs   = to_sym_exprs(ends);
-        // compute() rejects a run-time end before its start, so the extent is never negative.
-        // Interval arithmetic cannot see that when the bounds are independent symbols, so clamp
-        // at zero to keep the dimension non-negative. The clamp folds away whenever the
-        // subtraction is provably non-negative.
-        auto zero = sym::lit(std::int64_t{0});
         std::vector<sym::expr> extents(axes.size());
-        std::transform(
-            end_exprs.begin(),
-            end_exprs.end(),
-            start_exprs.begin(),
-            extents.begin(),
-            [&](const auto& end, const auto& start) { return sym::fold_max(end - start, zero); });
-        migraphx::for_each(axes.begin(), axes.end(), extents.begin(), [&](auto axis, auto extent) {
-            dds[axis] = shape::dynamic_dimension{std::move(extent)};
-        });
+        std::transform(end_exprs.begin(),
+                       end_exprs.end(),
+                       start_exprs.begin(),
+                       extents.begin(),
+                       [](const auto& end, const auto& start) { return end - start; });
+        auto zero = sym::lit(std::int64_t{0});
+        migraphx::for_each(
+            axes.begin(), axes.end(), extents.begin(), [&](auto axis, const auto& extent) {
+                // Negative over its whole range means compute() would reject every run-time
+                // value, so there is no point compiling the program.
+                if(sym::strict_less(extent, zero).value_or(false))
+                    MIGRAPHX_THROW("DYN_SLICE: axis " + migraphx::to_string(axis) +
+                                   ": end is always before start, extent " + extent.to_string() +
+                                   " is negative over its whole range");
+                // An extent that merely might be negative cannot be ruled out by interval
+                // arithmetic when the bounds are independent symbols, so clamp at zero to keep
+                // the dimension non-negative. The clamp folds away when the subtraction is
+                // provably non-negative.
+                dds[axis] = shape::dynamic_dimension{sym::fold_max(extent, zero)};
+            });
         shape result{input_shape.type(), std::move(dds), sym_in.dyn_strides()};
         // A slice is a view, so a fully concrete result of a static input must stay static.
         if(not input_shape.symbolic() and result.is_fixed())

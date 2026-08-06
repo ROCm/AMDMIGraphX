@@ -1522,28 +1522,178 @@ TEST_CASE(dyn_slice_symbolic_bounds)
 
 TEST_CASE(dyn_slice_symbolic_bounds_may_cross)
 {
-    // Independent start and end symbols whose ranges overlap: interval arithmetic cannot rule
-    // out end < start, so the extent is clamped to keep the dimension non-negative. Only
-    // start <= end reaches compute(), which rejects the rest at run time.
-    auto m  = var("m", {0, 3});
-    auto n  = var("n", {0, 3});
-    auto op = migraphx::make_op("dyn_slice",
-                                {{"axes", {2}},
-                                 {"starts", migraphx::value::array{migraphx::to_value(dd{m})}},
-                                 {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
-
+    // Bounds whose ordering interval arithmetic cannot settle: the extent is clamped so the
+    // dimension stays non-negative. Only start <= end reaches compute(), which rejects the rest
+    // at run time.
     migraphx::shape bounds{migraphx::shape::int64_type, {1}};
-    migraphx::shape sin{migraphx::shape::float_type, {2, 2, 3}};
-    auto extent =
-        migraphx::sym::max(migraphx::sym::min(n, lit(3)) - migraphx::sym::min(m, lit(3)), lit(0));
-    migraphx::shape sout{migraphx::shape::float_type,
-                         {dd{lit(2)}, dd{lit(2)}, dd{extent}},
-                         {lit(6), lit(3), lit(1)}};
+    {
+        // Both bounds symbolic over the same range.
+        auto m  = var("m", {0, 3});
+        auto n  = var("n", {0, 3});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {2}},
+                                     {"starts", migraphx::value::array{migraphx::to_value(dd{m})}},
+                                     {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+        migraphx::shape sin{migraphx::shape::float_type, {2, 2, 3}};
+        auto extent = migraphx::sym::max(
+            migraphx::sym::min(n, lit(3)) - migraphx::sym::min(m, lit(3)), lit(0));
+        migraphx::shape sout{migraphx::shape::float_type,
+                             {dd{lit(2)}, dd{lit(2)}, dd{extent}},
+                             {lit(6), lit(3), lit(1)}};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.dyn_dims().back().get_interval().min == 0);
+        EXPECT(sout.dyn_dims().back().get_interval().max == 3);
+        EXPECT(sout.to_static({{m, 1}, {n, 3}}) ==
+               migraphx::shape{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}});
+        // An assignment putting the end before the start gives an empty dimension rather than
+        // wrapping around.
+        EXPECT(sout.to_static({{m, 3}, {n, 1}}) ==
+               migraphx::shape{migraphx::shape::float_type, {2, 2, 0}, {6, 3, 1}});
+    }
+    {
+        // Symbolic start whose range can exceed the concrete end.
+        auto m  = var("m", {0, 10});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}},
+                                     {"starts", migraphx::value::array{migraphx::to_value(dd{m})}},
+                                     {"ends", {4}}});
+        migraphx::shape sin{migraphx::shape::float_type, {10, 4}};
+        auto extent = migraphx::sym::max(lit(4) - migraphx::sym::min(m, lit(10)), lit(0));
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{extent}, dd{lit(4)}}, {lit(4), lit(1)}};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.dyn_dims().front().get_interval().min == 0);
+        EXPECT(sout.dyn_dims().front().get_interval().max == 4);
+    }
+    {
+        // Symbolic end whose range can fall below the concrete start.
+        auto n  = var("n", {0, 10});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}},
+                                     {"starts", {4}},
+                                     {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+        migraphx::shape sin{migraphx::shape::float_type, {10, 4}};
+        auto extent = migraphx::sym::max(migraphx::sym::min(n, lit(10)) - lit(4), lit(0));
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{extent}, dd{lit(4)}}, {lit(4), lit(1)}};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.dyn_dims().front().get_interval().min == 0);
+        EXPECT(sout.dyn_dims().front().get_interval().max == 6);
+    }
+    {
+        // The sliced axis length is itself a symbol, so both bounds clamp against it.
+        auto k  = var("k", {4, 8});
+        auto m  = var("m", {0, 8});
+        auto n  = var("n", {0, 8});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}},
+                                     {"starts", migraphx::value::array{migraphx::to_value(dd{m})}},
+                                     {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{k}, dd{lit(4)}}};
+        auto extent =
+            migraphx::sym::max(migraphx::sym::min(n, k) - migraphx::sym::min(m, k), lit(0));
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{extent}, dd{lit(4)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.dyn_dims().front().get_interval().min == 0);
+        EXPECT(sout.dyn_dims().front().get_interval().max == 8);
+    }
+}
+
+TEST_CASE(dyn_slice_symbolic_bounds_clamped_multi_axes)
+{
+    // The clamp is decided per axis: axis 0 needs it, axis 1 is provably non-negative.
+    auto m  = var("m", {0, 10});
+    auto p  = var("p", {0, 2});
+    auto op = migraphx::make_op(
+        "dyn_slice",
+        {{"axes", {0, 1}},
+         {"starts", migraphx::value::array{migraphx::to_value(dd{m}), migraphx::to_value(dd{p})}},
+         {"ends", {4, 10}}});
+
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
+    migraphx::shape sin{migraphx::shape::float_type, {10, 12}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{migraphx::sym::max(lit(4) - migraphx::sym::min(m, lit(10)), lit(0))}, dd{lit(10) - p}},
+        {lit(12), lit(1)}};
     expect_shape(sout, op, sin, bounds, bounds);
-    EXPECT(sout.dyn_dims().back().get_interval().min == 0);
-    EXPECT(sout.dyn_dims().back().get_interval().max == 3);
-    EXPECT(sout.to_static({{m, 1}, {n, 3}}) ==
-           migraphx::shape{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}});
+    EXPECT(sout.dyn_dims().front().get_interval().min == 0);
+    EXPECT(sout.dyn_dims().front().get_interval().max == 4);
+    EXPECT(sout.dyn_dims().back().get_interval().min == 8);
+    EXPECT(sout.dyn_dims().back().get_interval().max == 10);
+}
+
+TEST_CASE(dyn_slice_provably_negative_extent_error)
+{
+    // An end before its start over the whole range can never produce a valid slice, so it is
+    // rejected when the shape is computed instead of being clamped to an empty dimension. The
+    // message is checked so the failure is attributed to the offending axis.
+    auto add_dyn_slice = [](const migraphx::operation& op,
+                            const migraphx::shape& data,
+                            const migraphx::shape& bounds) {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        mm->add_instruction(
+            op, mm->add_outline(data), mm->add_outline(bounds), mm->add_outline(bounds));
+    };
+    {
+        auto n  = var("n", {1, 4});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}},
+                                     {"starts", {8}},
+                                     {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+        EXPECT(test::throws<migraphx::exception>(
+            [&] {
+                add_dyn_slice(op,
+                              migraphx::shape{migraphx::shape::float_type, {10, 4}},
+                              migraphx::shape{migraphx::shape::int64_type, {1}});
+            },
+            "axis 0: end is always before start"));
+    }
+    {
+        // Only the second axis is bad, so every axis has to be checked.
+        auto a  = var("a", {5, 9});
+        auto b  = var("b", {1, 4});
+        auto op = migraphx::make_op(
+            "dyn_slice",
+            {{"axes", {0, 1}},
+             {"starts", {2, 8}},
+             {"ends",
+              migraphx::value::array{migraphx::to_value(dd{a}), migraphx::to_value(dd{b})}}});
+        EXPECT(test::throws<migraphx::exception>(
+            [&] {
+                add_dyn_slice(op,
+                              migraphx::shape{migraphx::shape::float_type, {10, 12}},
+                              migraphx::shape{migraphx::shape::int64_type, {2}});
+            },
+            "axis 1: end is always before start"));
+    }
+}
+
+TEST_CASE(dyn_slice_empty_extent_allowed)
+{
+    // An extent that is always zero is a legal empty slice, which compute() accepts. Only a
+    // provably negative extent is an error.
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    migraphx::shape sin{migraphx::shape::float_type, {10, 4}};
+    migraphx::shape sout{migraphx::shape::float_type, {0, 4}, {4, 1}};
+    EXPECT(sout.elements() == 0);
+    {
+        // Concrete bounds that coincide.
+        auto op = migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {4}}});
+        expect_shape(sout, op, sin, bounds, bounds);
+    }
+    {
+        // Here the clamp is emitted, but its interval collapses to [0, 0], which makes the
+        // dimension fixed and demotes the result to a static shape.
+        auto m  = var("m", {2, 4});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}},
+                                     {"starts", migraphx::value::array{migraphx::to_value(dd{m})}},
+                                     {"ends", {2}}});
+        expect_shape(sout, op, sin, bounds, bounds);
+    }
 }
 
 TEST_CASE(dyn_slice_sym_data_fixed_axis)

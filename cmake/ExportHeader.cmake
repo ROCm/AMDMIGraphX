@@ -39,6 +39,12 @@ function(migraphx_generate_export_header TARGET)
         string(REPLACE "_" "/" __directory ${TARGET})
         string(TOLOWER ${__directory} __directory)
     endif()
+    if(NOT WIN32)
+        set_target_properties(${TARGET} PROPERTIES
+            C_VISIBILITY_PRESET hidden
+            CXX_VISIBILITY_PRESET hidden
+            VISIBILITY_INLINES_HIDDEN YES)
+    endif()
     set(__file_name ${CMAKE_CURRENT_BINARY_DIR}/include/${__directory}/export.h)
     generate_export_header(${TARGET} EXPORT_FILE_NAME ${__file_name})
     target_include_directories(${TARGET} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)

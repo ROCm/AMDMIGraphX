@@ -20,6 +20,9 @@ jobs:
         configuration:
           - Release
           - Debug
+        shared:
+          - "On"
+          - "Off"
 
 
     steps:
@@ -73,6 +76,7 @@ jobs:
       run: |
         rbuild build -d cget -s gh-win-cpu -G Ninja -T tests \
           -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
+          -DBUILD_SHARED_LIBS=${{ matrix.shared }} \
           -DCTEST_TIMEOUT=5000
         cd build
         cmake --build . --target driver

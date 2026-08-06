@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 namespace {
-struct find_reshape_lazy_contiguous
+struct find_reshape_lazy_contiguous : match::supports_dynamic_shapes
 {
     // eliminate_contiguous only leaves a standardizing gpu::contiguous in front of a
     // reshape_lazy when it could not alias the input directly; that is the only case where a
@@ -52,19 +52,24 @@ struct find_reshape_lazy_contiguous
         auto cont     = r.instructions["contiguous"];
         auto input    = cont->inputs().front();
         const auto& s = input->get_shape();
-        // A standard input carries no permutation to propagate.
-        if(s.dynamic() or s.standard())
+        // A standard input has no permutation to propagate; a range-based dynamic input has
+        // no symbolic dims for reshape_dims/find_permutation to work with.
+        if(s.standard() or (s.dynamic() and not s.symbolic()))
             return;
 
-        const auto& rdims = rl->get_shape().lens();
-        // The permuted, packed output the original reshape would have produced from the real
-        // (non-standard) input. reshape_dims does not verify the element count, so guard it here
-        // the same way reshape_lazy::compute_shape does.
-        auto permuted = reshape_dims(s, rdims, {.lazy = false});
-        if(not permuted or permuted->standard() or permuted->elements() != s.elements())
+        auto sym_in = s.to_symbolic();
+
+        auto permuted = reshape_dims(sym_in, rl->get_shape().sym_dims(), {.lazy = false});
+        if(not permuted or permuted->standard())
             return;
-        // The packed layout that reshape_lazy can alias straight to that output.
-        auto relayout = reshape_dims(*permuted, s.lens(), {.lazy = true});
+        // reshape_dims does not check the element count; bail when it provably differs,
+        // matching reshape_lazy::compute_shape (an indeterminate count is allowed through).
+        auto out_elems = permuted->sym_elements();
+        auto in_elems  = sym_in.sym_elements();
+        if(sym::strict_less(out_elems, in_elems).value_or(false) or
+           sym::strict_less(in_elems, out_elems).value_or(false))
+            return;
+        auto relayout = reshape_dims(*permuted, s.sym_dims(), {.lazy = true});
         if(not relayout)
             return;
 

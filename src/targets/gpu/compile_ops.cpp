@@ -43,6 +43,7 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
 #include <cstdlib>
@@ -298,6 +299,9 @@ struct compiled_result
     }
 };
 
+// forward declared since it requires compile_manager
+static void replace_inserted_device_ops(context& ctx, module& m);
+
 struct compile_plan
 {
     context* ctx;
@@ -505,9 +509,11 @@ struct compile_plan
         {
             if(not results[i].has_value())
                 continue;
-            const auto& solution     = config->solutions[i];
-            auto bench_prog          = results[i]->make_program();
-            auto* mm                 = bench_prog.get_main_module();
+            const auto& solution = config->solutions[i];
+            auto bench_prog      = results[i]->make_program();
+            auto* mm             = bench_prog.get_main_module();
+
+            replace_inserted_device_ops(*ctx, *mm);
 
             // Use json encoding for the comment used for benchmarking mxr files.
             value comment_val        = value::object{};
@@ -605,6 +611,24 @@ struct compile_manager
     }
 };
 
+static void replace_inserted_device_ops(context& ctx, module& m)
+{
+    run_passes(m, {dead_code_elimination{}});
+    assert(std::none_of(
+        m.begin(), m.end(), [](auto&& ins) { return ins.name() == "gpu::precompile_op"; }));
+    run_passes(m, {lower_device_ops{}});
+    compile_manager cm;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "gpu::precompile_op")
+            continue;
+        operation preop = any_cast<precompile_op>(ins->get_operator()).op;
+        cm.add_plan(&ctx, preop, ins, &m);
+    }
+    cm.compile(m, false);
+    assert(cm.cps.empty());
+}
+
 void compile_ops::apply(module_pass_manager& mpm) const
 {
     bool is_root = &mpm.get_module() == mpm.get_root_module();
@@ -624,6 +648,8 @@ void compile_ops::apply(module_pass_manager& mpm) const
     // Compile already tuned configs
     cm.compile(m, is_root);
     assert(cm.cps.empty());
+
+    replace_inserted_device_ops(*ctx, m);
 }
 
 } // namespace gpu

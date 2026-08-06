@@ -211,7 +211,7 @@ add_library(migraphx_gpu
     compile_miopen.cpp
     compile_pointwise.cpp
     compiler.cpp
-    cross_compile_device.cpp
+    device_description.cpp
     device_name.cpp
     eliminate_data_type_for_gpu.cpp
     fixed_pad.cpp
@@ -224,6 +224,7 @@ add_library(migraphx_gpu
     hip_gemm_impl.cpp
     hsa_chiplet.cpp
     kernel.cpp
+    lower_device_ops.cpp
     lowering.cpp
     loop.cpp
     lrn.cpp

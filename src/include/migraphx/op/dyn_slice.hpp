@@ -41,7 +41,7 @@ namespace op {
 /// Slice operator whose bounds are only known at run time.
 ///
 /// The starts and ends are always supplied as inputs. The attribute of the same name describes
-/// that input at compile time: either a concrete value or a symbolic dynamic_dimension whose 
+/// that input at compile time: either a concrete value or a symbolic dynamic_dimension whose
 /// expression evaluates to what the input will hold at run time. The axes have to be known when
 /// the shape is computed, so they are an attribute only.
 ///
@@ -125,12 +125,18 @@ struct dyn_slice
         auto dds         = sym_in.dyn_dims();
         auto start_exprs = to_sym_exprs(starts);
         auto end_exprs   = to_sym_exprs(ends);
+        // compute() rejects a run-time end before its start, so the extent is never negative.
+        // Interval arithmetic cannot see that when the bounds are independent symbols, so clamp
+        // at zero to keep the dimension non-negative. The clamp folds away whenever the
+        // subtraction is provably non-negative.
+        auto zero = sym::lit(std::int64_t{0});
         std::vector<sym::expr> extents(axes.size());
-        std::transform(end_exprs.begin(),
-                       end_exprs.end(),
-                       start_exprs.begin(),
-                       extents.begin(),
-                       [](const auto& end, const auto& start) { return end - start; });
+        std::transform(
+            end_exprs.begin(),
+            end_exprs.end(),
+            start_exprs.begin(),
+            extents.begin(),
+            [&](const auto& end, const auto& start) { return sym::fold_max(end - start, zero); });
         migraphx::for_each(axes.begin(), axes.end(), extents.begin(), [&](auto axis, auto extent) {
             dds[axis] = shape::dynamic_dimension{std::move(extent)};
         });
@@ -150,7 +156,7 @@ struct dyn_slice
             arg.visit([&](auto values) { result = values.template to_vector<int64_t>(); });
             return result;
         };
-        auto axes_attrs  = this->attributes().at("normalize_axes");
+        auto axes_attrs = this->attributes().at("normalize_axes");
         // Only use the starts_input and ends_input for the output slice. Not the attributes.
         auto norm_starts = normalize_indices(
             read(args[1]), axes, input_shape, axes_attrs.at("starts"), "DYN_SLICE: starts input");

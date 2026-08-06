@@ -35,24 +35,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// `min`/`max` that fold to one operand when the ordering is provable via intervals.
-// Fall back to a symbolic min/max node when it is indeterminate.
-static sym::expr fold_min(const sym::expr& a, const sym::expr& b)
-{
-    auto lt = sym::strict_less(a, b);
-    if(lt.has_value())
-        return *lt ? a : b;
-    return sym::min(a, b);
-}
-
-static sym::expr fold_max(const sym::expr& a, const sym::expr& b)
-{
-    auto lt = sym::strict_less(a, b);
-    if(lt.has_value())
-        return *lt ? b : a;
-    return sym::max(a, b);
-}
-
 static sym::expr axis_len_expr(const shape& s, int64_t axis)
 {
     if(not s.dynamic())
@@ -100,7 +82,7 @@ static std::vector<dim_like> tune_attribute_sym(const std::vector<sym::expr>& ex
             if(not neg.has_value())
                 MIGRAPHX_THROW(m() + "bound of indeterminate sign cannot be normalized");
             auto abs_v = *neg ? v + len : v;
-            return to_dim_like(fold_min(fold_max(abs_v, zero), len));
+            return to_dim_like(sym::fold_min(sym::fold_max(abs_v, zero), len));
         });
     return result;
 }

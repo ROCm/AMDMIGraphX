@@ -1471,8 +1471,9 @@ TEST_CASE(dyn_slice_symbolic_end_static_input)
 
 TEST_CASE(dyn_slice_symbolic_bounds)
 {
-    // The sliced extent (ends - starts) must be non-negative across the whole variable
-    // range, so each var range is chosen to keep end >= start.
+    // Each var range here keeps end >= start over the whole range, so the extent is provably
+    // non-negative and the clamp on it folds away. See dyn_slice_symbolic_bounds_may_cross for
+    // the case where it does not.
     migraphx::shape bounds{migraphx::shape::int64_type, {1}};
     {
         // Symbolic end clamped to the axis length 12: dim = min(n, 12) - 2.
@@ -1517,6 +1518,32 @@ TEST_CASE(dyn_slice_symbolic_bounds)
         expect_shape(sout, op, sin, bounds, bounds);
         EXPECT(sout.symbolic());
     }
+}
+
+TEST_CASE(dyn_slice_symbolic_bounds_may_cross)
+{
+    // Independent start and end symbols whose ranges overlap: interval arithmetic cannot rule
+    // out end < start, so the extent is clamped to keep the dimension non-negative. Only
+    // start <= end reaches compute(), which rejects the rest at run time.
+    auto m  = var("m", {0, 3});
+    auto n  = var("n", {0, 3});
+    auto op = migraphx::make_op("dyn_slice",
+                                {{"axes", {2}},
+                                 {"starts", migraphx::value::array{migraphx::to_value(dd{m})}},
+                                 {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    migraphx::shape sin{migraphx::shape::float_type, {2, 2, 3}};
+    auto extent =
+        migraphx::sym::max(migraphx::sym::min(n, lit(3)) - migraphx::sym::min(m, lit(3)), lit(0));
+    migraphx::shape sout{migraphx::shape::float_type,
+                         {dd{lit(2)}, dd{lit(2)}, dd{extent}},
+                         {lit(6), lit(3), lit(1)}};
+    expect_shape(sout, op, sin, bounds, bounds);
+    EXPECT(sout.dyn_dims().back().get_interval().min == 0);
+    EXPECT(sout.dyn_dims().back().get_interval().max == 3);
+    EXPECT(sout.to_static({{m, 1}, {n, 3}}) ==
+           migraphx::shape{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}});
 }
 
 TEST_CASE(dyn_slice_sym_data_fixed_axis)

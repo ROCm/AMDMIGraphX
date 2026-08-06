@@ -1244,6 +1244,22 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
     return std::nullopt;
 }
 
+expr fold_min(const expr& a, const expr& b)
+{
+    auto lt = strict_less(a, b);
+    if(lt.has_value())
+        return *lt ? a : b;
+    return min(a, b);
+}
+
+expr fold_max(const expr& a, const expr& b)
+{
+    auto lt = strict_less(a, b);
+    if(lt.has_value())
+        return *lt ? b : a;
+    return max(a, b);
+}
+
 bool operator==(const expr& a, const expr& b)
 {
     if(a.pimpl == b.pimpl)

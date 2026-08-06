@@ -21,29 +21,40 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
-#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
+#ifndef MIGRAPHX_GUARD_GPU_DEVICE_DESCRIPTION_HPP
+#define MIGRAPHX_GUARD_GPU_DEVICE_DESCRIPTION_HPP
 
-#include <migraphx/gpu/export.h>
-#include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include <migraphx/gpu/config.hpp>
+#include <cstddef>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
-/// Used when no physical GPU is present.
-MIGRAPHX_GPU_EXPORT hipDeviceProp_t
-make_cross_compile_device_props(const std::string& arch_name,
-                                std::size_t cu_count,
-                                std::size_t max_threads_per_cu    = 2048,
-                                std::size_t max_threads_per_block = 1024,
-                                std::size_t wavefront_size        = 0);
+/// The properties of a GPU that are needed to compile for it. It can either be
+/// queried from a local device or filled in by the user to compile for a device
+/// that is not present.
+struct MIGRAPHX_GPU_EXPORT device_description
+{
+    /// Query the properties of the device with the given hip device id.
+    static device_description from_device(std::size_t device);
+
+    /// Resolve the fields that can be derived from the other fields: a
+    /// `wavefront_size` of 0 is derived from the `arch`. Counts are clamped to
+    /// at least one. Throws when a field is set to an unsupported value.
+    void normalize();
+
+    std::string arch                  = {};
+    std::size_t num_cu                = 120;
+    std::size_t num_chiplets          = 1;
+    std::size_t max_threads_per_cu    = 2048;
+    std::size_t max_threads_per_block = 1024;
+    std::size_t wavefront_size        = 0;
+};
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_GPU_DEVICE_DESCRIPTION_HPP

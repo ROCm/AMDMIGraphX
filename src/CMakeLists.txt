@@ -216,6 +216,7 @@ register_migraphx_ops(
     div
     dot
     dyn_slice
+    dyn_topk
     elu
     equal
     erf

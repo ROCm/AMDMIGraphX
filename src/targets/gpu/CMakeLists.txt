@@ -243,7 +243,6 @@ add_library(migraphx_gpu
     sync_device.cpp
     target.cpp
     time_op.cpp
-    topk.cpp
     write_literals.cpp
     fuse_mlss.cpp
     mlss_conv_op.cpp
@@ -271,7 +270,6 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     fixed_pad
     loop
-    topk
 )
 if (MIGRAPHX_USE_MIOPEN)
 register_migraphx_gpu_ops(miopen_

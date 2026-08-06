@@ -43,6 +43,7 @@ Full documentation for MIGraphX is available at
 * Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
 * Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, that describes its bound inputs with symbolic attributes so slicing by a data-dependent bound keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5088).
 * Added symbolic normalization of operator attributes, selected with the `use_sym` normalize attribute, which clamps a bound against a symbolic axis length instead of leaving it unnormalized (#5088).
+* Added a `dyn_topk` operator that takes `k` as a runtime input, so ONNX TopK with a data-dependent `K` no longer has to pad to the axis length and slice.
 
 
 ### Changed

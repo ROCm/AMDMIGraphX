@@ -54,6 +54,7 @@
 #include <migraphx/op/div.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/dyn_slice.hpp>
+#include <migraphx/op/dyn_topk.hpp>
 #include <migraphx/op/elu.hpp>
 #include <migraphx/op/equal.hpp>
 #include <migraphx/op/erf.hpp>

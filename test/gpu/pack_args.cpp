@@ -25,8 +25,10 @@
 #include <migraphx/gpu/pack_args.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <map>
+#include <vector>
 
 template <class T>
 static std::size_t packed_sizes()
@@ -130,6 +132,35 @@ TEST_CASE(unpack_all_pointers)
     EXPECT(pointers[0] == std::make_pair(std::size_t{0}, ptr0));
     EXPECT(pointers[1] == std::make_pair(std::size_t{8}, ptr1));
     EXPECT(pointers[2] == std::make_pair(std::size_t{16}, ptr2));
+}
+
+// Configs unpack_kernel_config must reject rather than misparse: a null extra
+// array, an unknown tag word, a config terminated before its size entry, and a
+// kernel_args pointer slot whose offset lies past the end of the packed buffer.
+TEST_CASE(unpack_invalid_configs)
+{
+    std::vector<char> buf(16, 0);
+    std::size_t size = buf.size();
+    auto config      = migraphx::gpu::pack_kernel_config(buf.data(), &size);
+
+    EXPECT(migraphx::gpu::unpack_kernel_config(nullptr).empty());
+
+    auto bad_tag = config;
+    bad_tag[0]   = buf.data();
+    EXPECT(migraphx::gpu::unpack_kernel_config(bad_tag.data()).empty());
+
+    std::array<void*, 3> no_size = {config[0], config[1], config[4]};
+    EXPECT(migraphx::gpu::unpack_kernel_config(no_size.data()).empty());
+
+    // An 8-byte scalar fills the whole 8-byte buffer, so the pointer slot that
+    // follows it lies past the end and must be skipped rather than read.
+    std::map<std::size_t, migraphx::gpu::kernel_argument_value> kernel_args;
+    kernel_args[0] = migraphx::gpu::kernel_argument_value(std::uint64_t{1});
+    kernel_args[1] = migraphx::gpu::kernel_argument_value{};
+    std::vector<char> small(8, 0);
+    std::size_t small_size = small.size();
+    auto small_config      = migraphx::gpu::pack_kernel_config(small.data(), &small_size);
+    EXPECT(migraphx::gpu::unpack_kernel_config(small_config.data(), kernel_args).empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

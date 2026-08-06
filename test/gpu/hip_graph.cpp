@@ -214,6 +214,22 @@ TEST_CASE(rebind_save_load)
     check_rebind(p, s, true);
 }
 
+// The kernels consume a slice of x rather than x itself, so the captured
+// pointer slots carry a nonzero within-leaf offset that must be re-applied on
+// top of the moved buffer's base address when x rebinds.
+TEST_CASE(rebind_sliced_input)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {16, 8}};
+    migraphx::shape s{migraphx::shape::float_type, {8, 8}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", xs);
+    auto sl  = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {8}}, {"ends", {16}}}), x);
+    mm->add_return({add_layers(*mm, sl, s, 3)});
+    check_rebind(p, xs);
+}
+
 // The parameter names of the output buffers replace_allocate creates when
 // offload copy is disabled.
 static std::vector<std::string> output_param_names(const migraphx::program& p)

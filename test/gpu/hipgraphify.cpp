@@ -407,6 +407,30 @@ TEST_CASE(idempotent)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// One external output writes into an allocation while another is not
+// allocation-backed: a module @return cannot mix borrow- and global-lifetime
+// values, so the mixed run is left uncaptured.
+TEST_CASE(mixed_output_backing)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto c1  = mm->add_instruction(unary_pass_op{}, x);
+        auto c2  = mm->add_instruction(unary_pass_op{}, c1);
+        auto a = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
+        auto v = mm->add_instruction(view_pass_op{}, a);
+        auto sync1 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, c2);
+        auto sync2 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, v);
+        mm->add_return({sync1, sync2});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+
+    EXPECT(p1.sort() == p2.sort());
+}
+
 // An external output whose alias root is an allocation outside the run, reached
 // only through views, cannot become an input of the hip::graph op (so no alias
 // index could refer to it); the run is left uncaptured.

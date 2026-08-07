@@ -47,7 +47,11 @@
 #endif
 
 #ifndef MIGRAPHX_USE_TYPE_ERASED_OPAQUE
+#if MIGRAPHX_USE_TYPE_ERASED_MATCHERS || defined (NDEBUG)
 #define MIGRAPHX_USE_TYPE_ERASED_OPAQUE 0
+#else
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE 1
+#endif
 #endif
 
 namespace migraphx {

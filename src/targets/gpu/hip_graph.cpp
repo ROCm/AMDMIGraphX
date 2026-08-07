@@ -168,8 +168,7 @@ struct hip_graph
         }
         catch(...)
         {
-            // End the capture so the stream can launch again after unwinding;
-            // the managed pointer discards the partial graph.
+            // End the capture so the stream stays usable; discard the partial graph.
             if(hipStreamEndCapture(stream, &g) == hipSuccess)
                 hip_graph_ptr partial{g};
             throw;
@@ -258,11 +257,9 @@ struct graph_node_patch
 {
     hip_graph::node node{};
     std::vector<graph_slot_patch> slots{};
-    // The node's launch parameters and argument buffer, fetched once at plan
-    // build; a rebind rewrites only the buffer's pointer slots. HIP does not
-    // document copying `extra` at SetParams time, so the buffer and config are
-    // kept alive here for as long as the node may reference them (through
-    // update/instantiate/launch).
+    // Launch params and argument buffer fetched once at plan build; a rebind
+    // rewrites only the buffer's pointer slots. Kept alive here because HIP does
+    // not document copying `extra` at SetParams time.
     hipKernelNodeParams params{};
     std::vector<char> buffer{};
     std::size_t buffer_size = 0;
@@ -522,11 +519,9 @@ struct hip_graph_op
         return true;
     }
 
-    // Apply the prebuilt plan to the captured graph: for each recorded node,
-    // overwrite only the movable-parameter slots of its cached argument buffer
-    // with the current parameter address (plus the captured within-buffer
-    // offset), and hand it back to the node. All other words are left untouched.
-    // The caller re-syncs the executable graph afterwards.
+    // Apply the prebuilt plan: overwrite only the movable-parameter slots of
+    // each recorded node's cached buffer with the current parameter address and
+    // hand it back to the node. The caller re-syncs the executable graph.
     void patch_kernel_nodes(const std::vector<const void*>& current_ptrs) const
     {
         for(auto& np : state->patches)
@@ -586,11 +581,10 @@ struct hip_graph_op
         auto run_sub   = [&] { return run(sub, create_params(sub, args)); };
 
         hipStream_t stream = ctx.get_stream().get();
-        // The legacy/null stream cannot be captured, and tracing synchronizes
-        // and reads back every instruction as it runs, which is illegal on a
-        // stream that is being captured; fall back to a normal run for both. (A
-        // trace supplied through execution_environment cannot be detected here
-        // and still cannot be combined with capture.)
+        // The legacy/null stream cannot be captured, and tracing reads back
+        // results mid-run, which is illegal during capture; fall back to a
+        // normal run for both. (A trace supplied through execution_environment
+        // cannot be detected here and still cannot be combined with capture.)
         if(stream == nullptr or value_of(MIGRAPHX_TRACE_EVAL{}) > 0)
             return pack_outputs(run_sub());
 

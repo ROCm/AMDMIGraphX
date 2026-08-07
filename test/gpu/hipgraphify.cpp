@@ -62,6 +62,18 @@ struct gemm_alias_stub
     }
 };
 
+// A capturable view: aliases its input, and with no compute it is not
+// context-free, so is_capturable keeps it.
+struct view_pass_op
+{
+    std::string name() const { return "view_pass"; }
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        return inputs.front();
+    }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
+};
+
 // A context-free op that does not alias its input: it stands in for a host/ref
 // op that cannot be captured into a HIP graph and so acts as a boundary.
 struct host_op
@@ -350,7 +362,7 @@ TEST_CASE(mixed_output_backing)
         auto c1  = mm->add_instruction(unary_pass_op{}, x);
         auto c2  = mm->add_instruction(unary_pass_op{}, c1);
         auto a = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
-        auto v     = mm->add_instruction(pass_op{}, a);
+        auto v = mm->add_instruction(view_pass_op{}, a);
         auto sync1 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, c2);
         auto sync2 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, v);
         mm->add_return({sync1, sync2});
@@ -375,7 +387,7 @@ TEST_CASE(output_root_outside_run)
         auto g1 = mm->add_instruction(gemm_alias_stub{}, x, a1);
         auto v  = g1;
         for(std::size_t i = 0; i < 4; ++i)
-            v = mm->add_instruction(pass_op{}, v);
+            v = mm->add_instruction(view_pass_op{}, v);
         auto sync = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, v);
         mm->add_return({sync});
     }

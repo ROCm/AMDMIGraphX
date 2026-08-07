@@ -23,9 +23,11 @@
  */
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/bit_cast.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 #include <algorithm>
+#include <array>
 #include <cassert>
 
 #ifdef _WIN32
@@ -132,25 +134,34 @@ std::vector<char> unpack_kernel_config(void** extra)
     return {buffer, buffer + size};
 }
 
+void write_pointer(char* pos, const char* p)
+{
+    auto bytes = migraphx::bit_cast<std::array<char, sizeof(char*)>>(p);
+    std::copy(bytes.begin(), bytes.end(), pos);
+}
+
+char* read_pointer(const char* pos)
+{
+    std::array<char, sizeof(char*)> bytes{};
+    std::copy(pos, pos + sizeof(char*), bytes.begin());
+    return migraphx::bit_cast<char*>(bytes);
+}
+
 std::vector<std::pair<std::size_t, char*>>
 unpack_kernel_config(const std::vector<char>& buffer,
                      const std::map<std::size_t, kernel_argument_value>& kernel_args)
 {
     std::vector<std::pair<std::size_t, char*>> pointers;
-    auto record = [&](std::size_t off) {
-        if(off + sizeof(char*) > buffer.size())
-            return;
-        pointers.emplace_back(off, read_pointer(buffer.data() + off));
-    };
     if(kernel_args.empty())
     {
         // The all-pointer launch path packs one device pointer per 8-byte word.
         for(std::size_t off = 0; off + sizeof(char*) <= buffer.size(); off += sizeof(char*))
-            record(off);
+            pointers.emplace_back(off, read_pointer(buffer.data() + off));
         return pointers;
     }
     // Replay the pack_args layout (code_object_op::finalize): a pointer slot has
     // empty data (8 bytes, align 8); a scalar carries its own bytes and alignment.
+    // A slot past the end of the buffer is skipped rather than read.
     std::size_t pos = 0;
     for(const auto& [idx, v] : kernel_args)
     {
@@ -159,8 +170,8 @@ unpack_kernel_config(const std::vector<char>& buffer,
         std::size_t size  = is_pointer ? sizeof(char*) : v.data.size();
         assert(align != 0); // a scalar argument always carries a real alignment
         pos += pack_padding(pos, align);
-        if(is_pointer)
-            record(pos);
+        if(is_pointer and pos + sizeof(char*) <= buffer.size())
+            pointers.emplace_back(pos, read_pointer(buffer.data() + pos));
         pos += size;
     }
     return pointers;

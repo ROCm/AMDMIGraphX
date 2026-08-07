@@ -93,16 +93,28 @@ static bool is_param_input(instruction_ref ins)
     return roots.size() == 1 and roots.front()->name() == "@param";
 }
 
+// True when some consumer of `ins` lies outside the run.
+static bool used_outside(instruction_ref ins, const std::unordered_set<instruction_ref>& run_set)
+{
+    return std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref out) {
+        return not contains(run_set, out);
+    });
+}
+
+// True when `buf` is directly consumed by an instruction in the run.
+static bool directly_used_in_run(instruction_ref buf,
+                                 const std::unordered_set<instruction_ref>& run_set)
+{
+    return std::any_of(buf->outputs().begin(), buf->outputs().end(), [&](instruction_ref ins) {
+        return contains(run_set, ins);
+    });
+}
+
 static void
 graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, std::size_t n)
 {
     module& m = mpm.get_module();
     std::unordered_set<instruction_ref> run_set(run.begin(), run.end());
-    auto used_outside = [&](instruction_ref ins) {
-        return std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref out) {
-            return not contains(run_set, out);
-        });
-    };
 
     // Instructions kept in the parent module instead of being captured. Any
     // source with no inputs (gpu::literal constants, hip::allocate buffers) that
@@ -112,14 +124,14 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
     // becomes a graph input.
     std::unordered_set<instruction_ref> keep;
     std::copy_if(run.begin(), run.end(), std::inserter(keep, keep.end()), [&](instruction_ref ins) {
-        return ins->inputs().empty() and used_outside(ins);
+        return ins->inputs().empty() and used_outside(ins, run_set);
     });
 
     // Captured outputs: run instructions consumed outside the run. Allocations
     // are buffers rather than computed outputs and are never returned.
     std::vector<instruction_ref> outputs;
     std::copy_if(run.begin(), run.end(), std::back_inserter(outputs), [&](instruction_ref ins) {
-        return used_outside(ins) and not is_allocation(ins) and not contains(keep, ins);
+        return used_outside(ins, run_set) and not is_allocation(ins) and not contains(keep, ins);
     });
     // A run with no external outputs is pure dead code; leave it for dce.
     if(outputs.empty())
@@ -139,11 +151,6 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
     // run (kept in the parent below, referenced through a parameter) or directly
     // consumed by a run instruction; a root reached only through a view of a
     // pre-run value is neither, so such a run cannot be captured.
-    auto directly_used_in_run = [&](instruction_ref buf) {
-        return std::any_of(buf->outputs().begin(), buf->outputs().end(), [&](instruction_ref ins) {
-            return contains(run_set, ins);
-        });
-    };
     for(auto out : outputs)
     {
         // Follow the whole alias chain (the output may be a view such as
@@ -152,7 +159,8 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
         auto roots = instruction::get_output_alias(out, false);
         if(roots.size() == 1 and is_allocation(roots.front()))
         {
-            if(not contains(run_set, roots.front()) and not directly_used_in_run(roots.front()))
+            if(not contains(run_set, roots.front()) and
+               not directly_used_in_run(roots.front(), run_set))
                 return;
             output_buffer[out] = roots.front();
             if(contains(run_set, roots.front()))

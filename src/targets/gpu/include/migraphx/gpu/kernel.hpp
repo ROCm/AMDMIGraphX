@@ -26,10 +26,8 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/pack_args.hpp>
-#include <migraphx/bit_cast.hpp>
 #include <migraphx/pmr/vector.hpp>
 #include <hip/hip_runtime_api.h>
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <map>
@@ -64,20 +62,9 @@ MIGRAPHX_GPU_EXPORT std::vector<std::pair<std::size_t, char*>>
 unpack_kernel_config(const std::vector<char>& buffer,
                      const std::map<std::size_t, kernel_argument_value>& kernel_args);
 
-// Store/load a pointer value at a byte position in a packed kernarg buffer
-// without pointer-punning casts. The caller guarantees sizeof(char*) bytes are
-// available at `pos`.
-inline void write_pointer(char* pos, const char* p)
-{
-    auto bytes = migraphx::bit_cast<std::array<char, sizeof(char*)>>(p);
-    std::copy(bytes.begin(), bytes.end(), pos);
-}
-inline char* read_pointer(const char* pos)
-{
-    std::array<char, sizeof(char*)> bytes{};
-    std::copy(pos, pos + sizeof(char*), bytes.begin());
-    return migraphx::bit_cast<char*>(bytes);
-}
+// Store/load a pointer value at a byte position in a packed kernarg buffer.
+MIGRAPHX_GPU_EXPORT void write_pointer(char* pos, const char* p);
+MIGRAPHX_GPU_EXPORT char* read_pointer(const char* pos);
 
 struct MIGRAPHX_GPU_EXPORT kernel
 {

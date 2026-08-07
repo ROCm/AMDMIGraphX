@@ -43,11 +43,12 @@ struct test_conv_3x3_winograd_fp32 : verify_program<test_conv_3x3_winograd_fp32>
         // Winograd matcher requires can_eval() on weights -> add as a literal.
         auto w = mm->add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {36, 20, 3, 3}}, 1));
-        mm->add_instruction(
+        auto y = mm->add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
             x,
             w);
+        mm->add_return({y});
         return p;
     }
     std::string section() const { return "conv"; }

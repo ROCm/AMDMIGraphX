@@ -532,68 +532,54 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto nelements = plan.reduce_output_shape.elements();
 
         hip_compile_options options;
-        options.inputs             = plan.finputs;
+        options.inputs         = plan.finputs;
         options.output         = inputs.back();
-        options.virtual_inputs     = plan.virtual_inputs;
-        optional<reduce_tile> tile = nullopt;
-        if(plan.assign == "assign_none" and
-           (algo == "block_tile" or (algo == "block" and not v.contains("algo"))))
-            tile = find_reduce_tile(options.virtual_inputs,
-                                    noutputs,
-                                    plan.reduce_output_shape,
-                                    plan.reduction_shape.lens());
-        if(algo == "block_tile")
-            algo = "block";
-        if(algo == "block" or algo == "wave")
+        options.virtual_inputs = plan.virtual_inputs;
+        if(algo == "block" or algo == "block_tile")
         {
-            if(algo == "block")
+            auto block_size = v.get("block_size", compute_block_size(ctx, relements, 1024));
+            assert(block_size > 0);
+            if(relements >= (block_size - 1) * 256)
             {
-                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 1024));
-                assert(block_size > 0);
-                if(relements >= (block_size - 1) * 256)
-                {
-                    algo = "block_large";
-                }
-                else if(tile.has_value())
-                {
-                    // Smaller workgroups keep the reused loads resident in cache
-                    auto max_block = tile->size == 2 ? 512 : 256;
-                    block_size = v.get("block_size", compute_block_size(ctx, relements, max_block));
-                    algo       = "block_tile<" + std::to_string(tile->axis) + ", " +
-                           std::to_string(tile->size) + ">";
-                    nelements /= tile->size;
-                }
-                options.set_launch_params(
-                    v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+                algo = "block_large";
             }
-            else
+            else if(algo == "block_tile")
             {
-                auto subwave_size = v.get("subwave_size", compute_subwave_size(ctx, relements));
-                algo              = "subwave<" + std::to_string(subwave_size) + ">";
-                options.set_launch_params(v,
-                                          compute_global_for(ctx, nelements * subwave_size, 256),
-                                          ctx.get_current_device().get_wavefront_size());
+                auto tile_axis   = v.at("tile_axis").to<std::size_t>();
+                auto n_per_block = v.at("n_per_block").to<std::size_t>();
+                assert(n_per_block > 0);
+                assert(nelements % n_per_block == 0);
+                // Smaller workgroups keep the reused loads resident in cache
+                block_size = v.get(
+                    "block_size", compute_block_size(ctx, relements, n_per_block == 2 ? 512 : 256));
+                algo = "block_tile<" + std::to_string(tile_axis) + ", " +
+                       std::to_string(n_per_block) + ">";
+                nelements /= n_per_block;
             }
+            options.set_launch_params(
+                v, compute_global_for(ctx, nelements * block_size, 256), block_size);
         }
-        else if(algo == "lane" or algo == "block_strided")
+        else if(algo == "wave")
         {
-            optional<strided_tile> stile;
-            if(algo == "block_strided" or
-               (prefer_block_strided(ctx, plan, noutputs) and not v.contains("algo")))
-                stile = find_strided_tile(ctx, relements, v.get("block_size", 256));
-            if(stile.has_value())
-            {
-                algo         = stile->algo();
-                auto ngroups = (nelements + stile->out_tile - 1) / stile->out_tile;
-                options.set_launch_params(v,
-                                          compute_global_for(ctx, ngroups * stile->block_size, 256),
-                                          stile->block_size);
-            }
-            else
-            {
-                algo = "lane";
-                options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
-            }
+            auto subwave_size = v.get("subwave_size", compute_subwave_size(ctx, relements));
+            algo              = "subwave<" + std::to_string(subwave_size) + ">";
+            options.set_launch_params(v,
+                                      compute_global_for(ctx, nelements * subwave_size, 256),
+                                      ctx.get_current_device().get_wavefront_size());
+        }
+        else if(algo == "block_strided")
+        {
+            auto stile = find_strided_tile(ctx, relements, v.get("block_size", 256));
+            if(not stile.has_value())
+                MIGRAPHX_THROW("Invalid block_size for block_strided reduce");
+            algo         = stile->algo();
+            auto ngroups = (nelements + stile->out_tile - 1) / stile->out_tile;
+            options.set_launch_params(
+                v, compute_global_for(ctx, ngroups * stile->block_size, 256), stile->block_size);
+        }
+        else if(algo == "lane")
+        {
+            options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
         }
         else
         {
@@ -633,15 +619,23 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
     }
 
     /// Add a solution for the algo with the given block size, plus the
-    /// larger-block alternative when it differs
+    /// larger-block alternative when it differs. The extra parameters are
+    /// included in each solution.
     static void add_block_size_solutions(tuning_config& tc,
                                          const std::string& algo,
                                          std::size_t block_size,
-                                         std::size_t large_block_size)
+                                         std::size_t large_block_size,
+                                         const value& extra = value::object{})
     {
-        tc.solutions.push_back({{"algo", algo}, {"block_size", block_size}});
+        auto solution          = extra;
+        solution["algo"]       = algo;
+        solution["block_size"] = block_size;
+        tc.solutions.push_back(solution);
         if(large_block_size != block_size)
-            tc.solutions.push_back({{"algo", algo}, {"block_size", large_block_size}});
+        {
+            solution["block_size"] = large_block_size;
+            tc.solutions.push_back(solution);
+        }
     }
 
     optional<tuning_config>
@@ -658,8 +652,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());
         if(not exhaustive)
         {
-            // Without exhaustive tuning, offer the algorithms compile_op would pick on its own
-            // plus a few alternatives so benchmarking can decide: block_tile when a tile is
+            // Without exhaustive tuning, offer the heuristic default algorithm plus a few
+            // alternatives so benchmarking can decide: block_tile when a tile is
             // found, a larger block size (max 1024 instead of 256) for block, and
             // block_strided when the lane heuristics prefer it.
             if(plan.algo == "block")
@@ -676,7 +670,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                         "block_tile",
                         compute_block_size(
                             ctx, std::max<std::size_t>(plan.relements / 4, 1), max_block),
-                        compute_block_size(ctx, plan.relements, max_block));
+                        compute_block_size(ctx, plan.relements, max_block),
+                        {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
                 }
                 add_block_size_solutions(tc,
                                          "block",
@@ -726,10 +721,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         tc.solutions.push_back({{"algo", "lane"}});
         for(auto block_size : {128, 256, 512, 1024})
             tc.solutions.push_back({{"algo", "block_strided"}, {"block_size", block_size}});
-        if(tile.has_value())
+        if(tile.has_value() and plan.assign == "assign_none")
         {
             for(auto block_size : {64, 128, 256, 512})
-                tc.solutions.push_back({{"algo", "block_tile"}, {"block_size", block_size}});
+                tc.solutions.push_back({{"algo", "block_tile"},
+                                        {"block_size", block_size},
+                                        {"tile_axis", tile->axis},
+                                        {"n_per_block", tile->size}});
         }
         return tc;
     }

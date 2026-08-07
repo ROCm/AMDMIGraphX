@@ -43,7 +43,7 @@ static sym::expr axis_len_expr(const shape& s, int64_t axis)
         return dd.sym_expr;
     if(dd.is_fixed())
         return sym::lit(dd.get_interval().max);
-    MIGRAPHX_THROW("normalize_attributes: cannot normalize against a non-fixed axis");
+    MIGRAPHX_THROW("normalize_attributes: cannot normalize against a non-symbolic, non-fixed axis");
 }
 
 /**

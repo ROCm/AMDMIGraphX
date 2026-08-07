@@ -102,9 +102,7 @@ static std::pair<migraphx::program, migraphx::program> compile_gpu_ref(const mig
 static void
 check_rebind(const migraphx::program& p, const migraphx::shape& s, bool round_trip = false)
 {
-    auto programs = compile_gpu_ref(p, false);
-    auto& p_gpu   = programs.first;
-    auto& p_ref   = programs.second;
+    auto [p_gpu, p_ref] = compile_gpu_ref(p, false);
     if(round_trip)
     {
         p_gpu = migraphx::load_buffer(migraphx::save_buffer(p_gpu));
@@ -124,12 +122,12 @@ check_rebind(const migraphx::program& p, const migraphx::shape& s, bool round_tr
     auto x2 = migraphx::gpu::to_gpu(migraphx::generate_argument(s, 2));
     EXPECT(x1.data() != x2.data());
 
-    auto eval_gpu = [&](const migraphx::argument& x) {
+    auto eval_gpu = [&, &p_gpu = p_gpu](const migraphx::argument& x) {
         migraphx::parameter_map m = base;
         m["x"]                    = x;
         return migraphx::gpu::from_gpu(p_gpu.eval(m).back()).to_vector<float>();
     };
-    auto eval_ref = [&](unsigned long seed) {
+    auto eval_ref = [&, &p_ref = p_ref](unsigned long seed) {
         return p_ref.eval({{"x", migraphx::generate_argument(s, seed)}}).back().to_vector<float>();
     };
 
@@ -193,14 +191,12 @@ TEST_CASE(offload_copy_no_rebind)
     auto x   = mm->add_parameter("x", s);
     mm->add_return({add_layers(*mm, x, s, 3)});
 
-    auto programs = compile_gpu_ref(p, true);
-    auto& p_gpu   = programs.first;
-    auto& p_ref   = programs.second;
+    auto [p_gpu, p_ref] = compile_gpu_ref(p, true);
 
-    auto run_gpu = [&](unsigned long seed) {
+    auto run_gpu = [&, &p_gpu = p_gpu](unsigned long seed) {
         return p_gpu.eval({{"x", migraphx::generate_argument(s, seed)}}).back().to_vector<float>();
     };
-    auto run_ref = [&](unsigned long seed) {
+    auto run_ref = [&, &p_ref = p_ref](unsigned long seed) {
         return p_ref.eval({{"x", migraphx::generate_argument(s, seed)}}).back().to_vector<float>();
     };
     EXPECT(migraphx::verify::verify_rms_range(run_gpu(1), run_ref(1)));
@@ -263,9 +259,7 @@ TEST_CASE(rebind_output_buffer)
     auto x   = mm->add_parameter("x", s);
     mm->add_return({add_layers(*mm, x, s, 3)});
 
-    auto programs = compile_gpu_ref(p, false);
-    auto& p_gpu   = programs.first;
-    auto& p_ref   = programs.second;
+    auto [p_gpu, p_ref] = compile_gpu_ref(p, false);
 
     auto out_names = output_param_names(p_gpu);
     EXPECT(out_names.size() == 1);
@@ -282,13 +276,14 @@ TEST_CASE(rebind_output_buffer)
     auto out1 = migraphx::gpu::allocate_gpu(gpu_shapes.at(out_names.front()));
     auto out2 = migraphx::gpu::allocate_gpu(gpu_shapes.at(out_names.front()));
 
-    auto eval_gpu = [&](const migraphx::argument& x_arg, const migraphx::argument& out_arg) {
+    auto eval_gpu = [&, &p_gpu = p_gpu](const migraphx::argument& x_arg,
+                                        const migraphx::argument& out_arg) {
         migraphx::parameter_map m = base;
         m["x"]                    = x_arg;
         m[out_names.front()]      = out_arg;
         return migraphx::gpu::from_gpu(p_gpu.eval(m).back()).to_vector<float>();
     };
-    auto eval_ref = [&](unsigned long seed) {
+    auto eval_ref = [&, &p_ref = p_ref](unsigned long seed) {
         return p_ref.eval({{"x", migraphx::generate_argument(s, seed)}}).back().to_vector<float>();
     };
 
@@ -318,9 +313,7 @@ TEST_CASE(multi_output_tuple)
     auto c3  = add_layers(*mm, c1, s, 2);
     mm->add_return({c1, c3});
 
-    auto programs = compile_gpu_ref(p, true);
-    auto& p_gpu   = programs.first;
-    auto& p_ref   = programs.second;
+    auto [p_gpu, p_ref] = compile_gpu_ref(p, true);
 
     auto run2 = [&](migraphx::program& prog, unsigned long seed) {
         auto results = prog.eval({{"x", migraphx::generate_argument(s, seed)}});
@@ -354,9 +347,7 @@ TEST_CASE(rebind_aliased_inputs)
     auto sum = mm->add_instruction(migraphx::make_op("add"), lx, y);
     mm->add_return({add_layers(*mm, sum, s, 2)});
 
-    auto programs = compile_gpu_ref(p, false);
-    auto& p_gpu   = programs.first;
-    auto& p_ref   = programs.second;
+    auto [p_gpu, p_ref] = compile_gpu_ref(p, false);
 
     auto gpu_shapes = p_gpu.get_parameter_shapes();
     migraphx::parameter_map base;
@@ -370,13 +361,14 @@ TEST_CASE(rebind_aliased_inputs)
     auto v2 = migraphx::gpu::to_gpu(migraphx::generate_argument(s, 2));
     auto v3 = migraphx::gpu::to_gpu(migraphx::generate_argument(s, 3));
 
-    auto eval_gpu = [&](const migraphx::argument& x_arg, const migraphx::argument& y_arg) {
+    auto eval_gpu = [&, &p_gpu = p_gpu](const migraphx::argument& x_arg,
+                                        const migraphx::argument& y_arg) {
         migraphx::parameter_map m = base;
         m["x"]                    = x_arg;
         m["y"]                    = y_arg;
         return migraphx::gpu::from_gpu(p_gpu.eval(m).back()).to_vector<float>();
     };
-    auto eval_ref = [&](unsigned long xseed, unsigned long yseed) {
+    auto eval_ref = [&, &p_ref = p_ref](unsigned long xseed, unsigned long yseed) {
         return p_ref
             .eval({{"x", migraphx::generate_argument(s, xseed)},
                    {"y", migraphx::generate_argument(s, yseed)}})

@@ -350,7 +350,7 @@ TEST_CASE(mixed_output_backing)
         auto c1  = mm->add_instruction(unary_pass_op{}, x);
         auto c2  = mm->add_instruction(unary_pass_op{}, c1);
         auto a = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
-        auto v = mm->add_instruction(pass_op{}, a);
+        auto v     = mm->add_instruction(pass_op{}, a);
         auto sync1 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, c2);
         auto sync2 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, v);
         mm->add_return({sync1, sync2});

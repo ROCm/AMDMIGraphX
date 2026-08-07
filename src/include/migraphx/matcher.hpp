@@ -269,6 +269,12 @@ struct any_matcher : any_matcher_base
     }
 };
 
+template <class M>
+auto opaque(M m)
+{
+    return any_matcher{m};
+}
+
 /// Create a basic matcher from a matcher
 template <class M>
 typename type_erased_matcher<M>::type make_basic_matcher(M m)

@@ -26,6 +26,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/sym.hpp>
@@ -64,6 +65,37 @@ struct normalize_test_op
                                const std::vector<migraphx::argument>&) const
     {
         return migraphx::argument{output_shape};
+    }
+};
+
+// A dynamic_dimension serializes as an object, but not as an expression, so a bound attribute
+// holding one has nowhere to store a symbolically normalized result.
+struct dim_like_bound_test_op
+{
+    std::vector<int64_t> axes             = {};
+    std::vector<migraphx::dim_like> bound = {};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.axes, "axes"), f(self.bound, "bound"));
+    }
+
+    migraphx::value attributes() const
+    {
+        migraphx::value normalize;
+        normalize["bound"] = migraphx::value::array{migraphx::op::normalize_attribute::clip_max,
+                                                    migraphx::op::normalize_attribute::clip_min,
+                                                    migraphx::op::normalize_attribute::include_max,
+                                                    migraphx::op::normalize_attribute::use_len,
+                                                    migraphx::op::normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
+    }
+
+    std::string name() const { return "normalize_ops_test::dim_like_bound_op"; }
+    migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        return inputs[0];
     }
 };
 
@@ -350,6 +382,21 @@ TEST_CASE(dyn_slice_sym_nonfixed_axis_throws)
     EXPECT(test::throws<migraphx::exception>(
         [&] { create_dyn_slice(s, {{"axes", {0}}, {"starts", {0}}, {"ends", sym_bound(n)}}); },
         "cannot normalize against a non-fixed axis"));
+}
+
+TEST_CASE(non_expression_object_value_throws)
+{
+    // Rejected up front rather than failing later when the value is read back as an expression.
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            migraphx::module m;
+            auto data = m.add_parameter("data", s);
+            m.add_instruction(dim_like_bound_test_op{{3}, {dd{n}}}, data);
+        },
+        "symbolic values are not supported"));
 }
 
 static migraphx::module create_test_op(const std::vector<int64_t>& axes)

@@ -261,6 +261,12 @@ static value tune_array_attribute(const value& vv,
 {
     if(std::any_of(vv.begin(), vv.end(), [](const auto& e) { return e.is_object(); }))
     {
+        // An expression serializes as an object carrying a "type" tag. Any other object belongs
+        // to an attribute that cannot hold one, so there would be nowhere to write the result.
+        if(std::any_of(vv.begin(), vv.end(), [](const auto& e) {
+               return e.is_object() and not e.contains("type");
+           }))
+            MIGRAPHX_THROW(m() + "symbolic values are not supported!");
         auto norm_attrs = opts.to_vector<op::normalize_attribute>();
         auto exprs      = migraphx::from_value<std::vector<sym::expr>>(vv);
         return migraphx::to_value(tune_attribute_sym(exprs, axes, norm_attrs, input_shape, m));

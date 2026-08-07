@@ -1,0 +1,31 @@
+"split_prefill_decode_multi_io_test:º
+
+x
+y
+sum_output"Add
+!
+zindependent_output"Identity"split_prefill_decode_multi_io_testZ&
+x!
+
+
+sequence_length
+Z&
+y!
+
+
+sequence_length
+Z"
+z
+
+other_dimension
+b/
+
+sum_output!
+
+
+sequence_length
+b3
+independent_output
+
+other_dimension
+B

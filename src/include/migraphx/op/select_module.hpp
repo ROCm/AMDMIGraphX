@@ -44,6 +44,8 @@ struct select_module
     {
         std::string name;
         shape parameter_shape;
+        std::size_t output_offset = 0;
+        std::size_t output_count  = 1;
     };
 
     enum class source_kind
@@ -190,19 +192,51 @@ struct select_module
                     parameter_slots = max_order->second + 1;
                 }
                 result.parameters.resize(parameter_slots, parameter_source{source_kind::unused, 0});
-                auto add_metadata = [&](const auto& names, auto& output, source_kind kind) {
-                    output.reserve(names.size());
-                    std::transform(names.begin(),
-                                   names.end(),
-                                   std::back_inserter(output),
-                                   [&, index = std::size_t{0}](const auto& name) mutable {
-                                       auto order               = param_orders.at(name);
-                                       result.parameters[order] = parameter_source{kind, index++};
-                                       return parameter_metadata{name, param_shapes.at(name)};
-                                   });
-                };
-                add_metadata(get_input_parameter_names(mod), result.inputs, source_kind::input);
-                add_metadata(get_output_parameter_names(mod), result.outputs, source_kind::output);
+                auto input_names = get_input_parameter_names(mod);
+                result.inputs.reserve(input_names.size());
+                std::transform(input_names.begin(),
+                               input_names.end(),
+                               std::back_inserter(result.inputs),
+                               [&, index = std::size_t{0}](const auto& name) mutable {
+                                   auto order = param_orders.at(name);
+                                   result.parameters[order] =
+                                       parameter_source{source_kind::input, index++};
+                                   return parameter_metadata{name, param_shapes.at(name)};
+                               });
+
+                auto output_names = get_output_parameter_names(mod);
+                auto returns      = mod->get_returns();
+                result.outputs.reserve(output_names.size());
+                std::transform(
+                    output_names.begin(),
+                    output_names.end(),
+                    std::back_inserter(result.outputs),
+                    [&, index = std::size_t{0}, offset = std::size_t{0}](const auto& name) mutable {
+                        auto parameter = std::find_if(
+                            parameters.begin(), parameters.end(), [&](instruction_ref ins) {
+                                return any_cast<builtin::param>(ins->get_operator()).parameter ==
+                                       name;
+                            });
+                        assert(parameter != parameters.end());
+                        auto output_count = transform_accumulate(
+                            returns.begin(),
+                            returns.end(),
+                            std::size_t{0},
+                            std::plus<>{},
+                            [&](instruction_ref ret) {
+                                auto aliases = instruction::get_output_alias(ret);
+                                return std::size_t{contains(aliases, *parameter)};
+                            });
+                        if(output_count == 0)
+                            output_count = 1;
+
+                        auto order               = param_orders.at(name);
+                        result.parameters[order] = parameter_source{source_kind::output, index++};
+                        parameter_metadata output{
+                            name, param_shapes.at(name), offset, output_count};
+                        offset += output_count;
+                        return output;
+                    });
                 return result;
             });
         std::vector<std::vector<std::size_t>> selectors;
@@ -291,17 +325,48 @@ struct select_module
         });
     }
 
-    argument prepare_output(const parameter_metadata& output, const argument& arg) const
+    argument prepare_output_shape(const parameter_metadata& output,
+                                  const shape& expected,
+                                  const argument& arg) const
     {
-        if(arg.get_shape() == output.parameter_shape)
+        if(arg.get_shape() == expected)
             return arg;
         // Reshaping onto a smaller buffer would let the submodule write past its end, so refuse
         // rather than corrupt memory.
-        if(arg.get_shape().bytes() < output.parameter_shape.bytes())
+        if(arg.get_shape().bytes() < expected.bytes())
             MIGRAPHX_THROW("SELECT_MODULE: output buffer for \"" + output.name + "\" holds " +
                            std::to_string(arg.get_shape().bytes()) + " bytes but the selected " +
-                           "submodule writes " + std::to_string(output.parameter_shape.bytes()));
-        return arg.reshape(output.parameter_shape);
+                           "submodule writes " + std::to_string(expected.bytes()));
+        return arg.reshape(expected);
+    }
+
+    argument prepare_output(const parameter_metadata& output, const argument& outputs) const
+    {
+        const auto& output_shapes = outputs.get_shape().sub_shapes();
+        if(output.output_offset + output.output_count > output_shapes.size())
+            MIGRAPHX_THROW("SELECT_MODULE: selected submodule needs more output buffers than the "
+                           "main module provides");
+
+        if(output.output_count == 1)
+            return prepare_output_shape(
+                output, output.parameter_shape, outputs.get_sub_object(output.output_offset));
+
+        const auto& parameter_shapes = output.parameter_shape.sub_shapes();
+        if(output.parameter_shape.type() != shape::tuple_type or
+           parameter_shapes.size() != output.output_count)
+            MIGRAPHX_THROW("SELECT_MODULE: tuple output parameter \"" + output.name +
+                           "\" does not match the selected submodule returns");
+
+        auto indices = range(output.output_count);
+        std::vector<argument> result;
+        result.reserve(output.output_count);
+        std::transform(
+            indices.begin(), indices.end(), std::back_inserter(result), [&](std::size_t index) {
+                return prepare_output_shape(output,
+                                            parameter_shapes[index],
+                                            outputs.get_sub_object(output.output_offset + index));
+            });
+        return argument{result};
     }
 
     argument compute(const shape&,
@@ -327,15 +392,13 @@ struct select_module
             std::inserter(p_map, p_map.end()),
             [](const auto& input, const auto& arg) { return std::make_pair(input.name, arg); });
 
-        // One tuple output parameter in main module to multiple output parameters in submodule
-        auto output_sub_objects = args.back().get_sub_objects();
-        assert(module_info.outputs.size() == output_sub_objects.size());
+        // Route the main module's tuple of output buffers to the selected submodule. A compiled
+        // output parameter can itself be a tuple when one kernel produces multiple returns.
         std::transform(module_info.outputs.begin(),
                        module_info.outputs.end(),
-                       output_sub_objects.begin(),
                        std::inserter(p_map, p_map.end()),
-                       [&](const auto& output, const auto& a) {
-                           return std::make_pair(output.name, prepare_output(output, a));
+                       [&](const auto& output) {
+                           return std::make_pair(output.name, prepare_output(output, args.back()));
                        });
         auto results = run(module_to_run, p_map);
         return argument{results};
@@ -355,8 +418,7 @@ struct select_module
             assert(source.kind != source_kind::unused);
             if(source.kind == source_kind::input)
                 return get_argument(source.index);
-            auto result = output.get_sub_object(source.index);
-            return select->prepare_output(metadata->outputs[source.index], result);
+            return select->prepare_output(metadata->outputs[source.index], output);
         }
     };
 

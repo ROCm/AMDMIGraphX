@@ -3209,6 +3209,28 @@ def split_prefill_decode_test():
 
 
 @onnx_test()
+def split_prefill_decode_multi_io_test():
+    x = helper.make_tensor_value_info(
+        'x', TensorProto.FLOAT, [1, "sequence_length", 2])
+    y = helper.make_tensor_value_info(
+        'y', TensorProto.FLOAT, [1, "sequence_length", 2])
+    z = helper.make_tensor_value_info(
+        'z', TensorProto.FLOAT, ["other_dimension", 2])
+    sum_output = helper.make_tensor_value_info(
+        'sum_output', TensorProto.FLOAT, [1, "sequence_length", 2])
+    independent_output = helper.make_tensor_value_info(
+        'independent_output', TensorProto.FLOAT, ["other_dimension", 2])
+    add = helper.make_node('Add',
+                           inputs=['x', 'y'],
+                           outputs=['sum_output'])
+    identity = helper.make_node('Identity',
+                                inputs=['z'],
+                                outputs=['independent_output'])
+
+    return ([add, identity], [x, y, z], [sum_output, independent_output])
+
+
+@onnx_test()
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])

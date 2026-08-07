@@ -25,6 +25,7 @@
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
@@ -1074,6 +1075,44 @@ TEST_CASE(select_module_update2)
     }
 
     EXPECT(p0 == p1);
+}
+
+TEST_CASE(select_module_preserves_symbolic_output)
+{
+    migraphx::program p;
+    auto create_submodule = [&](std::size_t sequence_length, const std::string& name) {
+        auto* submodule = p.create_module(name);
+        migraphx::shape input_shape{migraphx::shape::float_type, {1, sequence_length, 2}};
+        auto input = submodule->add_parameter("data", input_shape);
+        submodule->add_return({input});
+        return submodule;
+    };
+    auto* decode  = create_submodule(1, "decode");
+    auto* prefill = create_submodule(4, "prefill");
+
+    using dd             = migraphx::shape::dynamic_dimension;
+    auto sequence_length = migraphx::sym::var("sequence_length", {1, 4});
+    migraphx::shape dynamic_shape{
+        migraphx::shape::float_type,
+        {dd{migraphx::sym::lit(1)}, dd{sequence_length}, dd{migraphx::sym::lit(2)}}};
+    auto* mm                                = p.get_main_module();
+    auto data                               = mm->add_parameter("data", dynamic_shape);
+    std::vector<migraphx::shape> sub_shapes = {dynamic_shape};
+    migraphx::shape output_shapes{sub_shapes};
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
+        {data},
+        {decode, prefill});
+    mm->add_return({select});
+
+    migraphx::run_passes(p, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
+
+    auto selected = std::find_if(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "select_module"; });
+    EXPECT(selected != mm->end());
+    EXPECT(selected->get_shape() == output_shapes);
+    EXPECT(selected->get_shape().sub_shapes().front().symbolic());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

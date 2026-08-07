@@ -151,3 +151,19 @@ TEST_CASE(split_prefill_decode_input_dim_override_test)
     options.map_input_dims["x"] = {1, 4, 2};
     EXPECT(test::throws([&] { read_onnx("split_prefill_decode_test.onnx", options); }));
 }
+
+TEST_CASE(split_prefill_decode_independent_dynamic_dimension_test)
+{
+    auto options                          = split_options(4);
+    options.dim_params["other_dimension"] = {2, 3};
+    auto p = read_onnx("split_prefill_decode_multi_io_test.onnx", options);
+
+    auto specializations = find_specializations(p.get_main_module());
+    EXPECT(specializations.size() == 2);
+    EXPECT(specializations.at(0)->get_parameter_shape("z").symbolic());
+    EXPECT(specializations.at(1)->get_parameter_shape("z").symbolic());
+    EXPECT(specializations.at(0)->get_parameter_shape("z") ==
+           specializations.at(1)->get_parameter_shape("z"));
+    EXPECT(p.get_main_module()->get_output_shapes().size() == 2);
+    EXPECT(p.get_main_module()->get_output_shapes().at(1).dynamic());
+}

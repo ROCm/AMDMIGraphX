@@ -5793,4 +5793,45 @@ TEST_CASE(simplify_concat_same_input_dynamic)
     EXPECT(m1 == m2);
 }
 
+// PROTOTYPE (AIMIGRAPHX-1199): reduce_sum(mul(broadcast, broadcast)) -> dot
+TEST_CASE(simplify_mul_reduce_sum_to_dot)
+{
+    migraphx::module m;
+    // a: [M, 1, K] broadcast over N ; b: [1, N, K] broadcast over M ; contract K
+    auto a  = m.add_parameter("a", {migraphx::shape::float_type, {4, 1, 6}});
+    auto b  = m.add_parameter("b", {migraphx::shape::float_type, {1, 5, 6}});
+    auto ab = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 5, 6}}}), a);
+    auto bb = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 5, 6}}}), b);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), ab, bb);
+    auto rs  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+    m.add_instruction(pass_op{}, rs);
+
+    auto s = m.get_output_shapes().back();
+    run_pass(m);
+
+    // shape is preserved (reduce_sum keeps the contracted axis as size 1)
+    EXPECT(s == m.get_output_shapes().back());
+    // the contraction was lowered to a GEMM
+    EXPECT(std::any_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "dot"; }));
+    EXPECT(std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "reduce_sum"; }));
+}
+
+// Guard: both operands broadcast on the same axis -> no distinct GEMM free dims, no rewrite.
+TEST_CASE(simplify_mul_reduce_sum_no_rewrite)
+{
+    migraphx::module m;
+    auto a  = m.add_parameter("a", {migraphx::shape::float_type, {4, 1, 6}});
+    auto b  = m.add_parameter("b", {migraphx::shape::float_type, {4, 1, 6}});
+    auto ab = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 5, 6}}}), a);
+    auto bb = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 5, 6}}}), b);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), ab, bb);
+    auto rs  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+    m.add_instruction(pass_op{}, rs);
+
+    run_pass(m);
+
+    EXPECT(std::any_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "reduce_sum"; }));
+    EXPECT(std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "dot"; }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

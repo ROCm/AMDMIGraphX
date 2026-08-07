@@ -38,6 +38,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/unfold.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
@@ -314,6 +315,119 @@ struct find_mul_dot
             return;
 
         m.replace_instruction(ins, make_op("dot"), a_ins, b_ins);
+    }
+};
+
+// PROTOTYPE (AIMIGRAPHX-1199): rewrite a broadcasted elementwise-multiply followed
+// by a reduce_sum into a GEMM.
+//
+//     reduce_sum(mul(broadcast(a), broadcast(b)), axes=[k])
+//
+// is the contraction  sum_k a[..,m,1,k] * b[..,1,n,k]  which equals the einsum
+// "...mk,...nk->...mn". Rather than hand-building the transpose/reshape/dot, we
+// reconstruct the equivalent einsum equation and delegate to the einsum op-builder,
+// which already lowers pair contractions to `dot`. Emitting the dot here (inside
+// optimize_module, before fuse_horizontal/fuse_mlir) lets it inherit GEMM fusion
+// and tuning downstream.
+struct find_mul_reduce_sum
+{
+    auto matcher() const
+    {
+        auto bcast = match::name("broadcast", "multibroadcast");
+        auto mul   = match::name("mul")(match::used_once(),
+                                        match::args(bcast.bind("in0"), bcast.bind("in1")));
+        return match::name("reduce_sum")(match::used_once(), match::args(mul.bind("mul")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto reduce_ins = r.result;
+        auto in0        = r.instructions["in0"];
+        auto in1        = r.instructions["in1"];
+
+        // Only single-axis reductions map cleanly to a GEMM contraction dim.
+        auto axes = reduce_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
+        if(axes.size() != 1)
+            return;
+        const auto& s      = in0->get_shape(); // == in1 shape == mul shape
+        const int64_t rank = static_cast<int64_t>(s.ndim());
+        int64_t k          = axes[0] < 0 ? axes[0] + rank : axes[0];
+        if(rank > 26) // keep single-letter einsum labels for the prototype
+            return;
+
+        auto base0 = in0->inputs().front();
+        auto base1 = in1->inputs().front();
+        // rank preserved so axis ids line up 1:1 with the common (broadcast) shape
+        if(base0->get_shape().ndim() != s.ndim() or base1->get_shape().ndim() != s.ndim())
+            return;
+
+        const auto& st0 = in0->get_shape().strides();
+        const auto& st1 = in1->get_shape().strides();
+        // the contraction axis must be real (not broadcast) in both operands
+        if(st0[k] == 0 or st1[k] == 0)
+            return;
+
+        // classify axes: m is real only in base0, n is real only in base1, the rest
+        // are shared batch axes. A stride of 0 means that operand is broadcast there.
+        int64_t m_axis = -1;
+        int64_t n_axis = -1;
+        for(int64_t d = 0; d < rank; ++d)
+        {
+            if(d == k)
+                continue;
+            bool b0 = st0[d] == 0;
+            bool b1 = st1[d] == 0;
+            if(b0 and b1)
+                return; // broadcast in both -> not a GEMM
+            if(not b0 and b1)
+            {
+                if(m_axis != -1)
+                    return;
+                m_axis = d;
+            }
+            else if(b0 and not b1)
+            {
+                if(n_axis != -1)
+                    return;
+                n_axis = d;
+            }
+            // else: real in both -> batch axis (shared label)
+        }
+        if(m_axis < 0 or n_axis < 0)
+            return;
+
+        // Build the einsum equation: the left term owns every axis but n, the right
+        // term owns every axis but m, and the output drops the contracted k. This
+        // ensures m/n become GEMM free dims (not batched) inside the einsum builder.
+        auto label = [](int64_t d) { return static_cast<char>('a' + d); };
+        std::string t0;
+        std::string t1;
+        std::string out;
+        for(int64_t d = 0; d < rank; ++d)
+        {
+            if(d != n_axis)
+                t0 += label(d);
+            if(d != m_axis)
+                t1 += label(d);
+            if(d != k)
+                out += label(d);
+        }
+        std::string eq = t0 + "," + t1 + "->" + out;
+
+        // Drop the size-1 broadcast axes so each operand's rank matches its term.
+        auto sq0 =
+            m.insert_instruction(reduce_ins, make_op("squeeze", {{"axes", {n_axis}}}), base0);
+        auto sq1 =
+            m.insert_instruction(reduce_ins, make_op("squeeze", {{"axes", {m_axis}}}), base1);
+
+        // The einsum builder does the transpose/reshape/dot/reshape/transpose lowering.
+        auto es = op::builder::insert(
+                      "einsum", m, reduce_ins, {sq0, sq1}, {{"equation", eq}})
+                      .at(0);
+
+        // reduce_sum keeps the reduced axis as size 1; einsum dropped it, so restore it.
+        auto out_ins = m.insert_instruction(reduce_ins, make_op("unsqueeze", {{"axes", {k}}}), es);
+        m.replace_instruction(reduce_ins, out_ins);
     }
 };
 
@@ -2725,6 +2839,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_dot{},
+                            find_mul_reduce_sum{},
                             find_dot_slice{},
                             find_dot_mul{},
                             find_mul_add{},

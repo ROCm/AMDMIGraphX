@@ -538,7 +538,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(algo == "block" or algo == "block_tile")
         {
             auto n_per_block = v.get("n_per_block", std::size_t{1});
-            auto block_size = v.get("block_size", compute_block_size(ctx, relements, 1024));
+            auto block_size  = v.get("block_size", compute_block_size(ctx, relements, 1024));
             assert(n_per_block > 0);
             assert(block_size > 0);
             assert(nelements % n_per_block == 0);

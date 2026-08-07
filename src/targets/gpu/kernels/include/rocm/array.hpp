@@ -211,12 +211,12 @@ struct array<T, 0>
     // contract violation; at() always reports the empty array instead.
     constexpr reference operator[](size_type)
     {
-        ROCM_ASSERT(false);
+        ROCM_ASSERT(data() != nullptr);
         return *data();
     }
     constexpr const_reference operator[](size_type) const
     {
-        ROCM_ASSERT(false);
+        ROCM_ASSERT(data() != nullptr);
         return *data();
     }
 
@@ -231,22 +231,22 @@ struct array<T, 0>
 
     constexpr reference front()
     {
-        ROCM_ASSERT(false);
+        ROCM_ASSERT(data() != nullptr);
         return *data();
     }
     constexpr const_reference front() const
     {
-        ROCM_ASSERT(false);
+        ROCM_ASSERT(data() != nullptr);
         return *data();
     }
     constexpr reference back()
     {
-        ROCM_ASSERT(false);
+        ROCM_ASSERT(data() != nullptr);
         return *data();
     }
     constexpr const_reference back() const
     {
-        ROCM_ASSERT(false);
+        ROCM_ASSERT(data() != nullptr);
         return *data();
     }
 

@@ -208,15 +208,18 @@ struct array<T, 0>
 
     // Element access is never valid on an empty array, but it must still exist so that generic
     // code compiles when instantiated at N == 0. Calling any of these apart from at() is a
-    // contract violation; at() always reports the empty array instead.
+    // contract violation; at() always reports the empty array instead. The null dereference
+    // cppcheck reports below is that contract violation, guarded by the assert.
     constexpr reference operator[](size_type)
     {
         ROCM_ASSERT(data() != nullptr);
+        // cppcheck-suppress nullPointer
         return *data();
     }
     constexpr const_reference operator[](size_type) const
     {
         ROCM_ASSERT(data() != nullptr);
+        // cppcheck-suppress nullPointer
         return *data();
     }
 
@@ -232,21 +235,25 @@ struct array<T, 0>
     constexpr reference front()
     {
         ROCM_ASSERT(data() != nullptr);
+        // cppcheck-suppress nullPointer
         return *data();
     }
     constexpr const_reference front() const
     {
         ROCM_ASSERT(data() != nullptr);
+        // cppcheck-suppress nullPointer
         return *data();
     }
     constexpr reference back()
     {
         ROCM_ASSERT(data() != nullptr);
+        // cppcheck-suppress nullPointer
         return *data();
     }
     constexpr const_reference back() const
     {
         ROCM_ASSERT(data() != nullptr);
+        // cppcheck-suppress nullPointer
         return *data();
     }
 

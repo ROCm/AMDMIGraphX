@@ -60,15 +60,19 @@ struct numeric_limits_integer
     static constexpr const int digits       = sizeof(T) * 8 - static_cast<int>(is_signed);
     static constexpr const int digits10     = digits * 3 / 10;
     static constexpr const int max_digits10 = 0;
+    // cppcheck does not discard the untaken `if constexpr` branch, so for T == bool it sees
+    // these signed expressions being converted to bool and reports them as always true.
     static constexpr T min() noexcept
     {
         if constexpr(is_signed)
+            // cppcheck-suppress knownConditionTrueFalse
             return -max() - 1;
         return 0;
     }
     static constexpr T max() noexcept
     {
         if constexpr(is_signed)
+            // cppcheck-suppress knownConditionTrueFalse
             return int_max(sizeof(T)) / 2;
         return int_max(sizeof(T));
     }

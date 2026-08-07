@@ -537,8 +537,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         options.virtual_inputs = plan.virtual_inputs;
         if(algo == "block" or algo == "block_tile")
         {
+            auto n_per_block = v.get("n_per_block", std::size_t{1});
             auto block_size = v.get("block_size", compute_block_size(ctx, relements, 1024));
+            assert(n_per_block > 0);
             assert(block_size > 0);
+            assert(nelements % n_per_block == 0);
             if(relements >= (block_size - 1) * 256)
             {
                 algo = "block_large";
@@ -546,18 +549,14 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             else if(algo == "block_tile")
             {
                 auto tile_axis   = v.at("tile_axis").to<std::size_t>();
-                auto n_per_block = v.at("n_per_block").to<std::size_t>();
-                assert(n_per_block > 0);
-                assert(nelements % n_per_block == 0);
                 // Smaller workgroups keep the reused loads resident in cache
                 block_size = v.get(
                     "block_size", compute_block_size(ctx, relements, n_per_block == 2 ? 512 : 256));
                 algo = "block_tile<" + std::to_string(tile_axis) + ", " +
                        std::to_string(n_per_block) + ">";
-                nelements /= n_per_block;
             }
             options.set_launch_params(
-                v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+                v, compute_global_for(ctx, nelements * block_size / n_per_block, 256), block_size);
         }
         else if(algo == "wave")
         {

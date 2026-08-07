@@ -83,10 +83,12 @@ enum class winograd_fp32_weight_layout
 
 static winograd_fp32_weight_layout winograd_fp32_weight_layout_of(const shape& w)
 {
-    if(w.lens().at(0) == 3)
+    const auto& l = w.lens();
+    assert(l.size() == 4);
+    if(l[0] == 3)
         return winograd_fp32_weight_layout::sstore;
-    return w.lens().at(1) == 4 ? winograd_fp32_weight_layout::full_u
-                               : winograd_fp32_weight_layout::full_u_vinner;
+    return l[1] == 4 ? winograd_fp32_weight_layout::full_u
+                     : winograd_fp32_weight_layout::full_u_vinner;
 }
 
 // NOLINTNEXTLINE
@@ -179,7 +181,15 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         // cu shrinks the pipelined double-buffer (finer-grained pipeline) at the
         // cost of more, narrower weight loads.
         const auto cu = v.get("cu", std::size_t{4});
-        // Weight layout (chosen by prefuse, read back from the literal's shape):
+
+        if(nw == 0 or ko == 0 or tiles == 0 or sk == 0)
+            MIGRAPHX_THROW("winograd_conv_fp32: nw/ko/tiles/sk must be non-zero");
+        if(sk > nw or (nw % sk) != 0)
+            MIGRAPHX_THROW("winograd_conv_fp32: sk must be a non-zero divisor of nw");
+        if(cu != 1 and cu != 2 and cu != 4)
+            MIGRAPHX_THROW("winograd_conv_fp32: cu must be 1, 2, or 4");
+        if(ko * tiles > 32)
+            MIGRAPHX_THROW("winograd_conv_fp32: ko*tiles must be <= 32");
         //  - sstore: v-half-transformed S=[3,4,K,C]; the kernel finishes the
         //    register-only G u-transform, cutting weight loads+bytes to 3/4 (for
         //    weight-bandwidth-bound shapes).

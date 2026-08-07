@@ -151,6 +151,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     static_assert(TILES >= 1, "TILES must be >= 1");
     static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0, "SK must divide NW");
     static_assert(CU == 1 or CU == 2 or CU == 4, "CU must be 1, 2, or 4");
+    static_assert(MIGRAPHX_WAVEFRONTSIZE == 32, "winograd_conv_f23_fp32 requires wave32");
 
     auto idx       = make_index();
     auto out_shape = output.get_shape();
@@ -321,29 +322,11 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     // apply the same per-channel v/u transform. (NCHW channels are H*W apart, so
     // it stays per-channel.)
     //
-    // BOTTLENECK (measured by address-isolation on 256->256@64, replacing a load's
-    // offset with a constant so it hits one cached line): full 0.698ms; with the
-    // INPUT load coalesced 0.229; with the WEIGHT load coalesced 0.239; with BOTH
-    // coalesced = pure compute 0.089ms. So the fused COMPUTE is ~3x FASTER than MLIR
-    // (0.089 vs 0.276) -- the whole gap is the two SCATTERED loads (both read
-    // lane==v_col: input W-columns are C-strided; weight U v-slices are K*C apart),
-    // which THRASH the cache super-linearly (0.698 >> 0.089+0.14+0.15). Traffic is
-    // ~23 GB/s (<<peak) so it is cache-miss latency/thrashing, not bandwidth.
-    //
-    // FIX SHIPPED for the WEIGHT scatter (the host-controllable one): U is laid out
-    // v-innermost [u,k,c,v] (see prefuse compute_winograd_weights_f23_fp32 vinner)
-    // so the 4 v_col lanes read consecutive floats -> the weight load coalesces,
-    // relieving the thrash. GATED to out_c>=128 && in_c<=out_c: its strided (b32)
-    // channel load adds issue overhead that regresses small/cached-weight shapes.
-    // Net +4.5% geomean vs the scattered path (0.878->0.918x MLIR), memory-bound
-    // configs -61%->-47..-56%. The INPUT scatter (17MB, uncacheable, no layout
-    // freedom) is the dominant residual and has no clean in-kernel fix -- real
-    // input coalescing (lane==channel rewrite, LDS spatial-blocking) was measured
-    // NET-NEUTRAL-to-LOSS, and a full fused implicit-GEMM (scratchpad/
-    // winograd_conv_fp32_gemm.hpp) helps memory-bound (~0.69x) but is a big
-    // aggregate loss (0.48x, wrecks small shapes) -- the 16 winograd positions cap
-    // its arithmetic intensity. Beating MLIR outright would need a MULTI-kernel
-    // winograd (transform kernels + a library batched GEMM on materialized V/M).
+    // Note: performance is dominated by cache-miss latency from scattered input/weight loads.
+    // For NHWC, we mitigate the weight-side scatter by storing U as v-innermost [u,k,c,v], so
+    // lanes v_col=0..3 load consecutive floats (coalesced). This is gated to out_c>=128 and
+    // in_c<=out_c since v-innermost makes the channel load strided.
+    // The input-side scatter is inherent to the layout and is left as-is.
     auto transform_block = [&](index_int c0, index_int nchan) {
         v_reg_t vr{};
         if constexpr(NHWC)

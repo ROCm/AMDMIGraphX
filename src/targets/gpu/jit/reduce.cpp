@@ -548,7 +548,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             }
             else if(algo == "block_tile")
             {
-                auto tile_axis   = v.at("tile_axis").to<std::size_t>();
+                auto tile_axis = v.at("tile_axis").to<std::size_t>();
                 // Smaller workgroups keep the reused loads resident in cache
                 block_size = v.get(
                     "block_size", compute_block_size(ctx, relements, n_per_block == 2 ? 512 : 256));

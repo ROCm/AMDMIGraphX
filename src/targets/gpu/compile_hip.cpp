@@ -57,12 +57,13 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
-// Compile hip kernels in-process via hiprtc instead of spawning
-// migraphx-hiprtc-driver. See HIPRTC_INPROC_COMPILATION.md phase 2.
-// Defaults off: until comgr/hiprtc are made safe for concurrent in-process
-// use (phase 3), enabling this can serialize compiles that today run in
-// parallel across separate driver processes.
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_HIPRTC_INPROC);
+// Compile hip kernels in-process via hiprtc (in-memory buffers, no temp
+// files, no subprocess) instead of spawning migraphx-hiprtc-driver. This is
+// the default now that comgr/hiprtc are safe for concurrent in-process use
+// (HIPRTC_INPROC_COMPILATION.md phase 3, see the comgr option-fingerprint
+// cache). Set this to fall back to the legacy out-of-process driver
+// (subprocess + msgpack + temp-file code object) for comparison/debugging.
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_HIPRTC_USE_DRIVER);
 
 #ifdef MIGRAPHX_USE_HIPRTC
 
@@ -249,7 +250,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         }
     }
 
-    if(enabled(MIGRAPHX_HIPRTC_INPROC{}))
+    if(not enabled(MIGRAPHX_HIPRTC_USE_DRIVER{}))
         return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 
     auto fname  = make_executable_filename("migraphx-hiprtc-driver");

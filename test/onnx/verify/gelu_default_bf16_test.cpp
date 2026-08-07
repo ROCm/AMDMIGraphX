@@ -46,10 +46,10 @@ TEST_CASE(gelu_default_bf16_test)
 
     // gold values according to specification:
     // https://github.com/onnx/onnx/blob/main/docs/Operators.md#examples-59
-    // x = np.array([-100.0, -7.5, -5.2, -1.0, 0.0, 1.5, 4.9, 8.2, 1000.0]).astype(np.float16)
-    // (0.5 * x * (1 + np.vectorize(math.erf)(x / np.sqrt(2)))).astype(np.float16)
-    // tmp = {0.0f, 0.0f, -5.364e-07f, -0.1587f, 0.0f, 1.399f, 4.898f, 8.203f, 1000.0f};
-    tmp = {0.0f, 0.0f, 0.0f, -0.160156f, 0.0f, 1.399f, 4.84375f, 8.203f, 1000.0f};
+    // x = np.array([-100.0, -7.5, -5.2, -1.0, 0.0, 1.5, 4.9, 8.2, 1000.0]).astype(bfloat16)
+    // (0.5 * x * (1 + np.vectorize(math.erf)(x / np.sqrt(2)))).astype(bfloat16)
+    // The values too small to register against the 1000.0 magnitude are written as zero.
+    tmp = {0.0f, 0.0f, 0.0f, -0.158203f, 0.0f, 1.39844f, 4.90625f, 8.1875f, 1000.0f};
 
     std::vector<migraphx::bf16> gold = {tmp.begin(), tmp.end()};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));

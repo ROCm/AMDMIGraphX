@@ -1180,16 +1180,16 @@ TEST_CASE(test_neg_infinity)
 
 TEST_CASE(test_numeric_max_1)
 {
-    float fmax = std::numeric_limits<float>::max(); // fp32 max is fp16 inf
+    float fmax = std::numeric_limits<float>::max(); // fp32 max rounds past bf16 max, to inf
     migraphx::bf16 bf16_inf(fmax);
-    CHECK(bit_equal(bf16_inf, std::numeric_limits<migraphx::bf16>::max()));
+    CHECK(bit_equal(bf16_inf, std::numeric_limits<migraphx::bf16>::infinity()));
 }
 
 TEST_CASE(test_numeric_lowest_1)
 {
     float flowest = std::numeric_limits<float>::lowest();
     migraphx::bf16 bf16_neginf(flowest);
-    CHECK(bit_equal(bf16_neginf, std::numeric_limits<migraphx::bf16>::lowest()));
+    CHECK(bit_equal(bf16_neginf, -std::numeric_limits<migraphx::bf16>::infinity()));
 }
 
 TEST_CASE(test_max_eq_lowest)

@@ -32,6 +32,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par_dfor.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/dyn_output.hpp>
 
@@ -142,11 +143,14 @@ struct convolution_backwards
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         argument result{dyn_out.computed_shape};
-        auto num_spatial_dims = this->kdims();
+        auto num_spatial_dims  = this->kdims();
+        const shape& out_shape = dyn_out.computed_shape;
+        // Sum the products in double rather than in the output type: narrow types (fp16/bf16/fp8)
+        // cannot hold the running sum without rounding every term, which loses several ULPs over
+        // the channel/kernel extent. The reference forward convolution accumulates the same way.
+        std::vector<double> acc(out_shape.element_space(), 0.0);
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
             using type = typename decltype(output)::value_type;
-
-            std::fill(output.begin(), output.end(), type{0});
 
             auto in_lens = input.get_shape().lens();
             auto in_n    = in_lens[0];
@@ -202,12 +206,15 @@ struct convolution_backwards
                                   out_lens.end(),
                                   std::less<std::ptrdiff_t>{}))
                     {
-                        output(idx_out.begin(), idx_out.end()) +=
-                            input(idx_in.begin(), idx_in.end()) *
-                            weights(idx_wei.begin(), idx_wei.end());
+                        acc[out_shape.index(idx_out.begin(), idx_out.end())] +=
+                            static_cast<double>(input(idx_in.begin(), idx_in.end())) *
+                            static_cast<double>(weights(idx_wei.begin(), idx_wei.end()));
                     }
                 });
             });
+
+            par_for(out_shape.elements(),
+                    [&](std::size_t i) { output[i] = static_cast<type>(acc[out_shape.index(i)]); });
         });
         return result;
     }

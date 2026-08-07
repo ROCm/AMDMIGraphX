@@ -76,13 +76,14 @@ check_resize(const migraphx::value& v, const migraphx::shape& input_shape, bool 
 
     CHECK(output1.get_shape().lens() == output2.get_shape().lens());
 
+    // The rewrite interpolates as low + (hi - low) * delta in the tensor type, whereas the resize
+    // op interpolates in double, so for narrow types the two can land on adjacent representable
+    // values. Compare within tolerance rather than exactly; a wrong gather index still shows up as
+    // a large error.
     return test::make_predicate(ss.str(), [=] {
         bool result = false;
-        migraphx::visit_all(output1, output2)([&](auto v1, auto v2) {
-            result = std::equal(v1.begin(), v1.end(), v2.begin(), v2.end(), [](auto x, auto y) {
-                return migraphx::float_equal(x, y);
-            });
-        });
+        migraphx::visit_all(output1, output2)(
+            [&](auto v1, auto v2) { result = migraphx::verify::verify_rms_range(v1, v2); });
         return result;
     });
 }

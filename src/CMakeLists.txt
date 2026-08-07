@@ -160,7 +160,7 @@ target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 
 if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
-    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_OPAQUE=1)
 endif()
 
 configure_file(version.h.in include/migraphx/version.h)

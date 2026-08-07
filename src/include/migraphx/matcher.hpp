@@ -46,6 +46,10 @@
 #define MIGRAPHX_USE_TYPE_ERASED_MATCHERS 0
 #endif
 
+#ifndef MIGRAPHX_USE_TYPE_ERASED_OPAQUE
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE 0
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -272,7 +276,11 @@ struct any_matcher : any_matcher_base
 template <class M>
 auto opaque(M m)
 {
+#ifdef MIGRAPHX_USE_TYPE_ERASED_OPAQUE
     return any_matcher{m};
+#else
+    return m;
+#endif
 }
 
 /// Create a basic matcher from a matcher

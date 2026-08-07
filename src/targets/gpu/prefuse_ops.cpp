@@ -519,9 +519,9 @@ literal compute_winograd_weights_f23_fp32_sstore(const argument& w_arg)
     return literal{s_shape, data};
 }
 
-// Look up an exact (C, K, H, W) entry in a measured per-shape override table
-// (each entry must expose in_ch/out_ch/height/width fields); returns the entry or
-// nullptr. Shared by the fp16/fp32 profitability heuristics and the S-store table.
+// Look up an exact (C, K, H, W) entry in a per-shape override table (each entry
+// must expose in_ch/out_ch/height/width fields); returns the entry or nullptr.
+// Shared by the fp16/fp32 profitability heuristics and the S-store table.
 template <class Table>
 const typename Table::value_type* find_shape_override(const Table& table,
                                                       std::size_t in_ch,
@@ -670,31 +670,31 @@ struct winograd_f23_sstore_shape
     std::size_t width;
 };
 
-// Measured (gfx1201 fp32, exhaustive-tune, tight-interleaved) shapes in the
-// spatial-16..64 high-channel band where S-store beats full U by >=5%. The band's
-// S-vs-U win/loss is micro-architecturally NON-MONOTONIC -- 512->512@16 wins but
-// 515->512@16 loses 1.5x; 192->191@64 wins but 192->192@64 loses; 768->383@32
-// wins but 384->384@32 loses -- so a smooth rule can't separate them without
-// regressing real full-U winners. Hence a measured table, like the fp16 path.
+// Shapes in the spatial-16..64 high-channel band that prefer the S-store. In this
+// band the S-vs-full-U preference is micro-architecturally non-monotonic --
+// neighbouring channel counts flip it (512->512 vs 515->512 at 16x16, 192->191 vs
+// 192->192 at 64x64, 768->383 vs 384->384 at 32x32) -- so a smooth rule cannot
+// separate them without regressing the shapes that need the full U. Hence an
+// explicit table, like the fp16 path.
 constexpr std::array<winograd_f23_sstore_shape, 7> winograd_f23_sstore_overrides{{
-    {512, 512, 16, 16}, // S/U 0.84
-    {512, 512, 24, 24}, // 0.91
-    {195, 192, 64, 64}, // 0.94
-    {768, 383, 32, 32}, // 0.89
-    {384, 383, 32, 32}, // 0.93
-    {384, 191, 64, 64}, // 0.76
-    {192, 191, 64, 64}, // 0.82
+    {512, 512, 16, 16},
+    {512, 512, 24, 24},
+    {195, 192, 64, 64},
+    {768, 383, 32, 32},
+    {384, 383, 32, 32},
+    {384, 191, 64, 64},
+    {192, 191, 64, 64},
 }};
 
 // Choose the fp32 winograd weight encoding: S-store (v-half-transformed g*G^T,
 // [3,4,K,C]) vs the full U ([4,4,K,C]). S-store cuts weight loads AND bytes 25%
-// and finishes U with a cheap register-only u-transform, so it wins the
+// and finishes U with a cheap register-only u-transform, so it suits the
 // weight-load-dominated shapes: high channels with small spatial. Elsewhere its
-// extra register FMA + k-outer's lower ILP make it slower.
+// extra register FMA and k-outer's lower ILP cost more than the bandwidth saved.
 //
-// Two selection paths: (1) a smooth confirmed-safe zone (very small spatial, high
-// channels) where S-store wins uniformly; (2) the measured override table above
-// for the non-monotonic spatial-16..64 band.
+// Two selection paths: (1) a smooth zone (very small spatial, high channels)
+// where S-store is uniformly preferable; (2) the override table above for the
+// non-monotonic spatial-16..64 band.
 bool winograd_f23_use_sstore(std::size_t in_ch,
                              std::size_t out_ch,
                              std::size_t height,
@@ -706,41 +706,39 @@ bool winograd_f23_use_sstore(std::size_t in_ch,
            nullptr;
 }
 
-// Measured per-shape overrides for the fp32 F(2,3) heuristic below: exact
-// (C, K, H, W) convs where the smooth rule mispredicts winograd-vs-MLIR (gfx1201
-// fp32, exhaustive-tune, using whichever weight store the kernel auto-selects).
-// Two groups need a table (like the fp16 path): high-channel square convs in the
-// spatial-16..32 band where S-store flips some but not their neighbours, and
-// awkward-out_ch convs at large spatial (see the per-entry notes below).
-// Reuses winograd_f23_shape (same C/K/H/W + use_winograd fields as the fp16 table).
+// Per-shape overrides for the fp32 F(2,3) heuristic below: exact (C, K, H, W)
+// convs where the smooth rule mispredicts winograd-vs-MLIR. Two groups need a
+// table (like the fp16 path): high-channel square convs in the spatial-16..32
+// band where the S-store flips some but not their neighbours, and awkward-out_ch
+// convs at large spatial (see the per-entry notes below). Reuses
+// winograd_f23_shape (same C/K/H/W + use_winograd fields as the fp16 table).
 constexpr std::array<winograd_f23_shape, 4> winograd_f23_fp32_overrides{{
     // Exact-square high-channel convs at their native spatial: rocBLAS/MLIR is
-    // tuned best exactly here, and the smooth min_ch>=224 rule (which wins for the
-    // off-square and larger-channel neighbours) mispredicts these.
-    {512, 512, 16, 16, false}, // 0.83x: square, S-store can't close it
-    {256, 256, 32, 32, false}, // 0.88x: square
+    // tuned best exactly here, and the smooth min_ch>=224 rule (which holds for
+    // the off-square and larger-channel neighbours) mispredicts these.
+    {512, 512, 16, 16, false}, // square, the S-store cannot close the gap
+    {256, 256, 32, 32, false}, // square
     // Awkward output-channel count (95, not a multiple of the KO tile) at large
     // spatial: the winograd kernel wastes a partial output-channel block that the
     // many tiles then pay for repeatedly, while MLIR does not. min(C,K)=95 < 128,
-    // so the smooth rule would otherwise keep them (96->96 at the same spatial wins).
-    {96, 95, 128, 128, false},  // 0.85x
-    {192, 95, 128, 128, false}, // 0.89x
+    // so the smooth rule would otherwise keep them (96->96 at the same spatial is
+    // fine).
+    {96, 95, 128, 128, false},
+    {192, 95, 128, 128, false},
 }};
 
 // Heuristic for when the fp32 FMA/DPP F(2,3) winograd kernel beats the default
-// (rocMLIR implicit-GEMM) lowering on gfx12. Derived from a 3x3/pad-1/stride-1
-// sweep of real-model shapes (tools/bench_conv.py, exhaustive-tune) with the
-// kernel's own weight-store selection (S-store / v-inner) active. Structure
+// (rocMLIR implicit-GEMM) lowering on gfx12, for 3x3/pad-1/stride-1 convs with
+// the kernel's own weight-store selection (S-store / v-inner) active. Structure
 // mirrors the fp16 winograd_f23_profitable, but the thresholds differ: the fp32
 // kernel has 2.25x fewer MACs than MLIR yet a heavier input/weight scatter, so it
 // wins the compute-bound low/mid-channel shapes and loses the memory-bandwidth-
 // bound high-channel large-spatial ones.
 //   - NHWC: rocMLIR's channels-last GEMM reads the input fully coalesced and wins
 //     almost everywhere; the winograd kernel's C-strided input scatter only pays
-//     off at tiny spatial + high channels (measured geomean ~0.92x overall, wins
-//     only at spatial<=16, min_ch>=256). So NHWC is gated to that narrow zone.
-//   - NCHW: winograd wins broadly (count-weighted ~1.25x on the measured set).
-//     Excluded regions:
+//     off at tiny spatial + high channels (spatial<=16, min_ch>=256), so NHWC is
+//     gated to that narrow zone.
+//   - NCHW: winograd wins broadly. Excluded regions:
 //       * C*K >= 700k: bandwidth-bound big GEMMs MLIR owns (1280-channel convs).
 //       * min(C,K) >= 224: only small spatial (<=32) wins (2.25x fewer MACs);
 //         mid/large spatial is input/output-transform + weight-expansion bound.
@@ -767,11 +765,11 @@ bool winograd_f23_fp32_profitable(
 
     // Output-collapse convs (out_ch <= 3, e.g. a segmentation/prediction head):
     // the winograd output transform is nearly free on so few output channels while
-    // MLIR still runs a full small GEMM, so winograd wins ~2-6x in both layouts.
+    // MLIR still runs a full small GEMM, so winograd wins in both layouts.
     if(out_ch <= 3)
         return true;
 
-    // Measured per-shape overrides (each listed shape loses in both layouts).
+    // Per-shape overrides (each listed shape loses in both layouts).
     if(const auto* ovr =
            find_shape_override(winograd_f23_fp32_overrides, in_ch, out_ch, height, width))
         return ovr->use_winograd;
@@ -779,7 +777,7 @@ bool winograd_f23_fp32_profitable(
     // NHWC: rocMLIR's coalesced channels-last GEMM wins almost everywhere; the
     // winograd kernel's C-strided NHWC input scatter (no host layout freedom, so
     // it can't coalesce) only pays off at high channels with tiny spatial, where
-    // the re-read footprint is small and cached (measured geomean ~0.92x overall).
+    // the re-read footprint is small and cached.
     if(nhwc)
         return min_ch >= 256 and spatial <= 16;
 
@@ -791,9 +789,9 @@ bool winograd_f23_fp32_profitable(
     if(min_ch >= 128 and spatial >= 128)
         return false;
     // Very large spatial (the 4x winograd input-tile re-read dominates): only a
-    // single-KO-block output (out_ch <= 32) survives it -- 32->32 and 64->32 win
-    // at 512x512 but 48->47/64->64/128->64 lose. (Low/mid channel wins up to
-    // 256x256; min(C,K)>=128 large spatial already excluded above.)
+    // single-KO-block output (out_ch <= 32) survives it. (Low/mid channel counts
+    // still win up to 256x256; min(C,K)>=128 at large spatial is already excluded
+    // above.)
     if(spatial >= 512 and out_ch > 32)
         return false;
     return true;
@@ -876,7 +874,7 @@ struct find_winograd_f23
             // Pick the weight encoding: S-store (v-half g*G^T [3,4,K,C], 25% less
             // weight DRAM+loads) on the weight-load-significant shapes, else the
             // full U [4,4,K,C]. The JIT routes to the S path by the weight's first
-            // dim (3 vs 4). MIGRAPHX_WINOGRAD_FP32_SSTORE forces S on (benchmarking).
+            // dim (3 vs 4). MIGRAPHX_WINOGRAD_FP32_SSTORE forces S on.
             // NHWC uses the full U laid out v-innermost so the weight load coalesces
             // (S-store stays NCHW-only).
             const auto& x_lens = input->get_shape().lens();   // [N, C, H, W]
@@ -889,7 +887,7 @@ struct find_winograd_f23
             // input/weight cache thrash -- but its strided (b32) channel load adds
             // issue overhead that regresses shapes where the weight is small and
             // cached (low out_c) or the input dominates (channel-reducing). Gate to
-            // where the weight is substantial and not channel-reducing (measured).
+            // where the weight is substantial and not channel-reducing.
             const auto out_c  = w_lens[0];
             const auto in_c   = w_lens[1];
             const bool vinner = nhwc and out_c >= 128 and in_c <= out_c;

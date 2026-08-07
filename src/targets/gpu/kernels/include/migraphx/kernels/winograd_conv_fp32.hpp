@@ -81,10 +81,9 @@ __device__ inline float wino_f23_bt_v(float d, float shuf_sign)
     // MAC/FMA (the fmac DPP form has no "old" operand slot), so the intrinsic
     // dpp_mov lowers to mov_dpp + cndmask + add (3 VALU) instead. The hand-written
     // fused op is 1 VALU. The asm is deliberately non-volatile so it stays
-    // schedulable -- the surrounding input loads still software-pipeline (a
-    // volatile block would serialize them, which is why prior asm attempts were
-    // slower). quad_perm only sources in-quad lanes, so bound_ctrl:1 (required for
-    // the fused encoding) changes no result.
+    // schedulable -- the surrounding input loads still software-pipeline, which a
+    // volatile block would serialize. quad_perm only sources in-quad lanes, so
+    // bound_ctrl:1 (required for the fused encoding) changes no result.
     float acc = d;
     asm("v_fmac_f32_dpp %[acc], %[d], %[sign] quad_perm:[2,2,1,1] row_mask:0xf "
         "bank_mask:0xf bound_ctrl:1"
@@ -322,11 +321,11 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     // apply the same per-channel v/u transform. (NCHW channels are H*W apart, so
     // it stays per-channel.)
     //
-    // Note: performance is dominated by cache-miss latency from scattered input/weight loads.
-    // For NHWC, we mitigate the weight-side scatter by storing U as v-innermost [u,k,c,v], so
-    // lanes v_col=0..3 load consecutive floats (coalesced). This is gated to out_c>=128 and
-    // in_c<=out_c since v-innermost makes the channel load strided.
-    // The input-side scatter is inherent to the layout and is left as-is.
+    // The NHWC weight load is scattered (lane == v_col, so the 4 lanes read
+    // v-slices K*C apart). The host mitigates that by storing U as v-innermost
+    // [u,k,c,v] so lanes v_col=0..3 read consecutive floats, gated to out_c>=128
+    // and in_c<=out_c since v-innermost makes the channel load strided. The
+    // input-side scatter is inherent to the layout and is left as-is.
     auto transform_block = [&](index_int c0, index_int nchan) {
         v_reg_t vr{};
         if constexpr(NHWC)

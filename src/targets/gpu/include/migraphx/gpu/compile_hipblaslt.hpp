@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/operation.hpp>
 #include <string>
 
 namespace migraphx {
@@ -34,7 +35,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 struct context;
-struct operation;
 
 namespace gpu {
 

@@ -39,7 +39,7 @@ namespace gpu {
 
 struct compile_miopen
 {
-    context* ctx = nullptr;
+    migraphx::context* ctx = nullptr;
     std::string name() const { return "gpu::compile_miopen"; }
     void apply(module& m) const;
     std::size_t compile(operation& op, instruction_ref ins) const;

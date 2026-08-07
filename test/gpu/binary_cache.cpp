@@ -93,7 +93,7 @@ TEST_CASE(lookup_records_a_miss)
 {
     migraphx::gpu::context ctx;
     auto st = make_stats();
-    migraphx::gpu::binary_cache cache{st};
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}, st};
 
     EXPECT(not cache.get(ctx, "absent").has_value());
     EXPECT(st->misses == 1);
@@ -106,7 +106,7 @@ TEST_CASE(memory_lookup_records_reuse)
 {
     migraphx::gpu::context ctx;
     auto st = make_stats();
-    migraphx::gpu::binary_cache cache{st};
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}, st};
 
     cache.insert(ctx, make_entry("a-key"));
     EXPECT(st->compiled == 1);
@@ -124,13 +124,11 @@ TEST_CASE(disk_lookup_records_a_hit)
     migraphx::gpu::context ctx;
     migraphx::gpu::binary_cache_settings settings{td.path.string(), false};
 
-    migraphx::gpu::binary_cache writer;
-    writer.configure(settings);
+    migraphx::gpu::binary_cache writer{settings};
     writer.insert(ctx, make_entry("shared-key"));
 
     auto st = make_stats();
-    migraphx::gpu::binary_cache reader{st};
-    reader.configure(settings);
+    migraphx::gpu::binary_cache reader{settings, st};
 
     auto found = reader.get(ctx, "shared-key");
     EXPECT(found.has_value());
@@ -146,8 +144,7 @@ TEST_CASE(corrupt_entry_is_ignored)
     migraphx::gpu::context ctx;
     migraphx::gpu::binary_cache_settings settings{td.path.string(), false};
 
-    migraphx::gpu::binary_cache writer;
-    writer.configure(settings);
+    migraphx::gpu::binary_cache writer{settings};
     writer.insert(ctx, make_entry("damaged"));
 
     std::size_t truncated = 0;
@@ -161,8 +158,7 @@ TEST_CASE(corrupt_entry_is_ignored)
     EXPECT(truncated > 0);
 
     auto st = make_stats();
-    migraphx::gpu::binary_cache reader{st};
-    reader.configure(settings);
+    migraphx::gpu::binary_cache reader{settings, st};
 
     EXPECT(not reader.get(ctx, "damaged").has_value());
     EXPECT(st->misses == 1);
@@ -174,8 +170,7 @@ TEST_CASE(no_directory_writes_nothing)
     migraphx::tmp_dir td{"binary-cache"};
     migraphx::gpu::context ctx;
     auto st = make_stats();
-    migraphx::gpu::binary_cache cache{st};
-    cache.configure({"", false});
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}, st};
 
     cache.insert(ctx, make_entry("in-memory-only"));
     EXPECT(cache.get(ctx, "in-memory-only").has_value());

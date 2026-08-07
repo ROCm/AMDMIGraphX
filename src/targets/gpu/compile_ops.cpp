@@ -894,9 +894,6 @@ void compile_ops::apply(module_pass_manager& mpm) const
 {
     bool is_root = &mpm.get_module() == mpm.get_root_module();
     auto& m      = mpm.get_module();
-    // The cache outlives this pass, since compiling a dynamic shape at evaluation time uses it
-    // too, so the settings are recorded on it rather than passed along.
-    ctx->get_binary_cache().configure(cache_settings);
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
     // Find all precompile ops

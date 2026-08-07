@@ -24,7 +24,6 @@
 #include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/env.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
@@ -41,8 +40,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BINARY_CACHE)
-
 // Bump when the shape of a stored fragment changes, which happens when a compiler changes the
 // instructions it replaces with or when a serialized operator gains or loses a field. Such a
 // change is invisible to the key, since the source handed to the backend is unaffected.
@@ -55,12 +52,6 @@ static constexpr const char* rocmlir_id = "nomlir";
 #endif
 
 std::shared_ptr<binary_cache> make_binary_cache() { return std::make_shared<binary_cache>(); }
-
-binary_cache_settings binary_cache_settings::defaults()
-{
-    static const std::string path = string_value_of(MIGRAPHX_BINARY_CACHE{});
-    return {path, false};
-}
 
 void binary_cache::record_reused()
 {
@@ -86,8 +77,6 @@ void binary_cache::record_compiled()
     if(st)
         st->compiled++;
 }
-
-void binary_cache::configure(const binary_cache_settings& s) { settings = s; }
 
 bool binary_cache::verify() const { return settings.verify; }
 

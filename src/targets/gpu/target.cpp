@@ -66,6 +66,7 @@
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -107,7 +108,7 @@ struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
     /// Where compiled kernels are cached between runs. Defaults to ``MIGRAPHX_BINARY_CACHE``.
-    std::string binary_cache = binary_cache_settings::defaults().path;
+    std::string binary_cache = binary_cache_settings{}.path;
     /// Compile even when a kernel could be reused, and fail if the two disagree.
     bool binary_cache_verify = false;
 
@@ -257,9 +258,7 @@ struct pipeline_factory
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
             lower_device_ops{},
-            compile_ops{get_context(),
-                        options.exhaustive_tune,
-                        {backend_opts.binary_cache, backend_opts.binary_cache_verify}},
+            compile_ops{get_context(), options.exhaustive_tune},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -280,13 +279,26 @@ struct pipeline_factory
 };
 } // namespace
 
+static migraphx::context make_context(const target& t, std::shared_ptr<binary_cache> bc)
+{
+    if(t.is_cross_compile())
+        return context(t.desc, std::move(bc));
+    return context(gpu::get_device_id(), value_of(MIGRAPHX_NSTREAMS{}, 1), std::move(bc));
+}
+
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
+    auto backend_opts = from_value<backend_options>(value(options.backend_options));
+    // The initial context predates the compile options, so rebuild it around a cache
+    // constructed with the settings they carry.
+    gctx      = make_context(*this,
+                        std::make_shared<binary_cache>(binary_cache_settings{
+                            backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache(); // TODO: update load_problem_cache to include gpu arch
 
-    pipeline_factory p{&gctx, options, from_value<backend_options>(value(options.backend_options))};
+    pipeline_factory p{&gctx, options, backend_opts};
 
     std::vector<std::vector<pass>> pipelines = {
         p.dynamic_shapes_pipeline(),
@@ -303,12 +315,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 std::string target::name() const { return "gpu"; }
 
-migraphx::context target::get_context() const
-{
-    if(is_cross_compile())
-        return context(desc);
-    return context(gpu::get_device_id());
-}
+migraphx::context target::get_context() const { return make_context(*this, make_binary_cache()); }
 
 argument target::copy_to(const argument& arg) const
 {

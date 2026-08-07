@@ -25,8 +25,8 @@
 #define MIGRAPHX_GUARD_GPU_BINARY_CACHE_HPP
 
 #include <migraphx/gpu/config.hpp>
-#include <migraphx/gpu/binary_cache_settings.hpp>
 #include <migraphx/gpu/compiled_code.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/value.hpp>
@@ -38,7 +38,20 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BINARY_CACHE)
+
 struct context;
+
+/// How the cache behaves for one compile. Supplied through the target's backend options, with
+/// the MIGRAPHX_BINARY_CACHE environment variable as the default for the directory.
+struct binary_cache_settings
+{
+    /// Where entries are kept. Nothing is written to disk when this is empty, though results
+    /// are still shared in memory.
+    std::string path = string_value_of(MIGRAPHX_BINARY_CACHE{});
+    /// Compile even when a result can be reused, and fail if the two disagree.
+    bool verify = false;
+};
 
 /**
  * Compiled kernels, keyed by a string describing what the compiler was given.
@@ -88,15 +101,16 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         std::size_t compiled = 0;
     };
 
-    explicit binary_cache(std::shared_ptr<stats> s = nullptr) : st(std::move(s)) {}
+    explicit binary_cache(binary_cache_settings s = {}, std::shared_ptr<stats> counters = nullptr)
+        : settings(std::move(s)), st(std::move(counters))
+    {
+    }
 
     /// Look up a key, consulting memory first and then the cache directory.
     optional<compiled_code> get(const context& ctx, const std::string& key);
 
     /// Record a compiled result under its key.
     void insert(const context& ctx, const entry& e);
-
-    void configure(const binary_cache_settings& s);
 
     /// True when reused results should be checked against a fresh compile.
     bool verify() const;
@@ -117,8 +131,8 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     void record_compiled();
 
     std::unordered_map<std::string, compiled_code> memo;
-    binary_cache_settings settings = binary_cache_settings::defaults();
-    std::shared_ptr<stats> st      = nullptr;
+    binary_cache_settings settings;
+    std::shared_ptr<stats> st;
 };
 
 } // namespace gpu

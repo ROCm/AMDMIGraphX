@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 
 #include <migraphx/gpu/config.hpp>
-#include <migraphx/gpu/binary_cache_settings.hpp>
 #include <string>
 
 namespace migraphx {
@@ -41,7 +40,6 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
 {
     context* ctx         = nullptr;
     bool exhaustive_tune = false;
-    binary_cache_settings cache_settings{};
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module_pass_manager& mpm) const;
 };

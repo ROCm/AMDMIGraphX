@@ -267,9 +267,9 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     const index_int w_c_dim = w_vinner ? 2 : 3; // c-dim stride index
     const int32_t w_lane_base =
         static_cast<int32_t>((v_col * w_str[w_v_dim] + k_base * w_str[w_k_dim]) * sizeof(float));
-    const int32_t w_u_stride = static_cast<int32_t>(w_str[0] * sizeof(float));
-    const int32_t w_k_stride = static_cast<int32_t>(w_str[w_k_dim] * sizeof(float));
-    const int32_t w_c_stride = static_cast<int32_t>(w_str[w_c_dim] * sizeof(float));
+    const int32_t w_u_stride = w_str[0] * sizeof(float);
+    const int32_t w_k_stride = w_str[w_k_dim] * sizeof(float);
+    const int32_t w_c_stride = w_str[w_c_dim] * sizeof(float);
     auto w_byte_off          = [&](index_int u, index_int k) {
         return (k_base + k < out_c) ? (w_lane_base + static_cast<int32_t>(u) * w_u_stride +
                                        static_cast<int32_t>(k) * w_k_stride)

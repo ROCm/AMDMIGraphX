@@ -27,7 +27,6 @@
 #include <migraphx/config.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/op/identity.hpp>
-#include <migraphx/register_op.hpp>
 #include <string>
 
 namespace migraphx {
@@ -62,7 +61,6 @@ struct hipblaslt_op
         return {shapes.size() - 1};
     }
 };
-MIGRAPHX_REGISTER_OP(hipblaslt_op);
 
 struct compile_hipblaslt
 {

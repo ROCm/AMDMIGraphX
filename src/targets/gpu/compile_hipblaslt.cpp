@@ -25,6 +25,7 @@
 #if MIGRAPHX_USE_HIPBLASLT
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
@@ -33,6 +34,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_REGISTER_OP(hipblaslt_op);
 
 static size_t compile(migraphx::context& ctx, operation& op, instruction_ref ins)
 {

@@ -141,16 +141,11 @@ struct dyn_slice
         auto zero = sym::lit(std::int64_t{0});
         migraphx::for_each(
             axes.begin(), axes.end(), extents.begin(), [&](auto axis, const auto& extent) {
-                // Negative over its whole range means compute() would reject every run-time
-                // value, so there is no point compiling the program.
                 if(sym::strict_less(extent, zero).value_or(false))
                     MIGRAPHX_THROW("DYN_SLICE: axis " + migraphx::to_string(axis) +
                                    ": end is always before start, extent " + extent.to_string() +
                                    " is negative over its whole range");
-                // An extent that merely might be negative cannot be ruled out by interval
-                // arithmetic when the bounds are independent symbols, so clamp at zero to keep
-                // the dimension non-negative. The clamp folds away when the subtraction is
-                // provably non-negative.
+                // Clamp at zero to keep the dimension non-negative.
                 dds[axis] = shape::dynamic_dimension{sym::fold_max(extent, zero)};
             });
         shape result{input_shape.type(), std::move(dds), sym_in.dyn_strides()};
@@ -163,18 +158,13 @@ struct dyn_slice
     argument compute(const dyn_output&, std::vector<argument> args) const
     {
         const auto& input = args.front();
-        auto input_shape  = input.get_shape();
-        auto read         = [](const argument& arg) {
-            std::vector<int64_t> result;
-            arg.visit([&](auto values) { result = values.template to_vector<int64_t>(); });
-            return result;
-        };
+        const auto& input_shape  = input.get_shape();
         auto axes_attrs = this->attributes().at("normalize_axes");
         // Only use the starts_input and ends_input for the output slice. Not the attributes.
         auto norm_starts = normalize_indices(
-            read(args[1]), axes, input_shape, axes_attrs.at("starts"), "DYN_SLICE: starts input");
+            args[1].to_vector<int64_t>(), axes, input_shape, axes_attrs.at("starts"), "DYN_SLICE: starts input");
         auto norm_ends = normalize_indices(
-            read(args[2]), axes, input_shape, axes_attrs.at("ends"), "DYN_SLICE: ends input");
+            args[2].to_vector<int64_t>(), axes, input_shape, axes_attrs.at("ends"), "DYN_SLICE: ends input");
 
         // Get end-start for output dimension sizes. Reject if ends before starts (no wrap around).
         std::vector<std::size_t> extents(axes.size());

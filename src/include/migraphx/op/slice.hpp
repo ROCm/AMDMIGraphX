@@ -31,6 +31,7 @@
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
+#include <migraphx/sym.hpp>
 #include <array>
 
 namespace migraphx {
@@ -58,7 +59,9 @@ namespace op {
  * ends: constant slice ending indices (optional)
  *
  * Parameters:
- * data: the input tensor to slice (dynamic or static shape)
+ * data: the input tensor to slice (static, range-based dynamic, or symbolic shape). A symbolic
+ * shape is only supported by the 1 input call and only when every sliced axis is fixed, since
+ * the integer bounds here cannot express a symbolic output extent; use dyn_slice otherwise
  * input_starts: starting indices of slice (optional, static shape)
  * input_ends: ending indices of slice (optional, static shape)
  * input_axes: axes to slice over (optional, static shape)
@@ -145,7 +148,12 @@ struct slice
     /// Helper function for normalize_compute_shape()
     shape compute_two_or_more(std::vector<shape> inputs) const
     {
-        auto input_shape    = inputs[0];
+        auto input_shape = inputs[0];
+        // The bounds arrive at run time, so the output extent cannot be expressed with the
+        // integer bounds this operator carries.
+        if(input_shape.symbolic())
+            MIGRAPHX_THROW("SLICE: symbolic input shapes are not supported with bound inputs, "
+                           "use dyn_slice");
         auto set_attributes = get_set_attributes();
         // check that inputs [1, end) are all 1D, have the same
         // dimension, and are static
@@ -271,17 +279,15 @@ struct slice
         if(set_attributes != all_set)
             MIGRAPHX_THROW("SLICE 1_arg: Invalid 1 input and attributes configuration");
 
-        // TODO: support slicing non-fixed symbolic dims (output dim would be
-        // a sym::expr derived from starts/ends and the symbolic axis bound).
         if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
                return not input_shape.dyn_dims()[axis].is_fixed();
            }))
         {
+            // The extent would be a sym::expr derived from the bounds and the axis symbol, which
+            // the integer bounds here cannot express.
             if(input_shape.symbolic())
-            {
-                MIGRAPHX_THROW(
-                    "SLICE 1_arg: slicing is not allowed on non-fixed symbolic input axis ");
-            }
+                MIGRAPHX_THROW("SLICE 1_arg: slicing is not allowed on a non-fixed symbolic "
+                               "input axis, use dyn_slice");
             // Attributes are not normalized for this case, so they can be negative or
             // out-of-bounds. Using a relaxed dimension bound for now instead of calculating the
             // tightest possible bound.
@@ -305,7 +311,7 @@ struct slice
                             ? shape::dynamic_dimension{sym::lit(new_lens[axis])}
                             : shape::dynamic_dimension{new_lens[axis], new_lens[axis]};
         }
-
+        // A slice is a view, so the symbolic strides carry the input's layout through.
         if(input_shape.symbolic())
             return shape{input_shape.type(), dds, input_shape.dyn_strides()};
         return shape{input_shape.type(), dds};

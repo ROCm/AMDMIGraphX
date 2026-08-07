@@ -26,9 +26,14 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
+
+using dd = migraphx::shape::dynamic_dimension;
+using migraphx::sym::lit;
+using migraphx::sym::var;
 
 TEST_CASE(slice_test_1)
 {
@@ -74,6 +79,33 @@ TEST_CASE(slice_test_2)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     EXPECT(result.get_shape() == sresult);
+}
+
+TEST_CASE(slice_sym_data_test)
+{
+    // A symbolic input sliced on a fixed axis keeps a symbolic output shape after compiling and
+    // resolves once the parameter is bound to a static shape.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int32_type, {dd{var("n", {1, 4})}, dd{lit(2)}, dd{lit(3)}}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape input_fixed_shape{migraphx::shape::int32_type, {2, 2, 3}};
+    std::vector<int> data(input_fixed_shape.elements());
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(input_fixed_shape, data.data());
+
+    auto result = p.eval(params).back();
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(result.get_shape() ==
+           migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
 }
 
 TEST_CASE(slice_var_inputs_static0)

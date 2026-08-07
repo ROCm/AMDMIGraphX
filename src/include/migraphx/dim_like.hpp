@@ -24,17 +24,14 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_DIM_LIKE_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_DIM_LIKE_HPP
 
-#include <algorithm>
 #include <cstdint>
 #include <ostream>
 #include <type_traits>
-#include <vector>
 
 #include <migraphx/config.hpp>
 #include <migraphx/picked_variant.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/shape.hpp>
-#include <migraphx/sym.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -66,24 +63,6 @@ inline std::ostream& operator<<(std::ostream& os, const dim_like& d)
 {
     visit([&](const auto& x) { os << x; }, d);
     return os;
-}
-
-inline bool all_ints(const std::vector<dim_like>& dims)
-{
-    return std::all_of(dims.begin(), dims.end(), [](const dim_like& d) {
-        return std::holds_alternative<int64_t>(d);
-    });
-}
-
-/// Extracts the concrete int64_t from each entry; throws (via std::get) if any entry holds a
-/// dynamic_dimension.
-inline std::vector<int64_t> to_ints(const std::vector<dim_like>& dims)
-{
-    std::vector<int64_t> result(dims.size());
-    std::transform(dims.begin(), dims.end(), result.begin(), [](const dim_like& d) {
-        return std::get<int64_t>(d);
-    });
-    return result;
 }
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const dim_like& d);

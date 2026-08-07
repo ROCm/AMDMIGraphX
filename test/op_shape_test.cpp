@@ -28,7 +28,6 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/dim_like.hpp>
-#include <sstream>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
 
@@ -1821,6 +1820,61 @@ TEST_CASE(dyn_slice_range_dynamic_data_error)
                  bounds);
 }
 
+TEST_CASE(eval_expr_from_shape_shape)
+{
+    auto n = var("n", {1, 16});
+    auto h = var("h", {1, 32});
+    auto w = var("w", {1, 32});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{h}, dd{w}}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {3}},
+                 migraphx::make_op("eval_expr_from_shape",
+                                   {{"expressions",
+                                     migraphx::value::array{migraphx::to_value(n),
+                                                            migraphx::to_value(h / lit(2)),
+                                                            migraphx::to_value(w / lit(2))}}}),
+                 input);
+}
+
+TEST_CASE(eval_expr_from_shape_missing_symbol)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    throws_shape(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::value::array{migraphx::to_value(m)}}}),
+        input);
+}
+
+TEST_CASE(eval_expr_from_shape_multi_input)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    migraphx::shape a{migraphx::shape::float_type, {dd{m}, dd{lit(3)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {2}},
+                 migraphx::make_op(
+                     "eval_expr_from_shape",
+                     {{"expressions",
+                       migraphx::value::array{migraphx::to_value(m + n), migraphx::to_value(m)}}}),
+                 a,
+                 b);
+}
+
+TEST_CASE(eval_expr_from_shape_missing_symbol_multi_input)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    auto k = var("k", {1, 16});
+    migraphx::shape a{migraphx::shape::float_type, {dd{m}, dd{lit(3)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
+    throws_shape(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::value::array{migraphx::to_value(m + k)}}}),
+        a,
+        b);
+}
+
 TEST_CASE(broadcast_for_dot_static)
 {
     migraphx::shape s0{migraphx::shape::float_type, {481, 356}};
@@ -1948,6 +2002,20 @@ TEST_CASE(fixed_pad)
     shape output{migraphx::shape::float_type, {4, 3}};
     expect_shape(output, migraphx::make_op("fixed_pad"), input);
     expect_shape(input_static, migraphx::make_op("fixed_pad"), input_static); // effectively no-op
+
+    auto n   = var("n", {2, 8});
+    auto opt = var("n#opt", {2, 8}, {4, 8});
+    shape symbolic_input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    shape symbolic_output{migraphx::shape::float_type, {dd{opt}, dd{lit(3)}}};
+    expect_shape(symbolic_output,
+                 migraphx::make_op("fixed_pad",
+                                   {{"dims",
+                                     migraphx::value::array{migraphx::to_value(opt),
+                                                            migraphx::to_value(lit(3))}}}),
+                 symbolic_input);
+    expect_shape(shape{migraphx::shape::float_type, {8, 3}},
+                 migraphx::make_op("fixed_pad", {{"dims", {8, 3}}, {"value", -1.0f}}),
+                 symbolic_input);
 }
 
 TEST_CASE(flatten_shape)

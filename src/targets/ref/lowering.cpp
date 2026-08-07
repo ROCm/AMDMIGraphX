@@ -72,19 +72,19 @@ struct ref_lrn
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
-            int n_batch         = output_shape.lens()[0];
-            int channels        = output_shape.lens()[1];
-            int height          = output_shape.lens()[2];
-            int width           = output_shape.lens()[3];
+            int n_batch          = output_shape.lens()[0];
+            int channels         = output_shape.lens()[1];
+            int height           = output_shape.lens()[2];
+            int width            = output_shape.lens()[3];
             double alphaoverarea = op.alpha / double(op.size);
-            int radius_lower    = (op.size - 1) / 2;
-            int radius_upper    = op.size / 2 + 1;
+            int radius_lower     = (op.size - 1) / 2;
+            int radius_upper     = op.size / 2 + 1;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
                 dfor(channels)([&](int c) {
                     double scale = 0;
-                    auto start = (c - radius_lower) < 0 ? 0 : (c - radius_lower);
-                    auto end   = (c + radius_upper) > channels ? channels : (c + radius_upper);
+                    auto start   = (c - radius_lower) < 0 ? 0 : (c - radius_lower);
+                    auto end     = (c + radius_upper) > channels ? channels : (c + radius_upper);
                     for(auto k = start; k < end; ++k)
                     {
                         double x = input(b, k, h, w);
@@ -150,17 +150,16 @@ struct ref_im2col
                     // compute linear index for output
                     std::size_t ldx = ioutput * col_width + joutput;
                     std::size_t p   = 0;
-                    dfor(channels,
-                         kernel_h,
-                         kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
-                        auto idx    = iinput + long(koffset) - kdiv2_h;
-                        auto jdx    = jinput + long(loffset) - kdiv2_w;
-                        col(ldx, p) =
-                            ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
-                                ? input(0, c, idx, jdx)
-                                : 0;
-                        p++;
-                    });
+                    dfor(channels, kernel_h, kernel_w)(
+                        [&](std::size_t c, std::size_t koffset, std::size_t loffset) {
+                            auto idx = iinput + long(koffset) - kdiv2_h;
+                            auto jdx = jinput + long(loffset) - kdiv2_w;
+                            col(ldx, p) =
+                                ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
+                                    ? input(0, c, idx, jdx)
+                                    : 0;
+                            p++;
+                        });
                 }
             }
         });
@@ -182,6 +181,11 @@ struct ref_op
     argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
     {
         return op.compute(output_shape, args);
+    }
+    void
+    finalize(migraphx::context& ctx, const shape& output_shape, const std::vector<shape>& inputs)
+    {
+        op.finalize(ctx, output_shape, inputs);
     }
     value to_value() const
     {

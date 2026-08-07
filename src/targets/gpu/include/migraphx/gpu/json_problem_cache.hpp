@@ -22,58 +22,48 @@
  * THE SOFTWARE.
  *
  */
-#ifndef MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP
-#define MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP
+#ifndef MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP
+#define MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP
 
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/gpu/export.h>
 #include <migraphx/gpu/cache_device_key.hpp>
-#include <migraphx/gpu/problem_cache_backend.hpp>
+
 #include <string>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT problem_cache
+// A problem_cache_backend that persists entries as JSON, using the same
+// on-disk format as problem_cache::save() (an array of [cache_device_key,
+// inner_map] pairs). A legacy flat-object file is migrated into the bucket
+// set by set_migration_device_key(). Path resolution is the caller's job.
+struct MIGRAPHX_GPU_EXPORT json_problem_cache
 {
-    // Default-constructs with the JSON storage backend.
-    problem_cache();
+    // Bucket for migrated legacy flat-object files (default: anonymous key).
+    void set_migration_device_key(cache_device_key key);
 
-    // Build and store this cache's device key from the owning context.
-    void set_device_key(const context& ctx);
-    // Directly set the device key (used by tests and multi-cache setup).
-    void set_device_key(const cache_device_key& key);
-    const cache_device_key& get_device_key() const;
-
-    bool has(const std::string& name, const value& problem) const;
-    void insert(const std::string& name, const value& problem, const value& solution);
-    void mark(const std::string& name, const value& problem);
-    optional<value> get(const std::string& name, const value& problem) const;
-    /// Load from an explicit file path. An empty path is treated as "no cache"
-    /// (no-op). The path is remembered and reused for the next save().
+    // problem_cache_backend concept members:
     void load(const std::string& path);
-    void save() const;
+    void save(const std::string& path) const;
+    void insert(const cache_device_key& dk, const value& key, const value& solution);
+    void mark(const cache_device_key& dk, const value& key);
+    optional<value> get(const cache_device_key& dk, const value& key) const;
+    bool has(const cache_device_key& dk, const value& key) const;
+
+    // Device bucket -> ({name, problem} -> solution).
+    std::unordered_map<cache_device_key, std::unordered_map<value, value>> cache;
 
     private:
-    // Pluggable storage backend (JSON by default); e.g. SQLite can be swapped in.
-    problem_cache_backend backend;
-
-    // Device these entries were tuned on; set by the owning context. Empty
-    // key = unidentified device, entries land in a single bucket.
-    cache_device_key device_key{};
-
-    // File path set by load(path). When non-empty, save() writes here. Empty
-    // means no writable cache is configured.
-    std::string path_override{};
+    cache_device_key migration_device_key{};
 };
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif // MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP
+#endif // MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP

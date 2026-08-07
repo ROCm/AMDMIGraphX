@@ -592,8 +592,7 @@ static void gemm_save_solution(context& ctx,
                                const std::vector<shape>& input_shapes,
                                int32_t solution_idx)
 {
-    ctx.get_problem_cache().insert(
-        "rocblas", gemm_problem(output_shape, input_shapes), solution_idx);
+    ctx.problem_cache_insert("rocblas", gemm_problem(output_shape, input_shapes), solution_idx);
 }
 #endif
 
@@ -601,7 +600,7 @@ int32_t gemm_default_solution(context& ctx,
                               const shape& output_shape,
                               const std::vector<shape>& input_shapes)
 {
-    auto sol = ctx.get_problem_cache().get("rocblas", gemm_problem(output_shape, input_shapes));
+    auto sol = ctx.find_in_problem_caches("rocblas", gemm_problem(output_shape, input_shapes));
     if(sol.has_value())
         return sol->to<int32_t>();
     return 0;

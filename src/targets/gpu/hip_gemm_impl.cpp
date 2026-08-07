@@ -708,7 +708,7 @@ static void hip_gemm_save_solution(context& ctx,
                                    const std::vector<shape>& input_shapes,
                                    int32_t solution_idx)
 {
-    ctx.get_problem_cache().insert(
+    ctx.problem_cache_insert(
         "hipblaslt", hip_gemm_problem(output_shape, input_shapes), solution_idx);
 }
 
@@ -739,7 +739,7 @@ int32_t hip_gemm_default_solution(context& ctx,
                                   const std::vector<shape>& input_shapes)
 {
     auto sol =
-        ctx.get_problem_cache().get("hipblaslt", hip_gemm_problem(output_shape, input_shapes));
+        ctx.find_in_problem_caches("hipblaslt", hip_gemm_problem(output_shape, input_shapes));
     if(sol.has_value())
         return sol->to<int32_t>();
     return 0;

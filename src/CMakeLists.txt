@@ -141,6 +141,7 @@ add_library(migraphx
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
+    simple_par_for.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp

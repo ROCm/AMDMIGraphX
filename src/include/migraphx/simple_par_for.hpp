@@ -30,9 +30,77 @@
 #include <vector>
 #include <cassert>
 
+#ifdef _WIN32
+#include <functional>
+#include <type_traits>
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+#ifdef _WIN32
+namespace detail {
+// Implemented in simple_par_for.cpp so this widely-included header doesn't need <windows.h>.
+// migraphx-hiprtc-driver.exe is linked with a 4MB stack on Windows because its default 1MB
+// thread stack is not enough for HIPRTC/LLVM compilation of complex kernels (see
+// targets/gpu/hiprtc/CMakeLists.txt). In-process compile worker threads spawned from here need
+// the same stack size, or they can stack-overflow compiling kernels for large/complex models.
+void* create_thread_with_stack_size(std::function<void()> f, std::size_t stack_size);
+void join_thread(void* handle);
+} // namespace detail
+
+struct joinable_thread
+{
+    static constexpr std::size_t stack_size = 4 * 1024 * 1024;
+
+    joinable_thread() noexcept = default;
+
+    template <class F,
+              class = std::enable_if_t<not std::is_same<std::decay_t<F>, joinable_thread>{}>>
+    explicit joinable_thread(F f)
+        : handle_(detail::create_thread_with_stack_size(std::function<void()>(std::move(f)),
+                                                          stack_size))
+    {
+    }
+
+    joinable_thread(const joinable_thread&)            = delete;
+    joinable_thread& operator=(const joinable_thread&) = delete;
+
+    joinable_thread(joinable_thread&& other) noexcept : handle_(other.handle_)
+    {
+        other.handle_ = nullptr;
+    }
+
+    joinable_thread& operator=(joinable_thread&& other) noexcept
+    {
+        if(this != &other)
+        {
+            if(joinable())
+                join();
+            handle_       = other.handle_;
+            other.handle_ = nullptr;
+        }
+        return *this;
+    }
+
+    bool joinable() const noexcept { return handle_ != nullptr; }
+
+    void join()
+    {
+        detail::join_thread(handle_);
+        handle_ = nullptr;
+    }
+
+    ~joinable_thread()
+    {
+        if(joinable())
+            join();
+    }
+
+private:
+    void* handle_ = nullptr;
+};
+#else
 struct joinable_thread : std::thread
 {
     template <class... Xs>
@@ -49,6 +117,7 @@ struct joinable_thread : std::thread
             this->join();
     }
 };
+#endif
 
 template <class F>
 auto thread_invoke(std::size_t i, std::size_t tid, F f) -> decltype(f(i, tid))

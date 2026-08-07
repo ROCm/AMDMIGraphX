@@ -164,8 +164,7 @@ void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
     std::size_t pos         = 0;
     for(std::size_t i = 0; i < flat.size(); ++i)
     {
-        auto align = flat[i].align;
-        pos += (align - (pos % align)) % align;
+        pos += pack_padding(pos, flat[i].align);
         if(is_pointer[i])
             runtime_arg_offsets.emplace_back(arg_counter++, pos);
         pos += flat[i].data.size();

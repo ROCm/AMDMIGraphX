@@ -26,8 +26,10 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/pack_args.hpp>
+#include <migraphx/bit_cast.hpp>
 #include <migraphx/pmr/vector.hpp>
 #include <hip/hip_runtime_api.h>
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <map>
@@ -47,19 +49,35 @@ struct kernel_impl;
 // launch-param (tag, value) pairs terminated by a sentinel. The buffer is opaque
 // bytes -- a mix of pointer slots and inlined scalar arguments -- not an array of
 // pointers. These functions are the single definition of that layout:
-// pack_kernel_config builds the array (its element 3 aliases *size, which must
-// outlive the array), and unpack_kernel_config returns a copy of the packed
-// buffer (empty for any other argument-passing scheme).
+// pack_kernel_config builds the array (it stores `size` itself, so *size must
+// outlive any use of the array), and unpack_kernel_config returns a copy of the
+// packed buffer (empty for any other argument-passing scheme).
 MIGRAPHX_GPU_EXPORT std::array<void*, 5> pack_kernel_config(char* buffer, std::size_t* size);
 MIGRAPHX_GPU_EXPORT std::vector<char> unpack_kernel_config(void** extra);
 
-// Interpret the packed buffer using a code_object_op's kernel_args layout (a
+// Interpret an unpacked buffer using a code_object_op's kernel_args layout (a
 // pointer slot has empty data, a scalar carries its bytes), returning the byte
 // offset and current value of each pointer-typed argument so the inlined scalars
 // are skipped. An empty kernel_args is the all-pointer launch path (every 8-byte
-// word is a pointer). Empty result for a non-packed argument scheme.
+// word is a pointer).
 MIGRAPHX_GPU_EXPORT std::vector<std::pair<std::size_t, char*>>
-unpack_kernel_config(void** extra, const std::map<std::size_t, kernel_argument_value>& kernel_args);
+unpack_kernel_config(const std::vector<char>& buffer,
+                     const std::map<std::size_t, kernel_argument_value>& kernel_args);
+
+// Store/load a pointer value at a byte position in a packed kernarg buffer
+// without pointer-punning casts. The caller guarantees sizeof(char*) bytes are
+// available at `pos`.
+inline void write_pointer(char* pos, const char* p)
+{
+    auto bytes = migraphx::bit_cast<std::array<char, sizeof(char*)>>(p);
+    std::copy(bytes.begin(), bytes.end(), pos);
+}
+inline char* read_pointer(const char* pos)
+{
+    std::array<char, sizeof(char*)> bytes{};
+    std::copy(pos, pos + sizeof(char*), bytes.begin());
+    return migraphx::bit_cast<char*>(bytes);
+}
 
 struct MIGRAPHX_GPU_EXPORT kernel
 {

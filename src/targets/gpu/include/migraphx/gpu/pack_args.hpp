@@ -39,6 +39,15 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+// Padding inserted before an argument at buffer position `pos` to reach
+// `align`. The single definition of the kernarg alignment rule, shared by the
+// packing side (pack_args) and the offset-recovery replays (code_object_op::
+// finalize, unpack_kernel_config).
+constexpr std::size_t pack_padding(std::size_t pos, std::size_t align)
+{
+    return (align - (pos % align)) % align;
+}
+
 struct kernel_argument
 {
     template <class T,

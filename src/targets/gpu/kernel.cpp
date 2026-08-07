@@ -133,25 +133,20 @@ std::vector<char> unpack_kernel_config(void** extra)
 }
 
 std::vector<std::pair<std::size_t, char*>>
-unpack_kernel_config(void** extra, const std::map<std::size_t, kernel_argument_value>& kernel_args)
+unpack_kernel_config(const std::vector<char>& buffer,
+                     const std::map<std::size_t, kernel_argument_value>& kernel_args)
 {
-    auto buffer = unpack_kernel_config(extra);
     std::vector<std::pair<std::size_t, char*>> pointers;
-    if(buffer.empty())
-        return pointers;
-    auto read_pointer = [&](std::size_t off) {
+    auto record = [&](std::size_t off) {
         if(off + sizeof(char*) > buffer.size())
             return;
-        char* p          = nullptr;
-        const auto* word = buffer.data() + off;
-        std::copy(word, word + sizeof(char*), reinterpret_cast<char*>(&p));
-        pointers.emplace_back(off, p);
+        pointers.emplace_back(off, read_pointer(buffer.data() + off));
     };
     if(kernel_args.empty())
     {
         // The all-pointer launch path packs one device pointer per 8-byte word.
         for(std::size_t off = 0; off + sizeof(char*) <= buffer.size(); off += sizeof(char*))
-            read_pointer(off);
+            record(off);
         return pointers;
     }
     // Replay the pack_args layout (code_object_op::finalize): a pointer slot has
@@ -163,9 +158,9 @@ unpack_kernel_config(void** extra, const std::map<std::size_t, kernel_argument_v
         std::size_t align = is_pointer ? sizeof(char*) : v.align;
         std::size_t size  = is_pointer ? sizeof(char*) : v.data.size();
         assert(align != 0); // a scalar argument always carries a real alignment
-        pos += (align - (pos % align)) % align;
+        pos += pack_padding(pos, align);
         if(is_pointer)
-            read_pointer(pos);
+            record(pos);
         pos += size;
     }
     return pointers;

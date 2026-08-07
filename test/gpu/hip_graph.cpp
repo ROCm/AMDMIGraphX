@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/gpu/hip.hpp>
@@ -41,7 +42,7 @@
 
 // One layer of the kernel chain: a pointwise multiply followed by a reverse.
 // Both are jit-compiled into code-object kernels with packed argument buffers
-// (no library call, which would not be capturable), and the reverse keeps the
+// (so their pointer slots can be patched on rebind), and the reverse keeps the
 // pointwise ops from fusing so the chain stays several kernels long while
 // mixing the elements between layers.
 static migraphx::instruction_ref add_layer(migraphx::module& m,
@@ -75,6 +76,22 @@ static bool captured_hip_graph(const migraphx::program& p)
     });
 }
 
+// Compile copies of `p` for the gpu (with hip graphs enabled) and for the ref
+// target, confirming the gpu program captured a hip::graph.
+static std::pair<migraphx::program, migraphx::program> compile_gpu_ref(const migraphx::program& p,
+                                                                       bool offload_copy)
+{
+    auto p_gpu = p;
+    auto p_ref = p;
+    migraphx::compile_options options;
+    options.offload_copy                 = offload_copy;
+    options.backend_options["hip_graph"] = true;
+    p_gpu.compile(migraphx::make_target("gpu"), options);
+    p_ref.compile(migraphx::make_target("ref"));
+    EXPECT(captured_hip_graph(p_gpu));
+    return {std::move(p_gpu), std::move(p_ref)};
+}
+
 // Compile `p` for the gpu without offload copy (so it reads/writes
 // caller-provided gpu buffers), confirm it captured a hip::graph, then evaluate
 // it with input buffers that genuinely move between runs and check every run
@@ -85,18 +102,14 @@ static bool captured_hip_graph(const migraphx::program& p)
 static void
 check_rebind(const migraphx::program& p, const migraphx::shape& s, bool round_trip = false)
 {
-    auto p_gpu = p;
-    auto p_ref = p;
-
-    migraphx::compile_options options;
-    options.offload_copy                 = false;
-    options.backend_options["hip_graph"] = true;
-    p_gpu.compile(migraphx::make_target("gpu"), options);
+    auto programs = compile_gpu_ref(p, false);
+    auto& p_gpu   = programs.first;
+    auto& p_ref   = programs.second;
     if(round_trip)
+    {
         p_gpu = migraphx::load_buffer(migraphx::save_buffer(p_gpu));
-    p_ref.compile(migraphx::make_target("ref"));
-
-    EXPECT(captured_hip_graph(p_gpu));
+        EXPECT(captured_hip_graph(p_gpu));
+    }
 
     auto gpu_shapes = p_gpu.get_parameter_shapes();
     // Keep stable buffers for every parameter except x so only x's address
@@ -148,7 +161,7 @@ TEST_CASE(rebind_kernel_only)
 }
 
 // Convolutions exercise a different op and library path (MLIR, or MIOpen when
-// MLIR is disabled) than the matmul chain.
+// MLIR is disabled) than the pointwise/reverse chain used by the other tests.
 TEST_CASE(rebind_convolution)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 4, 8, 8}};
@@ -180,15 +193,9 @@ TEST_CASE(offload_copy_no_rebind)
     auto x   = mm->add_parameter("x", s);
     mm->add_return({add_layers(*mm, x, s, 3)});
 
-    auto p_gpu = p;
-    auto p_ref = p;
-    migraphx::compile_options options;
-    options.offload_copy                 = true;
-    options.backend_options["hip_graph"] = true;
-    p_gpu.compile(migraphx::make_target("gpu"), options);
-    p_ref.compile(migraphx::make_target("ref"));
-
-    EXPECT(captured_hip_graph(p_gpu));
+    auto programs = compile_gpu_ref(p, true);
+    auto& p_gpu   = programs.first;
+    auto& p_ref   = programs.second;
 
     auto run_gpu = [&](unsigned long seed) {
         return p_gpu.eval({{"x", migraphx::generate_argument(s, seed)}}).back().to_vector<float>();
@@ -237,7 +244,7 @@ static std::vector<std::string> output_param_names(const migraphx::program& p)
     std::vector<std::string> names;
     for(auto&& [name, ps] : p.get_parameter_shapes())
     {
-        if(name.find("#output_") != std::string::npos)
+        if(migraphx::contains(name, "#output_"))
             names.push_back(name);
     }
     std::sort(names.begin(), names.end());
@@ -256,14 +263,9 @@ TEST_CASE(rebind_output_buffer)
     auto x   = mm->add_parameter("x", s);
     mm->add_return({add_layers(*mm, x, s, 3)});
 
-    auto p_gpu = p;
-    auto p_ref = p;
-    migraphx::compile_options options;
-    options.offload_copy                 = false;
-    options.backend_options["hip_graph"] = true;
-    p_gpu.compile(migraphx::make_target("gpu"), options);
-    p_ref.compile(migraphx::make_target("ref"));
-    EXPECT(captured_hip_graph(p_gpu));
+    auto programs = compile_gpu_ref(p, false);
+    auto& p_gpu   = programs.first;
+    auto& p_ref   = programs.second;
 
     auto out_names = output_param_names(p_gpu);
     EXPECT(out_names.size() == 1);
@@ -316,14 +318,9 @@ TEST_CASE(multi_output_tuple)
     auto c3  = add_layers(*mm, c1, s, 2);
     mm->add_return({c1, c3});
 
-    auto p_gpu = p;
-    auto p_ref = p;
-    migraphx::compile_options options;
-    options.offload_copy                 = true;
-    options.backend_options["hip_graph"] = true;
-    p_gpu.compile(migraphx::make_target("gpu"), options);
-    p_ref.compile(migraphx::make_target("ref"));
-    EXPECT(captured_hip_graph(p_gpu));
+    auto programs = compile_gpu_ref(p, true);
+    auto& p_gpu   = programs.first;
+    auto& p_ref   = programs.second;
 
     auto run2 = [&](migraphx::program& prog, unsigned long seed) {
         auto results = prog.eval({{"x", migraphx::generate_argument(s, seed)}});
@@ -357,14 +354,9 @@ TEST_CASE(rebind_aliased_inputs)
     auto sum = mm->add_instruction(migraphx::make_op("add"), lx, y);
     mm->add_return({add_layers(*mm, sum, s, 2)});
 
-    auto p_gpu = p;
-    auto p_ref = p;
-    migraphx::compile_options options;
-    options.offload_copy                 = false;
-    options.backend_options["hip_graph"] = true;
-    p_gpu.compile(migraphx::make_target("gpu"), options);
-    p_ref.compile(migraphx::make_target("ref"));
-    EXPECT(captured_hip_graph(p_gpu));
+    auto programs = compile_gpu_ref(p, false);
+    auto& p_gpu   = programs.first;
+    auto& p_ref   = programs.second;
 
     auto gpu_shapes = p_gpu.get_parameter_shapes();
     migraphx::parameter_map base;

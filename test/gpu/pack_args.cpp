@@ -69,13 +69,6 @@ TEST_CASE(alignment_padding)
     EXPECT(padding<char, short, int, char>() == 1);
 }
 
-// Store a pointer value into a kernarg buffer at a byte offset.
-static void put_pointer(std::vector<char>& buf, std::size_t off, const char* p)
-{
-    const auto* bytes = reinterpret_cast<const char*>(&p);
-    std::copy(bytes, bytes + sizeof(char*), buf.data() + off);
-}
-
 // unpack_kernel_config with a kernel_args layout must return the offset and value
 // of only the pointer slots, skipping the inlined scalar arguments. Layout below
 // (matching code_object_op packing: pointer = empty value, 8 bytes align 8):
@@ -96,12 +89,13 @@ TEST_CASE(unpack_skips_scalars)
     auto* ptr0      = &p0_storage;
     auto* ptr2      = &p2_storage;
     std::vector<char> buf(32, 0);
-    put_pointer(buf, 0, ptr0);
-    put_pointer(buf, 16, ptr2);
+    migraphx::gpu::write_pointer(buf.data(), ptr0);
+    migraphx::gpu::write_pointer(buf.data() + 16, ptr2);
 
     std::size_t size = buf.size();
     auto config      = migraphx::gpu::pack_kernel_config(buf.data(), &size);
-    auto pointers    = migraphx::gpu::unpack_kernel_config(config.data(), kernel_args);
+    auto pointers    = migraphx::gpu::unpack_kernel_config(
+        migraphx::gpu::unpack_kernel_config(config.data()), kernel_args);
 
     EXPECT(pointers.size() == 2);
     EXPECT(pointers[0] == std::make_pair(std::size_t{0}, ptr0));
@@ -120,13 +114,14 @@ TEST_CASE(unpack_all_pointers)
     auto* ptr1      = &p1_storage;
     auto* ptr2      = &p2_storage;
     std::vector<char> buf(24, 0);
-    put_pointer(buf, 0, ptr0);
-    put_pointer(buf, 8, ptr1);
-    put_pointer(buf, 16, ptr2);
+    migraphx::gpu::write_pointer(buf.data(), ptr0);
+    migraphx::gpu::write_pointer(buf.data() + 8, ptr1);
+    migraphx::gpu::write_pointer(buf.data() + 16, ptr2);
 
     std::size_t size = buf.size();
     auto config      = migraphx::gpu::pack_kernel_config(buf.data(), &size);
-    auto pointers    = migraphx::gpu::unpack_kernel_config(config.data(), kernel_args);
+    auto pointers    = migraphx::gpu::unpack_kernel_config(
+        migraphx::gpu::unpack_kernel_config(config.data()), kernel_args);
 
     EXPECT(pointers.size() == 3);
     EXPECT(pointers[0] == std::make_pair(std::size_t{0}, ptr0));
@@ -160,7 +155,9 @@ TEST_CASE(unpack_invalid_configs)
     std::vector<char> small(8, 0);
     std::size_t small_size = small.size();
     auto small_config      = migraphx::gpu::pack_kernel_config(small.data(), &small_size);
-    EXPECT(migraphx::gpu::unpack_kernel_config(small_config.data(), kernel_args).empty());
+    EXPECT(migraphx::gpu::unpack_kernel_config(
+               migraphx::gpu::unpack_kernel_config(small_config.data()), kernel_args)
+               .empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

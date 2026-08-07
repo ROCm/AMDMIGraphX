@@ -29,6 +29,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/operation.hpp>
 #include <migraphx/serialize.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
@@ -59,18 +60,6 @@ struct gemm_alias_stub
     {
         return {shapes.size() - 1};
     }
-};
-
-// A capturable view: aliases its input, and with no compute it is not
-// context-free, so is_capturable keeps it.
-struct view_pass_op
-{
-    std::string name() const { return "view_pass"; }
-    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
-    {
-        return inputs.front();
-    }
-    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 // A context-free op that does not alias its input: it stands in for a host/ref
@@ -157,51 +146,17 @@ TEST_CASE(run_too_short)
     EXPECT(p1.sort() == p2.sort());
 }
 
-// A host-synchronizing op (hip::sync_stream) splits the module into two runs,
-// each captured into its own submodule.
-TEST_CASE(split_by_sync)
-{
-    migraphx::program p1;
-    {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
-        auto c    = add_chain(*mm, x, 4);
-        auto sync = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, c);
-        auto d    = add_chain(*mm, sync, 4);
-        mm->add_return({d});
-    }
-    run_pass(p1);
-
-    migraphx::program p2;
-    {
-        auto* mm   = p2.get_main_module();
-        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
-        auto* sub0 = p2.create_module("main:hipgraph0");
-        auto x0    = sub0->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
-        sub0->add_return({add_chain(*sub0, x0, 4)});
-        auto g0 = mm->add_instruction(
-            migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
-        auto sync  = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, g0);
-        auto* sub1 = p2.create_module("main:hipgraph1");
-        auto y0    = sub1->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
-        sub1->add_return({add_chain(*sub1, y0, 4)});
-        auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {sync}, {sub1});
-        mm->add_return({g1});
-    }
-
-    EXPECT(p1.sort() == p2.sort());
-}
-
-// A context-free non-aliasing host op is also a boundary.
-TEST_CASE(host_op_boundary)
+// A non-capturable `boundary` op between two chains splits the module into two
+// runs, each captured into its own submodule.
+static void check_boundary_split(const migraphx::operation& boundary)
 {
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
         auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto c   = add_chain(*mm, x, 4);
-        auto h   = mm->add_instruction(host_op{}, c);
-        auto d   = add_chain(*mm, h, 4);
+        auto b   = mm->add_instruction(boundary, c);
+        auto d   = add_chain(*mm, b, 4);
         mm->add_return({d});
     }
     run_pass(p1);
@@ -215,16 +170,26 @@ TEST_CASE(host_op_boundary)
         sub0->add_return({add_chain(*sub0, x0, 4)});
         auto g0 = mm->add_instruction(
             migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
-        auto h     = mm->add_instruction(host_op{}, g0);
+        auto b     = mm->add_instruction(boundary, g0);
         auto* sub1 = p2.create_module("main:hipgraph1");
         auto y0    = sub1->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         sub1->add_return({add_chain(*sub1, y0, 4)});
-        auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {h}, {sub1});
+        auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {b}, {sub1});
         mm->add_return({g1});
     }
 
     EXPECT(p1.sort() == p2.sort());
 }
+
+// A host-synchronizing op (hip::sync_stream) is a partition boundary.
+TEST_CASE(split_by_sync) { check_boundary_split(migraphx::gpu::hip_sync_stream{}); }
+
+// A context-free non-aliasing host op is also a boundary.
+TEST_CASE(host_op_boundary) { check_boundary_split(host_op{}); }
+
+// A quantized rocblas gemm is the same library call as gpu::gemm and is also a
+// partition boundary.
+TEST_CASE(split_by_quant_gemm) { check_boundary_split(quant_gemm_stub{}); }
 
 // A long run is captured while a trailing run below the threshold is left alone.
 TEST_CASE(mixed_long_short)
@@ -353,41 +318,6 @@ TEST_CASE(root_only)
     EXPECT(p1.sort() == p2.sort());
 }
 
-// A quantized rocblas gemm is the same library call as gpu::gemm and is also a
-// partition boundary.
-TEST_CASE(split_by_quant_gemm)
-{
-    migraphx::program p1;
-    {
-        auto* mm = p1.get_main_module();
-        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
-        auto c   = add_chain(*mm, x, 4);
-        auto qg  = mm->add_instruction(quant_gemm_stub{}, c);
-        auto d   = add_chain(*mm, qg, 4);
-        mm->add_return({d});
-    }
-    run_pass(p1);
-
-    migraphx::program p2;
-    {
-        auto* mm   = p2.get_main_module();
-        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
-        auto* sub0 = p2.create_module("main:hipgraph0");
-        auto x0    = sub0->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
-        sub0->add_return({add_chain(*sub0, x0, 4)});
-        auto g0 = mm->add_instruction(
-            migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
-        auto qg    = mm->add_instruction(quant_gemm_stub{}, g0);
-        auto* sub1 = p2.create_module("main:hipgraph1");
-        auto y0    = sub1->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
-        sub1->add_return({add_chain(*sub1, y0, 4)});
-        auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {qg}, {sub1});
-        mm->add_return({g1});
-    }
-
-    EXPECT(p1.sort() == p2.sort());
-}
-
 // Applying the pass twice is the same as applying it once: its own hip::graph
 // product is a partition boundary, so a second run has nothing to wrap.
 TEST_CASE(idempotent)
@@ -420,7 +350,7 @@ TEST_CASE(mixed_output_backing)
         auto c1  = mm->add_instruction(unary_pass_op{}, x);
         auto c2  = mm->add_instruction(unary_pass_op{}, c1);
         auto a = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
-        auto v = mm->add_instruction(view_pass_op{}, a);
+        auto v = mm->add_instruction(pass_op{}, a);
         auto sync1 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, c2);
         auto sync2 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, v);
         mm->add_return({sync1, sync2});
@@ -445,7 +375,7 @@ TEST_CASE(output_root_outside_run)
         auto g1 = mm->add_instruction(gemm_alias_stub{}, x, a1);
         auto v  = g1;
         for(std::size_t i = 0; i < 4; ++i)
-            v = mm->add_instruction(view_pass_op{}, v);
+            v = mm->add_instruction(pass_op{}, v);
         auto sync = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, v);
         mm->add_return({sync});
     }

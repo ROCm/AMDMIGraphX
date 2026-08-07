@@ -32,6 +32,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <algorithm>
+#include <iterator>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -110,11 +111,9 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
     // outside the captured region, not a captured value. If also used inside it
     // becomes a graph input.
     std::unordered_set<instruction_ref> keep;
-    for(auto ins : run)
-    {
-        if(ins->inputs().empty() and used_outside(ins))
-            keep.insert(ins);
-    }
+    std::copy_if(run.begin(), run.end(), std::inserter(keep, keep.end()), [&](instruction_ref ins) {
+        return ins->inputs().empty() and used_outside(ins);
+    });
 
     // Captured outputs: run instructions consumed outside the run. Allocations
     // are buffers rather than computed outputs and are never returned.
@@ -141,8 +140,8 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
     // consumed by a run instruction; a root reached only through a view of a
     // pre-run value is neither, so such a run cannot be captured.
     auto directly_used_in_run = [&](instruction_ref buf) {
-        return std::any_of(run.begin(), run.end(), [&](instruction_ref ins) {
-            return contains(ins->inputs(), buf);
+        return std::any_of(buf->outputs().begin(), buf->outputs().end(), [&](instruction_ref ins) {
+            return contains(run_set, ins);
         });
     };
     for(auto out : outputs)

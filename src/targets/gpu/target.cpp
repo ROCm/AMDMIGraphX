@@ -107,8 +107,8 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
-    // Enable the hipgraphify pass (capture the program into a HIP graph). Also
-    // controllable via the MIGRAPHX_ENABLE_HIP_GRAPH env var.
+    // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
+    // Also controllable via the MIGRAPHX_ENABLE_HIP_GRAPH env var.
     bool hip_graph = false;
 
     template <class Self, class F>

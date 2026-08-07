@@ -21,55 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/op/identity.hpp>
-#include <migraphx/operation.hpp>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/shape.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-struct context;
-
-namespace gpu {
-
-struct hipblaslt_op
+// Reduces across the channels of an nchw tensor, a strided reduction with too
+// few outputs for the lane algorithm so the block_strided reduce algorithm is
+// used
+template <migraphx::shape::type_t DType>
+struct test_reduce_strided : verify_program<test_reduce_strided<DType>>
 {
-    operation op = op::identity{};
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    migraphx::program create_program() const
     {
-        return pack(f(self.op, "op"));
-    }
+        migraphx::program p;
+        auto* mm  = p.get_main_module();
+        auto x    = mm->add_parameter("x", {DType, {8, 64, 7, 7}});
+        auto mul  = mm->add_instruction(migraphx::make_op("mul"), x, x);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rsum});
+        return p;
+    };
 
-    std::string name() const { return "gpu::hipblaslt_op"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        inputs.push_back(inputs.back());
-        return op.compute_shape(inputs);
-    }
-
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
+    std::string section() const { return "reduce"; }
 };
 
-struct compile_hipblaslt
-{
-    context* ctx = nullptr;
-    std::string name() const { return "gpu::compile_hipblaslt"; }
-    void apply(module& m) const;
-};
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+template struct test_reduce_strided<migraphx::shape::float_type>;
+template struct test_reduce_strided<migraphx::shape::half_type>;

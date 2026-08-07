@@ -78,8 +78,8 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
+#include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/propagate_reshape_layout.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
@@ -236,7 +236,7 @@ struct pipeline_factory
             lowering{get_context(), options.offload_copy},
             eliminate_contiguous{"gpu::contiguous"},
             dead_code_elimination{},
-            propagate_reshape_layout{},
+            lower_reshape{},
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{.use_hip_allocate = false}},
             dead_code_elimination{},
@@ -306,12 +306,7 @@ std::string target::name() const { return "gpu"; }
 migraphx::context target::get_context() const
 {
     if(is_cross_compile())
-        return context(gpu_arch,
-                       gpu_num_cu,
-                       gpu_num_chiplets,
-                       gpu_max_threads_per_cu,
-                       gpu_max_threads_per_block,
-                       gpu_wavefront_size);
+        return context(desc);
     return context(gpu::get_device_id());
 }
 

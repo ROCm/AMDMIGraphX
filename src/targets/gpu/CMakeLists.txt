@@ -232,7 +232,7 @@ add_library(migraphx_gpu
     compile_miopen.cpp
     compile_pointwise.cpp
     compiler.cpp
-    cross_compile_device.cpp
+    device_description.cpp
     device_name.cpp
     eliminate_data_type_for_gpu.cpp
     fixed_pad.cpp
@@ -246,6 +246,7 @@ add_library(migraphx_gpu
     hsa_chiplet.cpp
     kernel.cpp
     lower_device_ops.cpp
+    lower_reshape.cpp
     lowering.cpp
     loop.cpp
     lrn.cpp
@@ -258,7 +259,6 @@ add_library(migraphx_gpu
     prepare_reduce.cpp
     pooling.cpp
     problem_cache.cpp
-    propagate_reshape_layout.cpp
     rocblas.cpp
     schedule_model.cpp
     sync_device.cpp

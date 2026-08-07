@@ -24,6 +24,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     gdb \
     git \
     half \
+    libsqlite3-dev \
     locales \
     pip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*

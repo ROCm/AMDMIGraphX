@@ -70,19 +70,17 @@ static std::vector<sym::expr> tune_attribute_sym(const std::vector<sym::expr>& e
             auto neg = sym::strict_less(v, zero); // from-the-end (negative) index?
             if(not neg.has_value())
                 MIGRAPHX_THROW(m() + "bound of indeterminate sign cannot be normalized");
-            auto abs_v = *neg ? v + len : v;
-            return sym::fold_min(sym::fold_max(abs_v, zero), len);
+            // Only a from-the-end index can land below zero once it is shifted.
+            auto abs_v = *neg ? sym::fold_max(v + len, zero) : v;
+            return sym::fold_min(abs_v, len);
         });
     return result;
 }
 
 /**
- * The maximum that each value is normalized against: the rank of the input, or the length of the
- * axis the value applies to when `use_len` is set. There is one entry per value, and each axis
- * picks the entry to fill.
- *
- * Returns nullopt when a dynamic_dimension at `axes` is not fixed, since it has no single length
- * to normalize against.
+ * The maximum each value is normalized against: the input rank, or the length of `axes[i]` when
+ * `use_len` is set. Returns nullopt when a dynamic_dimension at `axes` is not fixed, since it has
+ * no single length to normalize against.
  */
 template <class Message>
 static optional<std::vector<int64_t>>
@@ -102,70 +100,39 @@ attribute_max_vals(std::size_t nvals,
         return max_vals;
     if(axes.size() > nvals)
         MIGRAPHX_THROW(m() + "more axes than values to normalize!");
-    if(not input_shape.dynamic())
-    {
-        std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
-            return input_shape.lens().at(i);
-        });
-        return max_vals;
-    }
-    if(std::any_of(axes.begin(), axes.end(), [&](auto ax) {
+    if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto ax) {
            return not input_shape.dyn_dims().at(ax).is_fixed();
        }))
         return nullopt;
-    std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
-        return input_shape.dyn_dims().at(i).get_interval().max;
-    });
+    auto lens = input_shape.max_lens();
+    std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) { return lens.at(i); });
     return max_vals;
 }
 
-/// Clips the values above the maximum, or range checks them when clipping is off.
-template <class Message>
-static void clip_or_check_max(std::vector<int64_t>& result,
-                              const std::vector<int64_t>& max_vals,
-                              const std::vector<op::normalize_attribute>& attrs,
-                              Message m)
+/**
+ * Clips each value to its bound, or range checks it against the bound when clipping is off.
+ * `clamp` decides which side of the bound is out of range, so the same code serves the maximum
+ * and the minimum: pass std::min for an upper bound and std::max for a lower one.
+ */
+template <class Clamp, class Message>
+static void clip_or_check(std::vector<int64_t>& result,
+                          const std::vector<int64_t>& bounds,
+                          bool clip,
+                          Clamp clamp,
+                          Message m,
+                          const std::string& what)
 {
-    bool inclusive = contains(attrs, op::normalize_attribute::include_max);
-    if(contains(attrs, op::normalize_attribute::clip_max))
+    assert(result.size() == bounds.size());
+    if(clip)
     {
-        std::transform(
-            result.begin(), result.end(), max_vals.begin(), result.begin(), [&](auto v, auto mv) {
-                auto limit = inclusive ? mv : mv - 1;
-                return v > limit ? limit : v;
-            });
+        std::transform(result.begin(), result.end(), bounds.begin(), result.begin(), clamp);
         return;
     }
-    bool in_range =
-        inclusive ? std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{})
-                  : std::equal(result.begin(), result.end(), max_vals.begin(), std::less<>{});
-    if(not in_range)
-        MIGRAPHX_THROW(m() + "value out of range!");
-}
-
-/// Clips the values below the minimum, or range checks them when clipping is off.
-template <class Message>
-static void clip_or_check_min(std::vector<int64_t>& result,
-                              const std::vector<int64_t>& min_vals,
-                              const std::vector<op::normalize_attribute>& attrs,
-                              Message m)
-{
-    bool inclusive = contains(attrs, op::normalize_attribute::include_min);
-    if(contains(attrs, op::normalize_attribute::clip_min))
-    {
-        std::transform(
-            result.begin(), result.end(), min_vals.begin(), result.begin(), [&](auto v, auto mv) {
-                auto limit = inclusive ? mv : mv + 1;
-                return v < limit ? limit : v;
-            });
-        return;
-    }
-    bool in_range =
-        inclusive
-            ? std::equal(min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{})
-            : std::equal(min_vals.begin(), min_vals.end(), result.begin(), std::less<>{});
-    if(not in_range)
-        MIGRAPHX_THROW(m() + "attribute out of range!");
+    if(not std::equal(result.begin(),
+                      result.end(),
+                      bounds.begin(),
+                      [&](auto v, auto bound) { return v == clamp(v, bound); }))
+        MIGRAPHX_THROW(m() + what);
 }
 
 /**
@@ -195,11 +162,26 @@ static std::vector<int64_t> tune_attribute(const std::vector<int64_t>& vec,
     // renormalize once the dimensions are known.
     if(not max_vals.has_value())
         return result;
-    clip_or_check_max(result, *max_vals, attrs, m);
 
+    // An exclusive bound moves the limit one step inside the range.
+    auto max_step = contains(attrs, op::normalize_attribute::include_max) ? 0 : 1;
+    clip_or_check(result,
+                  *max_vals,
+                  contains(attrs, op::normalize_attribute::clip_max),
+                  [&](auto v, auto bound) { return std::min(v, bound - max_step); },
+                  m,
+                  "value out of range!");
+
+    // A value from the end is bounded by the negated maximum.
     std::vector<int64_t> min_vals(max_vals->size());
-    std::transform(max_vals->begin(), max_vals->end(), min_vals.begin(), [](auto v) { return -v; });
-    clip_or_check_min(result, min_vals, attrs, m);
+    std::transform(max_vals->begin(), max_vals->end(), min_vals.begin(), std::negate<>{});
+    auto min_step = contains(attrs, op::normalize_attribute::include_min) ? 0 : 1;
+    clip_or_check(result,
+                  min_vals,
+                  contains(attrs, op::normalize_attribute::clip_min),
+                  [&](auto v, auto bound) { return std::max(v, bound + min_step); },
+                  m,
+                  "attribute out of range!");
 
     // Resolve the from-the-end (negative) values against the maximum.
     std::transform(
@@ -248,9 +230,8 @@ static bool normalize_padding_attribute(operation& op,
 }
 
 /**
- * Normalizes an array attribute. An attribute of expressions serializes its entries as objects,
- * even a constant one, which is what selects the symbolic path; an attribute of plain integers
- * takes the integer path. See tune_attribute_sym().
+ * Normalizes an array attribute. Even a constant `sym::expr` serializes as an object, which is
+ * what selects the symbolic path. See tune_attribute_sym().
  */
 template <class Message>
 static value tune_array_attribute(const value& vv,
@@ -261,8 +242,8 @@ static value tune_array_attribute(const value& vv,
 {
     if(std::any_of(vv.begin(), vv.end(), [](const auto& e) { return e.is_object(); }))
     {
-        // An expression serializes as an object carrying a "type" tag. Any other object belongs
-        // to an attribute that cannot hold one, so there would be nowhere to write the result.
+        // An expr serializes as an object carrying a "type" tag. An object without one is some
+        // other attribute type, which cannot hold a normalized expression.
         if(std::any_of(vv.begin(), vv.end(), [](const auto& e) {
                return e.is_object() and not e.contains("type");
            }))
@@ -303,10 +284,7 @@ normalize_axes_attribute(operation& op, value& val, const value& rv, const shape
     val = op.to_value();
 }
 
-/**
- * Assumptions:
- *  Called by compute_shape_op() with the shape of the first input.
- */
+/// Callers pass the shape of the operator's first input.
 bool normalize_attributes(operation& op, const shape& input_shape)
 {
     bool tuned = false;
@@ -322,8 +300,8 @@ bool normalize_attributes(operation& op, const shape& input_shape)
         return tuned;
     }
 
-    // The keys are normalized in the order the operator declares them, so `axes` is resolved
-    // before the bounds that are normalized against it.
+    // A value object keeps insertion order, so an operator that lists "axes" first in its
+    // normalize_axes map gets it resolved before the bounds normalized against it.
     for(const auto& rv : attrs.at("normalize_axes").without_key())
     {
         normalize_axes_attribute(op, val, rv, input_shape);

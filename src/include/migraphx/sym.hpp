@@ -320,8 +320,7 @@ MIGRAPHX_EXPORT expr max(expr x, expr y);
 MIGRAPHX_EXPORT std::optional<bool>
 strict_less(const expr& a, const expr& b, interval default_bounds = {});
 
-// `min`/`max` that fold to one operand when the ordering is provable via intervals.
-// Fall back to a symbolic min/max node when it is indeterminate.
+// `min`/`max` that collapse to one operand when `strict_less` proves the ordering.
 MIGRAPHX_EXPORT expr fold_min(const expr& a, const expr& b);
 MIGRAPHX_EXPORT expr fold_max(const expr& a, const expr& b);
 

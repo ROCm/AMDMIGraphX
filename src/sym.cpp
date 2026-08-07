@@ -2348,7 +2348,8 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         e = sym::expr{};
         return;
     }
-    // Allow making symbolic literals using bare numbers. As in make_op("dyn_slice", {{"starts", {1}}}).
+    // Allow symbolic literals to be written as bare numbers, e.g.
+    // make_op("dyn_slice", {{"starts", {1}}}).
     if(not v.is_object())
     {
         e = sym::lit(value_to_sym_scalar(v));

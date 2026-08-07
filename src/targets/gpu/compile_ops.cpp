@@ -342,9 +342,9 @@ struct compile_plan
         if(config.has_value())
         {
             const auto& problem = config->problem;
-            // Multi-cache priority search: read-only caches first, then the
-            // writable cache; first hit wins.
-            if(auto sol = ctx->find_in_problem_caches(preop.name(), problem))
+            // Priority search (read-only layers first, then writable; first hit
+            // wins) is handled inside problem_cache.
+            if(auto sol = ctx->problem_cache_get(preop.name(), problem))
             {
                 const auto& solution = sol.value();
                 // No solution yet until benchmarked so skip for now

@@ -32,6 +32,7 @@
 #include <migraphx/gpu/cache_device_key.hpp>
 #include <migraphx/gpu/problem_cache_backend.hpp>
 #include <string>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -50,6 +51,8 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     void set_device_key(const cache_device_key& key);
     const cache_device_key& get_device_key() const;
 
+    /// Look up a problem. Read-only layers (from load(paths)) are searched in
+    /// priority order first, then the writable cache; the first hit wins.
     bool has(const std::string& name, const value& problem) const;
     void insert(const std::string& name, const value& problem, const value& solution);
     void mark(const std::string& name, const value& problem);
@@ -57,11 +60,20 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     /// Load from an explicit file path. An empty path is treated as "no cache"
     /// (no-op). The path is remembered and reused for the next save().
     void load(const std::string& path);
+    /// Load a priority list of caches (highest priority first, first hit wins).
+    /// A single path is loaded as the writable cache (same as load(path));
+    /// multiple paths become read-only layers searched before the writable cache.
+    void load(const std::vector<std::string>& paths);
     void save() const;
 
     private:
     // Pluggable storage backend (JSON by default); e.g. SQLite can be swapped in.
+    // This is the writable cache: new solutions are inserted and saved here.
     problem_cache_backend backend;
+
+    // Higher-priority read-only layers searched before `backend` (first hit
+    // wins). Populated by load(paths) when multiple files are provided.
+    std::vector<problem_cache_backend> read_only_backends{};
 
     // Device these entries were tuned on; set by the owning context. Empty
     // key = unidentified device, entries land in a single bucket.

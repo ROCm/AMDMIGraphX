@@ -74,9 +74,39 @@ void problem_cache::save() const
     backend.save(path_override);
 }
 
+void problem_cache::load(const std::vector<std::string>& paths)
+{
+    read_only_backends.clear();
+    if(paths.empty())
+        return;
+    // A single file is the writable cache (new solutions save back to it).
+    if(paths.size() == 1)
+    {
+        load(paths.front());
+        return;
+    }
+    // Multiple files are a read-only priority list (highest first). Shipped
+    // caches are immutable, so the writable `backend` stays empty and nothing
+    // is written back; persisting to a writable local cache is a future item.
+    for(const auto& path : paths)
+    {
+        problem_cache_backend ro(json_problem_cache{});
+        if(not path.empty())
+            ro.load(path);
+        read_only_backends.push_back(std::move(ro));
+    }
+}
+
 bool problem_cache::has(const std::string& name, const value& problem) const
 {
-    return backend.has(device_key, create_key(name, problem));
+    const auto key = create_key(name, problem);
+    // Read-only layers first (highest priority), then the writable cache.
+    for(const auto& ro : read_only_backends)
+    {
+        if(ro.has(device_key, key))
+            return true;
+    }
+    return backend.has(device_key, key);
 }
 
 void problem_cache::insert(const std::string& name, const value& problem, const value& solution)
@@ -92,7 +122,14 @@ void problem_cache::mark(const std::string& name, const value& problem)
 
 optional<value> problem_cache::get(const std::string& name, const value& problem) const
 {
-    return backend.get(device_key, create_key(name, problem));
+    const auto key = create_key(name, problem);
+    // Read-only layers first (highest priority), then the writable cache.
+    for(const auto& ro : read_only_backends)
+    {
+        if(auto sol = ro.get(device_key, key))
+            return sol;
+    }
+    return backend.get(device_key, key);
 }
 
 } // namespace gpu

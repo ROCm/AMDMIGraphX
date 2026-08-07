@@ -92,4 +92,59 @@ TEST_CASE(problem_cache_path_override_empty_is_noop)
     EXPECT(c.has("gemm", make_problem(7)));
 }
 
+// --------------------------------------------------------------------------
+// load(paths) with multiple files is a read-only priority list: has()/get()
+// search the layers in order and the first hit wins (highest-priority first).
+// This is the layered search that lives inside problem_cache (not context).
+// --------------------------------------------------------------------------
+TEST_CASE(problem_cache_layered_priority_first_hit_wins)
+{
+    migraphx::tmp_dir td{"problem_cache_layered"};
+    auto high = (td.path / "high.json").string();
+    auto low  = (td.path / "low.json").string();
+
+    // High-priority file: solution kHigh for problem 0.
+    {
+        migraphx::gpu::problem_cache w;
+        w.set_device_key(make_key());
+        w.load(high);
+        w.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kHigh"}});
+        w.save();
+    }
+    // Low-priority file: a *different* solution for problem 0, plus a problem 1
+    // that exists only here.
+    {
+        migraphx::gpu::problem_cache w;
+        w.set_device_key(make_key());
+        w.load(low);
+        w.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kLow"}});
+        w.insert("gemm", make_problem(1), migraphx::value{{"kernel", "kOnlyLow"}});
+        w.save();
+    }
+
+    migraphx::gpu::problem_cache c;
+    c.set_device_key(make_key());
+    c.load(std::vector<std::string>{high, low}); // priority order: high first
+
+    // Problem 0 is in both files -> the higher-priority file wins.
+    EXPECT(c.has("gemm", make_problem(0)));
+    auto s0 = c.get("gemm", make_problem(0));
+    EXPECT(bool(s0));
+    EXPECT((*s0).at("kernel").to<std::string>() == "kHigh");
+
+    // Problem 1 exists only in the lower-priority file -> still found.
+    EXPECT(c.has("gemm", make_problem(1)));
+    auto s1 = c.get("gemm", make_problem(1));
+    EXPECT(bool(s1));
+    EXPECT((*s1).at("kernel").to<std::string>() == "kOnlyLow");
+
+    // A problem in neither file is not found.
+    EXPECT(not c.has("gemm", make_problem(2)));
+    EXPECT(not bool(c.get("gemm", make_problem(2))));
+
+    // Multiple files are a read-only list: save() must be a no-op (no writable
+    // path is configured) and must not throw.
+    c.save();
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

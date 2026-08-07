@@ -69,7 +69,7 @@ struct hip_compiler_info
 /**
  * Ask the device compiler what version it is.
  *
- * It is not the compiler this library was built with, so the answer comes from compiling a
+ * It need not be the compiler this library was built with, so the answer comes from compiling a
  * probe and reading back what it recorded. The result is determined once and reused; it is
  * empty if the compiler could not be asked.
  */

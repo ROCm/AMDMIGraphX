@@ -416,8 +416,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto src = make_src(ctx, inputs, v);
-        return compile_hip_code_object(ctx, src.content, src.options);
+        return compile_hip_code_object(ctx, make_src(ctx, inputs, v));
     }
 
     static value make_value(instruction_ref ins, const operation& op)
@@ -636,8 +635,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto src = make_src(ctx, inputs, v);
-        return compile_hip_code_object(ctx, src.content, src.options);
+        return compile_hip_code_object(ctx, make_src(ctx, inputs, v));
     }
 
     static value make_value(instruction_ref ins, const operation& op, const value& solution)

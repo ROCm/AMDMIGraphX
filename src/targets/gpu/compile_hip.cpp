@@ -26,15 +26,12 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
-#include <migraphx/md5.hpp>
 #include <migraphx/fileutils.hpp>
 #include <migraphx/logger.hpp>
 #include <cassert>
 #include <iostream>
 #include <deque>
-#include <mutex>
 #include <string_view>
-#include <unordered_map>
 
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
@@ -383,8 +380,8 @@ static constexpr std::string_view version_suffix = ">>>";
 // accepts. Keeping it fixed means the answer does not depend on the device present.
 static const char* const version_probe_arch = "gfx950";
 
-// Probe that makes the device compiler embed its own version string in the object. It is not
-// the compiler this library was built with, so its version is only known at runtime.
+// Probe that makes the device compiler embed its own version string in the object. It need not
+// be the compiler this library was built with, so its version is only known at runtime.
 static const char* const version_probe = R"__migraphx__(
 #define MIGRAPHX_STRINGIZE_(x) #x
 #define MIGRAPHX_STRINGIZE(x) MIGRAPHX_STRINGIZE_(x)
@@ -400,8 +397,8 @@ static const char* const version_probe = R"__migraphx__(
 #endif
 
 extern "C" __attribute__((used)) __device__ const char migraphx_compiler_version[] =
-    "<<<migraphx-compiler-version:" MIGRAPHX_COMPILER_MAJOR "|" MIGRAPHX_COMPILER_MINOR "|"
-    MIGRAPHX_COMPILER_VERSION ">>>";
+    "${prefix}" MIGRAPHX_COMPILER_MAJOR "|" MIGRAPHX_COMPILER_MINOR "|"
+    MIGRAPHX_COMPILER_VERSION "${suffix}";
 
 extern "C" __global__ void migraphx_version_probe(char* p)
 {
@@ -430,7 +427,12 @@ const hip_compiler_info& hip_compiler_version()
     static const hip_compiler_info info = [] {
         try
         {
-            auto cos = compile_hip_src({src_file{"main.cpp", version_probe}},
+            // Interpolated so the markers parse_version searches for cannot drift from the ones
+            // the probe embeds.
+            auto probe = interpolate_string(
+                version_probe,
+                {{"prefix", std::string{version_prefix}}, {"suffix", std::string{version_suffix}}});
+            auto cos = compile_hip_src({src_file{"main.cpp", probe}},
                                        {"-std=c++17"},
                                        version_probe_arch,
                                        /* quiet */ true);

@@ -260,17 +260,22 @@ std::string hip_compile_key(const context& ctx, const hip_src& src)
     ss << "global=" << options.global << "\n";
     ss << "local=" << options.local << "\n";
     ss << "output_arg=" << options.output_arg << "\n";
-    ss << "params=" << join_strings(options.params, " ") << "\n";
+    // One param per line so the key keeps the boundaries the compiler command line has.
+    for(const auto& p : options.params)
+        ss << "param=" << p << "\n";
     // The shapes are recorded because they become fields of the code object, not because they
     // are part of the source; the source sees them through the generated tensor views below.
     for(const auto& s : options.inputs)
         ss << "input=" << s << "\n";
     ss << "output=" << options.output << "\n";
+    // The sources are length-prefixed so two compiles cannot serialize to the same key by their
+    // contents running together.
     for(const auto& f : options.additional_src_files)
-        ss << "src=" << f.path << "\n" << f.content << "\n";
-    ss << generate_args_hpp(options.virtual_inputs.empty() ? options.inputs
-                                                           : options.virtual_inputs);
-    ss << "main.cpp\n" << src.content;
+        ss << "src=" << f.path << ":" << f.content.size() << "\n" << f.content << "\n";
+    auto args_hpp =
+        generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
+    ss << "args.hpp:" << args_hpp.size() << "\n" << args_hpp;
+    ss << "main.cpp:" << src.content.size() << "\n" << src.content;
     return ss.str();
 }
 
@@ -291,6 +296,11 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
                           options.inputs,
                           options.output,
                           options.output_arg};
+}
+
+operation compile_hip_code_object(context& ctx, hip_src src)
+{
+    return compile_hip_code_object(ctx, src.content, std::move(src.options));
 }
 
 } // namespace gpu

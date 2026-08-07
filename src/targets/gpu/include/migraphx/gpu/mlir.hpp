@@ -63,7 +63,7 @@ MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
 /**
  * A string identifying the code object compile_mlir would produce for these arguments.
  *
- * This is the mlir module as parsed, before any pipeline runs, so it is far cheaper than
+ * Built from the mlir module as parsed, before any pipeline runs, so it is far cheaper than
  * compiling.
  */
 MIGRAPHX_GPU_EXPORT std::string mlir_compile_key(const context& migraphx_ctx,

@@ -83,38 +83,30 @@ static migraphx::gpu::binary_cache::entry make_entry(const std::string& key)
     return e;
 }
 
-// A cache built without stats keeps no counters, so the tests that assert on counts supply one.
-static std::shared_ptr<migraphx::gpu::binary_cache::stats> make_stats()
-{
-    return std::make_shared<migraphx::gpu::binary_cache::stats>();
-}
-
 TEST_CASE(lookup_records_a_miss)
 {
     migraphx::gpu::context ctx;
-    auto st = make_stats();
-    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}, st};
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}};
 
     EXPECT(not cache.get(ctx, "absent").has_value());
-    EXPECT(st->misses == 1);
-    EXPECT(st->hits == 0);
-    EXPECT(st->reused == 0);
+    EXPECT(cache.get_stats().misses == 1);
+    EXPECT(cache.get_stats().hits == 0);
+    EXPECT(cache.get_stats().reused == 0);
 }
 
 // An entry served out of memory is one an earlier compile in this process already paid for.
 TEST_CASE(memory_lookup_records_reuse)
 {
     migraphx::gpu::context ctx;
-    auto st = make_stats();
-    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}, st};
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}};
 
     cache.insert(ctx, make_entry("a-key"));
-    EXPECT(st->compiled == 1);
+    EXPECT(cache.get_stats().compiled == 1);
 
     auto found = cache.get(ctx, "a-key");
     EXPECT(found.has_value());
-    EXPECT(st->reused == 1);
-    EXPECT(st->misses == 0);
+    EXPECT(cache.get_stats().reused == 1);
+    EXPECT(cache.get_stats().misses == 0);
 }
 
 // A second cache shares nothing in memory, so anything it finds came off disk.
@@ -127,13 +119,12 @@ TEST_CASE(disk_lookup_records_a_hit)
     migraphx::gpu::binary_cache writer{settings};
     writer.insert(ctx, make_entry("shared-key"));
 
-    auto st = make_stats();
-    migraphx::gpu::binary_cache reader{settings, st};
+    migraphx::gpu::binary_cache reader{settings};
 
     auto found = reader.get(ctx, "shared-key");
     EXPECT(found.has_value());
-    EXPECT(st->hits == 1);
-    EXPECT(st->misses == 0);
+    EXPECT(reader.get_stats().hits == 1);
+    EXPECT(reader.get_stats().misses == 0);
     EXPECT(*found->fragment.get_main_module() == *make_code().fragment.get_main_module());
 }
 
@@ -157,11 +148,10 @@ TEST_CASE(corrupt_entry_is_ignored)
     }
     EXPECT(truncated > 0);
 
-    auto st = make_stats();
-    migraphx::gpu::binary_cache reader{settings, st};
+    migraphx::gpu::binary_cache reader{settings};
 
     EXPECT(not reader.get(ctx, "damaged").has_value());
-    EXPECT(st->misses == 1);
+    EXPECT(reader.get_stats().misses == 1);
 }
 
 // Without a directory nothing reaches disk, though results are still shared in memory.
@@ -169,12 +159,11 @@ TEST_CASE(no_directory_writes_nothing)
 {
     migraphx::tmp_dir td{"binary-cache"};
     migraphx::gpu::context ctx;
-    auto st = make_stats();
-    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}, st};
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}};
 
     cache.insert(ctx, make_entry("in-memory-only"));
     EXPECT(cache.get(ctx, "in-memory-only").has_value());
-    EXPECT(st->reused == 1);
+    EXPECT(cache.get_stats().reused == 1);
     EXPECT(migraphx::fs::is_empty(td.path));
 }
 

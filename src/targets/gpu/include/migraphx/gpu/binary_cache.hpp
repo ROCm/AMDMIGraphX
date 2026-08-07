@@ -87,8 +87,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         }
     };
 
-    /// Counts of what the cache did. Only the tests ask for these, so a cache built without one
-    /// keeps no counters at all.
+    /// Counts of what the cache did.
     struct stats
     {
         /// Served from memory, so an earlier compile in this process was shared.
@@ -101,19 +100,18 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         std::size_t compiled = 0;
     };
 
-    explicit binary_cache(binary_cache_settings s = {}, std::shared_ptr<stats> counters = nullptr)
-        : settings(std::move(s)), st(std::move(counters))
-    {
-    }
+    explicit binary_cache(binary_cache_settings s = {}) : settings(std::move(s)) {}
 
     /// Look up a key, consulting memory first and then the cache directory.
     optional<compiled_code> get(const context& ctx, const std::string& key);
 
     /// Record a compiled result under its key.
-    void insert(const context& ctx, const entry& e);
+    void insert(const context& ctx, entry e);
 
     /// True when reused results should be checked against a fresh compile.
     bool verify() const;
+
+    const stats& get_stats() const { return counters; }
 
     /// Names the directory holding entries that this build can use: the entry format, the
     /// compiler, a digest of the embedded kernel headers, and the rocMLIR build. Empty when the
@@ -122,17 +120,9 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     static const std::string& version_dir();
 
     private:
-    /// Each records one outcome, and does nothing when no stats were supplied. record_miss
-    /// returns the empty result its callers hand back, so the outcome is recorded exactly where
-    /// the lookup gives up.
-    void record_reused();
-    void record_hit();
-    optional<compiled_code> record_miss();
-    void record_compiled();
-
     std::unordered_map<std::string, compiled_code> memo;
     binary_cache_settings settings;
-    std::shared_ptr<stats> st;
+    stats counters;
 };
 
 } // namespace gpu

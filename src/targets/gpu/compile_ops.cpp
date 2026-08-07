@@ -48,6 +48,7 @@
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
 #include <cstdlib>
+#include <exception>
 #include <functional>
 
 namespace migraphx {
@@ -108,8 +109,8 @@ static program make_fragment(const compiler_replace& cr, instruction_ref ins)
     auto* fm         = frag.get_main_module();
     const auto& args = ins->inputs();
     std::vector<instruction_ref> inputs;
-    // Named by position rather than by a counter the transform mutates, since compiled_code
-    // maps each parameter back onto the input in the same position.
+    // Parameters are named by input position, since compiled_code::replace maps each parameter
+    // back onto the input in the same position.
     auto idx = range(args.size());
     std::transform(idx.begin(), idx.end(), std::back_inserter(inputs), [&](auto i) {
         return fm->add_parameter(compiled_code::input_name(i), args[i]->get_shape());
@@ -199,7 +200,7 @@ static void cache_store(context& ctx,
     e.problem  = problem;
     e.solution = solution;
     e.code     = code;
-    ctx.get_binary_cache().insert(ctx, e);
+    ctx.get_binary_cache().insert(ctx, std::move(e));
 }
 
 /// Reuse an earlier result for this key, or compile and record one. For callers with a single
@@ -461,8 +462,11 @@ struct compile_plan
     }
 
     /// Compile again and compare, so a key that fails to describe its result fails loudly.
+    /// Does nothing unless the cache was configured to verify reuse.
     void verify(const value& solution, const compiled_code& reused) const
     {
+        if(not ctx->get_binary_cache().verify())
+            return;
         verify_reuse(*ctx, ins, preop, solution, reused);
     }
 
@@ -530,13 +534,8 @@ struct compile_plan
                 {
                     ctx->get_problem_cache().mark(preop.name(), problem);
                     results.resize(solutions.size());
-                    for(auto i : range(solutions.size()))
-                    {
-                        auto& candidate        = candidates.emplace_back();
-                        candidate.plan_index   = plan_index;
-                        candidate.result_index = i;
-                        candidate.solution     = solutions[i];
-                    }
+                    for(std::size_t i : range(solutions.size()))
+                        candidates.push_back({plan_index, i, solutions[i]});
                 }
             }
         }
@@ -718,8 +717,14 @@ struct compile_task
     optional<compiler_replace> result                        = nullopt;
     /// Set when the result came from the cache, so it is not stored back afterwards.
     bool reused = false;
+    /// A failure raised while verifying the reused result, rethrown after the workers join.
+    std::exception_ptr error = nullptr;
 
-    std::size_t plan_index() const { return targets.front().first; }
+    std::size_t plan_index() const
+    {
+        assert(not targets.empty());
+        return targets.front().first;
+    }
 };
 
 struct compile_manager
@@ -744,13 +749,13 @@ struct compile_manager
      * Since every key is known before any compile starts, each group can be handed to exactly
      * one task and the results shared afterwards, so the compiles never have to coordinate.
      */
-    static std::vector<compile_task> make_tasks(std::vector<compile_candidate>& candidates)
+    static std::vector<compile_task> make_tasks(const std::vector<compile_candidate>& candidates)
     {
         std::vector<compile_task> tasks;
-        // The keys are whole kernel sources, so the index views them rather than copying them;
-        // candidates outlives the tasks built here.
+        // The keys are whole kernel sources, so the index views them instead of copying; the
+        // index does not outlive this function.
         std::unordered_map<std::string_view, std::size_t> task_index;
-        for(auto& c : candidates)
+        for(const auto& c : candidates)
         {
             std::size_t i = tasks.size();
             if(c.key.empty())
@@ -779,8 +784,6 @@ struct compile_manager
         par_compile(candidates.size(), [&](auto i) {
             candidates[i].key = cps[candidates[i].plan_index].get_key(candidates[i].solution);
         });
-        const bool verify_reused = not cps.empty() and cps.front().ctx->get_binary_cache().verify();
-
         auto tasks = make_tasks(candidates);
         assert(tasks.size() <= candidates.size());
 
@@ -797,14 +800,26 @@ struct compile_manager
             const auto& plan = cps[task.plan_index()];
             if(task.reused)
             {
-                if(verify_reused)
+                // A throw would escape the worker thread and terminate the process, so carry
+                // the failure back and rethrow it after the workers join.
+                try
+                {
                     plan.verify(task.solution, task.result->code);
+                }
+                catch(...)
+                {
+                    task.error = std::current_exception();
+                }
             }
             else
             {
                 task.result = plan.run_compile(task.solution);
             }
         });
+        auto failed = std::find_if(
+            tasks.begin(), tasks.end(), [](const auto& task) { return task.error != nullptr; });
+        if(failed != tasks.end())
+            std::rethrow_exception(failed->error);
 
         for(const auto& task : tasks)
         {
@@ -813,19 +828,24 @@ struct compile_manager
             cps[task.plan_index()].store(task.solution, task.key, task.result->code);
         }
 
-        for(const auto& task : tasks)
+        for(auto& task : tasks)
         {
             // The slots start out empty, so a task that failed to compile needs no write.
             if(not task.result.has_value())
                 continue;
             assert(not task.result->code.empty());
-            for(auto [pi, ri] : task.targets)
+            // Only the serializable code is used from here on. Dropping the replace function
+            // releases the code objects and split modules its closure holds, and keeps it from
+            // being run against an instruction other than the one it was built for.
+            task.result->replace_fn = nullptr;
+            // Every target gets its own copy; the last takes the result itself.
+            const auto last = task.targets.size() - 1;
+            for(auto i : range(task.targets.size()))
             {
-                auto cr = *task.result;
-                // Only the fragment is used from here on. Dropping the replace function releases
-                // the code objects and split modules its closure holds, and keeps it from being
-                // run against an instruction other than the one it was built for.
-                cr.replace_fn       = nullptr;
+                auto [pi, ri] = task.targets[i];
+                assert(pi < cps.size());
+                assert(ri < cps[pi].results.size());
+                auto cr             = i == last ? std::move(*task.result) : *task.result;
                 cps[pi].results[ri] = compiled_result{std::move(cr), cps[pi].ins};
             }
         }

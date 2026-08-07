@@ -23,8 +23,8 @@
  */
 #include <migraphx/gpu/compiled_code.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/param_utils.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/errors.hpp>
 
 namespace migraphx {
@@ -35,21 +35,9 @@ std::string compiled_code::input_name(std::size_t i) { return param_name(i); }
 
 void compiled_code::replace(module& m, instruction_ref ins) const
 {
-    const auto* frag   = fragment.get_main_module();
-    const auto& inputs = ins->inputs();
-    assert(frag->get_parameter_names().size() == inputs.size());
-    // Seeding the map with the parameters keeps insert_instructions from copying them, so the
-    // fragment is wired directly onto the inputs of ins.
-    std::unordered_map<instruction_ref, instruction_ref> map_ins;
-    for(auto i : range(inputs.size()))
-    {
-        auto param = frag->get_parameter(input_name(i));
-        // get_parameter returns end() for an unknown name, which would splice a stray parameter
-        // into m instead of wiring the input.
-        assert(param != frag->end());
-        map_ins[param] = inputs[i];
-    }
-    auto returns = m.insert_instructions(ins, frag, &map_ins);
+    // insert_inline wires each fragment parameter onto the input in the same position, matching
+    // how input_name named them.
+    auto returns = m.insert_inline(ins, *fragment.get_main_module(), ins->inputs());
     if(returns.size() != 1)
         MIGRAPHX_THROW("compiled_code: expected a single output from the fragment but got " +
                        std::to_string(returns.size()));

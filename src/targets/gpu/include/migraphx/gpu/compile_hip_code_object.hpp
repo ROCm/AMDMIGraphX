@@ -100,6 +100,9 @@ MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(context& ctx,
                                                       const std::string& content,
                                                       hip_compile_options options);
 
+/// Compile the kernel a hip_src describes.
+MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(context& ctx, hip_src src);
+
 MIGRAPHX_GPU_EXPORT std::size_t
 compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size = 1024);
 

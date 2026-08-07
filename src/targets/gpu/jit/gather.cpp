@@ -80,8 +80,7 @@ struct gather_compiler : compiler<gather_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto src = make_src(ctx, inputs, v);
-        return compile_hip_code_object(ctx, src.content, src.options);
+        return compile_hip_code_object(ctx, make_src(ctx, inputs, v));
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

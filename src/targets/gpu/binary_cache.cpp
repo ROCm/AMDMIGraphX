@@ -24,7 +24,6 @@
 #include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/errors.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/logger.hpp>
@@ -53,32 +52,9 @@ static constexpr const char* rocmlir_id = "nomlir";
 
 std::shared_ptr<binary_cache> make_binary_cache() { return std::make_shared<binary_cache>(); }
 
-void binary_cache::record_reused()
-{
-    if(st)
-        st->reused++;
-}
-
-void binary_cache::record_hit()
-{
-    if(st)
-        st->hits++;
-}
-
-optional<compiled_code> binary_cache::record_miss()
-{
-    if(st)
-        st->misses++;
-    return nullopt;
-}
-
-void binary_cache::record_compiled()
-{
-    if(st)
-        st->compiled++;
-}
-
 bool binary_cache::verify() const { return settings.verify; }
+
+static std::string short_digest(const std::string& s) { return md5(s).substr(0, 12); }
 
 /// A digest of the kernel headers compiled into this build. Taken from the embedded sources
 /// rather than the files on disk, so it tracks what is actually compiled even when the build
@@ -91,7 +67,7 @@ static const std::string& kernels_digest()
         {
             ss << path << "\n" << content << "\n";
         }
-        return md5(ss.str()).substr(0, 12);
+        return short_digest(ss.str());
     }();
     return digest;
 }
@@ -105,16 +81,15 @@ const std::string& binary_cache::version_dir()
         // The version numbers make the directory readable; the hash of the full version string
         // separates builds that share them, since it also covers the source revision.
         return std::string{binary_cache_format} + "-hip" + compiler.major + "." + compiler.minor +
-               "." + md5(compiler.version).substr(0, 12) + "-kernels" + kernels_digest() +
-               "-rocmlir" + rocmlir_id;
+               "." + short_digest(compiler.version) + "-kernels" + kernels_digest() + "-rocmlir" +
+               rocmlir_id;
     }();
     return dir;
 }
 
-/// Entries are grouped by the device they were compiled for. The architecture is part of this
-/// because it is passed to the compiler rather than appearing in the source; the core count and
-/// wavefront size are here to keep the directory self-describing, since they already reach the
-/// key through the launch bounds and -D defines in the parameter list.
+/// Entries are grouped by the device they were compiled for. This keeps the directory
+/// self-describing; the arch, core count and wavefront size already reach the key through the
+/// arch line, the launch bounds and the -D defines.
 static std::string device_dir(const context& ctx)
 {
     const auto& device = ctx.get_current_device();
@@ -143,7 +118,11 @@ static void write_stamp(const fs::path& dir)
     ss << "hip: " << hip_compiler_version().version << "\n";
     ss << "kernels: " << kernels_digest() << "\n";
     ss << "rocmlir: " << rocmlir_id << "\n";
-    write_string(stamp, ss.str());
+    // Publish by rename like the entries, so concurrent writers cannot tear the file.
+    auto tmp = stamp;
+    tmp += "." + unique_string("tmp");
+    write_string(tmp, ss.str());
+    fs::rename(tmp, stamp);
 }
 
 optional<compiled_code> binary_cache::get(const context& ctx, const std::string& key)
@@ -153,17 +132,21 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
     auto it = memo.find(key);
     if(it != memo.end())
     {
-        record_reused();
+        counters.reused++;
         return it->second;
     }
     const auto& root = settings.path;
     if(root.empty())
-        return record_miss();
-
+    {
+        counters.misses++;
+        return nullopt;
+    }
     auto path = entry_path(root, ctx, key);
     if(path.empty() or not fs::exists(path))
-        return record_miss();
-
+    {
+        counters.misses++;
+        return nullopt;
+    }
     entry e;
     try
     {
@@ -174,51 +157,50 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
         // A damaged or stale entry is only worth a recompile, so treat every failure as a miss
         // and let the result be written over the top.
         log::warn() << "Ignoring unreadable binary cache entry " << path << ": " << ex.what();
-        return record_miss();
+        counters.misses++;
+        return nullopt;
     }
     if(e.key != key)
     {
         log::warn() << "Ignoring binary cache entry with mismatched key: " << path;
-        return record_miss();
+        counters.misses++;
+        return nullopt;
     }
 
-    record_hit();
-    memo[key] = std::move(e.code);
-    return memo[key];
+    counters.hits++;
+    return memo[key] = std::move(e.code);
 }
 
-void binary_cache::insert(const context& ctx, const entry& e)
+void binary_cache::insert(const context& ctx, entry e)
 {
     if(e.key.empty())
         return;
-    record_compiled();
-    memo[e.key]      = e.code;
+    counters.compiled++;
     const auto& root = settings.path;
-    if(root.empty())
-        return;
-
-    auto path = entry_path(root, ctx, e.key);
-    if(path.empty())
-        return;
-    // Publish by rename so a reader never sees a half-written entry. The content is decided
-    // entirely by the key, so a writer that loses the race replaces the file with the same bytes
-    // and no locking is needed.
-    auto tmp = path;
-    tmp += "." + unique_string("tmp");
-    try
+    auto path        = root.empty() ? fs::path{} : entry_path(root, ctx, e.key);
+    if(not path.empty())
     {
-        fs::create_directories(path.parent_path());
-        write_stamp(path.parent_path().parent_path());
-        write_buffer(tmp, to_msgpack(migraphx::to_value(e)));
-        fs::rename(tmp, path);
+        // Publish by rename so a reader never sees a half-written entry. The content is decided
+        // entirely by the key, so a writer that loses the race replaces the file with the same
+        // bytes and no locking is needed.
+        auto tmp = path;
+        tmp += "." + unique_string("tmp");
+        try
+        {
+            fs::create_directories(path.parent_path());
+            write_stamp(fs::path(root) / version_dir());
+            write_buffer(tmp, to_msgpack(migraphx::to_value(e)));
+            fs::rename(tmp, path);
+        }
+        catch(const std::exception& ex)
+        {
+            // Leaving the temporary behind would accumulate in the cache directory.
+            std::error_code ec;
+            fs::remove(tmp, ec);
+            log::warn() << "Failed to write binary cache entry " << path << ": " << ex.what();
+        }
     }
-    catch(const std::exception& ex)
-    {
-        // Leaving the temporary behind would accumulate in the cache directory.
-        std::error_code ec;
-        fs::remove(tmp, ec);
-        log::warn() << "Failed to write binary cache entry " << path << ": " << ex.what();
-    }
+    memo[std::move(e.key)] = std::move(e.code);
 }
 
 } // namespace gpu

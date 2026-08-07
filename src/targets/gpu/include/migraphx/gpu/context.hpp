@@ -473,7 +473,11 @@ struct context
     }
 
     /// Compiled kernels shared across every module compiled with this context.
-    binary_cache& get_binary_cache() { return *bc; }
+    binary_cache& get_binary_cache()
+    {
+        assert(bc != nullptr);
+        return *bc;
+    }
 
     private:
     // TODO: Make this a vector to support multiple devices

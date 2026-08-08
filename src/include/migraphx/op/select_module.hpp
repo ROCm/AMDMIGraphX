@@ -80,9 +80,7 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        // Find submodule with input parameter shapes exactly the same as the input instruction
-        // arguments. Assuming instruction arguments are in the same order as the instruction
-        // parameters.
+        // Input arguments are ordered like the sorted input parameters.
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
                 auto in_param_names = get_input_parameter_names(mr);
@@ -92,7 +90,10 @@ struct select_module
                                   in_param_names.cend(),
                                   args.cbegin(),
                                   [&](const auto& p_name, const auto& a) {
-                                      return a.get_shape() == param_shapes[p_name];
+                                      const auto& actual   = a.get_shape();
+                                      const auto& expected = param_shapes.at(p_name);
+                                      return actual.type() == expected.type() and
+                                             shape::is_compatible_lens(actual, expected);
                                   });
             });
 

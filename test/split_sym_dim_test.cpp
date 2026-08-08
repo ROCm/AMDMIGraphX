@@ -71,6 +71,19 @@ migraphx::operation fixed_pad(std::initializer_list<se> dims, float value = 0.0f
          {"value", value}});
 }
 
+migraphx::operation symbolic_multibroadcast(std::initializer_list<se> dims)
+{
+    std::vector<dd> output_dims(dims.begin(), dims.end());
+    return migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}});
+}
+
+migraphx::operation symbolic_broadcast(std::size_t axis, std::initializer_list<se> dims)
+{
+    std::vector<dd> output_dims(dims.begin(), dims.end());
+    return migraphx::make_op("broadcast",
+                             {{"axis", axis}, {"out_dyn_dims", migraphx::to_value(output_dims)}});
+}
+
 migraphx::instruction_ref add_select_module(migraphx::module& m,
                                             const std::vector<migraphx::instruction_ref>& inputs,
                                             const std::vector<migraphx::module_ref>& modules,
@@ -309,6 +322,129 @@ TEST_CASE(split_sym_dim_supports_one_to_one_axis_transforms)
     expected_main.add_return({output});
 
     EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_materializes_symbolic_multibroadcast)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m     = *p.get_main_module();
+    auto data   = m.add_parameter("data", symbolic_shape({n, lit(3)}));
+    auto bias   = m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto bcast  = m.add_instruction(symbolic_multibroadcast({n, lit(3)}), bias);
+    auto output = m.add_instruction(migraphx::make_op("add"), data, bcast);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_bias =
+            sm.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto clone_data =
+            sm.add_parameter("data", symbolic_shape({var("n", {clone.min, clone.max}), lit(3)}));
+        auto clone_bcast = sm.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max, 3}}}), clone_bias);
+        auto padded_data  = sm.add_instruction(fixed_pad({lit(clone.max), lit(3)}), clone_data);
+        auto clone_output = sm.add_instruction(migraphx::make_op("add"), padded_data, clone_bcast);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_data  = expected_main.add_parameter("data", symbolic_shape({n, lit(3)}));
+    auto expected_bias =
+        expected_main.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto optimal_n = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
+    auto select    = add_select_module(expected_main,
+                                       {expected_bias, expected_data},
+                                       modules,
+                                       {symbolic_shape({optimal_n, lit(3)})});
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_output =
+        add_back_slice(expected_main, expected_output, {expected_bias, expected_data}, {0}, {n});
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_materializes_symbolic_broadcast)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m     = *p.get_main_module();
+    auto data   = m.add_parameter("data", symbolic_shape({n, lit(3), lit(4)}));
+    auto bias   = m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto bcast  = m.add_instruction(symbolic_broadcast(1, {n, lit(3), lit(4)}), bias);
+    auto output = m.add_instruction(migraphx::make_op("add"), data, bcast);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_bias =
+            sm.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto clone_data = sm.add_parameter(
+            "data", symbolic_shape({var("n", {clone.min, clone.max}), lit(3), lit(4)}));
+        auto clone_bcast = sm.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {clone.max, 3, 4}}}),
+            clone_bias);
+        auto padded_data =
+            sm.add_instruction(fixed_pad({lit(clone.max), lit(3), lit(4)}), clone_data);
+        auto clone_output = sm.add_instruction(migraphx::make_op("add"), padded_data, clone_bcast);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_data  = expected_main.add_parameter("data", symbolic_shape({n, lit(3), lit(4)}));
+    auto expected_bias =
+        expected_main.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto optimal_n = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
+    auto select    = add_select_module(expected_main,
+                                       {expected_bias, expected_data},
+                                       modules,
+                                       {symbolic_shape({optimal_n, lit(3), lit(4)})});
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_output =
+        add_back_slice(expected_main, expected_output, {expected_bias, expected_data}, {0}, {n});
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_multi_input_multibroadcast_is_noop)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m          = *p.get_main_module();
+    auto shape_input = m.add_parameter("shape", symbolic_shape({n, lit(3)}));
+    auto data        = m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto output      = m.add_instruction(migraphx::make_op("multibroadcast"), data, shape_input);
+    m.add_return({output});
+
+    auto expected = p;
+    run_pass(p);
+    EXPECT(p == expected);
+}
+
+TEST_CASE(split_sym_dim_two_input_broadcast_is_noop)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m          = *p.get_main_module();
+    auto shape_input = m.add_parameter("shape", symbolic_shape({n, lit(3), lit(4)}));
+    auto data        = m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto output =
+        m.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), data, shape_input);
+    m.add_return({output});
+
+    auto expected = p;
+    run_pass(p);
+    EXPECT(p == expected);
 }
 
 TEST_CASE(split_sym_dim_preserves_original_output_expr)

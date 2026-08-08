@@ -145,6 +145,7 @@ add_library(migraphx
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
+    split_sym_dim.cpp
     sym.cpp
     target.cpp
     tmp_dir.cpp
@@ -219,6 +220,7 @@ register_migraphx_ops(
     elu
     equal
     erf
+    eval_expr_from_shape
     exp
     fill
     fixed_pad

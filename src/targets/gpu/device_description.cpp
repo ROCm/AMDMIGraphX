@@ -21,10 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/cross_compile_device.hpp>
+#include <migraphx/gpu/device_description.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/gpu/hsa_chiplet.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/stringutils.hpp>
+#include <hip/hip_runtime_api.h>
 #include <algorithm>
 
 namespace migraphx {
@@ -32,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 // RDNA architectures use wave32
-static int arch_wavefront_size(const std::string& arch_name)
+static std::size_t arch_wavefront_size(const std::string& arch_name)
 {
     const auto gfx = get_gfx_name(arch_name);
     if(starts_with(gfx, "gfx10") or starts_with(gfx, "gfx11") or starts_with(gfx, "gfx12"))
@@ -40,24 +43,34 @@ static int arch_wavefront_size(const std::string& arch_name)
     return 64;
 }
 
-hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name,
-                                                std::size_t cu_count,
-                                                std::size_t max_threads_per_cu,
-                                                std::size_t max_threads_per_block,
-                                                std::size_t wavefront_size)
+device_description device_description::from_device(std::size_t device)
+{
+    hipDeviceProp_t props{};
+    auto status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Failed to get device properties: " + hip_error(status));
+
+    device_description result;
+    result.arch                  = props.gcnArchName;
+    result.num_cu                = props.multiProcessorCount;
+    result.num_chiplets          = get_hsa_chiplet_count(device);
+    result.max_threads_per_cu    = props.maxThreadsPerMultiProcessor;
+    result.max_threads_per_block = props.maxThreadsPerBlock;
+    result.wavefront_size        = props.warpSize;
+    return result;
+}
+
+void device_description::normalize()
 {
     if(wavefront_size != 0 and wavefront_size != 32 and wavefront_size != 64)
-        MIGRAPHX_THROW("Invalid cross-compile wavefront_size: expected 0 (auto), 32, or 64");
+        MIGRAPHX_THROW("Invalid wavefront_size: expected 0 (auto), 32, or 64");
 
-    hipDeviceProp_t props{};
-    auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
-    std::copy_n(arch_name.begin(), n, props.gcnArchName);
-    props.gcnArchName[n] = '\0';
-    props.warpSize       = wavefront_size == 0 ? arch_wavefront_size(arch_name) : wavefront_size;
-    props.maxThreadsPerMultiProcessor = std::max<std::size_t>(max_threads_per_cu, 1);
-    props.maxThreadsPerBlock          = std::max<std::size_t>(max_threads_per_block, 1);
-    props.multiProcessorCount         = std::max<std::size_t>(cu_count, 1);
-    return props;
+    if(wavefront_size == 0)
+        wavefront_size = arch_wavefront_size(arch);
+    num_cu                = std::max<std::size_t>(num_cu, 1);
+    num_chiplets          = std::max<std::size_t>(num_chiplets, 1);
+    max_threads_per_cu    = std::max<std::size_t>(max_threads_per_cu, 1);
+    max_threads_per_block = std::max<std::size_t>(max_threads_per_block, 1);
 }
 
 } // namespace gpu

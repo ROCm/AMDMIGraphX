@@ -25,6 +25,11 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/module.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -126,6 +131,42 @@ static eliminate_data_type for_gemm_conv()
                                unsupported_ops};
 }
 
+static void materialize_returned_slice(module& m)
+{
+    std::vector<std::pair<instruction_ref, instruction_ref>> returned_slices;
+    for(auto ins : iterator_for(m))
+    {
+        if(not contains({"slice", "dyn_slice"}, ins->name()) or ins->inputs().size() < 2)
+            continue;
+
+        auto data = ins->inputs().front();
+        if(data->name() != "get_tuple_elem" or
+           data->inputs().front()->get_shape().type() != shape::tuple_type)
+            continue;
+
+        const auto& inputs = ins->inputs();
+        if(std::none_of(inputs.begin(), inputs.end(), [](auto input) {
+               return contains({shape::int64_type, shape::uint64_type}, input->get_shape().type());
+           }))
+            continue;
+
+        for(auto output : ins->outputs())
+        {
+            if(output->name() == "@return")
+                returned_slices.emplace_back(ins, output);
+        }
+    }
+
+    for(auto [slice, output] : returned_slices)
+    {
+        auto materialized = m.insert_instruction(
+            output,
+            make_op("convert", {{"target_type", to_value(slice->get_shape().type())}}),
+            slice);
+        instruction::replace_argument(output, slice, materialized);
+    }
+}
+
 void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
 {
     std::set<shape::type_t> unsupported_floats;
@@ -146,6 +187,7 @@ void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
         // TODO: Check for large tensors
         mpm.run_pass(eliminate_data_type{{shape::int64_type}, shape::int32_type});
         mpm.run_pass(eliminate_data_type{{shape::uint64_type}, shape::uint32_type});
+        materialize_returned_slice(mpm.get_module());
     }
 
     // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution &

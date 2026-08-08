@@ -1495,6 +1495,7 @@ void specialize_blocks(module_pass_manager& mpm,
         for(const auto& name : m.get_parameter_names())
             used_names.insert(name);
         std::map<std::string, instruction_ref> input_sources;
+        std::vector<instruction_ref> literal_sources;
         std::size_t generated_name = 0;
         for(auto ins : iterator_for(m))
         {
@@ -1505,18 +1506,21 @@ void specialize_blocks(module_pass_manager& mpm,
                 input_sources.emplace(param_name.at(ins), ins);
                 continue;
             }
-            std::string name;
-            std::string prefix =
-                ins->name() == "@literal" ? "#split_sym_dim_literal_" : "#split_sym_dim_input_";
-            do
+            if(ins->name() == "@literal")
             {
+                literal_sources.push_back(ins);
+                ++generated_name;
+                continue;
+            }
+            const std::string prefix = "#split_sym_dim_input_";
+            auto name =
+                prefix + std::to_string(block_number) + "_" + std::to_string(generated_name++);
+            while(not used_names.insert(name).second)
                 name =
                     prefix + std::to_string(block_number) + "_" + std::to_string(generated_name++);
-            } while(contains(used_names, name));
-            used_names.insert(name);
             input_sources.emplace(std::move(name), ins);
         }
-        if(input_sources.size() != boundary.size())
+        if(input_sources.size() + literal_sources.size() != boundary.size())
             MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to collect every block input");
 
         // Cartesian product of this block's root optimals.
@@ -1540,6 +1544,8 @@ void specialize_blocks(module_pass_manager& mpm,
             for(const auto& input : input_sources)
                 map[input.second] = sm.add_parameter(
                     input.first, clone_param_shape(input.second->get_shape(), subrange));
+            for(auto literal_source : literal_sources)
+                map[literal_source] = sm.add_literal(literal_source->get_literal());
 
             std::vector<instruction_ref> runtime_sources;
             std::transform(runtime_source_inputs.begin(),

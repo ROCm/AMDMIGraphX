@@ -649,7 +649,7 @@ TEST_CASE(split_sym_dim_splits_windowed_boundary)
         auto clone_s = var("s", {clone.min, clone.max});
         auto clone_input =
             sm.add_parameter("data", symbolic_shape({lit(1), lit(1), clone_s, clone_s}));
-        auto clone_weights = sm.add_parameter("#split_sym_dim_literal_0_0", weights_shape);
+        auto clone_weights = sm.add_literal(migraphx::generate_literal(weights_shape));
         auto pad = sm.add_instruction(fixed_pad({lit(1), lit(1), lit(clone.max), lit(clone.max)}),
                                       clone_input);
         auto output = sm.add_instruction(migraphx::make_op("convolution"), pad, clone_weights);
@@ -659,12 +659,11 @@ TEST_CASE(split_sym_dim_splits_windowed_boundary)
     auto& expected_main = *expected.get_main_module();
     auto expected_input =
         expected_main.add_parameter("data", symbolic_shape({lit(1), lit(1), s, s}));
-    auto expected_weights = expected_main.add_literal(migraphx::generate_literal(weights_shape));
-    auto optimal_s        = var("#split_sym_dim_s_opt", {8, 16}, {8, 12, 16});
-    auto conv_extent      = optimal_s - 2;
+    auto optimal_s   = var("#split_sym_dim_s_opt", {8, 16}, {8, 12, 16});
+    auto conv_extent = optimal_s - 2;
     auto conv_select =
         add_select_module(expected_main,
-                          {expected_weights, expected_input},
+                          {expected_input},
                           convolution_modules,
                           {symbolic_shape({lit(1), lit(1), conv_extent, conv_extent})});
     auto conv_output = expected_main.add_instruction(
@@ -877,7 +876,7 @@ TEST_CASE(split_sym_dim_mixed_range_parameter_is_noop)
     EXPECT(p == expected);
 }
 
-TEST_CASE(split_sym_dim_hoists_literals)
+TEST_CASE(split_sym_dim_keeps_literals_in_clones)
 {
     auto n = var("n", {1, 4}, {2, 4});
     migraphx::program p;
@@ -895,7 +894,7 @@ TEST_CASE(split_sym_dim_hoists_literals)
     auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
         auto clone_input = sm.add_parameter(
             "data", symbolic_shape({var("n", {clone.min, clone.max}), lit(1), lit(5), lit(5)}));
-        auto clone_weights = sm.add_parameter("#split_sym_dim_literal_0_0", weights_shape);
+        auto clone_weights = sm.add_literal(migraphx::generate_literal(weights_shape));
         auto pad =
             sm.add_instruction(fixed_pad({lit(clone.max), lit(1), lit(5), lit(5)}), clone_input);
         auto output = sm.add_instruction(migraphx::make_op("convolution"), pad, clone_weights);
@@ -905,12 +904,11 @@ TEST_CASE(split_sym_dim_hoists_literals)
     auto& expected_main = *expected.get_main_module();
     auto expected_input =
         expected_main.add_parameter("data", symbolic_shape({n, lit(1), lit(5), lit(5)}));
-    auto expected_weights = expected_main.add_literal(migraphx::generate_literal(weights_shape));
-    auto optimal_n        = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
-    auto select           = add_select_module(expected_main,
-                                              {expected_weights, expected_input},
+    auto optimal_n = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
+    auto select    = add_select_module(expected_main,
+                                       {expected_input},
                                     modules,
-                                              {symbolic_shape({optimal_n, lit(1), lit(3), lit(3)})});
+                                       {symbolic_shape({optimal_n, lit(1), lit(3), lit(3)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {expected_input}, {0}, {n});
@@ -929,8 +927,7 @@ TEST_CASE(split_sym_dim_hoists_literals)
 //           -> return
 //
 // After:
-//   main: w1, w0, image
-//           -> select_module(clones for [8], [9..12], [13..16])
+//   main: image -> select_module(clones for [8], [9..12], [13..16])
 //           -> get_tuple_elem
 //           -> dyn_slice(axes={2, 3}, ends={(spatial - 6) / 2 + 1, ...})
 //           -> return
@@ -976,8 +973,8 @@ TEST_CASE(split_sym_dim_coalesces_spatial_cnn)
         auto clone_spatial = var("spatial", {clone.min, clone.max});
         auto input         = sm.add_parameter(
             "image", symbolic_shape({lit(1), lit(3), clone_spatial, clone_spatial}));
-        auto clone_w0 = sm.add_parameter("#split_sym_dim_literal_0_1", w0_shape);
-        auto clone_w1 = sm.add_parameter("#split_sym_dim_literal_0_0", w1_shape);
+        auto clone_w0 = sm.add_literal(migraphx::generate_literal(w0_shape));
+        auto clone_w1 = sm.add_literal(migraphx::generate_literal(w1_shape));
         auto pad =
             sm.add_instruction(fixed_pad({lit(1), lit(3), lit(clone.max), lit(clone.max)}), input);
         auto conv0 = sm.add_instruction(migraphx::make_op("convolution"), pad, clone_w0);
@@ -997,13 +994,11 @@ TEST_CASE(split_sym_dim_coalesces_spatial_cnn)
     auto& expected_main = *expected.get_main_module();
     auto input =
         expected_main.add_parameter("image", symbolic_shape({lit(1), lit(3), spatial, spatial}));
-    auto expected_w0     = expected_main.add_literal(migraphx::generate_literal(w0_shape));
-    auto expected_w1     = expected_main.add_literal(migraphx::generate_literal(w1_shape));
     auto optimal_spatial = var("#split_sym_dim_spatial_opt", {8, 16}, {8, 12, 16});
     auto output_extent   = (optimal_spatial - 6) / 2 + 1;
     auto select =
         add_select_module(expected_main,
-                          {expected_w1, expected_w0, input},
+                          {input},
                           modules,
                           {symbolic_shape({lit(1), lit(6), output_extent, output_extent})});
     auto output =
@@ -1043,7 +1038,7 @@ TEST_CASE(split_sym_dim_preserves_compound_mask_extent)
         auto indices        = add_iota(sm, clone.max - 2);
         auto clone_sequence = var("sequence", {clone.min, clone.max});
         auto input = sm.add_parameter("x", symbolic_shape({lit(1), lit(1), clone_sequence}));
-        auto clone_weights = sm.add_parameter("#split_sym_dim_literal_0_0", weights_shape);
+        auto clone_weights = sm.add_literal(migraphx::generate_literal(weights_shape));
         auto pad           = sm.add_instruction(fixed_pad({lit(1), lit(1), lit(clone.max)}), input);
         auto convolution   = sm.add_instruction(
             migraphx::make_op("convolution",
@@ -1062,11 +1057,10 @@ TEST_CASE(split_sym_dim_preserves_compound_mask_extent)
     auto& expected_main = *expected.get_main_module();
     auto expected_input =
         expected_main.add_parameter("x", symbolic_shape({lit(1), lit(1), sequence}));
-    auto expected_weights = expected_main.add_literal(migraphx::generate_literal(weights_shape));
     auto optimal_sequence = var("#split_sym_dim_sequence_opt", {4, 16}, {4, 8, 16});
     auto optimal_extent   = optimal_sequence - 2;
     auto select           = add_select_module(expected_main,
-                                              {expected_weights, expected_input},
+                                              {expected_input},
                                     modules,
                                               {symbolic_shape({lit(1), lit(1), optimal_extent})});
     auto expected_output =
@@ -1162,8 +1156,7 @@ TEST_CASE(split_sym_dim_specializes_transformer_core)
 //     return output
 //
 // After:
-//   main: wo, wv, wq, wk, x
-//           -> select_module(clones for [4], [5..8], [9..16])
+//   main: x -> select_module(clones for [4], [5..8], [9..16])
 //           -> get_tuple_elem
 //           -> dyn_slice(axis=1, end=sequence)
 //           -> return
@@ -1189,10 +1182,10 @@ TEST_CASE(split_sym_dim_specializes_transformer)
         auto indices           = add_iota(sm, clone.max);
         auto clone_sequence    = var("sequence", {clone.min, clone.max});
         auto input = sm.add_parameter("x", symbolic_shape({lit(2), clone_sequence, lit(8)}));
-        auto wq    = sm.add_parameter("#split_sym_dim_literal_0_3", weight_shape);
-        auto wk    = sm.add_parameter("#split_sym_dim_literal_0_2", weight_shape);
-        auto wv    = sm.add_parameter("#split_sym_dim_literal_0_1", weight_shape);
-        auto wo    = sm.add_parameter("#split_sym_dim_literal_0_0", weight_shape);
+        auto wq    = sm.add_literal(migraphx::generate_literal(weight_shape, 0));
+        auto wk    = sm.add_literal(migraphx::generate_literal(weight_shape, 1));
+        auto wv    = sm.add_literal(migraphx::generate_literal(weight_shape, 2));
+        auto wo    = sm.add_literal(migraphx::generate_literal(weight_shape, 3));
 
         auto padded = sm.add_instruction(fixed_pad({lit(2), lit(clone.max), lit(8)}), input);
         auto query  = sm.add_instruction(migraphx::make_op("dot"), padded, wq);
@@ -1216,15 +1209,9 @@ TEST_CASE(split_sym_dim_specializes_transformer)
 
     auto& expected_main = *expected.get_main_module();
     auto input = expected_main.add_parameter("x", symbolic_shape({lit(2), sequence, lit(8)}));
-    auto wq    = expected_main.add_literal(migraphx::generate_literal(weight_shape, 0));
-    auto wk    = expected_main.add_literal(migraphx::generate_literal(weight_shape, 1));
-    auto wv    = expected_main.add_literal(migraphx::generate_literal(weight_shape, 2));
-    auto wo    = expected_main.add_literal(migraphx::generate_literal(weight_shape, 3));
     auto optimal_sequence = var("#split_sym_dim_sequence_opt", {4, 16}, {4, 8, 16});
-    auto select           = add_select_module(expected_main,
-                                              {wo, wv, wq, wk, input},
-                                    modules,
-                                              {symbolic_shape({lit(2), optimal_sequence, lit(8)})});
+    auto select           = add_select_module(
+        expected_main, {input}, modules, {symbolic_shape({lit(2), optimal_sequence, lit(8)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {input}, {1}, {sequence});

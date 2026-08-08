@@ -104,4 +104,36 @@ TEST_CASE(eval_expr_from_shape_lowering_multi_input)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(eval_expr_from_shape_lowering_slice_metadata_stays_on_host)
+{
+    using dd  = migraphx::shape::dynamic_dimension;
+    auto n    = migraphx::sym::var("N", {1, 4});
+    auto zero = migraphx::sym::lit(0);
+    migraphx::shape source_shape{migraphx::shape::float_type, {dd{n}, dd{migraphx::sym::lit(3)}}};
+    migraphx::shape data_shape{migraphx::shape::float_type, {4, 2}};
+    auto start_op = migraphx::make_op(
+        "eval_expr_from_shape",
+        {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{zero})}});
+    auto end_op = migraphx::make_op(
+        "eval_expr_from_shape",
+        {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}});
+    auto slice_op =
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", migraphx::to_value(std::vector<migraphx::sym::expr>{zero})},
+                           {"ends", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}});
+
+    migraphx::module m1;
+    auto source = m1.add_parameter("source", source_shape);
+    auto data   = m1.add_parameter("data", data_shape);
+    auto start  = m1.add_instruction(start_op, source);
+    auto end    = m1.add_instruction(end_op, source);
+    auto slice  = m1.add_instruction(slice_op, data, start, end);
+    m1.add_return({slice});
+
+    auto m2 = m1;
+    run_lowering(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

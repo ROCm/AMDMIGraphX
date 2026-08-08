@@ -27,6 +27,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
 
+#include <algorithm>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -41,7 +43,13 @@ void promote_literals::apply(module_pass_manager& mpm) const
     {
         if(ins->name() == "@literal")
         {
-            auto new_lit     = root_module->add_literal(ins->get_literal());
+            const auto& literal = ins->get_literal();
+            auto existing       = std::find_if(
+                root_module->begin(), root_module->end(), [&](const instruction& root_ins) {
+                    return root_ins.name() == "@literal" and root_ins.get_literal() == literal;
+                });
+            auto new_lit =
+                existing == root_module->end() ? root_module->add_literal(literal) : existing;
             auto ins_outputs = ins->outputs();
             for(auto out_ins : ins_outputs)
             {

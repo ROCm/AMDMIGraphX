@@ -38,7 +38,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/unfold.hpp>
-#include <migraphx/op/builder/insert.hpp>
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
@@ -315,132 +314,6 @@ struct find_mul_dot
             return;
 
         m.replace_instruction(ins, make_op("dot"), a_ins, b_ins);
-    }
-};
-
-// PROTOTYPE (AIMIGRAPHX-1199): rewrite a broadcasted elementwise-multiply followed
-// by a reduce_sum into a GEMM.
-//
-//     reduce_sum(mul(broadcast(a), b), axes=[k])
-//
-// is the contraction  sum_k a[..,m,1,k] * b[..,1,n,k]  which equals the einsum
-// "...mk,...nk->...mn". Rather than hand-building the transpose/reshape/dot, we
-// reconstruct the equivalent einsum equation and delegate to the einsum op-builder,
-// which already lowers pair contractions to `dot`. Emitting the dot here (inside
-// optimize_module, before fuse_horizontal/fuse_mlir) lets it inherit GEMM fusion
-// and tuning downstream.
-//
-// The classification works purely off the strides of the two `mul` operands in the
-// common (broadcast) shape S: a stride of 0 on an axis means that operand does not
-// depend on it. This is agnostic to how the broadcast was produced (broadcast vs
-// multibroadcast, rank-preserving or rank-padding), so we do not require the
-// pre-broadcast operands to line up 1:1 with S. We work entirely in S coordinates
-// and drop each operand's broadcast free axes via slice(->1)+squeeze (a no-op view
-// on a stride-0 axis) before handing off to einsum.
-struct find_mul_reduce_sum
-{
-    auto matcher() const
-    {
-        auto bcast = match::name("broadcast", "multibroadcast");
-        // Relaxed: only require one operand to be a broadcast; the other can be any
-        // instruction. apply() validates GEMM-ability from strides regardless.
-        auto mul = match::name("mul")(
-            match::used_once(),
-            match::either_arg(0, 1)(bcast.bind("in0"), match::any().bind("in1")));
-        return match::name("reduce_sum")(match::used_once(), match::args(mul.bind("mul")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto reduce_ins = r.result;
-        auto in0        = r.instructions["in0"];
-        auto in1        = r.instructions["in1"];
-
-        // Only single-axis reductions map cleanly to a single GEMM contraction dim.
-        auto axes = reduce_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
-        if(axes.size() != 1)
-            return;
-        const auto& s      = in0->get_shape(); // == in1 shape == mul shape (elementwise)
-        const int64_t rank = static_cast<int64_t>(s.ndim());
-        int64_t k          = axes[0] < 0 ? axes[0] + rank : axes[0];
-        if(rank > 26) // keep single-letter einsum labels for the prototype
-            return;
-
-        const auto& st0 = in0->get_shape().strides();
-        const auto& st1 = in1->get_shape().strides();
-        // the contraction axis must be real (not broadcast) in both operands
-        if(st0[k] == 0 or st1[k] == 0)
-            return;
-
-        // Classify axes from strides. An axis real only in in0 is a left free (M)
-        // axis, real only in in1 is a right free (N) axis, real in both is a batch
-        // axis. Multiple free axes per side are allowed; einsum flattens them.
-        std::vector<int64_t> m_axes; // real in in0, broadcast in in1
-        std::vector<int64_t> n_axes; // broadcast in in0, real in in1
-        for(int64_t d = 0; d < rank; ++d)
-        {
-            if(d == k)
-                continue;
-            bool b0 = st0[d] == 0;
-            bool b1 = st1[d] == 0;
-            if(b0 and b1)
-                return; // broadcast in both -> output-only axis, not a GEMM
-            if(not b0 and b1)
-                m_axes.push_back(d);
-            else if(b0 and not b1)
-                n_axes.push_back(d);
-            // else: real in both -> batch axis (shared label)
-        }
-        // Require genuine M and N free dims so the result is a real GEMM (not a
-        // memory-bound batched inner product, which fusion already handles).
-        if(m_axes.empty() or n_axes.empty())
-            return;
-
-        auto in_axes = [](const std::vector<int64_t>& v, int64_t d) {
-            return std::find(v.begin(), v.end(), d) != v.end();
-        };
-
-        // Build the einsum equation: the left term owns every axis but the N frees,
-        // the right term owns every axis but the M frees, and the output drops the
-        // contracted k. This keeps M/N as GEMM free dims (not batched) in the builder.
-        auto label = [](int64_t d) { return static_cast<char>('a' + d); };
-        std::string t0;
-        std::string t1;
-        std::string out;
-        for(int64_t d = 0; d < rank; ++d)
-        {
-            if(not in_axes(n_axes, d))
-                t0 += label(d);
-            if(not in_axes(m_axes, d))
-                t1 += label(d);
-            if(d != k)
-                out += label(d);
-        }
-        std::string eq = t0 + "," + t1 + "->" + out;
-
-        // Drop an operand's broadcast free axes: slice them to length 1 (a no-op view
-        // on a stride-0 axis) then squeeze. Works for any broadcast rank/op.
-        auto drop_axes = [&](instruction_ref in, const std::vector<int64_t>& ax) {
-            if(ax.empty())
-                return in;
-            std::vector<int64_t> starts(ax.size(), 0);
-            std::vector<int64_t> ends(ax.size(), 1);
-            auto sl = m.insert_instruction(
-                reduce_ins,
-                make_op("slice", {{"axes", ax}, {"starts", starts}, {"ends", ends}}),
-                in);
-            return m.insert_instruction(reduce_ins, make_op("squeeze", {{"axes", ax}}), sl);
-        };
-        auto op0 = drop_axes(in0, n_axes);
-        auto op1 = drop_axes(in1, m_axes);
-
-        // The einsum builder does the transpose/reshape/dot/reshape/transpose lowering.
-        auto es =
-            op::builder::insert("einsum", m, reduce_ins, {op0, op1}, {{"equation", eq}}).at(0);
-
-        // reduce_sum keeps the reduced axis as size 1; einsum dropped it, so restore it.
-        auto out_ins = m.insert_instruction(reduce_ins, make_op("unsqueeze", {{"axes", {k}}}), es);
-        m.replace_instruction(reduce_ins, out_ins);
     }
 };
 
@@ -2852,7 +2725,6 @@ void simplify_algebra::apply(module& m) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_dot{},
-                            find_mul_reduce_sum{},
                             find_dot_slice{},
                             find_dot_mul{},
                             find_mul_add{},

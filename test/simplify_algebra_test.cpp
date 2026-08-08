@@ -5834,4 +5834,26 @@ TEST_CASE(simplify_mul_reduce_sum_no_rewrite)
     EXPECT(std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "dot"; }));
 }
 
+// Relaxed guard: a rank-padding multibroadcast (base rank < common rank) should now
+// rewrite. b is [N, K] broadcast up to [M, N, K] (leading M axis added) -- the old
+// rank-preserved guard rejected this.
+TEST_CASE(simplify_mul_reduce_sum_rank_padded_broadcast)
+{
+    migraphx::module m;
+    auto a  = m.add_parameter("a", {migraphx::shape::float_type, {4, 1, 6}}); // [M, 1, K]
+    auto b  = m.add_parameter("b", {migraphx::shape::float_type, {5, 6}});    // [N, K]
+    auto ab = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 5, 6}}}), a);
+    auto bb = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 5, 6}}}), b);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), ab, bb);
+    auto rs  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+    m.add_instruction(pass_op{}, rs);
+
+    auto s = m.get_output_shapes().back();
+    run_pass(m);
+
+    EXPECT(s == m.get_output_shapes().back());
+    EXPECT(std::any_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "dot"; }));
+    EXPECT(std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "reduce_sum"; }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

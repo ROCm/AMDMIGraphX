@@ -21,28 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
-#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
 
-#include <migraphx/gpu/export.h>
-#include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
-#include <string>
+#include <op_builder_test_utils.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+// tm::batchnorm is a thin re-export of the global "batchnorm" builder, so the "tm::"-prefixed
+// form must match the un-prefixed builder exactly.
+TEST_CASE(torch_kit_batchnorm_op_builder_test)
+{
+    const auto f = migraphx::shape::float_type;
+    migraphx::value options{{"epsilon", 1e-5f}};
+    migraphx::module mm;
+    auto x     = mm.add_parameter("x", {f, {2, 3, 4, 4}});
+    auto scale = mm.add_parameter("scale", {f, {3}});
+    auto bias  = mm.add_parameter("bias", {f, {3}});
+    auto mean  = mm.add_parameter("mean", {f, {3}});
+    auto var   = mm.add_parameter("var", {f, {3}});
+    migraphx::op::builder::add("batchnorm", mm, {x, scale, bias, mean, var}, options);
 
-/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
-/// Used when no physical GPU is present.
-MIGRAPHX_GPU_EXPORT hipDeviceProp_t
-make_cross_compile_device_props(const std::string& arch_name,
-                                std::size_t cu_count,
-                                std::size_t max_threads_per_cu    = 2048,
-                                std::size_t max_threads_per_block = 1024);
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    EXPECT(mm == make_op_module("tm::batchnorm", options, mm.get_parameters()));
+}

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -199,7 +199,7 @@ TEST_CASE(nhwc_conv_relu)
             w);
         m1.add_instruction(migraphx::make_op("relu"), conv);
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -237,7 +237,7 @@ TEST_CASE(nhwc_conv_add)
             y);
         m1.add_instruction(migraphx::make_op("add"), conv, b);
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -279,7 +279,7 @@ TEST_CASE(nhwc_quant_conv_add)
             y);
         m1.add_instruction(migraphx::make_op("add"), conv, b);
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -329,7 +329,7 @@ TEST_CASE(nhwc_conv_conv)
         auto relu2 = m1.add_instruction(migraphx::make_op("relu"), add2);
         m1.add_return({relu2});
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -381,7 +381,7 @@ TEST_CASE(nhwc_conv_reduce)
         auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2, 3}}}), reduce);
         m1.add_return({squeeze});
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -421,7 +421,7 @@ TEST_CASE(nhwc_group_conv)
         auto relu2 = m1.add_instruction(migraphx::make_op("relu"), conv2);
         m1.add_return({relu2});
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -440,6 +440,133 @@ TEST_CASE(nhwc_group_conv)
         auto relu2 = add_layout_nchw(m2, m2.add_instruction(migraphx::make_op("relu"), conv2));
         m2.add_return({relu2});
     }
+}
+
+// channels_auto runs both layouts and keeps whichever leaves fewer layout/contiguous ops.
+// This graph is already in channels-last form, so channels_last is a no-op while
+// channels_first would insert layout ops, so auto must select channels_last.
+TEST_CASE(channels_auto_selects_channels_last)
+{
+    auto transpose = migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}});
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", {migraphx::shape::float_type, {1, 16, 16, 8}});
+        auto xtranspose = m1.add_instruction(transpose, x);
+        auto w          = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 3, 3, 8}}));
+        auto wtranspose = m1.add_instruction(transpose, w);
+        auto conv       = m1.add_instruction(
+            migraphx::make_op("convolution",
+                                    {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            xtranspose,
+            wtranspose);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
+        m1.add_return({relu});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A grouped convolution stays NCHW, so a normal-group-normal chain forces channels_last to
+// insert four non-foldable layouts (the input, both convolution boundaries, and the output),
+// while the layouts on the constant weights fold away and are not scored. That exceeds the
+// two-per-param allowance, so auto selects channels_first (a no-op here).
+TEST_CASE(channels_auto_selects_channels_first)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 8, 8}});
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 1, 1}}));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 1, 3, 3}}));
+        auto w3 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 1, 1}}));
+        auto conv1 = m1.add_instruction(migraphx::make_op("convolution"), x, w1);
+        auto relu1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
+        auto conv2 = m1.add_instruction(
+            migraphx::make_op("convolution", {{"group", 8}, {"padding", {1, 1}}}), relu1, w2);
+        auto relu2 = m1.add_instruction(migraphx::make_op("relu"), conv2);
+        auto conv3 = m1.add_instruction(migraphx::make_op("convolution"), relu2, w3);
+        auto relu3 = m1.add_instruction(migraphx::make_op("relu"), conv3);
+        m1.add_return({relu3});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// channels_first would need one layout (on the transposed weights) versus three for
+// channels_last, but the two-layouts-per-param allowance offsets that difference, so auto
+// selects channels_last. The expected module is the non-trivial channels_last result.
+TEST_CASE(channels_auto_allows_two_layouts_per_param)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {3, 3, 16, 8}}));
+        auto wtranspose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            wtranspose);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
+        m1.add_return({relu});
+    }
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+
+    migraphx::module m2;
+    {
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
+        auto w = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {3, 3, 16, 8}}));
+        auto wtranspose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
+        auto wlayout = add_layout_nhwc(m2, wtranspose);
+        auto conv    = m2.add_instruction(
+            migraphx::make_op("convolution",
+                                 {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            wlayout);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), conv);
+        auto out  = m2.add_instruction(layout(), relu);
+        m2.add_return({out});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Under channels_last the convolution output is NHWC, so a reshape that folds the channel dim
+// into the spatial dims cannot alias its input as a view (reshape_lazy) and needs a copy, so
+// it is scored like a contiguous. Two such reshapes push channels_last to a score of three,
+// past the two-per-param allowance, so auto selects channels_first (a no-op here, since a
+// standard output keeps the reshapes lazy).
+TEST_CASE(channels_auto_counts_nonlazy_reshapes)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            w);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
+        auto reshape1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1024}}}), relu);
+        auto reshape2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 512}}}), relu);
+        m1.add_return({reshape1, reshape2});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -224,13 +224,32 @@ axis_policy unsupported_policy()
     return [](io_ref, std::size_t) { return axis_desc{}; };
 }
 
+using optimal_map      = std::unordered_map<sym::expr, sym::expr>;
+using freeze_map       = std::unordered_map<sym::expr, std::size_t>;
+using target_optimizer = std::function<operation(const operation&, const optimal_map&)>;
+using target_freezer   = std::function<operation(const operation&, const freeze_map&)>;
+
+struct symbolic_target_policy
+{
+    target_optimizer to_optimal;
+    target_freezer to_static;
+};
+
+struct op_semantics
+{
+    axis_policy axes = unsupported_policy();
+    std::optional<symbolic_target_policy> symbolic_target;
+};
+
+op_semantics axis_semantics(axis_policy axes) { return {std::move(axes), {}}; }
+
 struct pointwise_family
 {
     bool matches(const operation& op) const { return is_pointwise(op); }
 
-    axis_policy describe(const operation&, const std::vector<shape>&) const
+    op_semantics describe(const operation&, const std::vector<shape>&) const
     {
-        return [](io_ref, std::size_t) { return parallel_axis(); };
+        return axis_semantics([](io_ref, std::size_t) { return parallel_axis(); });
     }
 };
 
@@ -238,14 +257,14 @@ struct reduce_family
 {
     bool matches(const operation& op) const { return is_reduce(op); }
 
-    axis_policy describe(const operation& op, const std::vector<shape>& inputs) const
+    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
     {
         std::vector<std::vector<int64_t>> raxes(inputs.size());
         std::transform(inputs.begin(), inputs.end(), raxes.begin(), [&](const shape& input) {
             return reduce_axes(op, input.ndim());
         });
         auto identity = reduce_identity(op.name());
-        return [raxes = std::move(raxes), identity](io_ref io, std::size_t axis) {
+        return axis_semantics([raxes = std::move(raxes), identity](io_ref io, std::size_t axis) {
             if(io.is_output)
                 return parallel_axis();
             const auto& axes = raxes.at(io.index);
@@ -254,7 +273,7 @@ struct reduce_family
             if(not contains(axes, axis))
                 return parallel_axis();
             return identity.has_value() ? contracted_axis(*identity) : axis_desc{};
-        };
+        });
     }
 };
 
@@ -262,13 +281,13 @@ struct dot_family
 {
     bool matches(const operation& op) const { return is_dot(op); }
 
-    axis_policy describe(const operation&, const std::vector<shape>& inputs) const
+    op_semantics describe(const operation&, const std::vector<shape>& inputs) const
     {
         std::vector<std::size_t> ranks(inputs.size());
         std::transform(
             inputs.begin(), inputs.end(), ranks.begin(), [](const shape& s) { return s.ndim(); });
         // A[..., M, K] contracts its last axis; B[..., K, N] its second-to-last.
-        return [ranks = std::move(ranks)](io_ref io, std::size_t axis) {
+        return axis_semantics([ranks = std::move(ranks)](io_ref io, std::size_t axis) {
             if(io.is_output)
                 return parallel_axis(); // M, N
             std::size_t nd = ranks.at(io.index);
@@ -276,7 +295,65 @@ struct dot_family
             std::size_t k_axis = (io.index == 0) ? nd - 1 : nd - 2;
             return axis == k_axis ? masked_axis(axis_kind::contracted, fill_kind::zero)
                                   : parallel_axis();
-        };
+        });
+    }
+};
+
+std::vector<shape::dynamic_dimension> symbolic_broadcast_dims(const operation& op)
+{
+    if(not contains({"broadcast", "multibroadcast"}, op.name()))
+        return {};
+    return from_value<std::vector<shape::dynamic_dimension>>(op.to_value().at("out_dyn_dims"));
+}
+
+operation optimal_broadcast(const operation& op, const optimal_map& substitutions)
+{
+    auto output_dims = symbolic_broadcast_dims(op);
+    std::vector<shape::dynamic_dimension> dims(output_dims.size());
+    std::transform(output_dims.begin(), output_dims.end(), dims.begin(), [&](const auto& d) {
+        return shape::dynamic_dimension{d.sym_expr.subs(substitutions)};
+    });
+    if(op.name() == "broadcast")
+    {
+        auto axis = op.to_value().at("axis").to<std::size_t>();
+        return make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", to_value(dims)}});
+    }
+    return make_op("multibroadcast", {{"out_dyn_dims", to_value(dims)}});
+}
+
+operation frozen_broadcast(const operation& op, const freeze_map& freeze)
+{
+    auto dims = symbolic_broadcast_dims(op);
+    std::vector<std::size_t> lens(dims.size());
+    std::transform(dims.begin(), dims.end(), lens.begin(), [&](const auto& d) {
+        return d.sym_expr.eval_uint(freeze);
+    });
+    if(op.name() == "broadcast")
+    {
+        auto axis = op.to_value().at("axis").to<std::size_t>();
+        return make_op("broadcast", {{"axis", axis}, {"out_lens", lens}});
+    }
+    return make_op("multibroadcast", {{"out_lens", lens}});
+}
+
+bool is_single_input_symbolic_broadcast(const operation& op, std::size_t ninputs)
+{
+    return ninputs == 1 and not symbolic_broadcast_dims(op).empty();
+}
+
+struct broadcast_family
+{
+    bool matches(const operation& op) const
+    {
+        return contains({"broadcast", "multibroadcast"}, op.name());
+    }
+
+    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
+    {
+        if(not is_single_input_symbolic_broadcast(op, inputs.size()))
+            return {};
+        return {[](io_ref, std::size_t) { return parallel_axis(); },
+                symbolic_target_policy{optimal_broadcast, frozen_broadcast}};
     }
 };
 
@@ -284,15 +361,15 @@ struct shape_transform_family
 {
     bool matches(const operation& op) const { return is_shape_transform(op); }
 
-    axis_policy describe(const operation& op, const std::vector<shape>& inputs) const
+    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
     {
         if(inputs.size() != 1)
-            return unsupported_policy();
+            return {};
         auto desc = shape_transform_descriptor::create(inputs.front().max_lens(), {op});
         if(desc.empty())
-            return unsupported_policy();
+            return {};
         auto input_rank = inputs.front().ndim();
-        return [desc = std::move(desc), input_rank](io_ref io, std::size_t axis) {
+        return axis_semantics([desc = std::move(desc), input_rank](io_ref io, std::size_t axis) {
             if(not io.is_output)
                 return desc.get_dst_axes_from_src(axis).size() == 1 ? parallel_axis() : axis_desc{};
 
@@ -303,7 +380,7 @@ struct shape_transform_family
                     return dst_axes.size() == 1 and dst_axes.front() == axis;
                 });
             return count == 1 ? parallel_axis() : axis_desc{};
-        };
+        });
     }
 };
 
@@ -311,7 +388,7 @@ struct softmax_family
 {
     bool matches(const operation& op) const { return is_softmax(op); }
 
-    axis_policy describe(const operation& op, const std::vector<shape>& inputs) const
+    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
     {
         auto axis = op.to_value().at("axis").to<int64_t>();
         std::vector<int64_t> normalized_axes(inputs.size(), -1);
@@ -323,15 +400,16 @@ struct softmax_family
                     sm_axis += ndim;
                 return sm_axis >= 0 and sm_axis < ndim ? sm_axis : int64_t{-1};
             });
-        return [normalized_axes = std::move(normalized_axes)](io_ref io, std::size_t axis) {
-            if(io.is_output)
-                return parallel_axis();
-            auto sm_axis = normalized_axes.at(io.index);
-            if(sm_axis < 0)
-                return axis_desc{};
-            return axis == sm_axis ? masked_axis(axis_kind::normalized, fill_kind::neg_inf)
-                                   : parallel_axis();
-        };
+        return axis_semantics(
+            [normalized_axes = std::move(normalized_axes)](io_ref io, std::size_t axis) {
+                if(io.is_output)
+                    return parallel_axis();
+                auto sm_axis = normalized_axes.at(io.index);
+                if(sm_axis < 0)
+                    return axis_desc{};
+                return axis == sm_axis ? masked_axis(axis_kind::normalized, fill_kind::neg_inf)
+                                       : parallel_axis();
+            });
     }
 };
 
@@ -339,7 +417,7 @@ struct conv_family
 {
     bool matches(const operation& op) const { return is_conv(op); }
 
-    axis_policy describe(const operation& op, const std::vector<shape>&) const
+    op_semantics describe(const operation& op, const std::vector<shape>&) const
     {
         bool default_padding = false;
         std::size_t group    = 0;
@@ -355,8 +433,8 @@ struct conv_family
             nspatial = attributes.at("stride").to_vector<std::size_t>().size();
         }
         // data [N, C, spatial...]; weights [K, C, kernel...]; out [N, K, spatial...].
-        return [default_padding, group, padding = std::move(padding), nspatial](io_ref io,
-                                                                                std::size_t axis) {
+        return axis_semantics([default_padding, group, padding = std::move(padding), nspatial](
+                                  io_ref io, std::size_t axis) {
             auto spatial = [&](std::size_t spatial_axis) {
                 if(not default_padding)
                     return axis_desc{};
@@ -384,9 +462,9 @@ struct conv_family
             if(axis == 0)
                 return parallel_axis(); // batch
             if(axis == 1)
-                return contracted_axis(fill_kind::zero);
+                return contracted_axis(fill_kind::zero); // input channels
             return axis_desc{};
-        };
+        });
     }
 };
 
@@ -394,7 +472,7 @@ struct pooling_family
 {
     bool matches(const operation& op) const { return is_pooling(op); }
 
-    axis_policy describe(const operation& op, const std::vector<shape>&) const
+    op_semantics describe(const operation& op, const std::vector<shape>&) const
     {
         auto attributes = op.to_value();
         auto mode       = attributes.at("mode").to<op::pooling_mode>();
@@ -413,40 +491,42 @@ struct pooling_family
         auto ceil_mode = attributes.at("ceil_mode").to<bool>();
         auto padding   = attributes.at("padding").to_vector<std::size_t>();
         auto nspatial  = attributes.at("stride").to_vector<std::size_t>().size();
-        return [fill, default_padding, ceil_mode, padding = std::move(padding), nspatial](
-                   io_ref, std::size_t axis) {
-            if(axis < 2)
-                return parallel_axis(); // N, C
-            if(not default_padding or fill == fill_kind::none)
-                return axis_desc{};
-            return axis_desc{
-                axis_kind::windowed,
-                {fill, not ceil_mode and windowed_zero_pad(padding, nspatial, axis), true},
-                {}};
-        };
+        return axis_semantics(
+            [fill, default_padding, ceil_mode, padding = std::move(padding), nspatial](
+                io_ref, std::size_t axis) {
+                if(axis < 2)
+                    return parallel_axis(); // N, C
+                if(not default_padding or fill == fill_kind::none)
+                    return axis_desc{};
+                return axis_desc{
+                    axis_kind::windowed,
+                    {fill, not ceil_mode and windowed_zero_pad(padding, nspatial, axis), true},
+                    {}};
+            });
     }
 };
 
-axis_policy describe_op(const operation& op, const std::vector<shape>& inputs)
+op_semantics describe_op(const operation& op, const std::vector<shape>& inputs)
 {
-    auto policy   = unsupported_policy();
+    op_semantics semantics;
     bool matched  = false;
     auto classify = [&](auto family) {
         if(not matched and family.matches(op))
         {
-            policy  = family.describe(op, inputs);
-            matched = true;
+            semantics = family.describe(op, inputs);
+            matched   = true;
         }
     };
     each_args(classify,
               pointwise_family{},
               reduce_family{},
               dot_family{},
+              broadcast_family{},
               shape_transform_family{},
               softmax_family{},
               conv_family{},
               pooling_family{});
-    return policy;
+    return semantics;
 }
 
 float fill_value(fill_kind f)
@@ -562,6 +642,7 @@ struct symbolic_op_info
     std::vector<shape> inputs;
     std::vector<std::size_t> sym_axes;
     std::vector<operand_plan> operands;
+    std::optional<symbolic_target_policy> symbolic_target;
     bool paddable = true;
     bool maskable = true;
 };
@@ -577,8 +658,17 @@ analyze_symbolic_instructions(const std::vector<instruction_ref>& instructions)
         if(starts_with(ins->name(), "@"))
             continue;
         const auto& op = ins->get_operator();
-        symbolic_op_info info{ins, ins->get_shape(), to_shapes(ins->inputs()), {}, {}, true, true};
-        auto describe_axis = describe_op(op, info.inputs);
+        auto inputs    = to_shapes(ins->inputs());
+        auto semantics = describe_op(op, inputs);
+        symbolic_op_info info{ins,
+                              ins->get_shape(),
+                              std::move(inputs),
+                              {},
+                              {},
+                              std::move(semantics.symbolic_target),
+                              true,
+                              true};
+        auto describe_axis = std::move(semantics.axes);
         const auto& dds    = info.output.dyn_dims();
         std::size_t axis   = 0;
         for(const auto& d : dds)
@@ -792,6 +882,7 @@ struct materialize_result
     std::vector<coalesce_candidate> padding_candidates; // interior pairs for Phase 2
     // Masks are delayed until static clone construction.
     std::unordered_map<instruction_ref, std::vector<consumer_mask>> mask_plan;
+    std::unordered_map<instruction_ref, target_freezer> target_freezers;
     // Materialized clone-body instructions owned by each planned block.
     std::unordered_map<const block_plan*, std::unordered_set<instruction_ref>> body_ops;
 };
@@ -856,7 +947,8 @@ bool is_materializable(const symbolic_op_info& info)
 {
     return not info.sym_axes.empty() and info.paddable and info.maskable and
            info.ins->module_inputs().empty() and
-           any_of(info.operands, [](const auto& operand) { return operand.padding.required; });
+           (info.symbolic_target.has_value() or
+            any_of(info.operands, [](const auto& operand) { return operand.padding.required; }));
 }
 
 bool block_is_closed(const block_plan& block)
@@ -1029,7 +1121,7 @@ materialize_result materialize(module& m,
                                const std::vector<root_spec>& roots)
 {
     materialize_result result;
-    std::unordered_map<sym::expr, sym::expr> optimal_substitutions;
+    optimal_map optimal_substitutions;
     for(const auto& root : roots)
         optimal_substitutions.emplace(root.root, root.opt_symbol);
 
@@ -1088,10 +1180,15 @@ materialize_result materialize(module& m,
             arg          = pad;
             padded_input = true;
         }
-        if(not padded_input)
+        if(not padded_input and not info.symbolic_target.has_value())
             continue;
 
-        auto padded_op = m.insert_instruction(ins, op, args);
+        auto materialized_op = op;
+        if(info.symbolic_target.has_value())
+            materialized_op = info.symbolic_target->to_optimal(op, optimal_substitutions);
+        auto padded_op = m.insert_instruction(ins, materialized_op, args);
+        if(info.symbolic_target.has_value())
+            result.target_freezers.emplace(padded_op, info.symbolic_target->to_static);
         result.body_ops[block].insert(padded_op);
         std::size_t operand = 0;
         for(const auto& facts : info.operands)
@@ -1227,8 +1324,7 @@ shape clone_param_shape(
 // Freeze a fixed_pad's target: substitute this clone's optimals for the optimal
 // symbols so every `dims` entry is a concrete int64 and the padded output shape
 // is static.
-operation frozen_fixed_pad(const operation& op,
-                           const std::unordered_map<sym::expr, std::size_t>& freeze)
+operation frozen_fixed_pad(const operation& op, const freeze_map& freeze)
 {
     auto attributes  = op.to_value();
     auto source_dims = from_value<std::vector<sym::expr>>(attributes.at("dims"));
@@ -1430,7 +1526,7 @@ void specialize_blocks(module_pass_manager& mpm,
         std::size_t clone_index = 0;
         for(bool more = true; more;)
         {
-            std::unordered_map<sym::expr, std::size_t> freeze;
+            freeze_map freeze;
             std::unordered_map<sym::expr, shape::dynamic_dimension::interval> subrange;
             for(auto&& [root, choice] : views::zip(roots, idx))
             {
@@ -1462,8 +1558,11 @@ void specialize_blocks(module_pass_manager& mpm,
                     for(const auto& mask : materialized.mask_plan.at(ins))
                         args.at(mask.operand) = add_runtime_mask(
                             sm, args.at(mask.operand), mask, runtime_sources, cache);
-                auto op = ins->name() == "fixed_pad" ? frozen_fixed_pad(ins->get_operator(), freeze)
-                                                     : ins->get_operator();
+                auto op = ins->get_operator();
+                if(ins->name() == "fixed_pad")
+                    op = frozen_fixed_pad(op, freeze);
+                else if(contains(materialized.target_freezers, ins))
+                    op = materialized.target_freezers.at(ins)(op, freeze);
                 map[ins] = sm.add_instruction(op, args, ins->module_inputs());
                 if(map[ins]->get_shape().dynamic())
                     MIGRAPHX_THROW("SPLIT_SYM_DIM: clone body is not fully static");

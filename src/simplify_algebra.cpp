@@ -38,9 +38,11 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/unfold.hpp>
+#include <migraphx/env.hpp>
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
+#include <numeric>
 #include <unordered_set>
 
 namespace migraphx {
@@ -314,6 +316,162 @@ struct find_mul_dot
             return;
 
         m.replace_instruction(ins, make_op("dot"), a_ins, b_ins);
+    }
+};
+
+// Size-gate thresholds for find_mul_reduce_sum. Tunable so the rewrite can be forced on
+// (set to 0/1) when observing lowering/fusion effects, or tightened for a given target.
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MUL_REDUCE_SUM_MIN_MN)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MUL_REDUCE_SUM_MIN_K)
+
+// (AIMIGRAPHX-1199) Rewrite  reduce_sum(mul(broadcast(a), b), axes=[k])  into a GEMM.
+//
+// This is the contraction  sum_k a[..,m,1,k] * b[..,1,n,k]  == einsum "...mk,...nk->...mn".
+// Two deliberate choices, both grounded in benchmarking on feed-gen-rec:
+//
+//  * Lean lowering: we emit slice/squeeze (to drop each operand's broadcast free axis) +
+//    transpose + dot + transpose + unsqueeze directly, instead of delegating to the einsum
+//    op-builder. The builder wrapped the dot in an
+//    unsqueeze/slice/transpose/reshape/broadcast chain that blocked pointwise fusion with
+//    neighbouring ops, costing up to +51% device time at small batch. The lean form keeps
+//    the dot adjacent to its pointwise producers/consumers so fuse_mlir can absorb them,
+//    and produces a plain `dot` that the existing find_conv_dot_horiz_fusion can batch
+//    horizontally with sibling dots that share an operand.
+//
+//  * Size gate: only rewrite when M, N and K clear a threshold, so memory-bound batched
+//    inner-products (M or N == 1) and other tiny contractions -- which a GEMM cannot
+//    accelerate and which regressed on feed-gen-rec -- are left as a fused reduce. Tunable:
+//        MIGRAPHX_MUL_REDUCE_SUM_MIN_MN (default 64)  minimum for both M and N
+//        MIGRAPHX_MUL_REDUCE_SUM_MIN_K  (default 64)  minimum for K
+//
+// For simplicity/safety this handles exactly one M and one N free axis; multi-axis free
+// dims (which would need an extra reshape) are left on the reduce path.
+struct find_mul_reduce_sum
+{
+    auto matcher() const
+    {
+        auto bcast = match::name("broadcast", "multibroadcast");
+        // Only require one operand to be a broadcast; the other can be anything. apply()
+        // validates GEMM-ability from strides regardless of operand order.
+        auto mul = match::name("mul")(
+            match::used_once(),
+            match::either_arg(0, 1)(bcast.bind("in0"), match::any().bind("in1")));
+        return match::name("reduce_sum")(match::used_once(), match::args(mul.bind("mul")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto reduce_ins = r.result;
+        auto in0        = r.instructions["in0"];
+        auto in1        = r.instructions["in1"];
+
+        // Only single-axis reductions map cleanly to one GEMM contraction dim.
+        auto axes = reduce_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
+        if(axes.size() != 1)
+            return;
+        const auto& s      = in0->get_shape(); // == in1 shape == mul shape (elementwise)
+        const int64_t rank = static_cast<int64_t>(s.ndim());
+        const int64_t k    = axes[0] < 0 ? axes[0] + rank : axes[0];
+
+        const auto& st0 = in0->get_shape().strides();
+        const auto& st1 = in1->get_shape().strides();
+        // The contraction axis must be real (non-broadcast) in both operands.
+        if(st0[k] == 0 or st1[k] == 0)
+            return;
+
+        // Classify the non-contraction axes from strides: real only in in0 -> M (left free)
+        // axis, real only in in1 -> N (right free) axis, real in both -> batch axis.
+        std::vector<int64_t> m_axes;
+        std::vector<int64_t> n_axes;
+        std::vector<int64_t> batch_axes;
+        for(int64_t d = 0; d < rank; ++d)
+        {
+            if(d == k)
+                continue;
+            bool b0 = st0[d] == 0;
+            bool b1 = st1[d] == 0;
+            if(b0 and b1)
+                return; // output-only broadcast axis -> not a GEMM
+            if(not b0 and b1)
+                m_axes.push_back(d);
+            else if(b0 and not b1)
+                n_axes.push_back(d);
+            else
+                batch_axes.push_back(d); // real in both -> batch
+        }
+        // Prototype: exactly one M and one N free axis (keeps the lowering reshape-free).
+        if(m_axes.size() != 1 or n_axes.size() != 1)
+            return;
+        const int64_t ma = m_axes[0];
+        const int64_t na = n_axes[0];
+
+        // Size gate: skip contractions too small to benefit from a GEMM offload.
+        const std::size_t mm     = s.lens()[ma];
+        const std::size_t nn     = s.lens()[na];
+        const std::size_t kk     = s.lens()[k];
+        const std::size_t min_mn = value_of(MIGRAPHX_MUL_REDUCE_SUM_MIN_MN{}, 64);
+        const std::size_t min_k  = value_of(MIGRAPHX_MUL_REDUCE_SUM_MIN_K{}, 64);
+        if(mm < min_mn or nn < min_mn or kk < min_k)
+            return;
+
+        // --- lean lowering -------------------------------------------------------------
+        // Drop an operand's single broadcast free axis: slice it to length 1 (a no-op view
+        // on a stride-0 axis) then squeeze it away.
+        auto drop_axis = [&](instruction_ref in, int64_t ax) {
+            auto sl = m.insert_instruction(
+                reduce_ins,
+                make_op("slice",
+                        {{"axes", std::vector<int64_t>{ax}},
+                         {"starts", std::vector<int64_t>{0}},
+                         {"ends", std::vector<int64_t>{1}}}),
+                in);
+            return m.insert_instruction(
+                reduce_ins, make_op("squeeze", {{"axes", std::vector<int64_t>{ax}}}), sl);
+        };
+
+        // After squeezing `dropped`, an axis index shifts down by one if it sat after it.
+        auto shifted = [](int64_t d, int64_t dropped) { return d > dropped ? d - 1 : d; };
+
+        // op0 = [batch..., M, K]: drop N, then order remaining axes as batch..,m,k.
+        auto op0 = drop_axis(in0, na);
+        std::vector<int64_t> perm0;
+        for(auto d : batch_axes)
+            perm0.push_back(shifted(d, na));
+        perm0.push_back(shifted(ma, na));
+        perm0.push_back(shifted(k, na));
+        op0 =
+            m.insert_instruction(reduce_ins, make_op("transpose", {{"permutation", perm0}}), op0);
+
+        // op1 = [batch..., K, N]: drop M, then order remaining axes as batch..,k,n.
+        auto op1 = drop_axis(in1, ma);
+        std::vector<int64_t> perm1;
+        for(auto d : batch_axes)
+            perm1.push_back(shifted(d, ma));
+        perm1.push_back(shifted(k, ma));
+        perm1.push_back(shifted(na, ma));
+        op1 =
+            m.insert_instruction(reduce_ins, make_op("transpose", {{"permutation", perm1}}), op1);
+
+        // dot -> [batch..., M, N]
+        auto dot = m.insert_instruction(reduce_ins, make_op("dot"), op0, op1);
+
+        // dot lays axes out as [batch_axes(orig order).., m, n]; reorder them back to
+        // ascending original position so the result matches the reduce output layout.
+        std::vector<int64_t> present = batch_axes; // ascending
+        present.push_back(ma);
+        present.push_back(na);
+        std::vector<int64_t> order(present.size());
+        std::iota(order.begin(), order.end(), 0);
+        std::sort(
+            order.begin(), order.end(), [&](int64_t a, int64_t b) { return present[a] < present[b]; });
+        auto out_ins =
+            m.insert_instruction(reduce_ins, make_op("transpose", {{"permutation", order}}), dot);
+
+        // reduce_sum keeps the contracted axis as size 1; einsum-style dot dropped it, so
+        // restore it at position k.
+        out_ins = m.insert_instruction(
+            reduce_ins, make_op("unsqueeze", {{"axes", std::vector<int64_t>{k}}}), out_ins);
+        m.replace_instruction(reduce_ins, out_ins);
     }
 };
 
@@ -2725,6 +2883,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_dot{},
+                            find_mul_reduce_sum{},
                             find_dot_slice{},
                             find_dot_mul{},
                             find_mul_add{},

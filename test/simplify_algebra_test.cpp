@@ -5793,4 +5793,92 @@ TEST_CASE(simplify_concat_same_input_dynamic)
     EXPECT(m1 == m2);
 }
 
+// (AIMIGRAPHX-1199) reduce_sum(mul(broadcast, broadcast)) -> dot, when it clears the size gate.
+TEST_CASE(simplify_mul_reduce_sum_to_dot)
+{
+    migraphx::module m;
+    // a: [M, 1, K] broadcast over N ; b: [1, N, K] broadcast over M ; contract K.
+    // M = N = K = 64 clears the default size gate.
+    auto a = m.add_parameter("a", {migraphx::shape::float_type, {64, 1, 64}});
+    auto b = m.add_parameter("b", {migraphx::shape::float_type, {1, 64, 64}});
+    auto ab =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 64, 64}}}), a);
+    auto bb =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 64, 64}}}), b);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), ab, bb);
+    auto rs  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+    m.add_instruction(pass_op{}, rs);
+
+    auto s = m.get_output_shapes().back();
+    run_pass(m);
+
+    // shape is preserved (reduce_sum keeps the contracted axis as size 1)
+    EXPECT(s == m.get_output_shapes().back());
+    // the contraction was lowered to a GEMM
+    EXPECT(std::any_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "dot"; }));
+    EXPECT(std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "reduce_sum"; }));
+}
+
+// Guard: both operands broadcast on the same axis -> no distinct GEMM free dims, no rewrite.
+TEST_CASE(simplify_mul_reduce_sum_no_rewrite)
+{
+    migraphx::module m;
+    auto a = m.add_parameter("a", {migraphx::shape::float_type, {64, 1, 64}});
+    auto b = m.add_parameter("b", {migraphx::shape::float_type, {64, 1, 64}});
+    auto ab =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 64, 64}}}), a);
+    auto bb =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 64, 64}}}), b);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), ab, bb);
+    auto rs  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+    m.add_instruction(pass_op{}, rs);
+
+    run_pass(m);
+
+    EXPECT(std::any_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "reduce_sum"; }));
+    EXPECT(std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "dot"; }));
+}
+
+// A rank-padding multibroadcast (base rank < common rank) should still rewrite: the
+// classification works purely off strides in the common shape.
+TEST_CASE(simplify_mul_reduce_sum_rank_padded_broadcast)
+{
+    migraphx::module m;
+    auto a = m.add_parameter("a", {migraphx::shape::float_type, {64, 1, 64}}); // [M, 1, K]
+    auto b = m.add_parameter("b", {migraphx::shape::float_type, {64, 64}});    // [N, K]
+    auto ab =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 64, 64}}}), a);
+    auto bb =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 64, 64}}}), b);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), ab, bb);
+    auto rs  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+    m.add_instruction(pass_op{}, rs);
+
+    auto s = m.get_output_shapes().back();
+    run_pass(m);
+
+    EXPECT(s == m.get_output_shapes().back());
+    EXPECT(std::any_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "dot"; }));
+    EXPECT(std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "reduce_sum"; }));
+}
+
+// Size gate: a contraction below the M/N/K thresholds is left as a reduce (a GEMM cannot
+// accelerate a tiny/memory-bound contraction, and doing so regressed on feed-gen-rec).
+TEST_CASE(simplify_mul_reduce_sum_size_gate)
+{
+    migraphx::module m;
+    auto a  = m.add_parameter("a", {migraphx::shape::float_type, {4, 1, 6}});
+    auto b  = m.add_parameter("b", {migraphx::shape::float_type, {1, 5, 6}});
+    auto ab = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 5, 6}}}), a);
+    auto bb = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 5, 6}}}), b);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), ab, bb);
+    auto rs  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+    m.add_instruction(pass_op{}, rs);
+
+    run_pass(m);
+
+    EXPECT(std::any_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "reduce_sum"; }));
+    EXPECT(std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "dot"; }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

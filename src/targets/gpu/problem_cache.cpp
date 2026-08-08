@@ -25,6 +25,7 @@
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/json_problem_cache.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <algorithm>
 #include <cassert>
 
 namespace migraphx {
@@ -101,12 +102,10 @@ bool problem_cache::has(const std::string& name, const value& problem) const
 {
     const auto key = create_key(name, problem);
     // Read-only layers first (highest priority), then the writable cache.
-    for(const auto& ro : read_only_backends)
-    {
-        if(ro.has(device_key, key))
-            return true;
-    }
-    return backend.has(device_key, key);
+    return std::any_of(read_only_backends.begin(),
+                       read_only_backends.end(),
+                       [&](const auto& ro) { return ro.has(device_key, key); }) or
+           backend.has(device_key, key);
 }
 
 void problem_cache::insert(const std::string& name, const value& problem, const value& solution)
@@ -124,11 +123,12 @@ optional<value> problem_cache::get(const std::string& name, const value& problem
 {
     const auto key = create_key(name, problem);
     // Read-only layers first (highest priority), then the writable cache.
-    for(const auto& ro : read_only_backends)
-    {
-        if(auto sol = ro.get(device_key, key))
-            return sol;
-    }
+    const auto found =
+        std::find_if(read_only_backends.begin(), read_only_backends.end(), [&](const auto& ro) {
+            return ro.get(device_key, key).has_value();
+        });
+    if(found != read_only_backends.end())
+        return found->get(device_key, key);
     return backend.get(device_key, key);
 }
 

@@ -734,7 +734,7 @@ int32_t hip_gemm_finalize(context& ctx,
     return solution_idx;
 }
 
-int32_t hip_gemm_default_solution(context& ctx,
+int32_t hip_gemm_default_solution(const context& ctx,
                                   const shape& output_shape,
                                   const std::vector<shape>& input_shapes)
 {

@@ -596,7 +596,7 @@ static void gemm_save_solution(context& ctx,
 }
 #endif
 
-int32_t gemm_default_solution(context& ctx,
+int32_t gemm_default_solution(const context& ctx,
                               const shape& output_shape,
                               const std::vector<shape>& input_shapes)
 {

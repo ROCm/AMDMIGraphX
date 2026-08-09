@@ -691,10 +691,20 @@ struct find_mlir_split_reduce
                 fused_ins);
 
             mpm.get_module().replace_instruction(gemm_ins, dot_ins);
-            for(const auto& outs : reduce_ins->outputs())
+            if(reduce_ins->get_shape().sub_shapes().empty())
             {
-                assert(outs->get_operator().name() == "get_tuple_elem");
-                mpm.get_module().replace_instruction(outs, outs->get_operator(), fused_ins);
+                // Single-value reduce: users read the value directly, so route them
+                // through a get_tuple_elem of the fused op instead.
+                mpm.get_module().replace_instruction(
+                    reduce_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+            }
+            else
+            {
+                for(const auto& outs : reduce_ins->outputs())
+                {
+                    assert(outs->get_operator().name() == "get_tuple_elem");
+                    mpm.get_module().replace_instruction(outs, outs->get_operator(), fused_ins);
+                }
             }
         }
         else

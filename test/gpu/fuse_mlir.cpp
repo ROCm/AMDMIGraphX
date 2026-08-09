@@ -916,6 +916,49 @@ TEST_CASE(int_quant_dot_tanh_fails)
     EXPECT(has_pointwise);
 }
 
+// A split reduce that returns a single value (not a tuple) fused with a gemm
+// that has other users: the rmsnorm-after-residual pattern. This used to
+// crash because the fusion assumed all reduce users were get_tuple_elem ops.
+TEST_CASE(dot_add_split_reduce_single_value)
+{
+    migraphx::shape s_x{migraphx::shape::float_type, {2, 1, 4}};
+    migraphx::shape s_w{migraphx::shape::float_type, {2, 4, 4}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s_x);
+        auto w   = mm->add_parameter("w", s_w);
+        auto r   = mm->add_parameter("r", s_x);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), x, w);
+        auto add = add_pointwise(p1, "main:pointwise0", {dot, r}, single_pointwise("add"));
+        auto ss  = add_reduce(
+            p1,
+            "main:split_reduce0",
+            {add},
+            {2},
+            "assign_add",
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto xx = add_pointwise(p1, rm, "main:pointwise1", {inputs[0]}, squared());
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), xx);
+            });
+        auto mb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 4}}}), ss);
+        auto out = add_pointwise(p1, "main:pointwise2", {mb, add}, single_pointwise("mul"));
+        mm->add_return({out});
+    }
+    run_pass(p1);
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
+        return;
+    const auto* mm = p1.get_main_module();
+    EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "split_fused_reduce";
+    }));
+    auto fused = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "gpu::mlir_op" and not ins.get_shape().sub_shapes().empty();
+    });
+    EXPECT(bool{fused != mm->end()});
+}
+
 TEST_CASE(conv_split_reduce)
 {
     migraphx::shape s_x{migraphx::shape::float_type, {2, 4, 64, 64}};

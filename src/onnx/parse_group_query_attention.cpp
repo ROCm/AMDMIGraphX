@@ -173,8 +173,15 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         auto kv_num_heads_factor = num_heads / kv_num_heads;
         auto max_seq_len         = k->get_shape().lens()[2];
-        auto past_sl             = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
+        if(slk->get_shape().elements() != batch_size)
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: seqlens_k must hold one entry per batch element");
+        }
+        // Multibroadcast aligns trailing dimensions, so make seqlens_k batch-major first.
+        // Broadcasting the rank-1 {batch_size} input directly would align the batch against
+        // the head dimension.
+        auto past_sl =
+            info.add_instruction(make_op("reshape", {{"dims", {batch_size, 1, 1, 1}}}), slk);
 
         if(kv_num_heads_factor != 1)
         {
@@ -232,10 +239,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             mul = info.add_instruction(make_op("where"), causal_mask, ninf, mul);
         }
 
-        auto bc_past_sl = info.add_instruction(
-            make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
         auto mask_comp =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), past_sl);
         if(local_window_size > 0)
         {
             bool is_prompt       = sequence_length > 1;

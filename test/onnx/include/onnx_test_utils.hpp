@@ -214,7 +214,8 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
                                             const size_t max_sequence_length,
                                             const bool do_rotary,
                                             const float scale,
-                                            const bool non_packed = false)
+                                            const bool non_packed = false,
+                                            const bool genai_layout = false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -222,7 +223,15 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
         batch_size, sequence_length, head_size * (num_heads + 2 * (non_packed ? 0 : kv_num_heads))};
     std::vector<size_t> key_value_lens{1};
     std::vector<size_t> kv_lens{batch_size, kv_num_heads, max_sequence_length, head_size};
+    // onnxruntime-genai emits seqlens_k as rank 1 with one entry per batch and
+    // total_sequence_length as a single value; other exporters use {batch_size, 1} for both
     std::vector<size_t> slk_lens{batch_size, 1};
+    std::vector<size_t> tsl_lens{batch_size, 1};
+    if(genai_layout)
+    {
+        slk_lens = {batch_size};
+        tsl_lens = {1};
+    }
     std::vector<size_t> cs_cache_lens{max_sequence_length, head_size / 2};
     auto dtype = migraphx::shape::half_type;
     migraphx::shape query_s{dtype, query_lens};
@@ -230,13 +239,14 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     migraphx::shape key_value_s{non_packed ? dtype : migraphx::shape::float_type,
                                 non_packed ? query_lens : key_value_lens};
     migraphx::shape slk_s{migraphx::shape::int32_type, slk_lens};
+    migraphx::shape tsl_s{migraphx::shape::int32_type, tsl_lens};
     migraphx::shape cs_cache_s{dtype, cs_cache_lens};
     std::vector<int> slk_vec(slk_s.elements(), past_sequence_length);
-    std::vector<int> tsl_vec(slk_s.elements(), max_sequence_length);
+    std::vector<int> tsl_vec(tsl_s.elements(), max_sequence_length);
     std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);
 
     auto slk_lit = mm->add_literal(slk_s, slk_vec);
-    mm->add_literal(slk_s, tsl_vec);
+    mm->add_literal(tsl_s, tsl_vec);
     auto cos_cache = mm->add_literal(cs_cache_s, cs_max_vec);
     auto sin_cache = mm->add_literal(cs_cache_s, cs_max_vec);
 
@@ -301,7 +311,7 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     auto kv_num_heads_factor = num_heads / kv_num_heads;
     auto max_seq_len         = kv_s.lens()[2];
     auto past_sl             = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk_lit);
+        migraphx::make_op("reshape", {{"dims", {batch_size, 1, 1, 1}}}), slk_lit);
 
     if(kv_num_heads_factor != 1)
     {
@@ -357,10 +367,8 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
         mul = mm->add_instruction(migraphx::make_op("where"), causal_mask, ninf, mul);
     }
 
-    auto bc_past_sl = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
     auto mask_comp =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), past_sl);
     auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, mask_comp);
     mask      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), mask);

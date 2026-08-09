@@ -52,8 +52,8 @@ struct test_reduce_reduce_rms : verify_program<test_reduce_reduce_rms<DType>>
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), b);
         auto add = mm->add_instruction(migraphx::make_op("add"), sqf, bf);
         auto mul = mm->add_instruction(migraphx::make_op("mul"), add, add);
-        auto nb  = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 8}}}), n);
+        auto nb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 8}}}), n);
         auto div   = mm->add_instruction(migraphx::make_op("div"), mul, nb);
         auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-1}}}), div);
         auto epsb =

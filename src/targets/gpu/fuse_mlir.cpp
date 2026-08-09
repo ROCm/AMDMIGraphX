@@ -865,11 +865,28 @@ struct find_mlir_fused_geg_ops
             .bind("second_gemm_op");
     }
 
+    // The fused kernel recomputes the first gemm for every output tile of the
+    // second gemm, so fusing only pays off when both gemms are so small that
+    // the kernel launch overhead dominates. Measured on gfx942: fusion wins at
+    // ~32K MACs, breaks even around ~4M MACs and loses by 3-80x beyond that,
+    // scaling with the intermediate width.
+    static bool is_launch_bound(instruction_ref first_gemm, instruction_ref second_gemm)
+    {
+        auto macs = [](instruction_ref gemm) {
+            return gemm->get_shape().elements() * gemm->inputs().front()->get_shape().lens().back();
+        };
+        const std::size_t max_macs = 1 << 20;
+        return macs(first_gemm) + macs(second_gemm) < max_macs;
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto second_gemm_ins = r.result;
         auto elemwise_ins    = r.instructions["elemwise"];
         auto first_gemm_ins  = r.instructions["first_gemm_based_op"];
+
+        if(not is_launch_bound(first_gemm_ins, second_gemm_ins))
+            return;
 
         auto* elemwise_module = elemwise_ins->module_inputs().front();
         auto elemwise_inputs  = elemwise_ins->inputs();

@@ -219,6 +219,7 @@ add_library(migraphx_gpu
     fuse_mlir.cpp
     fuse_ops.cpp
     fuse_rope_qk_norm.cpp
+    fuse_skinny_gemm.cpp
     gemm_impl.cpp
     hip.cpp
     hipblaslt.cpp

@@ -38,6 +38,10 @@ struct MIGRAPHX_EXPORT fuse_reduce
     void apply(module_pass_manager& mpm) const;
 
     bool enable_rewrite_reshapes = true;
+    /// Maximum number of elements in the fused reduction when fusing
+    /// sequential reduces, since larger reductions lose too much parallelism
+    /// when computed by a single workgroup
+    std::size_t split_size = 8192;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

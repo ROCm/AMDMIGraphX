@@ -3800,6 +3800,38 @@ TEST_CASE(reduce_squeeze_pointwise5)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// The reduce axis 2 is a no-op since the input extent is 1, which should not
+// block moving the squeeze after the pointwise
+TEST_CASE(trivial_axis_reduce_squeeze_pointwise)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 4, 1}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 1}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s1);
+        auto y = m1.add_parameter("y", s2);
+        auto reduce_sum =
+            m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x);
+        auto squeeze =
+            m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), reduce_sum);
+        auto add = m1.add_instruction(migraphx::make_op("add"), squeeze, y);
+        m1.add_return({add});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s2);
+        auto reduce_sum =
+            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x);
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), y);
+        auto add       = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
+        auto squeeze   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), add);
+        m2.add_return({squeeze});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(reduce_squeeze_broadcast_pointwise)
 {
     auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 32, 10, 64, 64}};

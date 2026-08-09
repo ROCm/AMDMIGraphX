@@ -28,6 +28,8 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/common_dims.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/bit.hpp>
 
@@ -459,6 +461,7 @@ struct fused_reduce_plan
     std::vector<shape> virtual_inputs = {};
     shape reduce_output_shape         = {};
     shape reduction_shape             = {};
+    shape sub_output_shape            = {};
     vectorize vec                     = {};
     std::string algo                  = {};
     std::string assign                = {};
@@ -476,6 +479,12 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     auto axes           = v.at("axes").to_vector<std::size_t>();
     plan.finputs        = flatten_tuple_shapes(inputs);
     plan.virtual_inputs = plan.finputs;
+    // Include the sub-reduce output of a nested module so it is collapsed and
+    // permuted consistently with the inputs
+    bool nested = v.contains("sub_output_lens");
+    if(nested)
+        plan.virtual_inputs.push_back(shape{get_input_shape(plan.finputs).type(),
+                                            v.at("sub_output_lens").to_vector<std::size_t>()});
     plan.virtual_inputs.push_back(get_reduced_shape(get_input_shape(plan.finputs), axes));
     plan.virtual_inputs.push_back(get_output_shape(get_input_shape(plan.finputs), axes));
     plan.virtual_inputs = reduce_dims(normalize_permutation(plan.virtual_inputs));
@@ -485,6 +494,11 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     plan.virtual_inputs.pop_back();
     plan.reduction_shape = plan.virtual_inputs.back();
     plan.virtual_inputs.pop_back();
+    if(nested)
+    {
+        plan.sub_output_shape = plan.virtual_inputs.back();
+        plan.virtual_inputs.pop_back();
+    }
 
     auto faxis = find_fast_axis({plan.virtual_inputs.front()});
     plan.algo =
@@ -495,6 +509,46 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
         plan.vec = vectorize::elements(ctx, faxis, plan.virtual_inputs);
     plan.relements = plan.reduction_shape.elements() / plan.vec.size;
     return plan;
+}
+
+/// Find the output lens of the sub-reduces in a nested reduce module, which
+/// reduce over a subset of the axes and so have a larger output than the
+/// final reduce. Returns nullopt when the module has no sub-reduces.
+optional<std::vector<std::size_t>> find_sub_reduce_lens(const_module_ref rm)
+{
+    std::vector<std::vector<std::size_t>> lens;
+    transform_if(
+        rm->begin(),
+        rm->end(),
+        std::back_inserter(lens),
+        [](const auto& ins) {
+            return contains(ins.name(), "reduce") and ins.get_shape().type() != shape::tuple_type;
+        },
+        [](const auto& ins) { return ins.get_shape().lens(); });
+    if(lens.size() < 2)
+        return nullopt;
+    auto final_lens = *std::min_element(
+        lens.begin(), lens.end(), by(std::less<>{}, [](const auto& l) { return elements(l); }));
+    lens.erase(std::remove(lens.begin(), lens.end(), final_lens), lens.end());
+    if(lens.empty())
+        return nullopt;
+    if(std::adjacent_find(lens.begin(), lens.end(), std::not_equal_to<>{}) != lens.end())
+        MIGRAPHX_THROW("Nested reduce module must use a single sub-reduce shape");
+    return lens.front();
+}
+
+/// For a nested reduce module, disable vectorization and record the
+/// sub-reduce output relative to the reduce slice: only the reduced axes keep
+/// their lengths
+void set_sub_reduce_options(value& v, const_module_ref rm)
+{
+    auto sub_lens = find_sub_reduce_lens(rm);
+    if(not sub_lens.has_value())
+        return;
+    // TODO: Support vectorization of nested reduce modules
+    v["no_vectorize"]    = true;
+    auto axes            = v.at("axes").to_vector<std::size_t>();
+    v["sub_output_lens"] = get_reduced_shape(shape{shape::float_type, *sub_lens}, axes).lens();
 }
 
 /// The lane algorithm should be replaced with block_strided when there are
@@ -611,7 +665,20 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             v.insert(x);
         auto* rm      = ins->module_inputs().front();
         auto shapes   = to_shapes(ins->inputs());
-        v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
+        std::string sub_shapes;
+        set_sub_reduce_options(v, rm);
+        if(v.contains("sub_output_lens"))
+        {
+            auto plan  = compute_fused_reduce_plan(ctx, shapes, v);
+            sub_shapes = "decltype(" +
+                         generate_make_shape(
+                             shape{plan.reduction_shape.type(), plan.reduction_shape.lens()}) +
+                         "), decltype(" +
+                         generate_make_shape(
+                             shape{plan.sub_output_shape.type(), plan.sub_output_shape.lens()}) +
+                         ")";
+        }
+        v["preamble"] = generate_reduce(*rm, "fused_reduce_op", sub_shapes);
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
         return compile_op(ctx, shapes, v);
@@ -643,9 +710,12 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(not contains({"fused_reduce", "split_fused_reduce"}, op.name()))
             return nullopt;
         tuning_config tc;
-        auto shapes   = to_shapes(ins->inputs());
-        tc.problem    = to_value(shapes);
-        auto plan     = compute_fused_reduce_plan(ctx, shapes, op.to_value());
+        auto shapes = to_shapes(ins->inputs());
+        tc.problem  = to_value(shapes);
+        auto v      = op.to_value();
+        if(not ins->module_inputs().empty())
+            set_sub_reduce_options(v, ins->module_inputs().front());
+        auto plan     = compute_fused_reduce_plan(ctx, shapes, v);
         auto noutputs = plan.finputs.size() - shapes.size() + 1;
         auto tile     = find_reduce_tile(
             plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());

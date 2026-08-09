@@ -368,6 +368,13 @@ struct find_op_shape_transform_op
                 op_axes = v.at("axes").to_vector<std::size_t>();
             }
             std::sort(op_axes.begin(), op_axes.end());
+            // Reduce axes of extent 1 are no-ops and can never be broadcasted
+            // axes, so ignore them when matching
+            const auto& in_lens = ins->inputs().front()->get_shape().lens();
+            op_axes.erase(std::remove_if(op_axes.begin(),
+                                         op_axes.end(),
+                                         [&](auto axis) { return in_lens.at(axis) == 1; }),
+                          op_axes.end());
             auto broadcasted_axes = desc.find_broadcasted_axes();
             return equal(op_axes, broadcasted_axes);
         }

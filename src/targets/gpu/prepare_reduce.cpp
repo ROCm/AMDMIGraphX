@@ -158,7 +158,14 @@ std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_
 
 void fuse_reductions(module& m)
 {
-    auto rs = find_parallel_reduce(find_reduce(m));
+    auto reduces = find_reduce(m);
+    // A nested module mixes sub-reduces and final reduces, which cant be
+    // grouped into a parallel_reduce
+    if(std::any_of(reduces.begin(), reduces.end(), [&](instruction_ref r) {
+           return r->get_shape().lens() != reduces.front()->get_shape().lens();
+       }))
+        return;
+    auto rs = find_parallel_reduce(reduces);
     if(rs.size() < 2)
         return;
     // Only handle the same reduction operator (and its data-type) for now

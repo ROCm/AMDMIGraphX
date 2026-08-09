@@ -95,7 +95,11 @@ std::string make_transformer_args(const Ts&... xs)
 std::string
 generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple = false);
 
-MIGRAPHX_GPU_EXPORT std::string generate_reduce(module m, const std::string& name);
+/// Generate the device function for a fused_reduce module. For a nested
+/// module with sub-reductions, sub_shapes has the template arguments for
+/// sub_reduce: the reduce slice shape and the sub-reduce output shape.
+MIGRAPHX_GPU_EXPORT std::string
+generate_reduce(module m, const std::string& name, const std::string& sub_shapes = "");
 
 std::string generate_name_from_ops(const module& m, const std::string& postname = "");
 
@@ -106,11 +110,15 @@ struct reduce_op
     std::string init      = "0";
     std::string read      = "op::id{}";
     std::string write     = "op::id{}";
+    // When set, emit a sub_reduce with these template arguments instead
+    std::string sub_shapes = "";
 
     void set(instruction_ref ins, const operation& op);
     void set(const std::string& name, const shape& input, const shape& output);
     std::string str() const;
-    static std::string generate(instruction_ref ins, const std::vector<std::string>& x);
+    static std::string generate(instruction_ref ins,
+                                const std::vector<std::string>& x,
+                                const std::string& sub_shapes = "");
 };
 
 } // namespace gen

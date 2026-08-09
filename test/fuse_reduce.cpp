@@ -646,6 +646,68 @@ TEST_CASE(reduce_reduce_mismatch_axis)
     EXPECT(p1 == p2);
 }
 
+// Sequential reduces where the axes of the first are a subset of the axes of
+// the second are fused into a nested sub-reduction
+TEST_CASE(sequential_reduce_reduce)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 8}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsum2 =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), rsum1);
+        mm->add_return({rsum2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto rsum2 =
+            add_reduce(p2,
+                       "main:reduce_sum1:main:reduce_sum0",
+                       {x},
+                       {1, 2},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           auto rsum1 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", {2}}}), inputs[0]);
+                           return rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), rsum1);
+                       });
+        mm->add_return({rsum2});
+    }
+    EXPECT(p1 == p2);
+}
+
+// Sequential reduces are not fused when the fused reduction would be too
+// large for a single workgroup per output
+TEST_CASE(sequential_reduce_reduce_too_large)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 128, 128}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsum2 =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), rsum1);
+        mm->add_return({rsum2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum1 = add_reduce(p2, "main:reduce_sum0", {x}, {2}, single_reduce("reduce_sum"));
+        auto rsum2 =
+            add_reduce(p2, "main:reduce_sum1", {rsum1}, {1, 2}, single_reduce("reduce_sum"));
+        mm->add_return({rsum2});
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(pointwise_reduce_broadcast)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

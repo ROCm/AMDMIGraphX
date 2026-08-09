@@ -469,6 +469,43 @@ struct reducer_base
         return this->reduce(op, init, op::id{});
     }
 
+    /// Reduce over a subset of the reduction axes. SubInput is the reduce
+    /// slice shape and SubOutput is that shape with the sub-reduced axes set
+    /// to 1. Returns a lazy inner storage over the SubOutput elements where
+    /// each element is reduced serially, so it composes with any thread
+    /// mapping. The inputs must be tensors or lazy storages since the
+    /// elements are re-indexed.
+    template <class SubInput, class SubOutput, class Op, class T, class Read>
+    __device__ auto sub_reduce(Op op, T init, Read read) const
+    {
+        return this->inner_sliced([=](auto n, auto&&... xs) {
+            constexpr auto sub_in  = get_shape_c<SubInput>{};
+            constexpr auto sub_out = get_shape_c<SubOutput>{};
+            MIGRAPHX_ASSERT(n == sub_in.elements());
+            (void)n;
+            constexpr auto sub_lens =
+                transform(sub_in.lens, sub_out.lens, [](index_int x, index_int y) -> index_int {
+                    if(x == y)
+                        return 1;
+                    return x;
+                });
+            constexpr auto sub_shape = make_shape(sub_lens);
+            return make_lazy_inner_storage(
+                get_shape_c<SubOutput>{}.elements(), [=](auto j, auto d) {
+                    auto out_multi = sub_out.multi(j);
+                    auto make      = [&](index_int k) {
+                        return final_reduce(
+                            read(xs(sub_in.index(out_multi + sub_shape.multi(k)), d)...), op);
+                    };
+                    using type = remove_reference_t<decltype(make(0))>;
+                    type x     = type(init);
+                    for(index_int k = 0; k < sub_shape.elements(); k++)
+                        x = op(x, make(k));
+                    return x;
+                });
+        });
+    }
+
     template <class F>
     __device__ void outer(F f) const
     {

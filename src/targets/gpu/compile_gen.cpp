@@ -26,6 +26,8 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/prepare_reduce.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/common_dims.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
@@ -341,6 +343,9 @@ std::string generate_pointwise(const module& pm, const std::string& name, bool a
 
 std::string reduce_op::str() const
 {
+    if(not sub_shapes.empty())
+        return write + "(r.template sub_reduce<" + sub_shapes + ">(" + reduction + ", " + init +
+               ", " + read + ")(" + join_strings(inputs, ", ") + "))";
     return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" +
            join_strings(inputs, ", ") + "))";
 }
@@ -437,15 +442,35 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         set(op.name(), ins->inputs().front()->get_shape(), ins->get_shape());
     }
 }
-std::string reduce_op::generate(instruction_ref ins, const std::vector<std::string>& x)
+std::string reduce_op::generate(instruction_ref ins,
+                                const std::vector<std::string>& x,
+                                const std::string& sub_shapes)
 {
     reduce_op r{x};
+    r.sub_shapes = sub_shapes;
     r.set(ins, ins->get_operator());
     return r.str();
 }
 
-static bool use_lazy_inner(instruction_ref ins)
+// A sub-reduce has fewer reduced axes than the final reduce, so its output
+// has more elements than the reduce output shape of the module
+static bool is_sub_reduce(instruction_ref ins, const std::vector<std::size_t>& rlens)
 {
+    if(not contains(ins->name(), "reduce"))
+        return false;
+    if(ins->get_shape().type() == shape::tuple_type)
+        return false;
+    return ins->get_shape().lens() != rlens;
+}
+
+static bool use_lazy_inner(instruction_ref ins, const std::vector<std::size_t>& rlens)
+{
+    // A sub-reduce re-indexes its inputs, which is only valid for lazy
+    // storages, so the eager inner workaround below cant be used
+    if(std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref output) {
+           return is_sub_reduce(output, rlens);
+       }))
+        return true;
     if(ins->outputs().size() != 1)
         return false;
     // When the inputs are broadcasted, it means the lambda will capture SGPRs
@@ -474,18 +499,31 @@ static void preload_params(module& m)
     }
 }
 
-static std::vector<std::size_t> get_rlens(const module& m)
+static std::vector<std::size_t> get_reduce_lens(const instruction& ins)
 {
-    auto reduce = std::find_if(
-        m.begin(), m.end(), [&](const auto& ins) { return contains(ins.name(), "reduce"); });
-    if(reduce == m.end())
-        MIGRAPHX_THROW("Missing reduce operator");
-    if(reduce->get_shape().type() == shape::tuple_type)
-        return reduce->get_shape().sub_shapes().front().lens();
-    return reduce->get_shape().lens();
+    if(ins.get_shape().type() == shape::tuple_type)
+        return ins.get_shape().sub_shapes().front().lens();
+    return ins.get_shape().lens();
 }
 
-std::string generate_reduce(module m, const std::string& name)
+// The output lens of the final reduce, which is the smallest reduce output
+// since a nested module can contain sub-reduces over a subset of the axes
+static std::vector<std::size_t> get_rlens(const module& m)
+{
+    std::vector<std::vector<std::size_t>> lens;
+    transform_if(
+        m.begin(),
+        m.end(),
+        std::back_inserter(lens),
+        [](const auto& ins) { return contains(ins.name(), "reduce"); },
+        [](const auto& ins) { return get_reduce_lens(ins); });
+    if(lens.empty())
+        MIGRAPHX_THROW("Missing reduce operator");
+    return *std::min_element(
+        lens.begin(), lens.end(), by(std::less<>{}, [](const auto& l) { return elements(l); }));
+}
+
+std::string generate_reduce(module m, const std::string& name, const std::string& sub_shapes)
 {
     preload_params(m);
     run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
@@ -497,6 +535,13 @@ std::string generate_reduce(module m, const std::string& name)
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
         {
+            if(is_sub_reduce(ins, rlens))
+            {
+                if(sub_shapes.empty())
+                    MIGRAPHX_THROW("Missing sub-reduce shapes for nested reduce module");
+                return reduce_op::generate(
+                    ins, cpp_generator::to_args(ins->inputs(), names), sub_shapes);
+            }
             return reduce_op::generate(ins, cpp_generator::to_args(ins->inputs(), names));
         }
         if(ins->name() == "pointwise")
@@ -530,7 +575,7 @@ std::string generate_reduce(module m, const std::string& name)
                 return call_function;
             const std::string inner_template =
                 "r.${inner}([=](${params}) { return ${call}; })(${args})";
-            std::string inner_name = use_lazy_inner(ins) ? "lazy_inner" : "inner";
+            std::string inner_name = use_lazy_inner(ins, rlens) ? "lazy_inner" : "inner";
             auto args              = cpp_generator::to_args(tensors, names);
             auto params            = cpp_generator::to_args(tensors, inner_names);
             std::transform(params.begin(), params.end(), params.begin(), [](const auto& s) {

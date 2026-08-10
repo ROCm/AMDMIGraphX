@@ -479,7 +479,7 @@ pipeline {
                         MIGRAPHX_ENABLE_MLIR_INPUT_FUSION = '1'
                         MIGRAPHX_MLIR_ENABLE_SPLITK = '1'
                         MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION = '1'
-                        MIGRAPHX_ENABLE_MLIR_GEG_FUSION = '1'
+                        MIGRAPHX_ENABLE_MLIR_CEG_FUSION = '1'
                         MIGRAPHX_ENABLE_SPLIT_REDUCE = '1'
                         MIGRAPHX_DISABLE_LAYERNORM_FUSION = '1'
                     }

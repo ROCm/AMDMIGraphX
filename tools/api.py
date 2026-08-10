@@ -21,6 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
+import argparse
 import string
 import sys
 import re
@@ -1300,12 +1301,45 @@ def run(path: Union[Path, str]) -> str:
     return template_eval(open(path).read())
 
 
+def parse_defines(defines: Optional[List[str]]) -> Dict[str, str]:
+    """Turn `-D` arguments of the form `name` or `name=value` into the globals
+    the api spec is run with. A bare `name` is defined as an empty string, so a
+    spec tests for it with `'name' in globals()` rather than for its value."""
+    result: Dict[str, str] = {}
+    for define in defines or []:
+        name, _, value = define.partition('=')
+        result[name] = value
+    return result
+
+
+def add_define_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        '-D',
+        '--define',
+        action='append',
+        metavar='NAME[=VALUE]',
+        help='Define NAME in the globals of the api spec, which it can use to '
+        'select which parts of the API to generate. Repeatable')
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    add_define_argument(parser)
+    parser.add_argument('spec',
+                        type=Path,
+                        help='Python file describing the API, such as '
+                        'src/api/migraphx.py')
+    parser.add_argument('template',
+                        type=Path,
+                        nargs='?',
+                        help='Template to render. When omitted, the C header '
+                        'and the C API body are written instead')
+    args = parser.parse_args()
+
     sys.modules['api'] = sys.modules['__main__']
-    runpy.run_path(sys.argv[1])
-    if len(sys.argv) > 2:
-        r = run(sys.argv[2])
-        sys.stdout.write(r)
+    runpy.run_path(str(args.spec), init_globals=parse_defines(args.define))
+    if args.template:
+        sys.stdout.write(run(args.template))
     else:
         sys.stdout.write(generate_c_header())
         sys.stdout.write(generate_c_api_body())

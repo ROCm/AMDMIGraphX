@@ -81,29 +81,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install pytorch (ROCm 7.2.4 cp310 wheels — keep in sync with rocm apt version above)
-RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.4/torch-2.8.0%2Brocm7.2.4.lw.git6bea3e0b-cp310-cp310-linux_x86_64.whl \
-                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.4/torchvision-0.24.0%2Brocm7.2.4.gitb919bd0c-cp310-cp310-linux_x86_64.whl \
-                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.4/triton-3.4.0%2Brocm7.2.4.git0cace8d2-cp310-cp310-linux_x86_64.whl
-
-# add this for roctracer dependencies
-RUN pip3 install CppHeaderParser
-
-# Workaround broken rocm packages
-RUN ln -s /opt/rocm-* /opt/rocm
-RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
-RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
-RUN ldconfig
-
-# ATT library
-RUN wget -O /opt/rocm/lib/librocprof-trace-decoder.so https://github.com/ROCm/rocprof-trace-decoder/raw/7e58204a955e5787b9b38087f3ad502f07ff78ef/releases/linux_glibc_2_28_x86_64/librocprof-trace-decoder.so
-
-# Workaround broken miopen cmake files
-RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
-
-# Workaround for distributions running cmake < 3.25
-RUN sed -i -e 's/^block/if(COMMAND block)\nblock/g' -e 's/^endblock/endblock\(\)\nendif/g' /opt/rocm/lib/cmake/hipblaslt/hipblaslt-config.cmake
-
 RUN locale-gen en_US.UTF-8
 RUN update-locale LANG=en_US.UTF-8
 

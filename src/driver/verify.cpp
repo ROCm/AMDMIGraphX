@@ -24,8 +24,6 @@
 #include "verify.hpp"
 #include "perf.hpp"
 
-#include <migraphx/algorithm.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/fp_to_double.hpp>
 #include <migraphx/generate.hpp>
@@ -40,18 +38,7 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/logger.hpp>
-#include <migraphx/optional.hpp>
-#include <algorithm>
-#include <cassert>
-#include <cmath>
-#include <functional>
-#include <iterator>
-#include <limits>
-#include <map>
-#include <string>
-#include <unordered_map>
 #include <utility>
-#include <vector>
 
 namespace migraphx {
 namespace driver {

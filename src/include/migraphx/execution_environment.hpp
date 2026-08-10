@@ -28,7 +28,6 @@
 #include <migraphx/any_ptr.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/optional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -27,7 +27,6 @@
 #include "verify_options.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/verify.hpp>
-#include <string>
 
 namespace migraphx {
 namespace driver {

@@ -29,6 +29,7 @@
 #include <stdint.h>
 
 #include <migraphx/api/export.h>
+#include <migraphx/config.h>
 
 // Add new types here
 // clang-format off
@@ -605,6 +606,15 @@ migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_dim_param(
     migraphx_onnx_options_t onnx_options, const char* name, const_migraphx_dynamic_dimension_t dd);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx(migraphx_program_t* out,
+                                                      const char* name,
+                                                      migraphx_onnx_options_t options);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
+                                                             const void* data,
+                                                             size_t size,
+                                                             migraphx_onnx_options_t options);
+
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_destroy(migraphx_file_options_t file_options);
 
@@ -640,15 +650,6 @@ migraphx_compile_options_set_compile_mode(migraphx_compile_options_t compile_opt
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_advance_backend_options(
     migraphx_compile_options_t compile_options, const char* options_json, ...);
-
-MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx(migraphx_program_t* out,
-                                                      const char* name,
-                                                      migraphx_onnx_options_t options);
-
-MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
-                                                             const void* data,
-                                                             size_t size,
-                                                             migraphx_onnx_options_t options);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options);
 

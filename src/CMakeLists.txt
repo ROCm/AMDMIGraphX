@@ -164,6 +164,8 @@ if(WIN32)
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
 endif()
 
+configure_file(config.h.in include/migraphx/config.h)
+
 configure_file(version.h.in include/migraphx/version.h)
 add_library(migraphx_version INTERFACE)
 rocm_install_targets(
@@ -403,12 +405,21 @@ target_link_libraries(migraphx PRIVATE msgpack-cxx)
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpack-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
+add_library(migraphx_all_frontends INTERFACE)
+# migraphx_c links this privately, and a static build records even private
+# dependencies in the interface, so it has to be exported alongside migraphx_c.
+rocm_install_targets(TARGETS migraphx_all_frontends)
 
 add_subdirectory(api)
 add_subdirectory(driver)
+if(MIGRAPHX_ENABLE_ONNX)
 add_subdirectory(onnx)
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_onnx)
+endif()
+if(MIGRAPHX_ENABLE_TENSORFLOW)
 add_subdirectory(tf)
-
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_tf)
+endif()
 if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
 endif()

@@ -1388,7 +1388,7 @@ bool mlir_lds_usage_fits_arch(int64_t gemm_o,
         mlir_program mod_prog;
         mod_prog.parse(*m);
         return mlirMIGraphXLDSUsageFitsArch(
-            0, nullptr, prog.make_type(elem_type), mod_prog.mmodule.get());
+            0, nullptr, mod_prog.make_type(elem_type), mod_prog.mmodule.get());
     }
 
     return mlirMIGraphXLDSUsageFitsArch(

@@ -36,8 +36,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/tf.hpp>
-#include <migraphx/onnx.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
@@ -51,6 +49,12 @@
 #include <migraphx/iterator_for.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+#include <migraphx/tf.hpp>
+#endif
+#ifdef MIGRAPHX_ENABLE_ONNX
+#include <migraphx/onnx.hpp>
 #endif
 
 using half   = migraphx::half;
@@ -759,6 +763,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("shape"),
         py::arg("address"));
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
     m.def(
         "parse_tf",
         [](const std::string& filename,
@@ -775,7 +780,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("batch_size")     = 1,
         py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
         py::arg("output_names")   = std::vector<std::string>());
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
     m.def("get_onnx_operators", [] { return migraphx::get_onnx_operators(); });
     m.def(
         "parse_onnx",
@@ -857,6 +864,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("print_program_on_error") = false,
         py::arg("external_data_path")     = "",
         py::arg("use_debug_symbols")      = false);
+#endif
 
     m.def(
         "load",

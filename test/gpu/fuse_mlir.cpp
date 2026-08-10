@@ -3283,7 +3283,7 @@ TEST_CASE(dot_add_dot_lds_too_large_no_geg)
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;
 
-    const auto arch = migraphx::gpu::get_device_name();
+    const auto arch = migraphx::gpu::get_gfx_name(migraphx::gpu::get_device_name());
     std::optional<std::size_t> blocking_g;
     for(std::size_t g = 512; g <= 1340; g += 64)
     {

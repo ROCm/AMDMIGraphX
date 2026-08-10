@@ -36,8 +36,7 @@ struct execution_environment
 {
     any_ptr queue                                               = any_ptr{};
     bool async                                                  = false;
-    std::function<void(instruction_ref, const argument&)> trace = nullptr;
-    // Replaces an instruction's result, so later instructions read the returned value instead.
+    std::function<void(instruction_ref, const argument&)> trace                    = nullptr;
     std::function<optional<argument>(instruction_ref, const argument&)> substitute = nullptr;
 };
 

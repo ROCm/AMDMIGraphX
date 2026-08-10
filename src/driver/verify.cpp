@@ -116,8 +116,7 @@ std::string source_name(instruction_ref ins)
     return join_strings(std::move(names), ", ");
 }
 
-// One instance spans both runs. capture() records ref values by label, then compare() scores the
-// target against them.
+// One instance spans both runs, capture() on the reference and then compare() on the target.
 struct verify_callback
 {
     struct layer_result
@@ -211,7 +210,6 @@ struct verify_callback
         };
     }
 
-    // Failing layers in reference execution order.
     std::vector<layer_result> failures() const
     {
         std::vector<layer_result> result;
@@ -224,7 +222,6 @@ struct verify_callback
         return result;
     }
 
-    // The failing layer with the largest error of its own.
     optional<layer_result> divergence_source() const
     {
         auto failed = failures();

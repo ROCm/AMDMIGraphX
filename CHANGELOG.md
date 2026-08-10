@@ -8,6 +8,7 @@ Full documentation for MIGraphX is available at
 ### Added
 
 * Added `ArrayFeatureExtractor` ONNX operator support (#4742).
+* Added support for building against ROCm 7.13 and newer using TheRock (#4952)
 * Added YOLO26 object detection example notebook.
 * Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).
 * Added a dedicated logger for MIGraphX.
@@ -39,6 +40,8 @@ Full documentation for MIGraphX is available at
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
 * Added a `lower_device_ops` pass that lowers `hip::fill`, `hip::copy`, and `gpu::contiguous` operators to code objects before `compile_ops` (#5030).
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
+* Added a verbose terminate handler for exceptions on Windows (#5084).
+* Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
 
 
 ### Changed
@@ -62,6 +65,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed the reference `nonzero` operator to handle non-standard input layouts such as transposed or broadcasted tensors.
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
@@ -81,6 +85,7 @@ Full documentation for MIGraphX is available at
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
 
 ### Optimized
+* Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).
 * Reduced tuning time by scaling the per-candidate benchmark bundle to the candidate's op count (#4989).
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).
 * Replaced Hillis-Steele scan algorithm with a wave-based hierarchical scan, reducing work complexity from O(N log N) to O(N) and synchronization from O(log N) to 2 `__syncthreads()` calls (#4720).

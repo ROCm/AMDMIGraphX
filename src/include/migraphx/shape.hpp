@@ -318,6 +318,13 @@ struct MIGRAPHX_EXPORT shape
     sym::expr sym_elements() const;
 
     /*!
+     * Return each dimension as a symbolic expression. Works for any shape kind:
+     * static dimensions become literals; symbolic dimensions return their
+     * expression.
+     */
+    std::vector<sym::expr> sym_dims() const;
+
+    /*!
      * Return the number of total bytes used for storage of the tensor data; includes subshapes.
      * For dynamic shape, returns the maximum number of bytes presuming a packed shape.
      */
@@ -476,6 +483,13 @@ struct MIGRAPHX_EXPORT shape
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
     shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map = {}) const;
+
+    // Build a symbolic dynamic_dimension by parsing an expression string and binding each
+    // named symbol to the interval/optimals carried by its (range) dynamic_dimension.
+    // Throws if the expression is empty.
+    static dynamic_dimension make_symbolic_dynamic_dimension(
+        const std::string& expression,
+        const std::unordered_map<std::string, dynamic_dimension>& symbols);
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);

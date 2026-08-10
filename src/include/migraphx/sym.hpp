@@ -254,6 +254,9 @@ MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar>
 MIGRAPHX_EXPORT expr as_symbol(const expr& e, int max_depth = -1);
 MIGRAPHX_EXPORT bool same_symbol(const expr& a, const expr& b);
 
+// Whether dividend is evenly divisible by divisor (integral operands only).
+MIGRAPHX_EXPORT bool is_divisible(const expr& dividend, const expr& divisor);
+
 MIGRAPHX_EXPORT expr arg(expr x);
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>

@@ -893,7 +893,7 @@ struct find_mlir_fused_geg_ops
                tag == "dot_pointwise" or tag == "conv_pointwise";
     }
 
-    // check heuristic based on the 4 GEMM inputs to determine if fusion should proceed
+    // Fuse GEG only for large-batch, skinny-k GEMM chains (DLRM bottom MLP)
     bool check_heuristic(const std::vector<instruction_ref>& first_inputs,
                          const std::vector<instruction_ref>& second_inputs) const
     {
@@ -916,53 +916,16 @@ struct find_mlir_fused_geg_ops
         if(m == 0 or n == 0 or k == 0 or g == 0)
             return false;
 
-        // Reject-before-dominance: huge m (e.g. DLRM batch) otherwise always satisfies the
-        // m/n-lead branch below, so k/g "detrimental" checks never run.
-
-        // First GEMM contraction volume vs second GEMM output pairing volume (same units as a
-        // MAC-count ratio up to m,n): when m*k < n*g, the first matmul moves too little mass
-        // relative to the second contraction for fused launch to pay off (dlrm bottom at small m).
-        // No fixed m or k thresholds — rocm_tools cases like m=k=n=g keep m*k >= n*g at equality.
-        const double mk = static_cast<double>(m) * static_cast<double>(k);
-        const double ng = static_cast<double>(n) * static_cast<double>(g);
-        if(mk < ng)
+        constexpr std::int64_t m_min = 65536; // 64K (2^16)
+        constexpr std::int64_t k_max = 128;
+        if(m < m_min or k > k_max)
             return false;
 
-        // First GEMM is "wide" vs shared inner width n (k comparable to n): interaction-MLP
-        // family; rocm_tools shapes keep k << n (e.g. 128/8192).
-        constexpr std::int64_t n_min_for_kn_ratio = 256;
-        constexpr double kn_reject_ratio         = 0.62;
-        if(n >= n_min_for_kn_ratio)
-        {
-            const double kn = static_cast<double>(k) / static_cast<double>(n);
-            if(kn > kn_reject_ratio)
-                return false;
-        }
-
-        // Experimental results show fusion is beneficial when:
-        // 1. m is relatively larger than other dimensions (avg difference > 1000)
-        // 2. n is relatively larger than other dimensions (avg difference > 1000)
-        // Fusion is detrimental when k or g are relatively large
-
-        const double threshold = 1000.0;
-        auto avg_lead          = [](double lead, double o1, double o2, double o3) {
-            return ((lead - o1) + (lead - o2) + (lead - o3)) / 3.0;
-        };
-        double m_avg_difference = avg_lead(m, n, k, g);
-        double n_avg_difference = avg_lead(n, m, k, g);
-        double k_avg_difference = avg_lead(k, m, n, g);
-        double g_avg_difference = avg_lead(g, m, n, k);
-
-        // fusion is good if m or n is significantly larger than others
-        if(m_avg_difference > threshold or n_avg_difference > threshold)
-            return true;
-
-        // fusion is bad if k or g is significantly larger than others
-        if(k_avg_difference > threshold or g_avg_difference > threshold)
+        // First GEMM must move enough work relative to the second
+        if(m * k < n * g)
             return false;
 
-        // default to not fusing
-        return false;
+        return true;
     }
 
     /*

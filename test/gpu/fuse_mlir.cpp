@@ -3380,9 +3380,9 @@ migraphx::instruction_ref add_dlrm_mlp_mlir(migraphx::program& p,
 
 TEST_CASE(dlrm_bottom_mlp_geg)
 // DLRM bottom MLP family: m x 13 @ 13 x 512 -> m x 512, then m x 512 @ 512 x 256.
-// Use large m so GEG heuristic allows fusion (small m + skinny k is rejected).
+// Use m at the 64K fuse floor so the heuristic allows fusion.
 {
-    constexpr std::size_t m = 98304;
+    constexpr std::size_t m = 65536;
     constexpr std::size_t k = 13;
     constexpr std::size_t n = 512;
     constexpr std::size_t g = 256;
@@ -3404,7 +3404,7 @@ TEST_CASE(dlrm_bottom_mlp_geg)
 }
 
 TEST_CASE(dlrm_bottom_mlp_small_m_no_geg)
-// Same geometry as production bottom MLP but small m: m*k < n*g so heuristic rejects.
+// Same geometry as production bottom MLP but m below 64K fuse floor.
 {
     constexpr std::size_t m = 2048;
     constexpr std::size_t k = 13;
@@ -3424,36 +3424,27 @@ TEST_CASE(dlrm_bottom_mlp_small_m_no_geg)
 }
 
 TEST_CASE(dlrm_interaction_mlp_no_geg)
-// DLRM interaction MLP: k is large vs n (k/n ~ 0.81); relational heuristic rejects GEG.
+// DLRM interaction MLP: k=415 exceeds k_max (128).
 {
-    constexpr std::size_t m = 2048;
+    constexpr std::size_t m = 307200;
     constexpr std::size_t k = 415;
     constexpr std::size_t n = 512;
     constexpr std::size_t g = 512;
-    migraphx::program p1;
+    migraphx::program p;
     {
-        auto out = add_dlrm_mlp(p1, migraphx::shape::float_type, m, k, n, g);
-        p1.get_main_module()->add_return({out});
+        auto out = add_dlrm_mlp(p, migraphx::shape::float_type, m, k, n, g);
+        p.get_main_module()->add_return({out});
     }
-    run_pass(p1);
-    migraphx::program p2;
-    {
-        auto fused = add_dlrm_mlp_mlir(
-            p2, "mlir_main:pointwise0_mlir_main:pointwise1_geg", migraphx::shape::float_type, m, k, n, g);
-        p2.get_main_module()->add_return({fused});
-    }
+    run_pass(p);
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;
-    std::stringstream ss1;
-    ss1 << p1;
-    std::stringstream ss2;
-    ss2 << p2;
-    EXPECT(ss1.str().find("geg") == std::string::npos);
-    EXPECT(ss2.str().find("geg") == std::string::npos);
+    std::stringstream ss;
+    ss << p;
+    EXPECT(ss.str().find("geg") == std::string::npos);
 }
 
 TEST_CASE(agentmodel_shape_no_geg)
-// Agentmodel GEG shape family (m=168, g=1648): heuristic rejects large g.
+// Agentmodel shape (m=168): below 64K fuse floor.
 {
     constexpr std::size_t m = 168;
     constexpr std::size_t k = 128;

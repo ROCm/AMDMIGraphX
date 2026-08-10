@@ -96,7 +96,10 @@ void sqlite_problem_cache::load(const std::string& path)
     {
         cache_device_key dk;
         from_value(from_json_string(row.at("device_key")), dk);
-        cache[dk][from_json_string(row.at("problem_key"))] = from_json_string(row.at("solution"));
+        // Normalize keys on load: JSON erases value types, so a serialized key
+        // must be canonicalized to match the normalized runtime lookup key.
+        cache[dk][from_json_string(row.at("problem_key")).normalize()] =
+            from_json_string(row.at("solution"));
     }
 }
 
@@ -129,12 +132,12 @@ void sqlite_problem_cache::insert(const cache_device_key& dk,
                                   const value& solution)
 {
     assert(not solution.is_null());
-    cache[dk][key] = solution;
+    cache[dk][key.normalize()] = solution;
 }
 
 void sqlite_problem_cache::mark(const cache_device_key& dk, const value& key)
 {
-    cache[dk].insert(std::make_pair(key, value{}));
+    cache[dk].insert(std::make_pair(key.normalize(), value{}));
 }
 
 optional<value> sqlite_problem_cache::get(const cache_device_key& dk, const value& key) const
@@ -142,7 +145,7 @@ optional<value> sqlite_problem_cache::get(const cache_device_key& dk, const valu
     auto bucket_it = cache.find(dk);
     if(bucket_it == cache.end())
         return nullopt;
-    auto it = bucket_it->second.find(key);
+    auto it = bucket_it->second.find(key.normalize());
     if(it == bucket_it->second.end())
         return nullopt;
     return it->second;
@@ -153,7 +156,7 @@ bool sqlite_problem_cache::has(const cache_device_key& dk, const value& key) con
     auto bucket_it = cache.find(dk);
     if(bucket_it == cache.end())
         return false;
-    return contains(bucket_it->second, key);
+    return contains(bucket_it->second, key.normalize());
 }
 
 } // namespace gpu

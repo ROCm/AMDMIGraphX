@@ -140,7 +140,8 @@ TEST_CASE(sqlite_problem_cache_save_overwrite)
     c2.load(path);
     EXPECT(c2.has(dk, key_a));
     EXPECT(c2.has(dk, key_b));
-    c2.cache[dk].erase(key_b);
+    // Keys are stored normalized (as insert/load do), so erase by the normalized key.
+    c2.cache[dk].erase(key_b.normalize());
     c2.save(path);
 
     // Third instance must see the smaller set.

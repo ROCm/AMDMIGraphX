@@ -30,9 +30,7 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/logger.hpp>
-#include <algorithm>
 #include <utility>
-#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,16 +41,6 @@ namespace gpu {
 // definition site rather than at some far-away usage.
 static_assert(std::is_constructible<problem_cache_backend, json_problem_cache>{},
               "json_problem_cache must satisfy the problem_cache_backend concept");
-
-static value create_key(const std::string& name, const value& problem)
-{
-    return {{"name", name}, {"problem", problem}};
-}
-
-void json_problem_cache::set_migration_device_key(cache_device_key key)
-{
-    migration_device_key = std::move(key);
-}
 
 void json_problem_cache::load(const std::string& path)
 {
@@ -66,51 +54,21 @@ void json_problem_cache::load(const std::string& path)
     }
     auto root = from_json_string(read_string(path));
 
-    // Detect on-disk format.
-    // - Array of [key, inner_map] pairs => current device-keyed format
-    //   produced by problem_cache::save (and this class's save()).
-    // - Object whose keys begin with '{' => legacy flat-object format
-    //   (string-keyed by serialized {name, problem}). Migrated into the
-    //   migration_device_key bucket. Sorting before insertion makes
-    //   migration deterministic when duplicate keys collide.
-    // - Anything else => unrecognised pre-merge format; skip rather than
-    //   throw so a stale file does not block first-run.
-    if(root.is_array())
-    {
-        // Canonicalize keys only (JSON erases value types); solutions verbatim.
-        std::unordered_map<cache_device_key, std::unordered_map<value, value>> raw;
-        from_value(root, raw);
-        for(const auto& dev : raw)
-            for(const auto& entry : dev.second)
-                cache[dev.first][entry.first.normalize()] = entry.second;
-        return;
-    }
-    if(not root.is_object() or root.empty())
-        return;
-    const auto& first_key = root.begin()->get_key();
-    if(first_key.empty() or first_key.front() != '{')
+    // The on-disk format is an array of [cache_device_key, inner_map] pairs, as
+    // written by save(). Anything else is an unrecognised or pre-merge file:
+    // skip rather than throw so a stale file does not block first-run.
+    if(not root.is_array())
     {
         log::warn() << "json_problem_cache: unrecognised on-disk format at " << path
                     << ", starting fresh";
         return;
     }
-
-    std::unordered_map<value, value> flat;
-    from_value(root, flat);
-    std::vector<std::pair<value, value>> sorted_flat(flat.begin(), flat.end());
-    std::sort(sorted_flat.begin(), sorted_flat.end(), [](const auto& a, const auto& b) {
-        return to_json_string(a.first) < to_json_string(b.first);
-    });
-    auto& bucket = cache[migration_device_key];
-    for(const auto& entry : sorted_flat)
-    {
-        auto projected =
-            create_key(entry.first.at("name").to<std::string>(), entry.first.at("problem"));
-        bucket.emplace(projected.normalize(), entry.second);
-    }
-    log::info() << "json_problem_cache: migrated " << flat.size()
-                << " legacy entries into device bucket "
-                << to_json_string(to_value(migration_device_key));
+    // Canonicalize keys only (JSON erases value types); solutions verbatim.
+    std::unordered_map<cache_device_key, std::unordered_map<value, value>> raw;
+    from_value(root, raw);
+    for(const auto& dev : raw)
+        for(const auto& entry : dev.second)
+            cache[dev.first][entry.first.normalize()] = entry.second;
 }
 
 void json_problem_cache::save(const std::string& path) const

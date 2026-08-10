@@ -78,6 +78,9 @@ void problem_cache::save() const
 void problem_cache::load(const std::vector<std::string>& paths)
 {
     read_only_backends.clear();
+    // Drop any writable path from a prior single-file load so read-only
+    // (multi-file) mode cannot write back through a stale override.
+    path_override.clear();
     if(paths.empty())
         return;
     // A single file is the writable cache (new solutions save back to it).

@@ -40,13 +40,9 @@ namespace gpu {
 
 // A problem_cache_backend that persists entries as JSON, using the same
 // on-disk format as problem_cache::save() (an array of [cache_device_key,
-// inner_map] pairs). A legacy flat-object file is migrated into the bucket
-// set by set_migration_device_key(). Path resolution is the caller's job.
+// inner_map] pairs). Path resolution is the caller's job.
 struct MIGRAPHX_GPU_EXPORT json_problem_cache
 {
-    // Bucket for migrated legacy flat-object files (default: anonymous key).
-    void set_migration_device_key(cache_device_key key);
-
     // problem_cache_backend concept members:
     void load(const std::string& path);
     void save(const std::string& path) const;
@@ -57,9 +53,6 @@ struct MIGRAPHX_GPU_EXPORT json_problem_cache
 
     // Device bucket -> ({name, problem} -> solution).
     std::unordered_map<cache_device_key, std::unordered_map<value, value>> cache;
-
-    private:
-    cache_device_key migration_device_key{};
 };
 
 } // namespace gpu

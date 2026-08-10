@@ -21,55 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DRIVER_VERBOSE_TERMINATE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERBOSE_TERMINATE_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/op/identity.hpp>
-#include <migraphx/operation.hpp>
-#include <string>
 
 namespace migraphx {
+namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
-struct context;
+// Installs a terminate handler mirroring libstdc++'s verbose message
+void install_verbose_terminate_handler();
 
-namespace gpu {
-
-struct hipblaslt_op
-{
-    operation op = op::identity{};
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"));
-    }
-
-    std::string name() const { return "gpu::hipblaslt_op"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        inputs.push_back(inputs.back());
-        return op.compute_shape(inputs);
-    }
-
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
-};
-
-struct compile_hipblaslt
-{
-    context* ctx = nullptr;
-    std::string name() const { return "gpu::compile_hipblaslt"; }
-    void apply(module& m) const;
-};
-
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace driver
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+
+#endif

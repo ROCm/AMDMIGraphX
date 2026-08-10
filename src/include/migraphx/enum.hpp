@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <array>
 #include <iterator>
+#include <ostream>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
@@ -45,11 +46,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace detail {
 
-// enum_capture and enum_capturer implement the value capturing used by MIGRAPHX_ENUM. Each
-// enumerator `e` in the list is rewritten to `enum_capturer{}->*e`. Since operator->* binds
-// more tightly than assignment, `enum_capturer{}->*e = 42` parses as
-// `(enum_capturer{}->*e) = 42`: operator->* captures the real value of the enumerator (which
-// already accounts for the `= 42`), and operator= simply swallows the initializer.
+// Value capturing for MIGRAPHX_ENUM: each enumerator `e` becomes `enum_capturer{}->*e`. operator->*
+// binds tighter than assignment, so `enum_capturer{}->*e = 42` captures e's real value (which
+// already accounts for the `= 42`) and operator= swallows the initializer.
 template <class T>
 struct enum_capture
 {
@@ -73,16 +72,15 @@ struct enum_capturer
     }
 };
 
-// Wraps an enumerator as a type so that get_type_name renders it as its name: the compiler spells
-// a named enumerator as its own identifier, e.g. get_type_name<enum_value<color, green>>() is
-// "...enum_value<color, green>".
+// Wraps an enumerator as a type so get_type_name spells it by name, e.g.
+// get_type_name<enum_value<color, green>>() is "...enum_value<color, green>".
 template <class T, T X>
 struct enum_value
 {
 };
 
-// Recovers the enumerator name from that type name, e.g. "green" from "...enum_value<color, green>"
-// or "on" from "...enum_value<mode, mode::on>" (scoped and nested enumerators are qualified).
+// Recovers the enumerator name from that type name, stripping the qualification that scoped and
+// nested enumerators carry: "...enum_value<mode, mode::on>" gives "on".
 template <class T, T X>
 std::string enum_value_name()
 {
@@ -102,9 +100,9 @@ auto enum_value_names()
     });
 }
 
-// Maps an enumerator value to its name. The value set comes from migraphx_enum_entries, but the
-// names are derived from the values through get_type_name rather than from any stored strings. The
-// value -> name table is built once per enum so lookups are O(1).
+// Maps an enumerator value to its name. Values come from migraphx_enum_entries, names from
+// get_type_name rather than any stored strings. The table is built once per enum, so lookups are
+// O(1).
 template <class Enum>
 std::string enum_to_string(Enum value)
 {
@@ -128,8 +126,7 @@ std::string enum_to_string(Enum value)
 
 } // namespace detail
 
-// Detects enums declared with the MIGRAPHX_ENUM family: those provide a migraphx_enum_entries hook
-// and therefore support to_string and migraphx::from_string.
+// True for enums from the MIGRAPHX_ENUM family, which provide the migraphx_enum_entries hook.
 template <class T, class = void>
 struct is_named_enum : std::false_type
 {
@@ -148,8 +145,8 @@ auto enum_entries()
     return migraphx_enum_entries(Enum{});
 }
 
-// Converts the name of an enumerator back into its value, throwing when the name is unknown. The
-// name -> value table is built once per enum from migraphx_enum_entries so lookups are O(1).
+// Converts an enumerator name back into its value, throwing when the name is unknown. The table is
+// built once per enum, so lookups are O(1).
 template <class Enum, MIGRAPHX_REQUIRES(is_named_enum<Enum>{})>
 Enum from_string(const std::string& name)
 {
@@ -171,40 +168,51 @@ Enum from_string(const std::string& name)
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-// Rewrites a single enumerator `x` (which may include an `= value`) so that operator->* captures
-// its value. See the note on enum_capture above for why operator->* is used here.
+// Rewrites one enumerator `x` (possibly `x = value`) so operator->* captures its value; see the
+// note on enum_capture above.
 #define MIGRAPHX_DETAIL_ENUM_CAPTURE(x) (migraphx::detail::enum_capturer{}->*x)
 
-// The scoped-enum variant qualifies the enumerator with `enum_scope`, a local alias for the enum
-// type that MIGRAPHX_ENUM_CLASS declares in the entries function (scoped enumerators are not
-// visible unqualified).
+// Scoped variant: qualifies with `enum_scope`, the alias the entries function declares, since
+// scoped enumerators are not visible unqualified.
 #define MIGRAPHX_DETAIL_ENUM_CLASS_CAPTURE(x) (migraphx::detail::enum_capturer{}->*enum_scope::x)
 
-// Generates the ADL hooks (migraphx_enum_entries + to_string) shared by the MIGRAPHX_ENUM family.
-// `linkage` is `inline` for a namespace-scope enum or `friend` for a class-scope (nested) enum;
-// `capture` is the per-enumerator capture macro; `prologue` runs before the capture list and is
-// used by the scoped variants to declare the enum_scope alias. migraphx_enum_entries returns just
-// the array of enumerator values; to_string recovers the names from those values via get_type_name.
+// Linkage for the namespace-scope variants. These enums belong in an anonymous namespace in a .cpp,
+// which gives the helpers internal linkage, so any the file never calls would trip
+// -Wunused-function. The nested variants generate hidden friends and need no marking.
+#define MIGRAPHX_DETAIL_ENUM_INLINE [[maybe_unused]] inline
+
+// Generates the ADL hooks (migraphx_enum_entries, to_string, operator<<) shared by the family.
+// `linkage` is MIGRAPHX_DETAIL_ENUM_INLINE at namespace scope or `friend` for a nested enum;
+// `capture` is the per-enumerator capture macro; `prologue` declares the enum_scope alias for the
+// scoped variants. operator<< comes after to_string so the friend variant reaches it by ADL.
 #ifdef CPPCHECK
-// cppcheck's preprocessor cannot expand the recursive MIGRAPHX_PP_TRANSFORM_ARGS, so generate the
-// hooks without it; the captured values are irrelevant to static analysis.
-#define MIGRAPHX_DETAIL_ENUM_HELPERS(linkage, name, capture, prologue, ...) \
-    linkage constexpr auto migraphx_enum_entries(name)                      \
-    {                                                                       \
-        return migraphx::make_array<name>(name{});                          \
-    }                                                                       \
-    linkage std::string to_string(name value) { return migraphx::detail::enum_to_string(value); }
+// cppcheck cannot expand the recursive MIGRAPHX_PP_TRANSFORM_ARGS; the captured values do not
+// matter to static analysis.
+#define MIGRAPHX_DETAIL_ENUM_HELPERS(linkage, name, capture, prologue, ...)                       \
+    linkage constexpr auto migraphx_enum_entries(name)                                            \
+    {                                                                                             \
+        return migraphx::make_array<name>(name{});                                                \
+    }                                                                                             \
+    linkage std::string to_string(name value) { return migraphx::detail::enum_to_string(value); } \
+    linkage std::ostream& operator<<(std::ostream& os, name value)                                \
+    {                                                                                             \
+        return os << to_string(value);                                                            \
+    }
 #else
-#define MIGRAPHX_DETAIL_ENUM_HELPERS(linkage, name, capture, prologue, ...) \
-    linkage constexpr auto migraphx_enum_entries(name)                      \
-    {                                                                       \
-        prologue return migraphx::make_array<name>(                         \
-            MIGRAPHX_PP_TRANSFORM_ARGS(capture, __VA_ARGS__));              \
-    }                                                                       \
-    linkage std::string to_string(name value) { return migraphx::detail::enum_to_string(value); }
+#define MIGRAPHX_DETAIL_ENUM_HELPERS(linkage, name, capture, prologue, ...)                       \
+    linkage constexpr auto migraphx_enum_entries(name)                                            \
+    {                                                                                             \
+        prologue return migraphx::make_array<name>(                                               \
+            MIGRAPHX_PP_TRANSFORM_ARGS(capture, __VA_ARGS__));                                    \
+    }                                                                                             \
+    linkage std::string to_string(name value) { return migraphx::detail::enum_to_string(value); } \
+    linkage std::ostream& operator<<(std::ostream& os, name value)                                \
+    {                                                                                             \
+        return os << to_string(value);                                                            \
+    }
 #endif
 
-// Declares an unscoped enum and generates `to_string` and `migraphx::from_string` helpers that
+// Declares an unscoped enum plus `to_string`, `migraphx::from_string`, and `operator<<`, which
 // convert its enumerators to and from their names. Use it at namespace scope:
 //
 //     MIGRAPHX_ENUM(color,
@@ -214,18 +222,21 @@ Enum from_string(const std::string& name)
 //
 //     std::string s = to_string(green);                     // "green"
 //     color c       = migraphx::from_string<color>("blue"); // blue
+//     std::cout << green;                                   // prints "green"
 //
-// Enumerators may take explicit values, and up to 63 are supported. When used in a .cpp instead of
-// a header, place it in an anonymous namespace so the generated helpers get internal linkage.
+// operator<< is an exact match, so it beats the conversion to the underlying type: the enum streams
+// as its name, not its number. Up to 63 enumerators, which may take explicit values. In a .cpp,
+// declare it in an anonymous namespace so the helpers get internal linkage.
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define MIGRAPHX_ENUM(name, ...) \
-    enum name                    \
-    {                            \
-        __VA_ARGS__              \
-    };                           \
-    MIGRAPHX_DETAIL_ENUM_HELPERS(inline, name, MIGRAPHX_DETAIL_ENUM_CAPTURE, , __VA_ARGS__)
+#define MIGRAPHX_ENUM(name, ...)  \
+    enum name                     \
+    {                             \
+        __VA_ARGS__               \
+    };                            \
+    MIGRAPHX_DETAIL_ENUM_HELPERS( \
+        MIGRAPHX_DETAIL_ENUM_INLINE, name, MIGRAPHX_DETAIL_ENUM_CAPTURE, , __VA_ARGS__)
 
-// Like MIGRAPHX_ENUM, but declares a scoped enum (enum class):
+// Like MIGRAPHX_ENUM, but a scoped enum (enum class):
 //
 //     MIGRAPHX_ENUM_CLASS(color,
 //         red,
@@ -234,21 +245,24 @@ Enum from_string(const std::string& name)
 //
 //     std::string s = to_string(color::green);              // "green"
 //     color c       = migraphx::from_string<color>("blue"); // color::blue
+//     std::cout << color::green;                            // prints "green"
 //
-// An explicit enumerator value must be self-contained: it cannot reference another enumerator,
-// which is not visible unqualified in a scoped enum.
+// An explicit value must be self-contained: it cannot reference another enumerator, which is not
+// visible unqualified in a scoped enum.
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define MIGRAPHX_ENUM_CLASS(name, ...) \
-    enum class name                    \
-    {                                  \
-        __VA_ARGS__                    \
-    };                                 \
-    MIGRAPHX_DETAIL_ENUM_HELPERS(      \
-        inline, name, MIGRAPHX_DETAIL_ENUM_CLASS_CAPTURE, using enum_scope = name;, __VA_ARGS__)
+#define MIGRAPHX_ENUM_CLASS(name, ...)                               \
+    enum class name                                                  \
+    {                                                                \
+        __VA_ARGS__                                                  \
+    };                                                               \
+    MIGRAPHX_DETAIL_ENUM_HELPERS(MIGRAPHX_DETAIL_ENUM_INLINE,        \
+                                 name,                               \
+                                 MIGRAPHX_DETAIL_ENUM_CLASS_CAPTURE, \
+                                 using enum_scope = name;            \
+                                 , __VA_ARGS__)
 
-// Like MIGRAPHX_ENUM, but for an enum declared inside a class or struct. The helpers are generated
-// as hidden friends instead of free functions so that argument-dependent lookup still finds them.
-// Use it inside the class/struct body:
+// Like MIGRAPHX_ENUM, but for an enum inside a class or struct: the helpers become hidden friends
+// rather than free functions, so ADL still finds them. Use it in the class body:
 //
 //     struct widget
 //     {
@@ -257,6 +271,7 @@ Enum from_string(const std::string& name)
 //
 //     std::string s  = to_string(widget::on);                      // "on"
 //     widget::mode m = migraphx::from_string<widget::mode>("off"); // widget::off
+//     std::cout << widget::on;                                     // prints "on"
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define MIGRAPHX_NESTED_ENUM(name, ...) \
     enum name                           \
@@ -265,9 +280,8 @@ Enum from_string(const std::string& name)
     };                                  \
     MIGRAPHX_DETAIL_ENUM_HELPERS(friend, name, MIGRAPHX_DETAIL_ENUM_CAPTURE, , __VA_ARGS__)
 
-// Like MIGRAPHX_NESTED_ENUM, but declares a scoped enum (enum class); it relates to
-// MIGRAPHX_NESTED_ENUM as MIGRAPHX_ENUM_CLASS does to MIGRAPHX_ENUM, including the same restriction
-// on explicit enumerator values. Use it inside the class/struct body:
+// Like MIGRAPHX_NESTED_ENUM, but a scoped enum, with the same restriction on explicit values as
+// MIGRAPHX_ENUM_CLASS. Use it in the class body:
 //
 //     struct widget
 //     {
@@ -276,6 +290,7 @@ Enum from_string(const std::string& name)
 //
 //     std::string s  = to_string(widget::unit::cm);               // "cm"
 //     widget::unit u = migraphx::from_string<widget::unit>("mm"); // widget::unit::mm
+//     std::cout << widget::unit::cm;                              // prints "cm"
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define MIGRAPHX_NESTED_ENUM_CLASS(name, ...) \
     enum class name                           \

@@ -21,55 +21,54 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+#include "verbose_terminate.hpp"
 
-#include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/op/identity.hpp>
-#include <migraphx/operation.hpp>
-#include <string>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
+#include <typeinfo>
 
 namespace migraphx {
+namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
-struct context;
-
-namespace gpu {
-
-struct hipblaslt_op
+// Print the active exception's type and what() message, then abort (mirrors libstdc++).
+void install_verbose_terminate_handler()
 {
-    operation op = op::identity{};
+    std::set_terminate([] {
+        static bool terminating = false;
+        if(terminating)
+        {
+            std::cerr << "terminate called recursively\n";
+            std::abort();
+        }
+        terminating = true;
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"));
-    }
+        if(const std::exception_ptr eptr = std::current_exception())
+        {
+            try
+            {
+                std::rethrow_exception(eptr);
+            }
+            catch(const std::exception& e)
+            {
+                std::cerr << "terminate called after throwing an instance of '" << typeid(e).name()
+                          << "'\n  what():  " << e.what() << '\n';
+            }
+            catch(...)
+            {
+                std::cerr
+                    << "terminate called after throwing an instance of an unknown exception\n";
+            }
+        }
+        else
+        {
+            std::cerr << "terminate called without an active exception\n";
+        }
+        std::abort();
+    });
+}
 
-    std::string name() const { return "gpu::hipblaslt_op"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        inputs.push_back(inputs.back());
-        return op.compute_shape(inputs);
-    }
-
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
-};
-
-struct compile_hipblaslt
-{
-    context* ctx = nullptr;
-    std::string name() const { return "gpu::compile_hipblaslt"; }
-    void apply(module& m) const;
-};
-
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace driver
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP

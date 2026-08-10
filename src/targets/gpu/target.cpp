@@ -61,7 +61,6 @@
 #include <migraphx/rewrite_topk.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/serialize.hpp>
-#include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -203,7 +202,7 @@ struct pipeline_factory
     std::vector<pass> fusion_pipeline() const
     {
         return {
-            enable_pass(mlir_enabled(),
+            enable_pass(options.compile_mode != compile_modes::eager && mlir_enabled(),
                         fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},

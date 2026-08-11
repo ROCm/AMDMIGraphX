@@ -96,8 +96,10 @@ endif()
 
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
-option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+option(MIGRAPHX_ENABLE_TENSORFLOW "Enable TensorFlow integration" ON)
+option(MIGRAPHX_ENABLE_ONNX "Enable ONNX model import" ON)
 
 if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
     message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
@@ -195,6 +197,7 @@ endif()
 rocm_enable_clang_tidy(
     CHECKS
         bugprone-*
+        -bugprone-std-namespace-modification
         cert-*
         clang-analyzer-*
         clang-diagnostic-*
@@ -212,11 +215,16 @@ rocm_enable_clang_tidy(
         -bugprone-crtp-constructor-accessibility
         -bugprone-derived-method-shadowing-base-method
         -bugprone-easily-swappable-parameters
+        -bugprone-exception-escape
+        -bugprone-fold-init-type
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
         -bugprone-nondeterministic-pointer-iteration-order
+        -bugprone-random-generator-seed
         -bugprone-return-const-ref-from-parameter
+        -bugprone-signed-bitwise
         -bugprone-signed-char-misuse
+        -bugprone-std-exception-baseclass
         -bugprone-unchecked-optional-access
         -bugprone-unintended-char-ostream-output
         # Disable the aliased reserved identifiers
@@ -271,8 +279,11 @@ rocm_enable_clang_tidy(
         -misc-const-correctness
         -misc-include-cleaner
         -misc-macro-parentheses
+        -misc-multiple-inheritance
         -misc-no-recursion
         -misc-override-with-different-visibility
+        -misc-use-internal-linkage
+        -modernize-avoid-c-style-cast
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-type-traits
@@ -280,12 +291,18 @@ rocm_enable_clang_tidy(
         -modernize-use-nodiscard
         -modernize-use-override
         -modernize-use-scoped-lock
+        -modernize-use-string-view
+        -modernize-use-structured-binding
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-avoid-endl
+        -performance-faster-string-find
+        -performance-prefer-single-char-overloads
         -performance-type-promotion-in-math-fn
         -performance-enum-size
+        -performance-use-std-move
         -readability-braces-around-statements
+        -readability-inconsistent-ifelse-braces
         -readability-container-size-empty
         -readability-avoid-nested-conditional-operator
         -readability-convert-member-functions-to-static
@@ -294,10 +311,13 @@ rocm_enable_clang_tidy(
         -readability-identifier-length
         -readability-math-missing-parentheses
         -readability-named-parameter
+        -readability-redundant-lambda-parameter-list
         -readability-redundant-member-init
         -readability-redundant-parentheses
+        -readability-redundant-qualified-alias
         -readability-redundant-string-init
         -readability-suspicious-call-argument
+        -readability-trailing-comma
         -readability-uppercase-literal-suffix
         -readability-use-concise-preprocessor-directives
         -*-avoid-c-arrays

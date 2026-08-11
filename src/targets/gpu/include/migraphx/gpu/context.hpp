@@ -39,8 +39,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
-#include <migraphx/gpu/hsa_chiplet.hpp>
-#include <migraphx/gpu/cross_compile_device.hpp>
+#include <migraphx/gpu/device_description.hpp>
 #include <unordered_map>
 #include <memory>
 #include <optional>
@@ -56,14 +55,11 @@ using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
 struct hip_device
 {
-    hip_device() : device_props{} { add_stream(); }
+    hip_device() { add_stream(); }
 
-    hip_device(std::size_t id, std::size_t n) : device_id(id)
+    hip_device(std::size_t id, std::size_t n)
+        : device_id(id), desc(device_description::from_device(id))
     {
-        auto status = hipGetDeviceProperties(&device_props, device_id);
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to get device properties: " + hip_error(status));
-
         // Set the device prior to Events that get created within a Context.
         set_device(device_id);
 
@@ -71,17 +67,11 @@ struct hip_device
             add_stream();
     }
 
-    hip_device(const std::string& arch_name,
-               std::size_t cu_count,
-               std::size_t chiplets,
-               std::size_t max_threads_per_cu    = 2048,
-               std::size_t max_threads_per_block = 1024,
-               std::size_t wavefront_size        = 0)
-        : cross_compile_mode(true),
-          chiplet_count_override(std::max<std::size_t>(chiplets, 1)),
-          device_props(make_cross_compile_device_props(
-              arch_name, cu_count, max_threads_per_cu, max_threads_per_block, wavefront_size))
+    explicit hip_device(const device_description& d) : cross_compile_mode(true), desc(d)
     {
+        desc.normalize();
+        if(desc.arch.empty())
+            MIGRAPHX_THROW("Cross-compile device_description.arch must be set");
         add_stream();
     }
 
@@ -248,41 +238,30 @@ struct hip_device
 
     std::size_t stream_id() const { return current_stream; }
 
-    std::string get_device_name() const { return device_props.gcnArchName; }
+    const device_description& get_device_description() const { return desc; }
+
+    std::string get_device_name() const { return desc.arch; }
 
     std::string get_gfx_name() const { return gpu::get_gfx_name(get_device_name()); }
 
-    std::size_t get_device_major() const { return device_props.major; }
+    std::size_t get_cu_count() const { return desc.num_cu; }
 
-    std::size_t get_device_minor() const { return device_props.minor; }
-
-    std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
-
-    std::size_t get_chiplet_count() const
-    {
-        if(cross_compile_mode)
-            return chiplet_count_override;
-        return get_hsa_chiplet_count(device_id);
-    }
+    std::size_t get_chiplet_count() const { return desc.num_chiplets; }
 
     bool is_cross_compile() const { return cross_compile_mode; }
 
-    std::size_t get_max_workitems_per_cu() const
-    {
-        return device_props.maxThreadsPerMultiProcessor;
-    }
+    std::size_t get_max_workitems_per_cu() const { return desc.max_threads_per_cu; }
 
-    std::size_t get_max_workitems_per_block() const { return device_props.maxThreadsPerBlock; }
+    std::size_t get_max_workitems_per_block() const { return desc.max_threads_per_block; }
 
-    std::size_t get_wavefront_size() const { return device_props.warpSize; }
+    std::size_t get_wavefront_size() const { return desc.wavefront_size; }
 
     private:
-    std::size_t device_id              = 0;
-    std::size_t current_stream         = 0;
-    bool cross_compile_mode            = false;
-    std::size_t chiplet_count_override = 1;
+    std::size_t device_id      = 0;
+    std::size_t current_stream = 0;
+    bool cross_compile_mode    = false;
     std::vector<stream> streams;
-    hipDeviceProp_t device_props;
+    device_description desc = {};
 
     public:
     std::unordered_map<std::string, argument> preallocations{};
@@ -307,27 +286,17 @@ struct context
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
         : current_device(std::make_shared<hip_device>(device_id, n)),
           begin_event(create_event()),
-          finish_event(create_event()),
-          pc(std::make_shared<auto_save_problem_cache>())
+          finish_event(create_event())
     {
         // Bind the cache to this context's device (cross-compile safe: the
         // key is derived from the context, not a live HIP query).
         pc->set_device_key(*this);
     }
 
-    context(const std::string& arch_name,
-            std::size_t cu_count,
-            std::size_t chiplets,
-            std::size_t max_threads_per_cu    = 2048,
-            std::size_t max_threads_per_block = 1024,
-            std::size_t wavefront_size        = 0)
-        : current_device(std::make_shared<hip_device>(arch_name,
-                                                      cu_count,
-                                                      chiplets,
-                                                      max_threads_per_cu,
-                                                      max_threads_per_block,
-                                                      wavefront_size)),
-          pc(std::make_shared<auto_save_problem_cache>())
+    /// Construct a context for a device that is not present, which can only be
+    /// used to compile and not to execute.
+    explicit context(const device_description& desc)
+        : current_device(std::make_shared<hip_device>(desc))
     {
     }
 
@@ -506,7 +475,7 @@ struct context
     // for stream synchronization
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
-    std::shared_ptr<auto_save_problem_cache> pc = nullptr;
+    std::shared_ptr<auto_save_problem_cache> pc = std::make_shared<auto_save_problem_cache>();
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

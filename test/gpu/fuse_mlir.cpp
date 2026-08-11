@@ -1850,10 +1850,10 @@ TEST_CASE(unpack_fp4_nonstandard)
 
 TEST_CASE(dot_add_dot)
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {65536, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {65536, 512}};
+    migraphx::shape s4{migraphx::shape::half_type, {512, 256}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -1896,10 +1896,10 @@ TEST_CASE(dot_add_dot)
 
 TEST_CASE(dot_add_dot_split_reduce)
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {98304, 64}};
+    migraphx::shape s2{migraphx::shape::half_type, {64, 384}};
+    migraphx::shape s3{migraphx::shape::half_type, {98304, 384}};
+    migraphx::shape s4{migraphx::shape::half_type, {384, 192}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -1957,10 +1957,10 @@ TEST_CASE(dot_add_dot_split_reduce)
 
 TEST_CASE(dot_add_dot_fused_reduce)
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {131072, 32}};
+    migraphx::shape s2{migraphx::shape::half_type, {32, 256}};
+    migraphx::shape s3{migraphx::shape::half_type, {131072, 256}};
+    migraphx::shape s4{migraphx::shape::half_type, {256, 128}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2010,10 +2010,10 @@ TEST_CASE(dot_add_dot_fused_reduce)
 TEST_CASE(dot_add_dot_abc_f32)
 // MLIR currently only supports (A*B)*C GEG patterns
 {
-    migraphx::shape s1{migraphx::shape::float_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::float_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::float_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::float_type, {65536, 13}};
+    migraphx::shape s2{migraphx::shape::float_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::float_type, {65536, 512}};
+    migraphx::shape s4{migraphx::shape::float_type, {512, 256}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2049,10 +2049,10 @@ TEST_CASE(dot_add_dot_abc_f32)
 TEST_CASE(dot_add_dot_abc_fp16)
 // MLIR currently only supports (A*B)*C GEG patterns
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {196608, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {196608, 512}};
+    migraphx::shape s4{migraphx::shape::half_type, {512, 128}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2110,10 +2110,10 @@ TEST_CASE(dot_add_dot_cab)
 
 TEST_CASE(dot_mul_dot)
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {65536, 128}};
+    migraphx::shape s2{migraphx::shape::half_type, {128, 256}};
+    migraphx::shape s3{migraphx::shape::half_type, {65536, 256}};
+    migraphx::shape s4{migraphx::shape::half_type, {256, 64}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2285,10 +2285,10 @@ TEST_CASE_SKIP(dot_add_multi_user_dot, "GEG multi-output intermediates not suppo
 // GEG fusion has two outputs, E has external user
 // not currently supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {98304, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 384}};
+    migraphx::shape s3{migraphx::shape::half_type, {98304, 384}};
+    migraphx::shape s4{migraphx::shape::half_type, {384, 256}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2342,10 +2342,10 @@ TEST_CASE_SKIP(dot_add_multi_user_dot_with_transpose,
 // GEG fusion has two outputs, E has external user
 // not currently supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape s1{migraphx::shape::half_type, {65536, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {65536, 512}};
+    migraphx::shape s4{migraphx::shape::half_type, {256, 512}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2397,10 +2397,10 @@ TEST_CASE_SKIP(dot_add_multi_user_dot_two_externals, "GEG multi-output intermedi
 // GEG fusion has two outputs, E has external user
 // not currently supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {131072, 64}};
+    migraphx::shape s2{migraphx::shape::half_type, {64, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {131072, 512}};
+    migraphx::shape s4{migraphx::shape::half_type, {512, 256}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2456,10 +2456,10 @@ TEST_CASE_SKIP(dot_add_multi_user_dot_input_used_before,
 // This also shows the relu being fused, since it is a unary op
 // currently not supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {65536, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {65536, 512}};
+    migraphx::shape s4{migraphx::shape::half_type, {512, 256}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -2518,10 +2518,10 @@ TEST_CASE_SKIP(dot_add_multi_user_dot_input_used_after,
 // Result should be, and is, equivalent to the previous test
 // currently not supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {98304, 64}};
+    migraphx::shape s2{migraphx::shape::half_type, {64, 384}};
+    migraphx::shape s3{migraphx::shape::half_type, {98304, 384}};
+    migraphx::shape s4{migraphx::shape::half_type, {384, 192}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2578,10 +2578,10 @@ TEST_CASE_SKIP(dot_add_multi_user_dot_input_used_before_in_chain,
 // the mul gets fused into the GEG fusion.
 // not currently supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {131072, 32}};
+    migraphx::shape s2{migraphx::shape::half_type, {32, 256}};
+    migraphx::shape s3{migraphx::shape::half_type, {131072, 256}};
+    migraphx::shape s4{migraphx::shape::half_type, {256, 128}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -2675,10 +2675,10 @@ TEST_CASE_SKIP(dot_add_multi_user_dot_input_used_after_in_chain,
 // longer chain of logic
 // not currently supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {196608, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {196608, 512}};
+    migraphx::shape s4{migraphx::shape::half_type, {512, 128}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -2768,10 +2768,10 @@ TEST_CASE_SKIP(dot_pw_multi_user_dot, "GEG multi-output intermediates not suppor
 // GEG fusion has two outputs, E has external user, E is multiple elemwise ops
 // not currently supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {196608, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {196608, 512}};
+    migraphx::shape s4{migraphx::shape::half_type, {512, 128}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2832,10 +2832,10 @@ TEST_CASE_SKIP(dot_multi_user_add_dot, "GEG multi-output intermediates not suppo
 // GEG fusion has two outputs (first G has external user)
 // not currently supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {65536, 128}};
+    migraphx::shape s2{migraphx::shape::half_type, {128, 256}};
+    migraphx::shape s3{migraphx::shape::half_type, {65536, 256}};
+    migraphx::shape s4{migraphx::shape::half_type, {256, 64}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2883,10 +2883,10 @@ TEST_CASE_SKIP(dot_add_dot_both_multi_user, "GEG multi-output intermediates not 
 // GEG fusion has three outputs (first G has external user, E has external user)
 // not currently supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {98304, 64}};
+    migraphx::shape s2{migraphx::shape::half_type, {64, 384}};
+    migraphx::shape s3{migraphx::shape::half_type, {98304, 384}};
+    migraphx::shape s4{migraphx::shape::half_type, {384, 192}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2934,10 +2934,10 @@ TEST_CASE_SKIP(dot_add_dot_both_multi_user, "GEG multi-output intermediates not 
 
 TEST_CASE(dot_add_relu_dot)
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {65536, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {65536, 512}};
+    migraphx::shape s4{migraphx::shape::half_type, {512, 256}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2983,10 +2983,10 @@ TEST_CASE(dot_add_relu_dot)
 
 TEST_CASE(dot_dot_add)
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {4, 2}};
-    migraphx::shape s4{migraphx::shape::half_type, {1024, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {98304, 64}};
+    migraphx::shape s2{migraphx::shape::half_type, {64, 384}};
+    migraphx::shape s3{migraphx::shape::half_type, {384, 128}};
+    migraphx::shape s4{migraphx::shape::half_type, {98304, 128}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -3027,9 +3027,9 @@ TEST_CASE(dot_dot_add)
 
 TEST_CASE(dot_dot)
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {131072, 32}};
+    migraphx::shape s2{migraphx::shape::half_type, {32, 256}};
+    migraphx::shape s3{migraphx::shape::half_type, {256, 64}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -3062,10 +3062,10 @@ TEST_CASE(dot_dot)
 
 TEST_CASE(dot_dot_pointwise_geg)
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {4, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {1024, 4}};
+    migraphx::shape s1{migraphx::shape::half_type, {196608, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {512, 256}};
+    migraphx::shape s4{migraphx::shape::half_type, {196608, 256}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -3109,11 +3109,11 @@ TEST_CASE(dot_dot_pointwise_geg)
 TEST_CASE(dot_add_relu_dot_add_relu)
 // Criteo-style terabyte model: dot -> add/relu -> dot -> add/relu
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
-    migraphx::shape s5{migraphx::shape::half_type, {1024, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {65536, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {65536, 512}};
+    migraphx::shape s4{migraphx::shape::half_type, {512, 256}};
+    migraphx::shape s5{migraphx::shape::half_type, {65536, 256}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -3122,19 +3122,18 @@ TEST_CASE(dot_add_relu_dot_add_relu)
         auto x    = mm->add_parameter("x", s3);
         auto y    = mm->add_parameter("y", s4);
         auto z    = mm->add_parameter("z", s5);
-        auto dot1 = mm->add_instruction(
-            migraphx::make_op("dot"), a, b); // {1024,4}; m=1024 makes m_avg_difference > 1000
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto pw1 =
             add_pointwise(p1, "main:pointwise0", {dot1, x}, [=](auto* pm, const auto& inputs) {
                 auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return pm->add_instruction(migraphx::make_op("relu"), add);
-            });                                                            // {1024,4}
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), pw1, y); // {1024,2}
+            });
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), pw1, y);
         auto pw2 =
             add_pointwise(p1, "main:pointwise1", {dot2, z}, [=](auto* pm, const auto& inputs) {
                 auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return pm->add_instruction(migraphx::make_op("relu"), add);
-            }); // {1024,2}
+            });
         mm->add_return({pw2});
     }
     run_pass(p1);
@@ -3170,10 +3169,10 @@ TEST_CASE(dot_dot_add_with_gemm_multi_out)
 // Second submodule (dot+add) has multi-out where the inner dot is also returned
 // This scenario *is* supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {4, 2}};
-    migraphx::shape s4{migraphx::shape::half_type, {1024, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {98304, 64}};
+    migraphx::shape s2{migraphx::shape::half_type, {64, 384}};
+    migraphx::shape s3{migraphx::shape::half_type, {384, 192}};
+    migraphx::shape s4{migraphx::shape::half_type, {98304, 192}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -3296,10 +3295,10 @@ TEST_CASE(dot_add_dot_lds_too_large_no_geg)
     if(not blocking_g.has_value())
         return;
 
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {*blocking_g, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {65536, 13}};
+    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
+    migraphx::shape s3{migraphx::shape::half_type, {65536, 512}};
+    migraphx::shape s4{migraphx::shape::half_type, {512, *blocking_g}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();

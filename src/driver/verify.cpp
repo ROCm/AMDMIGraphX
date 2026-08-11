@@ -98,25 +98,16 @@ namespace {
 using trace_function      = std::function<void(instruction_ref, const argument&)>;
 using substitute_function = std::function<optional<argument>(instruction_ref, const argument&)>;
 
-const std::string& label_prefix()
-{
-    static const std::string prefix = "@verify:";
-    return prefix;
-}
-
-bool is_label(const std::string& symbol) { return starts_with(symbol, label_prefix()); }
-
 std::string source_name(instruction_ref ins)
 {
     const auto& symbols = ins->get_debug_symbols();
     std::vector<std::string> names;
     std::copy_if(symbols.begin(), symbols.end(), std::back_inserter(names), [](const auto& symbol) {
-        return not is_label(symbol);
+        return not starts_with(symbol, "@verify:");
     });
     return join_strings(std::move(names), ", ");
 }
 
-// One instance spans both runs, capture() on the reference and then compare() on the target.
 struct verify_callback
 {
     struct layer_result
@@ -142,6 +133,7 @@ struct verify_callback
     ref_map ref_outputs                         = {};
     std::map<std::size_t, layer_result> results = {};
 
+    // Captures ref outputs for each instruction.
     trace_function capture()
     {
         return [this](instruction_ref ins, const argument& output) {
@@ -150,14 +142,12 @@ struct verify_callback
             auto order = ref_count++;
             auto name  = source_name(ins);
             for(const auto& symbol : ins->get_debug_symbols())
-                if(is_label(symbol))
+                if(starts_with(symbol, "@verify:"))
                     ref_outputs[symbol] = {output, name, order};
         };
     }
 
-    // A fused op carries every label it absorbed, and a pass can hand it labels of neighbours it
-    // does not produce, so consider only candidates shaped like this output and take the last
-    // traced of those.
+    // A fused op carries carries multiple labels; get the last one.
     ref_map::const_iterator terminal(instruction_ref ins, const shape& s) const
     {
         auto result = ref_outputs.end();
@@ -166,8 +156,8 @@ struct verify_callback
             auto it = ref_outputs.find(symbol);
             if(it == ref_outputs.end())
                 continue;
-            // --ref-use-double widens floats, so integralness stands in for the exact type.
             const auto& rs = it->second.output.get_shape();
+            // quantization changes the type, so only check for float vs integer
             if(not shape::same_lens(rs, s) or
                shape::is_integral(rs.type()) != shape::is_integral(s.type()))
                 continue;
@@ -177,8 +167,7 @@ struct verify_callback
         return result;
     }
 
-    // Scores the op, then feeds the reference forward so later ops run on known-good inputs and
-    // each error is the op's own.
+    // Runs the target with ref inputs and compares the results.
     substitute_function compare()
     {
         return [this](instruction_ref ins, const argument& output) -> optional<argument> {
@@ -210,6 +199,7 @@ struct verify_callback
         };
     }
 
+    // Returns the layers that didn't meet tolerance.
     std::vector<layer_result> failures() const
     {
         std::vector<layer_result> result;
@@ -222,6 +212,7 @@ struct verify_callback
         return result;
     }
 
+    // Returns the layer with the greatest error.
     optional<layer_result> divergence_source() const
     {
         auto failed = failures();
@@ -295,8 +286,7 @@ static std::vector<argument> run_target(program p,
     return output;
 }
 
-// Names every instruction except returns, so that the separately compiled ref and target programs
-// share an identity that survives fusion. Both runs must be given the same labelled program.
+// Labels each instruction with a unique identifier.
 static program label_instructions(program p)
 {
     std::size_t id = 0;
@@ -304,18 +294,15 @@ static program label_instructions(program p)
     {
         for(auto ins : iterator_for(*m))
         {
-            // The symbols on a return name the program outputs, and replace_allocate pairs them
-            // off by count.
             if(ins->name() == "@return")
                 continue;
-            m->add_debug_symbols(ins, {label_prefix() + std::to_string(id++)});
+            m->add_debug_symbols(ins, {"@verify:" + std::to_string(id++)});
         }
     }
     return p;
 }
 
-// Runs ref and target once each. Returns nullopt when the model has no debug symbols or when no
-// layers could be paired.
+// Runs ref and target
 static optional<verify_callback> run_layerwise_compare(const program& p,
                                                        const target& t,
                                                        const compile_options& options,

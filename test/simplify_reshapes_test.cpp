@@ -1203,6 +1203,87 @@ TEST_CASE(concat_transpose4)
     EXPECT(m1 == m);
 }
 
+TEST_CASE(concat_transpose_to_standard)
+{
+    // The transposes undo the layout of their inputs, so their output shapes are standard and
+    // the permutation cannot be recovered from the strides of those shapes.
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 4, 3}, {24, 12, 1, 4}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
+        auto xt =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), x);
+        auto yt =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), y);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), xt, yt);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), x, y);
+        auto t = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                    concat);
+        m2.add_return({t});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(concat_transpose_to_standard_negative_axis)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 2}, {24, 4, 1, 12}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
+        auto xt =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), x);
+        auto yt =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), y);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", -1}}), xt, yt);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), x, y);
+        auto t = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}),
+                                    concat);
+        m2.add_return({t});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(concat_transpose_to_standard_different_permutation)
+{
+    // Both transposes produce a standard shape, but they are not the same permutation, so the
+    // transpose cannot be moved past the concat.
+    auto sx = migraphx::shape{migraphx::shape::float_type, {1, 2, 4, 3}, {24, 12, 1, 4}};
+    auto sy = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 4}, {24, 4, 12, 1}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", sx);
+        auto y = m1.add_parameter("y", sy);
+        auto xt =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), x);
+        auto yt =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), y);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), xt, yt);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(concat_unsqueeze)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {11008, 4096}};

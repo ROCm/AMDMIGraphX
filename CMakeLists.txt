@@ -62,18 +62,6 @@ detect_package_backend()
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
-include(CMakeDependentOption)
-
-cmake_dependent_option(MIGRAPHX_MSVC_STATIC_RUNTIME "Link MSVC runtime library statically instead of dynamically" OFF "WIN32" OFF)
-
-if(NOT MIGRAPHX_MSVC_STATIC_RUNTIME)
-    set(MIGRAPHX_MSVC_RUNTIME_SUFFIX "DLL")
-endif()
-
-if(NOT CMAKE_MSVC_RUNTIME_LIBRARY)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${MIGRAPHX_MSVC_RUNTIME_SUFFIX}")
-endif()
-
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     option(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS "Prepare MIGraphX for BinSkim Binary Analyzer" OFF)
     option(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES "Use Spectre-mitigated libraries" OFF)
@@ -97,12 +85,21 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
             message(WARNING "Spectre-mitigated libraries are not yet available for Clang in this project.")
         endif()
     endif()
+    option(MIGRAPHX_USE_MSVC_STATIC_RUNTIME "Link MSVC runtime library statically instead of dynamically" OFF)
+    if(NOT MIGRAPHX_USE_MSVC_STATIC_RUNTIME)
+        set(MIGRAPHX_MSVC_RUNTIME_SUFFIX "DLL")
+    endif()
+    if(NOT CMAKE_MSVC_RUNTIME_LIBRARY)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${MIGRAPHX_MSVC_RUNTIME_SUFFIX}")
+    endif()
 endif()
 
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
-option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+option(MIGRAPHX_ENABLE_TENSORFLOW "Enable TensorFlow integration" ON)
+option(MIGRAPHX_ENABLE_ONNX "Enable ONNX model import" ON)
 
 if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
     message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
@@ -149,7 +146,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.16.0)
+rocm_setup_version(VERSION 2.17.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
@@ -200,6 +197,7 @@ endif()
 rocm_enable_clang_tidy(
     CHECKS
         bugprone-*
+        -bugprone-std-namespace-modification
         cert-*
         clang-analyzer-*
         clang-diagnostic-*
@@ -217,11 +215,16 @@ rocm_enable_clang_tidy(
         -bugprone-crtp-constructor-accessibility
         -bugprone-derived-method-shadowing-base-method
         -bugprone-easily-swappable-parameters
+        -bugprone-exception-escape
+        -bugprone-fold-init-type
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
         -bugprone-nondeterministic-pointer-iteration-order
+        -bugprone-random-generator-seed
         -bugprone-return-const-ref-from-parameter
+        -bugprone-signed-bitwise
         -bugprone-signed-char-misuse
+        -bugprone-std-exception-baseclass
         -bugprone-unchecked-optional-access
         -bugprone-unintended-char-ostream-output
         # Disable the aliased reserved identifiers
@@ -276,8 +279,11 @@ rocm_enable_clang_tidy(
         -misc-const-correctness
         -misc-include-cleaner
         -misc-macro-parentheses
+        -misc-multiple-inheritance
         -misc-no-recursion
         -misc-override-with-different-visibility
+        -misc-use-internal-linkage
+        -modernize-avoid-c-style-cast
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-type-traits
@@ -285,12 +291,18 @@ rocm_enable_clang_tidy(
         -modernize-use-nodiscard
         -modernize-use-override
         -modernize-use-scoped-lock
+        -modernize-use-string-view
+        -modernize-use-structured-binding
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-avoid-endl
+        -performance-faster-string-find
+        -performance-prefer-single-char-overloads
         -performance-type-promotion-in-math-fn
         -performance-enum-size
+        -performance-use-std-move
         -readability-braces-around-statements
+        -readability-inconsistent-ifelse-braces
         -readability-container-size-empty
         -readability-avoid-nested-conditional-operator
         -readability-convert-member-functions-to-static
@@ -299,10 +311,13 @@ rocm_enable_clang_tidy(
         -readability-identifier-length
         -readability-math-missing-parentheses
         -readability-named-parameter
+        -readability-redundant-lambda-parameter-list
         -readability-redundant-member-init
         -readability-redundant-parentheses
+        -readability-redundant-qualified-alias
         -readability-redundant-string-init
         -readability-suspicious-call-argument
+        -readability-trailing-comma
         -readability-uppercase-literal-suffix
         -readability-use-concise-preprocessor-directives
         -*-avoid-c-arrays
@@ -455,6 +470,7 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     #   Non-versioned (compat wrapper):        amdrocm-{component}[-{gpu_arch}]
     # We target versioned names to match what install_rocm_packages.sh actually installs.
     # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
+    set(_MGX_PKG_NAME "amdrocm-migraphx")
     set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
         "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
     set(MIGRAPHX_THEROCK_GPU_ARCH "" CACHE STRING
@@ -500,6 +516,7 @@ or empty for device-all meta-package deps.")
     set(ROCM_DEP_ROCMCORE OFF)
 else()
     # Default ROCm (default for ROCM packaging)
+    set(_MGX_PKG_NAME "MIGraphX")
     if(BUILD_ADDRESS_SANITIZER)
         set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan")
     else()
@@ -519,7 +536,7 @@ else()
 endif()
 
 rocm_create_package(
-    NAME MIGraphX
+    NAME ${_MGX_PKG_NAME}
     DESCRIPTION "AMD graph optimizer"
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG

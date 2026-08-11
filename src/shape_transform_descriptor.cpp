@@ -1824,6 +1824,59 @@ shape_transform_descriptor shape_transform_descriptor::to_src_from_common() cons
     return result;
 }
 
+shape_transform_descriptor shape_transform_descriptor::invert() const
+{
+    auto all_subs = get_all_subdimensions(dimensions);
+    // A broadcasted dimension is duplicated, so it cant be inverted. A hidden axis is a dimension
+    // of 1 that was broadcasted, so it cant be inverted either.
+    if(std::any_of(all_subs.begin(), all_subs.end(), [](const dimension::sub& s) {
+           return s.has_hidden_axis() or (s.origin_axis().empty() and s.len != 1);
+       }))
+        return {};
+
+    // Set the axis of each subdimension to the dimension it is currently in, since that becomes
+    // the axis of the inverted transformation, while keeping the axis it originated from so the
+    // subdimensions can be regrouped.
+    std::vector<std::pair<std::vector<std::size_t>, dimension::sub>> origins;
+    for(std::size_t i : range(dimensions.size()))
+    {
+        const auto& subs = dimensions[i].subdimensions;
+        std::transform(subs.begin(),
+                       subs.end(),
+                       range(subs.size()).begin(),
+                       std::back_inserter(origins),
+                       [&](dimension::sub s, std::size_t j) {
+                           auto origin = s.origin_axis();
+                           set_origin_axis(s, {i});
+                           s.add_split_axis(j);
+                           return std::make_pair(origin, s);
+                       });
+    }
+    // Dimensions of 1 that dont come from the original dimensions have nothing to invert to
+    erase_if(origins, [](const auto& p) { return p.first.empty(); });
+    if(origins.empty())
+        return {};
+    std::sort(
+        origins.begin(), origins.end(), by(std::less<>{}, [](const auto& p) { return p.first; }));
+
+    // Each group of subdimensions that share an origin axis becomes one of the original dimensions
+    shape_transform_descriptor result;
+    result.rank = dimensions.size();
+    group_unique(
+        origins.begin(),
+        origins.end(),
+        [&](auto start, auto last) {
+            dimension d;
+            std::transform(start, last, std::back_inserter(d.subdimensions), [](const auto& p) {
+                return p.second;
+            });
+            result.dimensions.push_back(d);
+        },
+        [](const auto& x, const auto& y) { return x.first.front() == y.first.front(); });
+    result.simplify();
+    return result;
+}
+
 std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_map_from_src() const
 {
     std::vector<std::vector<std::size_t>> result;

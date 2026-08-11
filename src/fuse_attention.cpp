@@ -189,6 +189,59 @@ struct find_quant_attention
     }
 };
 
+struct find_transposed_attention
+{
+    auto matcher() const
+    {
+        auto gemm1         = match::any_of[pointwise_inputs()](match::name("dot").bind("dot1"));
+        auto softmax       = match::skip(match::name("convert"))(match::softmax_input(gemm1));
+        auto swap_last_two = match::make_basic_pred_matcher([](instruction_ref ins) {
+            auto perm = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
+            if(perm.size() < 2)
+                return false;
+            return std::equal(
+                       perm.begin(), perm.end() - 2, migraphx::range(perm.size() - 2).begin()) and
+                   perm[perm.size() - 2] == static_cast<int64_t>(perm.size() - 1) and
+                   perm[perm.size() - 1] == static_cast<int64_t>(perm.size() - 2);
+        });
+        auto transposed_softmax = match::name("transpose")(swap_last_two, match::arg(0)(softmax))
+                                      .bind("transposed_softmax");
+        auto input_of_dot2 = match::any().bind("input_of_dot2");
+        return match::name("dot")(match::arg(0)(input_of_dot2), match::arg(1)(transposed_softmax));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m                 = mpm.get_module();
+        auto gemm2              = r.result;
+        auto input_of_dot2      = r.instructions["input_of_dot2"];
+        auto transposed_softmax = r.instructions["transposed_softmax"];
+        auto softmax            = transposed_softmax->inputs().front();
+        auto perm =
+            transposed_softmax->get_operator().to_value()["permutation"].to_vector<int64_t>();
+
+        if(input_of_dot2->get_shape().ndim() != perm.size())
+            return;
+
+        auto values = input_of_dot2;
+        if(input_of_dot2->name() == "transpose")
+        {
+            auto input_perm =
+                input_of_dot2->get_operator().to_value()["permutation"].to_vector<int64_t>();
+            if(input_perm == perm)
+                values = input_of_dot2->inputs().front();
+        }
+        if(values == input_of_dot2)
+            values = m.insert_instruction(
+                gemm2, make_op("transpose", {{"permutation", perm}}), input_of_dot2);
+
+        auto canonical_gemm  = m.insert_instruction(gemm2, make_op("dot"), softmax, values);
+        auto transposed_gemm = m.insert_instruction(
+            gemm2, make_op("transpose", {{"permutation", perm}}), canonical_gemm);
+        m.replace_instruction(gemm2, transposed_gemm);
+    }
+};
+
 struct find_attention
 {
     std::size_t* counter;
@@ -755,51 +808,49 @@ struct find_flash_decoding
         auto lse = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
 
-        // kernel 2
-        // the partial outputs O'[g] are already weighted by their group's softmax,
-        // LSE[g] contains log(sum(exp(S[g]))) for each group
-        // To combine: weight by exp(LSE[g]) / sum_g(exp(LSE[g']))
-
-        // compute global max for numerical stability
+        // kernel 2: combine using exp-normalize trick
+        // O = sum(O' * exp(LSE - max)) / sum(exp(LSE - max))
+        // find max LSE across groups for numerical stability
         auto lse_max =
             mm.insert_instruction(attn_group_ins, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
+
         auto lse_max_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}),
             lse_max);
 
-        // exp(LSE - max_LSE)
+        // compute unnormalized weights
+        // exp(LSE - max)
         auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse, lse_max_bcast);
+
         auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
 
-        // sum across groups
-        auto lse_sum = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), lse_exp);
-        auto lse_sum_bcast = mm.insert_instruction(
-            attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}),
-            lse_sum);
-
-        // scale factor: exp(LSE[g] - max_LSE) / sum(exp(LSE - max_LSE))
-        auto scale = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
-
-        auto scale_bcast = mm.insert_instruction(
+        // broadcast weights to match O' shape
+        // [B, G, M] -> [B, G, M, D]
+        auto lse_exp_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
-            scale);
+            lse_exp);
 
-        // convert scale to match the type of partial_output_o_prime
-        auto output_type     = partial_output_o_prime->get_shape().type();
-        auto scale_converted = mm.insert_instruction(
-            attn_group_ins, make_op("convert", {{"target_type", output_type}}), scale_bcast);
+        // convert weights to output type
+        auto output_type = partial_output_o_prime->get_shape().type();
+        auto weights     = mm.insert_instruction(
+            attn_group_ins, make_op("convert", {{"target_type", output_type}}), lse_exp_bcast);
 
-        // R = mul(O', broadcasted_scale)
-        auto scaled_r = mm.insert_instruction(
-            attn_group_ins, make_op("mul"), partial_output_o_prime, scale_converted);
+        // compute weighted sum: numerator = sum(O' * weights)
+        auto weighted_o =
+            mm.insert_instruction(attn_group_ins, make_op("mul"), partial_output_o_prime, weights);
 
-        // O = sum(R, axis=G_axis)
-        auto final_output_o = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), scaled_r);
+        auto numerator = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weighted_o);
+
+        // compute sum of weights: denominator = sum(weights)
+        auto denominator = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weights);
+
+        // final division: O = numerator / denominator
+        auto final_output_o =
+            mm.insert_instruction(attn_group_ins, make_op("div"), numerator, denominator);
 
         // squeeze G to match the original output shape
         auto final_squeezed_o = mm.insert_instruction(
@@ -1033,6 +1084,9 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         // remove quantization from attention blocks so they can be fused; rocMLIR currently does
         // not support fp8 attention
         match::find_matches(mpm, find_quant_attention{});
+        mpm.run_pass(dead_code_elimination{});
+
+        match::find_matches(mpm, find_transposed_attention{});
         mpm.run_pass(dead_code_elimination{});
 
         match::find_matches(mpm, find_attention{.counter = &counter});

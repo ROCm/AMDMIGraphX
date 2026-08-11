@@ -290,14 +290,12 @@ static std::vector<argument> run_target(program p,
 static program label_instructions(program p)
 {
     std::size_t id = 0;
-    for(auto* m : p.get_modules())
+    auto* m        = p.get_main_module();
+    for(auto ins : iterator_for(*m))
     {
-        for(auto ins : iterator_for(*m))
-        {
-            if(ins->name() == "@return")
-                continue;
-            m->add_debug_symbols(ins, {"@verify:" + std::to_string(id++)});
-        }
+        if(ins->name() == "@return")
+            continue;
+        m->add_debug_symbols(ins, {"@verify:" + std::to_string(id++)});
     }
     return p;
 }

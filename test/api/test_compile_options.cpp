@@ -129,4 +129,59 @@ TEST_CASE(compile_options_compile_with_max_mode)
     CHECK(output_shapes.size() == 1);
 }
 
+TEST_CASE(compile_options_set_compile_mode_default_argument)
+{
+    migraphx::compile_options options;
+    options.set_compile_mode();
+    options.set_compile_mode(migraphx_compile_mode_balanced);
+    options.set_compile_mode(30);
+}
+
+TEST_CASE(compile_options_compile_with_balanced_mode)
+{
+    migraphx::shape s{migraphx_shape_float_type, {3, 3}};
+    auto p = create_add_program(s);
+
+    migraphx::compile_options options;
+    options.set_compile_mode(migraphx_compile_mode_balanced);
+    p.compile(migraphx::target("ref"), options);
+    run_and_check(p, s);
+}
+
+TEST_CASE(c_api_set_compile_mode)
+{
+    migraphx_compile_options_t options = nullptr;
+    CHECK(migraphx_compile_options_create(&options) == migraphx_status_success);
+    CHECK(migraphx_compile_options_set_compile_mode(options, migraphx_compile_mode_eager) ==
+          migraphx_status_success);
+    CHECK(migraphx_compile_options_set_compile_mode(options, migraphx_compile_mode_balanced) ==
+          migraphx_status_success);
+    CHECK(migraphx_compile_options_set_compile_mode(options, migraphx_compile_mode_max) ==
+          migraphx_status_success);
+    // an intermediate value snaps to the nearest known mode
+    CHECK(migraphx_compile_options_set_compile_mode(options, 30) == migraphx_status_success);
+    CHECK(migraphx_compile_options_destroy(options) == migraphx_status_success);
+}
+
+TEST_CASE(c_api_set_compile_mode_null_handle)
+{
+    CHECK(migraphx_compile_options_set_compile_mode(nullptr, migraphx_compile_mode_balanced) ==
+          migraphx_status_bad_param);
+}
+
+TEST_CASE(c_api_set_advance_backend_options_null_handle)
+{
+    CHECK(migraphx_compile_options_set_advance_backend_options(nullptr, "{a:1}") ==
+          migraphx_status_bad_param);
+}
+
+TEST_CASE(c_api_set_advance_backend_options)
+{
+    migraphx_compile_options_t options = nullptr;
+    CHECK(migraphx_compile_options_create(&options) == migraphx_status_success);
+    CHECK(migraphx_compile_options_set_advance_backend_options(options, "{a:%i, b:%i}", 1, 2) ==
+          migraphx_status_success);
+    CHECK(migraphx_compile_options_destroy(options) == migraphx_status_success);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

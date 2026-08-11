@@ -31,6 +31,9 @@
 #include <migraphx/sym.hpp>
 #include <migraphx/verify.hpp>
 
+#include <numeric>
+#include <vector>
+
 #include <test.hpp>
 
 using dd = migraphx::shape::dynamic_dimension;

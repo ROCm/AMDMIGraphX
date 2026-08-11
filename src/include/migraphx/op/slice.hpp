@@ -150,7 +150,8 @@ struct slice
     {
         auto input_shape = inputs[0];
         if(input_shape.symbolic())
-            MIGRAPHX_THROW("SLICE: symbolic input shapes are not supported with variable starts/ends/axes inputs, "
+            MIGRAPHX_THROW("SLICE: symbolic input shapes are not supported with variable "
+                           "starts/ends/axes inputs, "
                            "use dyn_slice");
         auto set_attributes = get_set_attributes();
         // check that inputs [1, end) are all 1D, have the same

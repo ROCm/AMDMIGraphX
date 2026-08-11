@@ -726,13 +726,12 @@ std::vector<argument> program::eval(const parameter_map& params,
                 auto host = copy_to_host(result, ins->get_target_id());
                 if(exec_env.trace)
                     exec_env.trace(ins, host);
-                if(exec_env.substitute)
+                auto sub =
+                    exec_env.substitute ? exec_env.substitute(ins, host) : optional<argument>{};
+                if(sub)
                 {
-                    if(auto sub = exec_env.substitute(ins, host))
-                    {
-                        assert(sub->get_shape() == result.get_shape());
-                        result = targets.at(ins->get_target_id()).copy_to(*sub);
-                    }
+                    assert(sub->get_shape() == result.get_shape());
+                    result = targets.at(ins->get_target_id()).copy_to(*sub);
                 }
             }
             return result;

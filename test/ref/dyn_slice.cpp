@@ -29,7 +29,6 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/sym.hpp>
-#include <migraphx/verify.hpp>
 
 #include <numeric>
 #include <vector>
@@ -70,7 +69,7 @@ TEST_CASE(dyn_slice_concrete_bounds_test)
     std::vector<int> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(results_vector == gold);
     // The static output shape lets the compiler make the aliased view contiguous.
     EXPECT(result.get_shape() ==
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {4, 2, 1}});
@@ -110,7 +109,7 @@ TEST_CASE(dyn_slice_sym_ends_test)
     std::vector<int> results_vector0;
     result0.visit([&](auto output) { results_vector0.assign(output.begin(), output.end()); });
     std::vector<int> gold0 = {1, 2, 4, 5, 7, 8, 10, 11};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector0, gold0));
+    EXPECT(results_vector0 == gold0);
     EXPECT(result0.get_shape() ==
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
 
@@ -120,7 +119,7 @@ TEST_CASE(dyn_slice_sym_ends_test)
     std::vector<int> results_vector1;
     result1.visit([&](auto output) { results_vector1.assign(output.begin(), output.end()); });
     std::vector<int> gold1 = {1, 4, 7, 10};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector1, gold1));
+    EXPECT(results_vector1 == gold1);
     EXPECT(result1.get_shape() ==
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 1}, {6, 3, 1}});
 }
@@ -156,7 +155,7 @@ TEST_CASE(dyn_slice_sym_starts_test)
     std::vector<int> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(results_vector == gold);
     EXPECT(result.get_shape() ==
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
 }
@@ -193,7 +192,7 @@ TEST_CASE(dyn_slice_sym_both_bounds_test)
     std::vector<int> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(results_vector == gold);
     EXPECT(result.get_shape() ==
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
 }
@@ -231,7 +230,7 @@ TEST_CASE(dyn_slice_sym_data_test)
     std::vector<int> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(results_vector == gold);
     EXPECT(result.get_shape() ==
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
 }
@@ -271,7 +270,7 @@ TEST_CASE(dyn_slice_sym_bounds_multi_axes_test)
     std::vector<int> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold = {3, 4, 9, 10};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(results_vector == gold);
     EXPECT(result.get_shape() ==
            migraphx::shape{migraphx::shape::int32_type, {2, 1, 2}, {6, 3, 1}});
 }
@@ -309,7 +308,7 @@ TEST_CASE(dyn_slice_runtime_bounds_clamped_test)
     std::vector<int> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(results_vector == gold);
     EXPECT(result.get_shape() ==
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
 }
@@ -344,7 +343,7 @@ TEST_CASE(dyn_slice_negative_axis_test)
     std::vector<int> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(results_vector == gold);
     EXPECT(result.get_shape() ==
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {4, 2, 1}});
 }

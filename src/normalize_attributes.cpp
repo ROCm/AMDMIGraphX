@@ -128,10 +128,9 @@ static void clip_or_check(std::vector<int64_t>& result,
         std::transform(result.begin(), result.end(), bounds.begin(), result.begin(), clamp);
         return;
     }
-    if(not std::equal(result.begin(),
-                      result.end(),
-                      bounds.begin(),
-                      [&](auto v, auto bound) { return v == clamp(v, bound); }))
+    if(not std::equal(result.begin(), result.end(), bounds.begin(), [&](auto v, auto bound) {
+           return v == clamp(v, bound);
+       }))
         MIGRAPHX_THROW(m() + what);
 }
 
@@ -165,23 +164,25 @@ static std::vector<int64_t> tune_attribute(const std::vector<int64_t>& vec,
 
     // An exclusive bound moves the limit one step inside the range.
     auto max_step = contains(attrs, op::normalize_attribute::include_max) ? 0 : 1;
-    clip_or_check(result,
-                  *max_vals,
-                  contains(attrs, op::normalize_attribute::clip_max),
-                  [&](auto v, auto bound) { return std::min(v, bound - max_step); },
-                  m,
-                  "value out of range!");
+    clip_or_check(
+        result,
+        *max_vals,
+        contains(attrs, op::normalize_attribute::clip_max),
+        [&](auto v, auto bound) { return std::min(v, bound - max_step); },
+        m,
+        "value out of range!");
 
     // A value from the end is bounded by the negated maximum.
     std::vector<int64_t> min_vals(max_vals->size());
     std::transform(max_vals->begin(), max_vals->end(), min_vals.begin(), std::negate<>{});
     auto min_step = contains(attrs, op::normalize_attribute::include_min) ? 0 : 1;
-    clip_or_check(result,
-                  min_vals,
-                  contains(attrs, op::normalize_attribute::clip_min),
-                  [&](auto v, auto bound) { return std::max(v, bound + min_step); },
-                  m,
-                  "attribute out of range!");
+    clip_or_check(
+        result,
+        min_vals,
+        contains(attrs, op::normalize_attribute::clip_min),
+        [&](auto v, auto bound) { return std::max(v, bound + min_step); },
+        m,
+        "attribute out of range!");
 
     // Resolve the from-the-end (negative) values against the maximum.
     std::transform(

@@ -23,6 +23,12 @@
  */
 #include <test.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
+#include <pointwise.hpp>
+#include <reduce.hpp>
 
 static const auto find_fast_axis = test::make_function("find_fast_axis", [](auto&&... xs) {
     return migraphx::gpu::gen::find_fast_axis(static_cast<decltype(xs)>(xs)...);
@@ -37,6 +43,42 @@ TEST_CASE(test_find_fast_axis)
                migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 1, 0, 0}}) == 1);
     EXPECT(find_fast_axis(
                migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
+}
+
+// When a pointwise inside a fused_reduce consumes the same tensor at more than one
+// operand slot (as split_reduce can produce), generate_reduce must not emit a lambda
+// with a duplicated parameter name. Previously the "_lambda_param" suffix was appended
+// once per occurrence, producing "..._lambda_param_lambda_param" repeated in the lambda
+// signature and a HIPRTC "redefinition of parameter" compile error.
+TEST_CASE(reduce_with_duplicate_pointwise_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto rins = add_reduce(
+        p,
+        "test:reduce",
+        {x, y},
+        {1},
+        [&](auto* rm, const auto& inputs, const auto& axes) {
+            // Reference the first input twice: pointwise(x, y, x).
+            auto pw = add_pointwise(
+                p,
+                rm,
+                "test:pointwise",
+                {inputs[0], inputs[1], inputs[0]},
+                [](auto* pm, const auto& xs) {
+                    auto add = pm->add_instruction(migraphx::make_op("add"), xs[0], xs[1]);
+                    return pm->add_instruction(migraphx::make_op("sub"), add, xs[2]);
+                });
+            return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), pw);
+        });
+
+    auto* rm = rins->module_inputs().front();
+    auto src = migraphx::gpu::gen::generate_reduce(*rm, "test_reduce_op");
+    EXPECT(src.find("_lambda_param_lambda_param") == std::string::npos);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

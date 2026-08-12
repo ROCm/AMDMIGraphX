@@ -66,6 +66,13 @@ static void run_pass(migraphx::program& p, migraphx::gpu::fuse_mlir fm = {})
     migraphx::run_passes(p, {fm, migraphx::dead_code_elimination{}});
 }
 
+static bool is_navi_gpu()
+{
+    const auto device_name = migraphx::gpu::get_device_name();
+    return migraphx::starts_with(device_name, "gfx11") or
+           migraphx::starts_with(device_name, "gfx12");
+}
+
 template <class F>
 static migraphx::instruction_ref add_mlir(migraphx::program& p,
                                           const std::string& name,
@@ -2023,11 +2030,7 @@ TEST_CASE(dot_add_dot_abc_f32)
     std::string program_str = ss.str();
 
     // regardless if the matmul is correctly oriented, f32 geg should not happen on navi
-    auto device_name = migraphx::gpu::get_device_name();
-    bool is_navi =
-        migraphx::starts_with(device_name, "gfx11") or migraphx::starts_with(device_name, "gfx12");
-    // fusion should not happen if the device is navi or the fusion flag is disabled
-    if(is_navi or migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+    if(is_navi_gpu() or migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         EXPECT(program_str.find("geg") == std::string::npos);
     else
         EXPECT(program_str.find("geg") != std::string::npos);
@@ -3429,6 +3432,9 @@ TEST_CASE(dlrm_bottom_mlp_geg)
         p2.get_main_module()->add_return({fused});
     }
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    // f32 geg is not supported on navi (WMMA does not support fp32)
+    if(is_navi_gpu())
         return;
     EXPECT(p1.sort() == p2.sort());
 }

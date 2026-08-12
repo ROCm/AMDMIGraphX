@@ -75,6 +75,7 @@
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
+#include <migraphx/gpu/fuse_flash_decode.hpp>
 #include <migraphx/gpu/fuse_rope_qk_norm.hpp>
 #include <migraphx/gpu/fuse_skinny_gemm.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
@@ -216,6 +217,8 @@ struct pipeline_factory
 #endif
             dead_code_elimination{},
             fuse_rope_qk_norm{},
+            dead_code_elimination{},
+            fuse_flash_decode{},
             dead_code_elimination{},
             fuse_skinny_gemm{},
             dead_code_elimination{},

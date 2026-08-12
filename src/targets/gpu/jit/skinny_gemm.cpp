@@ -47,7 +47,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors())(${args})([](auto... xs) {
-        skinny_gemm_splitk<${cols}, ${splits}>(xs...);
+        skinny_gemm_splitk<${cols}, ${splits}, ${swiglu}>(xs...);
     });
 }
 
@@ -95,12 +95,14 @@ struct skinny_gemm_splitk_compiler : compiler<skinny_gemm_splitk_compiler>
         options.output      = inputs.back();
         options.kernel_name = "skinny_gemm_splitk_kernel";
 
-        auto src = interpolate_string(skinny_gemm_splitk_kernel,
-                                      {{"params", enum_params(inputs.size(), "void * private_p")},
-                                       {"args", enum_params(inputs.size(), "private_p")},
-                                       {"kernel", options.kernel_name},
-                                       {"cols", std::to_string(skinny_gemm_cols)},
-                                       {"splits", std::to_string(splits)}});
+        auto src = interpolate_string(
+            skinny_gemm_splitk_kernel,
+            {{"params", enum_params(inputs.size(), "void * private_p")},
+             {"args", enum_params(inputs.size(), "private_p")},
+             {"kernel", options.kernel_name},
+             {"cols", std::to_string(skinny_gemm_cols)},
+             {"splits", std::to_string(splits)},
+             {"swiglu", v.get("swiglu", false) ? std::string("true") : std::string("false")}});
         return compile_hip_code_object(ctx, src, options);
     }
 
@@ -118,8 +120,8 @@ struct skinny_gemm_reduce_compiler : compiler<skinny_gemm_reduce_compiler>
     {
         const auto& out_shape = inputs.back();
         auto total            = out_shape.elements();
-        // one block covers 16 outputs (lanes) x 16 split partitions
-        auto nblocks = (total + 15) / 16;
+        // one block covers 64 outputs: 16 lanes x 4 outputs per thread
+        auto nblocks = (total + 63) / 64;
 
         hip_compile_options options;
         options.set_launch_params(v, nblocks * skinny_gemm_block, skinny_gemm_block);

@@ -35,7 +35,10 @@ namespace migraphx {
 // columns over one K chunk so wavefront loads of the row-major {K, N} weight
 // are fully coalesced; the per-chunk float partials land in a {Splits, M, N}
 // buffer that skinny_gemm_reduce collapses.
-template <index_int Cols, index_int Splits, class A, class B, class Partials>
+// When Swiglu is set the skinny input is the packed {m, 2k} gate/up
+// projection and the staged value is up * silu(gate), so the activation runs
+// once per element at LDS staging time instead of in a separate kernel.
+template <index_int Cols, index_int Splits, bool Swiglu, class A, class B, class Partials>
 __device__ void skinny_gemm_splitk(A a, B b, Partials partials)
 {
     auto idx = make_index();
@@ -52,23 +55,50 @@ __device__ void skinny_gemm_splitk(A a, B b, Partials partials)
     const index_int split  = idx.group / ntiles;
 
     const index_int n0 = (tile * idx.nlocal() + idx.local) * Cols;
+    const index_int k0 = split * kchunk;
+
+    // Stage this split's slice of the skinny input in LDS so the inner loop
+    // issues only the weight stream to global memory
+    __shared__ float a_lds[m][kchunk];
+    for(index_int t = idx.local; t < m * kchunk; t += idx.nlocal())
+    {
+        const index_int mi = t / kchunk;
+        const index_int kk = t % kchunk;
+        float value        = 0.0f;
+        if(k0 + kk < k)
+        {
+            if constexpr(Swiglu)
+            {
+                const float gate = migraphx::convert<float>(a.data()[mi * 2 * k + k0 + kk]);
+                const float up   = migraphx::convert<float>(a.data()[mi * 2 * k + k + k0 + kk]);
+                value            = gate / (1.0f + __expf(-gate)) * up;
+            }
+            else
+            {
+                value = migraphx::convert<float>(a.data()[mi * k + k0 + kk]);
+            }
+        }
+        a_lds[mi][kk] = value;
+    }
+    __syncthreads();
     if(n0 >= n)
         return;
-    const index_int k0 = split * kchunk;
-    const index_int k1 = migraphx::min(k, k0 + kchunk);
 
     float acc[m][Cols];
     for(index_int mi = 0; mi < m; ++mi)
         for(index_int c = 0; c < Cols; ++c)
             acc[mi][c] = 0.0f;
 
-    const auto* an = a.data();
+    // Static trip count so the compiler unrolls and keeps many weight loads
+    // in flight; rows past k contribute zero since their staged input is zero
+    // and the row index is clamped to stay in bounds.
     const auto* bn = b.data();
-    for(index_int kk = k0; kk < k1; ++kk)
+    for(index_int kk2 = 0; kk2 < kchunk; ++kk2)
     {
+        const index_int kk = migraphx::min(k0 + kk2, k - 1);
         float av[m];
         for(index_int mi = 0; mi < m; ++mi)
-            av[mi] = migraphx::convert<float>(an[mi * k + kk]);
+            av[mi] = a_lds[mi][kk2];
         const auto* brow = bn + kk * n + n0;
         for(index_int c = 0; c < Cols; ++c)
         {
@@ -85,7 +115,8 @@ __device__ void skinny_gemm_splitk(A a, B b, Partials partials)
 
 // Collapse the {Splits, M, N} float partials into the final output, optionally
 // adding a residual. 256 threads per block: 16 output lanes x 16 split
-// partitions, combined through LDS so the strided partial reads overlap.
+// partitions with four outputs per thread, so every thread keeps enough
+// strided partial loads in flight to cover the L2 latency.
 template <class Partials, class Output, class... Residual>
 __device__ void skinny_gemm_reduce(Partials partials, Output output, Residual... residual)
 {
@@ -95,30 +126,40 @@ __device__ void skinny_gemm_reduce(Partials partials, Output output, Residual...
     constexpr auto p_lens       = get_shape_c<Partials>{}.lens;
     constexpr index_int nsplits = p_lens[0];
     constexpr index_int total   = p_lens[1] * p_lens[2];
-    // 16 split partitions per output keep the strided partial reads shallow
-    // enough that the L2 latency overlaps instead of serializing.
-    constexpr index_int lanes = 16;
-    constexpr index_int parts = 16;
+    constexpr index_int lanes   = 16;
+    constexpr index_int parts   = 16;
+    constexpr index_int owp     = 4; // outputs per thread
 
-    __shared__ float buffer[lanes * parts];
+    __shared__ float buffer[parts * owp * lanes];
 
     const index_int lane = idx.local % lanes;
     const index_int part = idx.local / lanes;
-    const index_int i    = idx.group * lanes + lane;
+    const index_int i0   = idx.group * lanes * owp + lane;
 
-    float acc = 0.0f;
-    if(i < total)
+    float acc[owp];
+    for(index_int w = 0; w < owp; ++w)
+        acc[w] = 0.0f;
+    for(index_int s = part; s < nsplits; s += parts)
     {
-        for(index_int s = part; s < nsplits; s += parts)
-            acc += partials.data()[s * total + i];
+        for(index_int w = 0; w < owp; ++w)
+        {
+            const index_int i = i0 + w * lanes;
+            acc[w] += (i < total) ? partials.data()[s * total + i] : 0.0f;
+        }
     }
-    buffer[part * lanes + lane] = acc;
+    for(index_int w = 0; w < owp; ++w)
+        buffer[(part * owp + w) * lanes + lane] = acc[w];
     __syncthreads();
-    if(part == 0 and i < total)
+    for(index_int o = idx.local; o < owp * lanes; o += idx.nlocal())
     {
+        const index_int w  = o / lanes;
+        const index_int ll = o % lanes;
+        const index_int i  = idx.group * lanes * owp + w * lanes + ll;
+        if(i >= total)
+            continue;
         float sum = 0.0f;
         for(index_int p = 0; p < parts; ++p)
-            sum += buffer[p * lanes + lane];
+            sum += buffer[(p * owp + w) * lanes + ll];
         ([&] { sum += migraphx::convert<float>(residual.data()[i]); }(), ...);
         output.data()[i] = migraphx::convert<type>(sum);
     }

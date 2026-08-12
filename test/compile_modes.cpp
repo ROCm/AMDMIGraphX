@@ -149,16 +149,14 @@ TEST_CASE(convert_string_plus_sign)
 TEST_CASE(convert_string_overflow_throws)
 {
     // std::stoi raises out_of_range here, not invalid_argument
-    EXPECT(test::throws<std::out_of_range>([&] {
-        migraphx::convert_to_compile_mode("99999999999");
-    }));
+    EXPECT(
+        test::throws<std::out_of_range>([&] { migraphx::convert_to_compile_mode("99999999999"); }));
 }
 
 TEST_CASE(convert_string_invalid_throws_invalid_argument)
 {
-    EXPECT(test::throws<std::invalid_argument>([&] {
-        migraphx::convert_to_compile_mode("invalid");
-    }));
+    EXPECT(
+        test::throws<std::invalid_argument>([&] { migraphx::convert_to_compile_mode("invalid"); }));
 }
 
 TEST_CASE(convert_uint8_tie_resolves_to_lower_mode)
@@ -180,7 +178,7 @@ TEST_CASE(convert_uint8_in_range_always_yields_known_mode)
     {
         auto m = migraphx::convert_to_compile_mode(static_cast<uint8_t>(i));
         EXPECT(m == migraphx::compile_modes::eager or m == migraphx::compile_modes::balanced or
-                m == migraphx::compile_modes::max);
+               m == migraphx::compile_modes::max);
     }
 }
 
@@ -188,7 +186,7 @@ TEST_CASE(convert_string_and_uint8_agree)
 {
     for(int i = 0; i <= 100; ++i)
         EXPECT(migraphx::convert_to_compile_mode(std::to_string(i)) ==
-                migraphx::convert_to_compile_mode(static_cast<uint8_t>(i)));
+               migraphx::convert_to_compile_mode(static_cast<uint8_t>(i)));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

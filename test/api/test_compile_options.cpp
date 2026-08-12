@@ -190,16 +190,16 @@ TEST_CASE(c_api_compile_options_lifecycle)
     CHECK(migraphx_compile_options_create(&options) == migraphx_status_success);
     CHECK(options != nullptr);
     CHECK(migraphx_compile_options_set_compile_mode(options, migraphx_compile_mode_eager) ==
-        migraphx_status_success);
+          migraphx_status_success);
     CHECK(migraphx_compile_options_set_compile_mode(options, migraphx_compile_mode_max) ==
-        migraphx_status_success);
+          migraphx_status_success);
     CHECK(migraphx_compile_options_set_advance_backend_options(options, "{a:%i, b:%i}", 1, 2) ==
-        migraphx_status_success);
+          migraphx_status_success);
     migraphx_compile_options_t copy = nullptr;
     CHECK(migraphx_compile_options_create(&copy) == migraphx_status_success);
     CHECK(migraphx_compile_options_assign_to(copy, options) == migraphx_status_success);
     CHECK(migraphx_compile_options_set_compile_mode(copy, migraphx_compile_mode_balanced) ==
-        migraphx_status_success);
+          migraphx_status_success);
     CHECK(migraphx_compile_options_destroy(copy) == migraphx_status_success);
     CHECK(migraphx_compile_options_destroy(options) == migraphx_status_success);
 }
@@ -215,9 +215,9 @@ TEST_CASE(c_api_set_advance_backend_options_empty_json)
     migraphx_compile_options_t options = nullptr;
     CHECK(migraphx_compile_options_create(&options) == migraphx_status_success);
     CHECK(migraphx_compile_options_set_advance_backend_options(options, "") ==
-        migraphx_status_success);
+          migraphx_status_success);
     CHECK(migraphx_compile_options_set_advance_backend_options(options, nullptr) ==
-        migraphx_status_success);
+          migraphx_status_success);
     CHECK(migraphx_compile_options_destroy(options) == migraphx_status_success);
 }
 
@@ -226,7 +226,7 @@ TEST_CASE(c_api_set_advance_backend_options_non_object_json)
     migraphx_compile_options_t options = nullptr;
     CHECK(migraphx_compile_options_create(&options) == migraphx_status_success);
     CHECK(migraphx_compile_options_set_advance_backend_options(options, "[1, 2, 3]") ==
-        migraphx_status_unknown_error);
+          migraphx_status_unknown_error);
     CHECK(migraphx_compile_options_destroy(options) == migraphx_status_success);
 }
 

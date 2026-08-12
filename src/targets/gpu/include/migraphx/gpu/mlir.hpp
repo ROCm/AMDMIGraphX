@@ -40,8 +40,10 @@ namespace gpu {
 
 MIGRAPHX_GPU_EXPORT std::string dump_mlir(module m);
 MIGRAPHX_GPU_EXPORT std::string dump_mlir(module m, const std::vector<shape>& inputs);
-MIGRAPHX_GPU_EXPORT void
-dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location);
+MIGRAPHX_GPU_EXPORT void dump_mlir_to_file(const context& migraphx_ctx,
+                                           module m,
+                                           const std::vector<shape>& inputs,
+                                           const fs::path& location);
 
 MIGRAPHX_GPU_EXPORT bool
 is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution);

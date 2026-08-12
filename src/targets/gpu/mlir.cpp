@@ -23,6 +23,7 @@
  */
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cstdint>
 #include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
@@ -1041,29 +1042,43 @@ struct mlir_program
 
     std::string get_tune_params(bool xdlops) const { return get_mlir_perf_for_conv(pp, xdlops); }
 
+    // A tuning key is the gpu properties -- an architecture followed by device counts --
+    // and then the problem, all tab separated. Only the problem is meaningful to the
+    // rocMLIR tuning scripts. It is picked out by skipping the properties rather than by
+    // index so that a field added to either end of the key does not silently change which
+    // part gets written.
+    static std::string problem_from_tuning_key(const std::string& key)
+    {
+        auto is_gpu_property = [](const std::string& token) {
+            return starts_with(token, "gfx") or
+                   std::all_of(token.begin(), token.end(), [](unsigned char c) {
+                       return std::isdigit(c) != 0;
+                   });
+        };
+        auto tokens  = split_string(key, '\t');
+        auto problem = std::find_if_not(tokens.begin(), tokens.end(), is_gpu_property);
+        if(problem == tokens.end())
+            return {};
+        return trim(*problem,
+                    [](unsigned char c) { return (c == '\0') or (std::isspace(c) != 0); });
+    }
+
     // This function appends to tuning cfg file that could be
     // used with rocMLIR tuning scripts.
     void dump_tuning_cfg(const std::string& prob_config) const
     {
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
-        if(not tuning_cfg_path.empty())
+        if(tuning_cfg_path.empty())
+            return;
+        std::string prob = problem_from_tuning_key(prob_config);
+        if(prob.empty())
         {
-            std::vector<std::string> tokens = split_string(prob_config, '\t');
-            std::string prob                = tokens[2];
-
-            if(starts_with(prob, "conv"))
-            {
-                tuning_cfg_path += ".conv";
-            }
-            else
-            {
-                tuning_cfg_path += ".gemm";
-            }
-            std::ofstream tuning_cfg(tuning_cfg_path, std::ios::app);
-            prob =
-                trim(prob, [](unsigned char c) { return (c == '\0') or (std::isspace(c) != 0); });
-            tuning_cfg << prob << std::endl;
+            log::error() << "No problem found in the MLIR tuning key: " << prob_config;
+            return;
         }
+        tuning_cfg_path += starts_with(prob, "conv") ? ".conv" : ".gemm";
+        std::ofstream tuning_cfg(tuning_cfg_path, std::ios::app);
+        tuning_cfg << prob << std::endl;
     }
 
     static std::pair<mlir_tuning_table, bool> load_tuning_table()
@@ -1247,7 +1262,10 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
     return fname;
 }
 
-void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location)
+void dump_mlir_to_file(const context& migraphx_ctx,
+                       module m,
+                       const std::vector<shape>& inputs,
+                       const fs::path& location)
 {
     static std::mutex mutex;
     const std::lock_guard<std::mutex> lock(mutex);
@@ -1263,6 +1281,9 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     log::info() << "Dumping MLIR file to: " << f;
 
     mlir_program mp;
+    // The dump is meant to be handed to the rocMLIR tools, which cannot compile it
+    // without knowing the device it was built for.
+    mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m, inputs);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
 

@@ -31,6 +31,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/ranges.hpp>
+#include <array>
 #include <optional>
 #include <set>
 
@@ -72,6 +73,31 @@ struct rope_qk_norm
     }
 };
 MIGRAPHX_REGISTER_OP(rope_qk_norm);
+
+// RMS-norm plus rotary embedding of a single {batch, heads, d} tensor, used
+// where q and k are roped independently instead of as one packed projection.
+struct rope_norm
+{
+    float eps      = 1e-6f;
+    float ss_scale = 1.0f;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.eps, "eps"), f(self.ss_scale, "ss_scale"));
+    }
+
+    std::string name() const { return "gpu::rope_norm"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        // x, norm_weight, cos, sin
+        check_shapes{inputs, *this}.has(4);
+        const auto& x = inputs.front();
+        return shape{x.type(), x.lens()};
+    }
+};
+MIGRAPHX_REGISTER_OP(rope_norm);
 
 std::unordered_map<instruction_ref, std::size_t> param_indices(const_module_ref pm)
 {
@@ -159,10 +185,17 @@ std::optional<float> check_square_scale_module(const_module_ref pm)
         return std::nullopt;
     if(inner->name() != "mul" or inner->inputs().at(0) != inner->inputs().at(1))
         return std::nullopt;
-    auto cvt = inner->inputs().front();
-    if(cvt->name() != "convert" or cvt->get_shape().type() != shape::float_type)
-        return std::nullopt;
-    if(cvt->inputs().front()->name() != "@param")
+    // The conversion to float sits inside the square when the norm reads the
+    // tensor directly, and has been hoisted out of it when an earlier pointwise
+    // already converted.
+    auto squared = inner->inputs().front();
+    if(squared->name() == "convert")
+    {
+        if(squared->get_shape().type() != shape::float_type)
+            return std::nullopt;
+        squared = squared->inputs().front();
+    }
+    if(squared->name() != "@param")
         return std::nullopt;
     return scale;
 }
@@ -173,10 +206,10 @@ std::optional<float> check_eps_rsqrt_module(const_module_ref pm)
     auto ret = std::prev(pm->end());
     if(ret->name() != "@return" or ret->inputs().size() != 1)
         return std::nullopt;
-    auto cvt = ret->inputs().front();
-    if(cvt->name() != "convert")
-        return std::nullopt;
-    auto rsqrt = cvt->inputs().front();
+    // The reciprocal root is converted back to the tensor type only when the
+    // norm is applied in that type; it stays in float otherwise.
+    auto out   = ret->inputs().front();
+    auto rsqrt = out->name() == "convert" ? out->inputs().front() : out;
     if(rsqrt->name() != "rsqrt")
         return std::nullopt;
     auto add = rsqrt->inputs().front();
@@ -422,11 +455,21 @@ struct find_rope_qk_norm
         if(q_info->eps != k_info->eps or q_info->ss_scale != k_info->ss_scale)
             return;
 
-        const int64_t nq = frq->get_shape().lens().at(2);
-        const int64_t nk = frk->get_shape().lens().at(2);
-        if(frq->get_shape().lens().at(3) != static_cast<std::size_t>(d) or
-           frk->get_shape().lens().at(3) != static_cast<std::size_t>(d))
+        // The norms carry heads and head_dim in their last two dims; the leading
+        // dims are the batch, which the export may or may not follow with a unit
+        // sequence axis.
+        auto head_count = [&](instruction_ref fr) -> std::optional<int64_t> {
+            const auto& lens = fr->get_shape().lens();
+            if(lens.size() < 2 or lens.back() != static_cast<std::size_t>(d))
+                return std::nullopt;
+            return static_cast<int64_t>(lens.at(lens.size() - 2));
+        };
+        auto nq_opt = head_count(frq);
+        auto nk_opt = head_count(frk);
+        if(not nq_opt.has_value() or not nk_opt.has_value())
             return;
+        const int64_t nq = *nq_opt;
+        const int64_t nk = *nk_opt;
         if(h != nq + nk)
             return;
         const int64_t total = nq + 2 * nk;
@@ -455,10 +498,22 @@ struct find_rope_qk_norm
         if(not qw.has_value() or not kw.has_value())
             return;
 
-        // cos/sin: multibroadcast of a packed {b, 1, 1, d} tensor
+        // cos/sin: a broadcast of a packed {b, 1, 1, d} tensor. Which broadcast
+        // op carries it depends on how the export shaped the table: a rank-4
+        // source arrives through multibroadcast, a bare {d} vector through
+        // broadcast onto the trailing axis.
         auto gathered = [&](instruction_ref bc) -> std::optional<instruction_ref> {
-            if(bc->name() != "multibroadcast")
+            if(bc->name() == "broadcast")
+            {
+                auto axis = bc->get_operator().to_value().at("axis").to<std::size_t>();
+                if(axis + bc->inputs().front()->get_shape().lens().size() !=
+                   bc->get_shape().lens().size())
+                    return std::nullopt;
+            }
+            else if(bc->name() != "multibroadcast")
+            {
                 return std::nullopt;
+            }
             auto src = bc->inputs().front();
             if(src->get_shape().elements() != static_cast<std::size_t>(b * d))
                 return std::nullopt;
@@ -499,11 +554,292 @@ struct find_rope_qk_norm
     }
 };
 
+// Where each of the pointwise parameters is used by the fused norm + rotation
+// of one half of a row. The halves are named after the output they produce:
+// lo is the first half of the concatenated result, hi the second.
+struct rope_norm_params
+{
+    // the tensor and the reciprocal root, multiplied together in float
+    std::array<std::size_t, 2> lo_scaled;
+    std::array<std::size_t, 2> hi_scaled;
+    std::size_t lo_weight;
+    std::size_t hi_weight;
+    std::size_t cos;
+    std::size_t sin;
+    std::size_t lo_output;
+};
+
+// lo = (x_lo * w_lo) * cos - (x_hi * w_hi) * sin
+// hi = (x_hi * w_hi) * cos + (x_lo * w_lo) * sin
+// with each x already scaled by the reciprocal root in float and converted back
+std::optional<rope_norm_params> check_rope_norm_module(const_module_ref pm)
+{
+    auto ret = std::prev(pm->end());
+    if(ret->name() != "@return" or ret->inputs().size() != 2)
+        return std::nullopt;
+    auto pidx        = param_indices(pm);
+    auto param_index = [&](instruction_ref ins) -> std::optional<std::size_t> {
+        auto it = pidx.find(ins);
+        if(it == pidx.end())
+            return std::nullopt;
+        return it->second;
+    };
+
+    // mul(normalized, parameter) -> the normalized value and the parameter
+    auto split_term =
+        [&](instruction_ref ins) -> std::optional<std::pair<instruction_ref, std::size_t>> {
+        if(ins->name() != "mul")
+            return std::nullopt;
+        auto lhs = param_index(ins->inputs().at(0));
+        auto rhs = param_index(ins->inputs().at(1));
+        if(lhs.has_value() == rhs.has_value())
+            return std::nullopt;
+        return lhs.has_value() ? std::make_pair(ins->inputs().at(1), *lhs)
+                               : std::make_pair(ins->inputs().at(0), *rhs);
+    };
+
+    // mul(convert(mul(x, rsqrt)), weight) -> the scaled pair and the weight
+    auto normalized = [&](instruction_ref ins)
+        -> std::optional<std::pair<std::array<std::size_t, 2>, std::size_t>> {
+        auto term = split_term(ins);
+        if(not term.has_value())
+            return std::nullopt;
+        auto cvt = term->first;
+        if(cvt->name() != "convert")
+            return std::nullopt;
+        auto scaled = cvt->inputs().front();
+        if(scaled->name() != "mul")
+            return std::nullopt;
+        auto lhs = param_index(scaled->inputs().at(0));
+        auto rhs = param_index(scaled->inputs().at(1));
+        if(not lhs.has_value() or not rhs.has_value())
+            return std::nullopt;
+        return std::make_pair(std::array<std::size_t, 2>{*lhs, *rhs}, term->second);
+    };
+
+    auto first  = ret->inputs().at(0);
+    auto second = ret->inputs().at(1);
+    instruction_ref lo{};
+    instruction_ref hi{};
+    std::size_t lo_output = 0;
+    if(first->name() == "sub" and second->name() == "add")
+    {
+        lo        = first;
+        hi        = second;
+        lo_output = 0;
+    }
+    else if(first->name() == "add" and second->name() == "sub")
+    {
+        lo        = second;
+        hi        = first;
+        lo_output = 1;
+    }
+    else
+    {
+        return std::nullopt;
+    }
+
+    auto lo_cos = split_term(lo->inputs().at(0));
+    auto lo_sin = split_term(lo->inputs().at(1));
+    if(not lo_cos.has_value() or not lo_sin.has_value())
+        return std::nullopt;
+    auto n_lo = lo_cos->first;
+    auto n_hi = lo_sin->first;
+    if(n_lo == n_hi)
+        return std::nullopt;
+
+    // the same two normalized halves come back with cos and sin swapped
+    auto hi_first  = split_term(hi->inputs().at(0));
+    auto hi_second = split_term(hi->inputs().at(1));
+    if(not hi_first.has_value() or not hi_second.has_value())
+        return std::nullopt;
+    auto hi_cos = hi_first->first == n_hi ? hi_first : hi_second;
+    auto hi_sin = hi_first->first == n_hi ? hi_second : hi_first;
+    if(hi_cos->first != n_hi or hi_sin->first != n_lo)
+        return std::nullopt;
+    if(hi_cos->second != lo_cos->second or hi_sin->second != lo_sin->second)
+        return std::nullopt;
+
+    auto lo_norm = normalized(n_lo);
+    auto hi_norm = normalized(n_hi);
+    if(not lo_norm.has_value() or not hi_norm.has_value())
+        return std::nullopt;
+
+    return rope_norm_params{lo_norm->first,
+                            hi_norm->first,
+                            lo_norm->second,
+                            hi_norm->second,
+                            lo_cos->second,
+                            lo_sin->second,
+                            lo_output};
+}
+
+// pointwise whose only job is converting its input to float
+bool check_convert_module(const_module_ref pm)
+{
+    auto ret = std::prev(pm->end());
+    if(ret->name() != "@return" or ret->inputs().size() != 1)
+        return false;
+    auto cvt = ret->inputs().front();
+    return cvt->name() == "convert" and cvt->get_shape().type() == shape::float_type and
+           cvt->inputs().front()->name() == "@param";
+}
+
+// The q-and-k-are-separate spelling of the same fusion. Each tensor keeps its
+// own {batch, heads, d} shape, the reciprocal root is a standalone reduction
+// over the row, and the rotation combines the two halves of the row pairwise
+// instead of rotating it, so cos and sin are only half a row wide:
+//
+//   cvt    = pointwise(x)                          {b, n, d} float
+//   rs     = fused_reduce(cvt)                     {b, n, 1} float
+//   pw     = pointwise(cvt, rs, w, cos, sin)       two {b, n, d/2} halves
+//   out    = concat(lo, hi)                        {b, n, d}
+struct find_rope_norm
+{
+    auto matcher() const
+    {
+        return match::name("concat")(match::nargs(2),
+                                     match::all_of[match::inputs()](match::name("get_tuple_elem")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins             = r.result;
+        const auto& out_lens = ins->get_shape().lens();
+        if(out_lens.size() != 3)
+            return;
+        if(ins->get_operator().to_value().at("axis").to<int64_t>() != 2)
+            return;
+        const auto b = static_cast<int64_t>(out_lens.at(0));
+        const auto d = static_cast<int64_t>(out_lens.at(2));
+        if(d % 2 != 0)
+            return;
+        const auto half = d / 2;
+
+        auto lo_elem = ins->inputs().at(0);
+        auto hi_elem = ins->inputs().at(1);
+        auto pw      = lo_elem->inputs().front();
+        if(pw != hi_elem->inputs().front())
+            return;
+        if(pw->name() != "pointwise" or pw->inputs().size() != 8)
+            return;
+
+        auto params = check_rope_norm_module(pw->module_inputs().front());
+        if(not params.has_value())
+            return;
+        auto elem_index = [](instruction_ref e) {
+            return e->get_operator().to_value().at("index").to<std::size_t>();
+        };
+        if(elem_index(lo_elem) != params->lo_output or elem_index(hi_elem) == params->lo_output)
+            return;
+
+        const auto& args = pw->inputs();
+        auto sliced      = [&](std::size_t arg, int64_t start) -> std::optional<instruction_ref> {
+            auto s = args.at(arg);
+            if(not is_slice(s, {2}, {start}, {start + half}))
+                return std::nullopt;
+            return s->inputs().front();
+        };
+
+        // the reciprocal root reaches the pointwise through a broadcast, the
+        // converted tensor directly, so the pair can be told apart by that
+        std::optional<instruction_ref> cvt;
+        std::optional<instruction_ref> rsb;
+        auto resolve = [&](std::array<std::size_t, 2> pair, int64_t start) {
+            auto first  = sliced(pair.at(0), start);
+            auto second = sliced(pair.at(1), start);
+            if(not first.has_value() or not second.has_value())
+                return false;
+            auto broadcasted = (*first)->name() == "multibroadcast";
+            auto c           = broadcasted ? *second : *first;
+            auto s           = broadcasted ? *first : *second;
+            if(s->name() != "multibroadcast" or c->name() == "multibroadcast")
+                return false;
+            if(not cvt.has_value())
+            {
+                cvt = c;
+                rsb = s;
+            }
+            return *cvt == c and *rsb == s;
+        };
+        if(not resolve(params->lo_scaled, 0) or not resolve(params->hi_scaled, half))
+            return;
+
+        auto w_lo = sliced(params->lo_weight, 0);
+        auto w_hi = sliced(params->hi_weight, half);
+        if(not w_lo.has_value() or not w_hi.has_value() or *w_lo != *w_hi)
+            return;
+        if((*w_lo)->name() != "multibroadcast")
+            return;
+        auto w = (*w_lo)->inputs().front();
+        if(w->get_shape().lens() != std::vector<std::size_t>{static_cast<std::size_t>(d)})
+            return;
+
+        // cos and sin are shared by both halves, so they are half a row wide
+        auto angle = [&](std::size_t arg) -> std::optional<instruction_ref> {
+            auto bc = args.at(arg);
+            if(bc->name() != "multibroadcast")
+                return std::nullopt;
+            auto src = bc->inputs().front();
+            const std::vector<std::size_t> expected{
+                static_cast<std::size_t>(b), 1, static_cast<std::size_t>(half)};
+            if(src->get_shape().lens() != expected)
+                return std::nullopt;
+            return src;
+        };
+        auto cos_in = angle(params->cos);
+        auto sin_in = angle(params->sin);
+        if(not cos_in.has_value() or not sin_in.has_value())
+            return;
+
+        auto convert = *cvt;
+        if(convert->name() != "pointwise" or convert->inputs().size() != 1)
+            return;
+        if(not check_convert_module(convert->module_inputs().front()))
+            return;
+        auto x = convert->inputs().front();
+        if(x->get_shape().lens() != out_lens)
+            return;
+
+        auto rs = (*rsb)->inputs().front();
+        if(rs->name() != "fused_reduce" or rs->inputs().size() != 1 or
+           rs->inputs().front() != convert)
+            return;
+        if(rs->get_operator().to_value().at("axes").to_vector<int64_t>() != std::vector<int64_t>{2})
+            return;
+
+        // sum of squares scaled by the row length, then eps and the root
+        auto rm   = rs->module_inputs().front();
+        auto rret = std::prev(rm->end());
+        if(rret->name() != "@return" or rret->inputs().size() != 1)
+            return;
+        auto eps_pw = rret->inputs().front();
+        if(eps_pw->name() != "pointwise" or eps_pw->inputs().size() != 1)
+            return;
+        auto eps = check_eps_rsqrt_module(eps_pw->module_inputs().front());
+        if(not eps.has_value())
+            return;
+        auto rsum = eps_pw->inputs().front();
+        if(rsum->name() != "reduce_sum")
+            return;
+        auto square_pw = rsum->inputs().front();
+        if(square_pw->name() != "pointwise" or square_pw->inputs().size() != 1)
+            return;
+        if(square_pw->inputs().front()->name() != "@param")
+            return;
+        auto ss_scale = check_square_scale_module(square_pw->module_inputs().front());
+        if(not ss_scale.has_value())
+            return;
+
+        m.replace_instruction(ins, rope_norm{*eps, *ss_scale}, {x, w, *cos_in, *sin_in});
+    }
+};
+
 } // namespace
 
 void fuse_rope_qk_norm::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm.get_module(), find_rope_qk_norm{});
+    match::find_matches(mpm.get_module(), find_rope_qk_norm{}, find_rope_norm{});
     mpm.run_pass(dead_code_elimination{});
 }
 

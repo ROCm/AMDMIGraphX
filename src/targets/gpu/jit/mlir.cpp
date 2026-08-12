@@ -381,7 +381,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         }
         if(not mlir_loc.empty())
         {
-            dump_mlir_to_file(*smod, shapes, mlir_loc);
+            dump_mlir_to_file(ctx, *smod, shapes, mlir_loc);
         }
         return get_tuning_config_mlir(ctx, *smod, shapes, exhaustive);
     }

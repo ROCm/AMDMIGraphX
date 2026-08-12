@@ -211,4 +211,112 @@ TEST_CASE(fuse_rope_qk_norm_skips_non_decode)
     EXPECT(not contains_op(*p.get_main_module(), "gpu::rope_qk_norm"));
 }
 
+// Build the q-and-k-are-separate spelling of the fusion as
+// fuse_pointwise_reduce leaves it: a standalone reduction for the reciprocal
+// root and a two-output pointwise combining the halves of the row.
+static migraphx::instruction_ref add_separate_rope(migraphx::program& p, bool swap_halves)
+{
+    const int64_t b = 2, n = 4, d = 8;
+    const int64_t half = d / 2;
+    const std::vector<std::size_t> lens{std::size_t(b), std::size_t(n), std::size_t(d)};
+    const std::vector<std::size_t> half_lens{std::size_t(b), std::size_t(n), std::size_t(half)};
+
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::bf16_type, lens});
+    auto w = mm->add_parameter("w", migraphx::shape{migraphx::shape::bf16_type, {std::size_t(d)}});
+    migraphx::shape angle_s{migraphx::shape::bf16_type, {std::size_t(b), 1, std::size_t(half)}};
+    auto cos = mm->add_parameter("cos", angle_s);
+    auto sin = mm->add_parameter("sin", angle_s);
+
+    auto cvt = add_pointwise(p, "convert", {x}, [](auto* pm, const auto& xs) {
+        return pm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), xs[0]);
+    });
+    auto rs = add_reduce(p, "rms", {cvt}, {2}, [&](auto* rm, const auto& inputs, const auto& axes) {
+        auto sq   = add_pointwise(p, rm, "rms:square", {inputs[0]}, [&](auto* pm, const auto& xs) {
+            auto slit = pm->add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1.0f / d}});
+            auto mul = pm->add_instruction(migraphx::make_op("mul"), xs[0], xs[0]);
+            return pm->add_instruction(migraphx::make_op("mul"), mul, slit);
+        });
+        auto rsum = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sq);
+        return add_pointwise(p, rm, "rms:rsqrt", {rsum}, [&](auto* pm, const auto& xs) {
+            auto eps = pm->add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-6f}});
+            auto add = pm->add_instruction(migraphx::make_op("add"), xs[0], eps);
+            return pm->add_instruction(migraphx::make_op("rsqrt"), add);
+        });
+    });
+
+    auto broadcast = [&](migraphx::instruction_ref ins, const std::vector<std::size_t>& out) {
+        return mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", out}}), ins);
+    };
+    auto rsb  = broadcast(rs, lens);
+    auto wb   = broadcast(w, lens);
+    auto cosb = broadcast(cos, half_lens);
+    auto sinb = broadcast(sin, half_lens);
+
+    auto slice = [&](migraphx::instruction_ref ins, int64_t start) {
+        return mm->add_instruction(
+            migraphx::make_op("slice",
+                              {{"axes", {2}}, {"starts", {start}}, {"ends", {start + half}}}),
+            ins);
+    };
+    std::vector<migraphx::instruction_ref> args{slice(cvt, 0),
+                                                slice(rsb, 0),
+                                                slice(wb, 0),
+                                                slice(cvt, half),
+                                                slice(rsb, half),
+                                                slice(wb, half),
+                                                sinb,
+                                                cosb};
+
+    auto* pm = p.create_module("rope");
+    pm->set_bypass();
+    std::vector<migraphx::instruction_ref> params;
+    std::transform(args.begin(), args.end(), std::back_inserter(params), [&](auto arg) {
+        return pm->add_parameter("x" + std::to_string(params.size()),
+                                 migraphx::shape{arg->get_shape().type()});
+    });
+    auto normalized = [&](std::size_t data, std::size_t root, std::size_t weight) {
+        auto scaled = pm->add_instruction(migraphx::make_op("mul"), params[data], params[root]);
+        auto back   = pm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), scaled);
+        return pm->add_instruction(migraphx::make_op("mul"), back, params[weight]);
+    };
+    auto n_lo = normalized(0, 1, 2);
+    auto n_hi = normalized(3, 4, 5);
+    auto term = [&](migraphx::instruction_ref norm, std::size_t angle) {
+        return pm->add_instruction(migraphx::make_op("mul"), norm, params[angle]);
+    };
+    auto lo = pm->add_instruction(migraphx::make_op("sub"), term(n_lo, 7), term(n_hi, 6));
+    auto hi = pm->add_instruction(migraphx::make_op("add"), term(n_hi, 7), term(n_lo, 6));
+    pm->add_return({hi, lo});
+
+    auto pw    = mm->add_instruction(migraphx::make_op("pointwise"), args, {pm});
+    auto e_hi  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pw);
+    auto e_lo  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), pw);
+    auto first = swap_halves ? e_hi : e_lo;
+    auto last  = swap_halves ? e_lo : e_hi;
+    return mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), first, last);
+}
+
+TEST_CASE(fuse_rope_norm_separate_qk)
+{
+    migraphx::program p;
+    p.get_main_module()->add_return({add_separate_rope(p, false)});
+    run_pass(p);
+    EXPECT(contains_op(*p.get_main_module(), "gpu::rope_norm"));
+    EXPECT(not contains_op(*p.get_main_module(), "concat"));
+}
+
+// The halves have to go back in the order the rotation produced them
+TEST_CASE(fuse_rope_norm_skips_swapped_halves)
+{
+    migraphx::program p;
+    p.get_main_module()->add_return({add_separate_rope(p, true)});
+    run_pass(p);
+    EXPECT(not contains_op(*p.get_main_module(), "gpu::rope_norm"));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

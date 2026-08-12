@@ -28,6 +28,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <cmath>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -47,12 +48,36 @@ static std::vector<argument> generate_arguments(const std::vector<shape>& shapes
     return args;
 }
 
-double
-time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::function<void()>& f)
+static double time_loop_impl(migraphx::gpu::context& gctx,
+                             int bundle,
+                             int nruns,
+                             const std::function<void()>& f,
+                             std::size_t target_ms)
 {
     // check for manual overrides
     bundle = value_of(MIGRAPHX_BENCHMARKING_BUNDLE{}, bundle);
     nruns  = value_of(MIGRAPHX_BENCHMARKING_NRUNS{}, nruns);
+
+    if(target_ms > 0)
+    {
+        // Estimate one launch, then choose a bounded run count for the requested time budget.
+        f();
+        auto estimate_start = context::create_event_for_timing();
+        auto estimate_stop  = context::create_event_for_timing();
+        gctx.get_stream().record(estimate_start.get());
+        f();
+        gctx.get_stream().record(estimate_stop.get());
+        gctx.finish();
+
+        constexpr double min_time_ms = 0.001;
+        const auto estimate_ms =
+            std::max<double>(context::get_elapsed_ms(estimate_start.get(), estimate_stop.get()),
+                             min_time_ms);
+        bundle                     = std::max(bundle, 1);
+        const auto requested_nruns = std::ceil(target_ms / (estimate_ms * bundle));
+        nruns                      = static_cast<int>(
+            std::clamp(requested_nruns, 1.0, static_cast<double>(std::max(nruns, 1))));
+    }
 
     std::vector<std::pair<hip_event_ptr, hip_event_ptr>> events(nruns);
     std::generate(events.begin(), events.end(), [] {
@@ -60,8 +85,8 @@ time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::functi
                               context::create_event_for_timing());
     });
     std::vector<double> times;
-    // Warmup
-    f();
+    if(target_ms == 0)
+        f();
     for(auto i : range(nruns))
     {
         gctx.get_stream().record(events[i].first.get());
@@ -82,6 +107,12 @@ time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::functi
     std::size_t quarters = times.size() / 4;
     double total         = std::accumulate(times.begin() + quarters, times.end() - quarters, 0.0);
     return total / std::distance(times.begin() + quarters, times.end() - quarters);
+}
+
+double
+time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::function<void()>& f)
+{
+    return time_loop_impl(gctx, bundle, nruns, f, 0);
 }
 
 double
@@ -107,7 +138,8 @@ double time_program(const context& ictx,
                     program p,
                     const std::unordered_map<std::string, double>& fill_map,
                     int bundle,
-                    int nruns)
+                    int nruns,
+                    std::size_t target_ms)
 {
     std::vector<migraphx::context> ctx_vec = {ictx};
     auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());
@@ -134,7 +166,7 @@ double time_program(const context& ictx,
         }
     }
     auto run = [&] { p.eval_with_context(ctx_vec, param_map); };
-    return time_loop(gctx, bundle, nruns, run);
+    return time_loop_impl(gctx, bundle, nruns, run, target_ms);
 }
 
 } // namespace gpu

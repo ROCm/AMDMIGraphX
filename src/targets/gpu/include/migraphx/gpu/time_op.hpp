@@ -43,7 +43,8 @@ MIGRAPHX_GPU_EXPORT double time_program(const context& ictx,
                                         program p,
                                         const std::unordered_map<std::string, double>& fill_map,
                                         int bundle = 1,
-                                        int nruns  = 100);
+                                        int nruns  = 100,
+                                        std::size_t target_ms = 0);
 
 /* benchmark gpu::code_object with expected input shapes over n iterations */
 MIGRAPHX_GPU_EXPORT double

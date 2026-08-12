@@ -2224,10 +2224,10 @@ TEST_CASE(conv_add)
 
 TEST_CASE(conv_add_dot)
 {
-    migraphx::shape is{migraphx::shape::half_type, {2, 4, 8, 8}};
-    migraphx::shape ys{migraphx::shape::half_type, {2, 8, 8, 8}};
-    migraphx::shape ws{migraphx::shape::half_type, {8, 4, 1, 1}};
-    migraphx::shape zs{migraphx::shape::half_type, {2, 8, 8, 4}};
+    migraphx::shape is{migraphx::shape::half_type, {1, 13, 65536, 128}};
+    migraphx::shape ys{migraphx::shape::half_type, {1, 512, 65536, 128}};
+    migraphx::shape ws{migraphx::shape::half_type, {512, 13, 1, 1}};
+    migraphx::shape zs{migraphx::shape::half_type, {1, 512, 128, 256}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2251,7 +2251,7 @@ TEST_CASE(conv_add_dot)
         auto z   = mm->add_parameter("z", zs);
         auto fused =
             add_mlir(p2,
-                     "mlir_main:pointwise0_geg",
+                     "mlir_main:pointwise0_mlir_dot1_geg",
                      {x, w, y, z},
                      {"x0", "x1", "x2", "x3"},
                      [=](auto* pm, const auto& inputs) {

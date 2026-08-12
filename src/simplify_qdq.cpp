@@ -474,39 +474,35 @@ struct match_concat_qlinear
             return;
         }
 
-        auto slices         = get_slices(cat_ins);
-        auto cat_inputs     = cat_ins->inputs();
-        auto make_cat_input = [&](auto i, const auto& slc) -> std::optional<instruction_ref> {
-            auto scale_slc = m.insert_instruction(ins, make_op("slice", slc), {scale});
-            auto zp_slc    = m.insert_instruction(ins, make_op("slice", slc), {zp});
-            auto same_lens = [&](auto slc_ins) {
-                return shape::same_lens(slc_ins->get_shape(), i->get_shape());
-            };
-            if(not same_lens(scale_slc) or not same_lens(zp_slc))
-            {
-                return std::nullopt;
-            }
-            return m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc});
+        auto slices     = get_slices(cat_ins);
+        auto cat_inputs = cat_ins->inputs();
+        // Each sliced scale and zero point must match the concat input it quantizes, so
+        // check the shapes before inserting anything.
+        auto slice_matches = [&](instruction_ref cat_inp, const auto& slc) {
+            auto slice_op = make_op("slice", slc);
+            return shape::same_lens(slice_op.compute_shape({scale->get_shape()}),
+                                    cat_inp->get_shape()) and
+                   shape::same_lens(slice_op.compute_shape({zp->get_shape()}),
+                                    cat_inp->get_shape());
         };
-
-        std::vector<std::optional<instruction_ref>> new_cat_inputs(cat_inputs.size());
-        std::transform(cat_inputs.begin(),
-                       cat_inputs.end(),
-                       slices.begin(),
-                       new_cat_inputs.begin(),
-                       make_cat_input);
-
-        if(std::any_of(new_cat_inputs.begin(), new_cat_inputs.end(), [](const auto& input) {
-               return not input.has_value();
-           }))
+        if(not std::equal(cat_inputs.begin(), cat_inputs.end(), slices.begin(), slice_matches))
+        {
             return;
+        }
 
-        std::vector<instruction_ref> replacement_inputs(new_cat_inputs.size());
-        std::transform(new_cat_inputs.begin(),
-                       new_cat_inputs.end(),
-                       replacement_inputs.begin(),
-                       [](const auto& input) { return *input; });
-        m.replace_instruction(ins, cat_ins->get_operator(), replacement_inputs);
+        std::vector<instruction_ref> new_cat_inputs;
+        std::transform(
+            cat_inputs.begin(),
+            cat_inputs.end(),
+            slices.begin(),
+            std::back_inserter(new_cat_inputs),
+            [&](auto i, const auto& slc) {
+                auto scale_slc = m.insert_instruction(ins, make_op("slice", slc), {scale});
+                auto zp_slc    = m.insert_instruction(ins, make_op("slice", slc), {zp});
+                return m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc});
+            });
+
+        m.replace_instruction(ins, cat_ins->get_operator(), new_cat_inputs);
     }
 };
 

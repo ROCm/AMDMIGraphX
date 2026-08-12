@@ -1632,17 +1632,26 @@ struct find_splits
         return false;
     }
 
+    // Result of fuse_binary_const_concat: the fused instruction and the
+    // slice-argument index it was built with. `ins` is m.end() when the group
+    // could not be fused.
+    struct binary_const_concat_fusion
+    {
+        instruction_ref ins;
+        int split_idx;
+    };
+
     // Fuse a binary group whose non-split argument is a foldable constant by
     // concatenating the constants and computing `op` over the whole tensor.
-    // Returns the fused instruction, or m.end() if the group cannot be fused
-    // (in which case the caller aborts, matching the original semantics).
-    // On success, split_idx is set to the slice-argument index.
-    instruction_ref fuse_binary_const_concat(module& m,
-                                             instruction_ref ins,
-                                             const std::vector<instruction_ref>& group,
-                                             const std::vector<instruction_ref>& splits,
-                                             const operation& op,
-                                             int& split_idx) const
+    // Returns the fused instruction and its slice-argument index, or an `ins`
+    // of m.end() if the group cannot be fused (in which case the caller aborts,
+    // matching the original semantics).
+    binary_const_concat_fusion
+    fuse_binary_const_concat(module& m,
+                             instruction_ref ins,
+                             const std::vector<instruction_ref>& group,
+                             const std::vector<instruction_ref>& splits,
+                             const operation& op) const
     {
         auto start = group.front();
         assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
@@ -1652,12 +1661,12 @@ struct find_splits
         auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
         assert(not slice_op.axes.empty());
         if(slice_op.axes.size() > 1)
-            return m.end();
+            return {m.end(), 0};
         auto concat_axis = slice_op.axes.front();
         if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
-            return m.end();
+            return {m.end(), 0};
 
-        split_idx = get_binary_op_split_idx(group, splits);
+        int split_idx = get_binary_op_split_idx(group, splits);
         assert(split_idx < 2);
         size_t data_idx = 0;
         if(split_idx < 0 and op.attributes().contains("commutative"))
@@ -1668,7 +1677,7 @@ struct find_splits
         }
         else if(split_idx < 0)
         {
-            return m.end();
+            return {m.end(), 0};
         }
         else
         {
@@ -1683,7 +1692,7 @@ struct find_splits
         // Data arguments must be a constant
         if(std::any_of(
                data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
-            return m.end();
+            return {m.end(), 0};
 
         move_instructions_back(m, ins, data_args);
 
@@ -1694,7 +1703,8 @@ struct find_splits
         std::vector<instruction_ref> args(2);
         args[split_idx] = ins;
         args[data_idx]  = concat;
-        return m.insert_instruction(std::next(ins), op, {args}, start->module_inputs());
+        return {m.insert_instruction(std::next(ins), op, {args}, start->module_inputs()),
+                split_idx};
     }
 
     // Point each group member at the fused result `c`.  For a full cover the
@@ -1806,9 +1816,11 @@ struct find_splits
                 // so it only applies to a full cover.
                 if(partial)
                     continue;
-                c = fuse_binary_const_concat(m, ins, group, splits, op, split_idx);
-                if(c == m.end())
+                auto fusion = fuse_binary_const_concat(m, ins, group, splits, op);
+                if(fusion.ins == m.end())
                     return;
+                c         = fusion.ins;
+                split_idx = fusion.split_idx;
             }
 
             if(c != m.end())

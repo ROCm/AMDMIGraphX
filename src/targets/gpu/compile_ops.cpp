@@ -471,7 +471,8 @@ struct compile_plan
                                                  std::move(bench_prog),
                                                  cr->replace.fill_map,
                                                  bundle,
-                                                 /* nrun */ 20);
+                                                 /* nrun */ 20,
+                                                 /* target_ms */ 100);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

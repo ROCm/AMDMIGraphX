@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/compile_options.hpp>
+#include <migraphx/errors.hpp>
 #include "test.hpp"
 
 TEST_CASE(set_backend_options_merges_object)
@@ -61,5 +62,32 @@ TEST_CASE(set_backend_options_empty)
     migraphx::set_backend_options(options, migraphx::value::object{});
     EXPECT(options.backend_options.empty());
 }
+
+  TEST_CASE(set_backend_options_non_object_throws)
+  {
+      migraphx::compile_options options;
+
+      // null
+      EXPECT(test::throws<migraphx::exception>(
+          [&] { migraphx::set_backend_options(options, migraphx::value{}); },
+          "expects an object value"));
+
+      // scalar
+      EXPECT(test::throws<migraphx::exception>(
+          [&] { migraphx::set_backend_options(options, migraphx::value(42)); },
+          "expects an object value"));
+
+      EXPECT(test::throws<migraphx::exception>(
+          [&] { migraphx::set_backend_options(options, migraphx::value("gfx942")); },
+          "expects an object value"));
+
+      // array
+      EXPECT(test::throws<migraphx::exception>(
+          [&] { migraphx::set_backend_options(options, migraphx::value({1, 2, 3})); },
+          "expects an object value"));
+
+      // nothing was merged on any of the failed calls
+      EXPECT(options.backend_options.empty());
+  }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

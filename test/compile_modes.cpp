@@ -132,7 +132,7 @@ TEST_CASE(convert_uint8_boundary_75)
 
 TEST_CASE(convert_string_trailing_garbage)
 {
-    // std::stoi stops at the first non-digit — pin the accepted behaviour
+    // std::stoi stops at the first non-digit — pin the accepted behavior
     EXPECT(migraphx::convert_to_compile_mode("50abc") == migraphx::compile_modes::balanced);
 }
 

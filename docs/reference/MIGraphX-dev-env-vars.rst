@@ -21,14 +21,6 @@ Model performance tunable variables change the compilation behavior of a model. 
   * - Environment variable
     - Values
 
-  * - | ``MIGRAPHX_ENABLE_NHWC``
-      | Forces the model to use the NHWC layout.
-      
-    - | ``1``: Forces the use of the NHWC layout.
-      | ``0``: Returns to default behavior.
-
-      | Default: The use of the NHWC layout isn't forced.
-
   * - | ``MIGRAPHX_DISABLE_MLIR``
       | When set, the rocMLIR library won't be used.
       

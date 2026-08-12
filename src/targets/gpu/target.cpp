@@ -91,7 +91,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
@@ -106,11 +105,14 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
+    layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"));
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.convolution_layout, "convolution_layout"));
     }
 };
 
@@ -177,9 +179,7 @@ struct pipeline_factory
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
-            layout_convolution{.order = enabled(MIGRAPHX_ENABLE_NHWC{})
-                                            ? layout_convolution::channels_last
-                                            : layout_convolution::channels_auto},
+            layout_convolution{.order = backend_opts.convolution_layout},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},

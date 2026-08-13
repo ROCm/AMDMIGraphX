@@ -195,6 +195,11 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+static void set_compile_mode(compile_options& options, int8_t value)
+{
+    options.compile_mode = convert_to_compile_mode(value);
+}
+
 // Parse the backend options from `options_json` and merge them into the
 // compile options. See migraphx::set_backend_options for the merge semantics.
 static void set_backend_options(compile_options& options, const char* options_json, va_list vlist)

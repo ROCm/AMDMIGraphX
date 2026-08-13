@@ -27,8 +27,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/env.hpp>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_DYNAMIC_NMS)
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
@@ -46,24 +44,25 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
                const auto& s = arg->get_shape();
                return not s.dynamic() and s.elements() == 0;
            }))
+        {
             return info.add_instruction(make_op("undefined"));
+        }
 
         auto op      = parser.load(opd.op_name, info);
         auto nms_ins = info.add_instruction(op, args);
-        // slice with variable ends to handle dynamic shape output.
         auto indices = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nms_ins);
-        if(enabled(MIGRAPHX_USE_DYNAMIC_NMS{}))
-        {
-            // TODO: planning to make this the default behavior and removing the env var.
-            auto num_selected =
-                info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
-            return info.add_instruction(
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
-        }
-        else
-        {
-            return indices;
-        }
+        // slice with variable ends to handle dynamic shape output.
+        auto num_selected =
+            info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
+        auto max_selected = indices->get_shape().max_lens().front();
+        auto num_selected_var = sym::var(info.name, {0, max_selected});
+        auto starts_lit = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
+        return info.add_instruction(
+            make_op("dyn_slice", 
+                {{"axes", {0}},
+                {"starts", {0}},
+                {"ends", value::array{to_value(num_selected_var)}}})
+            , indices, starts_lit, num_selected);
     }
 };
 

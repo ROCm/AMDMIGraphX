@@ -36,6 +36,18 @@ struct parse_topk : op_parser<parse_topk>
 {
     std::vector<op_desc> operators() const { return {{"TopK"}}; }
 
+    static std::vector<instruction_ref> add_topk_and_gets(onnx_parser::node_info info,
+            std::vector<instruction_ref> args,
+            int64_t k,
+            int64_t axis,
+            bool largest){
+        auto topk_ret = info.add_instruction(
+            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
+        auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
+        auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
+        return {ret_val, ret_ind};
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        onnx_parser::node_info info,
@@ -53,47 +65,52 @@ struct parse_topk : op_parser<parse_topk>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        bool var_k = false;
-        int64_t k  = 0;
-        if(args.size() == 2)
+        // opset-1 form: `k` is an ONNX attribute. Go directly into MIGX's topk operator.
+        if(args.size() == 1)
         {
-            auto arg_k = args.at(1)->eval();
-            if(not arg_k.empty())
+            int64_t k = 0;
+            if(contains(info.attributes, "k"))
             {
-                k = arg_k.at<int>();
+                k = info.attributes.at("k").i();
             }
-            else
-            {
-                var_k = true;
-            }
-        }
-        else if(contains(info.attributes, "k"))
-        {
-            k = info.attributes.at("k").i();
+            return add_topk_and_gets(info, args, k, axis, largest);
         }
 
-        if(var_k)
+        // opset-10+ form: `k` is a runtime input.
+        auto k_ins = args.at(1);
+        auto arg_k = k_ins->eval();
+        if(not arg_k.empty())
         {
-            // set `k` to axis dimension
-            auto input_shape = args.at(0)->get_shape();
-            auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
-            k                = input_shape.max_lens().at(norm_axis);
+            // constant `k` value
+            int64_t k     = arg_k.at<int>();
+            return add_topk_and_gets(info, args, k, axis, largest);
         }
-
+        // Variable (data-dependent) `k`: run topk over the whole axis dimension, then slice the
+        // outputs down to the runtime `k` using a symbolic dimension.
+        auto input_shape = args.at(0)->get_shape();
+        // Normalize axis because we need the interval maximum on that dimension.
+        auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
+        int64_t max_k        = input_shape.max_lens().at(norm_axis);
         auto topk_ret = info.add_instruction(
-            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
-
+            make_op("topk", {{"k", max_k}, {"axis", norm_axis}, {"largest", largest}}), args.at(0));
         auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
         auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
-
-        if(var_k)
-        {
-            // dynamic slice on outputs of `topk`
-            ret_val = info.add_instruction(
-                make_op("slice", {{"starts", {0}}, {"axes", {axis}}}), ret_val, args.at(1));
-            ret_ind = info.add_instruction(
-                make_op("slice", {{"starts", {0}}, {"axes", {axis}}}), ret_ind, args.at(1));
-        }
+        auto k_var = sym::var(info.name, {0, max_k});
+        auto starts_lit       = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
+        ret_val    = info.add_instruction(make_op("dyn_slice",
+                                               {{"axes", {norm_axis}},
+                                                {"starts", {0}},
+                                                {"ends", value::array{to_value(k_var)}}}),
+                                       ret_val,
+                                       starts_lit,
+                                       k_ins);
+        ret_ind    = info.add_instruction(make_op("dyn_slice",
+                                               {{"axes", {norm_axis}},
+                                                {"starts", {0}},
+                                                {"ends", value::array{to_value(k_var)}}}),
+                                       ret_ind,
+                                       starts_lit,
+                                       k_ins);
 
         return {ret_val, ret_ind};
     }

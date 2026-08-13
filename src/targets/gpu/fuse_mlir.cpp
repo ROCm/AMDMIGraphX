@@ -173,13 +173,15 @@ bool mlir_flash_decoding_enabled()
 
 struct mlir_op
 {
+    operation op    = make_op("convolution");
+    std::string tag = "";
+
     std::string name() const { return "gpu::mlir_op"; }
-    operation op = make_op("convolution");
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.op, "op"));
+        return pack(f(self.op, "op"), f(self.tag, "tag"));
     }
 
     // Check if the shape can be created from a transpose/broadcast/slice
@@ -442,6 +444,17 @@ auto is_mlir_conv_backwards(mlir_mode mode)
 
         return (w.lens().size() == 4 or not(group > 1));
     });
+}
+
+auto is_mlir_fusible_geg_op()
+{
+    return match::name("gpu::mlir_op")(
+        match::make_basic_pred_matcher(
+            [](instruction_ref ins) { return not ins->module_inputs().empty(); }),
+        match::any_of(match::has_op_value("tag", "standalone_dot"),
+                      match::has_op_value("tag", "standalone_convolution"),
+                      match::has_op_value("tag", "dot_pointwise"),
+                      match::has_op_value("tag", "conv_pointwise")));
 }
 
 std::unordered_map<instruction_ref, instruction_ref>
@@ -794,12 +807,6 @@ struct find_mlir_fused_ops
         }
         inss_to_insert.push_back(gemm_based_op);
 
-        // Set tag if there are no reshape ops between gemm and pointwise
-        if(x_ins == gemm_based_op)
-        {
-            bool is_conv = contains({"convolution", "quant_convolution"}, gemm_based_op->name());
-            mm->set_tag(is_conv ? "conv_pointwise" : "dot_pointwise");
-        }
         std::reverse(inss_to_insert.begin(), inss_to_insert.end());
         mm->add_instructions(inss_to_insert, &map_ins);
 
@@ -811,9 +818,15 @@ struct find_mlir_fused_ops
         }
         mm->add_return(rins);
 
-        auto inputs    = find_inputs(map_ins, &mpm.get_module(), mm);
-        auto fused_ins = mpm.get_module().insert_instruction(
-            pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
+        mlir_op mlir{gemm_based_op->get_operator()};
+        if(x_ins == gemm_based_op)
+        {
+            bool is_conv = contains({"convolution", "quant_convolution"}, gemm_based_op->name());
+            mlir.tag     = is_conv ? "conv_pointwise" : "dot_pointwise";
+        }
+        auto fused_ins =
+            mpm.get_module().insert_instruction(pw_ins, mlir, mlir_contiguous(mpm, inputs), {mm});
         if(gemm_has_multi_outs)
         {
             auto dot_ins = mpm.get_module().insert_instruction(
@@ -878,21 +891,6 @@ struct find_mlir_fused_geg_ops
         return true;
     }
 
-    // Check if instruction is a gpu::mlir_op with a tag indicating standalone or dot/conv_pointwise
-    // fusion
-    static bool is_mlir_fusible_gemm_op(instruction_ref ins)
-    {
-        if(ins->name() != "gpu::mlir_op")
-            return false;
-
-        if(ins->module_inputs().empty())
-            return false;
-
-        const auto& tag = ins->module_inputs().front()->get_tag();
-        return tag == "standalone_dot" or tag == "standalone_convolution" or
-               tag == "dot_pointwise" or tag == "conv_pointwise";
-    }
-
     // Fuse GEG only for large-batch, skinny-k GEMM chains (DLRM bottom MLP)
     bool check_heuristic(const std::vector<instruction_ref>& first_inputs,
                          const std::vector<instruction_ref>& second_inputs) const
@@ -937,12 +935,11 @@ struct find_mlir_fused_geg_ops
      */
     auto matcher() const
     {
-        auto mlir_gemm_op = match::make_basic_pred_matcher(&is_mlir_fusible_gemm_op);
-
-        auto first_mlir_op = mlir_gemm_op.bind("first_gemm_based_op");
+        auto mlir_fusible_geg_op = is_mlir_fusible_geg_op();
+        auto first_mlir_op       = mlir_fusible_geg_op.bind("first_gemm_based_op");
         // this is specifically disallowing multi out from the first submodule, which rocMLIR does
         // not support
-        return mlir_gemm_op(match::arg(0)(first_mlir_op)).bind("second_gemm_op");
+        return mlir_fusible_geg_op(match::arg(0)(first_mlir_op)).bind("second_gemm_op");
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -1084,14 +1081,13 @@ struct find_mlir_standalone_op : match::supports_dynamic_shapes
             module_name = mpm.get_module().name() + ":" + module_name;
         module_ref mm = mpm.create_module(module_name);
         mm->set_bypass();
-        mm->set_tag("standalone_" + gemm_based_op->name());
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
         mm->add_return({anchor_op});
-        mpm.get_module().replace_instruction(gemm_based_op,
-                                             mlir_op{gemm_based_op->get_operator()},
-                                             mlir_contiguous(mpm, top_inputs),
-                                             {mm});
+        mlir_op mlir{gemm_based_op->get_operator()};
+        mlir.tag = "standalone_" + gemm_based_op->name();
+        mpm.get_module().replace_instruction(
+            gemm_based_op, mlir, mlir_contiguous(mpm, top_inputs), {mm});
     }
 };
 

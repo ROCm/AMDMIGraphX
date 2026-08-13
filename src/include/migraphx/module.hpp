@@ -89,9 +89,6 @@ struct MIGRAPHX_EXPORT module
     bool bypass() const;
     void set_bypass(bool b = true);
 
-    std::string get_tag() const;
-    void set_tag(const std::string& tag);
-
     /// If any instructions in this module have debug symbols
     bool has_debug_symbols() const;
     /// Merge given symbols with instruction's symbols

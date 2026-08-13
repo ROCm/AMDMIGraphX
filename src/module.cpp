@@ -63,7 +63,6 @@ struct module_impl
     std::string name;
     uint32_t nparams = 0;
     bool bypass      = false; // used for skipping compiler passes
-    std::string tag;          // optional tag for categorizing/identifying modules
     bit_signal<64> changed{};
     std::size_t num_ins_with_debug_symbols = 0;
 
@@ -210,9 +209,6 @@ void module::set_name(const std::string& name) { impl->name = name; }
 
 bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
-
-std::string module::get_tag() const { return impl->tag; }
-void module::set_tag(const std::string& tag) { impl->tag = tag; }
 
 bool module::has_debug_symbols() const { return impl->num_ins_with_debug_symbols > 0; }
 

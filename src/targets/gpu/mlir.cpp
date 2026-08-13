@@ -1379,16 +1379,12 @@ bool mlir_lds_usage_fits_arch(int64_t gemm_o,
                               shape::type_t elem_type,
                               const module* m)
 {
-    static mlir_program prog;
-    static std::mutex mutex;
-    const std::lock_guard<std::mutex> lock(mutex);
-
+    mlir_program prog;
     if(m != nullptr)
     {
-        mlir_program mod_prog;
-        mod_prog.parse(*m);
+        prog.parse(*m);
         return mlirMIGraphXLDSUsageFitsArch(
-            0, nullptr, mod_prog.make_type(elem_type), mod_prog.mmodule.get());
+            0, nullptr, prog.make_type(elem_type), prog.mmodule.get());
     }
 
     return mlirMIGraphXLDSUsageFitsArch(

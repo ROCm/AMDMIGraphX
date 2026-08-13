@@ -1004,10 +1004,8 @@ struct find_mlir_fused_geg_ops
         auto second_rins = mm->fuse(*second_submod, second_gemm_ins->inputs(), &map_ins);
         // second_rins contains the outputs of the second submodule (may be multiple if
         // dot_pointwise/conv_pointwise with multi-outs)
-        if(second_gemm_has_multi_outs)
-            assert(second_rins.size() == 2);
-        else
-            assert(second_rins.size() == 1);
+        assert((second_gemm_has_multi_outs and second_rins.size() == 2) or
+               (not second_gemm_has_multi_outs and second_rins.size() == 1));
         map_ins[second_gemm_ins] = second_rins.front();
 
         // if second submodule has multi-outs, second_rins already contains [pointwise, gemm]

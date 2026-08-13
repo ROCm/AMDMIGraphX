@@ -78,13 +78,18 @@ TEST_CASE(fuse_skinny_gemm_with_residual)
     EXPECT(reduce->get_shape().lens() == std::vector<std::size_t>{4, 1, 4096});
 }
 
-// Without a residual to fold the reduce kernel is pure overhead: keep the dot
-TEST_CASE(fuse_skinny_gemm_requires_residual)
+// Without a residual the reduce still runs but takes only the partials
+TEST_CASE(fuse_skinny_gemm_without_residual)
 {
     auto p = make_dot_add(4, 4096, 4096, false);
     run_pass(p);
-    EXPECT(not contains_op(*p.get_main_module(), "gpu::skinny_gemm_splitk"));
-    EXPECT(contains_op(*p.get_main_module(), "dot"));
+    const auto* mm = p.get_main_module();
+    EXPECT(contains_op(*mm, "gpu::skinny_gemm_splitk"));
+    EXPECT(not contains_op(*mm, "dot"));
+    auto reduce = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "gpu::skinny_gemm_reduce";
+    });
+    EXPECT(reduce->inputs().size() == 1);
 }
 
 // Too many rows: the weight is no longer the dominant traffic
@@ -93,6 +98,62 @@ TEST_CASE(fuse_skinny_gemm_skips_wide_m)
     auto p = make_dot_add(64, 4096, 4096, true);
     run_pass(p);
     EXPECT(not contains_op(*p.get_main_module(), "gpu::skinny_gemm_splitk"));
+}
+
+// A qkv projection feeding rope_qk_norm: the split partials go straight into
+// the rope kernel (with the v heads as a second output) and the separate
+// reduce disappears
+TEST_CASE(fuse_skinny_gemm_rope)
+{
+    const std::size_t b  = 4;
+    const std::size_t k  = 4096;
+    const std::size_t nq = 40;
+    const std::size_t nk = 8;
+    const std::size_t d  = 128;
+    const std::size_t w  = (nq + 2 * nk) * d;
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto a   = mm->add_parameter("a", {migraphx::shape::bf16_type, {b, 1, k}});
+    auto wl  = mm->add_literal(migraphx::generate_literal({migraphx::shape::bf16_type, {k, w}}, 0));
+    auto wb  = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {b, k, w}}}), wl);
+    auto dot = mm->add_instruction(migraphx::make_op("dot"), a, wb);
+    auto qw  = mm->add_literal(migraphx::generate_literal({migraphx::shape::bf16_type, {d}}, 1));
+    auto kw  = mm->add_literal(migraphx::generate_literal({migraphx::shape::bf16_type, {d}}, 2));
+    auto cos =
+        mm->add_literal(migraphx::generate_literal({migraphx::shape::bf16_type, {b, 1, 1, d}}, 3));
+    auto sin =
+        mm->add_literal(migraphx::generate_literal({migraphx::shape::bf16_type, {b, 1, 1, d}}, 4));
+    auto rope = mm->add_instruction(
+        migraphx::make_op("gpu::rope_qk_norm",
+                          {{"num_heads", nq}, {"eps", 1e-6f}, {"ss_scale", 1.0f / d}}),
+        dot,
+        qw,
+        kw,
+        cos,
+        sin);
+    auto vs = mm->add_instruction(
+        migraphx::make_op(
+            "slice",
+            {{"axes", {2}}, {"starts", {(nq + nk) * d}}, {"ends", {(nq + 2 * nk) * d}}}),
+        dot);
+    auto vr =
+        mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {b, 1, nk, d}}}), vs);
+    auto vt =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), vr);
+    mm->add_return({rope, vt});
+
+    run_pass(p);
+    EXPECT(contains_op(*mm, "gpu::skinny_gemm_splitk"));
+    EXPECT(not contains_op(*mm, "gpu::skinny_gemm_reduce"));
+    EXPECT(not contains_op(*mm, "dot"));
+    auto fused = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "gpu::rope_qk_norm";
+    });
+    EXPECT(fused != mm->end());
+    EXPECT(fused->get_operator().to_value().at("splits").to<std::size_t>() > 0);
+    EXPECT(fused->get_shape().type() == migraphx::shape::tuple_type);
+    EXPECT(fused->inputs().front()->name() == "gpu::skinny_gemm_splitk");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

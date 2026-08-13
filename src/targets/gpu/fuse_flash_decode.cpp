@@ -43,7 +43,7 @@ namespace {
 
 constexpr std::size_t min_seq_len = 1024;
 constexpr std::size_t target_wgs  = 2048;
-constexpr std::size_t min_chunk   = 256;
+constexpr std::size_t min_chunk   = 512;
 
 struct kv_flash_decode_splitk
 {
@@ -276,6 +276,9 @@ std::optional<decode_attention_info> match_decode_attention(const_module_ref sm)
     if((info.q_heads / info.kv_heads) > 8)
         return std::nullopt;
     if(d % 64 != 0 or d > 256)
+        return std::nullopt;
+    // the split kernel computes scores with bf16 MFMA instructions
+    if(k->get_shape().type() != shape::bf16_type)
         return std::nullopt;
     if(info.sl_param->get_shape().type() != shape::int32_type)
         return std::nullopt;

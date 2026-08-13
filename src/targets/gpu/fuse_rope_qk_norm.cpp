@@ -45,30 +45,42 @@ struct rope_qk_norm
     std::size_t num_heads = 0;
     float eps             = 1e-6f;
     float ss_scale        = 1.0f;
+    // when nonzero the first input is the {splits, batch, total*d} float
+    // partials of the split-K qkv projection and the op also emits the summed
+    // v heads as a second output
+    std::size_t splits = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.num_heads, "num_heads"), f(self.eps, "eps"), f(self.ss_scale, "ss_scale"));
+        return pack(f(self.num_heads, "num_heads"),
+                    f(self.eps, "eps"),
+                    f(self.ss_scale, "ss_scale"),
+                    f(self.splits, "splits"));
     }
 
     std::string name() const { return "gpu::rope_qk_norm"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        // qkv, q_norm_weight, k_norm_weight, cos, signed_sin
+        // qkv (or its split-K partials), q_norm_weight, k_norm_weight, cos,
+        // signed_sin
         check_shapes{inputs, *this}.has(5);
         const auto& qkv = inputs.front();
         auto d          = inputs.at(1).lens().front();
-        auto b          = qkv.lens().at(0);
+        auto b          = qkv.lens().at(splits == 0 ? 0 : 1);
         auto w          = qkv.lens().at(2);
         auto total      = w / d;
         auto nk         = (total - num_heads) / 2;
         auto h          = num_heads + nk;
+        auto t          = splits == 0 ? qkv.type() : inputs.at(1).type();
         // Same layout the fused pointwise produced: a transposed view of
         // {b, 1, h, d}, so downstream shapes are unchanged.
-        return shape{qkv.type(), {b, h, 1, d}, {h * d, d, h * d, 1}};
+        shape qk{t, {b, h, 1, d}, {h * d, d, h * d, 1}};
+        if(splits == 0)
+            return qk;
+        shape vs{t, {b, nk, 1, d}, {nk * d, d, nk * d, 1}};
+        return shape{{qk, vs}};
     }
 };
 MIGRAPHX_REGISTER_OP(rope_qk_norm);

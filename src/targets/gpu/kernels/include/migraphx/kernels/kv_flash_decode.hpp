@@ -69,7 +69,6 @@ kv_flash_decode_splitk(QK qk, K kcache, V vcache, SeqLens seqlens, Partials part
     constexpr index_int row_lanes = wave_size / 4;
     constexpr index_int dpl       = d / row_lanes; // head dims per lane
     constexpr index_int nwaves    = 4;
-    constexpr index_int chunk     = (n_total + Groups - 1) / Groups;
     constexpr auto qk_strides     = get_shape_c<QK>{}.strides;
     const float lowest            = numeric_lowest<float>();
     using kv_vec                  = vec<unsigned int, dpl / 2>;
@@ -83,30 +82,55 @@ kv_flash_decode_splitk(QK qk, K kcache, V vcache, SeqLens seqlens, Partials part
 
     const auto seqlen     = seqlens.data()[b];
     const index_int valid = seqlen < 0 ? 0 : min(n_total, static_cast<index_int>(seqlen) + 1);
+    // split the rows that actually exist for this batch, not the cache
+    // capacity, so every chunk stays busy at any sequence length
+    const index_int chunk = (valid + Groups - 1) / Groups;
     const index_int r0    = min(g * chunk, valid);
     const index_int r1    = min(r0 + chunk, valid);
 
-    // q fragments for the r heads sharing this kv-head, distributed over lanes
-    float qf[r][dpl];
-    for(index_int j = 0; j < r; ++j)
-        for(index_int i = 0; i < dpl; ++i)
-            qf[j][i] = migraphx::convert<float>(
-                qk.data()[b * qk_strides[0] + (kh * r + j) * qk_strides[1] +
-                          (lane * dpl + i) * qk_strides[3]]);
+    // MFMA fragment geometry for v_mfma_f32_16x16x16bf16_1k:
+    //   A: lane holds A[lane%16][4*(lane/16)+i]
+    //   B: lane holds B[4*(lane/16)+i][lane%16]
+    //   D: lane holds D[4*(lane/16)+i][lane%16]
+    // Scores are computed transposed, S^T[row][head] = K-tile x Q^T, so the
+    // result fragment leaves each lane holding four rows of one head column,
+    // which is exactly the layout the P*V accumulation consumes: quarter
+    // `part` owns tile rows 4*part+i and lane `lane` owns head dims
+    // [lane*dq, lane*dq+dq).
+    using bf16x4                = __bf16 __attribute__((ext_vector_type(4)));
+    using floatx4               = float __attribute__((ext_vector_type(4)));
+    constexpr index_int kblocks = d / 16; // MFMA steps over the head dim
+    constexpr index_int dq      = dpl;    // head dims per lane in the P*V stage
 
+    // Q as the B operand, one fragment per k-block; padding head columns are
+    // zero so they never influence the real scores
+    bf16x4 bq[kblocks];
+    for(index_int kb = 0; kb < kblocks; ++kb)
+    {
+        for(index_int i = 0; i < 4; ++i)
+        {
+            bq[kb][i] = (lane < r) ? qk.data()[b * qk_strides[0] + (kh * r + lane) * qk_strides[1] +
+                                               (16 * kb + 4 * part + i) * qk_strides[3]]
+                                   : static_cast<__bf16>(0.0f);
+        }
+    }
+
+    // Online softmax state per head, replicated on every lane and updated
+    // from broadcast tile statistics so all lanes stay consistent; m_own
+    // additionally tracks this lane's head column for the exponentials.
     float m[r];
     float l[r];
-    float acc[r][dpl];
+    float acc[r][dq];
     for(index_int j = 0; j < r; ++j)
     {
         m[j] = lowest;
         l[j] = 0.0f;
-        for(index_int i = 0; i < dpl; ++i)
+        for(index_int i = 0; i < dq; ++i)
             acc[j][i] = 0.0f;
     }
+    float m_own = lowest;
 
-    // each wave runs four interleaved online softmaxes over a contiguous
-    // slice of the chunk, one per quarter-wave
+    // each wave runs an online softmax over a contiguous slice of the chunk
     const index_int per_wave = (r1 - r0 + nwaves - 1) / nwaves;
     const index_int w0       = r0 + wave * per_wave;
     const index_int w1       = min(w0 + per_wave, r1);
@@ -114,12 +138,11 @@ kv_flash_decode_splitk(QK qk, K kcache, V vcache, SeqLens seqlens, Partials part
     const auto* kbase = kcache.data() + (b * KVHeads + kh) * n_total * d;
     const auto* vbase = vcache.data() + (b * KVHeads + kh) * n_total * d;
 
+    // every cache row is read by exactly one workgroup per token, so
+    // nontemporal loads keep the KV stream from evicting reused data
     auto load_row = [&](const auto* base, index_int nn) {
-        kv_vec out;
-        __builtin_memcpy(&out,
-                         __builtin_assume_aligned(base + nn * d + lane * dpl, sizeof(kv_vec)),
-                         sizeof(kv_vec));
-        return out;
+        const auto* src = reinterpret_cast<const kv_vec*>(base + nn * d + lane * dpl);
+        return __builtin_nontemporal_load(src);
     };
     auto unpack = [&](kv_vec v, float (&out)[dpl]) {
         for(index_int u = 0; u < dpl / 2; ++u)
@@ -129,89 +152,114 @@ kv_flash_decode_splitk(QK qk, K kcache, V vcache, SeqLens seqlens, Partials part
         }
     };
 
-    // Rows are processed in blocks of two per quarter with fully static
-    // loops (runtime bounds would push the register arrays to scratch) so the
-    // raw 16-byte loads of independent rows pipeline, and the online softmax
-    // rescale happens once per block instead of per row.
-    constexpr index_int rows_per_iter = 2;
-    for(index_int n0 = w0; n0 < w1; n0 += 4 * rows_per_iter)
+    // K tiles are staged in LDS with the same coalesced row loads as V and
+    // read back in the MFMA fragment layout; the row pitch is padded to keep
+    // the 16 fragment rows on distinct banks. Every wave runs the same tile
+    // count so the workgroup barrier between staging and reading is uniform.
+    constexpr index_int krow_pitch = d + 4;
+    __shared__ __bf16 lds_k[nwaves][16][krow_pitch];
+    const index_int ntiles = (per_wave + 15) / 16;
+
+    for(index_int tt = 0; tt < ntiles; ++tt)
     {
-        kv_vec kraw[rows_per_iter];
-        kv_vec vraw[rows_per_iter];
-        bool ok[rows_per_iter];
-        for(index_int rr = 0; rr < rows_per_iter; ++rr)
+        const index_int t0 = w0 + tt * 16;
+
+        // issue this tile's V row loads first so their latency hides behind
+        // the score computation; they are not consumed until after softmax
+        kv_vec vraw[4];
+        for(index_int i = 0; i < 4; ++i)
         {
-            ok[rr]             = (n0 + 4 * rr + part) < w1;
-            const index_int nn = ok[rr] ? (n0 + 4 * rr + part) : n0;
-            kraw[rr]           = load_row(kbase, nn);
-            vraw[rr]           = load_row(vbase, nn);
+            const index_int nn = min(t0 + 4 * part + i, r1 - 1);
+            vraw[i]            = load_row(vbase, nn);
         }
-        float score[rows_per_iter][r];
-        for(index_int rr = 0; rr < rows_per_iter; ++rr)
+        // stage the K tile: same coalesced pattern, two 8-byte LDS writes
+        // per row slice (the padded pitch is only 8-byte aligned)
+        for(index_int i = 0; i < 4; ++i)
         {
-            float kf[dpl];
-            unpack(kraw[rr], kf);
-            for(index_int j = 0; j < r; ++j)
-            {
-                score[rr][j] = 0.0f;
-                for(index_int i = 0; i < dpl; ++i)
-                    score[rr][j] += qf[j][i] * kf[i];
-            }
+            const index_int nn = min(t0 + 4 * part + i, r1 - 1);
+            const kv_vec kraw  = load_row(kbase, nn);
+            unsigned int words[dpl / 2];
+            __builtin_memcpy(&words, &kraw, sizeof(words));
+            auto* dst = &lds_k[wave][4 * part + i][lane * dpl];
+            __builtin_memcpy(dst, &words[0], sizeof(words) / 2);
+            __builtin_memcpy(dst + dpl / 2, &words[dpl / 4], sizeof(words) / 2);
         }
-        for(index_int rr = 0; rr < rows_per_iter; ++rr)
-            for(index_int j = 0; j < r; ++j)
-                dpp_reduce<row_lanes>(score[rr][j], op::sum{});
-        float vf[rows_per_iter][dpl];
-        for(index_int rr = 0; rr < rows_per_iter; ++rr)
-            unpack(vraw[rr], vf[rr]);
+        // the staging buffer is per-wave, so ordering the LDS accesses is
+        // enough and no cross-wave rendezvous is required
+        __builtin_amdgcn_fence(__ATOMIC_ACQ_REL, "workgroup");
+
+        // scores for the 16-row K tile against all head columns in one MFMA
+        // chain; out-of-range rows staged a safe address and are masked below
+        floatx4 sacc = {0.0f, 0.0f, 0.0f, 0.0f};
+        for(index_int kb = 0; kb < kblocks; ++kb)
+        {
+            bf16x4 ak;
+            __builtin_memcpy(&ak, &lds_k[wave][lane][16 * kb + 4 * part], 8);
+            sacc = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(ak, bq[kb], sacc, 0, 0, 0);
+        }
+
+        // this lane's head column: scores for tile rows 4*part+i; masked
+        // rows contribute nothing even when the whole tile is masked
+        float s[4];
+        bool okr[4];
+        float tmax = lowest;
+        for(index_int i = 0; i < 4; ++i)
+        {
+            okr[i] = (t0 + 4 * part + i) < w1;
+            s[i]   = okr[i] ? sacc[i] * scale : lowest;
+            tmax   = max(tmax, s[i]);
+        }
+        tmax               = max(tmax, __shfl_xor(tmax, 16, wave_size));
+        tmax               = max(tmax, __shfl_xor(tmax, 32, wave_size));
+        const float mn_own = max(m_own, tmax);
+        float p[4];
+        float psum = 0.0f;
+        for(index_int i = 0; i < 4; ++i)
+        {
+            p[i] = okr[i] ? __expf(s[i] - mn_own) : 0.0f;
+            psum += p[i];
+        }
+        psum += __shfl_xor(psum, 16, wave_size);
+        psum += __shfl_xor(psum, 32, wave_size);
+        m_own = mn_own;
+        __builtin_amdgcn_fence(__ATOMIC_ACQ_REL, "workgroup");
+
+        // broadcast each real head's tile statistics and probabilities from
+        // its head-column lanes, rescale the accumulators once per tile
+        float pj[r][4];
         for(index_int j = 0; j < r; ++j)
         {
-            float s[rows_per_iter];
-            float m_new = m[j];
-            for(index_int rr = 0; rr < rows_per_iter; ++rr)
-            {
-                s[rr] = ok[rr] ? readlane<row_lanes - 1, row_lanes>(score[rr][j]) * scale : lowest;
-                m_new = max(m_new, s[rr]);
-            }
-            const float alpha = __expf(m[j] - m_new);
-            float p[rows_per_iter];
-            float psum = 0.0f;
-            for(index_int rr = 0; rr < rows_per_iter; ++rr)
-            {
-                p[rr] = __expf(s[rr] - m_new);
-                psum += p[rr];
-            }
-            l[j] = l[j] * alpha + psum;
-            for(index_int i = 0; i < dpl; ++i)
-            {
-                float av = acc[j][i] * alpha;
-                for(index_int rr = 0; rr < rows_per_iter; ++rr)
-                    av += p[rr] * vf[rr][i];
-                acc[j][i] = av;
-            }
-            m[j] = m_new;
+            const int src     = static_cast<int>(part * 16 + j);
+            const float mn    = __shfl(mn_own, src, wave_size);
+            const float lsum  = __shfl(psum, src, wave_size);
+            const float alpha = __expf(m[j] - mn);
+            l[j]              = l[j] * alpha + lsum;
+            m[j]              = mn;
+            for(index_int i = 0; i < 4; ++i)
+                pj[j][i] = __shfl(p[i], src, wave_size);
+            for(index_int ii = 0; ii < dq; ++ii)
+                acc[j][ii] *= alpha;
+        }
+
+        // P*V with the prefetched coalesced rows: quarter rows, lane dims
+        for(index_int i = 0; i < 4; ++i)
+        {
+            float vf[dq];
+            unpack(vraw[i], vf);
+            for(index_int j = 0; j < r; ++j)
+                for(index_int ii = 0; ii < dq; ++ii)
+                    acc[j][ii] += pj[j][i] * vf[ii];
         }
     }
 
-    // merge the four quarter-wave states in-register: all quarters hold the
-    // same head dims in the same lane positions, so two rounds of cross-group
-    // shuffles pair them up and every lane computes the identical merged state
-    for(index_int step = row_lanes; step < wave_size; step *= 2)
+    // the quarters share the same normalization, so merging their partial
+    // accumulators is a plain sum across the two lane-group strides
+    for(index_int j = 0; j < r; ++j)
     {
-        for(index_int j = 0; j < r; ++j)
+        for(index_int i = 0; i < dq; ++i)
         {
-            const float mo = __shfl_xor(m[j], step, wave_size);
-            const float lo = __shfl_xor(l[j], step, wave_size);
-            const float mc = max(m[j], mo);
-            const float aa = __expf(m[j] - mc);
-            const float ao = __expf(mo - mc);
-            l[j]           = aa * l[j] + ao * lo;
-            for(index_int i = 0; i < dpl; ++i)
-            {
-                const float other = __shfl_xor(acc[j][i], step, wave_size);
-                acc[j][i]         = aa * acc[j][i] + ao * other;
-            }
-            m[j] = mc;
+            acc[j][i] += __shfl_xor(acc[j][i], 16, wave_size);
+            acc[j][i] += __shfl_xor(acc[j][i], 32, wave_size);
         }
     }
 

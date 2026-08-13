@@ -32,8 +32,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-constexpr std::size_t skinny_gemm_cols  = 8;
-constexpr std::size_t skinny_gemm_block = 256;
+// one block covers 256 output columns as four per-wave MFMA tile sets
+constexpr std::size_t skinny_gemm_tile_n = 256;
+constexpr std::size_t skinny_gemm_block  = 256;
 
 // NOLINTNEXTLINE
 static const char* const skinny_gemm_splitk_kernel = R"__migraphx__(
@@ -47,7 +48,29 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors())(${args})([](auto... xs) {
-        skinny_gemm_splitk<${cols}, ${splits}, ${swiglu}>(xs...);
+        skinny_gemm_splitk<${splits}, ${swiglu}>(xs...);
+    });
+}
+
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
+// NOLINTNEXTLINE
+static const char* const skinny_gemm_reduce_rmsnorm_kernel = R"__migraphx__(
+#include <args.hpp>
+#include <migraphx/kernels/skinny_gemm.hpp>
+
+namespace migraphx {
+
+extern "C" {
+
+MIGRAPHX_GLOBAL void ${kernel}(${params})
+{
+    transform_args(make_tensors())(${args})([](auto... xs) {
+        skinny_gemm_reduce_rmsnorm<${block}>(xs..., ${eps}, ${ss_scale});
     });
 }
 
@@ -86,8 +109,7 @@ struct skinny_gemm_splitk_compiler : compiler<skinny_gemm_splitk_compiler>
         auto splits         = v.at("splits").to<std::size_t>();
         const auto& b_shape = inputs.at(1);
         auto n              = b_shape.lens().at(1);
-        auto ntiles =
-            (n + skinny_gemm_block * skinny_gemm_cols - 1) / (skinny_gemm_block * skinny_gemm_cols);
+        auto ntiles         = (n + skinny_gemm_tile_n - 1) / skinny_gemm_tile_n;
 
         hip_compile_options options;
         options.set_launch_params(v, ntiles * splits * skinny_gemm_block, skinny_gemm_block);
@@ -100,9 +122,45 @@ struct skinny_gemm_splitk_compiler : compiler<skinny_gemm_splitk_compiler>
             {{"params", enum_params(inputs.size(), "void * private_p")},
              {"args", enum_params(inputs.size(), "private_p")},
              {"kernel", options.kernel_name},
-             {"cols", std::to_string(skinny_gemm_cols)},
              {"splits", std::to_string(splits)},
              {"swiglu", v.get("swiglu", false) ? std::string("true") : std::string("false")}});
+        return compile_hip_code_object(ctx, src, options);
+    }
+
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    {
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+    }
+};
+
+struct skinny_gemm_reduce_rmsnorm_compiler : compiler<skinny_gemm_reduce_rmsnorm_compiler>
+{
+    std::vector<std::string> names() const { return {"gpu::skinny_gemm_reduce_rmsnorm"}; }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        // inputs: partials, residual, tuple(h, norm) allocation
+        auto finputs            = flatten_tuple_shapes(inputs);
+        const auto& p_shape     = finputs.front();
+        auto rows               = p_shape.lens().at(1);
+        const std::size_t block = 1024;
+
+        hip_compile_options options;
+        options.set_launch_params(v, rows * block, block);
+        // kernel params are the flattened tuple elements, but the code object
+        // checks its output buffer against the unflattened tuple shape
+        options.inputs      = finputs;
+        options.output      = inputs.back();
+        options.kernel_name = "skinny_gemm_reduce_rmsnorm_kernel";
+
+        auto src = interpolate_string(
+            skinny_gemm_reduce_rmsnorm_kernel,
+            {{"params", enum_params(finputs.size(), "void * private_p")},
+             {"args", enum_params(finputs.size(), "private_p")},
+             {"kernel", options.kernel_name},
+             {"block", std::to_string(block)},
+             {"eps", std::to_string(v.at("eps").to<float>()) + "f"},
+             {"ss_scale", std::to_string(v.at("ss_scale").to<float>()) + "f"}});
         return compile_hip_code_object(ctx, src, options);
     }
 

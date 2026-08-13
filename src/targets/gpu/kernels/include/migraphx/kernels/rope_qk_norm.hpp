@@ -86,5 +86,104 @@ __device__ void rope_qk_norm(
     });
 }
 
+// Variant that consumes the {Splits, batch, (nq+2*nk)*d} float partials of the
+// split-K qkv projection directly, removing the separate partials-reduce
+// kernel. Each (batch, head) workgroup sums the split partials for its row,
+// rounds to the tensor type (matching the unfused reduce), and then either
+// norms+rotates (q/k heads, first output) or passes the row through (v heads,
+// second output).
+template <index_int NumQHeads,
+          index_int Splits,
+          class Partials,
+          class QW,
+          class KW,
+          class Cos,
+          class SSin,
+          class QKOut,
+          class VOut>
+__device__ void rope_qkv_norm(Partials partials,
+                              QW qw,
+                              KW kw,
+                              Cos cos_in,
+                              SSin ssin_in,
+                              QKOut qk_out,
+                              VOut v_out,
+                              float eps,
+                              float ss_scale)
+{
+    auto idx   = make_index();
+    using type = typename QKOut::type;
+
+    constexpr auto qk_lens     = get_shape_c<QKOut>{}.lens;
+    constexpr index_int nheads = qk_lens[1]; // q heads then k heads
+    constexpr index_int d      = qk_lens[3];
+    constexpr index_int half   = d / 2;
+    constexpr auto v_lens      = get_shape_c<VOut>{}.lens;
+    constexpr index_int nv     = v_lens[1];
+    constexpr index_int total  = nheads + nv;
+    constexpr auto p_lens      = get_shape_c<Partials>{}.lens;
+    constexpr index_int prows  = p_lens[1]; // batch rows per split
+    constexpr index_int prow   = p_lens[2]; // total * d
+
+    const index_int batch = idx.group / total;
+    const index_int head  = idx.group % total;
+
+    // one lane per rotate-half column pair (i, i + d/2); the launch uses
+    // half lanes rounded up to a whole wave, extra lanes only join the
+    // block-wide reduction
+    const index_int col = idx.local;
+
+    // the split partials are independent streams, so all 2*Splits loads issue
+    // before the first add has to retire
+    float acc0        = 0.0f;
+    float acc1        = 0.0f;
+    const auto* pbase = partials.data() + batch * prow + head * d;
+    if(col < half)
+    {
+        for(index_int s = 0; s < Splits; ++s)
+        {
+            acc0 += pbase[s * prows * prow + col];
+            acc1 += pbase[s * prows * prow + col + half];
+        }
+    }
+    // round like the unfused partials reduce so the norm sees identical values
+    const type hv0 = migraphx::convert<type>(acc0);
+    const type hv1 = migraphx::convert<type>(acc1);
+
+    if(head >= nheads)
+    {
+        auto* vrow = v_out.data() + (batch * nv + (head - nheads)) * d;
+        if(col < half)
+        {
+            vrow[col]        = hv0;
+            vrow[col + half] = hv1;
+        }
+        return;
+    }
+
+    const auto* nw = (head < NumQHeads) ? qw.data() : kw.data();
+    float ss       = block_reduce(idx, op::sum{}, 0.0f, idx.nlocal(), [&](auto) {
+        if(col >= half)
+            return 0.0f;
+        const float v0 = migraphx::convert<float>(hv0);
+        const float v1 = migraphx::convert<float>(hv1);
+        return v0 * v0 + v1 * v1;
+    });
+    const auto rms = migraphx::convert<type>(rsqrt(ss * ss_scale + eps));
+
+    const auto* cos_row  = cos_in.data() + batch * d;
+    const auto* ssin_row = ssin_in.data() + batch * d;
+    auto* out_row        = qk_out.data() + (batch * nheads + head) * d;
+    if(col < half)
+    {
+        const index_int i = col;
+        const index_int j = col + half;
+        const type ni     = (hv0 * rms) * nw[i];
+        const type nj     = (hv1 * rms) * nw[j];
+        out_row[i]        = (ni * cos_row[i]) + (nj * ssin_row[i]);
+        out_row[j]        = (nj * cos_row[j]) + (ni * ssin_row[j]);
+    }
+}
+
 } // namespace migraphx
 #endif

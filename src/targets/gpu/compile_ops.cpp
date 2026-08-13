@@ -58,6 +58,32 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
 
+adaptive_tuning_options compile_ops_tuning_overrides::resolve() const
+{
+    const auto apply = [](std::size_t& output,
+                          const optional<std::int64_t>& input,
+                          const char* name,
+                          bool allow_zero) {
+        if(not input.has_value())
+            return;
+        if(*input < 0)
+            MIGRAPHX_THROW(std::string{name} + " must not be negative");
+        if(not allow_zero and *input == 0)
+            MIGRAPHX_THROW(std::string{name} + " must be greater than zero");
+        output = static_cast<std::size_t>(*input);
+    };
+
+    adaptive_tuning_options result;
+    apply(result.top_k, top_k, "tuning_top_k", true);
+    apply(result.coarse.target_ms, coarse_target_ms, "tuning_coarse_target_ms", false);
+    apply(result.precise.target_ms, precise_target_ms, "tuning_precise_target_ms", false);
+    apply(result.coarse.max_samples, max_samples, "tuning_max_samples", false);
+    if(max_samples.has_value())
+        result.precise.max_samples = result.coarse.max_samples;
+    apply(result.sleep_us, sleep_us, "tuning_sleep_us", true);
+    return result;
+}
+
 // Inner repeat count when timing a candidate, raised for split-k (kernel + prefill).
 static std::size_t compute_benchmark_bundle(const module& m)
 {
@@ -310,6 +336,7 @@ struct compile_plan
     module_ref mod;
     optional<tuning_config> config                 = nullopt;
     std::vector<optional<compiled_result>> results = {};
+    adaptive_tuning_options tuning                 = {};
     void update_config(bool exhaustive)
     {
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
@@ -441,44 +468,79 @@ struct compile_plan
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
-        std::vector<double> times;
-        times.reserve(results.size());
-        std::transform(results.begin(),
-                       results.end(),
-                       config->solutions.begin(),
-                       std::back_inserter(times),
-                       [&](const auto& cr, const auto& solution) {
-                           if(trace_level > 1)
-                               std::cout << "Benchmarking solution: " << solution << std::endl;
-                           if(not cr.has_value())
-                           {
-                               if(trace_level > 1)
-                                   std::cout << "No binary" << std::endl;
-                               return std::numeric_limits<double>::max();
-                           }
-                           if(trace_level > 2)
-                               std::cout << *cr << std::endl;
-                           /*
-                           create a small program with insturction being compiled and call "replace"
-                           on that which would insert all the compiled code objects, prefills etc.
-                           necessary to run candidate code object
-                           */
-                           auto bench_prog = cr->make_program();
-                           if(trace_level > 2)
-                               std::cout << bench_prog << std::endl;
-                           auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
-                           auto t      = time_program(*ctx,
-                                                 std::move(bench_prog),
-                                                 cr->replace.fill_map,
-                                                 bundle,
-                                                 /* nrun */ 20,
-                                                 /* target_ms */ 100);
-                           if(trace_level > 1)
-                               std::cout << t << "ms" << std::endl;
-                           return t;
-                       });
-        std::this_thread::sleep_for(std::chrono::milliseconds{50});
-        auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
+
+        std::vector<std::size_t> valid_indices;
+        auto indices = range(results.size());
+        std::copy_if(indices.begin(),
+                     indices.end(),
+                     std::back_inserter(valid_indices),
+                     [&](auto i) { return results[i].has_value(); });
+        if(valid_indices.empty())
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string() + "\n\n" + print_modules());
+
+        if(valid_indices.size() == 1)
+        {
+            const auto i = valid_indices.front();
+            ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
+            return *results[i];
+        }
+
+        // GPU failures tend to be sticky, so one broken candidate usually takes every later one
+        // down with it. Keep the first message to report instead of a more general message.
+        std::string first_error;
+        auto time_solution = [&](std::size_t i,
+                                 const adaptive_time_options& input_options) -> optional<double> {
+            if(not results[i].has_value())
+            {
+                if(trace_level > 1)
+                    std::cout << "No binary for solution: " << config->solutions.at(i) << std::endl;
+                return nullopt;
+            }
+
+            if(trace_level > 1)
+                std::cout << "Benchmarking solution: " << config->solutions.at(i) << std::endl;
+            try
+            {
+                if(trace_level > 2)
+                    std::cout << *results[i] << std::endl;
+                /*
+                 * Replacing the instruction in this small program inserts every code object and
+                 * prefill required by the candidate, so split-k is timed end to end.
+                 */
+                auto bench_prog = results[i]->make_program();
+                if(trace_level > 2)
+                    std::cout << bench_prog << std::endl;
+                auto options             = input_options;
+                options.preferred_bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
+                auto measured            = adaptive_time_program(
+                    *ctx, std::move(bench_prog), results[i]->replace.fill_map, options);
+                if(trace_level > 1)
+                    std::cout << measured << "ms" << std::endl;
+                return measured;
+            }
+            catch(const std::exception& e)
+            {
+                if(first_error.empty())
+                    first_error =
+                        "solution " + to_string(config->solutions.at(i)) + ": " + e.what();
+                if(trace_level > 0)
+                    std::cerr << "Exception benchmarking " << preop.name() << " solution "
+                              << config->solutions.at(i) << ": " << e.what() << std::endl;
+                return nullopt;
+            }
+        };
+
+        auto tuning_options = tuning;
+        if(tuning_options.top_k >= valid_indices.size())
+            tuning_options.top_k = 0;
+        const auto winner = adaptive_time_topk(results.size(), tuning_options, time_solution);
+        if(not winner.has_value())
+            MIGRAPHX_THROW("No valid tuned benchmark for " + preop.name() + " with " +
+                           problem_string() +
+                           (first_error.empty() ? "" : "\n\nFirst error: " + first_error) + "\n\n" +
+                           print_modules());
+        const auto i = *winner;
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(trace_level > 0)
         {
@@ -551,13 +613,13 @@ static void par_compile(std::size_t n, F f)
 struct compile_manager
 {
     std::vector<compile_plan> cps;
-    bool exhaustive     = false;
-    bool skip_benchmark = false;
+    bool exhaustive                = false;
+    bool skip_benchmark            = false;
+    adaptive_tuning_options tuning = {};
 
-    template <class... Ts>
-    void add_plan(Ts&&... xs)
+    void add_plan(context* ctx, const operation& preop, instruction_ref ins, module_ref mod)
     {
-        cps.push_back({std::forward<Ts>(xs)...});
+        cps.push_back({ctx, preop, ins, mod, nullopt, {}, tuning});
     }
 
     void update_configs()
@@ -648,6 +710,7 @@ void compile_ops::apply(module_pass_manager& mpm) const
     compile_manager cm;
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
+    cm.tuning         = tuning;
     // Find all precompile ops
     for(auto ins : iterator_for(m))
     {

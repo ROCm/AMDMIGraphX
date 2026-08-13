@@ -100,6 +100,15 @@ Full documentation for MIGraphX is available at
 * Added slice squeeze matcher to propagate squeeze downstream and allow for parallel branches to merge together (#5004).
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
+* Added a verbose terminate handler for exceptions on Windows (#5084).
+* Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
+* Added a `promote_storage_type` pass that treats the given types as storage-only, computing elementwise and reduction instructions of those types in float instead, and enabled it on the GPU target for `bf16` on architectures without native bf16 arithmetic instructions (#5138).
+* Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, whose symbolic `starts`/`ends` attributes describe the run-time bound inputs so a data-dependent slice keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5112).
+* Added symbolic normalization of operator attributes holding `sym::expr`, clamping each value against its axis length symbolically (#5148).
+* Added symbolic evaluation of tensor values to preserve ONNX shape-tensor expressions through arithmetic and dynamic shape consumers, including `Reshape`, `Range`, `Slice`, `Expand`, `ConstantOfShape`, and `Trilu` (#5148).
+* Added a `find_slice_reshaped_concat` matcher to `simplify_reshapes` that forwards a slice reading exactly one segment of a concat through intervening reshape/transpose view ops, removing the concat entirely (#5183).
+* Added find_concat_same_broadcast matcher to convert concat of identical broadcasts into a single multibroadcast to reduce hipCopy() (#5179).
+* Added adaptive GPU JIT tuning that briefly benchmarks each valid candidate, then remeasures the fastest candidates with a larger timing budget.
 
 
 ### Changed

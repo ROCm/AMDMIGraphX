@@ -51,7 +51,7 @@ struct onnx_parser
     {
         attribute_map attributes{};
         std::size_t num_outputs = 1;
-        // unique identifier for MIGX, not given ONNX node name
+        // unique identifier for MIGX, not given ONNX node name. "<module_name>_<op_name>_<instruction_number>"
         std::string name = "";
         module* mod      = nullptr;
         instruction_ref make_contiguous(instruction_ref ins) const;

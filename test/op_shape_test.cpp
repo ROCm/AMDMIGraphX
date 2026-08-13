@@ -987,6 +987,22 @@ TEST_CASE(convolution_backwards_channel_mismatch)
     throws_shape(migraphx::make_op("convolution_backwards"), input, weights);
 }
 
+// compute() splits the input channels into equal per-group blocks, so a group that does not
+// divide them would leave part of every group unread.
+TEST_CASE(convolution_backwards_group_indivisible)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 5, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {5, 3, 3, 3}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"group", 2}}), input, weights);
+}
+
+TEST_CASE(convolution_backwards_group_not_positive)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 2, 3, 3}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"group", 0}}), input, weights);
+}
+
 TEST_CASE(convolution_backwards_dyn_batch_2d)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {1, 1}, {1, 1}}};

@@ -61,6 +61,7 @@ Full documentation for MIGraphX is available at
 * Updated python API to allow getting and adding debug symbols from instructions. (#4803)
 * Allow for 1 arg slicing over a dynamic dimension. (#5015)
 * Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
+* Changed host conversion of float32 to `migraphx::half` and `migraphx::bf16` to round to nearest with ties to even instead of truncating, matching the hardware conversions these types emulate. Values above the target type's overflow threshold, including `std::numeric_limits<float>::max()`, now convert to infinity rather than to the largest finite value, so fp16 and bf16 model output can shift by up to one ULP.
 
 ### Resolved issues
 
@@ -82,6 +83,8 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
+* Fixed the reference `convolution_backwards` operator to accumulate in double precision instead of in the tensor type, so fp16 and bf16 results no longer lose several ULPs over the channel and kernel extent.
+* Fixed `tm::nan_to_num` substituting an infinity for an infinity on `bf16` tensors: the `posinf` and `neginf` defaults now saturate to the tensor type's largest finite value instead of converting past its range.
 
 ### Optimized
 * Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).

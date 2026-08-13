@@ -24,6 +24,7 @@
 
 #include <limits>
 #include <vector>
+#include <migraphx/clamp.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
@@ -35,6 +36,20 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
+
+namespace {
+// The FLT_MAX / FLT_LOWEST defaults stand for "the largest finite value of the tensor's type".
+// Converting one straight to a narrow type rounds past that type's range to infinity, which would
+// make the op replace an infinity with an infinity, so saturate to the target type first.
+literal make_saturated_literal(shape::type_t type, float value)
+{
+    literal result;
+    shape::visit(type, [&](auto as) {
+        result = literal{type, {pad_clamp<typename decltype(as)::type>(value)}};
+    });
+    return result;
+}
+} // namespace
 
 // nan_to_num has no native op: replace NaN/+inf/-inf with the given values.
 struct torch_nan_to_num : op_builder<torch_nan_to_num>
@@ -57,10 +72,10 @@ struct torch_nan_to_num : op_builder<torch_nan_to_num>
         auto x    = args[0];
         auto type = x->get_shape().type();
 
-        auto nan_lit    = m.add_literal({type, {nan}});
+        auto nan_lit    = m.add_literal(make_saturated_literal(type, nan));
         auto zero       = m.add_literal({type, {0.0f}});
-        auto posinf_lit = m.add_literal({type, {posinf}});
-        auto neginf_lit = m.add_literal({type, {neginf}});
+        auto posinf_lit = m.add_literal(make_saturated_literal(type, posinf));
+        auto neginf_lit = m.add_literal(make_saturated_literal(type, neginf));
 
         // where selects per-element, so inputs are broadcast but not type-promoted
         const common_options no_promote{.common_type = false};

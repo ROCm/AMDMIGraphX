@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,6 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/par_dfor.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/dyn_output.hpp>
@@ -80,10 +79,25 @@ struct convolution_backwards
             MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: input k-dims does not match attribute size");
         }
 
+        if(group < 1)
+        {
+            MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: group (" + to_string(group) +
+                           ") must be positive");
+        }
+
         if(not x_shape.dynamic() and not w_shape.dynamic() and
            x_shape.lens().at(1) != (w_shape.lens().at(0)))
         {
             MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: mismatched channel numbers");
+        }
+
+        // compute() walks a group's input channels as one contiguous block of
+        // weights_channels / group, so an inexact division leaves part of every group unread.
+        if(not w_shape.dynamic() and w_shape.lens().at(0) % group != 0)
+        {
+            MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: input channels (" +
+                           to_string(w_shape.lens().at(0)) + ") is not divisible by group (" +
+                           to_string(group) + ")");
         }
 
         if(x_shape.dynamic() or w_shape.dynamic())
@@ -143,78 +157,62 @@ struct convolution_backwards
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         argument result{dyn_out.computed_shape};
-        auto num_spatial_dims  = this->kdims();
-        const shape& out_shape = dyn_out.computed_shape;
-        // Sum the products in double rather than in the output type: narrow types (fp16/bf16/fp8)
-        // cannot hold the running sum without rounding every term, which loses several ULPs over
-        // the channel/kernel extent. The reference forward convolution accumulates the same way.
-        std::vector<double> acc(out_shape.element_space(), 0.0);
+        const auto num_spatial_dims = this->kdims();
+        const shape& out_shape      = dyn_out.computed_shape;
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
             using type = typename decltype(output)::value_type;
 
-            auto in_lens = input.get_shape().lens();
-            auto in_n    = in_lens[0];
-            auto in_c    = in_lens[1];
+            const auto& in_lens = input.get_shape().lens();
+            const auto& wei     = weights.get_shape().lens();
+            const auto wei_c    = wei[1];
+            // Channels of the input, and so of the weights' first axis, per group.
+            const auto in_per_group = wei[0] / group;
 
-            auto wei   = weights.get_shape().lens();
-            auto wei_n = wei[0];
-            auto wei_c = wei[1];
+            const shape wei_spatial{out_shape.type(),
+                                    std::vector<std::size_t>(wei.begin() + 2, wei.end())};
 
-            auto out_lens = dyn_out.computed_shape.lens();
+            par_for(out_shape.elements(), [&](std::size_t i) {
+                const auto idx_out  = out_shape.multi(i);
+                const auto group_id = idx_out[1] / wei_c;
 
-            std::vector<std::size_t> win_size{in_c};
-            std::copy(in_lens.begin() + 2, in_lens.end(), std::back_inserter(win_size));
-            std::copy(wei.begin() + 2, wei.end(), std::back_inserter(win_size));
-            shape win_shape{dyn_out.computed_shape.type(), win_size};
+                std::vector<std::size_t> idx_in(num_spatial_dims + 2);
+                std::vector<std::size_t> idx_wei(num_spatial_dims + 2);
+                idx_in[0]  = idx_out[0];
+                idx_wei[1] = idx_out[1] % wei_c;
 
-            par_dfor(in_n, wei_c)([&](int o, int k) {
-                shape_for_each(win_shape, [&](const auto& idx_win) {
-                    const int w = idx_win[0];
-
-                    auto input_dims_start = idx_win.begin() + 1;
-                    auto wei_dims_start   = idx_win.begin() + num_spatial_dims + 1;
-
-                    std::vector<std::ptrdiff_t> win_start;
-                    win_start.reserve(num_spatial_dims);
-                    for(std::size_t n = 0; n < num_spatial_dims; ++n)
+                // Sum in double rather than in the output type: a narrow type (fp16/bf16/fp8)
+                // cannot hold the running sum without rounding every term, which loses several
+                // ULPs over the channel/kernel extent. migraphx::convolution states the same
+                // contract for the forward direction.
+                double acc = 0.0;
+                shape_for_each(wei_spatial, [&](const auto& idx_k) {
+                    // The forward direction sends input position q to q * stride - padding +
+                    // k * dilation, so invert that: this weight tap feeds this output position
+                    // only when the inverse lands on an input position that exists.
+                    for(std::size_t n = 0; n < num_spatial_dims; n++)
                     {
-                        win_start.push_back(std::ptrdiff_t(*(input_dims_start + n) * stride[n]) -
-                                            std::ptrdiff_t(padding[n]));
+                        const auto pos = std::ptrdiff_t(idx_out[n + 2]) +
+                                         std::ptrdiff_t(padding[n]) -
+                                         std::ptrdiff_t(idx_k[n] * dilation[n]);
+                        if(pos < 0 or pos % std::ptrdiff_t(stride[n]) != 0)
+                            return;
+                        const auto q = std::size_t(pos) / stride[n];
+                        if(q >= in_lens[n + 2])
+                            return;
+                        idx_in[n + 2]  = q;
+                        idx_wei[n + 2] = idx_k[n];
                     }
-
-                    const int group_id = w / (wei_n / group);
-                    const int in_ch    = group_id * wei_c + k;
-
-                    std::vector<std::ptrdiff_t> idx_out{o, in_ch};
-
-                    for(size_t n = 0; n < num_spatial_dims; n++)
+                    for(std::size_t w = group_id * in_per_group; w < (group_id + 1) * in_per_group;
+                        w++)
                     {
-                        idx_out.push_back(win_start[n] + *(wei_dims_start + n) * dilation[n]);
-                    }
-
-                    std::vector<std::ptrdiff_t> idx_wei{w, k};
-                    std::copy(wei_dims_start, idx_win.end(), std::back_inserter(idx_wei));
-
-                    std::vector<std::ptrdiff_t> idx_in{o, w};
-                    std::copy(input_dims_start, wei_dims_start, std::back_inserter(idx_in));
-
-                    if(std::all_of(
-                           idx_out.begin() + 2, idx_out.end(), [&](auto ii) { return ii >= 0; }) and
-                       std::equal(idx_out.begin() + 2,
-                                  idx_out.end(),
-                                  out_lens.begin() + 2,
-                                  out_lens.end(),
-                                  std::less<std::ptrdiff_t>{}))
-                    {
-                        acc[out_shape.index(idx_out.begin(), idx_out.end())] +=
-                            static_cast<double>(input(idx_in.begin(), idx_in.end())) *
-                            static_cast<double>(weights(idx_wei.begin(), idx_wei.end()));
+                        idx_in[1]  = w;
+                        idx_wei[0] = w;
+                        acc += static_cast<double>(input(idx_in.begin(), idx_in.end())) *
+                               static_cast<double>(weights(idx_wei.begin(), idx_wei.end()));
                     }
                 });
+                output[i] = static_cast<type>(acc);
             });
-
-            par_for(out_shape.elements(),
-                    [&](std::size_t i) { output[i] = static_cast<type>(acc[out_shape.index(i)]); });
         });
         return result;
     }

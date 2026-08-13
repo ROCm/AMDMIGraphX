@@ -200,9 +200,13 @@ struct __attribute__((packed, may_alias)) generic_float
         if(f.exponent == 0)
         {
             // A float32 subnormal, so there is no implicit leading one. Its significand sits `diff`
-            // binades below the target's, which for a narrower exponent range puts the entire
-            // float32 subnormal span below the target's smallest subnormal.
-            auto m   = rne_shift(f.mantissa, drop + diff);
+            // binades below the target's. A target with a narrower exponent range (`diff > 0`, as
+            // for half) therefore puts the whole float32 subnormal span under its own smallest
+            // subnormal and the shift flushes it to a signed zero, whereas bf16 has float32's
+            // exponent range (`diff == 0`) and lands on genuine bf16 subnormals.
+            auto m = rne_shift(f.mantissa, drop + diff);
+            // Rounding can carry out of the mantissa field, which promotes the result to the
+            // smallest normal; letting that carry land in `exponent` is what applies it.
             exponent = m >> MantissaSize;
             mantissa = m;
         }
@@ -223,7 +227,8 @@ struct __attribute__((packed, may_alias)) generic_float
             else if(e < 1)
             {
                 // Subnormal in the target: the implicit bit becomes explicit and every exponent
-                // step below the target's minimum drops one more significand bit.
+                // step below the target's minimum drops one more significand bit. As above, a
+                // carry out of the mantissa field promotes the result to the smallest normal.
                 auto m =
                     rne_shift(f.mantissa | (1u << float32_parts::mantissa_width()), drop + 1 - e);
                 exponent = m >> MantissaSize;

@@ -77,13 +77,28 @@ check_resize(const migraphx::value& v, const migraphx::shape& input_shape, bool 
     CHECK(output1.get_shape().lens() == output2.get_shape().lens());
 
     // The rewrite interpolates as low + (hi - low) * delta in the tensor type, whereas the resize
-    // op interpolates in double, so for narrow types the two can land on adjacent representable
-    // values. Compare within tolerance rather than exactly; a wrong gather index still shows up as
-    // a large error.
+    // op interpolates in double, so for a narrow type the two can land on adjacent representable
+    // values. Only those types get a tolerance, and it is applied elementwise: a tensor-wide RMS
+    // check divides by the element count and the magnitude, so it averages a single wrong gather
+    // index away entirely once the output is large.
+    const bool exact = output1.get_shape().type() == migraphx::shape::float_type or
+                       output1.get_shape().type() == migraphx::shape::double_type;
+
     return test::make_predicate(ss.str(), [=] {
         bool result = false;
-        migraphx::visit_all(output1, output2)(
-            [&](auto v1, auto v2) { result = migraphx::verify::verify_rms_range(v1, v2); });
+        migraphx::visit_all(output1, output2)([&](auto v1, auto v2) {
+            if(exact)
+            {
+                result = std::equal(v1.begin(), v1.end(), v2.begin(), v2.end(), [](auto x, auto y) {
+                    return migraphx::float_equal(x, y);
+                });
+            }
+            else
+            {
+                // The default rtol of 1e-3 is just over one ULP of half.
+                result = migraphx::verify::allclose(v1, migraphx::verify::expected{v2});
+            }
+        });
         return result;
     });
 }

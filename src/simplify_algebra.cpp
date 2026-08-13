@@ -1632,21 +1632,12 @@ struct find_splits
         return false;
     }
 
-    // Result of fuse_binary_const_concat: the fused instruction and the
-    // slice-argument index it was built with. `ins` is m.end() when the group
-    // could not be fused.
-    struct binary_const_concat_fusion
-    {
-        instruction_ref ins;
-        int split_idx;
-    };
-
     // Fuse a binary group whose non-split argument is a foldable constant by
     // concatenating the constants and computing `op` over the whole tensor.
-    // Returns the fused instruction and its slice-argument index, or an `ins`
-    // of m.end() if the group cannot be fused (in which case the caller aborts,
-    // matching the original semantics).
-    binary_const_concat_fusion
+    // Returns the fused instruction and its slice-argument index, or a fused
+    // instruction of m.end() if the group cannot be fused (in which case the
+    // caller aborts, matching the original semantics).
+    std::tuple<instruction_ref, int>
     fuse_binary_const_concat(module& m,
                              instruction_ref ins,
                              const std::vector<instruction_ref>& group,
@@ -1816,11 +1807,9 @@ struct find_splits
                 // so it only applies to a full cover.
                 if(partial)
                     continue;
-                auto fusion = fuse_binary_const_concat(m, ins, group, splits, op);
-                if(fusion.ins == m.end())
+                std::tie(c, split_idx) = fuse_binary_const_concat(m, ins, group, splits, op);
+                if(c == m.end())
                     return;
-                c         = fusion.ins;
-                split_idx = fusion.split_idx;
             }
 
             if(c != m.end())

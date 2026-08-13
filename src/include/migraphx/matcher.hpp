@@ -46,11 +46,11 @@
 #define MIGRAPHX_USE_TYPE_ERASED_MATCHERS 0
 #endif
 
-#ifndef MIGRAPHX_USE_TYPE_ERASED_OPAQUE
+#ifndef MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER
 #if MIGRAPHX_USE_TYPE_ERASED_MATCHERS || defined(NDEBUG)
-#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE 0
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 0
 #else
-#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE 1
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 1
 #endif
 #endif
 
@@ -280,7 +280,7 @@ struct any_matcher : any_matcher_base
 template <class M>
 auto opaque(M m)
 {
-#ifdef MIGRAPHX_USE_TYPE_ERASED_OPAQUE
+#if MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER
     return any_matcher{m};
 #else
     return m;

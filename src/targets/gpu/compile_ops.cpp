@@ -501,7 +501,9 @@ struct compile_plan
         }
     }
 
-    void add_candidates(std::vector<compile_candidate>& candidates, std::size_t plan_index)
+    void add_candidates(std::vector<compile_candidate>& candidates,
+                        std::size_t plan_index,
+                        bool skip_benchmark)
     {
         if(config.has_value())
         {
@@ -523,7 +525,7 @@ struct compile_plan
                                    problem_string() + "\n\n" + print_modules());
                 const bool dump_mxr =
                     not string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}).empty();
-                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
+                if(skip_benchmark or enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
                    (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
@@ -730,7 +732,8 @@ struct compile_task
 struct compile_manager
 {
     std::vector<compile_plan> cps;
-    bool exhaustive = false;
+    bool exhaustive     = false;
+    bool skip_benchmark = false;
 
     template <class... Ts>
     void add_plan(Ts&&... xs)
@@ -779,7 +782,7 @@ struct compile_manager
         std::vector<compile_candidate> candidates;
         for(auto i : range(cps.size()))
         {
-            cps[i].add_candidates(candidates, i);
+            cps[i].add_candidates(candidates, i, skip_benchmark);
         }
         par_compile(candidates.size(), [&](auto i) {
             candidates[i].key = cps[candidates[i].plan_index].get_key(candidates[i].solution);
@@ -915,7 +918,8 @@ void compile_ops::apply(module_pass_manager& mpm) const
     bool is_root = &mpm.get_module() == mpm.get_root_module();
     auto& m      = mpm.get_module();
     compile_manager cm;
-    cm.exhaustive = exhaustive_tune;
+    cm.exhaustive     = exhaustive_tune;
+    cm.skip_benchmark = skip_benchmark;
     // Find all precompile ops
     for(auto ins : iterator_for(m))
     {

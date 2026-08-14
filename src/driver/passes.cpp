@@ -41,6 +41,7 @@
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/promote_storage_type.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
@@ -82,6 +83,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         normalize_ops{},
         optimize_module{},
         promote_literals{},
+        promote_storage_type{{shape::bf16_type}},
         propagate_constant{},
         rewrite_dot{},
         rewrite_gelu{},

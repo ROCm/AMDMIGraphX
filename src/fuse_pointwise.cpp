@@ -442,7 +442,7 @@ struct pointwise_broadcast_pointwise : match::supports_dynamic_shapes
     {
         auto pointwise = match::name("pointwise")(match::used_once()).bind("x");
         auto broadcast_pointwise =
-            match::name("multibroadcast")(match::used_once(), match::args(pointwise))
+            match::name("multibroadcast", "broadcast")(match::used_once(), match::args(pointwise))
                 .bind("broadcast");
         auto dyn_broadcast_pointwise =
             match::name("multibroadcast")(match::used_once(),

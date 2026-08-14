@@ -743,14 +743,10 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto noutputs = plan.finputs.size() - shapes.size() + 1;
         auto tile     = find_reduce_tile(
             plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());
-        // The batched tile pass needs the tile axis ordered before the
-        // reduced axes, a compatible module, and a bounded unrolled loop
+        // The batched tile pass needs a compatible module and a bounded
+        // unrolled loop
         auto can_batch_tile = [&](std::size_t block_size) {
             if(not tile.has_value())
-                return false;
-            const auto& rlens = plan.reduction_shape.lens();
-            if(not std::all_of(
-                   rlens.begin(), rlens.begin() + tile->axis, [](auto x) { return x == 1; }))
                 return false;
             if((tile->size * plan.relements) / block_size > 128)
                 return false;

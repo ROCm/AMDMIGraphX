@@ -40,6 +40,12 @@ static bool skip_propagate(instruction_ref ins)
 {
     if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
         return skip_propagate(ins->inputs().front());
+    // Like dequantizelinear, folding a convert to a wider type would enlarge
+    // the literal and lose the smaller storage type, so keep it as a runtime
+    // conversion instead
+    if(ins->name() == "convert" and
+       ins->get_shape().type_size() > ins->inputs().front()->get_shape().type_size())
+        return true;
     if(contains({"unpack_int4", "unpack_fp4"}, ins->name()))
         return true;
     auto&& s = ins->get_shape();

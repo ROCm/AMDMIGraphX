@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_REDUCE_HPP
 #define MIGRAPHX_GUARD_KERNELS_REDUCE_HPP
 
-#include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
@@ -768,12 +767,29 @@ struct block_tile
 /// are loaded once and reused from registers for every output instead of
 /// being re-read once per output. The compiler only selects this algorithm
 /// for modules with a single reduction whose scalar results are not read back
-/// elementwise, and with the tiled axis ordered before the reduced axes.
+/// elementwise.
 template <index_int Axis, index_int N>
 struct block_batch
 {
+    /// Move the tiled axis to the front of the array, keeping the relative
+    /// order of the other elements
+    template <class T, T... Xs>
+    static constexpr auto move_axis_front(integral_const_array<T, Xs...>)
+    {
+        return return_array_c([] {
+            constexpr integral_const_array<T, Xs...> arr{};
+            auto result = arr.base();
+            result[0]   = arr.base()[Axis];
+            for(index_int i = 0; i < Axis; i++)
+                result[i + 1] = arr.base()[i];
+            return result;
+        });
+    }
+
     /// Like reduce_slice but keeps the tiled axis in the slice so the
-    /// reduction iterates all the outputs of the tile
+    /// reduction iterates all the outputs of the tile. The tiled axis is
+    /// moved to the front so it is the slowest enumerated dimension and a
+    /// linear index decomposes as t * relements + j
     template <class Output, class Input, class T>
     static __device__ auto batch_slice(Input input, T i)
     {
@@ -785,12 +801,8 @@ struct block_batch
                     return 1;
                 return x;
             });
-        constexpr auto s = make_shape(lens, get_shape_c<Input>{}.strides);
-        // The tiled axis must be the slowest enumerated dimension of the
-        // slice so a linear index decomposes as t * relements + j
-        static_assert(
-            accumulate(s.lens.begin(), s.lens.begin() + Axis, index_int{1}, op::product{}) == 1,
-            "Tile axis must come before the reduced axes");
+        constexpr auto s =
+            make_shape(move_axis_front(lens), move_axis_front(get_shape_c<Input>{}.strides));
         MIGRAPHX_ASSERT((input.get_shape().index(i) + s.element_space()) <=
                         input.get_shape().element_space());
         return make_tensor_view(&input[i], s);

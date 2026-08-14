@@ -34,6 +34,7 @@
 #include <migraphx/dfor.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <iterator>
+#include <numeric>
 #include <optional>
 
 namespace migraphx {
@@ -120,24 +121,15 @@ struct concat_optimizer
         auto inv = shape_transform_descriptor::create(producer_shape.lens(), fwd).invert();
         if(inv.empty())
             return std::nullopt;
-        std::vector<operation> result;
-        shape s = slice_shape;
-        for(auto op : inv.generate())
-        {
-            if(op.name() == "reshape")
-                op = make_op("reshape_lazy", {{"dims", op.to_value().at("dims")}});
-            else if(not contains(invertible_view_names(), op.name()))
-                return std::nullopt;
-            try
-            {
-                s = op.compute_shape({s});
-            }
-            catch(...)
-            {
-                return std::nullopt;
-            }
-            result.push_back(op);
-        }
+        auto result = inv.generate();
+        if(not std::all_of(result.begin(), result.end(), [](const operation& op) {
+               return contains(invertible_view_names(), op.name());
+           }))
+            return std::nullopt;
+        auto s = std::accumulate(
+            result.begin(), result.end(), slice_shape, [](const shape& acc, const operation& op) {
+                return op.compute_shape({acc});
+            });
         if(s.lens() != producer_shape.lens())
             return std::nullopt;
         return std::make_pair(result, s);

@@ -561,7 +561,7 @@ TEST_CASE(concat_through_reshape_chain)
         auto slice1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {32}}}), a1);
         auto v1 =
-            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 1, 4, 8}}}), slice1);
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 4, 8}}}), slice1);
         auto s1 = m2.add_instruction(simple_op{}, v1);
         auto r1 = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 1, 32}}}), s1);
         auto slice2 = m2.add_instruction(
@@ -598,7 +598,7 @@ TEST_CASE(concat_with_slice_input)
         auto slice1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {32}}}), a1);
         auto v1 =
-            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 1, 4, 8}}}), slice1);
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 4, 8}}}), slice1);
         auto s1 = m2.add_instruction(simple_op{}, v1);
         auto r1 = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 1, 32}}}), s1);
         auto a2 = m2.add_instruction(make_allocate(2, 1, 16));

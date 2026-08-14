@@ -57,17 +57,16 @@ static void run_flash_decoding_only(migraphx::program& p, migraphx::fuse_attenti
 
 static bool has_flash_decoding_submodule(const migraphx::program& p)
 {
-    for(const auto& ins : *p.get_main_module())
-    {
-        if(ins.name() != "group")
-            continue;
-        for(const auto* sm : ins.module_inputs())
-        {
-            if(sm->name().find("flash_decoding") != std::string::npos)
-                return true;
-        }
-    }
-    return false;
+    return std::any_of(
+        p.get_main_module()->begin(), p.get_main_module()->end(), [](const auto& ins) {
+            if(ins.name() != "group")
+                return false;
+            return std::any_of(ins.module_inputs().begin(),
+                               ins.module_inputs().end(),
+                               [](const auto* sm) {
+                                   return sm->name().find("flash_decoding") != std::string::npos;
+                               });
+        });
 }
 
 // Test helper functions used in fuse_attention pass
@@ -1512,9 +1511,9 @@ TEST_CASE(flash_decoding_3d_rectangular)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(flash_decoding_3d_padding)
+TEST_CASE(flash_decoding_3d_skips_uneven_sequence)
 {
-    // 3D Shape: [batch, head_dim, sequence_length]
+    // Sequence length 241 is not evenly divisible by 2 splits; flash decoding is skipped.
     migraphx::shape s_3d{migraphx::shape::half_type, {1, 256, 241}};
     migraphx::shape st_3d{migraphx::shape::half_type, {1, 241, 256}};
     const std::size_t num_splits = 2;
@@ -1522,28 +1521,21 @@ TEST_CASE(flash_decoding_3d_padding)
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
-        auto a   = mm->add_parameter("q", s_3d);  // [1, 256, 241]
-        auto b   = mm->add_parameter("k", s_3d);  // [1, 256, 241]
-        auto b1  = mm->add_parameter("v", st_3d); // [1, 241, 256]
-        a        = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}),
-                                a); // [1, 241, 256]
-        auto gemm1 = mm->add_instruction(
-            migraphx::make_op("dot"), a, b); // [1, 241, 256] x [1, 256, 241] = [1, 241, 241]
-        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}),
-                                        gemm1); // [1, 241, 1]
-        rmax      = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
-            rmax);                                                         // [1, 241, 241]
-        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax); // [1, 241, 241]
-        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);         // [1, 241, 241]
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}),
-                                        exp); // [1, 241, 1]
+        auto a   = mm->add_parameter("q", s_3d);
+        auto b   = mm->add_parameter("k", s_3d);
+        auto b1  = mm->add_parameter("v", st_3d);
+        a        = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), a);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
+        rmax       = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
         rsum      = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
-            rsum);                                                        // [1, 241, 241]
-        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum); // [1, 241, 241]
-        auto gemm2 = mm->add_instruction(
-            migraphx::make_op("dot"), div, b1); // [1, 241, 241] x [1, 241, 256] = [1, 241, 256]
+            migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
     }
     run_pass(p1,
@@ -1551,101 +1543,14 @@ TEST_CASE(flash_decoding_3d_padding)
               .flash_decoding_enabled    = true,
               .flash_decoding_num_splits = num_splits});
 
-    migraphx::program p2;
-    {
-        auto* mm      = p2.get_main_module();
-        auto a        = mm->add_parameter("q", s_3d);
-        auto b        = mm->add_parameter("k", s_3d);
-        auto b1       = mm->add_parameter("v", st_3d);
-        size_t g_axis = 1;
-
-        // Padding 241 -> 242, split into 2x121
-        std::vector<size_t> q_prime_shape = {1, num_splits, 242, 256};
-        std::vector<size_t> v_prime_shape = {1, num_splits, 121, 256};
-
-        // Q: [1, 256, 241] -> transpose -> [1, 241, 256] -> pad -> [1, 242, 256]
-        auto a_transpose =
-            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), a);
-        auto a_padded = mm->add_instruction(
-            migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 1, 0}}}), a_transpose);
-        auto a_unsqueeze =
-            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {g_axis}}}), a_padded);
-        auto a_broadcast = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), a_unsqueeze);
-
-        // K: [1, 256, 241] -> pad -> [1, 256, 242] -> reshape -> [1, 256, 2, 121] -> transpose ->
-        // [1, 2, 256, 121]
-        auto b_padded =
-            mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 1}}}), b);
-        auto b_reshape_intermediate = mm->add_instruction(
-            migraphx::make_op("reshape", {{"dims", {1, 256, 2, 121}}}), b_padded);
-        auto b_reshape =
-            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
-                                b_reshape_intermediate);
-
-        // V: [1, 241, 256] -> pad -> [1, 242, 256] -> reshape -> [1, 2, 121, 256]
-        auto b1_padded =
-            mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 1, 0}}}), b1);
-        auto b1_reshape =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", v_prime_shape}}), b1_padded);
-
-        auto group = add_group(
-            p2,
-            "attn0_flash_decoding",
-            "attention",
-            {a_broadcast, b_reshape, b1_reshape},
-            {"x0", "x1", "x2"},
-            [&](auto* gm, const auto& inputs) {
-                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto rmax =
-                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
-                auto rmax_broad = gm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 242, 121}}}),
-                    rmax);
-                auto sub = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax_broad);
-                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
-                auto rsum =
-                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
-                auto rsum_broad = gm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 242, 121}}}),
-                    rsum);
-                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum_broad);
-                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
-                auto log   = gm->add_instruction(migraphx::make_op("log"), rsum);
-                auto add   = gm->add_instruction(migraphx::make_op("add"), rmax, log);
-                return std::vector<migraphx::instruction_ref>{gemm2, add};
-            });
-        auto o_p = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
-        auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
-
-        // Kernel 2
-        auto k2_rmax =
-            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {g_axis}}}), lse);
-        auto k2_broad1 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 242, 1}}}), k2_rmax);
-        auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
-        auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
-        auto k2_broad3 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
-        auto k2_convert = mm->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_broad3);
-        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_convert);
-        auto k2_rsum1 =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_mul);
-        auto k2_rsum2 =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_convert);
-        auto k2_div = mm->add_instruction(migraphx::make_op("div"), k2_rsum1, k2_rsum2);
-        auto k2_squeeze =
-            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {g_axis}}}), k2_div);
-
-        // Slice to remove padding: [1, 242, 256] -> [1, 241, 256]
-        auto sliced = mm->add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {241}}}),
-            k2_squeeze);
-
-        mm->add_return({sliced});
-    }
-    EXPECT(p1.sort() == p2.sort());
+    EXPECT(not has_flash_decoding_submodule(p1));
+    EXPECT(std::any_of(p1.get_main_module()->begin(),
+                       p1.get_main_module()->end(),
+                       [](const auto& ins) {
+                           return ins.name() == "group" and
+                                  ins.get_operator().to_value()["tag"].template to<std::string>() ==
+                                      "attention";
+                       }));
 }
 
 TEST_CASE(kv_cache_attention)

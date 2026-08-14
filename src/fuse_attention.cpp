@@ -31,7 +31,9 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
+#include <algorithm>
 #include <deque>
+#include <iterator>
 #include <optional>
 #include <unordered_set>
 
@@ -487,9 +489,9 @@ struct find_flash_decoding
         size_t n    = k_lens[ndim - 1];
         size_t g    = num_groups;
 
-        // Note: sequence length may have been padded to be divisible by num_groups
-        assert(n % g == 0 and "Key-value sequence length must be divisible by number of "
-                              "splits/groups (after padding)");
+        // sequence length must divide evenly across splitsfor now
+        assert(n % g == 0 and
+               "Key-value sequence length must be divisible by number of splits/groups");
         size_t n_split = n / g;
 
         transformed_shapes_result result;
@@ -591,40 +593,6 @@ struct find_flash_decoding
         return flash_input_kind::other;
     }
 
-    static std::vector<std::size_t> flash_decoding_pad_axes(flash_input_kind kind, std::size_t ndim)
-    {
-        switch(kind)
-        {
-        // Q: [B, M, k] or [B, H, M, k]. Pad M (sequence length dim).
-        case flash_input_kind::q: return {ndim - 2};
-        // K: [B, k, N] or [B, H, k, N]. Pad N.
-        case flash_input_kind::k: return {ndim - 1};
-        // V: [B, N, D] or [B, H, N, D]. Pad N.
-        case flash_input_kind::v: return {ndim - 2};
-        // Attention score tensor [B, H, M, N]: pad both sequence dims to match padded gemm1.
-        case flash_input_kind::scores: return {ndim - 2, ndim - 1};
-        case flash_input_kind::other: return {};
-        }
-        MIGRAPHX_THROW("Unknown flash input kind");
-    }
-
-    instruction_ref pad_for_flash_decoding(module& mm,
-                                           instruction_ref ins,
-                                           flash_input_kind kind,
-                                           std::size_t padding_needed,
-                                           instruction_ref insert_before) const
-    {
-        if(padding_needed == 0 or kind == flash_input_kind::other)
-            return ins;
-
-        const auto ndim = ins->get_shape().ndim();
-        std::vector<std::size_t> pads(2 * ndim, 0);
-        for(auto axis : flash_decoding_pad_axes(kind, ndim))
-            pads[ndim + axis] = padding_needed;
-
-        return mm.insert_instruction(insert_before, make_op("pad", {{"pads", pads}}), ins);
-    }
-
     // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
     instruction_ref reshape_q_for_flash_decoding(module& mm,
                                                  instruction_ref q,
@@ -669,8 +637,7 @@ struct find_flash_decoding
     struct flash_input_transform
     {
         flash_input_kind kind{};
-        instruction_ref orig_main{}; // main-module input before padding (for group input lookup)
-        instruction_ref padded_main{};
+        instruction_ref main{};
         instruction_ref split_main{};
         shape submodule_param_shape{};
     };
@@ -714,16 +681,17 @@ struct find_flash_decoding
 
             if(cur->inputs().size() == 2)
             {
-                for(auto input : cur->inputs())
-                {
-                    if(not uses_ins(input, bc))
-                        return input;
-                }
-                MIGRAPHX_THROW("Failed to find broadcast shape reference for flash decoding");
+                const auto& inputs = cur->inputs();
+                const auto it      = std::find_if(
+                    inputs.begin(), inputs.end(), [&](auto input) { return not uses_ins(input, bc); });
+                if(it == inputs.end())
+                    MIGRAPHX_THROW("Failed to find broadcast shape reference for flash decoding");
+                return *it;
             }
 
-            for(auto output : cur->outputs())
-                queue.push_back(output);
+            std::copy(cur->outputs().begin(),
+                      cur->outputs().end(),
+                      std::back_inserter(queue));
         }
         MIGRAPHX_THROW("Failed to find broadcast shape reference for flash decoding");
     }
@@ -904,13 +872,9 @@ struct find_flash_decoding
         if(actual_groups == 0)
             return;
 
-        // calculate padding if sequence length not evenly divisible
-        std::size_t padding_needed = 0;
+        // TODO: uneven splits require padding score-shaped inputs
         if(sequence_length % actual_groups != 0)
-        {
-            // round up to nearest multiple of actual_groups
-            padding_needed = ceil_mul_of(sequence_length, actual_groups) - sequence_length;
-        }
+            return;
 
         // create mapping from submodule params to main module inputs
         auto group_inputs      = attn_group_ins->inputs();
@@ -920,26 +884,22 @@ struct find_flash_decoding
         const auto scores_lens = gemm1->get_shape().lens();
         std::unordered_map<instruction_ref, flash_input_transform> param_transforms;
 
-        // pad Q, K, V, and score-shaped params if sequence length is not evenly split.
         for(auto param : iterator_for(*submod))
         {
             if(param->name() != "@param")
                 continue;
 
-            const auto kind = get_flash_input_kind(param, q_param, k_param, v_param, scores_lens);
-            const auto orig = map_param_to_main.at(param);
-            const auto padded =
-                pad_for_flash_decoding(mm, orig, kind, padding_needed, attn_group_ins);
-            param_transforms[param] = flash_input_transform{kind, orig, padded, {}, {}};
+            const auto kind     = get_flash_input_kind(param, q_param, k_param, v_param, scores_lens);
+            const auto main_ins = map_param_to_main.at(param);
+            param_transforms[param] = flash_input_transform{kind, main_ins, {}, {}};
         }
 
-        // Get Q, K, V shapes (using potentially padded inputs) and flash decoding transforms
-        const auto& q_padded = param_transforms.at(q_param).padded_main;
-        const auto& k_padded = param_transforms.at(k_param).padded_main;
-        const auto& v_padded = param_transforms.at(v_param).padded_main;
-        auto qkv_shapes      = get_qkv_shapes(q_padded, k_padded, v_padded);
+        const auto& q_main = param_transforms.at(q_param).main;
+        const auto& k_main = param_transforms.at(k_param).main;
+        const auto& v_main = param_transforms.at(v_param).main;
+        auto qkv_shapes    = get_qkv_shapes(q_main, k_main, v_main);
         auto transform_info  = get_transformed_shapes(qkv_shapes, actual_groups);
-        const int64_t g_axis = q_padded->get_shape().ndim() - 2;
+        const int64_t g_axis = q_main->get_shape().ndim() - 2;
 
         // insert reshape operations before the group for every submodule @param
         for(auto& [param, transform] : param_transforms)
@@ -948,42 +908,40 @@ struct find_flash_decoding
             {
             case flash_input_kind::q:
                 transform.split_main = reshape_q_for_flash_decoding(
-                    mm, transform.padded_main, attn_group_ins, transform_info, g_axis);
+                    mm, transform.main, attn_group_ins, transform_info, g_axis);
                 transform.submodule_param_shape =
                     shape{qkv_shapes[0].type(), transform_info.q_shape};
                 break;
             case flash_input_kind::k:
                 transform.split_main = reshape_k_for_flash_decoding(
-                    mm, transform.padded_main, attn_group_ins, transform_info);
+                    mm, transform.main, attn_group_ins, transform_info);
                 transform.submodule_param_shape =
                     shape{qkv_shapes[1].type(), transform_info.k_shape};
                 break;
             case flash_input_kind::v:
                 transform.split_main = reshape_v_for_flash_decoding(
-                    mm, transform.padded_main, attn_group_ins, transform_info);
+                    mm, transform.main, attn_group_ins, transform_info);
                 transform.submodule_param_shape =
                     shape{qkv_shapes[2].type(), transform_info.v_shape};
                 break;
             case flash_input_kind::scores:
                 transform.split_main = reshape_scores_aligned(
-                    mm, transform.padded_main, attn_group_ins, actual_groups);
+                    mm, transform.main, attn_group_ins, actual_groups);
                 transform.submodule_param_shape =
                     shape{param->get_shape().type(),
-                          get_scores_split_lens(transform.padded_main->get_shape().lens(),
-                                                actual_groups)};
+                          get_scores_split_lens(transform.main->get_shape().lens(), actual_groups)};
                 break;
             case flash_input_kind::other:
-                transform.split_main            = transform.padded_main;
+                transform.split_main            = transform.main;
                 transform.submodule_param_shape = param->get_shape();
                 break;
             }
         }
 
         // Create new input list by replacing group inputs with split versions.
-        // Use original main-module references (before padding) for lookup.
         std::unordered_map<instruction_ref, instruction_ref> main_to_split;
         for(const auto& entry : param_transforms)
-            main_to_split[entry.second.orig_main] = entry.second.split_main;
+            main_to_split[entry.second.main] = entry.second.split_main;
 
         std::vector<instruction_ref> new_group_inputs = group_inputs;
         for(auto& input : new_group_inputs)
@@ -1076,26 +1034,7 @@ struct find_flash_decoding
         auto final_squeezed_o = mm.insert_instruction(
             attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_o);
 
-        // if padding was applied, slice to remove it
-        instruction_ref final_result = final_squeezed_o;
-        if(padding_needed > 0)
-        {
-            // need to slice the sequence dimension to remove padding
-            // final_squeezed_o has shape like [B, M_padded, D], need to slice M back to original
-            auto output_shape            = final_squeezed_o->get_shape();
-            const auto& output_lens      = output_shape.lens();
-            std::size_t seq_dim_idx      = output_lens.size() - 2; // sequence dim is second to last
-            std::size_t original_seq_len = output_lens[seq_dim_idx] - padding_needed;
-
-            final_result = mm.insert_instruction(
-                attn_group_ins,
-                make_op("slice",
-                        {{"axes", {seq_dim_idx}}, {"starts", {0}}, {"ends", {original_seq_len}}}),
-                final_squeezed_o);
-        }
-
-        // replace the original group instruction with the final result
-        mm.replace_instruction(attn_group_ins, final_result);
+        mm.replace_instruction(attn_group_ins, final_squeezed_o);
     }
 };
 

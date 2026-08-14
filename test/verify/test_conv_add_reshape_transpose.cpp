@@ -27,10 +27,9 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// This covers split-k perfConfigs that reject conv+unary-pointwise+layout fusion. The relu is
-// not absorbed into the MLIR kernel, so this compiles as conv, pointwise, and layout-copy.
-struct test_conv_relu_reshape_lazy_transpose
-    : verify_program<test_conv_relu_reshape_lazy_transpose>
+// The same layout tail as test_conv_add_reshape_lazy_transpose, spelled with reshape. Both
+// spellings reach the splitting logic, so both have to be recognized as a shape transform.
+struct test_conv_add_reshape_transpose : verify_program<test_conv_add_reshape_transpose>
 {
     migraphx::program create_program() const
     {
@@ -39,15 +38,16 @@ struct test_conv_relu_reshape_lazy_transpose
         auto input  = mm->add_parameter("x", {migraphx::shape::half_type, {1, 256, 16, 16}});
         auto weight = mm->add_literal(
             migraphx::generate_literal({migraphx::shape::half_type, {1, 256, 3, 2}}, 1));
+        auto y = mm->add_parameter("y", {migraphx::shape::half_type, {1, 1, 8, 8}});
 
         auto conv = mm->add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1, 1, 0}}, {"stride", {2, 2}}}),
             input,
             weight);
-        auto relu = mm->add_instruction(migraphx::make_op("relu"), conv);
+        auto add = mm->add_instruction(migraphx::make_op("add"), conv, y);
 
-        auto reshape = mm->add_instruction(
-            migraphx::make_op("reshape_lazy", {{"dims", {1, 1, 4, 2, 8}}}), relu);
+        auto reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 2, 8}}}), add);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2, 4}}}),
                             reshape);
         return p;

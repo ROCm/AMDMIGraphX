@@ -169,6 +169,31 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
     return wavefront_size;
 }
 
+/// The largest last level cache of current GPUs (the 256MB MI300 infinity
+/// cache). An input at least this large cannot be reused from any cache, so
+/// the reduction always streams it from memory.
+constexpr std::size_t max_last_level_cache_bytes = 268435456;
+
+/// Check if a dominant input is too large to be cached, so the reduction is
+/// bound by the memory bandwidth of streaming it.
+static bool is_streaming_reduce(const std::vector<shape>& inputs, std::size_t noutputs)
+{
+    return std::any_of(inputs.begin(), inputs.end() - noutputs, [](const shape& input) {
+        return input.bytes() > max_last_level_cache_bytes;
+    });
+}
+
+/// The block size for a reduction that streams from memory: leaving about
+/// four vector loads per lane issues enough loads back to back to hide the
+/// memory latency and shrinks the cross-wave reduction done per output, which
+/// measures up to 10% faster than a lane per vector and up to 2x faster than
+/// oversized blocks. Cached reductions are not bound by memory latency and
+/// stay faster with the larger default block.
+static std::size_t compute_streaming_block_size(context& ctx, std::size_t relements)
+{
+    return compute_block_size(ctx, std::max<std::size_t>(relements / 4, 128), 1024);
+}
+
 struct reduce_tile
 {
     std::size_t axis = 0;
@@ -361,7 +386,9 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
             auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
             if(algo == "block")
             {
-                auto block_size = compute_block_size(ctx, relements, 256);
+                auto block_size = is_streaming_reduce(options.virtual_inputs, 1)
+                                      ? compute_streaming_block_size(ctx, relements)
+                                      : compute_block_size(ctx, relements, 256);
                 if(relements >= block_size * 256)
                     algo = "block_large";
                 options.set_launch_params(
@@ -537,8 +564,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         options.virtual_inputs = plan.virtual_inputs;
         if(algo == "block" or algo == "block_tile")
         {
-            auto n_per_block = v.get("n_per_block", std::size_t{1});
-            auto block_size  = v.get("block_size", compute_block_size(ctx, relements, 1024));
+            auto n_per_block        = v.get("n_per_block", std::size_t{1});
+            auto default_block_size = is_streaming_reduce(plan.virtual_inputs, noutputs)
+                                          ? compute_streaming_block_size(ctx, relements)
+                                          : compute_block_size(ctx, relements, 1024);
+            auto block_size         = v.get("block_size", default_block_size);
             assert(n_per_block > 0);
             assert(block_size > 0);
             assert(nelements % n_per_block == 0);
@@ -674,7 +704,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 }
                 add_block_size_solutions(tc,
                                          "block",
-                                         compute_block_size(ctx, plan.relements, 256),
+                                         is_streaming_reduce(plan.virtual_inputs, noutputs)
+                                             ? compute_streaming_block_size(ctx, plan.relements)
+                                             : compute_block_size(ctx, plan.relements, 256),
                                          compute_block_size(ctx, plan.relements, 1024));
             }
             else if(plan.algo == "lane" and prefer_block_strided(ctx, plan, noutputs) and

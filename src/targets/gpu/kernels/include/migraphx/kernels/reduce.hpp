@@ -206,6 +206,9 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce(x, op);
 
+    // Wait until all threads have read the buffer from any previous
+    // reduction before overwriting it
+    __syncthreads();
     const auto ldsidx = idx.local / lanes_per_thread;
     if((idx.local % lanes_per_thread) == lanes_per_thread - 1)
     {
@@ -229,6 +232,9 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){}> buffer;
     auto x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
+    // Wait until all threads have read the buffer from any previous
+    // reduction before overwriting it
+    __syncthreads();
     buffer[idx.local] = x;
     __syncthreads();
 

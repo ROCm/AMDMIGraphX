@@ -467,11 +467,27 @@ struct compile_plan
                            if(trace_level > 2)
                                std::cout << bench_prog << std::endl;
                            auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
-                           auto t      = time_program(*ctx,
+                           // Filling the benchmark buffers leaves the memory
+                           // system in a transient state that inflates the
+                           // first samples enough to invert the ranking, so
+                           // run long enough for the trimmed mean to be taken
+                           // from steady state. Problems streaming buffers
+                           // too large for the caches have much longer
+                           // transients and need more runs to rank stably.
+                           auto params        = bench_prog.get_parameter_shapes();
+                           auto problem_bytes = transform_accumulate(
+                               params.begin(),
+                               params.end(),
+                               std::size_t{0},
+                               std::plus<>{},
+                               [](const auto& p) { return p.second.bytes(); });
+                           const std::size_t streaming_bytes = 268435456; // 256MB
+                           int nruns = problem_bytes > streaming_bytes ? 200 : 50;
+                           auto t    = time_program(*ctx,
                                                  std::move(bench_prog),
                                                  cr->replace.fill_map,
                                                  bundle,
-                                                 /* nrun */ 20);
+                                                 nruns);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

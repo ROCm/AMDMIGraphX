@@ -289,7 +289,7 @@ extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SY
     set(OUTPUT_SYMBOL ${OUTPUT_SYMBOL} PARENT_SCOPE)
 endfunction()
 
-# The launcher is only cleared when it is ccache, so other launchers(such as distcc or
+# The launcher is only cleared when it is ccache, so other launchers (such as distcc or
 # sccache) are left in place
 function(embed_disable_ccache TARGET)
     foreach(LANG C CXX)
@@ -297,13 +297,11 @@ function(embed_disable_ccache TARGET)
         if(NOT LAUNCHER)
             continue()
         endif()
-        foreach(PROGRAM ${LAUNCHER})
-            get_filename_component(PROGRAM_NAME "${PROGRAM}" NAME_WE)
-            if(PROGRAM_NAME STREQUAL "ccache")
-                set_target_properties(${TARGET} PROPERTIES ${LANG}_COMPILER_LAUNCHER "")
-                break()
-            endif()
-        endforeach()
+        list(GET LAUNCHER 0 PROGRAM)
+        get_filename_component(PROGRAM_NAME "${PROGRAM}" NAME_WE)
+        if(PROGRAM_NAME STREQUAL "ccache")
+            set_target_properties(${TARGET} PROPERTIES ${LANG}_COMPILER_LAUNCHER "")
+        endif()
     endforeach()
 endfunction()
 

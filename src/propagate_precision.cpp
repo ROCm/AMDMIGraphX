@@ -196,8 +196,6 @@ static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref
             // Stop when crossing a type category boundary (e.g., int or fp8 to float)
             if(not same_category(precision{output->get_shape().type()}, target))
                 continue;
-            if(not inputs_match_category(output, target))
-                continue;
             auto next = get_next_input(output);
             if(not next.has_value())
                 continue;

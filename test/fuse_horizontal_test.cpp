@@ -35,7 +35,6 @@
 #include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
-#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -1317,23 +1316,21 @@ TEST_CASE(expert_head_fusion_pipeline)
     migraphx::program p;
     {
         auto* m = p.get_main_module();
-        std::vector<migraphx::instruction_ref> outs;
-        for(int i = 0; i < 4; ++i)
-        {
-            auto x =
-                m->add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 8}});
+        // One SwiGLU expert head: mul(x, sigmoid(x)) -> dot(., W) -> add(., bias),
+        // with constant W/bias.  Non-scalar bias stays a pointwise input, so the
+        // epilogue submodules stay structurally equal across heads and fuse.
+        auto add_head = [&](const std::string& name, int seed) {
+            auto x = m->add_parameter(name, {migraphx::shape::float_type, {2, 8}});
             auto w = m->add_literal(
-                migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, i));
-            // Non-scalar bias stays a pointwise input, so the epilogue submodules
-            // stay structurally equal across heads and the group fuses.
+                migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, seed));
             auto b = m->add_literal(
-                migraphx::generate_literal({migraphx::shape::float_type, {2, 8}}, 10 + i));
+                migraphx::generate_literal({migraphx::shape::float_type, {2, 8}}, 10 + seed));
             auto sig = m->add_instruction(migraphx::make_op("sigmoid"), x);
             auto mul = m->add_instruction(migraphx::make_op("mul"), x, sig);
             auto d   = m->add_instruction(migraphx::make_op("dot"), mul, w);
-            outs.push_back(m->add_instruction(migraphx::make_op("add"), d, b));
-        }
-        m->add_return(outs);
+            return m->add_instruction(migraphx::make_op("add"), d, b);
+        };
+        m->add_return({add_head("x0", 0), add_head("x1", 1), add_head("x2", 2), add_head("x3", 3)});
     }
     run_mlp_pipeline(p);
 
@@ -1356,21 +1353,22 @@ TEST_CASE(expert_head_no_fusion_nonconstant_epilogue)
     migraphx::program p;
     {
         auto* m = p.get_main_module();
-        std::vector<migraphx::instruction_ref> outs;
-        for(int i = 0; i < 4; ++i)
-        {
-            auto x =
-                m->add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 8}});
-            auto v =
-                m->add_parameter("v" + std::to_string(i), {migraphx::shape::float_type, {2, 8}});
+        // Same SwiGLU head, but the bias operand `v` is a runtime parameter rather
+        // than a constant, so the epilogue can't be folded into a batched pointwise.
+        auto add_head = [&](const std::string& xname, const std::string& vname, int seed) {
+            auto x = m->add_parameter(xname, {migraphx::shape::float_type, {2, 8}});
+            auto v = m->add_parameter(vname, {migraphx::shape::float_type, {2, 8}});
             auto w = m->add_literal(
-                migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, i));
+                migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, seed));
             auto sig = m->add_instruction(migraphx::make_op("sigmoid"), x);
             auto mul = m->add_instruction(migraphx::make_op("mul"), x, sig);
             auto d   = m->add_instruction(migraphx::make_op("dot"), mul, w);
-            outs.push_back(m->add_instruction(migraphx::make_op("add"), d, v));
-        }
-        m->add_return(outs);
+            return m->add_instruction(migraphx::make_op("add"), d, v);
+        };
+        m->add_return({add_head("x0", "v0", 0),
+                       add_head("x1", "v1", 1),
+                       add_head("x2", "v2", 2),
+                       add_head("x3", "v3", 3)});
     }
     run_mlp_pipeline(p);
 

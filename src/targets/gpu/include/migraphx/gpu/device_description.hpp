@@ -21,55 +21,40 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+#ifndef MIGRAPHX_GUARD_GPU_DEVICE_DESCRIPTION_HPP
+#define MIGRAPHX_GUARD_GPU_DEVICE_DESCRIPTION_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/op/identity.hpp>
-#include <migraphx/operation.hpp>
+#include <migraphx/gpu/config.hpp>
+#include <cstddef>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-struct context;
-
 namespace gpu {
 
-struct hipblaslt_op
+/// The properties of a GPU that are needed to compile for it. It can either be
+/// queried from a local device or filled in by the user to compile for a device
+/// that is not present.
+struct MIGRAPHX_GPU_EXPORT device_description
 {
-    operation op = op::identity{};
+    /// Query the properties of the device with the given hip device id.
+    static device_description from_device(std::size_t device);
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"));
-    }
+    /// Resolve the fields that can be derived from the other fields: a
+    /// `wavefront_size` of 0 is derived from the `arch`. Counts are clamped to
+    /// at least one. Throws when a field is set to an unsupported value.
+    void normalize();
 
-    std::string name() const { return "gpu::hipblaslt_op"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        inputs.push_back(inputs.back());
-        return op.compute_shape(inputs);
-    }
-
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
-};
-
-struct compile_hipblaslt
-{
-    context* ctx = nullptr;
-    std::string name() const { return "gpu::compile_hipblaslt"; }
-    void apply(module& m) const;
+    std::string arch                  = {};
+    std::size_t num_cu                = 120;
+    std::size_t num_chiplets          = 1;
+    std::size_t max_threads_per_cu    = 2048;
+    std::size_t max_threads_per_block = 1024;
+    std::size_t wavefront_size        = 0;
 };
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+
+#endif // MIGRAPHX_GUARD_GPU_DEVICE_DESCRIPTION_HPP

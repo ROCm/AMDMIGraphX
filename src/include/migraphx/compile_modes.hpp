@@ -21,55 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/op/identity.hpp>
-#include <migraphx/operation.hpp>
+#include <cstdint>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
-struct context;
-
-namespace gpu {
-
-struct hipblaslt_op
+enum class compile_modes
 {
-    operation op = op::identity{};
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"));
-    }
-
-    std::string name() const { return "gpu::hipblaslt_op"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        inputs.push_back(inputs.back());
-        return op.compute_shape(inputs);
-    }
-
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
+    eager    = 0,
+    balanced = 50,
+    max      = 100
 };
 
-struct compile_hipblaslt
-{
-    context* ctx = nullptr;
-    std::string name() const { return "gpu::compile_hipblaslt"; }
-    void apply(module& m) const;
-};
+MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(uint8_t mode);
+MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(const std::string& mode);
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+
+#endif // MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP

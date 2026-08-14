@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 
-#include "migraphx.h"
 #include <algorithm>
 #include <cstring>
 #include <initializer_list>
@@ -1247,6 +1246,12 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
         call(&migraphx_compile_options_set_exhaustive_tune_flag, this->get_handle_ptr(), value);
     }
 
+    /// Set compilation mode (0-100). 0 = fast compile, low performance.
+    /// 100 = best compile with max optimizations, best performance.
+    void set_compile_mode(int8_t value = migraphx_compile_mode_balanced)
+    {
+        call(&migraphx_compile_options_set_compile_mode, this->get_handle_ptr(), value);
+    }
     /// Set backend-specific options that targets can read to configure
     /// compilation. `json_str` is a relaxed JSON object (bare identifiers are
     /// treated as strings) and accepts printf-style format specifiers followed
@@ -1462,6 +1467,8 @@ inline void save(const program& p, const char* filename)
     call(&migraphx_save, p.get_handle_ptr(), filename, migraphx::file_options{}.get_handle_ptr());
 }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 /// Options for parsing onnx options
 struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 {
@@ -1587,6 +1594,10 @@ inline program parse_onnx_buffer(const std::string& buffer)
         own{});
 }
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 /// Options for parsing tf options
 struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
 {
@@ -1676,6 +1687,8 @@ inline program parse_tf_buffer(const std::string& buffer)
             &migraphx_parse_tf_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
         own{});
 }
+
+#endif
 
 struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
 {

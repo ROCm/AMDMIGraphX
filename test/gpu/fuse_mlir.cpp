@@ -295,7 +295,7 @@ TEST_CASE(conv_backwards)
                      "mlir_convolution_backwards0",
                      {x, w},
                      {"y0", "y1"},
-                     "standalone_convolution", [=](auto* pm, const auto& inputs) {
+                     "standalone_convolution_backwards", [=](auto* pm, const auto& inputs) {
                          auto c = pm->add_instruction(
                              migraphx::make_op("convolution_backwards"), inputs[0], inputs[1]);
                          return std::make_tuple(c->get_operator(), c);
@@ -995,7 +995,7 @@ TEST_CASE(conv_split_reduce)
                      "mlir_main:pointwise0_main:split_reduce0",
                      {x, w, b},
                      {"x0", "x1", "x2"},
-                     "", [=](auto* pm, const auto& inputs) {
+                     "conv_pointwise", [=](auto* pm, const auto& inputs) {
                          auto conv = pm->add_instruction(
                              migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
                              inputs[0],
@@ -1012,11 +1012,8 @@ TEST_CASE(conv_split_reduce)
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);
                          auto var = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), mul);
-                         return std::make_tuple(
-                             migraphx::make_op("gpu::mlir_op",
-                                               {{"op", migraphx::to_value(conv->get_operator())},
-                                                {"tag", "standalone_convolution"}}),
-                             std::vector<migraphx::instruction_ref>{var, mean});
+                         return std::make_tuple(conv->get_operator(),
+                                                std::vector<migraphx::instruction_ref>{var, mean});
                      });
         auto mean = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
         auto var  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
@@ -1089,7 +1086,7 @@ TEST_CASE(conv_add_split_reduce_multi_use)
                      "mlir_main:pointwise0_main:split_reduce0",
                      {x, w, b},
                      {"x0", "x1", "x2"},
-                     "", [=](auto* pm, const auto& inputs) {
+                     "conv_pointwise", [=](auto* pm, const auto& inputs) {
                          auto conv = pm->add_instruction(
                              migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
                              inputs[0],
@@ -1106,11 +1103,8 @@ TEST_CASE(conv_add_split_reduce_multi_use)
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);
                          auto var = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), mul);
-                         return std::make_tuple(
-                             migraphx::make_op("gpu::mlir_op",
-                                               {{"op", migraphx::to_value(conv->get_operator())},
-                                                {"tag", "standalone_convolution"}}),
-                             std::vector<migraphx::instruction_ref>{var, mean, add});
+                         return std::make_tuple(conv->get_operator(),
+                                                std::vector<migraphx::instruction_ref>{var, mean, add});
                      });
         auto cba  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), fused);
         auto var  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
@@ -1205,7 +1199,7 @@ TEST_CASE(conv_add_split_reduce_multi_use_conv)
                      "mlir_main:pointwise0_main:split_reduce0",
                      {x, w1, b},
                      {"x0", "x1", "x2"},
-                     "", [=](auto* pm, const auto& inputs) {
+                     "conv_pointwise", [=](auto* pm, const auto& inputs) {
                          auto conv = pm->add_instruction(
                              migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
                              inputs[0],
@@ -1222,11 +1216,8 @@ TEST_CASE(conv_add_split_reduce_multi_use_conv)
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);
                          auto var = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), mul);
-                         return std::make_tuple(
-                             migraphx::make_op("gpu::mlir_op",
-                                               {{"op", migraphx::to_value(conv->get_operator())},
-                                                {"tag", "standalone_convolution"}}),
-                             std::vector<migraphx::instruction_ref>{var, mean, add});
+                         return std::make_tuple(conv->get_operator(),
+                                                std::vector<migraphx::instruction_ref>{var, mean, add});
                      });
         auto cba  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), fused);
         auto var  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);

@@ -28,6 +28,9 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/bit.hpp>
 
@@ -267,6 +270,75 @@ static optional<reduce_tile> find_reduce_tile(const std::vector<shape>& inputs,
     return (*it)->second;
 }
 
+/// The batched algorithm evaluates the fused module once for a whole tile of
+/// outputs, holding the reduction results in a vector with one value per
+/// output. This only composes when the module is a chain of elementwise
+/// sliced reads into a single arithmetic reduction whose result flows through
+/// at most unary pointwise ops to the return: a read indexed at a single
+/// output(a per-output scalar or broadcast parameter), a second reduction, or
+/// an elementwise use of the reduction result would mix the outputs of the
+/// tile.
+static bool can_batch_reduce(const module& rm)
+{
+    static const std::unordered_set<std::string> batch_reduce_ops = {
+        "reduce_sum", "reduce_prod", "reduce_max", "reduce_min", "reduce_mean"};
+    auto ins_is_reduce = [](const instruction& ins) { return contains(ins.name(), "reduce"); };
+    if(std::count_if(rm.begin(), rm.end(), ins_is_reduce) != 1)
+        return false;
+    auto reduce = std::find_if(rm.begin(), rm.end(), ins_is_reduce);
+    if(not contains(batch_reduce_ops, reduce->name()))
+        return false;
+    const auto& rlens = reduce->get_shape().lens();
+    // The instructions computed from the reduction result
+    std::unordered_set<instruction_ref> chain;
+    for(auto ins : iterator_for(rm))
+    {
+        if(ins_is_reduce(*ins))
+        {
+            chain.insert(ins);
+            continue;
+        }
+        bool uses_reduce =
+            std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref input) {
+                return contains(chain, input);
+            });
+        if(ins->name() == "@return")
+        {
+            if(ins->inputs().size() != 1)
+                return false;
+            if(not uses_reduce)
+                return false;
+            continue;
+        }
+        if(uses_reduce)
+        {
+            // The result can only flow through pointwise ops that dont mix in
+            // other reads
+            if(ins->name() != "pointwise" and ins->name() != "identity")
+                return false;
+            if(not std::all_of(ins->inputs().begin(),
+                               ins->inputs().end(),
+                               [&](instruction_ref input) { return contains(chain, input); }))
+                return false;
+            chain.insert(ins);
+            continue;
+        }
+        if(contains({"@param", "@literal", "identity"}, ins->name()))
+            continue;
+        if(ins->name() != "pointwise")
+            return false;
+        // Per-output scalars and broadcast parameters are read at a single
+        // output index, which would only read the first output of the tile
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref input) {
+               if(input->name() != "@param")
+                   return false;
+               return input->get_shape().lens() == rlens or input->get_shape().broadcasted();
+           }))
+            return false;
+    }
+    return true;
+}
+
 /// This will adjust the input shapes so a partial reduction is done per workgroup.
 /// This is done by splitting the reduction axis so each split group becomes
 /// part of the batch. So if we want to do a split redution of a tensor
@@ -490,7 +562,8 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     plan.algo =
         v.get("algo", get_reduce_algo(ctx, plan.virtual_inputs, plan.reduction_shape.lens()));
     bool no_vectorize = v.get("no_vectorize", false);
-    if((plan.algo == "block" or plan.algo == "block_tile" or plan.algo == "wave") and
+    if((plan.algo == "block" or plan.algo == "block_tile" or plan.algo == "block_batch" or
+        plan.algo == "wave") and
        plan.reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
         plan.vec = vectorize::elements(ctx, faxis, plan.virtual_inputs);
     plan.relements = plan.reduction_shape.elements() / plan.vec.size;
@@ -535,7 +608,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         options.inputs         = plan.finputs;
         options.output         = inputs.back();
         options.virtual_inputs = plan.virtual_inputs;
-        if(algo == "block" or algo == "block_tile")
+        if(algo == "block" or algo == "block_tile" or algo == "block_batch")
         {
             auto n_per_block = v.get("n_per_block", std::size_t{1});
             auto block_size  = v.get("block_size", compute_block_size(ctx, relements, 1024));
@@ -545,6 +618,23 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             if(relements >= (block_size - 1) * 256)
             {
                 algo = "block_large";
+            }
+            else if(algo == "block_batch")
+            {
+                auto tile_axis = v.at("tile_axis").to<std::size_t>();
+                // About 4 vectorized loads per lane keeps enough loads in
+                // flight without exhausting the registers on the unrolled
+                // batched pass
+                block_size =
+                    v.get("block_size",
+                          compute_block_size(ctx, std::max<std::size_t>(relements / 4, 1), 256));
+                // Avoid unrolling a very large batched pass
+                if((n_per_block * relements) / block_size > 256)
+                    algo = "block_tile<" + std::to_string(tile_axis) + ", " +
+                           std::to_string(n_per_block) + ">";
+                else
+                    algo = "block_batch<" + std::to_string(tile_axis) + ", " +
+                           std::to_string(n_per_block) + ">";
             }
             else if(algo == "block_tile")
             {
@@ -606,11 +696,15 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
     compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
         assert(not ins->module_inputs().empty());
-        auto v        = op.to_value();
+        auto v = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
-        auto* rm      = ins->module_inputs().front();
-        auto shapes   = to_shapes(ins->inputs());
+        auto* rm    = ins->module_inputs().front();
+        auto shapes = to_shapes(ins->inputs());
+        // A cached solution can be for a different module with the same
+        // shapes, so recheck that the module supports the batched algorithm
+        if(v.get("algo", std::string{}) == "block_batch" and not can_batch_reduce(*rm))
+            v["algo"] = "block_tile";
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
@@ -649,6 +743,21 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto noutputs = plan.finputs.size() - shapes.size() + 1;
         auto tile     = find_reduce_tile(
             plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());
+        // The batched tile pass needs the tile axis ordered before the
+        // reduced axes, a compatible module, and a bounded unrolled loop
+        auto can_batch_tile = [&](std::size_t block_size) {
+            if(not tile.has_value())
+                return false;
+            const auto& rlens = plan.reduction_shape.lens();
+            if(not std::all_of(
+                   rlens.begin(), rlens.begin() + tile->axis, [](auto x) { return x == 1; }))
+                return false;
+            if((tile->size * plan.relements) / block_size > 128)
+                return false;
+            if(noutputs != 1)
+                return false;
+            return can_batch_reduce(*ins->module_inputs().front());
+        };
         if(not exhaustive)
         {
             // Without exhaustive tuning, offer the heuristic default algorithm plus a few
@@ -659,6 +768,21 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             {
                 if(tile.has_value() and plan.assign == "assign_none")
                 {
+                    // The batched pass reads the broadcast input once and
+                    // reuses it from registers for every output of the tile,
+                    // so it beats the cache-bound block_tile whenever the
+                    // module supports it
+                    auto batch_block =
+                        compute_block_size(ctx, std::max<std::size_t>(plan.relements / 4, 1), 256);
+                    if(can_batch_tile(batch_block))
+                    {
+                        add_block_size_solutions(
+                            tc,
+                            "block_batch",
+                            batch_block,
+                            compute_block_size(ctx, plan.relements, 256),
+                            {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
+                    }
                     // For the cache-bound tiled reduction a smaller workgroup
                     // that leaves about 4 elements per lane pipelines enough
                     // loads to often beat the default block size, so offer
@@ -727,6 +851,15 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                                         {"block_size", block_size},
                                         {"tile_axis", tile->axis},
                                         {"n_per_block", tile->size}});
+            for(auto block_size : {64, 128, 256, 512})
+            {
+                if(not can_batch_tile(block_size))
+                    continue;
+                tc.solutions.push_back({{"algo", "block_batch"},
+                                        {"block_size", block_size},
+                                        {"tile_axis", tile->axis},
+                                        {"n_per_block", tile->size}});
+            }
         }
         return tc;
     }

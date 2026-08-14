@@ -36,6 +36,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/builtin.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/ranges.hpp>
@@ -306,13 +307,62 @@ std::string make_transformer_args(std::vector<std::string> transformers)
     return join_strings(std::move(transformers), ", ");
 }
 
+/// Rebuild the module with all bf16 values computed in float: the bf16
+/// sources(params and literals) are converted to float and every op
+/// recomputes its type from the widened inputs. bf16 has no native math on
+/// most targets, so every bf16 op pays a rounding emulation sequence, and
+/// skipping the intermediate rounding is more accurate.
+static module promote_bf16_module(const module& m)
+{
+    module out;
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    auto widen = [&](instruction_ref ins, instruction_ref x) {
+        if(ins->get_shape().type() != shape::bf16_type)
+            return x;
+        return out.add_instruction(make_op("convert", {{"target_type", shape::float_type}}), x);
+    };
+    for(auto ins : iterator_for(m))
+    {
+        std::vector<instruction_ref> inputs;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(inputs),
+                       [&](instruction_ref input) { return map_ins.at(input); });
+        if(ins->name() == "@param")
+        {
+            const auto& pname = any_cast<builtin::param>(ins->get_operator()).parameter;
+            map_ins[ins]      = widen(ins, out.add_parameter(pname, ins->get_shape()));
+        }
+        else if(ins->name() == "@literal")
+        {
+            map_ins[ins] = widen(ins, out.add_literal(ins->get_literal()));
+        }
+        else if(ins->name() == "@return")
+        {
+            out.add_return(inputs);
+        }
+        else
+        {
+            auto op = ins->get_operator();
+            // Retarget bf16 converts so a bf16 value is never reintroduced
+            if(op.name() == "convert" and ins->get_shape().type() == shape::bf16_type)
+                op = make_op("convert", {{"target_type", shape::float_type}});
+            map_ins[ins] = out.add_instruction(op, inputs);
+        }
+    }
+    return out;
+}
+
 static void generate_pointwise(cpp_generator& gg,
                                const module& pm,
                                const std::string& name,
-                               bool always_return_tuple = false)
+                               bool always_return_tuple = false,
+                               bool promote_bf16        = false)
 {
     module m = pm;
     run_passes(m, {rewrite_quantization{}, optimize_module{}});
+    if(promote_bf16)
+        m = promote_bf16_module(m);
     m.sort();
     cpp_generator g;
     g.always_return_tuple(always_return_tuple);
@@ -325,8 +375,12 @@ static void generate_pointwise(cpp_generator& gg,
     g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
     g.add_point_op("not", "migraphx::abs(not ${0})");
     // Add explicit conversions
-    g.fresult(
-        [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
+    g.fresult([promote_bf16](const shape& s) {
+        auto t = s.type();
+        if(promote_bf16 and t == shape::bf16_type)
+            t = shape::float_type;
+        return "migraphx::convert<" + shape::cpp_type(t) + ">";
+    });
     gg.create_function(g.generate_module(m)
                            .set_attributes({"__device__", "__attribute__((const))"})
                            .set_generic_types(m)
@@ -351,6 +405,11 @@ void reduce_op::set(const std::string& name, const shape& input, const shape& ou
     if(name == "reduce_sum")
     {
         reduction = "op::sum{}";
+        // Accumulate bf16 sums in float: bf16 has no native add on most
+        // targets so every accumulate pays a rounding emulation sequence, and
+        // its 8-bit mantissa loses most of the sum for long reductions
+        if(input.type() == shape::bf16_type)
+            read = "op::convert_to<float>{}";
     }
     else if(name == "reduce_mean")
     {
@@ -503,7 +562,19 @@ std::string generate_reduce(module m, const std::string& name)
         {
             auto pointwise_name = "pointwise" + std::to_string(i);
             i++;
-            generate_pointwise(g, *ins->module_inputs().front(), pointwise_name);
+            // Feeding a bf16 pointwise into an arithmetic reduction computes
+            // it in float: the rounding emulation on every bf16 op would
+            // dominate the reduction loop, and the accumulator is widened to
+            // float anyways
+            static const std::unordered_set<std::string> arithmetic_reduces = {
+                "reduce_sum", "reduce_mean", "reduce_prod", "reduce_max", "reduce_min"};
+            bool promote_bf16 =
+                ins->get_shape().type() == shape::bf16_type and
+                std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref out) {
+                    return contains(arithmetic_reduces, out->name());
+                });
+            generate_pointwise(
+                g, *ins->module_inputs().front(), pointwise_name, false, promote_bf16);
             std::vector<instruction_ref> tensors;
             std::copy_if(ins->inputs().begin(),
                          ins->inputs().end(),
@@ -551,7 +622,7 @@ std::string generate_reduce(module m, const std::string& name)
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
             return interpolate_string("${x}[_c<${index}>]",
-                                          {{"x", x}, {"index", std::to_string(index)}});
+                                             {{"x", x}, {"index", std::to_string(index)}});
         }
         if(ins->name() == "gpu::make_indices")
         {

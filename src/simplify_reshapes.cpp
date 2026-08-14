@@ -2052,6 +2052,45 @@ struct find_flatten
     }
 };
 
+// Rewrite layout(multibroadcast(x)) to multibroadcast(layout(x)) so only the
+// unique data is materialized: the layout of a broadcast writes a full copy of
+// the data for every broadcast output, which multiplies the memory footprint
+// and hides the broadcast from downstream passes and kernels that can read the
+// same data for every output.
+struct find_layout_broadcast
+{
+    auto matcher() const
+    {
+        return match::name("layout")(match::args(match::name("multibroadcast").bind("broadcast")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto broadcast = r.instructions["broadcast"];
+        if(broadcast->inputs().size() != 1)
+            return;
+        auto input = broadcast->inputs().front();
+        if(ins->get_shape().dynamic() or input->get_shape().dynamic())
+            return;
+        auto permutation =
+            ins->get_operator().to_value().at("permutation").to_vector<std::int64_t>();
+        // multibroadcast aligns the input to the trailing axes of the output
+        auto offset = static_cast<std::int64_t>(permutation.size() - input->get_shape().ndim());
+        std::vector<std::int64_t> inner_permutation;
+        transform_if(
+            permutation.begin(),
+            permutation.end(),
+            std::back_inserter(inner_permutation),
+            [&](auto axis) { return axis >= offset; },
+            [&](auto axis) { return axis - offset; });
+        auto data = m.insert_instruction(
+            ins, make_op("layout", {{"permutation", inner_permutation}}), input);
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), data);
+    }
+};
+
 // Match slice->squeeze->pw/reduce where the squeeze and slice share the same
 // single axis, then rewrite to slice->pw/reduce->squeeze (unsqueezing the
 // other inputs).  find_op_shape_transform_op propagates the squeeze through
@@ -2118,6 +2157,7 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m,
                             find_nop_reshapes{},
                             find_flatten{},
+                            find_layout_broadcast{},
                             find_reshape_cont{},
                             find_slice_shape_transforms{},
                             find_nested_shape_transforms{},

@@ -39,7 +39,7 @@ TEST_CASE(eval_expr_from_shape_input)
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto x   = mm->add_parameter("x",
-                                 migraphx::shape{migraphx::shape::float_type,
+                               migraphx::shape{migraphx::shape::float_type,
                                                  {dd{n}, dd{migraphx::sym::lit(3)}, dd{h}, dd{w}}});
     mm->add_instruction(migraphx::make_op("eval_expr_from_shape",
                                           {{"expressions",

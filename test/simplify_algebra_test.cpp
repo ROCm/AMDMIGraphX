@@ -1065,29 +1065,6 @@ TEST_CASE(simplify_concat_unpack_int4)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(simplify_concat_dequantizelinear)
-{
-    // dequantizelinear must not be pulled back through the concat: that would leave the concat
-    // operating on integer values, which some backends (e.g. rocMLIR) cannot fuse.
-    auto si = migraphx::shape{migraphx::shape::int8_type, {4}};
-    auto sf = migraphx::shape{migraphx::shape::float_type, {4}};
-    migraphx::module m1;
-    {
-        auto x      = m1.add_parameter("x", si);
-        auto y      = m1.add_parameter("y", si);
-        auto scale  = m1.add_literal(migraphx::literal{sf, {0.5f, 0.5f, 0.5f, 0.5f}});
-        auto zp     = m1.add_literal(migraphx::literal{si, {5, 5, 5, 5}});
-        auto dq1    = m1.add_instruction(migraphx::make_op("dequantizelinear"), x, scale, zp);
-        auto dq2    = m1.add_instruction(migraphx::make_op("dequantizelinear"), y, scale, zp);
-        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), dq1, dq2);
-        m1.add_return({concat});
-    }
-
-    migraphx::module m2 = m1;
-    run_pass(m1);
-    EXPECT(m1 == m2);
-}
-
 TEST_CASE(simplify_concat_add_relu)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {1}};

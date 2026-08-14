@@ -206,7 +206,7 @@ struct find_transposed_attention
         });
         auto transposed_softmax = match::name("transpose")(swap_last_two, match::arg(0)(softmax))
                                       .bind("transposed_softmax");
-        auto input_of_dot2      = match::any().bind("input_of_dot2");
+        auto input_of_dot2 = match::any().bind("input_of_dot2");
         return match::name("dot")(match::arg(0)(input_of_dot2), match::arg(1)(transposed_softmax));
     }
 

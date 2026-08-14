@@ -33,10 +33,12 @@ TEST_CASE(softsign_nd_test)
     auto input_type = migraphx::shape::half_type;
 
     auto x = mm->add_parameter("x", migraphx::shape{input_type, input_lens});
+    auto ones = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
+    auto abs  = mm->add_instruction(migraphx::make_op("abs"), x);
+    // See softplus_test: add_common_op emits the broadcast next to its consumer, and
+    // program equality is textual, so the expected order must match.
     auto mb_ones =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
-    auto abs = mm->add_instruction(migraphx::make_op("abs"), x);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), ones);
     auto add = mm->add_instruction(migraphx::make_op("add"), abs, mb_ones);
     mm->add_instruction(migraphx::make_op("div"), x, add);
 

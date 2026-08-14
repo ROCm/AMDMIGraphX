@@ -40,11 +40,13 @@ struct parse_softplus : op_parser<parse_softplus>
                           std::vector<instruction_ref> args) const
     {
         // Apply pointwise formula: y = ln(exp(x) + 1)
-        auto mb_ones = info.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", args[0]->get_shape().lens()}}),
-            info.add_literal(migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {1}}));
+        auto ones =
+            info.add_literal(migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {1}});
         auto exp = info.add_instruction(migraphx::make_op("exp"), args[0]);
-        auto add = info.add_instruction(migraphx::make_op("add"), exp, mb_ones);
+        // add_common_op broadcasts the scalar to match exp, which works for both static and
+        // dynamic shapes. Using multibroadcast with an out_lens attribute would call lens()
+        // on the input shape and throw for a dynamic one.
+        auto add = info.add_common_op("add", exp, ones);
         return info.add_instruction(migraphx::make_op("log"), add);
     }
 };

@@ -40,11 +40,11 @@ struct parse_softsign : op_parser<parse_softsign>
                           std::vector<instruction_ref> args) const
     {
         // Apply pointwise formula: y = x / (1 + |x|)
-        auto mb_ones = info.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", args[0]->get_shape().lens()}}),
-            info.add_literal(migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {1}}));
+        auto ones =
+            info.add_literal(migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {1}});
         auto abs = info.add_instruction(migraphx::make_op("abs"), args[0]);
-        auto add = info.add_instruction(migraphx::make_op("add"), abs, mb_ones);
+        // See parse_softplus: add_common_op is dynamic-shape safe, multibroadcast+out_lens is not.
+        auto add = info.add_common_op("add", abs, ones);
         return info.add_instruction(migraphx::make_op("div"), args[0], add);
     }
 };

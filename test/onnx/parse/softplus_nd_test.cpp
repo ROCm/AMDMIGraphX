@@ -33,10 +33,13 @@ TEST_CASE(softplus_nd_test)
     auto input_type = migraphx::shape::half_type;
 
     auto x = mm->add_parameter("x", migraphx::shape{input_type, input_lens});
+    auto ones = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
+    auto exp  = mm->add_instruction(migraphx::make_op("exp"), x);
+    // The parser uses add_common_op, which inserts the broadcast next to the add that
+    // consumes it rather than ahead of the exp. Program equality is textual (to_string),
+    // so the expected program has to be built in the same order.
     auto mb_ones =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
-    auto exp = mm->add_instruction(migraphx::make_op("exp"), x);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), ones);
     auto add = mm->add_instruction(migraphx::make_op("add"), exp, mb_ones);
     mm->add_instruction(migraphx::make_op("log"), add);
 

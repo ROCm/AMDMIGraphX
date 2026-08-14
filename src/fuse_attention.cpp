@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/fuse_attention.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
@@ -31,6 +32,8 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
+#include <migraphx/shape_for_each.hpp>
+#include <migraphx/literal.hpp>
 #include <algorithm>
 #include <deque>
 #include <iterator>
@@ -593,6 +596,70 @@ struct find_flash_decoding
         return flash_input_kind::other;
     }
 
+    // Inverse of get_scores_split_lens: split index [..., G, M, N/G] -> score index [..., M, N]
+    static std::vector<std::size_t> unsplit_score_index(const std::vector<std::size_t>& split_idx,
+                                                        std::size_t scores_ndim,
+                                                        std::size_t n_split)
+    {
+        const auto g = split_idx.at(scores_ndim - 2);
+        const auto m = split_idx.at(scores_ndim - 1);
+        const auto j = split_idx.at(scores_ndim);
+
+        std::vector<std::size_t> score_idx(scores_ndim);
+        std::copy(split_idx.begin(), split_idx.begin() + scores_ndim - 2, score_idx.begin());
+        score_idx[scores_ndim - 2] = m;
+        score_idx[scores_ndim - 1] = g * n_split + j;
+        return score_idx;
+    }
+
+    // Score index -> literal index; broadcast axes (length 1) always read element 0
+    static std::vector<std::size_t>
+    broadcastable_literal_index(const std::vector<std::size_t>& score_idx,
+                                const std::vector<std::size_t>& literal_lens)
+    {
+        const auto offset = score_idx.size() - literal_lens.size();
+        std::vector<std::size_t> literal_idx(literal_lens.size());
+        for(std::size_t k = 0; k < literal_lens.size(); ++k)
+            literal_idx[k] = literal_lens[k] == 1 ? 0 : score_idx.at(offset + k);
+        return literal_idx;
+    }
+
+    // Compile-time counterpart of reshape_scores_aligned for literals in the
+    // attention submodule, like causal masks. Score-shaped params
+    // are split at runtime; literals are materialized here during submodule rebuild
+    static literal transform_score_literal(const literal& lit,
+                                           const std::vector<std::size_t>& scores_lens,
+                                           std::size_t num_groups)
+    {
+        const auto& input_lens = lit.get_shape().lens();
+        if(input_lens.size() > scores_lens.size() or
+           (input_lens != scores_lens and not can_multibroadcast(input_lens, scores_lens)))
+            return lit;
+
+        const auto split_lens = get_scores_split_lens(scores_lens, num_groups);
+        if(input_lens == split_lens)
+            return lit;
+
+        const auto ndim    = scores_lens.size();
+        const auto n_split = scores_lens.back() / num_groups;
+
+        literal result;
+        lit.visit([&](auto in_view) {
+            using T = std::remove_cv_t<std::remove_reference_t<decltype(*in_view.begin())>>;
+            const shape in_shape    = lit.get_shape();
+            const shape split_shape = {in_shape.type(), split_lens};
+            std::vector<T> split_data(split_shape.elements(), T{});
+
+            shape_for_each(split_shape, [&](const std::vector<std::size_t>& split_idx, std::size_t i) {
+                const auto score_idx   = unsplit_score_index(split_idx, ndim, n_split);
+                const auto literal_idx = broadcastable_literal_index(score_idx, input_lens);
+                split_data[i]          = in_view[in_shape.index(literal_idx)];
+            });
+            result = literal{split_shape, split_data};
+        });
+        return result;
+    }
+
     // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
     instruction_ref reshape_q_for_flash_decoding(module& mm,
                                                  instruction_ref q,
@@ -636,7 +703,6 @@ struct find_flash_decoding
 
     struct flash_input_transform
     {
-        flash_input_kind kind{};
         instruction_ref main{};
         instruction_ref split_main{};
         shape submodule_param_shape{};
@@ -732,7 +798,9 @@ struct find_flash_decoding
     void rebuild_attention_submodule(
         module& target_mod,
         const module& source_mod,
-        const std::unordered_map<instruction_ref, instruction_ref>& param_map) const
+        const std::unordered_map<instruction_ref, instruction_ref>& param_map,
+        const std::vector<std::size_t>& scores_lens,
+        std::size_t num_groups) const
     {
         // map from instructions in the old module to the new ones in the target module
         std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
@@ -753,8 +821,9 @@ struct find_flash_decoding
             {
                 if(ins->name() == "@literal")
                 {
-                    map_old_to_new[ins] = target_mod.add_literal(ins->get_literal());
-                    progress            = true;
+                    map_old_to_new[ins] = target_mod.add_literal(
+                        transform_score_literal(ins->get_literal(), scores_lens, num_groups));
+                    progress = true;
                     continue;
                 }
                 if(ins->name() == "@outline")
@@ -792,11 +861,23 @@ struct find_flash_decoding
                 }
                 else if(is_broadcast_op(op))
                 {
-                    // Walk broadcast consumers to find the score tensor shape.
-                    const auto& target_shape =
-                        map_old_to_new.at(broadcast_shape_ins(ins))->get_shape();
+                    const auto orig_out_lens = op.to_value()["out_lens"].to_vector<std::size_t>();
+                    const auto split_lens =
+                        map_old_to_new.at(broadcast_shape_ins(ins))->get_shape().lens();
+                    const auto& input_lens = new_inputs.front()->get_shape().lens();
+
+                    if(not can_multibroadcast(input_lens, split_lens) and
+                       can_multibroadcast(input_lens, orig_out_lens))
+                    {
+                        auto bc_ins = target_mod.add_instruction(op, new_inputs);
+                        map_old_to_new[ins] = target_mod.add_instruction(
+                            make_op("reshape", {{"dims", split_lens}}), bc_ins);
+                        progress = true;
+                        continue;
+                    }
+
                     auto value        = op.to_value();
-                    value["out_lens"] = target_shape.lens();
+                    value["out_lens"] = split_lens;
                     op.from_value(value);
                 }
 
@@ -846,7 +927,6 @@ struct find_flash_decoding
         // get gemm1 and gemm2
         auto [gemm1, gemm2] = get_gemms(submod);
 
-        // TODO: for this first pass of flash decoding, assuming no input fusion / not supporting
         auto q_param = gemm1->inputs()[0];
         auto k_param = gemm1->inputs()[1];
         auto v_param = gemm2->inputs()[1];
@@ -889,9 +969,8 @@ struct find_flash_decoding
             if(param->name() != "@param")
                 continue;
 
-            const auto kind     = get_flash_input_kind(param, q_param, k_param, v_param, scores_lens);
             const auto main_ins = map_param_to_main.at(param);
-            param_transforms[param] = flash_input_transform{kind, main_ins, {}, {}};
+            param_transforms[param] = flash_input_transform{main_ins, {}, {}};
         }
 
         const auto& q_main = param_transforms.at(q_param).main;
@@ -904,7 +983,7 @@ struct find_flash_decoding
         // insert reshape operations before the group for every submodule @param
         for(auto& [param, transform] : param_transforms)
         {
-            switch(transform.kind)
+            switch(get_flash_input_kind(param, q_param, k_param, v_param, scores_lens))
             {
             case flash_input_kind::q:
                 transform.split_main = reshape_q_for_flash_decoding(
@@ -966,7 +1045,8 @@ struct find_flash_decoding
         }
 
         // don't simply fuse previous attn submod, need to rebuild all the ops
-        rebuild_attention_submodule(m_flash_decode, *submod, map_old_params_to_new);
+        rebuild_attention_submodule(
+            m_flash_decode, *submod, map_old_params_to_new, scores_lens, actual_groups);
 
         auto original_submod_name = attn_group_ins->module_inputs().front()->name();
         std::string new_mod_name  = original_submod_name + "_flash_decoding";

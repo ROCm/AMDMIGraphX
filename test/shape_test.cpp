@@ -2484,6 +2484,14 @@ TEST_CASE(make_bcast_shape_static_input_via_to_symbolic)
            (std::vector<migraphx::sym::expr>{lit(12), lit(0), lit(4), lit(1)}));
 }
 
+TEST_CASE(can_multibroadcast)
+{
+    EXPECT(migraphx::can_multibroadcast({1, 1, 384, 384}, {1, 12, 384, 384}));
+    EXPECT(not migraphx::can_multibroadcast({1, 1, 384, 384}, {1, 12, 2, 384, 192}));
+    EXPECT(migraphx::can_multibroadcast({1}, {1, 12, 384, 384}));
+    EXPECT(not migraphx::can_multibroadcast({1, 12, 2, 384}, {1, 12, 384, 384}));
+}
+
 TEST_CASE(to_symbolic_static)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};

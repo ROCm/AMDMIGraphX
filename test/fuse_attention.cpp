@@ -69,6 +69,12 @@ static bool has_flash_decoding_submodule(const migraphx::program& p)
         });
 }
 
+static bool is_attention_group(const migraphx::instruction& ins)
+{
+    return ins.name() == "group" and
+           ins.get_operator().to_value()["tag"].to<std::string>() == "attention";
+}
+
 // Test helper functions used in fuse_attention pass
 TEST_CASE(calculate_flash_decoding_splits_basic)
 {
@@ -1057,6 +1063,73 @@ TEST_CASE(flash_decoding_4d_with_attention_mask_param)
     EXPECT(found_mask_param);
 }
 
+TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
+{
+    // Broadcastable mask literal {1,1,M,N} is multibroadcast to score shape, then consumed
+    // in where. Flash decoding rebuild materializes and splits the literal at compile time.
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 384, 384}};
+    migraphx::shape s_mask{migraphx::shape::bool_type, {1, 1, 384, 384}};
+    const std::size_t num_splits = 2;
+
+    std::vector<uint8_t> mask_data(s_mask.elements(), 1);
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto q    = mm->add_parameter("q", s1);
+        auto k    = mm->add_parameter("k", s1);
+        auto v    = mm->add_parameter("v", s1);
+        auto mask = mm->add_literal(migraphx::literal{s_mask, mask_data});
+        auto ninf = mm->add_literal(-std::numeric_limits<float>::infinity());
+        auto ninf_h =
+            mm->add_instruction(migraphx::make_op("convert", {{"target_type", s1.type()}}), ninf);
+        k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), v);
+        auto gemm1    = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto mask_bc  = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), mask);
+        auto ninf_bc = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), ninf_h);
+        auto masked = mm->add_instruction(migraphx::make_op("where"), mask_bc, gemm1, ninf_bc);
+        auto rmax   = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), masked);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), masked, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass(p1,
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
+
+    EXPECT(has_flash_decoding_submodule(p1));
+
+    migraphx::shape expected_mask_shape{migraphx::shape::bool_type, {1, 12, num_splits, 384, 192}};
+    bool found_split_mask_literal = false;
+    for(const auto& ins : *p1.get_main_module())
+    {
+        if(ins.name() != "group")
+            continue;
+        for(const auto* sm : ins.module_inputs())
+        {
+            if(sm->name().find("flash_decoding") == std::string::npos)
+                continue;
+            for(const auto& sm_ins : *sm)
+            {
+                if(sm_ins.name() == "@literal" and sm_ins.get_shape() == expected_mask_shape)
+                    found_split_mask_literal = true;
+            }
+        }
+    }
+    EXPECT(found_split_mask_literal);
+}
+
 TEST_CASE(flash_decoding_4d_with_unary_on_softmax_broadcast)
 {
     // Unary ops (e.g. contiguous) between multibroadcast(reduce_max) and sub must not
@@ -1546,11 +1619,7 @@ TEST_CASE(flash_decoding_3d_skips_uneven_sequence)
     EXPECT(not has_flash_decoding_submodule(p1));
     EXPECT(std::any_of(p1.get_main_module()->begin(),
                        p1.get_main_module()->end(),
-                       [](const auto& ins) {
-                           return ins.name() == "group" and
-                                  ins.get_operator().to_value()["tag"].template to<std::string>() ==
-                                      "attention";
-                       }));
+                       [](const auto& ins) { return is_attention_group(ins); }));
 }
 
 TEST_CASE(kv_cache_attention)
@@ -2141,8 +2210,7 @@ TEST_CASE(fp8_quant_gemm_softmax_gemm)
         mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "quant_dot"; }));
     // ... and fused into an attention group.
     EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "group" and
-               ins.get_operator().to_value()["tag"].template to<std::string>() == "attention";
+        return is_attention_group(ins);
     }));
 }
 

@@ -135,7 +135,7 @@ struct concat_optimizer
         return result;
     }
 
-    struct inplace_plan
+    struct plan
     {
         instruction_ref producer;
         std::vector<operation> view_ops = {};
@@ -143,8 +143,8 @@ struct concat_optimizer
 
     // Decide if the producer of this concat input can write directly into a
     // view of the super buffer shaped like slice_shape
-    std::optional<inplace_plan>
-    plan_inplace(instruction_ref input, const shape& slice_shape, std::size_t axis) const
+    std::optional<plan>
+    plan_copy_elision(instruction_ref input, const shape& slice_shape, std::size_t axis) const
     {
         auto [producer, chain] = get_view_chain(input);
         if(not can_write_inplace(producer))
@@ -154,13 +154,13 @@ struct concat_optimizer
         // other users just read the strided view; the caller checks that
         // they support non-packed inputs
         if(chain.empty())
-            return inplace_plan{producer};
+            return plan{producer};
         if(producer->outputs().size() != 1)
             return std::nullopt;
         auto inverse = invert_view_chain(chain, producer->get_shape(), slice_shape);
         if(not inverse.has_value())
             return std::nullopt;
-        return inplace_plan{producer, *inverse};
+        return plan{producer, *inverse};
     }
 
     instruction_ref insert_copy(const operation& op,
@@ -169,12 +169,12 @@ struct concat_optimizer
                                 std::size_t axis) const
     {
         auto slice = m->insert_instruction(std::next(super), op, super);
-        if(auto plan = plan_inplace(input, slice->get_shape(), axis))
+        if(auto p = plan_copy_elision(input, slice->get_shape(), axis))
         {
             auto view = slice;
-            for(const auto& vop : plan->view_ops)
+            for(const auto& vop : p->view_ops)
                 view = m->insert_instruction(std::next(view), vop, view);
-            m->replace_instruction(get_output_alias(plan->producer), view);
+            m->replace_instruction(get_output_alias(p->producer), view);
             return input;
         }
         auto copy = m->insert_instruction(std::next(input), make_op(am.copy()), input, slice);
@@ -255,7 +255,7 @@ void eliminate_concat::apply(module& m) const
             ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
                 auto slice_shape =
                     concat_optimizer::slice_shape_for(ins->get_shape(), input->get_shape());
-                return not co.plan_inplace(input, slice_shape, axis).has_value();
+                return not co.plan_copy_elision(input, slice_shape, axis).has_value();
             });
         if(ncopies > 1)
             continue;

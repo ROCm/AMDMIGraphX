@@ -390,9 +390,9 @@ TEST_CASE(qdq_reshape_unquantized_dot)
         auto scale = m1.add_literal(0.5f);
         auto zero  = m1.add_literal(std::int8_t{1});
 
-        auto q1 = add_quantize_op(m1, "quantizelinear", x, scale, zero);
-        auto rs = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1024}}}), q1);
-        auto d1 = add_quantize_op(m1, "dequantizelinear", rs, scale, zero);
+        auto q1  = add_quantize_op(m1, "quantizelinear", x, scale, zero);
+        auto rs  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1024}}}), q1);
+        auto d1  = add_quantize_op(m1, "dequantizelinear", rs, scale, zero);
         auto dot = m1.add_instruction(migraphx::make_op("dot"), d1, w);
         m1.add_return({dot});
     }

@@ -38,8 +38,8 @@ struct test_uint8_rebias_roundtrip : verify_program<test_uint8_rebias_roundtrip>
         migraphx::shape x_shape{migraphx::shape::float_type, {2, 8}};
         auto x = mm->add_parameter("x", x_shape);
 
-        auto scale = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05f}});
-        auto zp    = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {0}});
+        auto scale   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05f}});
+        auto zp      = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {0}});
         auto scale_b = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", x_shape.lens()}}), scale);
         auto zp_b = mm->add_instruction(
@@ -50,7 +50,7 @@ struct test_uint8_rebias_roundtrip : verify_program<test_uint8_rebias_roundtrip>
         // Rebias to int8 by subtracting 128 through int32 (same IR as rebias_uint8_to_int8).
         auto q_i32 = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), q);
-        auto k128 = mm->add_literal(migraphx::literal{migraphx::shape::int32_type, {128}});
+        auto k128   = mm->add_literal(migraphx::literal{migraphx::shape::int32_type, {128}});
         auto k128_b = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", x_shape.lens()}}), k128);
         auto diff = mm->add_instruction(migraphx::make_op("sub"), q_i32, k128_b);

@@ -106,9 +106,9 @@ struct concat_optimizer
 
     // Build the view ops that turn a slice of the super buffer (shaped like
     // the concat input) into the producer's output shape by inverting the
-    // view chain. Returns the ops and the resulting view shape; nullopt when
-    // the inverse does not exist or would require a data movement.
-    static std::optional<std::pair<std::vector<operation>, shape>> invert_view_chain(
+    // view chain. Returns nullopt when the inverse does not exist or would
+    // require a data movement.
+    static std::optional<std::vector<operation>> invert_view_chain(
         const std::vector<operation>& chain, const shape& producer_shape, const shape& slice_shape)
     {
         std::vector<operation> fwd;
@@ -132,32 +132,7 @@ struct concat_optimizer
             });
         if(s.lens() != producer_shape.lens())
             return std::nullopt;
-        return std::make_pair(result, s);
-    }
-
-    // The producer must actually adopt the view's layout as its output shape:
-    // ops like gpu::precompile_op can derive their shape from the data inputs
-    // instead of the output buffer, which would silently leave the reported
-    // and actual layouts out of sync.
-    bool producer_adopts_layout(instruction_ref producer, const shape& view_shape) const
-    {
-        auto alias = get_output_alias(producer);
-        auto it    = std::find(producer->inputs().begin(), producer->inputs().end(), alias);
-        if(it == producer->inputs().end())
-            return producer->get_shape() == view_shape;
-        auto ishapes                                           = to_shapes(producer->inputs());
-        ishapes[std::distance(producer->inputs().begin(), it)] = view_shape;
-        try
-        {
-            auto mods = producer->module_inputs();
-            auto s    = mods.empty() ? producer->get_operator().compute_shape(ishapes)
-                                     : producer->get_operator().compute_shape(ishapes, mods);
-            return s == view_shape;
-        }
-        catch(...)
-        {
-            return false;
-        }
+        return result;
     }
 
     struct inplace_plan
@@ -176,22 +151,16 @@ struct concat_optimizer
             return std::nullopt;
         if(not slice_shape.packed() and not opt->supports_non_packed_output(producer, axis))
             return std::nullopt;
+        // other users just read the strided view; the caller checks that
+        // they support non-packed inputs
         if(chain.empty())
-        {
-            // other users just read the strided view; the caller checks that
-            // they support non-packed inputs
-            if(not producer_adopts_layout(producer, slice_shape))
-                return std::nullopt;
             return inplace_plan{producer};
-        }
         if(producer->outputs().size() != 1)
             return std::nullopt;
         auto inverse = invert_view_chain(chain, producer->get_shape(), slice_shape);
         if(not inverse.has_value())
             return std::nullopt;
-        if(not producer_adopts_layout(producer, inverse->second))
-            return std::nullopt;
-        return inplace_plan{producer, inverse->first};
+        return inplace_plan{producer, *inverse};
     }
 
     instruction_ref insert_copy(const operation& op,
@@ -262,11 +231,11 @@ struct concat_optimizer
     }
 };
 
-bool is_packed(instruction_ref ins, std::size_t axis)
+bool is_packed(const shape& s, std::size_t axis)
 {
-    auto alens  = ins->get_shape().lens();
+    auto alens  = s.lens();
     alens[axis] = 1;
-    return shape{ins->get_shape().type(), alens, ins->get_shape().strides()}.packed();
+    return shape{s.type(), alens, s.strides()}.packed();
 }
 
 } // namespace
@@ -295,7 +264,9 @@ void eliminate_concat::apply(module& m) const
                ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
                    if(input->outputs().size() < 2)
                        return false;
-                   if(is_packed(input, axis))
+                   auto slice_shape =
+                       concat_optimizer::slice_shape_for(ins->get_shape(), input->get_shape());
+                   if(is_packed(slice_shape, axis))
                        return false;
                    return std::any_of(input->outputs().begin(),
                                       input->outputs().end(),

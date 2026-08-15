@@ -373,8 +373,8 @@ if(MIGRAPHX_ENABLE_MLIR)
     foreach(MIGRAPHX_ROCKCOMPILER_LIB IN LISTS MIGRAPHX_ROCKCOMPILER_LIBS)
         get_filename_component(MIGRAPHX_ROCKCOMPILER_LIB_NAME "${MIGRAPHX_ROCKCOMPILER_LIB}"
                                NAME)
-        if(MIGRAPHX_ROCKCOMPILER_LIB_NAME MATCHES
-           "rockCompiler|Rock|MLIRRoc|RocMLIR|Rocmlir|MIGraphX|MHAL")
+        string(TOLOWER "${MIGRAPHX_ROCKCOMPILER_LIB_NAME}" MIGRAPHX_ROCKCOMPILER_LIB_NAME)
+        if(MIGRAPHX_ROCKCOMPILER_LIB_NAME MATCHES "rock|roctarget|rocmlir|migraphx|mhal")
             list(APPEND MIGRAPHX_ROCMLIR_LIBS "${MIGRAPHX_ROCKCOMPILER_LIB}")
         endif()
     endforeach()

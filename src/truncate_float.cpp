@@ -35,9 +35,11 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template<class Predicate>
-static void
-replace_data_type(module& m, const std::vector<shape::type_t>& src, shape::type_t target_type, Predicate predicate)
+template <class Predicate>
+static void replace_data_type(module& m,
+                              const std::vector<shape::type_t>& src,
+                              shape::type_t target_type,
+                              Predicate predicate)
 {
     for(auto ins : iterator_for(m))
     {
@@ -97,9 +99,14 @@ replace_data_type(module& m, const std::vector<shape::type_t>& src, shape::type_
     }
 }
 
-void truncate_float_pass::apply(module& m) const { replace_data_type(m, {shape::float_type, shape::double_type}, float_type, [&](instruction_ref ins) {
-        return contains(ins_names, ins->name()) or contains(ins_names, "all");
-    });; }
+void truncate_float_pass::apply(module& m) const
+{
+    replace_data_type(
+        m, {shape::float_type, shape::double_type}, float_type, [&](instruction_ref ins) {
+            return contains(ins_names, ins->name()) or contains(ins_names, "all");
+        });
+    ;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

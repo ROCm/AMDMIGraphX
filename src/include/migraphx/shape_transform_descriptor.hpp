@@ -105,6 +105,10 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     shape_transform_descriptor to_dst_from_common() const;
     shape_transform_descriptor to_src_from_common() const;
 
+    // Transform the destination dimensions back into the original dimensions. This is empty when
+    // there is no inverse, such as when a dimension is broadcasted.
+    shape_transform_descriptor invert() const;
+
     std::vector<std::vector<std::size_t>> common_axes_map_from_src() const;
     std::vector<std::vector<std::size_t>> common_axes_map_from_dst() const;
 

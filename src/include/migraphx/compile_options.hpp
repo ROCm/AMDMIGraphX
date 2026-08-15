@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/tracer.hpp>
 #include <migraphx/value.hpp>
 #include <string>
@@ -44,6 +45,7 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
 
+    compile_modes compile_mode = compile_modes::balanced;
     /**
      * Backend-specific options keyed by name. Targets can read these to
      * configure compilation in a way that is opaque to the core engine.

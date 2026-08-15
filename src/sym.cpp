@@ -1647,6 +1647,24 @@ bool same_symbol(const expr& a, const expr& b)
            });
 }
 
+std::unordered_set<expr> find_variables(const expr& e)
+{
+    std::unordered_set<expr> visited;
+    std::unordered_set<expr> result;
+    fix([&](auto self, const expr& x) {
+        if(x.empty() or not visited.insert(x).second)
+            return;
+        if(x.name() == "variable")
+        {
+            result.insert(as_symbol(x));
+            return;
+        }
+        for(const auto& c : x.children())
+            self(c);
+    })(e);
+    return result;
+}
+
 [[maybe_unused]] static bool has_float_literal(const expr& e)
 {
     if(e.empty())

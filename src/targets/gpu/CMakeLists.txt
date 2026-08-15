@@ -25,22 +25,44 @@
 find_package(hip REQUIRED)
 
 # Produce a short identity for a toolchain file, used to separate binary cache entries that
-# different toolchains cannot share. The content hash is exact but slow on the larger libraries,
-# so fall back to size and timestamp, which still changes whenever the file is replaced.
+# different toolchains cannot share.
 function(migraphx_hash_file FILE_PATH OUT_VAR)
     if(NOT FILE_PATH OR NOT EXISTS "${FILE_PATH}")
         set(${OUT_VAR} "unknown" PARENT_SCOPE)
         return()
     endif()
-    file(SIZE "${FILE_PATH}" HASH_FILE_SIZE)
-    if(HASH_FILE_SIZE LESS 268435456)
-        file(MD5 "${FILE_PATH}" HASH_RESULT)
-    else()
-        file(TIMESTAMP "${FILE_PATH}" HASH_FILE_TIME "%s" UTC)
-        string(MD5 HASH_RESULT "${FILE_PATH}-${HASH_FILE_SIZE}-${HASH_FILE_TIME}")
-    endif()
+    file(MD5 "${FILE_PATH}" HASH_RESULT)
     string(SUBSTRING "${HASH_RESULT}" 0 12 HASH_RESULT)
     set(${OUT_VAR} "${HASH_RESULT}" PARENT_SCOPE)
+endfunction()
+
+# Hash a list of library files, skipping entries that are not files (e.g. target names).
+# CMake cannot stream one hash across several files, so hash the size and content hash
+# of each file instead.
+function(migraphx_hash_libraries LIB_PATHS OUT_VAR)
+    set(HASH_FILES "")
+    foreach(LIB_PATH IN LISTS LIB_PATHS)
+        if(EXISTS "${LIB_PATH}" AND NOT IS_DIRECTORY "${LIB_PATH}")
+            list(APPEND HASH_FILES "${LIB_PATH}")
+        endif()
+    endforeach()
+    list(LENGTH HASH_FILES HASH_FILE_COUNT)
+    if(HASH_FILE_COUNT EQUAL 0)
+        set(${OUT_VAR} "unknown" PARENT_SCOPE)
+    elseif(HASH_FILE_COUNT EQUAL 1)
+        migraphx_hash_file("${HASH_FILES}" HASH_RESULT)
+        set(${OUT_VAR} "${HASH_RESULT}" PARENT_SCOPE)
+    else()
+        set(HASH_INPUT "")
+        foreach(HASH_FILE IN LISTS HASH_FILES)
+            file(SIZE "${HASH_FILE}" HASH_FILE_SIZE)
+            file(MD5 "${HASH_FILE}" HASH_FILE_MD5)
+            string(APPEND HASH_INPUT "${HASH_FILE_SIZE}-${HASH_FILE_MD5};")
+        endforeach()
+        string(MD5 HASH_RESULT "${HASH_INPUT}")
+        string(SUBSTRING "${HASH_RESULT}" 0 12 HASH_RESULT)
+        set(${OUT_VAR} "${HASH_RESULT}" PARENT_SCOPE)
+    endif()
 endfunction()
 
 # MIGRAPHX_USE_AMDMLSS is resolved to a plain boolean at the top-level CMakeLists.
@@ -335,17 +357,28 @@ if(MIGRAPHX_ENABLE_MLIR)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
 
-    # Identify the rocMLIR build for the binary cache by hashing the library that gets linked.
+    # Identify the rocMLIR build for the binary cache by hashing the libraries that get linked.
     # That covers a locally built or substituted rocMLIR, which a recorded version or commit
     # would not.
-    get_target_property(MIGRAPHX_ROCKCOMPILER_LIB rocMLIR::rockCompiler IMPORTED_LOCATION)
-    if(NOT MIGRAPHX_ROCKCOMPILER_LIB)
-        # rockCompiler is an interface target, so the archive is named as a link dependency.
-        get_target_property(MIGRAPHX_ROCKCOMPILER_LIB rocMLIR::rockCompiler INTERFACE_LINK_LIBRARIES)
-        list(FILTER MIGRAPHX_ROCKCOMPILER_LIB INCLUDE REGEX "rockCompiler")
-        list(GET MIGRAPHX_ROCKCOMPILER_LIB 0 MIGRAPHX_ROCKCOMPILER_LIB)
+    get_target_property(MIGRAPHX_ROCKCOMPILER_LIBS rocMLIR::rockCompiler IMPORTED_LOCATION)
+    if(NOT MIGRAPHX_ROCKCOMPILER_LIBS)
+        # rockCompiler is an interface target that names its archives as link dependencies:
+        # the fat librockCompiler.a on Linux, many smaller archives on Windows.
+        get_target_property(MIGRAPHX_ROCKCOMPILER_LIBS rocMLIR::rockCompiler
+                            INTERFACE_LINK_LIBRARIES)
     endif()
-    migraphx_hash_file("${MIGRAPHX_ROCKCOMPILER_LIB}" MIGRAPHX_ROCMLIR_ID)
+    # Only rocMLIR's own archives identify the build, so skip the upstream LLVM/MLIR archives
+    # also linked on Windows. Match the file name alone since paths can contain these names.
+    set(MIGRAPHX_ROCMLIR_LIBS "")
+    foreach(MIGRAPHX_ROCKCOMPILER_LIB IN LISTS MIGRAPHX_ROCKCOMPILER_LIBS)
+        get_filename_component(MIGRAPHX_ROCKCOMPILER_LIB_NAME "${MIGRAPHX_ROCKCOMPILER_LIB}"
+                               NAME)
+        if(MIGRAPHX_ROCKCOMPILER_LIB_NAME MATCHES
+           "rockCompiler|Rock|MLIRRoc|RocMLIR|Rocmlir|MIGraphX|MHAL")
+            list(APPEND MIGRAPHX_ROCMLIR_LIBS "${MIGRAPHX_ROCKCOMPILER_LIB}")
+        endif()
+    endforeach()
+    migraphx_hash_libraries("${MIGRAPHX_ROCMLIR_LIBS}" MIGRAPHX_ROCMLIR_ID)
     message(STATUS "rocMLIR binary cache id: ${MIGRAPHX_ROCMLIR_ID}")
     target_compile_definitions(migraphx_gpu
                                PRIVATE "-DMIGRAPHX_ROCMLIR_ID=\"${MIGRAPHX_ROCMLIR_ID}\"")

@@ -443,24 +443,33 @@ TEST_CASE(slice_dyn_test1)
     EXPECT(result.get_shape() == sresult);
 }
 
-TEST_CASE(slice_eval_expr_from_shape_input)
+TEST_CASE(dyn_slice_eval_expr_from_shape_input)
 {
-    using dd = migraphx::shape::dynamic_dimension;
-    auto n   = migraphx::sym::var("n", {1, 3});
+    auto n    = var("n", {1, 3});
+    auto zero = lit(0);
 
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int32_type,
-                      {dd{migraphx::sym::lit(2)}, dd{migraphx::sym::lit(2)}, dd{n}}};
+    migraphx::shape s{migraphx::shape::int32_type, {dd{lit(2)}, dd{lit(2)}, dd{n}}};
     auto x = mm->add_parameter("x", s);
 
+    auto start_vals = mm->add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::value::array{migraphx::to_value(zero)}}}),
+        x);
     auto end_vals = mm->add_instruction(
         migraphx::make_op(
             "eval_expr_from_shape",
-            {{"expressions",
-              migraphx::value::array{migraphx::to_value(n - migraphx::sym::lit(1))}}}),
+            {{"expressions", migraphx::value::array{migraphx::to_value(n - lit(1))}}}),
         x);
-    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}}), x, end_vals);
+    mm->add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {2}},
+                           {"starts", migraphx::value::array{migraphx::to_value(zero)}},
+                           {"ends", migraphx::value::array{migraphx::to_value(n - lit(1))}}}),
+        x,
+        start_vals,
+        end_vals);
     p.compile(migraphx::make_target("ref"));
 
     std::vector<int> data(2 * 2 * 3);

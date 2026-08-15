@@ -25,12 +25,10 @@
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/eliminate_convert.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
-#include <algorithm>
-#include <cassert>
+#include <migraphx/replace_data_type.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,33 +46,13 @@ static bool is_computation(instruction_ref ins)
 
 void promote_storage_type::apply(module_pass_manager& mpm) const
 {
-    auto& m                     = mpm.get_module();
-    const auto convert_to_float = make_op("convert", {{"target_type", shape::float_type}});
-    bool promoted               = false;
-    for(auto ins : iterator_for(m))
-    {
-        if(not contains(types, ins->get_shape().type()))
-            continue;
-        if(not is_computation(ins))
-            continue;
-        auto convert_back = m.insert_instruction(
-            std::next(ins), make_op("convert", {{"target_type", ins->get_shape().type()}}), ins);
-        m.replace_instruction(ins, convert_back);
-        std::vector<instruction_ref> inputs;
-        std::transform(ins->inputs().begin(),
-                       ins->inputs().end(),
-                       std::back_inserter(inputs),
-                       [&](instruction_ref input) {
-                           if(not contains(types, input->get_shape().type()))
-                               return input;
-                           return m.insert_instruction(ins, convert_to_float, input);
-                       });
-        m.replace_instruction(ins, ins->get_operator(), inputs);
-        assert(ins->get_shape().type() == shape::float_type);
-        promoted = true;
-    }
-    if(not promoted)
+    auto& m      = mpm.get_module();
+    auto promote = [&](instruction_ref ins) {
+        return contains(types, ins->get_shape().type()) and is_computation(ins);
+    };
+    if(none_of(iterator_for(m), promote))
         return;
+    replace_data_type(m, types, shape::float_type, promote);
     // Adjacent promoted instructions are connected by a convert to the
     // storage type followed by a convert back to float, which cancel
     mpm.run_pass(eliminate_convert{});

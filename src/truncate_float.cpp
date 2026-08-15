@@ -21,83 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/float_equal.hpp>
-#include <migraphx/instruction_ref.hpp>
 #include <migraphx/truncate_float.hpp>
-#include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/stringutils.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/replace_data_type.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-template <class Predicate>
-static void replace_data_type(module& m,
-                              const std::vector<shape::type_t>& src,
-                              shape::type_t target_type,
-                              Predicate predicate)
-{
-    for(auto ins : iterator_for(m))
-    {
-        if(not predicate(ins))
-            continue;
-
-        // skip return and convert instructions
-        if(contains({"@return", "convert"}, ins->name()))
-            continue;
-
-        if(ins->inputs().empty())
-            continue;
-
-        auto mod_inputs = ins->module_inputs();
-        auto s          = ins->get_shape();
-        // Convert each of the inputs that are floating point to float type
-        auto inputs = ins->inputs();
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-            auto input_type = input->get_shape().type();
-            if(contains(src, input_type))
-                return input;
-            return m.insert_instruction(
-                ins, make_op("convert", {{"target_type", target_type}}), input);
-        });
-
-        // Insert quantized ins
-        auto converted_ins = m.insert_instruction(ins, ins->get_operator(), inputs, mod_inputs);
-
-        // tuple can't be directly converted, get_tuple_elem needs conversion
-        if(ins->get_shape().type() == shape::tuple_type)
-        {
-            auto outputs = ins->outputs();
-            std::transform(
-                outputs.begin(), outputs.end(), outputs.begin(), [&](const auto gte_ins) {
-                    auto gte_ins_float_type =
-                        m.insert_instruction(ins, gte_ins->get_operator(), converted_ins);
-                    // Convert back to output type after quantizing
-                    auto gte_converted = m.insert_instruction(
-                        ins,
-                        make_op("convert", {{"target_type", gte_ins->get_shape().type()}}),
-                        gte_ins_float_type);
-                    // Replace output instruction
-                    return m.replace_instruction(gte_ins, gte_converted);
-                });
-        }
-        else
-        {
-            // Convert back to original type after quantizing
-            if(mod_inputs.empty())
-            {
-                converted_ins = m.insert_instruction(
-                    ins, make_op("convert", {{"target_type", s.type()}}), converted_ins);
-            }
-            // Replace original instruction
-            m.replace_instruction(ins, converted_ins);
-        }
-    }
-}
 
 void truncate_float_pass::apply(module& m) const
 {
@@ -105,7 +36,6 @@ void truncate_float_pass::apply(module& m) const
         m, {shape::float_type, shape::double_type}, float_type, [&](instruction_ref ins) {
             return contains(ins_names, ins->name()) or contains(ins_names, "all");
         });
-    ;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

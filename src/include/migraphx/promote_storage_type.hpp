@@ -34,12 +34,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
 
-/// Treat the listed types as storage-only types: elementwise and reduction
+/// Treat the listed types as storage-only: elementwise and reduction
 /// instructions of such a type are computed in float instead, with converts
 /// inserted around them. Adjacent promoted instructions pass the float values
-/// directly so the converts back and forth are removed, which avoids the
-/// rounding on every intermediate result and the cost of emulating math for
-/// types without native instructions(such as bf16).
+/// directly, which avoids rounding every intermediate result and the cost of
+/// emulating math for types without native instructions (such as bf16).
 struct MIGRAPHX_EXPORT promote_storage_type
 {
     std::vector<shape::type_t> types = {};

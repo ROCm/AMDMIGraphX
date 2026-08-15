@@ -29,63 +29,28 @@
 #include <migraphx/eliminate_convert.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/optional.hpp>
 #include <algorithm>
-#include <unordered_set>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 static bool is_computation(instruction_ref ins)
 {
-    // convert is the storage boundary itself, and layout and identity dont
-    // compute anything even though they carry the pointwise attribute
-    if(contains({"convert", "layout", "identity"}, ins->name()))
+    // convert and bit_cast are storage boundaries themselves, and layout and
+    // identity don't compute anything even though they all carry the pointwise
+    // attribute
+    if(contains({"convert", "bit_cast", "layout", "identity"}, ins->name()))
         return false;
-    return contains(ins->name(), "reduce") or
-           ins->get_operator().attributes().get("pointwise", false);
-}
-
-static bool is_shape_transform(instruction_ref ins)
-{
-    static const std::unordered_set<std::string> names = {"reshape",
-                                                          "squeeze",
-                                                          "unsqueeze",
-                                                          "flatten",
-                                                          "transpose",
-                                                          "broadcast",
-                                                          "multibroadcast",
-                                                          "contiguous"};
-    return ins->inputs().size() == 1 and contains(names, ins->name());
+    auto attrs = ins->get_operator().attributes();
+    return attrs.get("reduce", false) or attrs.get("pointwise", false);
 }
 
 void promote_storage_type::apply(module_pass_manager& mpm) const
 {
-    auto& m = mpm.get_module();
-    // The converts to the storage type inserted after each promoted
-    // instruction
-    std::unordered_set<instruction_ref> storage_converts;
-    // When the input is a promoted value converted back to the storage type,
-    // possibly viewed through shape ops, rebuild the view on the float value
-    // instead so there is no convert back and forth between adjacent promoted
-    // instructions
-    auto promoted_input = [&](instruction_ref ins,
-                              instruction_ref input) -> optional<instruction_ref> {
-        std::vector<instruction_ref> views;
-        auto x = input;
-        while(is_shape_transform(x))
-        {
-            views.push_back(x);
-            x = x->inputs().front();
-        }
-        if(not contains(storage_converts, x))
-            return nullopt;
-        auto result = x->inputs().front();
-        std::for_each(views.rbegin(), views.rend(), [&](instruction_ref view) {
-            result = m.insert_instruction(ins, view->get_operator(), result);
-        });
-        return result;
-    };
+    auto& m                     = mpm.get_module();
+    const auto convert_to_float = make_op("convert", {{"target_type", shape::float_type}});
+    bool promoted               = false;
     for(auto ins : iterator_for(m))
     {
         if(not contains(types, ins->get_shape().type()))
@@ -96,21 +61,20 @@ void promote_storage_type::apply(module_pass_manager& mpm) const
             std::next(ins), make_op("convert", {{"target_type", ins->get_shape().type()}}), ins);
         m.replace_instruction(ins, convert_back);
         std::vector<instruction_ref> inputs;
-        std::transform(
-            ins->inputs().begin(),
-            ins->inputs().end(),
-            std::back_inserter(inputs),
-            [&](instruction_ref input) {
-                if(not contains(types, input->get_shape().type()))
-                    return input;
-                if(auto promoted = promoted_input(ins, input))
-                    return *promoted;
-                return m.insert_instruction(
-                    ins, make_op("convert", {{"target_type", shape::float_type}}), input);
-            });
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(inputs),
+                       [&](instruction_ref input) {
+                           if(not contains(types, input->get_shape().type()))
+                               return input;
+                           return m.insert_instruction(ins, convert_to_float, input);
+                       });
         m.replace_instruction(ins, ins->get_operator(), inputs);
-        storage_converts.insert(convert_back);
+        assert(ins->get_shape().type() == shape::float_type);
+        promoted = true;
     }
+    if(not promoted)
+        return;
     // Adjacent promoted instructions are connected by a convert to the
     // storage type followed by a convert back to float, which cancel
     mpm.run_pass(eliminate_convert{});

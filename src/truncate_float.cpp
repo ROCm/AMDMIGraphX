@@ -35,13 +35,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+template<class Predicate>
 static void
-quantize_module(module& m, const std::vector<std::string>& ins_names, shape::type_t float_type)
+replace_data_type(module& m, const std::vector<shape::type_t>& src, shape::type_t target_type, Predicate predicate)
 {
     for(auto ins : iterator_for(m))
     {
-        // instructions are not in the set to be quantized
-        if(not(contains(ins_names, ins->name()) or contains(ins_names, "all")))
+        if(not predicate(ins))
             continue;
 
         // skip return and convert instructions
@@ -57,10 +57,10 @@ quantize_module(module& m, const std::vector<std::string>& ins_names, shape::typ
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             auto input_type = input->get_shape().type();
-            if(input_type != shape::float_type and input_type != shape::double_type)
+            if(contains(src, input_type))
                 return input;
             return m.insert_instruction(
-                ins, make_op("convert", {{"target_type", float_type}}), input);
+                ins, make_op("convert", {{"target_type", target_type}}), input);
         });
 
         // Insert quantized ins
@@ -97,7 +97,9 @@ quantize_module(module& m, const std::vector<std::string>& ins_names, shape::typ
     }
 }
 
-void truncate_float_pass::apply(module& m) const { quantize_module(m, ins_names, float_type); }
+void truncate_float_pass::apply(module& m) const { replace_data_type(m, {shape::float_type, shape::double_type}, float_type, [&](instruction_ref ins) {
+        return contains(ins_names, ins->name()) or contains(ins_names, "all");
+    });; }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

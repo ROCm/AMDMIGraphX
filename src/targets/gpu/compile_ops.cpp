@@ -536,8 +536,13 @@ struct compile_plan
                 {
                     ctx->get_problem_cache().mark(preop.name(), problem);
                     results.resize(solutions.size());
-                    for(std::size_t i : range(solutions.size()))
-                        candidates.push_back({plan_index, i, solutions[i]});
+                    auto indices = range(solutions.size());
+                    std::transform(indices.begin(),
+                                   indices.end(),
+                                   std::back_inserter(candidates),
+                                   [&](std::size_t i) {
+                                       return compile_candidate{plan_index, i, solutions[i]};
+                                   });
                 }
             }
         }

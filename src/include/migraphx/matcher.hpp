@@ -47,10 +47,13 @@
 #endif
 
 #ifndef MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER
-#if MIGRAPHX_USE_TYPE_ERASED_MATCHERS || defined(__clang__) || not defined(__GNUC__)
+#if MIGRAPHX_USE_TYPE_ERASED_MATCHERS
 #define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 0
-#else
+// Windows and gcc use an excessive amount of memory to compile deeply nested matcher types
+#elif defined(_WIN32) || (defined(__GNUC__) && not defined(__clang__))
 #define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 1
+#else
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 0
 #endif
 #endif
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,6 @@
 #include <migraphx/config.hpp>
 #include <migraphx/auto_register.hpp>
 #include <migraphx/onnx/onnx_parser.hpp>
-#include <cstring>
 #include <vector>
 
 namespace migraphx {
@@ -56,9 +55,8 @@ void register_op_parser()
 {
     T parser;
     for(auto&& opd : parser.operators())
-        register_op_parser(opd.onnx_name, [opd, parser](auto&&... xs) {
-            return implicit_multi_op(parser.parse(opd, xs...));
-        });
+        register_op_parser(opd.onnx_name,
+                           [opd, parser](auto&&... xs) { return parser.base_parse(opd, xs...); });
 }
 
 struct register_op_parser_action
@@ -70,8 +68,27 @@ struct register_op_parser_action
     }
 };
 
-template <class T>
-using op_parser = auto_register<register_op_parser_action, T>;
+template <class Derived>
+struct op_parser : auto_register<register_op_parser_action, Derived>
+{
+    void infer_symbolic_values(const op_desc&, const symbolic_propagate_context&) const {}
+
+    std::vector<instruction_ref> base_parse(const op_desc& opd,
+                                            onnx_parser& parser,
+                                            const onnx_parser::node_info& info,
+                                            std::vector<instruction_ref> args) const
+    {
+        const auto& self = static_cast<const Derived&>(*this);
+        std::vector<instruction_ref> symbolic_args;
+        if(parser.use_symbolic_shapes)
+            symbolic_args = args;
+        auto results = implicit_multi_op(self.parse(opd, parser, info, args));
+        symbolic_propagate_context context{parser, info, symbolic_args, results};
+        if(context.enabled())
+            self.infer_symbolic_values(opd, context);
+        return results;
+    }
+};
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

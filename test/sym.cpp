@@ -3428,6 +3428,88 @@ TEST_CASE(ceildiv_to_string)
     EXPECT(not s.empty());
 }
 
+TEST_CASE(interval_contains)
+{
+    interval bounds{int64_t{1}, int64_t{5}};
+    EXPECT(bounds.contains(int64_t{1}));
+    EXPECT(bounds.contains(int64_t{3}));
+    EXPECT(bounds.contains(int64_t{5}));
+    EXPECT(not bounds.contains(int64_t{0}));
+    EXPECT(not bounds.contains(int64_t{6}));
+}
+
+TEST_CASE(fixed_value_literal)
+{
+    auto result = fixed_value(lit(5));
+    EXPECT(result.has_value());
+    EXPECT(*result == scalar{int64_t{5}});
+}
+
+TEST_CASE(fixed_value_singleton_expression)
+{
+    auto result = fixed_value(var("x", interval{int64_t{5}, int64_t{5}}));
+    EXPECT(result.has_value());
+    EXPECT(*result == scalar{int64_t{5}});
+}
+
+TEST_CASE(fixed_value_compound_singleton_expression)
+{
+    auto x      = var("x", interval{int64_t{5}, int64_t{5}});
+    auto result = fixed_value((x * 2) + 1);
+    EXPECT(result.has_value());
+    EXPECT(*result == scalar{int64_t{11}});
+}
+
+TEST_CASE(fixed_value_rejects_collapsed_compound_interval)
+{
+    auto x         = var("x", interval{int64_t{0}, int64_t{10}});
+    auto remainder = x - ((x / 2) * 2);
+    EXPECT(not fixed_value(remainder).has_value());
+}
+
+TEST_CASE(fixed_value_indeterminate)
+{
+    EXPECT(not fixed_value(var("x", interval{int64_t{1}, int64_t{5}})).has_value());
+    EXPECT(not fixed_value(expr{}).has_value());
+}
+
+TEST_CASE(provable_equal_same_symbol)
+{
+    auto x      = var("x");
+    auto result = provable_equal(x + 1, x + 1);
+    EXPECT(result.has_value() and *result);
+}
+
+TEST_CASE(provable_equal_disjoint_ranges)
+{
+    auto x      = var("x", interval{int64_t{1}, int64_t{5}});
+    auto y      = var("y", interval{int64_t{10}, int64_t{20}});
+    auto result = provable_equal(x, y);
+    EXPECT(result.has_value() and not *result);
+}
+
+TEST_CASE(provable_equal_fixed_expressions)
+{
+    auto x = var("x", interval{int64_t{5}, int64_t{5}});
+    EXPECT(provable_equal(x + 1, lit(6)).value_or(false));
+    EXPECT(not provable_equal(x + 1, lit(7)).value_or(true));
+}
+
+TEST_CASE(provable_equal_rejects_collapsed_compound_interval)
+{
+    auto x         = var("x", interval{int64_t{0}, int64_t{10}});
+    auto remainder = x - ((x / 2) * 2);
+    EXPECT(not provable_equal(remainder, lit(1)).has_value());
+}
+
+TEST_CASE(provable_equal_indeterminate)
+{
+    auto x = var("x", interval{int64_t{1}, int64_t{10}});
+    auto y = var("y", interval{int64_t{5}, int64_t{15}});
+    EXPECT(not provable_equal(x, y).has_value());
+    EXPECT(not provable_equal(expr{}, expr{}).has_value());
+}
+
 // ---- strict_less tests ----
 
 TEST_CASE(strict_less_literals_true)

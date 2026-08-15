@@ -74,6 +74,34 @@ struct parse_binary_op : op_parser<parse_binary_op>
 
         return op::builder::add(opd.op_name, *info.mod, args, options).at(0);
     }
+
+    void infer_symbolic_values(const op_desc& opd, const symbolic_propagate_context& context) const
+    {
+        if(not contains({"Add", "Sub", "Mul", "Div"}, opd.onnx_name) or
+           context.results.front()->get_shape().type() != shape::int64_type)
+            return;
+        const auto x = context.arg(0);
+        const auto y = context.arg(1);
+        if(not x.has_value() or not y.has_value())
+            return;
+
+        auto expressions = broadcast_symbolic_values(*x, *y, [&](const auto& a, const auto& b) {
+            if(opd.onnx_name == "Add")
+                return a + b;
+            if(opd.onnx_name == "Sub")
+                return a - b;
+            if(opd.onnx_name == "Mul")
+                return a * b;
+            if(b.eval_interval().contains(int64_t{0}))
+                return sym::expr{};
+            return a / b;
+        });
+        if(not expressions.has_value() or
+           any_of(*expressions, [](const auto& expression) { return expression.empty(); }) or
+           not context.output_has_elements(expressions->size()))
+            return;
+        context.set(std::move(*expressions));
+    }
 };
 
 } // namespace onnx

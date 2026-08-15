@@ -133,6 +133,7 @@ struct MIGRAPHX_EXPORT interval
     scalar max = std::numeric_limits<int64_t>::max();
 
     bool valid() const;
+    bool contains(const scalar& value) const;
 
     interval& operator+=(interval b) { return *this = *this + b; }
     interval& operator-=(interval b) { return *this = *this - b; }
@@ -322,6 +323,9 @@ MIGRAPHX_EXPORT expr max(expr x, expr y);
 
 MIGRAPHX_EXPORT std::optional<bool>
 strict_less(const expr& a, const expr& b, interval default_bounds = {});
+MIGRAPHX_EXPORT std::optional<bool>
+provable_equal(const expr& a, const expr& b, interval default_bounds = {});
+MIGRAPHX_EXPORT std::optional<scalar> fixed_value(const expr& expression);
 
 // `min`/`max` that fold to one operand when the ordering is provable via intervals.
 // Fall back to a symbolic min/max node when it is indeterminate.

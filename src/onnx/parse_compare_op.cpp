@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,25 @@ struct parse_compare_op : op_parser<parse_compare_op>
             l = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), l);
         }
         return l;
+    }
+
+    void infer_symbolic_values(const op_desc& opd, const symbolic_propagate_context& context) const
+    {
+        if(opd.onnx_name != "Equal")
+            return;
+        const auto x = context.arg(0);
+        const auto y = context.arg(1);
+        if(not x.has_value() or not y.has_value())
+            return;
+        auto expressions = broadcast_symbolic_values(*x, *y, [](const auto& a, const auto& b) {
+            const auto equal = sym::provable_equal(a, b);
+            return equal.has_value() ? sym::lit(int64_t{*equal}) : sym::expr{};
+        });
+        if(not expressions.has_value() or
+           any_of(*expressions, [](const auto& expression) { return expression.empty(); }) or
+           not context.output_has_elements(expressions->size()))
+            return;
+        context.set(std::move(*expressions));
     }
 };
 

@@ -1408,6 +1408,29 @@ TEST_CASE(dot_sym_k_vs_range)
     expect_shape(expected, migraphx::make_op("dot"), s_a, s_b);
 }
 
+TEST_CASE(dynamic_range_output_dim_not_symbolic_error)
+{
+    migraphx::shape scalar{migraphx::shape::int64_type, {1}};
+    dd output_dim{1, 8};
+    throws_shape(
+        migraphx::make_op("dynamic_range", {{"output_dim", migraphx::to_value(output_dim)}}),
+        scalar,
+        scalar,
+        scalar);
+}
+
+TEST_CASE(dynamic_range_output_dim_exceeds_max_error)
+{
+    migraphx::shape scalar{migraphx::shape::int64_type, {1}};
+    dd output_dim{var("n", {1, 9})};
+    throws_shape(
+        migraphx::make_op("dynamic_range",
+                          {{"max_output", 8}, {"output_dim", migraphx::to_value(output_dim)}}),
+        scalar,
+        scalar,
+        scalar);
+}
+
 TEST_CASE(dyn_slice_static)
 {
     // Concrete bounds over a static input stay static: a slice is just a view.
@@ -1937,6 +1960,55 @@ TEST_CASE(broadcast_with_dims2)
                  migraphx::make_op("broadcast_with_dims"),
                  s0,
                  s1);
+}
+
+TEST_CASE(broadcast_with_dims_symbolic_output)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {1, 1, 1}};
+    shape dims{shape::int64_type, {4}};
+    std::vector<dd> output_dims{dd{lit(2)}, dd{var("sequence", {1, 8})}, dd{lit(4)}, dd{lit(5)}};
+    expect_shape(shape{shape::float_type, output_dims},
+                 migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
+}
+
+TEST_CASE(broadcast_with_dims_symbolic_output_rank_error)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {1, 1, 1}};
+    shape dims{shape::int64_type, {4}};
+    std::vector<dd> output_dims{dd{var("sequence", {1, 8})}, dd{lit(4)}, dd{lit(5)}};
+    throws_shape(migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
+}
+
+TEST_CASE(broadcast_with_dims_non_symbolic_output_error)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {1, 1, 1}};
+    shape dims{shape::int64_type, {4}};
+    std::vector<dd> output_dims{dd{2, 2}, dd{var("sequence", {1, 8})}, dd{lit(4)}, dd{lit(5)}};
+    throws_shape(migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
+}
+
+TEST_CASE(broadcast_with_dims_symbolic_output_mismatch_error)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {2, 3}};
+    shape dims{shape::int64_type, {2}};
+    std::vector<dd> output_dims{dd{var("sequence", {1, 8})}, dd{lit(4)}};
+    throws_shape(migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
 }
 
 TEST_CASE(fixed_pad)

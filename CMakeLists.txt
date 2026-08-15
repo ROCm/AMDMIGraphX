@@ -477,8 +477,10 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
         "Optional TheRock package architecture override, as a semicolon-separated \
 list (e.g. gfx90a;gfx942;gfx950). Defaults to GPU_TARGETS; use this override to \
 adapt to TheRock <=7.14 package naming conventions (e.g. gfx94x).")
-    set(_MGX_PACKAGE_GPU_ARCHES "${MIGRAPHX_THEROCK_GPU_ARCH}")
-    if(NOT _MGX_PACKAGE_GPU_ARCHES AND GPU_TARGETS)
+    if(MIGRAPHX_THEROCK_GPU_ARCH)
+        set(_MGX_PACKAGE_GPU_ARCHES "${MIGRAPHX_THEROCK_GPU_ARCH}")
+    else()
+        set(_MGX_PACKAGE_GPU_ARCHES "")
         foreach(mgx_gpu_target IN LISTS GPU_TARGETS)
             string(REGEX REPLACE ":.*$" "" mgx_gpu_arch "${mgx_gpu_target}")
             list(APPEND _MGX_PACKAGE_GPU_ARCHES "${mgx_gpu_arch}")

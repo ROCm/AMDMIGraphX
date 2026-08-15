@@ -93,22 +93,21 @@ void promote_storage_type::apply(module_pass_manager& mpm) const
         if(not is_computation(ins))
             continue;
         auto convert_back = m.insert_instruction(
-            std::next(ins),
-            make_op("convert", {{"target_type", ins->get_shape().type()}}),
-            ins);
+            std::next(ins), make_op("convert", {{"target_type", ins->get_shape().type()}}), ins);
         m.replace_instruction(ins, convert_back);
         std::vector<instruction_ref> inputs;
-        std::transform(ins->inputs().begin(),
-                       ins->inputs().end(),
-                       std::back_inserter(inputs),
-                       [&](instruction_ref input) {
-                           if(not contains(types, input->get_shape().type()))
-                               return input;
-                           if(auto promoted = promoted_input(ins, input))
-                               return *promoted;
-                           return m.insert_instruction(
-                               ins, make_op("convert", {{"target_type", shape::float_type}}), input);
-                       });
+        std::transform(
+            ins->inputs().begin(),
+            ins->inputs().end(),
+            std::back_inserter(inputs),
+            [&](instruction_ref input) {
+                if(not contains(types, input->get_shape().type()))
+                    return input;
+                if(auto promoted = promoted_input(ins, input))
+                    return *promoted;
+                return m.insert_instruction(
+                    ins, make_op("convert", {{"target_type", shape::float_type}}), input);
+            });
         m.replace_instruction(ins, ins->get_operator(), inputs);
         storage_converts.insert(convert_back);
     }

@@ -72,8 +72,7 @@ TEST_CASE(promote_adjacent_pointwise_reduce)
         auto x   = m1.add_parameter("x", s);
         auto y   = m1.add_parameter("y", s);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
-        auto rs =
-            m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        auto rs  = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
         m1.add_return({rs});
     }
     run_pass(m1);
@@ -87,8 +86,7 @@ TEST_CASE(promote_adjacent_pointwise_reduce)
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), y);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), xc, yc);
         // No convert back and forth between the mul and the reduction
-        auto rs =
-            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        auto rs = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
         auto cb = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), rs);
         m2.add_return({cb});
@@ -101,9 +99,8 @@ TEST_CASE(promote_reduce_only)
     migraphx::shape s{migraphx::shape::bf16_type, {2, 8}};
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", s);
-        auto rs =
-            m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto x  = m1.add_parameter("x", s);
+        auto rs = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
         m1.add_return({rs});
     }
     run_pass(m1);
@@ -112,8 +109,7 @@ TEST_CASE(promote_reduce_only)
         auto x  = m2.add_parameter("x", s);
         auto xc = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
-        auto rs =
-            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), xc);
+        auto rs = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), xc);
         auto cb = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), rs);
         m2.add_return({cb});
@@ -174,8 +170,7 @@ TEST_CASE(promote_idempotent)
         auto x   = m1.add_parameter("x", s);
         auto y   = m1.add_parameter("y", s);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
-        auto rs =
-            m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        auto rs  = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
         m1.add_return({rs});
     }
     run_pass(m1);

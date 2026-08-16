@@ -34,6 +34,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
+#include <migraphx/rewrite_broadcasts.hpp>
 #include <migraphx/param_utils.hpp>
 #include <iterator>
 #include <map>
@@ -177,7 +178,7 @@ template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
     return match::skip(match::name("contiguous"))(
-               match::name("multibroadcast")(
+               match::name("multibroadcast", "broadcast")(
                    match::arg(0)(ms...), match::used_once(), input_output_ndim_match())
                    .bind("broadcast"))
         .bind("final_broadcast");
@@ -420,7 +421,7 @@ struct reduce_reshape : rewrite_reshapes_base
                 v["axis"] = axes.front();
                 return make_op(sop.name(), v);
             }
-            if(sop.name() == "multibroadcast")
+            if(contains({"multibroadcast", "broadcast"}, sop.name()))
                 return make_op("multibroadcast", {{"out_lens", dims}});
             assert(sop.name() == "pointwise");
             return sop;
@@ -455,6 +456,8 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
     {
         if(enable_rewrite_reshapes)
             mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
+        if(enable_rewrite_broadcasts)
+            rewrite_broadcasts(mpm, "fused_reduce");
         match::find_matches(
             mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});

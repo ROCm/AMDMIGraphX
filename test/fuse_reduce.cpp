@@ -33,9 +33,9 @@
 #include <reduce.hpp>
 #include <pointwise.hpp>
 
-static void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p, migraphx::fuse_reduce pass = {})
 {
-    migraphx::run_passes(p, {migraphx::fuse_reduce{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {pass, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(single)
@@ -158,6 +158,91 @@ TEST_CASE(pointwise_reduce_unfusable_broadcast)
         mm->add_return({rsum});
     }
     EXPECT(p1 == p2);
+}
+
+TEST_CASE(pointwise_multibroadcast_reduce)
+{
+    // Same as pointwise_reduce_unfusable_broadcast, but rewriting the broadcast
+    // onto the pointwise inputs allows the fusion.
+    migraphx::shape s{migraphx::shape::float_type, {2, 1, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add  = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto addb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), add);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), addb);
+        mm->add_return({rsum});
+    }
+    run_pass(p1, {.enable_rewrite_broadcasts = true});
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto bx =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), x);
+        auto by =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), y);
+        auto rsum = add_reduce(
+            p2,
+            "main:pointwise0:main:reduce_sum0",
+            {bx, by},
+            {2},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto add =
+                    add_pointwise(p2, rm, "main:pointwise0", inputs, single_pointwise("add"));
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), add);
+            });
+        mm->add_return({rsum});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(pointwise_broadcast_reduce)
+{
+    // A rank-changing broadcast between the pointwise and the reduce can only be
+    // fused by rewriting the broadcast onto the pointwise inputs.
+    migraphx::shape s1{migraphx::shape::float_type, {3}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s1);
+        auto add  = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto badd = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s2.lens()}}), add);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), badd);
+        mm->add_return({rsum});
+    }
+    run_pass(p1, {.enable_rewrite_broadcasts = true});
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s1);
+        auto bx  = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s2.lens()}}), x);
+        auto by = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s2.lens()}}), y);
+        auto rsum = add_reduce(
+            p2,
+            "main:pointwise0:main:reduce_sum0",
+            {bx, by},
+            {0},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto add =
+                    add_pointwise(p2, rm, "main:pointwise0", inputs, single_pointwise("add"));
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), add);
+            });
+        mm->add_return({rsum});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(scalar_multibroadcast)

@@ -2052,44 +2052,39 @@ struct find_flatten
     }
 };
 
-// Rewrite layout(multibroadcast(x)) to multibroadcast(layout(x)) so only the
-// unique data is materialized: the layout of a broadcast writes a full copy of
-// the data for every broadcast output, which multiplies the memory footprint
-// and hides the broadcast from downstream passes and kernels that can read the
-// same data for every output.
+// Rewrite layout(multibroadcast|broadcast(x)) to broadcast(layout(x)), skipping
+// the inner layout when it would be a no-op, so only the unique data is
+// materialized instead of a full copy per broadcast output.
 struct find_layout_broadcast
 {
     auto matcher() const
     {
         return match::name("layout")(
-            match::args(match::name("multibroadcast", "broadcast").bind("broadcast")));
+            match::args(match::broadcast(match::nargs(1)).bind("broadcast")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins       = r.result;
         auto broadcast = r.instructions["broadcast"];
-        if(broadcast->inputs().size() != 1)
-            return;
-        auto input = broadcast->inputs().front();
-        if(ins->get_shape().dynamic() or input->get_shape().dynamic())
-            return;
+        auto input     = broadcast->inputs().front();
         auto permutation =
-            ins->get_operator().to_value().at("permutation").to_vector<std::int64_t>();
-        auto ndim = static_cast<std::int64_t>(input->get_shape().ndim());
+            ins->get_operator().to_value().at("permutation").to_vector<std::size_t>();
+        auto ndim = input->get_shape().ndim();
         // multibroadcast aligns the input to the trailing axes of the output;
         // broadcast places it at the range starting at its axis attribute
-        auto bcast_op = broadcast->get_operator();
-        auto offset   = static_cast<std::int64_t>(permutation.size()) - ndim;
+        const auto& bcast_op = broadcast->get_operator();
+        auto offset          = permutation.size() - ndim;
         if(bcast_op.name() == "broadcast")
-            offset = bcast_op.to_value().at("axis").to<std::int64_t>();
-        std::vector<std::int64_t> inner_permutation;
+            offset = bcast_op.to_value().at("axis").to<std::size_t>();
+        std::vector<std::size_t> inner_permutation;
         transform_if(
             permutation.begin(),
             permutation.end(),
             std::back_inserter(inner_permutation),
             [&](auto axis) { return axis >= offset and axis < offset + ndim; },
             [&](auto axis) { return axis - offset; });
+        assert(inner_permutation.size() == ndim);
         auto data = input;
         if(input->get_shape().transposed() or
            not std::is_sorted(inner_permutation.begin(), inner_permutation.end()))

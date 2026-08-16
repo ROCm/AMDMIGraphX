@@ -6013,8 +6013,8 @@ TEST_CASE(layout_broadcast_1d_last_axis)
 
 TEST_CASE(layout_broadcast_nonstandard_input)
 {
-    // identity inner permutation, but the input is not standard so the layout
-    // is still needed to materialize it
+    // identity inner permutation, but the input is transposed so the inner
+    // layout is still needed to materialize it
     migraphx::shape s{migraphx::shape::float_type, {8, 4}, {1, 8}};
     migraphx::module m1;
     {

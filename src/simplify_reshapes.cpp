@@ -2061,7 +2061,8 @@ struct find_layout_broadcast
 {
     auto matcher() const
     {
-        return match::name("layout")(match::args(match::name("multibroadcast").bind("broadcast")));
+        return match::name("layout")(
+            match::args(match::name("multibroadcast", "broadcast").bind("broadcast")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -2075,19 +2076,23 @@ struct find_layout_broadcast
             return;
         auto permutation =
             ins->get_operator().to_value().at("permutation").to_vector<std::int64_t>();
-        // multibroadcast aligns the input to the trailing axes of the output
-        auto offset = static_cast<std::int64_t>(permutation.size() - input->get_shape().ndim());
+        auto ndim = static_cast<std::int64_t>(input->get_shape().ndim());
+        // multibroadcast aligns the input to the trailing axes of the output;
+        // broadcast places it at the range starting at its axis attribute
+        auto bcast_op = broadcast->get_operator();
+        auto offset   = static_cast<std::int64_t>(permutation.size()) - ndim;
+        if(bcast_op.name() == "broadcast")
+            offset = bcast_op.to_value().at("axis").to<std::int64_t>();
         std::vector<std::int64_t> inner_permutation;
         transform_if(
             permutation.begin(),
             permutation.end(),
             std::back_inserter(inner_permutation),
-            [&](auto axis) { return axis >= offset; },
+            [&](auto axis) { return axis >= offset and axis < offset + ndim; },
             [&](auto axis) { return axis - offset; });
         auto data = m.insert_instruction(
             ins, make_op("layout", {{"permutation", inner_permutation}}), input);
-        m.replace_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), data);
+        m.replace_instruction(ins, bcast_op, data);
     }
 };
 

@@ -5965,6 +5965,52 @@ TEST_CASE(layout_broadcast_axis_leading)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(layout_broadcast_1d)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {16}});
+        auto b = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 16, 4, 8}}}), x);
+        auto l =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), b);
+        m1.add_return({l});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {16}});
+        auto b = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 16, 4, 8}}}), x);
+        m2.add_return({b});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(layout_broadcast_1d_last_axis)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {8}});
+        auto b = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 3}, {"out_lens", {2, 3, 4, 8}}}), x);
+        auto l =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), b);
+        m1.add_return({l});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {8}});
+        auto b = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 3}, {"out_lens", {2, 3, 4, 8}}}), x);
+        m2.add_return({b});
+    }
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(layout_broadcast_middle_axis)
 {
     migraphx::module m1;

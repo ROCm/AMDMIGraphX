@@ -2090,8 +2090,11 @@ struct find_layout_broadcast
             std::back_inserter(inner_permutation),
             [&](auto axis) { return axis >= offset and axis < offset + ndim; },
             [&](auto axis) { return axis - offset; });
-        auto data = m.insert_instruction(
-            ins, make_op("layout", {{"permutation", inner_permutation}}), input);
+        auto data = input;
+        if(input->get_shape().transposed() or
+           not std::is_sorted(inner_permutation.begin(), inner_permutation.end()))
+            data = m.insert_instruction(
+                ins, make_op("layout", {{"permutation", inner_permutation}}), input);
         m.replace_instruction(ins, bcast_op, data);
     }
 };

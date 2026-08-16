@@ -346,6 +346,8 @@ auto is_mlir_dot(mlir_mode mode)
         auto m = a.lens()[a.lens().size() - 2];
         auto n = b.lens().back();
         auto k = a.lens().back();
+        // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
+        // to avoid poor-performing GEMM kernels from MLIR
         // TODO: Investigate a more precise strategy
         if(k > 1535)
             return false;
@@ -374,6 +376,9 @@ auto is_mlir_conv(mlir_mode mode)
         if(contains(supported_types, input.type()))
             return true;
         if(mode == mlir_mode::all)
+            return true;
+        // Always use mlir for NHWC
+        if(ins->get_shape().strides()[1] == 1)
             return true;
         // No winograd for group convolution
         if(group > 1)
@@ -1509,6 +1514,14 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             return mlir_mode::all;
         if(is_navi)
             return mlir_mode::all;
+#if !MIGRAPHX_USE_MIOPEN
+        if(contains(option, "conv"))
+            return mlir_mode::all;
+#endif
+#if !MIGRAPHX_USE_ROCBLAS and !MIGRAPHX_USE_HIPBLASLT
+        if(contains(option, "dot") or contains(option, "fused_dot"))
+            return mlir_mode::all;
+#endif
         return std::max(m1, m2);
     };
 

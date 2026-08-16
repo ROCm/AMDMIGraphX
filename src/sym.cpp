@@ -1623,6 +1623,40 @@ bool same_symbol(const expr& a, const expr& b)
            });
 }
 
+std::unordered_set<expr> find_variables(const expr& e)
+{
+    std::unordered_set<expr> visited;
+    std::unordered_set<expr> result;
+    fix([&](auto self, const expr& x) {
+        if(x.empty() or not visited.insert(x).second)
+            return;
+        if(x.name() == "variable")
+        {
+            result.insert(as_symbol(x));
+            return;
+        }
+        for(const auto& c : x.children())
+            self(c);
+    })(e);
+    return result;
+}
+
+[[maybe_unused]] static bool has_float_literal(const expr& e)
+{
+    if(e.empty())
+        return false;
+    if(const auto* n = std::get_if<literal_node>(&get_node(e)))
+        return std::holds_alternative<double>(n->val);
+    return std::any_of(e.children().begin(), e.children().end(), has_float_literal);
+}
+
+bool is_divisible(const expr& dividend, const expr& divisor)
+{
+    // Float literals make the /-reconstruction rounding-dependent.
+    assert(not has_float_literal(dividend) and not has_float_literal(divisor));
+    return same_symbol((dividend / divisor) * divisor, dividend);
+}
+
 // Number of levels in e: a leaf (literal/variable) is depth 1, empty is 0.
 static int expr_depth(const expr& e)
 {

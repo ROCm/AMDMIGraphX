@@ -43,6 +43,7 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
 #include <cstdlib>
@@ -298,6 +299,9 @@ struct compiled_result
     }
 };
 
+// forward declared since it requires compile_manager
+static void replace_inserted_device_ops(context& ctx, module& m);
+
 struct compile_plan
 {
     context* ctx;
@@ -333,7 +337,7 @@ struct compile_plan
     }
 
     template <class Vector>
-    void add_compiles(Vector& compiles)
+    void add_compiles(Vector& compiles, bool skip_benchmark)
     {
         if(config.has_value())
         {
@@ -355,7 +359,7 @@ struct compile_plan
                                    problem_string() + "\n\n" + print_modules());
                 const bool dump_mxr =
                     not string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}).empty();
-                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
+                if(skip_benchmark or enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
                    (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
@@ -505,9 +509,11 @@ struct compile_plan
         {
             if(not results[i].has_value())
                 continue;
-            const auto& solution     = config->solutions[i];
-            auto bench_prog          = results[i]->make_program();
-            auto* mm                 = bench_prog.get_main_module();
+            const auto& solution = config->solutions[i];
+            auto bench_prog      = results[i]->make_program();
+            auto* mm             = bench_prog.get_main_module();
+
+            replace_inserted_device_ops(*ctx, *mm);
 
             // Use json encoding for the comment used for benchmarking mxr files.
             value comment_val        = value::object{};
@@ -541,7 +547,8 @@ static void par_compile(std::size_t n, F f)
 struct compile_manager
 {
     std::vector<compile_plan> cps;
-    bool exhaustive = false;
+    bool exhaustive     = false;
+    bool skip_benchmark = false;
 
     template <class... Ts>
     void add_plan(Ts&&... xs)
@@ -559,7 +566,7 @@ struct compile_manager
         std::vector<std::function<void()>> compiles;
         for(auto& cp : cps)
         {
-            cp.add_compiles(compiles);
+            cp.add_compiles(compiles, skip_benchmark);
         }
         par_compile(compiles.size(), [&](auto i) { compiles[i](); });
 
@@ -605,12 +612,31 @@ struct compile_manager
     }
 };
 
+static void replace_inserted_device_ops(context& ctx, module& m)
+{
+    run_passes(m, {dead_code_elimination{}});
+    assert(std::none_of(
+        m.begin(), m.end(), [](auto&& ins) { return ins.name() == "gpu::precompile_op"; }));
+    run_passes(m, {lower_device_ops{}});
+    compile_manager cm;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "gpu::precompile_op")
+            continue;
+        operation preop = any_cast<precompile_op>(ins->get_operator()).op;
+        cm.add_plan(&ctx, preop, ins, &m);
+    }
+    cm.compile(m, false);
+    assert(cm.cps.empty());
+}
+
 void compile_ops::apply(module_pass_manager& mpm) const
 {
     bool is_root = &mpm.get_module() == mpm.get_root_module();
     auto& m      = mpm.get_module();
     compile_manager cm;
-    cm.exhaustive = exhaustive_tune;
+    cm.exhaustive     = exhaustive_tune;
+    cm.skip_benchmark = skip_benchmark;
     // Find all precompile ops
     for(auto ins : iterator_for(m))
     {
@@ -624,6 +650,8 @@ void compile_ops::apply(module_pass_manager& mpm) const
     // Compile already tuned configs
     cm.compile(m, is_root);
     assert(cm.cps.empty());
+
+    replace_inserted_device_ops(*ctx, m);
 }
 
 } // namespace gpu

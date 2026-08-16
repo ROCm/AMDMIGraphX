@@ -1632,210 +1632,111 @@ struct find_splits
         return false;
     }
 
-    // Description of a split's sole consumer for the partial hoist: the op, the
-    // input position holding the split, and (for a binary op) a `companion`
-    // operand that is an identically-ranged slice of some other wide tensor.
-    struct partial_consumer
+    // Fuse a binary group whose non-split argument is a foldable constant by
+    // concatenating the constants and computing `op` over the whole tensor.
+    // Returns the fused instruction and its slice-argument index, or a fused
+    // instruction of m.end() if the group cannot be fused (in which case the
+    // caller aborts, matching the original semantics).
+    std::tuple<instruction_ref, int>
+    fuse_binary_const_concat(module& m,
+                             instruction_ref ins,
+                             const std::vector<instruction_ref>& group,
+                             const std::vector<instruction_ref>& splits,
+                             const operation& op) const
     {
-        instruction_ref consumer{};
-        int split_pos = 0;
-        instruction_ref companion{};      // {} for a unary consumer
-        instruction_ref companion_root{}; // tensor sliced by `companion`, if binary
-    };
+        auto start = group.front();
+        assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
+                   return i->name() == "slice";
+               }) and "one argument must be a split");
 
-    // Fill `info` for `split`'s sole consumer if it is fusable and either unary
-    // (single input == split) or binary with the other operand a slice of
-    // another tensor over the *same* range as `split`.  Returns false otherwise.
-    bool describe_consumer(instruction_ref split, partial_consumer& info) const
-    {
-        if(split->outputs().size() != 1)
-            return false;
-        auto c = split->outputs().front();
-        if(not is_fusable(c, split))
-            return false;
-        const auto& in = c->inputs();
-        if(in.size() == 1)
+        auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
+        assert(not slice_op.axes.empty());
+        if(slice_op.axes.size() > 1)
+            return {m.end(), 0};
+        auto concat_axis = slice_op.axes.front();
+        if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
+            return {m.end(), 0};
+
+        int split_idx = get_binary_op_split_idx(group, splits);
+        assert(split_idx < 2);
+        size_t data_idx = 0;
+        if(split_idx < 0 and op.attributes().contains("commutative"))
         {
-            if(in[0] != split)
-                return false;
-            info = {c, 0, {}, {}};
-            return true;
+            split_idx = 0;
+            data_idx  = 1;
+            align_commutative_op_args(m, group, splits, split_idx);
         }
-        if(in.size() == 2)
+        else if(split_idx < 0)
         {
-            int sp = (in[0] == split) ? 0 : (in[1] == split ? 1 : -1);
-            if(sp < 0)
-                return false;
-            auto other = in[1 - sp];
-            if(other->name() != "slice")
-                return false;
-            // The companion must slice the same axis/range so the shared bounding
-            // slice re-slices both operands identically.
-            if(other->get_operator() != split->get_operator())
-                return false;
-            info = {c, sp, other, other->inputs().front()};
-            return true;
-        }
-        return false;
-    }
-
-    // Two consumers may share a run if they are the same op (matching pointwise
-    // submodule), place the split at the same input index, and -- when binary --
-    // slice the same companion tensor.
-    static bool same_consumer(const partial_consumer& a, const partial_consumer& b)
-    {
-        if(a.consumer->get_operator() != b.consumer->get_operator())
-            return false;
-        if(a.consumer->name() == "pointwise" and
-           not(*(a.consumer->module_inputs().front()) == *(b.consumer->module_inputs().front())))
-            return false;
-        if(a.split_pos != b.split_pos)
-            return false;
-        bool a_bin = a.companion != instruction_ref{};
-        bool b_bin = b.companion != instruction_ref{};
-        if(a_bin != b_bin)
-            return false;
-        return (not a_bin) or a.companion_root == b.companion_root;
-    }
-
-    // Hoist the fusable op of a maximal contiguous run of sibling slices [i, j)
-    // above the slices: apply it once to the bounding slice [lo, hi) of `ins`
-    // (and, for a binary op, the same bounding slice of the companion tensor)
-    // and re-slice each member back out.  Applying a per-slice op to the larger
-    // bounding slice is valid because it is elementwise/reduction over unrelated
-    // axes -- the same property the full-cover path relies on.
-    void hoist_partial_run(module& m,
-                           instruction_ref ins,
-                           const std::vector<instruction_ref>& splits,
-                           const std::vector<partial_consumer>& infos,
-                           std::size_t i,
-                           std::size_t j,
-                           std::int64_t axis) const
-    {
-        auto lo    = any_cast<op::slice>(splits[i]->get_operator()).starts.front();
-        auto hi    = any_cast<op::slice>(splits[j - 1]->get_operator()).ends.front();
-        auto bound = [&](instruction_ref pos, instruction_ref t) {
-            return m.insert_instruction(
-                std::next(pos),
-                make_op("slice", {{"axes", {axis}}, {"starts", {lo}}, {"ends", {hi}}}),
-                t);
-        };
-        const auto& info = infos[i];
-        auto base        = bound(ins, ins);
-        instruction_ref c{};
-        if(info.companion == instruction_ref{})
-        {
-            c = m.insert_instruction(std::next(base),
-                                     info.consumer->get_operator(),
-                                     {base},
-                                     info.consumer->module_inputs());
+            return {m.end(), 0};
         }
         else
         {
-            auto base_comp = bound(base, info.companion_root);
-            std::vector<instruction_ref> args(2);
-            args[info.split_pos]     = base;
-            args[1 - info.split_pos] = base_comp;
-            c                        = m.insert_instruction(std::next(base_comp),
-                                     info.consumer->get_operator(),
-                                     args,
-                                     info.consumer->module_inputs());
+            data_idx = split_idx == 0 ? 1 : 0;
         }
-        for(std::size_t k = i; k < j; ++k)
+
+        std::vector<instruction_ref> data_args;
+        std::transform(group.begin(), group.end(), std::back_inserter(data_args), [&](auto i) {
+            return i->inputs()[data_idx];
+        });
+
+        // Data arguments must be a constant
+        if(std::any_of(
+               data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
+            return {m.end(), 0};
+
+        move_instructions_back(m, ins, data_args);
+
+        // TODO: Check if axises match
+        auto concat =
+            m.insert_instruction(ins, make_op("concat", {{"axis", concat_axis}}), data_args);
+
+        std::vector<instruction_ref> args(2);
+        args[split_idx] = ins;
+        args[data_idx]  = concat;
+        return {m.insert_instruction(std::next(ins), op, {args}, start->module_inputs()),
+                split_idx};
+    }
+
+    // Point each group member at the fused result `c`.  For a full cover the
+    // original slice operator is reused; for a partial cover each consumer's
+    // re-slice is shifted back by the bounding slice's start.
+    void rewrite_group_consumers(module& m,
+                                 const std::vector<instruction_ref>& group,
+                                 instruction_ref c,
+                                 int split_idx,
+                                 bool partial,
+                                 const op::slice& front_slice) const
+    {
+        for(auto i : group)
         {
-            auto s = any_cast<op::slice>(splits[k]->get_operator());
-            m.replace_instruction(infos[k].consumer,
+            auto split = i->inputs()[split_idx];
+            assert(split->name() == "slice");
+            if(not partial)
+            {
+                m.replace_instruction(i, split->get_operator(), c);
+                continue;
+            }
+            // Re-slice the wide result relative to the bounding slice.
+            auto s     = any_cast<op::slice>(split->get_operator());
+            auto shift = [&](const std::vector<int64_t>& v) {
+                std::vector<int64_t> out(v.size());
+                std::transform(v.begin(),
+                               v.end(),
+                               front_slice.starts.begin(),
+                               out.begin(),
+                               [](int64_t a, int64_t b) { return a - b; });
+                return out;
+            };
+            m.replace_instruction(i,
                                   make_op("slice",
-                                          {{"axes", {axis}},
-                                           {"starts", {s.starts.front() - lo}},
-                                           {"ends", {s.ends.front() - lo}}}),
+                                          {{"axes", s.axes},
+                                           {"starts", shift(s.starts)},
+                                           {"ends", shift(s.ends)}}),
                                   c);
         }
     }
 
-    // Fuse an epilogue that is replicated across a contiguous run of the sibling
-    // slices of a horizontally-batched GEMM output.  This is an extension of the
-    // split-group hoist in apply(), covering two shapes that its main paths do
-    // not (both occur in an MLP prediction tower whose heads are a bias + SiLU):
-    //
-    //   * The matching heads are a *strict subset* of the slices (a differently-
-    //     consumed head -- e.g. a reshape -- is mixed in).  get_split_groups()
-    //     discards such a group because it requires *every* slice to share the
-    //     op.
-    //
-    //   * The epilogue is *binary* and its second operand is an identically-
-    //     ranged slice of another wide tensor (a broadcast bias).  The full-cover
-    //     binary path only folds a compile-time-constant operand, so a companion
-    //     bias slice is not handled there.
-    //
-    // For each maximal matching run [i, j) the op is applied once to the bounding
-    // slice [lo, hi) of the GEMM output (and, when binary, the same bounding
-    // slice of the companion tensor) and each head is re-sliced back out -- valid
-    // because the op is elementwise/reduction over axes unrelated to the split
-    // axis.  The runs are grouped and vetted with the same is_interdependent /
-    // split_groups_are_dependent checks the main path uses, so an unsafe hoist
-    // (a head that feeds another head in the run, or one run that reaches into
-    // another) is rejected rather than reordered.
-    void hoist_partial_groups(module& m,
-                              instruction_ref ins,
-                              const std::vector<instruction_ref>& splits) const
-    {
-        auto slice0 = any_cast<op::slice>(splits.front()->get_operator());
-        if(slice0.axes.size() != 1)
-            return;
-        auto axis = slice0.axes.front();
-
-        std::vector<partial_consumer> infos(splits.size());
-        std::vector<char> ok(splits.size(), 0);
-        for(std::size_t k = 0; k < splits.size(); ++k)
-            ok[k] = describe_consumer(splits[k], infos[k]) ? 1 : 0;
-
-        // Collect the maximal matching runs and their consumer groups first, so
-        // the shared dependency analysis can veto the whole set before anything
-        // moves.
-        std::vector<std::pair<std::size_t, std::size_t>> runs;
-        std::vector<std::vector<instruction_ref>> groups;
-        std::size_t i = 0;
-        while(i < splits.size())
-        {
-            if(ok[i] == 0)
-            {
-                ++i;
-                continue;
-            }
-            std::size_t j = i + 1;
-            while(j < splits.size() and ok[j] == 1 and same_consumer(infos[i], infos[j]))
-                ++j;
-            // Only a genuine partial run; the full-group case is the main path's
-            // job.
-            if((j - i) >= 2 and (j - i) < splits.size())
-            {
-                std::vector<instruction_ref> group;
-                for(std::size_t k = i; k < j; ++k)
-                    group.push_back(infos[k].consumer);
-                // Reject a run whose heads depend on one another (they cannot
-                // share one hoisted op).
-                if(not is_interdependent(group, &m, ins))
-                {
-                    runs.emplace_back(i, j);
-                    groups.push_back(std::move(group));
-                }
-            }
-            i = j;
-        }
-        if(runs.empty())
-            return;
-
-        // Reuse the main path's cross-group dependency check: bail if hoisting
-        // one run would reach into another.
-        if(split_groups_are_dependent(m, ins, groups))
-            return;
-
-        for(const auto& run : runs)
-            hoist_partial_run(m, ins, splits, infos, run.first, run.second, axis);
-    }
-
-    // NOLINT
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins     = r.result;
@@ -1855,9 +1756,7 @@ struct find_splits
             return;
         auto split_groups = get_split_groups(m, ins, splits);
         if(split_groups_are_dependent(m, ins, split_groups))
-        {
             return;
-        }
 
         // A full cover computes the op on the whole tensor; a partial cover
         // computes it on a bounding slice spanning [lo, hi) of the shared axis
@@ -1875,9 +1774,9 @@ struct find_splits
             {
                 base          = m.insert_instruction(std::next(ins),
                                             make_op("slice",
-                                                                    {{"axes", front_slice.axes},
-                                                              {"starts", front_slice.starts},
-                                                              {"ends", back_slice.ends}}),
+                                                    {{"axes", front_slice.axes},
+                                                     {"starts", front_slice.starts},
+                                                     {"ends", back_slice.ends}}),
                                             ins);
                 base_inserted = true;
             }
@@ -1886,19 +1785,16 @@ struct find_splits
 
         for(const auto& group : split_groups)
         {
-            auto start       = group.front();
-            auto split_front = splits.front();
-            auto op          = start->get_operator();
-            if(not is_fusable(start, split_front))
-            {
+            auto start = group.front();
+            auto op    = start->get_operator();
+            if(not is_fusable(start, splits.front()))
                 continue;
-            }
 
             // Make sure there are no duplicates
             assert(std::none_of(
                 std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
 
-            auto split_idx    = 0;
+            int split_idx     = 0;
             instruction_ref c = m.end();
             if(start->inputs().size() == 1)
             {
@@ -1907,106 +1803,18 @@ struct find_splits
             }
             else if(start->inputs().size() == 2)
             {
-                // The constant-concat fusion below rewrites the op on the whole
-                // tensor, so it only applies to a full cover.
+                // The constant-concat fusion rewrites the op on the whole tensor,
+                // so it only applies to a full cover.
                 if(partial)
                     continue;
-
-                assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
-                    return i->name() == "slice";
-                }) and "one argument must be a split");
-
-                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
-                assert(not slice_op.axes.empty());
-                if(slice_op.axes.size() > 1)
+                std::tie(c, split_idx) = fuse_binary_const_concat(m, ins, group, splits, op);
+                if(c == m.end())
                     return;
-                auto concat_axis = slice_op.axes.front();
-                if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
-                    return;
-
-                split_idx = get_binary_op_split_idx(group, splits);
-                assert(split_idx < 2);
-                size_t data_idx;
-                if(split_idx < 0 and op.attributes().contains("commutative"))
-                {
-                    split_idx = 0;
-                    data_idx  = 1;
-                    align_commutative_op_args(m, group, splits, split_idx);
-                }
-                else if(split_idx < 0)
-                {
-                    return;
-                }
-                else
-                {
-                    data_idx = split_idx == 0 ? 1 : 0;
-                }
-
-                std::vector<instruction_ref> data_args;
-                std::transform(group.begin(),
-                               group.end(),
-                               std::back_inserter(data_args),
-                               [&](auto i) { return i->inputs()[data_idx]; });
-
-                // Data arguments must be a constant
-                if(std::any_of(data_args.begin(), data_args.end(), [](auto i) {
-                       return not i->can_eval();
-                   }))
-                    return;
-
-                move_instructions_back(m, ins, data_args);
-
-                // TODO: Check if axises match
-                auto concat = m.insert_instruction(
-                    ins, make_op("concat", {{"axis", concat_axis}}), data_args);
-
-                std::vector<instruction_ref> args;
-                args.resize(2);
-                args[split_idx] = ins;
-                args[data_idx]  = concat;
-                c = m.insert_instruction(std::next(ins), op, {args}, start->module_inputs());
             }
+
             if(c != m.end())
-            {
-                for(auto i : group)
-                {
-                    auto split = i->inputs()[split_idx];
-                    assert(split->name() == "slice");
-
-                    if(partial)
-                    {
-                        // Re-slice the wide result relative to the bounding slice.
-                        auto s     = any_cast<op::slice>(split->get_operator());
-                        auto shift = [&](const std::vector<int64_t>& v) {
-                            std::vector<int64_t> out(v.size());
-                            std::transform(v.begin(),
-                                           v.end(),
-                                           front_slice.starts.begin(),
-                                           out.begin(),
-                                           [](int64_t a, int64_t b) { return a - b; });
-                            return out;
-                        };
-                        m.replace_instruction(i,
-                                              make_op("slice",
-                                                      {{"axes", s.axes},
-                                                       {"starts", shift(s.starts)},
-                                                       {"ends", shift(s.ends)}}),
-                                              c);
-                    }
-                    else
-                    {
-                        m.replace_instruction(i, split->get_operator(), c);
-                    }
-                }
-            }
+                rewrite_group_consumers(m, group, c, split_idx, partial, front_slice);
         }
-
-        // The full-cover groups above require every sibling slice to share the
-        // op.  Fall back to hoisting maximal contiguous matching subsets so a
-        // mixed full-cover group (e.g. SiLU heads next to a reshape head) still
-        // fuses its heads.  (The `partial` path already covers partial tiling.)
-        if(not partial)
-            hoist_partial_groups(m, ins, splits);
     }
 };
 

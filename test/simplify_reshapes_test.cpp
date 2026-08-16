@@ -6011,6 +6011,57 @@ TEST_CASE(layout_broadcast_1d_last_axis)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(layout_broadcast_nonstandard_input)
+{
+    // identity inner permutation, but the input is not standard so the layout
+    // is still needed to materialize it
+    migraphx::shape s{migraphx::shape::float_type, {8, 4}, {1, 8}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8, 4}}}), x);
+        auto l = m1.add_instruction(migraphx::make_op("layout", {{"permutation", {1, 2, 0}}}), mb);
+        m1.add_return({l});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto l = m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1}}}), x);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8, 4}}}), l);
+        m2.add_return({mb});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(layout_broadcast_axis_nonstandard_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {8, 4}, {1, 8}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto b = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 8, 4, 3}}}), x);
+        auto l =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {3, 1, 2, 0}}}), b);
+        m1.add_return({l});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto l = m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1}}}), x);
+        auto b = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 8, 4, 3}}}), l);
+        m2.add_return({b});
+    }
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(layout_broadcast_middle_axis)
 {
     migraphx::module m1;

@@ -1095,8 +1095,8 @@ struct find_concat_op
     }
 };
 
-// Collapse `concat(x, x, ..., x)` (N copies of the same instruction) into a
-// broadcast of x. This is the common shape that shows up in MoE / KV-cache /
+// Rewrite `concat(x, x, ..., x)` (N copies of the same instruction) as a
+// broadcast-based tiling of x. This pattern shows up in MoE / KV-cache /
 // RoPE expansion code where a tensor is replicated N times along an axis.
 struct find_concat_same_input
 {
@@ -1117,9 +1117,7 @@ struct find_concat_same_input
         if(axis < 0 or axis >= lens.size())
             return;
 
-        auto out_lens = lens;
-        out_lens[axis] *= inputs.size();
-        assert(out_lens == ins->get_shape().lens());
+        const auto& out_lens = ins->get_shape().lens();
 
         // The concat axis is size 1 in the source, so replicating it is a
         // strided view with no data movement.
@@ -1131,8 +1129,9 @@ struct find_concat_same_input
 
         // General case: tile the axis by unsqueezing a unit dim before it,
         // broadcasting that dim to N, then folding it back into the axis.
-        auto unsqueezed  = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {axis}}}), x);
-        auto bcast_lens  = unsqueezed->get_shape().lens();
+        auto unsqueezed = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {axis}}}), x);
+        auto bcast_lens = unsqueezed->get_shape().lens();
+        assert(bcast_lens[axis] == 1);
         bcast_lens[axis] = inputs.size();
         auto bcast       = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", bcast_lens}}), unsqueezed);

@@ -1305,20 +1305,14 @@ TEST_CASE(hoist_and_dot_fusion_end_to_end)
     EXPECT(n_pointwise == 1);
 }
 
-// End to end: a group of independent SwiGLU expert heads -- add(dot(mul(x,
-// sigmoid(x)), W), bias) with constant W/bias -- run through the real pipeline.
-// fuse_pointwise collapses the bias add into a single `pointwise` epilogue over
-// the dot, and expert_head_horizontal_fusion then batches the parallel heads
-// into one GEMM + one pointwise.  This exercises the fused representation the
-// matcher actually keys on, not the raw ops.
+// Independent SwiGLU expert heads -- add(dot(mul(x, sigmoid(x)), W), bias) with
+// constant W/bias -- fuse into one batched GEMM + pointwise through the pipeline.
 TEST_CASE(expert_head_fusion_pipeline)
 {
     migraphx::program p;
     {
         auto* m = p.get_main_module();
-        // One SwiGLU expert head: mul(x, sigmoid(x)) -> dot(., W) -> add(., bias),
-        // with constant W/bias.  Non-scalar bias stays a pointwise input, so the
-        // epilogue submodules stay structurally equal across heads and fuse.
+        // Non-scalar constant bias keeps the epilogues structurally equal so they fuse.
         auto add_head = [&](const std::string& name, int seed) {
             auto x = m->add_parameter(name, {migraphx::shape::float_type, {2, 8}});
             auto w = m->add_literal(
@@ -1344,17 +1338,14 @@ TEST_CASE(expert_head_fusion_pipeline)
     EXPECT(n_dot == 1);
 }
 
-// A pointwise epilogue whose non-dot operand is itself a runtime value (not a
-// constant bias) cannot be folded into a batched epilogue, so expert-head fusion
-// declines it; dot_horizontal_fusion also declines (the dot feeds a pointwise),
-// so the per-head dots stay unbatched.
+// A runtime (non-constant) epilogue operand can't fold into a batched epilogue,
+// so the heads stay unbatched.
 TEST_CASE(expert_head_no_fusion_nonconstant_epilogue)
 {
     migraphx::program p;
     {
         auto* m = p.get_main_module();
-        // Same SwiGLU head, but the bias operand `v` is a runtime parameter rather
-        // than a constant, so the epilogue can't be folded into a batched pointwise.
+        // Bias operand `v` is a runtime parameter, so the epilogue can't be batched.
         auto add_head = [&](const std::string& xname, const std::string& vname, int seed) {
             auto x = m->add_parameter(xname, {migraphx::shape::float_type, {2, 8}});
             auto v = m->add_parameter(vname, {migraphx::shape::float_type, {2, 8}});

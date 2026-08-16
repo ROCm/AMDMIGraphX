@@ -26,6 +26,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/dfor.hpp>
+#include <migraphx/env.hpp>
 #include <array>
 #include <string>
 #include <vector>
@@ -33,6 +34,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+// Set to fall back to the op-decomposition below for bilinear sampling instead
+// of emitting the gridsample operator. Kept for A/B testing the two paths.
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_GRIDSAMPLE_OP)
 
 struct grid_sampler
 {
@@ -314,8 +319,8 @@ struct linear_sampler : grid_sampler
             nc_values_data.push_back(n);
             nc_values_data.push_back(c);
         });
-        size_t num_indices  = m_batch * m_out_height * m_out_width * m_channel;
-        auto xy_indices_t   = info.add_literal(
+        size_t num_indices = m_batch * m_out_height * m_out_width * m_channel;
+        auto xy_indices_t  = info.add_literal(
             migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 3}}, xy_indices_data});
         auto weight_index_t = info.add_literal(
             migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 3}}, weight_indices_data});
@@ -565,9 +570,9 @@ struct bicubic_sampler : grid_sampler
         auto inner_indices_t = concat_on_first_dim(info, inner_indices);
         inner_indices_t      = info.add_instruction(
             make_op("reshape",
-                         {{"dims",
-                           {inner_indices_t->get_shape().elements() / nhw_shape.elements(),
-                            nhw_shape.elements()}}}),
+                    {{"dims",
+                      {inner_indices_t->get_shape().elements() / nhw_shape.elements(),
+                       nhw_shape.elements()}}}),
             inner_indices_t);
         std::array<instruction_ref, 4> inner_y_samples;
         std::transform(
@@ -634,10 +639,10 @@ struct bicubic_sampler : grid_sampler
         coefficients = info.add_instruction(make_op("squeeze", {{"axes", {1}}}), coefficients);
 
         auto y_weights_t           = compute_weights(info,
-                                           y_weight_indices,
-                                           m_y_weights,
-                                           coefficients->get_shape().lens(),
-                                           nhw_shape.elements());
+                                                     y_weight_indices,
+                                                     m_y_weights,
+                                                     coefficients->get_shape().lens(),
+                                                     nhw_shape.elements());
         auto weighted_coefficients = info.add_common_op("mul", coefficients, y_weights_t);
         weighted_coefficients      = info.add_instruction(
             make_op("reshape", {{"dims", {weighted_coefficients->get_shape().elements() / 4, 4}}}),
@@ -702,6 +707,27 @@ struct parse_gridsample : op_parser<parse_gridsample>
         if(x_dims != 4)
         {
             MIGRAPHX_THROW("PARSE_GRID_SAMPLE: only 4-D inputs are supported");
+        }
+
+        // Bilinear sampling has a dedicated operator with a fused GPU kernel.
+        // The decompositions below remain the fallback for the other modes and
+        // for cases the operator does not cover.
+        if(not enabled(MIGRAPHX_DISABLE_GRIDSAMPLE_OP{}) and not contains(mode, "nearest") and
+           contains(mode, "linear") and x->get_shape().type() == grid_shape.type() and
+           not x->get_shape().dynamic() and not grid_shape.dynamic())
+        {
+            // the operator reads both inputs with computed offsets, so they
+            // have to be standard
+            auto x_c =
+                x->get_shape().standard() ? x : info.add_instruction(make_op("contiguous"), x);
+            auto g_c =
+                grid_shape.standard() ? grid : info.add_instruction(make_op("contiguous"), grid);
+            return info.add_instruction(make_op("gridsample",
+                                                {{"mode", "linear"},
+                                                 {"padding_mode", padding_mode},
+                                                 {"align_corners", align_corners}}),
+                                        x_c,
+                                        g_c);
         }
 
         return contains(mode, "nearest")

@@ -73,14 +73,8 @@ struct eval_expr_from_shape
                     missing.erase(sym::as_symbol(d.sym_expr));
         }
         if(not missing.empty())
-        {
-            const auto missing_symbol =
-                std::min_element(missing.begin(), missing.end(), [](const auto& x, const auto& y) {
-                    return x.to_string() < y.to_string();
-                });
-            MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Symbol '" + missing_symbol->to_string() +
+            MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Symbol '" + missing.begin()->to_string() +
                            "' is not a direct input dimension");
-        }
 
         return shape{shape::int64_type, {expressions.size()}};
     }
@@ -109,9 +103,9 @@ struct eval_expr_from_shape
             {
                 if(dim.sym_expr.name() != "variable")
                     continue;
-                const auto variable       = sym::as_symbol(dim.sym_expr);
-                const auto [it, inserted] = values.emplace(variable, len);
-                if(not inserted and it->second != len)
+                auto variable = sym::as_symbol(dim.sym_expr);
+                auto result   = values.emplace(variable, len);
+                if(not result.second and result.first->second != len)
                     MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Repeated symbol has inconsistent runtime "
                                    "dimensions");
             }

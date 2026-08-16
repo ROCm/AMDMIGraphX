@@ -131,7 +131,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
 
             symbolic_tensor_value expressions;
             expressions.reserve(fixed_indices->size());
-            const auto data_size = static_cast<int64_t>(data->size());
+            const int64_t data_size = data->size();
             for(auto index : *fixed_indices)
             {
                 if(index < 0)

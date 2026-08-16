@@ -3130,11 +3130,15 @@ TEST_CASE(simplify_dot_horiz_same_constant)
 
     migraphx::module m2;
     {
-        auto input  = m2.add_parameter("input", s);
-        auto a      = m2.add_literal(migraphx::generate_literal(s, 0));
-        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), a, a);
-        auto dot    = m2.add_instruction(migraphx::make_op("dot"), input, concat);
-        auto x      = m2.add_instruction(
+        auto input     = m2.add_parameter("input", s);
+        auto a         = m2.add_literal(migraphx::generate_literal(s, 0));
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), a);
+        auto bcast     = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 2, 2}}}), unsqueeze);
+        auto reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 4}}}), bcast);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), input, reshape);
+        auto x   = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), dot);
         auto y = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), dot);
@@ -5743,9 +5747,60 @@ TEST_CASE(simplify_concat_same_input_axis_not_one)
 
     migraphx::module m2;
     {
-        auto x      = m2.add_parameter("x", s);
-        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x);
-        m2.add_return({concat});
+        auto x         = m2.add_parameter("x", s);
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto bcast     = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 4, 4}}}), unsqueeze);
+        auto reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 8, 4}}}), bcast);
+        m2.add_return({reshape});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_input_tile_axis_one_not_last)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 3, 5}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x, x);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x         = m2.add_parameter("x", s);
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto bcast     = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 3, 5}}}), unsqueeze);
+        auto reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 9, 5}}}), bcast);
+        m2.add_return({reshape});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_input_tile_axis_zero)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {3, 2}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, x, x);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x         = m2.add_parameter("x", s);
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
+        auto bcast     = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 3, 2}}}), unsqueeze);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {9, 2}}}), bcast);
+        m2.add_return({reshape});
     }
     EXPECT(m1 == m2);
 }

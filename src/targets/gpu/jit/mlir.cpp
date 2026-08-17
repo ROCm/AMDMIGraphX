@@ -113,23 +113,11 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
     return co;
 }
 
-// Find how much of the epilogue the mlir kernel can absorb. When the module ends in a layout tail
-// the scan stops at `last_ins`, since the tail is peeled off separately and splitting inside it
-// would put it back in the mlir module.
-static instruction_ref find_final_split(instruction_ref split_ins,
-                                        optional<instruction_ref> last_ins = nullopt)
+static instruction_ref find_final_split(instruction_ref split_ins)
 {
-    auto output_path_range = get_output_path(split_ins);
-    std::vector<instruction_ref> output_path(output_path_range.begin(), output_path_range.end());
-    auto last = output_path.end();
-    if(last_ins.has_value())
-    {
-        auto bound = std::find(output_path.begin(), output_path.end(), *last_ins);
-        if(bound != output_path.end())
-            last = std::next(bound);
-    }
-    auto it = std::adjacent_find(
-        output_path.begin(), last, [&](instruction_ref input, instruction_ref output) {
+    auto output_path = get_output_path(split_ins);
+    auto it          = std::adjacent_find(
+        output_path.begin(), output_path.end(), [&](instruction_ref input, instruction_ref output) {
             if(contains({"reshape", "reshape_lazy", "squeeze", "unsqueeze", "transpose"},
                         output->name()))
                 return false;
@@ -145,10 +133,7 @@ static instruction_ref find_final_split(instruction_ref split_ins,
             }
             return true;
         });
-    if(it != last)
-        return *it;
-    // Everything up to the bound can be absorbed. Without a bound there was nothing to split on.
-    return last == output_path.end() ? split_ins : *std::prev(last);
+    return *it;
 }
 
 static optional<instruction_ref> find_layout_tail_split(instruction_ref pointwise_ins)
@@ -278,7 +263,13 @@ struct mlir_compiler : compiler<mlir_compiler>
             // remove alloc buffer
             input_args.pop_back();
             auto tail_split = find_layout_tail_split(pointwise_ins);
-            auto split_ins  = find_final_split(gemm_like_ins, tail_split);
+            auto split_ins  = find_final_split(gemm_like_ins);
+            if(tail_split.has_value())
+            {
+                auto tail_path = get_output_path(tail_split.value());
+                if(std::find(tail_path.begin(), tail_path.end(), split_ins) != tail_path.end())
+                    split_ins = tail_split.value();
+            }
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
             if(not is_module_fusible(mod_splits[0].mod, ctx, solution))
             {
@@ -435,54 +426,59 @@ struct mlir_compiler : compiler<mlir_compiler>
                                });
                 auto mlir_ins =
                     insert_mlir(m, ins, any_cast<code_object_op>(ops[0]), dot_inputs_updated);
-                // With a copy tail the epilogue may have been absorbed into the mlir kernel, in
-                // which case there is no pointwise kernel and the copy reads the mlir output.
-                auto copy_src = mlir_ins;
-                if(not has_copy_tail or ops.size() == 3)
+                if(has_copy_tail and ops.size() == 2)
                 {
-                    auto pwm = mods[1];
-                    pwm.replace(split_ins, mlir_ins);
-                    auto pw_inputs = pwm.inputs;
-                    if(has_copy_tail)
-                    {
-                        auto pw_alloc = m.insert_instruction(
-                            ins,
-                            migraphx::make_op(
-                                "hip::allocate",
-                                {{"shape", to_value(mods[1].mod.get_output_shapes().front())}}));
-                        pw_inputs.push_back(pw_alloc);
-                    }
-                    else
-                    {
-                        pw_inputs.push_back(ins->inputs().back());
-                    }
-                    std::vector<instruction_ref> pw_inputs_updated;
-                    std::transform(pw_inputs.begin(),
-                                   pw_inputs.end(),
-                                   std::back_inserter(pw_inputs_updated),
-                                   [&](const auto& i) {
-                                       if(inputs_rep_map.find(i) != inputs_rep_map.end())
-                                       {
-                                           assert(inputs_rep_map.at(i)->get_shape() ==
-                                                  i->get_shape());
-                                           return inputs_rep_map.at(i);
-                                       }
-                                       return i;
-                                   });
-                    copy_src =
-                        insert_mlir(m, ins, any_cast<code_object_op>(ops[1]), pw_inputs_updated);
+                    auto copy_op          = any_cast<code_object_op>(ops.back());
+                    auto copy_input_shape = copy_op.expected_inputs.front();
+                    auto copy_input       = m.insert_instruction(
+                        ins,
+                        migraphx::make_op("as_shape", {{"shape", to_value(copy_input_shape)}}),
+                        mlir_ins);
+                    auto copy_ins =
+                        m.insert_instruction(ins, copy_op, copy_input, ins->inputs().back());
+                    return m.replace_instruction(ins, copy_ins);
                 }
-                if(not has_copy_tail)
-                    return m.replace_instruction(ins, copy_src);
 
-                auto copy_op          = any_cast<code_object_op>(ops.back());
-                auto copy_input_shape = copy_op.expected_inputs.front();
+                auto pwm = mods[1];
+                pwm.replace(split_ins, mlir_ins);
+                auto pw_inputs = pwm.inputs;
+                if(has_copy_tail)
+                {
+                    auto pw_alloc = m.insert_instruction(
+                        ins,
+                        migraphx::make_op(
+                            "hip::allocate",
+                            {{"shape", to_value(mods[1].mod.get_output_shapes().front())}}));
+                    pw_inputs.push_back(pw_alloc);
+                }
+                else
+                {
+                    pw_inputs.push_back(ins->inputs().back());
+                }
+                std::vector<instruction_ref> pw_inputs_updated;
+                std::transform(pw_inputs.begin(),
+                               pw_inputs.end(),
+                               std::back_inserter(pw_inputs_updated),
+                               [&](const auto& i) {
+                                   if(inputs_rep_map.find(i) != inputs_rep_map.end())
+                                   {
+                                       assert(inputs_rep_map.at(i)->get_shape() == i->get_shape());
+                                       return inputs_rep_map.at(i);
+                                   }
+                                   return i;
+                               });
+                auto pw_ins =
+                    insert_mlir(m, ins, any_cast<code_object_op>(ops[1]), pw_inputs_updated);
+                if(not has_copy_tail)
+                    return m.replace_instruction(ins, pw_ins);
+
+                auto copy_input_shape = any_cast<code_object_op>(ops[2]).expected_inputs.front();
                 auto copy_input       = m.insert_instruction(
                     ins,
                     migraphx::make_op("as_shape", {{"shape", to_value(copy_input_shape)}}),
-                    copy_src);
-                auto copy_ins =
-                    m.insert_instruction(ins, copy_op, copy_input, ins->inputs().back());
+                    pw_ins);
+                auto copy_ins = m.insert_instruction(
+                    ins, any_cast<code_object_op>(ops[2]), copy_input, ins->inputs().back());
                 return m.replace_instruction(ins, copy_ins);
             }};
     }

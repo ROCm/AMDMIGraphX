@@ -97,6 +97,25 @@ std::vector<int64_t> find_permutation(const shape& s)
     return result;
 }
 
+namespace {
+// A dim of length 1 places no constraint on the memory layout, so a shape
+// supports any permutation that keeps its non-singleton dims in decreasing
+// stride order.
+bool supports_permutation(const shape& s, const std::vector<int64_t>& permutation)
+{
+    if(s.dynamic())
+        return find_permutation(s) == permutation;
+    std::vector<std::size_t> strides;
+    transform_if(
+        permutation.begin(),
+        permutation.end(),
+        std::back_inserter(strides),
+        [&](auto d) { return s.lens()[d] > 1; },
+        [&](auto d) { return s.strides()[d]; });
+    return std::is_sorted(strides.begin(), strides.end(), std::greater<>{});
+}
+} // namespace
+
 std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
 {
     if(shapes.empty())
@@ -113,6 +132,16 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
         std::vector<int64_t> r(shapes.front().ndim());
         std::iota(r.begin(), r.end(), 0);
         return r;
+    }
+    // Shapes with singleton dims are layout-ambiguous, so recount with each
+    // shape voting for every candidate it supports. This stops an ambiguous
+    // shape from outvoting shapes with a definite layout.
+    if(count.size() > 1)
+    {
+        for(auto& p : count)
+            p.second = std::count_if(shapes.begin(), shapes.end(), [&](const shape& s) {
+                return not s.broadcasted() and supports_permutation(s, p.first);
+            });
     }
     auto it = std::max_element(
         count.begin(), count.end(), by(std::less<>{}, [](auto&& p) { return p.second; }));

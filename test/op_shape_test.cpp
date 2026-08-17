@@ -7310,6 +7310,18 @@ TEST_CASE(test_concat)
     throws_shape(migraphx::make_op("concat", {{"axis", 0}}));
 }
 
+TEST_CASE(test_concat_nhwc_singleton)
+{
+    // The standard-layout input has a singleton channel, so its layout is
+    // ambiguous and the NHWC input decides the output layout.
+    auto sx =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 47, 8, 8}, {0, 2, 3, 1});
+    migraphx::shape sy{migraphx::shape::float_type, {1, 1, 8, 8}};
+    auto sout =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 48, 8, 8}, {0, 2, 3, 1});
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+}
+
 TEST_CASE(test_dyn_concat)
 {
     migraphx::shape sx{migraphx::shape::float_type, {{1, 3, {3}}, {4, 4}, {1, 5, {5}}, {6, 6}}};

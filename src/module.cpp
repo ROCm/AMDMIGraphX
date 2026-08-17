@@ -1629,21 +1629,50 @@ static void print_make_op(std::ostream& os, const operation& op)
     os << ")";
 }
 
+// Generated code has no spelling that preserves a symbolic dimension's expression, so each dynamic
+// dimension is printed as the bounds it evaluates to. That still rebuilds a shape with the same
+// extents, which is what a reproducer needs.
+static std::string
+dyn_dims_string(const migraphx::shape& s, const std::string& open, const std::string& close)
+{
+    std::vector<std::string> dims;
+    std::transform(
+        s.dyn_dims().begin(), s.dyn_dims().end(), std::back_inserter(dims), [&](const auto& d) {
+            auto i = d.get_interval();
+            return open + std::to_string(i.min) + ", " + std::to_string(i.max) + close;
+        });
+    return join_strings(dims, ", ");
+}
+
 static void print_py_shape(std::ostream& os, const migraphx::shape& s)
 {
-    os << "migraphx.shape(type=" << to_json_string(s.type_string()) << ", lens=["
-       << to_string_range(s.lens()) << "]";
-    if(not s.standard())
-        os << ", strides=[" << to_string_range(s.strides()) << "]";
+    os << "migraphx.shape(type=" << to_json_string(s.type_string());
+    if(s.dynamic())
+    {
+        os << ", dyn_dims=[" << dyn_dims_string(s, "migraphx.shape.dynamic_dimension(", ")") << "]";
+    }
+    else
+    {
+        os << ", lens=[" << to_string_range(s.lens()) << "]";
+        if(not s.standard())
+            os << ", strides=[" << to_string_range(s.strides()) << "]";
+    }
     os << ")";
 }
 
 static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
 {
     os << "migraphx::shape{migraphx::shape::" << s.type_string();
-    os << ", {" << to_string_range(s.lens()) << "}";
-    if(not s.standard())
-        os << ", {" << to_string_range(s.strides()) << "}";
+    if(s.dynamic())
+    {
+        os << ", {" << dyn_dims_string(s, "{", "}") << "}";
+    }
+    else
+    {
+        os << ", {" << to_string_range(s.lens()) << "}";
+        if(not s.standard())
+            os << ", {" << to_string_range(s.strides()) << "}";
+    }
     os << "}";
 }
 

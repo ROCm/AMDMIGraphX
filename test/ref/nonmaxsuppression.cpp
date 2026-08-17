@@ -26,17 +26,33 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
 
+// Mirrors what the ONNX NonMaxSuppression parser emits. The op pads its indices output out to the
+// largest possible selection, so trim it to the count the op reports. That count is only known at
+// run time, so the end bound is a symbol constrained by the padded length. Every test case here
+// has a single nonmaxsuppression per module, so one fixed symbol name is enough.
 static migraphx::instruction_ref add_nms_dynamic_slice(migraphx::module* mm,
                                                        migraphx::instruction_ref nms)
 {
     auto idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
     auto cnt = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    auto max_selected = idx->get_shape().max_lens().front();
+    auto starts       = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
     return mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), idx, cnt);
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends",
+                            migraphx::value::array{migraphx::to_value(
+                                migraphx::sym::var("num_selected", {0, max_selected}))}}}),
+        idx,
+        starts,
+        cnt);
 }
 
 TEST_CASE(nms_dyn_out_test)
@@ -72,6 +88,9 @@ TEST_CASE(nms_dyn_out_test)
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
+    // 3 of the 6 padded rows were selected, and the result is an aliased view into the padded
+    // buffer, so it keeps that buffer's row stride.
+    EXPECT(output.get_shape() == migraphx::shape{migraphx::shape::int64_type, {3, 3}, {3, 1}});
 }
 
 TEST_CASE(nms_identical_all_dyn_out_test)

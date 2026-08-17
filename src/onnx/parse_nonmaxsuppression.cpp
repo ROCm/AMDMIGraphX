@@ -25,7 +25,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,18 +50,21 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
         auto op      = parser.load(opd.op_name, info);
         auto nms_ins = info.add_instruction(op, args);
         auto indices = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nms_ins);
-        // slice with variable ends to handle dynamic shape output.
         auto num_selected =
             info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
-        auto max_selected = indices->get_shape().max_lens().front();
+        // The op pads its indices output out to the largest possible selection, so trim it to
+        // the count it reports. That count is only known at run time, so the end bound is a
+        // symbol constrained by the padded length.
+        auto max_selected     = indices->get_shape().max_lens().front();
         auto num_selected_var = sym::var(info.name, {0, max_selected});
-        auto starts_lit = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
-        return info.add_instruction(
-            make_op("dyn_slice", 
-                {{"axes", {0}},
-                {"starts", {0}},
-                {"ends", value::array{to_value(num_selected_var)}}})
-            , indices, starts_lit, num_selected);
+        auto starts_lit       = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
+        return info.add_instruction(make_op("dyn_slice",
+                                            {{"axes", {0}},
+                                             {"starts", {0}},
+                                             {"ends", value::array{to_value(num_selected_var)}}}),
+                                    indices,
+                                    starts_lit,
+                                    num_selected);
     }
 };
 

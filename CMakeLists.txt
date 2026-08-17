@@ -474,41 +474,65 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
         "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
     set(MIGRAPHX_THEROCK_GPU_ARCH "" CACHE STRING
-        "TheRock GPU arch(es) for per-GPU package dependencies. \
-Semicolon-separated list (e.g. gfx90a;gfx942;gfx950) for per-GPU deps, \
-or empty for device-all meta-package deps.")
-    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
+        "Optional TheRock package architecture override, as a semicolon-separated \
+list (e.g. gfx90a;gfx942;gfx950). Defaults to GPU_TARGETS; use this override to \
+adapt to TheRock <=7.14 package naming conventions (e.g. gfx94x).")
     if(MIGRAPHX_THEROCK_GPU_ARCH)
-        # Collect per-GPU dependencies: one amdrocm-dnn/blas per arch
-        set(_MGX_GPU_DEPS "")
-        foreach(mgx_gpu_arch IN LISTS MIGRAPHX_THEROCK_GPU_ARCH)
-            if(MIGRAPHX_USE_MIOPEN)
-                list(APPEND _MGX_GPU_DEPS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
-            endif()
-            if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-                list(APPEND _MGX_GPU_DEPS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
-            endif()
-        endforeach()
-        list(LENGTH MIGRAPHX_THEROCK_GPU_ARCH _MGX_NUM_ARCHS)
-        if(_MGX_NUM_ARCHS GREATER 1)
-            # Multi-arch fat binary: per-GPU libs are Recommends (only the
-            # libs for the GPU actually present are needed at runtime).
-            string(REPLACE ";" ", " _MGX_GPU_DEPS_CSV "${_MGX_GPU_DEPS}")
-            set(CPACK_DEBIAN_RUNTIME_PACKAGE_RECOMMENDS "${_MGX_GPU_DEPS_CSV}")
-            set(CPACK_RPM_RUNTIME_PACKAGE_SUGGESTS "${_MGX_GPU_DEPS_CSV}")
-        else()
-            # Single-arch: hard dependency (user explicitly targets one GPU).
-            list(APPEND PACKAGE_DEPENDS ${_MGX_GPU_DEPS})
-        endif()
+        set(_MGX_PACKAGE_GPU_ARCHES "${MIGRAPHX_THEROCK_GPU_ARCH}")
     else()
-        # Device-all: depend on arch-independent meta packages
-        if(MIGRAPHX_USE_MIOPEN)
-            list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}")
-        endif()
-        if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-            list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}")
-        endif()
+        set(_MGX_PACKAGE_GPU_ARCHES "")
+        foreach(mgx_gpu_target IN LISTS GPU_TARGETS)
+            string(REGEX REPLACE ":.*$" "" mgx_gpu_arch "${mgx_gpu_target}")
+            list(APPEND _MGX_PACKAGE_GPU_ARCHES "${mgx_gpu_arch}")
+        endforeach()
+        list(REMOVE_DUPLICATES _MGX_PACKAGE_GPU_ARCHES)
     endif()
+    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
+    # TheRock GPU libraries this build calls into
+    set(_MGX_GPU_LIBS "")
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND _MGX_GPU_LIBS "dnn")
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND _MGX_GPU_LIBS "blas")
+    endif()
+
+    # Boolean dependencies were added in rpm 4.13 where rpmbuild supports 'or' operators
+    rocm_find_program_version(rpmbuild GREATER_EQUAL 4.13.0 QUIET
+        OUTPUT_VARIABLE MIGRAPHX_RPMBUILD_VERSION)
+
+    foreach(mgx_gpu_lib IN LISTS _MGX_GPU_LIBS)
+        set(_MGX_LIB "amdrocm-${mgx_gpu_lib}${MIGRAPHX_THEROCK_ROCM_VERSION}")
+        set(_MGX_ARCH_DEPS "")
+        foreach(mgx_gpu_arch IN LISTS _MGX_PACKAGE_GPU_ARCHES)
+            list(APPEND _MGX_ARCH_DEPS "${_MGX_LIB}-${mgx_gpu_arch}")
+        endforeach()
+        list(LENGTH _MGX_ARCH_DEPS _MGX_NUM_ARCH_DEPS)
+
+        set(_MGX_DEB_ALTS "${_MGX_LIB}")
+        list(APPEND _MGX_DEB_ALTS ${_MGX_ARCH_DEPS})
+        if(_MGX_NUM_ARCH_DEPS GREATER 0)
+            string(REPLACE ";" " | " _MGX_DEB_DEP "${_MGX_DEB_ALTS}")
+        else()
+            set(_MGX_DEB_DEP "${_MGX_LIB}")
+        endif()
+        rocm_package_add_deb_dependencies(DEPENDS "${_MGX_DEB_DEP}")
+
+        # RPM solvers do not guarantee operand preference. Keep the device
+        # alternatives useful for provisioned environments, with meta as a
+        # valid fallback, but do not rely on their order for GPU detection.
+        set(_MGX_RPM_ALTS ${_MGX_ARCH_DEPS})
+        list(APPEND _MGX_RPM_ALTS "${_MGX_LIB}")
+        if(_MGX_NUM_ARCH_DEPS GREATER 0 AND MIGRAPHX_RPMBUILD_VERSION_OK)
+            string(REPLACE ";" " or " _MGX_RPM_DEP "${_MGX_RPM_ALTS}")
+            set(_MGX_RPM_DEP "(${_MGX_RPM_DEP})")
+        else()
+            # Without boolean dependency support the meta package is all we can
+            # ask for; it is correct, just larger than necessary.
+            set(_MGX_RPM_DEP "${_MGX_LIB}")
+        endif()
+        rocm_package_add_rpm_dependencies(DEPENDS "${_MGX_RPM_DEP}")
+    endforeach()
     rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${MIGRAPHX_THEROCK_ROCM_VERSION}")
     rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${MIGRAPHX_THEROCK_ROCM_VERSION}")
 

@@ -40,12 +40,12 @@ TEST_CASE(if_pl_test)
     auto x    = mm->add_parameter("x", xs);
     auto y    = mm->add_parameter("y", ys);
 
-    auto* then_mod = p.create_module("If_5_if");
+    auto* then_mod = p.create_module("main_If_5_if");
     auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
     auto a1        = then_mod->add_instruction(migraphx::make_op("add"), x, lx);
     then_mod->add_return({a1, l1});
 
-    auto* else_mod = p.create_module("If_5_else");
+    auto* else_mod = p.create_module("main_If_5_else");
     auto l2        = else_mod->add_literal(migraphx::literal(xs, datax));
     auto a2        = else_mod->add_instruction(migraphx::make_op("mul"), y, ly);
     else_mod->add_return({l2, a2});

@@ -27,6 +27,10 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/sym.hpp>
+#include <migraphx/tune_axis.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,11 +40,12 @@ struct parse_topk : op_parser<parse_topk>
 {
     std::vector<op_desc> operators() const { return {{"TopK"}}; }
 
-    static std::vector<instruction_ref> add_topk_and_gets(onnx_parser::node_info info,
-            std::vector<instruction_ref> args,
-            int64_t k,
-            int64_t axis,
-            bool largest){
+    static std::vector<instruction_ref> add_topk_and_gets(const onnx_parser::node_info& info,
+                                                          const std::vector<instruction_ref>& args,
+                                                          int64_t k,
+                                                          int64_t axis,
+                                                          bool largest)
+    {
         auto topk_ret = info.add_instruction(
             make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
         auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
@@ -82,37 +87,32 @@ struct parse_topk : op_parser<parse_topk>
         if(not arg_k.empty())
         {
             // constant `k` value
-            int64_t k     = arg_k.at<int>();
+            int64_t k = arg_k.at<int>();
             return add_topk_and_gets(info, args, k, axis, largest);
         }
         // Variable (data-dependent) `k`: run topk over the whole axis dimension, then slice the
         // outputs down to the runtime `k` using a symbolic dimension.
         auto input_shape = args.at(0)->get_shape();
+        if(input_shape.dynamic() and not input_shape.symbolic())
+        {
+            MIGRAPHX_THROW("PARSE_TOPK: a runtime `k` needs a static or symbolic data shape; "
+                           "parse with symbolic shapes enabled");
+        }
         // Normalize axis because we need the interval maximum on that dimension.
-        auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
-        int64_t max_k        = input_shape.max_lens().at(norm_axis);
-        auto topk_ret = info.add_instruction(
-            make_op("topk", {{"k", max_k}, {"axis", norm_axis}, {"largest", largest}}), args.at(0));
-        auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
-        auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
-        auto k_var = sym::var(info.name, {0, max_k});
-        auto starts_lit       = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
-        ret_val    = info.add_instruction(make_op("dyn_slice",
-                                               {{"axes", {norm_axis}},
-                                                {"starts", {0}},
-                                                {"ends", value::array{to_value(k_var)}}}),
-                                       ret_val,
-                                       starts_lit,
-                                       k_ins);
-        ret_ind    = info.add_instruction(make_op("dyn_slice",
-                                               {{"axes", {norm_axis}},
-                                                {"starts", {0}},
-                                                {"ends", value::array{to_value(k_var)}}}),
-                                       ret_ind,
-                                       starts_lit,
-                                       k_ins);
+        int64_t norm_axis = tune_axis(input_shape.ndim(), axis, "TopK");
+        int64_t max_k     = input_shape.max_lens().at(norm_axis);
+        auto outs         = add_topk_and_gets(info, args, max_k, norm_axis, largest);
 
-        return {ret_val, ret_ind};
+        // `k` is only known at run time, so it becomes a symbol bounded by the axis it slices.
+        auto k_var      = sym::var(info.name, {0, max_k});
+        auto starts_lit = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
+        auto dyn_slice  = make_op(
+            "dyn_slice",
+            {{"axes", {norm_axis}}, {"starts", {0}}, {"ends", value::array{to_value(k_var)}}});
+        std::transform(outs.begin(), outs.end(), outs.begin(), [&](auto out) {
+            return info.add_instruction(dyn_slice, out, starts_lit, k_ins);
+        });
+        return outs;
     }
 };
 

@@ -969,6 +969,8 @@ static const std::vector<rewrite_rule>& get_rewrite_rules()
             sqrt(_1 / _2) >> sqrt(_1) / sqrt(_2),
             log(exp(_1)) >> _1,
             exp(log(_1)) >> _1,
+            min(_1, _1) >> _1,
+            max(_1, _1) >> _1,
             min(min(_1, _2), _2) >> min(_1, _2),
             min(min(_2, _1), _2) >> min(_2, _1),
             max(max(_1, _2), _2) >> max(_1, _2),
@@ -1240,6 +1242,7 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
     return std::nullopt;
 }
 
+// Get rid of min(a, b) if it can definitively determined
 expr fold_min(const expr& a, const expr& b)
 {
     auto lt = strict_less(a, b);
@@ -1248,6 +1251,7 @@ expr fold_min(const expr& a, const expr& b)
     return min(a, b);
 }
 
+// Get rid of max(a, b) if it can definitively determined
 expr fold_max(const expr& a, const expr& b)
 {
     auto lt = strict_less(a, b);
@@ -2348,11 +2352,11 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         e = sym::expr{};
         return;
     }
-    // Allow symbolic literals to be written as bare numbers, e.g.
+    // Allow symbolic literals to be written as bare numbers or expressions, e.g.
     // make_op("dyn_slice", {{"starts", {1}}}).
     if(not v.is_object())
     {
-        e = sym::lit(value_to_sym_scalar(v));
+        e = sym::parse(v.to<std::string>());
         return;
     }
     auto type = v.at("type").get_string();

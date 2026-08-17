@@ -174,7 +174,7 @@ struct pipeline_factory
 
     std::vector<pass> optimize_rewrite_pipeline() const
     {
-        auto gfx_name = get_context()->get_current_device().get_gfx_name();
+        auto gfx_name          = get_context()->get_current_device().get_gfx_name();
         bool bf16_missing_valu = not starts_with(gfx_name, "gfx125");
         return {
             rewrite_convolution{},

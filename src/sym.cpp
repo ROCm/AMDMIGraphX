@@ -2352,11 +2352,16 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         e = sym::expr{};
         return;
     }
-    // Allow symbolic literals to be written as bare numbers or expressions, e.g.
-    // make_op("dyn_slice", {{"starts", {1}}}).
+    // Allow a symbolic literal to be written as a bare number and a symbolic expression as a
+    // bare string, e.g. make_op("dyn_slice", {{"starts", {1}}, {"ends", {"n + 1"}}}).
+    if(const auto* s = v.if_string())
+    {
+        e = sym::parse(*s);
+        return;
+    }
     if(not v.is_object())
     {
-        e = sym::parse(v.to<std::string>());
+        e = sym::lit(value_to_sym_scalar(v));
         return;
     }
     auto type = v.at("type").get_string();

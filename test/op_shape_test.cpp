@@ -7267,6 +7267,42 @@ TEST_CASE(test_unsqueeze_sym_step_non_divisible_throws)
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
 }
 
+TEST_CASE(topk_sym_shape)
+{
+    // A symbolic input keeps every dimension symbolic, with the sorted axis set to min(k, dim).
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    auto sorted = migraphx::sym::min(lit(3), m);
+    migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{sorted}}};
+    migraphx::shape ind{migraphx::shape::int64_type, {dd{n}, dd{sorted}}};
+    expect_shape(
+        migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}), input);
+    EXPECT(val.to_static({{n, 4}, {m, 8}}) ==
+           migraphx::shape{migraphx::shape::float_type, {4, 3}, {3, 1}});
+}
+
+TEST_CASE(topk_sym_shape_folded_k)
+{
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    {
+        // `k` at or above the axis maximum can never trim it, so the dimension is unchanged.
+        migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{m}}};
+        migraphx::shape ind{migraphx::shape::int64_type, {dd{n}, dd{m}}};
+        expect_shape(
+            migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 4}, {"axis", 1}}), input);
+    }
+    {
+        // `k` below the axis minimum always trims it, which fixes the sorted axis.
+        migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{lit(1)}}};
+        migraphx::shape ind{migraphx::shape::int64_type, {dd{n}, dd{lit(1)}}};
+        expect_shape(
+            migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 1}, {"axis", 1}}), input);
+    }
+}
+
 TEST_CASE(transpose_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2}};

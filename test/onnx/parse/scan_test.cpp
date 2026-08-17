@@ -35,7 +35,7 @@ TEST_CASE(scan_test)
     auto scan_ins1  = mm->add_parameter("scan_ins1", mgx::shape{mgx::shape::float_type, {2, 3, 2}});
     auto scan_ins2  = mm->add_parameter("scan_ins2", mgx::shape{mgx::shape::float_type, {3, 1}});
 
-    auto* body  = prog.create_module("Scan_3_scan");
+    auto* body  = prog.create_module("main_Scan_3_scan");
     auto iter   = body->add_parameter("iter", mgx::shape{mgx::shape::int64_type});
     auto cond   = body->add_parameter("cond", mgx::shape{mgx::shape::bool_type});
     auto sum_in = body->add_parameter("state_var0", mgx::shape{mgx::shape::float_type, {2, 2}});

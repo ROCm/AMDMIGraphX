@@ -41,14 +41,14 @@ TEST_CASE(if_else_diff_strides_test)
 
     auto xt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
 
-    auto* then_mod = expected.create_module("If_5_if");
+    auto* then_mod = expected.create_module("main_If_5_if");
     {
         auto id         = then_mod->add_instruction(migraphx::make_op("identity"), xt);
         auto contiguous = then_mod->add_instruction(migraphx::make_op("contiguous"), id);
         then_mod->add_return({contiguous});
     }
 
-    auto* else_mod = expected.create_module("If_5_else");
+    auto* else_mod = expected.create_module("main_If_5_else");
     {
         auto add = else_mod->add_instruction(migraphx::make_op("add"), y, ones);
         else_mod->add_return({add});

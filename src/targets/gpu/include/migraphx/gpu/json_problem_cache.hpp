@@ -20,55 +20,43 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
+#ifndef MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP
+#define MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/compile_modes.hpp>
-#include <migraphx/tracer.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/gpu/export.h>
+#include <migraphx/gpu/cache_device_key.hpp>
+
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-struct compile_options
+// A problem_cache_backend that persists entries as JSON, using the same
+// on-disk format as problem_cache::save() (an array of [cache_device_key,
+// inner_map] pairs). Path resolution is the caller's job.
+struct MIGRAPHX_GPU_EXPORT json_problem_cache
 {
-    /**
-     * Have MIGX allocate memory for parameters and add instructions
-     * to copy parameters and output to/from an offload device like a GPU.
-     */
-    bool offload_copy = false;
+    // problem_cache_backend concept members:
+    void load(const std::string& path);
+    void save(const std::string& path) const;
+    void insert(const cache_device_key& dk, const value& key, const value& solution);
+    void mark(const cache_device_key& dk, const value& key);
+    optional<value> get(const cache_device_key& dk, const value& key) const;
+    bool has(const cache_device_key& dk, const value& key) const;
 
-    bool fast_math       = true;
-    bool exhaustive_tune = false;
-
-    compile_modes compile_mode = compile_modes::balanced;
-    /**
-     * Backend-specific options keyed by name. Targets can read these to
-     * configure compilation in a way that is opaque to the core engine.
-     */
-    std::unordered_map<std::string, value> backend_options;
-
-    tracer trace{};
+    // Device bucket -> ({name, problem} -> solution).
+    std::unordered_map<cache_device_key, std::unordered_map<value, value>> cache;
 };
 
-/**
- * Merge the backend options from an object value into the compile options.
- * Each top-level key of the object becomes an entry in backend_options.
- */
-inline void set_backend_options(compile_options& options, const value& v)
-{
-    if(not v.is_object())
-        MIGRAPHX_THROW("set_backend_options expects an object value");
-    for(const auto& opt : v)
-        options.backend_options[opt.get_key()] = opt.without_key();
-}
-
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP

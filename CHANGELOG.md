@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added a layered problem-cache priority list (searched in order, first hit wins), delivered to the GPU target through the `problem_cache_files` backend option.
 * Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added YOLO26 object detection example notebook.
 * Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).

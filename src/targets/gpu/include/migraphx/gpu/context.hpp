@@ -37,6 +37,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/logger.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/device_description.hpp>
@@ -279,8 +280,22 @@ struct context
         auto_save_problem_cache& operator=(const auto_save_problem_cache&) = delete;
         virtual ~auto_save_problem_cache()
         {
-            if(auto_save)
+            if(not auto_save)
+                return;
+            // The destructor is implicitly noexcept, so a save() failure (disk
+            // full, permissions) must be swallowed here or it would terminate.
+            try
+            {
                 this->save();
+            }
+            catch(const std::exception& e)
+            {
+                log::warn() << "auto_save_problem_cache: save failed: " << e.what();
+            }
+            catch(...)
+            {
+                log::warn() << "auto_save_problem_cache: save failed: unknown error";
+            }
         }
     };
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
@@ -457,11 +472,37 @@ struct context
     }
 
     problem_cache& get_problem_cache() { return *pc; }
-    void load_problem_cache()
+
+    /// Configure the problem cache from a priority list of files (first hit
+    /// wins). A single file is writable (solutions save back); multiple files
+    /// are a read-only priority list. The layered search lives in problem_cache.
+    void load_problem_caches(const std::vector<std::string>& paths)
     {
-        pc->load();
-        pc->auto_save = true;
+        pc->load(paths);
+        pc->auto_save = (paths.size() == 1);
     }
+
+    /// Look up a problem across the configured caches (read-only layers first,
+    /// then writable); returns the first hit. This is what compile_ops calls.
+    optional<value> problem_cache_get(const std::string& name, const value& problem) const
+    {
+        return pc->get(name, problem);
+    }
+
+    /// Insert into the writable cache only (new tuning solutions go here).
+    void problem_cache_insert(const std::string& name, const value& problem, const value& solution)
+    {
+        pc->insert(name, problem, solution);
+    }
+
+    /// Mark a problem as seen in the writable cache.
+    void problem_cache_mark(const std::string& name, const value& problem)
+    {
+        pc->mark(name, problem);
+    }
+
+    /// Save the writable cache (called explicitly or via auto_save on destruction).
+    void save_problem_cache() const { pc->save(); }
 
     private:
     // TODO: Make this a vector to support multiple devices

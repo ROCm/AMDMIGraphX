@@ -107,11 +107,15 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Problem cache files, searched in priority order (first hit wins). A single
+    // file is writable (new solutions are saved to it); multiple are read-only.
+    std::vector<std::string> problem_cache_files = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"));
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.problem_cache_files, "problem_cache_files"));
     }
 };
 
@@ -279,12 +283,17 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 {
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
-    ctx.load_problem_cache(); // TODO: update load_problem_cache to include gpu arch
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
-    pipeline_factory p{&gctx, options, from_value<backend_options>(value(options.backend_options))};
+    auto backend_opts = from_value<backend_options>(value(options.backend_options));
+
+    // Problem cache files arrive as a GPU backend option, searched in priority
+    // order (first hit wins). A single file is writable; multiple are read-only.
+    ctx.load_problem_caches(backend_opts.problem_cache_files);
+
+    pipeline_factory p{&gctx, options, backend_opts};
 
     std::vector<std::vector<pass>> pipelines;
 

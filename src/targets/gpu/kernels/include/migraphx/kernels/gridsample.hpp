@@ -31,7 +31,6 @@
 
 namespace migraphx {
 
-// padding_mode encoding, must match gridsample_compiler in jit/gridsample.cpp
 enum gridsample_padding : int
 {
     gridsample_zeros      = 0,
@@ -39,8 +38,26 @@ enum gridsample_padding : int
     gridsample_reflection = 2
 };
 
-// (c + 1) * (size - 1) / 2   with align_corners
-// (c + 1) * size / 2 - 0.5   otherwise
+enum gridsample_mode : int
+{
+    gridsample_mode_nearest = 0,
+    gridsample_mode_linear  = 1,
+    gridsample_mode_cubic   = 2
+};
+
+MIGRAPHX_DEVICE_CONSTEXPR float gridsample_cubic_weight_1(float t)
+{
+    constexpr float a = -0.75f;
+    return ((a + 2.0f) * t - (a + 3.0f)) * t * t + 1.0f;
+}
+
+MIGRAPHX_DEVICE_CONSTEXPR float gridsample_cubic_weight_2(float t)
+{
+    constexpr float a = -0.75f;
+    return ((a * t - 5.0f * a) * t + 8.0f * a) * t - 4.0f * a;
+}
+
+
 template <bool AlignCorners>
 MIGRAPHX_DEVICE_CONSTEXPR float gridsample_unnormalize(float c, float size)
 {
@@ -50,8 +67,6 @@ MIGRAPHX_DEVICE_CONSTEXPR float gridsample_unnormalize(float c, float size)
         return (c + 1.0f) * (size / 2.0f) - 0.5f;
 }
 
-// Mirrors grid_sampler::reflect_coordinates() in src/onnx/parse_gridsample.cpp,
-// including the floor() applied before the division.
 MIGRAPHX_DEVICE_CONSTEXPR float gridsample_reflect(float c, float size, float corner_start)
 {
     float idx        = migraphx::abs(corner_start - c);
@@ -75,9 +90,9 @@ MIGRAPHX_DEVICE_CONSTEXPR float gridsample_pad(float c, float size)
     return c;
 }
 
-// One thread per output element.  The four bilinear taps are computed inline
-// from the grid coordinate; no index tensors are materialized.
-template <bool AlignCorners, int PaddingMode, class T, class G, class U>
+// One thread per output element. Taps are computed inline from the grid
+// coordinate; no index tensors are materialized.
+template <bool AlignCorners, int PaddingMode, int Mode, class T, class G, class U>
 __device__ void gridsample(const T& x_t, const G& grid_t, U& y_t)
 {
     auto index       = make_index();
@@ -104,38 +119,112 @@ __device__ void gridsample(const T& x_t, const G& grid_t, U& y_t)
         const float py = gridsample_pad<AlignCorners, PaddingMode>(
             gridsample_unnormalize<AlignCorners>(gy, in_h), in_h);
 
-        const float fx0 = migraphx::floor<float>(px);
-        const float fy0 = migraphx::floor<float>(py);
-        const float fx  = px - fx0;
-        const float fy  = py - fy0;
+        if constexpr(Mode == gridsample_mode_nearest)
+        {
+            // Bounds-checked on the rounded float value, matching
+            // nearest_sampler in the ONNX parser (round -> clip ->
+            // compare-equal). See op::gridsample::compute() for why the
+            // check has to happen before any cast to an unsigned index type.
+            const float rx   = migraphx::nearbyint<float>(px);
+            const float ry   = migraphx::nearbyint<float>(py);
+            const bool valid = rx >= 0.0f and rx <= w_max and ry >= 0.0f and ry <= h_max;
 
-        // In-range test on the sample coordinate, matching the clip-then-compare
-        // validation in the parser decomposition.
-        const bool x0_ok = fx0 >= 0.0f and fx0 <= w_max;
-        const bool x1_ok = (fx0 + 1.0f) >= 0.0f and (fx0 + 1.0f) <= w_max;
-        const bool y0_ok = fy0 >= 0.0f and fy0 <= h_max;
-        const bool y1_ok = (fy0 + 1.0f) >= 0.0f and (fy0 + 1.0f) <= h_max;
+            const auto xi = static_cast<index_int>(valid ? rx : 0.0f);
+            const auto yi = static_cast<index_int>(valid ? ry : 0.0f);
 
-        const auto x0 = static_cast<index_int>(migraphx::min(migraphx::max(fx0, 0.0f), w_max));
-        const auto y0 = static_cast<index_int>(migraphx::min(migraphx::max(fy0, 0.0f), h_max));
-        const auto x1 =
-            static_cast<index_int>(migraphx::min(migraphx::max(fx0 + 1.0f, 0.0f), w_max));
-        const auto y1 =
-            static_cast<index_int>(migraphx::min(migraphx::max(fy0 + 1.0f, 0.0f), h_max));
+            y_t[idx] = valid ? implicit_conversion(x_t[array<index_int, 4>{n, c, yi, xi}])
+                             : implicit_conversion(0.0f);
+        }
+        else if constexpr(Mode == gridsample_mode_cubic)
+        {
+            // 4x4 tap cubic convolution, mirrors bicubic_sampler in the ONNX
+            // parser and op::gridsample::compute(): gridsample_pad() is
+            // applied once above for px/py, and again per corner below,
+            // since border/reflection padding must reflect corners that
+            // fall outside the image independently of the base coordinate.
+            const float floor_x = migraphx::floor<float>(px);
+            const float floor_y = migraphx::floor<float>(py);
+            const float fx      = px - floor_x;
+            const float fy      = py - floor_y;
 
-        // Accumulated in the same order as the parser: (x0,y0), (x1,y0), (x0,y1), (x1,y1)
-        float acc = 0.0f;
-        if(x0_ok and y0_ok)
-            acc += static_cast<float>(x_t[array<index_int, 4>{n, c, y0, x0}]) *
-                   ((1.0f - fy) * (1.0f - fx));
-        if(x1_ok and y0_ok)
-            acc += static_cast<float>(x_t[array<index_int, 4>{n, c, y0, x1}]) * ((1.0f - fy) * fx);
-        if(x0_ok and y1_ok)
-            acc += static_cast<float>(x_t[array<index_int, 4>{n, c, y1, x0}]) * (fy * (1.0f - fx));
-        if(x1_ok and y1_ok)
-            acc += static_cast<float>(x_t[array<index_int, 4>{n, c, y1, x1}]) * (fy * fx);
+            const float x_weight[4] = {gridsample_cubic_weight_2(fx + 1.0f),
+                                       gridsample_cubic_weight_1(fx),
+                                       gridsample_cubic_weight_1(1.0f - fx),
+                                       gridsample_cubic_weight_2(2.0f - fx)};
+            const float y_weight[4] = {gridsample_cubic_weight_2(fy + 1.0f),
+                                       gridsample_cubic_weight_1(fy),
+                                       gridsample_cubic_weight_1(1.0f - fy),
+                                       gridsample_cubic_weight_2(2.0f - fy)};
 
-        y_t[idx] = implicit_conversion(acc);
+            index_int x_idx[4];
+            index_int y_idx[4];
+            bool x_valid[4];
+            bool y_valid[4];
+            for(int k = 0; k < 4; ++k)
+            {
+                const float cx =
+                    gridsample_pad<AlignCorners, PaddingMode>(floor_x - 1.0f + k, in_w);
+                const float cy =
+                    gridsample_pad<AlignCorners, PaddingMode>(floor_y - 1.0f + k, in_h);
+                x_valid[k] = cx >= 0.0f and cx <= w_max;
+                y_valid[k] = cy >= 0.0f and cy <= h_max;
+                x_idx[k]   = static_cast<index_int>(x_valid[k] ? cx : 0.0f);
+                y_idx[k]   = static_cast<index_int>(y_valid[k] ? cy : 0.0f);
+            }
+
+            float acc = 0.0f;
+            for(int j = 0; j < 4; ++j)
+            {
+                float row = 0.0f;
+                for(int xk = 0; xk < 4; ++xk)
+                {
+                    if(x_valid[xk] and y_valid[j])
+                        row += static_cast<float>(
+                                   x_t[array<index_int, 4>{n, c, y_idx[j], x_idx[xk]}]) *
+                               x_weight[xk];
+                }
+                acc += row * y_weight[j];
+            }
+
+            y_t[idx] = implicit_conversion(acc);
+        }
+        else
+        {
+            const float fx0 = migraphx::floor<float>(px);
+            const float fy0 = migraphx::floor<float>(py);
+            const float fx  = px - fx0;
+            const float fy  = py - fy0;
+
+            // In-range test on the sample coordinate, matching the clip-then-compare
+            // validation in the parser decomposition.
+            const bool x0_ok = fx0 >= 0.0f and fx0 <= w_max;
+            const bool x1_ok = (fx0 + 1.0f) >= 0.0f and (fx0 + 1.0f) <= w_max;
+            const bool y0_ok = fy0 >= 0.0f and fy0 <= h_max;
+            const bool y1_ok = (fy0 + 1.0f) >= 0.0f and (fy0 + 1.0f) <= h_max;
+
+            const auto x0 = static_cast<index_int>(migraphx::min(migraphx::max(fx0, 0.0f), w_max));
+            const auto y0 = static_cast<index_int>(migraphx::min(migraphx::max(fy0, 0.0f), h_max));
+            const auto x1 =
+                static_cast<index_int>(migraphx::min(migraphx::max(fx0 + 1.0f, 0.0f), w_max));
+            const auto y1 =
+                static_cast<index_int>(migraphx::min(migraphx::max(fy0 + 1.0f, 0.0f), h_max));
+
+            // Accumulated in the same order as the parser: (x0,y0), (x1,y0), (x0,y1), (x1,y1)
+            float acc = 0.0f;
+            if(x0_ok and y0_ok)
+                acc += static_cast<float>(x_t[array<index_int, 4>{n, c, y0, x0}]) *
+                       ((1.0f - fy) * (1.0f - fx));
+            if(x1_ok and y0_ok)
+                acc +=
+                    static_cast<float>(x_t[array<index_int, 4>{n, c, y0, x1}]) * ((1.0f - fy) * fx);
+            if(x0_ok and y1_ok)
+                acc +=
+                    static_cast<float>(x_t[array<index_int, 4>{n, c, y1, x0}]) * (fy * (1.0f - fx));
+            if(x1_ok and y1_ok)
+                acc += static_cast<float>(x_t[array<index_int, 4>{n, c, y1, x1}]) * (fy * fx);
+
+            y_t[idx] = implicit_conversion(acc);
+        }
     });
 }
 

@@ -570,9 +570,9 @@ struct bicubic_sampler : grid_sampler
         auto inner_indices_t = concat_on_first_dim(info, inner_indices);
         inner_indices_t      = info.add_instruction(
             make_op("reshape",
-                    {{"dims",
-                      {inner_indices_t->get_shape().elements() / nhw_shape.elements(),
-                       nhw_shape.elements()}}}),
+                         {{"dims",
+                           {inner_indices_t->get_shape().elements() / nhw_shape.elements(),
+                            nhw_shape.elements()}}}),
             inner_indices_t);
         std::array<instruction_ref, 4> inner_y_samples;
         std::transform(
@@ -639,10 +639,10 @@ struct bicubic_sampler : grid_sampler
         coefficients = info.add_instruction(make_op("squeeze", {{"axes", {1}}}), coefficients);
 
         auto y_weights_t           = compute_weights(info,
-                                                     y_weight_indices,
-                                                     m_y_weights,
-                                                     coefficients->get_shape().lens(),
-                                                     nhw_shape.elements());
+                                           y_weight_indices,
+                                           m_y_weights,
+                                           coefficients->get_shape().lens(),
+                                           nhw_shape.elements());
         auto weighted_coefficients = info.add_common_op("mul", coefficients, y_weights_t);
         weighted_coefficients      = info.add_instruction(
             make_op("reshape", {{"dims", {weighted_coefficients->get_shape().elements() / 4, 4}}}),
@@ -709,21 +709,22 @@ struct parse_gridsample : op_parser<parse_gridsample>
             MIGRAPHX_THROW("PARSE_GRID_SAMPLE: only 4-D inputs are supported");
         }
 
-        // Bilinear sampling has a dedicated operator with a fused GPU kernel.
-        // The decompositions below remain the fallback for the other modes and
-        // for cases the operator does not cover.
-        if(not enabled(MIGRAPHX_DISABLE_GRIDSAMPLE_OP{}) and not contains(mode, "nearest") and
-           contains(mode, "linear") and x->get_shape().type() == grid_shape.type() and
-           not x->get_shape().dynamic() and not grid_shape.dynamic())
+        // "cubic" is a substring of "bicubic" so a single check covers both
+        // opset-16/opset-20+ spellings, same as for "nearest"/"linear".
+        bool supported_modes =
+            contains(mode, "nearest") or contains(mode, "linear") or contains(mode, "cubic");
+        bool is_dynamic = x->get_shape().dynamic() or grid_shape.dynamic();
+
+        if(not enabled(MIGRAPHX_DISABLE_GRIDSAMPLE_OP{}) and supported_modes and
+           x->get_shape().type() == grid_shape.type() and not is_dynamic)
         {
-            // the operator reads both inputs with computed offsets, so they
-            // have to be standard
             auto x_c =
                 x->get_shape().standard() ? x : info.add_instruction(make_op("contiguous"), x);
             auto g_c =
                 grid_shape.standard() ? grid : info.add_instruction(make_op("contiguous"), grid);
+
             return info.add_instruction(make_op("gridsample",
-                                                {{"mode", "linear"},
+                                                {{"mode", mode},
                                                  {"padding_mode", padding_mode},
                                                  {"align_corners", align_corners}}),
                                         x_c,

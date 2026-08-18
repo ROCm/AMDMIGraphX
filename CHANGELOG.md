@@ -7,7 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
-* Added GPU JIT kernel for the ONNX `GridSample` bilinear mode operator, replacing the `concat`+`gathernd` decomposition in the ONNX parser for that mode (#TODO).
+* Optimized GridSample by adding a GPU JIT kernel for the ONNX `nearest`, `linear`/`bilinear`, and `cubic`/`bicubic` modes, replacing the `concat`+`gathernd` decomposition in the ONNX parser for those modes (#5139).
 * Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added support for building against ROCm 7.13 and newer using TheRock (#4952)
 * Added YOLO26 object detection example notebook.

@@ -42,7 +42,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void gridsample_kernel(void* in_x, void* in_grid, void* y)
 {
     make_tensors()(in_x, in_grid, y)([](auto&&... xs) {
-        gridsample<bool{ALIGN_CORNERS}, int{PADDING_MODE}>(xs...);
+        gridsample<bool{ALIGN_CORNERS}, int{PADDING_MODE}, int{GRID_MODE}>(xs...);
     });
 }
 
@@ -67,7 +67,7 @@ struct gridsample_compiler : compiler<gridsample_compiler>
         options.emplace_param("-DALIGN_CORNERS=" +
                               std::string(v.at("align_corners").to<bool>() ? "true" : "false"));
 
-        //must match enum gridsample_padding
+        // must match enum gridsample_padding
         auto padding     = v.at("padding_mode").to<std::string>();
         int padding_mode = 0;
         if(padding == "border")
@@ -78,6 +78,21 @@ struct gridsample_compiler : compiler<gridsample_compiler>
             MIGRAPHX_THROW("gridsample: invalid padding_mode: " + padding);
 
         options.emplace_param("-DPADDING_MODE=" + std::to_string(padding_mode));
+
+        // must match enum gridsample_mode in kernels/gridsample.hpp. Accepts
+        // both opset-16 ("bilinear"/"bicubic") and opset-20+
+        // ("linear"/"cubic") spellings; "cubic" is a substring of "bicubic"
+        // so a single check covers both.
+        auto mode     = v.at("mode").to<std::string>();
+        int grid_mode = 1;
+        if(contains(mode, "nearest"))
+            grid_mode = 0;
+        else if(contains(mode, "cubic"))
+            grid_mode = 2;
+        else if(not(contains(mode, "linear") or contains(mode, "bilinear")))
+            MIGRAPHX_THROW("gridsample: invalid mode: " + mode);
+
+        options.emplace_param("-DGRID_MODE=" + std::to_string(grid_mode));
 
         return compile_hip_code_object(ctx, gridsample_kernel, options);
     }

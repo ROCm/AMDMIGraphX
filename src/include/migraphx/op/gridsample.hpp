@@ -39,21 +39,21 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- * Bilinear GridSample (ONNX GridSample, mode="linear"/"bilinear") for 4D inputs.
+ * GridSample (ONNX GridSample) for 4D inputs, mode in {"nearest", "linear",
+ * "cubic"}.
  *
  * Inputs:  x    {N, C, H_in,  W_in}
  *          grid {N, H_out, W_out, 2}   -- normalized (x, y) in [-1, 1]
  * Output:       {N, C, H_out, W_out}
  *
  * The semantics here are deliberately identical to the ONNX-parser
- * decomposition in src/onnx/parse_gridsample.cpp (struct linear_sampler): same
- * unnormalization, same padding handling, same corner weights, same
- * accumulation order.  The difference is purely that this computes the four
- * taps inline instead of materializing gathernd index tensors.
+ * decomposition in src/onnx/parse_gridsample.cpp (struct linear_sampler /
+ * nearest_sampler)
  */
 struct gridsample
 {
-    std::string mode         = "linear";
+    std::string mode = "linear";
+
     std::string padding_mode = "zeros";
     bool align_corners       = false;
 
@@ -70,8 +70,11 @@ struct gridsample
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).standard();
-        if(mode != "linear")
-            MIGRAPHX_THROW("GRIDSAMPLE: only mode=\"linear\" is supported, got \"" + mode + "\"");
+        bool supported_modes = contains(mode, "nearest") or contains(mode, "linear") or
+                               contains(mode, "bilinear") or contains(mode, "cubic") or contains(mode, "bicubic");
+        if(not supported_modes)
+            MIGRAPHX_THROW("GRIDSAMPLE: only modes \"nearest\", \"linear\" and \"cubic\" are supported or its legacy variants, got \"" +
+                           mode + "\"");
         if(padding_mode != "zeros" and padding_mode != "border" and padding_mode != "reflection")
             MIGRAPHX_THROW("GRIDSAMPLE: unknown padding_mode \"" + padding_mode + "\"");
 
@@ -90,16 +93,13 @@ struct gridsample
                 {x_s.lens().at(0), x_s.lens().at(1), g_s.lens().at(1), g_s.lens().at(2)}};
     }
 
-    // (c + 1) * (size - 1) / 2   with align_corners
-    // (c + 1) * size / 2 - 0.5   otherwise
+
     float unnormalize(float c, float size) const
     {
         return align_corners ? (c + 1.0f) * ((size - 1.0f) / 2.0f)
                              : (c + 1.0f) * (size / 2.0f) - 0.5f;
     }
 
-    // Mirrors grid_sampler::reflect_coordinates() in the ONNX parser, including
-    // the floor() applied before the division.
     static float reflect_coord(float c, float size, float corner_start)
     {
         float idx        = std::abs(corner_start - c);
@@ -109,7 +109,6 @@ struct gridsample
         return even ? extra + corner_start : (size - extra) + corner_start;
     }
 
-    // Applies padding_mode to an unnormalized coordinate.
     float pad_coord(float c, float size) const
     {
         if(padding_mode == "reflection")
@@ -152,39 +151,113 @@ struct gridsample
                 const float fy0 = std::floor(py);
                 const float fx  = px - fx0;
                 const float fy  = py - fy0;
-
-                // In-range test on the *sample* coordinate, matching the
-                // clip-then-compare validation in the parser decomposition.
-                const bool x0_ok = fx0 >= 0.0f and fx0 <= w_max;
-                const bool x1_ok = (fx0 + 1.0f) >= 0.0f and (fx0 + 1.0f) <= w_max;
-                const bool y0_ok = fy0 >= 0.0f and fy0 <= h_max;
-                const bool y1_ok = (fy0 + 1.0f) >= 0.0f and (fy0 + 1.0f) <= h_max;
-
-                const auto x0 = static_cast<std::size_t>(std::min(std::max(fx0, 0.0f), w_max));
-                const auto x1 =
-                    static_cast<std::size_t>(std::min(std::max(fx0 + 1.0f, 0.0f), w_max));
-                const auto y0 = static_cast<std::size_t>(std::min(std::max(fy0, 0.0f), h_max));
-                const auto y1 =
-                    static_cast<std::size_t>(std::min(std::max(fy0 + 1.0f, 0.0f), h_max));
-
-                for(std::size_t c = 0; c < n_chan; ++c)
+                if(contains(mode, "linear"))
                 {
-                    // Accumulated in the same order as the parser: (x0,y0), (x1,y0), (x0,y1),
-                    // (x1,y1)
-                    float acc = (x0_ok and y0_ok)
-                                    ? static_cast<float>(x[x_s.index({n, c, y0, x0})]) *
-                                          ((1.0f - fy) * (1.0f - fx))
-                                    : 0.0f;
-                    if(x1_ok and y0_ok)
-                        acc +=
-                            static_cast<float>(x[x_s.index({n, c, y0, x1})]) * ((1.0f - fy) * fx);
-                    if(x0_ok and y1_ok)
-                        acc +=
-                            static_cast<float>(x[x_s.index({n, c, y1, x0})]) * (fy * (1.0f - fx));
-                    if(x1_ok and y1_ok)
-                        acc += static_cast<float>(x[x_s.index({n, c, y1, x1})]) * (fy * fx);
+                    // In-range test on the *sample* coordinate, matching the
+                    // clip-then-compare validation in the parser decomposition.
+                    const bool x0_ok = fx0 >= 0.0f and fx0 <= w_max;
+                    const bool x1_ok = (fx0 + 1.0f) >= 0.0f and (fx0 + 1.0f) <= w_max;
+                    const bool y0_ok = fy0 >= 0.0f and fy0 <= h_max;
+                    const bool y1_ok = (fy0 + 1.0f) >= 0.0f and (fy0 + 1.0f) <= h_max;
 
-                    output[output_shape.index({n, c, h, w})] = acc;
+                    const auto x0 = static_cast<std::size_t>(std::min(std::max(fx0, 0.0f), w_max));
+                    const auto x1 =
+                        static_cast<std::size_t>(std::min(std::max(fx0 + 1.0f, 0.0f), w_max));
+                    const auto y0 = static_cast<std::size_t>(std::min(std::max(fy0, 0.0f), h_max));
+                    const auto y1 =
+                        static_cast<std::size_t>(std::min(std::max(fy0 + 1.0f, 0.0f), h_max));
+
+                    for(std::size_t c = 0; c < n_chan; ++c)
+                    {
+                        float acc = (x0_ok and y0_ok)
+                                        ? static_cast<float>(x[x_s.index({n, c, y0, x0})]) *
+                                              ((1.0f - fy) * (1.0f - fx))
+                                        : 0.0f;
+                        if(x1_ok and y0_ok)
+                            acc += static_cast<float>(x[x_s.index({n, c, y0, x1})]) *
+                                   ((1.0f - fy) * fx);
+                        if(x0_ok and y1_ok)
+                            acc += static_cast<float>(x[x_s.index({n, c, y1, x0})]) *
+                                   (fy * (1.0f - fx));
+                        if(x1_ok and y1_ok)
+                            acc += static_cast<float>(x[x_s.index({n, c, y1, x1})]) * (fy * fx);
+
+                        output[output_shape.index({n, c, h, w})] = acc;
+                    }
+                }
+                else if(contains(mode, "nearest"))
+                {
+                    const float rx   = std::nearbyint(px);
+                    const float ry   = std::nearbyint(py);
+                    const bool valid = rx >= 0.0f and rx <= w_max and ry >= 0.0f and ry <= h_max;
+                    const auto x_nearest = static_cast<std::size_t>(valid ? rx : 0.0f);
+                    const auto y_nearest = static_cast<std::size_t>(valid ? ry : 0.0f);
+
+                    for(std::size_t c = 0; c < n_chan; ++c)
+                    {
+                        output[output_shape.index({n, c, h, w})] =
+                            valid ? static_cast<float>(x[x_s.index({n, c, y_nearest, x_nearest})])
+                                  : 0.0f;
+                    }
+                }
+                else if(contains(mode, "cubic"))
+                {
+                
+
+                    auto cubic_weight_1 = [](float t) {
+                        constexpr float a = -0.75f;
+                        return ((a + 2.0f) * t - (a + 3.0f)) * t * t + 1.0f;
+                    };
+                    auto cubic_weight_2 = [](float t) {
+                        constexpr float a = -0.75f;
+                        return ((a * t - 5.0f * a) * t + 8.0f * a) * t - 4.0f * a;
+                    };
+
+                    const float x_weight[4] = {cubic_weight_2(fx + 1.0f),
+                                               cubic_weight_1(fx),
+                                               cubic_weight_1(1.0f - fx),
+                                               cubic_weight_2(2.0f - fx)};
+                    const float y_weight[4] = {cubic_weight_2(fy + 1.0f),
+                                               cubic_weight_1(fy),
+                                               cubic_weight_1(1.0f - fy),
+                                               cubic_weight_2(2.0f - fy)};
+
+                    std::size_t x_idx[4];
+                    std::size_t y_idx[4];
+                    bool x_valid[4];
+                    bool y_valid[4];
+                    for(int k = 0; k < 4; ++k)
+                    {
+                        const float cx = pad_coord(fx0 - 1.0f + k, in_w);
+                        const float cy = pad_coord(fy0 - 1.0f + k, in_h);
+                        x_valid[k]     = cx >= 0.0f and cx <= w_max;
+                        y_valid[k]     = cy >= 0.0f and cy <= h_max;
+                        x_idx[k]       = static_cast<std::size_t>(x_valid[k] ? cx : 0.0f);
+                        y_idx[k]       = static_cast<std::size_t>(y_valid[k] ? cy : 0.0f);
+                    }
+
+                    for(std::size_t c = 0; c < n_chan; ++c)
+                    {
+                        float acc = 0.0f;
+                        for(int j = 0; j < 4; ++j)
+                        {
+                            float row = 0.0f;
+                            for(int xk = 0; xk < 4; ++xk)
+                            {
+                                if(x_valid[xk] and y_valid[j])
+                                    row += static_cast<float>(
+                                               x[x_s.index({n, c, y_idx[j], x_idx[xk]})]) *
+                                           x_weight[xk];
+                            }
+                            acc += row * y_weight[j];
+                        }
+                        output[output_shape.index({n, c, h, w})] = acc;
+                    }
+                }else{
+                    //How did we even get here? 
+                    MIGRAPHX_THROW("GRIDSAMPLE: only modes \"nearest\", \"linear\" and \"cubic\" are supported or its legacy variants, got \"" +
+                                   mode + "\"");
+                    
                 }
             });
         });

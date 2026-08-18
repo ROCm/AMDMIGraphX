@@ -362,6 +362,171 @@ TEST_CASE(nhwc_conv_conv)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(nchw_conv_output_channels_last_unchanged)
+{
+    // output_channels_last only applies to channels_last: NCHW graphs are untouched.
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 8, 3, 3}}));
+        auto conv =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1,
+             {.order                          = migraphx::layout_convolution::channels_first,
+              .output_channels_last_threshold = 1});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nhwc_conv_output_channels_last)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 3, 3}}));
+        auto conv =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        m1.add_return({conv});
+    }
+    run_pass(m1,
+             {.order                          = migraphx::layout_convolution::channels_last,
+              .output_channels_last_threshold = 8});
+
+    migraphx::module m2;
+    {
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
+        auto w = m2.add_instruction(layout({2, 3, 1, 0}),
+                                    m2.add_literal(migraphx::generate_literal(
+                                        {migraphx::shape::float_type, {8, 8, 3, 3}})));
+        auto conv =
+            m2.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        auto conv_layout = m2.add_instruction(layout(), conv);
+        m2.add_return({conv_layout});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nhwc_conv_output_channels_last_small_k)
+{
+    // Fewer than 8 output channels keeps kyxc: same result as with the flag off.
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 8, 3, 3}}));
+        auto conv =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1,
+             {.order                          = migraphx::layout_convolution::channels_last,
+              .output_channels_last_threshold = 8});
+    run_pass(m2, {.order = migraphx::layout_convolution::channels_last});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nhwc_conv_output_channels_last_always)
+{
+    // A threshold of 1 always stores the weights output-channels-last.
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 8, 3, 3}}));
+        auto conv =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        m1.add_return({conv});
+    }
+    run_pass(m1,
+             {.order                          = migraphx::layout_convolution::channels_last,
+              .output_channels_last_threshold = 1});
+
+    migraphx::module m2;
+    {
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
+        auto w = m2.add_instruction(layout({2, 3, 1, 0}),
+                                    m2.add_literal(migraphx::generate_literal(
+                                        {migraphx::shape::float_type, {3, 8, 3, 3}})));
+        auto conv =
+            m2.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        auto conv_layout = m2.add_instruction(layout(), conv);
+        m2.add_return({conv_layout});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nhwc_quant_conv_output_channels_last_unchanged)
+{
+    // yxck applies only to fp32 convolution: quant_convolution keeps kyxc.
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 16, 16}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {4, 8, 3, 3}}));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("quant_convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1,
+             {.order                          = migraphx::layout_convolution::channels_last,
+              .output_channels_last_threshold = 1});
+    run_pass(m2, {.order = migraphx::layout_convolution::channels_last});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nhwc_conv_concat_conv)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {15, 8, 3, 3}}));
+        auto conv1 = m1.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w1);
+        auto c = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 16, 16}}));
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), conv1, c);
+        auto w2     = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {4, 16, 3, 3}}));
+        auto conv2 = m1.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), concat, w2);
+        m1.add_return({conv2});
+    }
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
+
+    migraphx::module m2;
+    {
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
+        auto w1    = add_layout_nhwc(m2,
+                                  m2.add_literal(migraphx::generate_literal(
+                                      {migraphx::shape::float_type, {15, 8, 3, 3}})));
+        auto conv1 = m2.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w1);
+        auto c = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 16, 16}}));
+        // The singleton-channel literal is layout-ambiguous, so the concat
+        // output stays channels-last and needs no relayout before conv2.
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), conv1, c);
+        auto w2     = add_layout_nhwc(m2,
+                                  m2.add_literal(migraphx::generate_literal(
+                                      {migraphx::shape::float_type, {4, 16, 3, 3}})));
+        auto conv2  = m2.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), concat, w2);
+        auto conv2_layout = m2.add_instruction(layout(), conv2);
+        m2.add_return({conv2_layout});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(nhwc_conv_reduce)
 {
     migraphx::module m1;

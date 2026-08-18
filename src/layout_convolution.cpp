@@ -92,7 +92,9 @@ void preserve_output_layout(module& m)
     }
 }
 
-void transform_convolutions(module& m, const layout_convolution::layout_order& order)
+void transform_convolutions(module& m,
+                            const layout_convolution::layout_order& order,
+                            std::size_t output_channels_last_threshold)
 {
     for(auto ins : iterator_for(m))
     {
@@ -104,11 +106,26 @@ void transform_convolutions(module& m, const layout_convolution::layout_order& o
             continue;
         auto v = ins->get_operator().to_value();
         bool is_group_conv = v.at("group").to<int>() > 1;
+        auto perm  = is_group_conv ? get_default_permutation(ins) : get_permutation(ins, order);
+        auto wperm = perm;
+        // With only a few output channels there is nothing to vectorize along K,
+        // so keep kyxc where its dense C loads win (e.g. 3-channel RGB heads).
+        if(output_channels_last_threshold > 0 and order == layout_convolution::channels_last and
+           not is_group_conv and ins->name() == "convolution" and
+           ins->inputs().front()->get_shape().type() == shape::float_type and
+           ins->inputs().back()->get_shape().lens().front() >= output_channels_last_threshold)
+        {
+            // Weights [K, C, spatial...] stored spatial-major with the output
+            // channel dim K innermost (yxck for 2-D convolutions)
+            std::iota(wperm.begin(), wperm.end() - 2, 2);
+            *(wperm.end() - 2) = 1;
+            wperm.back()       = 0;
+        }
         auto args = ins->inputs();
-        auto perm = is_group_conv ? get_default_permutation(ins) : get_permutation(ins, order);
-        std::transform(args.begin(), args.end(), args.begin(), [&](const auto& i) {
-            return m.insert_instruction(ins, make_op("layout", {{"permutation", perm}}), i);
-        });
+        args.front() =
+            m.insert_instruction(ins, make_op("layout", {{"permutation", perm}}), args.front());
+        args.back() =
+            m.insert_instruction(ins, make_op("layout", {{"permutation", wperm}}), args.back());
         auto conv = m.insert_instruction(ins, ins->get_operator(), args);
         auto c    = m.insert_instruction(ins, make_op("contiguous"), conv);
         m.replace_instruction(ins, c);
@@ -129,10 +146,12 @@ void remove_layout(module& m)
     }
 }
 
-void apply_layout(module& m, layout_convolution::layout_order order)
+void apply_layout(module& m,
+                  layout_convolution::layout_order order,
+                  std::size_t output_channels_last_threshold)
 {
     preserve_output_layout(m);
-    transform_convolutions(m, order);
+    transform_convolutions(m, order, output_channels_last_threshold);
     run_passes(
         m, {dead_code_elimination{}, eliminate_contiguous{"contiguous"}, dead_code_elimination{}});
     remove_layout(m);
@@ -166,18 +185,18 @@ void layout_convolution::apply(module_pass_manager& mpm) const
         // place with the cheaper one. A copy is not swapped in because its parameters
         // have fresh identities, which would orphan submodules capturing the originals.
         module m_first = mpm.get_module();
-        apply_layout(m_first, channels_first);
+        apply_layout(m_first, channels_first, output_channels_last_threshold);
         module m_last = mpm.get_module();
-        apply_layout(m_last, channels_last);
+        apply_layout(m_last, channels_last, output_channels_last_threshold);
         // channels_last converts each parameter to NHWC and back, so allow up to two extra
         // layouts per parameter before preferring channels_first.
         auto allowance = 2 * mpm.get_module().get_parameters().size();
         auto chosen = (score(m_first) + allowance < score(m_last)) ? channels_first : channels_last;
-        apply_layout(mpm.get_module(), chosen);
+        apply_layout(mpm.get_module(), chosen, output_channels_last_threshold);
     }
     else
     {
-        apply_layout(mpm.get_module(), order);
+        apply_layout(mpm.get_module(), order, output_channels_last_threshold);
     }
 }
 

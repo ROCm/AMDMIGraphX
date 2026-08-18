@@ -1305,31 +1305,31 @@ TEST_CASE(hoist_and_dot_fusion_end_to_end)
     EXPECT(n_pointwise == 1);
 }
 
-// Independent SwiGLU expert heads -- add(dot(mul(x, sigmoid(x)), W), bias) with
-// constant W/bias -- fuse into one batched GEMM + pointwise through the pipeline.
-TEST_CASE(expert_head_fusion_pipeline)
+// Parallel SwiGLU expert heads -- add(dot(mul(x, sigmoid(x)), W), bias) -- batch
+// into a single GEMM via dot_horizontal_fusion even though each dot feeds an
+// elementwise epilogue.  Nothing is stranded: find_splits (simplify_algebra)
+// re-fuses the per-slice epilogue after the batched dot is sliced back out.
+TEST_CASE(expert_head_dots_batch_with_constant_epilogue)
 {
-    migraphx::program p;
+    migraphx::module m;
     {
-        auto* m = p.get_main_module();
-        // Non-scalar constant bias keeps the epilogues structurally equal so they fuse.
         auto add_head = [&](const std::string& name, int seed) {
-            auto x = m->add_parameter(name, {migraphx::shape::float_type, {2, 8}});
-            auto w = m->add_literal(
+            auto x = m.add_parameter(name, {migraphx::shape::float_type, {2, 8}});
+            auto w = m.add_literal(
                 migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, seed));
-            auto b = m->add_literal(
+            auto b = m.add_literal(
                 migraphx::generate_literal({migraphx::shape::float_type, {2, 8}}, 10 + seed));
-            auto sig = m->add_instruction(migraphx::make_op("sigmoid"), x);
-            auto mul = m->add_instruction(migraphx::make_op("mul"), x, sig);
-            auto d   = m->add_instruction(migraphx::make_op("dot"), mul, w);
-            return m->add_instruction(migraphx::make_op("add"), d, b);
+            auto sig = m.add_instruction(migraphx::make_op("sigmoid"), x);
+            auto mul = m.add_instruction(migraphx::make_op("mul"), x, sig);
+            auto d   = m.add_instruction(migraphx::make_op("dot"), mul, w);
+            return m.add_instruction(migraphx::make_op("add"), d, b);
         };
-        m->add_return({add_head("x0", 0), add_head("x1", 1), add_head("x2", 2), add_head("x3", 3)});
+        m.add_return({add_head("x0", 0), add_head("x1", 1), add_head("x2", 2), add_head("x3", 3)});
     }
-    run_mlp_pipeline(p);
+    run_pass(m);
 
     std::size_t n_dot = 0;
-    for(auto ins : iterator_for(*p.get_main_module()))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() == "dot")
             ++n_dot;
@@ -1338,39 +1338,38 @@ TEST_CASE(expert_head_fusion_pipeline)
     EXPECT(n_dot == 1);
 }
 
-// A runtime (non-constant) epilogue operand can't fold into a batched epilogue,
-// so the heads stay unbatched.
-TEST_CASE(expert_head_no_fusion_nonconstant_epilogue)
+// A runtime (non-constant) epilogue operand does not affect GEMM batching: only
+// the weight needs to be constant, so the dots still collapse into one batched
+// GEMM regardless of what feeds the epilogue.
+TEST_CASE(expert_head_dots_batch_with_runtime_epilogue)
 {
-    migraphx::program p;
+    migraphx::module m;
     {
-        auto* m = p.get_main_module();
-        // Bias operand `v` is a runtime parameter, so the epilogue can't be batched.
         auto add_head = [&](const std::string& xname, const std::string& vname, int seed) {
-            auto x = m->add_parameter(xname, {migraphx::shape::float_type, {2, 8}});
-            auto v = m->add_parameter(vname, {migraphx::shape::float_type, {2, 8}});
-            auto w = m->add_literal(
+            auto x = m.add_parameter(xname, {migraphx::shape::float_type, {2, 8}});
+            auto v = m.add_parameter(vname, {migraphx::shape::float_type, {2, 8}});
+            auto w = m.add_literal(
                 migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, seed));
-            auto sig = m->add_instruction(migraphx::make_op("sigmoid"), x);
-            auto mul = m->add_instruction(migraphx::make_op("mul"), x, sig);
-            auto d   = m->add_instruction(migraphx::make_op("dot"), mul, w);
-            return m->add_instruction(migraphx::make_op("add"), d, v);
+            auto sig = m.add_instruction(migraphx::make_op("sigmoid"), x);
+            auto mul = m.add_instruction(migraphx::make_op("mul"), x, sig);
+            auto d   = m.add_instruction(migraphx::make_op("dot"), mul, w);
+            return m.add_instruction(migraphx::make_op("add"), d, v);
         };
-        m->add_return({add_head("x0", "v0", 0),
-                       add_head("x1", "v1", 1),
-                       add_head("x2", "v2", 2),
-                       add_head("x3", "v3", 3)});
+        m.add_return({add_head("x0", "v0", 0),
+                      add_head("x1", "v1", 1),
+                      add_head("x2", "v2", 2),
+                      add_head("x3", "v3", 3)});
     }
-    run_mlp_pipeline(p);
+    run_pass(m);
 
     std::size_t n_dot = 0;
-    for(auto ins : iterator_for(*p.get_main_module()))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() == "dot")
             ++n_dot;
     }
-    // No batching: each head keeps its own dot.
-    EXPECT(n_dot == 4);
+    // Batching is independent of the epilogue operand; the dots still collapse.
+    EXPECT(n_dot == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

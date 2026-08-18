@@ -31,7 +31,6 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/functional.hpp>
-#include <migraphx/optional.hpp>
 #include <algorithm>
 #include <numeric>
 #include <vector>
@@ -446,159 +445,17 @@ struct gather_horizontal_fusion
 };
 
 // ---------------------------------------------------------------------------
-// Expert-head horizontal fusion (dot + pointwise epilogue)
-//
-// Batches parallel MoE-style heads.  fuse_pointwise has already collapsed each
-// head's bias + activation into a single `pointwise` op, so we key on that fused
-// epilogue: a head is a `pointwise` whose only non-constant operand is a
-// used-once `dot` with a constant weight.  Independent, identically-shaped heads
-// are stacked on a new leading axis into one batched dot + one batched pointwise,
-// then sliced back out.
-// ---------------------------------------------------------------------------
-
-// The GEMM at the core of one expert head: a used-once dot with a constant weight.
-static bool is_expert_head_dot(instruction_ref ins)
-{
-    return ins->name() == "dot" and ins->inputs().size() == 2 and ins->outputs().size() == 1 and
-           not ins->get_shape().dynamic() and ins->inputs().at(1)->can_eval();
-}
-
-// Returns the index of the head dot within `pw`'s inputs, or nullopt when `pw`
-// is not a fusable expert head (a pointwise whose only non-constant input is one).
-static optional<std::size_t> find_expert_head_dot(instruction_ref pw)
-{
-    if(pw->name() != "pointwise")
-        return nullopt;
-    if(pw->get_shape().dynamic())
-        return nullopt;
-    if(pw->module_inputs().empty())
-        return nullopt;
-
-    const auto& inputs = pw->inputs();
-    auto dot           = std::find_if(inputs.begin(), inputs.end(), &is_expert_head_dot);
-    if(dot == inputs.end())
-        return nullopt;
-    // Every other operand must fold into the batched epilogue as a constant.
-    if(std::any_of(inputs.begin(), inputs.end(), [&](instruction_ref in) {
-           return in != *dot and not in->can_eval();
-       }))
-        return nullopt;
-    return static_cast<std::size_t>(std::distance(inputs.begin(), dot));
-}
-
-struct expert_head_horizontal_fusion
-{
-    // Heads fuse only when their structural_key and epilogue submodule match.
-    struct group_key_t
-    {
-        instruction_ref pw{};
-        std::size_t dot_pos = 0;
-
-        // Comparable-by-value fields; the submodule is compared separately below.
-        auto structural_key() const
-        {
-            auto d = pw->inputs().at(dot_pos);
-            return std::make_tuple(dot_pos,
-                                   pw->inputs().size(),
-                                   pw->get_shape(),
-                                   pw->get_operator(),
-                                   d->inputs().at(0)->get_shape(),
-                                   d->inputs().at(1)->get_shape());
-        }
-
-        bool operator==(const group_key_t& o) const
-        {
-            if(structural_key() != o.structural_key())
-                return false;
-            // A module can't live in the tuple, so compare the epilogues here.
-            return *pw->module_inputs().front() == *o.pw->module_inputs().front();
-        }
-        bool operator!=(const group_key_t& o) const { return not(*this == o); }
-    };
-
-    // Batching adds glue, so only pay it for large enough groups.
-    std::size_t min_group_size() const { return 3; }
-
-    bool is_candidate(instruction_ref ins) const { return has_value(find_expert_head_dot(ins)); }
-
-    group_key_t group_key(instruction_ref ins) const
-    {
-        auto dot_pos = find_expert_head_dot(ins);
-        assert(has_value(dot_pos));
-        return group_key_t{ins, *dot_pos};
-    }
-
-    std::vector<instruction_ref>
-    fuse(module& m, const std::vector<instruction_ref>& pws, instruction_ref insert_pt) const
-    {
-        auto dot_pos_opt = find_expert_head_dot(pws.front());
-        assert(has_value(dot_pos_opt));
-        std::size_t dot_pos = *dot_pos_opt;
-
-        // Stack the operand picked by `select` from every head on a new leading axis.
-        auto stack = [&](auto select) {
-            std::vector<instruction_ref> parts(pws.size());
-            std::transform(pws.begin(), pws.end(), parts.begin(), [&](auto pw) {
-                return m.insert_instruction(
-                    insert_pt, make_op("unsqueeze", {{"axes", {0}}}), select(pw));
-            });
-            return m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), parts);
-        };
-
-        // One batched GEMM over the stacked activations and weights.
-        auto batched_act =
-            stack([&](instruction_ref pw) { return pw->inputs().at(dot_pos)->inputs().at(0); });
-        auto batched_wt =
-            stack([&](instruction_ref pw) { return pw->inputs().at(dot_pos)->inputs().at(1); });
-        auto batched_dot = m.insert_instruction(insert_pt, make_op("dot"), batched_act, batched_wt);
-
-        // Replay the epilogue over the batched dot, stacking each constant operand.
-        std::vector<instruction_ref> ep_inputs(pws.front()->inputs().size());
-        for(std::size_t j = 0; j < ep_inputs.size(); ++j)
-        {
-            if(j == dot_pos)
-                ep_inputs[j] = batched_dot;
-            else
-                ep_inputs[j] = stack([&](instruction_ref pw) { return pw->inputs().at(j); });
-        }
-        auto batched_ep = m.insert_instruction(
-            insert_pt, pws.front()->get_operator(), ep_inputs, pws.front()->module_inputs());
-
-        // Slice each head's result back out.
-        std::vector<instruction_ref> results(pws.size());
-        for(std::size_t i = 0; i < pws.size(); ++i)
-        {
-            auto sliced = m.insert_instruction(
-                insert_pt,
-                make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
-                batched_ep);
-            results[i] =
-                m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced);
-        }
-        return results;
-    }
-};
-
-// ---------------------------------------------------------------------------
 // Generic dot horizontal fusion
 //
 // Batches structurally-identical dot operations into a single batched GEMM by
 // stacking activations and weights along a new leading dimension (axis 0).  The
 // batched dot output is sliced and squeezed back into the individual results.
+//
+// Parallel MoE-style expert heads (dot + bias/activation epilogue) are batched
+// here too: the dots collapse into one GEMM and the per-slice epilogues are
+// re-fused afterwards by find_splits in simplify_algebra, so nothing is stranded
+// behind the slice.
 // ---------------------------------------------------------------------------
-
-// A dot whose sole consumer is a pointwise op gets that op folded into its GEMM
-// epilogue by fuse_mlir/fuse_ops (e.g. mlir_dot_add, mlir_dot_add_sigmoid_mul).
-// Horizontally batching such a dot inserts a slice+squeeze between the batched
-// dot and the pointwise, which is a fusion boundary, so the epilogue would fall
-// out as a separate kernel.  Skip these to avoid regressing epilogue fusion.
-static bool feeds_fusable_pointwise(instruction_ref ins)
-{
-    if(ins->outputs().size() != 1)
-        return false;
-    auto out = ins->outputs().front();
-    return out->name() == "pointwise" or out->get_operator().attributes().contains("pointwise");
-}
 
 struct dot_horizontal_fusion
 {
@@ -613,9 +470,6 @@ struct dot_horizontal_fusion
         if(ins->get_shape().dynamic())
             return false;
         if(ins->get_shape().ndim() < 2)
-            return false;
-        // Don't break an existing GEMM-epilogue fusion (see helper).
-        if(feeds_fusable_pointwise(ins))
             return false;
         // Only fold when the weight is a compile-time constant so the batched
         // weight tensor can be materialized.
@@ -670,7 +524,6 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
     fuse_horizontal_ops(m,
                         gather_horizontal_fusion{},
                         same_table_gather_horizontal_fusion{},
-                        expert_head_horizontal_fusion{},
                         dot_horizontal_fusion{});
 }
 

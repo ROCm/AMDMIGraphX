@@ -149,9 +149,13 @@ rocm_setup_version(VERSION 2.17.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
+set(MIGRAPHX_THEROCK_EXTRAS_VERSION "7" CACHE STRING
+    "ROCm Extras compatibility stream used for the default TheRock install prefix")
+
 if(NOT WIN32 AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
-        set(_MGX_DEFAULT_INSTALL_PREFIX "/opt/rocm/migraphx-${PROJECT_VERSION}")
+        set(_MGX_DEFAULT_INSTALL_PREFIX
+            "/opt/rocm/extras-${MIGRAPHX_THEROCK_EXTRAS_VERSION}")
     else()
         set(_MGX_DEFAULT_INSTALL_PREFIX "/opt/rocm")
     endif()

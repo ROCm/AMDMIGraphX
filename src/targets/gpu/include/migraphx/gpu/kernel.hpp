@@ -42,21 +42,19 @@ namespace gpu {
 
 struct kernel_impl;
 
-// MIGraphX launches kernels through hipExtModuleLaunchKernel, passing the
-// arguments as a packed byte buffer described by an `extra` config array of HIP
-// launch-param (tag, value) pairs terminated by a sentinel. The buffer is opaque
-// bytes -- a mix of pointer slots and inlined scalar arguments -- not an array of
-// pointers. These functions are the single definition of that config array:
-// pack_kernel_config builds it (it stores the `size` pointer, so the pointed-to
-// size must outlive any use of the array), and unpack_kernel_config returns a
-// copy of the packed buffer (empty for any other argument-passing scheme).
+// Kernels launch through hipExtModuleLaunchKernel with a packed byte buffer
+// (a mix of pointer slots and inlined scalars) described by an `extra` config
+// array of (tag, value) pairs. These functions are the single definition of
+// that array: pack_kernel_config builds it (the pointed-to `size` must outlive
+// any use), and unpack_kernel_config returns a copy of the packed buffer
+// (empty for any other argument-passing scheme).
 MIGRAPHX_GPU_EXPORT std::array<void*, 5> pack_kernel_config(char* buffer, std::size_t* size);
 MIGRAPHX_GPU_EXPORT std::vector<char> unpack_kernel_config(void** extra);
 
-// Interpret an unpacked buffer using a code_object_op's kernel_args layout (see
-// for_each_kernarg_slot), returning the byte offset and current value of each
-// pointer-typed argument so the inlined scalars are skipped. An empty
-// kernel_args is the all-pointer launch path (every 8-byte word is a pointer).
+// The byte offset and current value of each pointer slot in a packed buffer,
+// per the kernel_args layout (see for_each_kernarg_slot), skipping the inlined
+// scalars. An empty kernel_args is the all-pointer launch path (every 8-byte
+// word is a pointer).
 MIGRAPHX_GPU_EXPORT std::vector<std::pair<std::size_t, char*>>
 unpack_pointer_args(const std::vector<char>& buffer,
                     const std::map<std::size_t, kernel_argument_value>& kernel_args);

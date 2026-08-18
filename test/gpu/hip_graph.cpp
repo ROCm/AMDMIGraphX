@@ -41,11 +41,9 @@
 #include <utility>
 #include <vector>
 
-// One layer of the kernel chain: a pointwise multiply followed by a reverse.
-// Both are jit-compiled into code-object kernels with packed argument buffers
-// (so their pointer slots can be patched on rebind), and the reverse keeps the
-// pointwise ops from fusing so the chain stays several kernels long while
-// mixing the elements between layers.
+// One layer: a pointwise multiply followed by a reverse. Both compile to
+// code-object kernels (patchable pointer slots), and the reverse keeps the
+// pointwise ops from fusing so the chain stays several kernels long.
 static migraphx::instruction_ref add_layer(migraphx::module& m,
                                            migraphx::instruction_ref x,
                                            const migraphx::shape& s,
@@ -93,13 +91,11 @@ static std::pair<migraphx::program, migraphx::program> compile_gpu_ref(const mig
     return {std::move(p_gpu), std::move(p_ref)};
 }
 
-// Compile `p` for the gpu without offload copy (so it reads/writes
-// caller-provided gpu buffers), confirm it captured a hip::graph, then evaluate
-// it with input buffers that genuinely move between runs and check every run
-// against the ref target. Without correct pointer rebinding the second and third
-// runs would replay stale addresses. With `round_trip` the compiled program is
-// serialized and reloaded first: the binding must not depend on state that
-// serialization drops (the parameter-order field).
+// Compile without offload copy, then evaluate with input buffers that move
+// between runs, checking every run against the ref target; without correct
+// pointer rebinding the later runs would replay stale addresses. With
+// `round_trip` the program is serialized and reloaded first, so the binding
+// must not depend on state that save/load drops.
 static void
 check_rebind(const migraphx::program& p, const migraphx::shape& s, bool round_trip = false)
 {
@@ -111,10 +107,9 @@ check_rebind(const migraphx::program& p, const migraphx::shape& s, bool round_tr
     }
 
     auto gpu_shapes = p_gpu.get_parameter_shapes();
-    // Keep stable buffers for every parameter except x so only x's address
-    // varies, and hold two distinct x buffers alive at once so they really get
-    // different addresses (reusing one freed buffer would alias the same address
-    // and never exercise the rebinding path).
+    // Only x's address varies; two x buffers are held alive at once so they
+    // really get different addresses (a freed-and-reallocated buffer could
+    // alias the old address and never exercise rebinding).
     migraphx::parameter_map base;
     for(auto&& [name, ps] : gpu_shapes)
         if(name != "x")
@@ -204,10 +199,9 @@ TEST_CASE(offload_copy_no_rebind)
     EXPECT(migraphx::verify::verify_rms_range(run_gpu(2), run_ref(2)));
 }
 
-// The submodule's parameter binding must survive serialization: the binding is
-// by name order, while the parameter-order field that get_parameter_names()
-// reflects is dropped by save/load. A reloaded program that bound positionally would pair
-// arguments with the wrong parameters and rebind the wrong kernel slots.
+// The binding must survive serialization: it is by name order because the
+// parameter-order field behind get_parameter_names() is dropped by save/load;
+// a positionally-bound reload would rebind the wrong kernel slots.
 TEST_CASE(rebind_save_load)
 {
     migraphx::shape s{migraphx::shape::float_type, {8, 8}};
@@ -251,9 +245,8 @@ static std::vector<std::string> output_param_names(const migraphx::program& p)
 }
 
 // Both the input and the output buffer move between runs. The output parameter
-// is inserted right before the kernel that writes it, which splits the run
-// there: the graph's rebinding and the uncaptured trailing kernel must both
-// follow the moved buffers for the returned values to stay correct.
+// splits the run right before the kernel that writes it, so the graph's
+// rebinding and the uncaptured trailing kernel must both follow the moves.
 TEST_CASE(rebind_output_buffer)
 {
     migraphx::shape s{migraphx::shape::float_type, {8, 8}};
@@ -299,13 +292,10 @@ TEST_CASE(rebind_output_buffer)
     EXPECT(migraphx::verify::verify_rms_range(eval_gpu(x1, out1), ref1));
 }
 
-// Two returned values captured as one graph: the first output also feeds the
-// rest of the chain, and with offload copy both outputs are written into
-// allocations kept in the parent (the aliases path), so the op returns a tuple
-// unpacked with get_tuple_elem. Two evals with different data check the tuple
-// result across capture and replay. (Without offload copy this program is
-// deliberately left uncaptured: the interleaved output parameters split the
-// runs and mix parameter-backed with allocation-backed outputs.)
+// Two returned values captured as one graph: with offload copy both outputs
+// are written into allocations kept in the parent (the aliases path), so the
+// op returns a tuple unpacked with get_tuple_elem; two evals check it across
+// capture and replay.
 TEST_CASE(multi_output_tuple)
 {
     migraphx::shape s{migraphx::shape::float_type, {8, 8}};
@@ -334,11 +324,9 @@ TEST_CASE(multi_output_tuple)
     EXPECT(migraphx::verify::verify_rms_range(g2.second, r2.second));
 }
 
-// The first run binds one buffer to both x and y; pointer slots cannot be
-// attributed unambiguously to overlapping inputs, so when the buffers become
-// distinct the op must re-record instead of patching y's kernel slots with x's
-// new address. This also pins the re-record path itself, which patchable
-// (all-code-object) programs never take.
+// The first run binds one buffer to both x and y; overlapping inputs cannot be
+// attributed unambiguously, so when the buffers become distinct the op must
+// re-record rather than patch. This also pins the re-record path itself.
 TEST_CASE(rebind_aliased_inputs)
 {
     migraphx::shape s{migraphx::shape::float_type, {8, 8}};

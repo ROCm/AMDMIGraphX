@@ -117,20 +117,15 @@ locate_leaf(const char* p, const std::vector<address_range>& bounds)
 }
 
 // True when `consumer` passes the buffer of its input `input` straight through
-// (a view op such as reshape/slice/load), so the parameter's address continues
-// to flow to the consumer's own outputs.
+// (a view op such as reshape/slice/load) to its own outputs.
 static bool aliases_input(instruction_ref consumer, instruction_ref input)
 {
     return contains(instruction::get_output_alias(consumer, true), input);
 }
 
-// The submodule's parameter names in the order the op's inputs are bound to
-// them. The names are sorted rather than taken in get_parameter_names() order:
-// that order comes from a parameter-order field that is not serialized, so it
-// does not survive a save/load of a compiled program, while the sorted names
-// match find_inputs' name-ordered inputs on both sides (param_name's x0..xN
-// scheme sorts lexicographically in numeric order, as select_module also relies
-// on).
+// The submodule's parameter names in input-binding order. Sorted by name
+// because get_parameter_names() order is not serialized (it would not survive
+// save/load), while sorted names match find_inputs' name-ordered inputs.
 static std::vector<std::string> input_param_names(const_module_ref sub)
 {
     auto param_names = sub->get_parameter_names();
@@ -243,10 +238,9 @@ struct hip_graph
     shared<hip_graph_ptr> ptr = nullptr;
 };
 
-// One word in a kernel node's packed argument buffer that holds a movable-input
-// pointer: its byte offset in the buffer, which flattened movable-input leaf it
-// points into, and the offset within that leaf (nonzero for a viewed/sliced
-// input). A rebind rewrites exactly these words.
+// One pointer word in a kernel node's packed argument buffer: where it sits,
+// which flattened movable-input leaf it points into, and where within that
+// leaf (nonzero for a viewed/sliced input). A rebind rewrites exactly these.
 struct graph_slot_patch
 {
     std::size_t offset;
@@ -270,9 +264,8 @@ struct graph_node_patch
 };
 
 // Records the work of a submodule into a HIP graph the first time it is run and
-// then replays the instantiated graph on every subsequent run. This amortizes
-// the per-launch CPU overhead of issuing many kernels/library calls. Construct
-// via make_op("hip::graph").
+// replays the instantiated graph on every subsequent run, amortizing the
+// per-launch CPU overhead of issuing many kernels/library calls.
 struct hip_graph_op
 {
     struct graph_state
@@ -284,19 +277,17 @@ struct hip_graph_op
         // The packed return value (single output or a tuple), cached so the replay
         // path does not rebuild it each eval. Refreshed whenever `outputs` is.
         argument result{};
-        // Addresses of the movable (program-parameter) leaves currently bound in
-        // the captured graph, used to detect when a parameter buffer has moved.
-        // Empty when the op has no movable inputs, so nothing is ever re-bound.
+        // Addresses of the movable leaves currently bound in the captured
+        // graph, used to detect when a parameter buffer has moved.
         std::vector<const void*> applied_ptrs{};
         // True when every movable parameter is consumed only by code-object
         // kernels we can patch; `patches` then lists, per such node, the slots to
         // rewrite. False (a parameter reaches a library kernel) -> re-record.
         bool patchable = false;
         std::vector<graph_node_patch> patches{};
-        // A captured output whose data lies inside a movable leaf: which output,
-        // which leaf, and the byte offset of the output's data within it. When a
-        // leaf's buffer moves, patching rewrites only the kernel arguments, so
-        // the cached outputs/result must be rebased onto the new address too.
+        // A captured output whose data lies inside a movable leaf. Patching
+        // rewrites only kernel arguments, so when a leaf moves the cached
+        // outputs/result must be rebased onto the new address too.
         struct output_rebind
         {
             std::size_t output;
@@ -304,9 +295,8 @@ struct hip_graph_op
             std::size_t offset;
         };
         std::vector<output_rebind> output_rebinds{};
-        // Serializes evals: the state is mutated on capture and rebind, and
-        // copies of an already-compiled program share one state (see the note on
-        // hip_graph_op::state).
+        // Serializes evals: the state is mutated on capture/rebind and may be
+        // shared by copies of a compiled program (see hip_graph_op::state).
         std::mutex mutex{};
 
         // Capture `f`'s device work into a fresh graph and cache the packed result.
@@ -337,25 +327,21 @@ struct hip_graph_op
         }
     };
 
-    // Created in finalize() rather than at construction: operation handles are
-    // copy-on-write, so a construction-time state would be shared by every copy
-    // of the operator made during compilation. finalize() runs once per
-    // instruction (after the handle is cloned), giving each its own state.
-    // Copies of an already-compiled program do NOT re-run finalize and therefore
-    // share this state: graph_state's mutex keeps that sharing (and concurrent
-    // evals) safe, at the cost of re-binding whenever the copies pass different
-    // parameter buffers.
+    // Created in finalize(), which runs once per instruction, so each gets its
+    // own state (a construction-time state would be shared by every copy-on-write
+    // copy of the operator made during compilation). Copies of an already-compiled
+    // program do not re-run finalize and so share this state; graph_state's mutex
+    // keeps that sharing safe.
     std::shared_ptr<graph_state> state{};
 
-    // Indices of the inputs that the captured outputs are written into (and so
-    // alias). The submodule writes each output into one of these passed-in
-    // buffers, so they have global lifetime and can be returned safely.
+    // Indices of the inputs the captured outputs are written into (and so
+    // alias); these passed-in buffers have global lifetime, so the outputs can
+    // be returned safely.
     std::vector<std::size_t> aliases{};
 
-    // Indices of the inputs whose buffer the caller can rebind between runs (the
-    // program parameters). Every other input is a fixed allocation/constant.
-    // hipgraphify fills this in; when it is empty the captured graph is bound to
-    // stable addresses and is replayed without ever inspecting its nodes.
+    // Indices of the inputs whose buffer can move between runs (the program
+    // parameters); every other input is a fixed allocation/constant. When empty
+    // the graph is bound to stable addresses and replayed without inspection.
     std::vector<std::size_t> replace_inputs{};
 
     template <class Self, class F>
@@ -384,9 +370,8 @@ struct hip_graph_op
         state = std::make_shared<graph_state>();
     }
 
-    // The movable (program-parameter) inputs flattened to their leaf arguments, in
-    // replace_inputs order. A tuple has no single data pointer, so the rebind logic
-    // tracks its leaves; these are the only addresses that can change between runs.
+    // The movable inputs flattened to their leaf arguments, in replace_inputs
+    // order (a tuple has no single data pointer, so rebinding tracks its leaves).
     std::vector<argument> movable_leaves(const std::vector<argument>& args) const
     {
         std::vector<argument> selected;
@@ -401,11 +386,10 @@ struct hip_graph_op
         return flatten(selected);
     }
 
-    // Walk forward from a movable parameter through alias (view) ops, adding each
-    // code-object kernel that consumes it -- keyed by function handle -- to `out`.
-    // Returns false if the parameter reaches a non-code-object kernel consumer (a
-    // library gemm/conv), whose argument buffer we cannot interpret and so must
-    // re-record rather than patch.
+    // Walk forward from a movable parameter through alias (view) ops, adding
+    // each code-object kernel that consumes it to `out`, keyed by function
+    // handle. Returns false if the parameter reaches a consumer whose argument
+    // buffer we cannot interpret (a library gemm/conv), forcing a re-record.
     static bool collect_param_code_objects(
         instruction_ref param,
         std::unordered_map<void*, const std::map<std::size_t, kernel_argument_value>*>& out)
@@ -421,9 +405,8 @@ struct hip_graph_op
                 {
                     const auto& cop = any_cast<code_object_op>(consumer->get_operator());
                     out.emplace(cop.k.get_function(), &cop.kernel_args);
-                    // A kernel writing in place into the movable buffer (its
-                    // output argument aliases it) passes that buffer on to its
-                    // own readers; keep following so they are patched too.
+                    // An in-place kernel (output aliases the input) passes the
+                    // buffer to its readers; follow so they are patched too.
                     if(aliases_input(consumer, ins))
                         self(consumer);
                 }
@@ -443,21 +426,15 @@ struct hip_graph_op
         return patchable;
     }
 
-    // Build the per-node patch plan. Only the code-object kernels that actually
-    // consume a movable parameter are considered (found by walking forward from
-    // each parameter); a node is matched to one by function handle and its
-    // kernel_args layout used to inspect only its pointer slots, skipping the
-    // inlined scalars (so a scalar can never be mistaken for a moved pointer).
-    // Nodes that consume no movable parameter are left alone. Returns false (re-
-    // bind by re-recording) when a parameter is consumed by a kernel we cannot
-    // patch -- a library gemm/conv (see collect_param_code_objects).
+    // Build the per-node patch plan: match captured kernel nodes to the
+    // code-object kernels consuming a movable parameter (by function handle) and
+    // record their pointer slots, using the kernel_args layout to skip inlined
+    // scalars. Returns false when the graph must be re-recorded instead.
     bool build_patch_plan(const std::vector<address_range>& bounds, const_module_ref sub) const
     {
-        // Slots are attributed to a leaf by address-range lookup (locate_leaf),
-        // which is only unambiguous when the ranges are disjoint: the same (or an
-        // overlapping) buffer bound to two parameters on the capture run would
-        // attribute every slot to the first leaf and later patch the second
-        // parameter's slots with the first one's address. Re-record instead.
+        // Address-range lookup (locate_leaf) is only unambiguous when the leaf
+        // ranges are disjoint; overlapping buffers would attribute one leaf's
+        // slots to another and later patch them with the wrong address.
         auto sorted_bounds = bounds;
         std::sort(sorted_bounds.begin(), sorted_bounds.end());
         if(std::adjacent_find(
@@ -488,9 +465,8 @@ struct hip_graph_op
             auto cobj   = code_object_args.find(params.func);
             if(cobj == code_object_args.end())
                 continue; // does not consume a movable parameter
-            // A node whose packed argument buffer cannot be parsed back cannot
-            // be patched; re-record rather than silently leaving it bound to the
-            // captured addresses.
+            // A buffer that cannot be parsed back cannot be patched; re-record
+            // rather than leave it bound to the captured addresses.
             auto buffer = unpack_kernel_config(params.extra);
             if(buffer.empty())
                 return false;
@@ -513,9 +489,8 @@ struct hip_graph_op
         return true;
     }
 
-    // Apply the prebuilt plan: overwrite only the movable-parameter slots of
-    // each recorded node's cached buffer with the current leaf address and
-    // hand it back to the node. The caller re-syncs the executable graph.
+    // Overwrite the recorded pointer slots with the current leaf addresses and
+    // hand the buffers back to the nodes; the caller re-syncs the executable graph.
     void patch_kernel_nodes(const std::vector<argument>& leaves) const
     {
         for(auto& np : state->patches)
@@ -577,15 +552,12 @@ struct hip_graph_op
         auto run_sub   = [&] { return run(sub, create_params(sub, args)); };
 
         hipStream_t stream = ctx.get_stream().get();
-        // The legacy/null stream cannot be captured, and tracing reads back
-        // results mid-run, which is illegal during capture; fall back to a
-        // normal run for both. (A trace supplied through execution_environment
-        // cannot be detected here and still cannot be combined with capture.)
+        // Neither the legacy/null stream nor tracing (which reads results
+        // mid-run) can be combined with capture; fall back to a normal run. A
+        // trace supplied via execution_environment cannot be detected here.
         if(stream == nullptr or value_of(MIGRAPHX_TRACE_EVAL{}) > 0)
             return pack_outputs(run_sub());
 
-        // The state is mutated on capture and rebind and may be shared with
-        // copies of this program (see the note on `state`); serialize evals.
         std::lock_guard<std::mutex> lock(state->mutex);
 
         // See record(): capture only records the launches; the launch below
@@ -613,10 +585,8 @@ struct hip_graph_op
             auto current_ptrs = leaf_ptrs(leaves);
             if(current_ptrs != state->applied_ptrs)
             {
-                // Re-bind the moved parameter by patching the captured graph's
-                // kernel nodes in place; for a non-patchable graph re-record it.
-                // Either way re-sync the executable graph, re-instantiating if it
-                // cannot be updated in place.
+                // Patch the kernel nodes in place, or re-record a non-patchable
+                // graph; either way re-sync the executable graph.
                 if(state->patchable)
                 {
                     patch_kernel_nodes(leaves);

@@ -69,12 +69,10 @@ static bool is_capturable(instruction_ref ins)
         return false;
     if(is_unsupported(op.name()))
         return false;
-    // A context-free op that consumes inputs but does not alias them computes a
-    // fresh result on the host (e.g. a ref fallback). It would not re-execute on
-    // graph replay, so it cannot be captured. Two cases are deliberately kept
-    // capturable: pure view ops that alias an input (load, reshape, slice,
-    // get_tuple_elem) issue no work, and input-less constant sources
-    // (gpu::literal) only hand back a preallocated buffer.
+    // A context-free op that consumes inputs without aliasing them runs on the
+    // host (e.g. a ref fallback) and would not re-execute on replay. View ops
+    // that alias an input issue no work and input-less sources (gpu::literal)
+    // just hand back a preallocated buffer, so both stay capturable.
     if(not ins->inputs().empty() and op.is_context_free() and
        op.output_alias(to_shapes(ins->inputs())).empty())
         return false;
@@ -83,10 +81,9 @@ static bool is_capturable(instruction_ref ins)
 
 static bool is_allocation(instruction_ref ins) { return ins->name() == "hip::allocate"; }
 
-// An input whose buffer the caller can rebind between runs: it ultimately aliases
-// a program parameter. Allocations and constants keep a fixed address once
-// compiled, so only parameter-backed inputs can move (and with offload copy the
-// parameters are host-side, leaving the captured graph bound to stable buffers).
+// An input whose buffer the caller can rebind between runs: it ultimately
+// aliases a program parameter. Allocations and constants keep a fixed address
+// once compiled, so only parameter-backed inputs can move.
 static bool is_param_input(instruction_ref ins)
 {
     auto roots = instruction::get_output_alias(ins, false);
@@ -116,12 +113,10 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
     module& m = mpm.get_module();
     std::unordered_set<instruction_ref> run_set(run.begin(), run.end());
 
-    // Instructions kept in the parent module instead of being captured. Any
-    // source with no inputs (gpu::literal constants, hip::allocate buffers) that
-    // is used outside the run stays in the parent: a constant should not become a
-    // passthrough output, and an allocation used outside is a buffer for an op
-    // outside the captured region, not a captured value. If also used inside it
-    // becomes a graph input.
+    // Input-less sources (literals, allocations) used outside the run stay in
+    // the parent: a constant should not become a passthrough output, and such
+    // an allocation is a buffer for an op outside the captured region. If also
+    // used inside the run they become graph inputs.
     std::unordered_set<instruction_ref> keep;
     std::copy_if(run.begin(), run.end(), std::inserter(keep, keep.end()), [&](instruction_ref ins) {
         return ins->inputs().empty() and used_outside(ins, run_set);
@@ -137,25 +132,19 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
     if(outputs.empty())
         return;
 
-    // A module @return cannot return a value backed by internal scratch (the
-    // load that memory_coloring produces has borrow lifetime). When an output is
-    // produced by a kernel that writes into an allocation, keep that allocation
-    // in the parent and let the submodule write into it through a parameter
-    // (global lifetime). Intermediate (non-output) allocations stay in the
-    // submodule so memory_coloring can still reuse their memory. Either every
-    // output is allocation-backed (lowered gpu kernels) or none are (view-like
-    // ops with no scratch); a mix is left uncaptured.
+    // A module @return cannot return a value backed by internal scratch (borrow
+    // lifetime after memory_coloring), so an output-backing allocation is kept
+    // in the parent and written through a parameter (global lifetime), while
+    // intermediate allocations stay in the submodule for memory reuse. Either
+    // every output is allocation-backed or none are; a mix is left uncaptured.
     std::unordered_map<instruction_ref, instruction_ref> output_buffer;
-    // The output-backing allocation must end up as an input of the hip::graph op
-    // so the alias index below can refer to it. That holds when it is inside the
-    // run (kept in the parent below, referenced through a parameter) or directly
-    // consumed by a run instruction; a root reached only through a view of a
-    // pre-run value is neither, so such a run cannot be captured.
+    // The backing allocation must become an input of the hip::graph op so the
+    // alias index can refer to it: true when it is inside the run or directly
+    // consumed by one; a root reached only through pre-run views is neither.
     for(auto out : outputs)
     {
-        // Follow the whole alias chain (the output may be a view such as
-        // multibroadcast/get_tuple_elem) down to the buffer it ultimately writes
-        // into.
+        // Follow the whole alias chain (the output may be a view) down to the
+        // buffer it ultimately writes into.
         auto roots = instruction::get_output_alias(out, false);
         if(roots.size() == 1 and is_allocation(roots.front()))
         {
@@ -176,9 +165,8 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
     std::copy_if(run.begin(), run.end(), std::back_inserter(fused), [&](instruction_ref ins) {
         return not contains(keep, ins);
     });
-    // Preserve the exact input layouts: the captured kernels are already compiled
-    // for specific (possibly non-standard) strides, so parameters must keep them
-    // rather than being standardized (fuse's default).
+    // Keep exact input layouts: the captured kernels are compiled for specific
+    // strides, so parameters must not be standardized (fuse's default).
     sub->fuse(fused, &map_ins, nullptr, [](const shape& s) { return s; });
     std::vector<instruction_ref> sub_outputs;
     std::transform(outputs.begin(),
@@ -189,9 +177,8 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
 
     auto inputs = find_inputs(map_ins, &m, sub);
 
-    // Inputs the caller can rebind between runs (the program parameters). The op
-    // tracks only these to decide when to re-bind the captured graph; an empty
-    // list means the graph is bound to stable buffers and is just replayed.
+    // Inputs the caller can rebind between runs (the program parameters); the
+    // op tracks these to decide when to re-bind the captured graph.
     std::vector<std::size_t> replace_inputs;
     auto indices = range(inputs.size());
     std::copy_if(indices.begin(),
@@ -213,9 +200,8 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
             });
     }
 
-    // Insert the hip::graph op right after the run. A single output is produced
-    // directly; multiple outputs come back as a tuple unpacked with
-    // get_tuple_elem.
+    // Insert the hip::graph op right after the run; multiple outputs come back
+    // as a tuple unpacked with get_tuple_elem.
     auto pos = std::next(run.back());
     auto g   = m.insert_instruction(
         pos,
@@ -227,9 +213,8 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
         auto replacement = g;
         if(outputs.size() > 1)
             replacement = m.insert_instruction(pos, make_op("get_tuple_elem", {{"index", i}}), g);
-        // Only redirect uses outside the run: a run output may also feed other
-        // instructions inside the run, and those must keep using the original
-        // (in-submodule) value to avoid a use-before-def in the parent module.
+        // Only redirect uses outside the run: consumers inside the run must
+        // keep the original value to avoid a use-before-def in the parent.
         auto consumers = outputs[i]->outputs();
         for(auto consumer : consumers)
         {

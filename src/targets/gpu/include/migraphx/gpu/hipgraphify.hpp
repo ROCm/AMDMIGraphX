@@ -36,15 +36,12 @@ struct module_pass_manager;
 namespace gpu {
 
 // Partitions the root module into maximal runs of HIP-graph-capturable
-// instructions and replaces each run that is at least min_partition_size
-// instructions long with a single hip::graph op wrapping a submodule. Ops that
-// synchronize with the host (copies to/from the GPU, stream syncs) or run on the
-// host (context-free non-aliasing ops, e.g. ref fallbacks) cannot be captured
-// and act as partition boundaries.
+// instructions, wrapping each run of at least min_partition_size in a single
+// hip::graph op. Ops that synchronize with or run on the host cannot be
+// captured and act as partition boundaries.
 struct MIGRAPHX_GPU_EXPORT hipgraphify
 {
-    // Minimum number of capturable instructions a run must contain before it is
-    // worth extracting into a hip::graph submodule.
+    // Minimum run length worth extracting into a hip::graph submodule.
     std::size_t min_partition_size = 4;
     std::string name() const { return "gpu::hipgraphify"; }
     void apply(module_pass_manager& mpm) const;

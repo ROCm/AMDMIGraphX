@@ -87,10 +87,9 @@ bool kernel::empty() const { return impl == nullptr; }
 hipFunction_t kernel::get_function() const { return impl == nullptr ? nullptr : impl->fun; }
 
 namespace {
-// HIP_LAUNCH_PARAM_* expand to C-style pointer casts (((void*)0x01) etc.) that
-// clang-tidy rejects, so the launch-config sentinels are produced here behind
-// that workaround; everything else refers to these accessors. Functions (rather
-// than globals) also keep clang-tidy from flagging a non-const global pointer.
+// HIP_LAUNCH_PARAM_* expand to C-style pointer casts that clang-tidy rejects,
+// so the launch-config sentinels are produced behind these accessors
+// (functions rather than globals to avoid the non-const-global lint).
 #ifdef MIGRAPHX_USE_CLANG_TIDY
 void* launch_param_pointer() { return nullptr; }
 void* launch_param_size() { return nullptr; }

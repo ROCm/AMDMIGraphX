@@ -334,6 +334,21 @@ struct compiled_result
     }
 };
 
+// Input buffers reused across coarsely timed candidates. Candidates for one problem can allocate
+// different workspaces, so the parameter layout is part of the key and not just the fill policy.
+struct shared_benchmark_inputs
+{
+    std::unordered_map<std::string, double> fill_map;
+    std::unordered_map<std::string, shape> parameter_shapes;
+    std::shared_ptr<parameter_map> params;
+
+    bool matches(const std::unordered_map<std::string, double>& other_fill_map,
+                 const std::unordered_map<std::string, shape>& other_shapes) const
+    {
+        return fill_map == other_fill_map and parameter_shapes == other_shapes;
+    }
+};
+
 // forward declared since it requires compile_manager
 static void replace_inserted_device_ops(context& ctx, module& m);
 
@@ -503,11 +518,10 @@ struct compile_plan
         // down with it. Keep the first message to report instead of a more general message.
         std::string first_error;
         std::vector<std::size_t> execution_counts(results.size());
-        // Coarse candidates share input buffers with identical fill policies. The buffers are
-        // released before precise timing so finalists are measured from fresh state.
-        std::vector<std::pair<std::unordered_map<std::string, double>,
-                              std::shared_ptr<parameter_map>>>
-            shared_parameter_maps;
+        // Coarse candidates share input buffers when their fill policy and parameter layout agree.
+        // The buffers are released before precise timing so finalists are measured from fresh
+        // state.
+        std::vector<shared_benchmark_inputs> shared_inputs;
         auto time_solution = [&](std::size_t i,
                                  adaptive_time_stage stage,
                                  const adaptive_time_options& input_options) -> optional<double> {
@@ -531,7 +545,7 @@ struct compile_plan
                 // Precise candidates start from fresh programs and parameters, while coarse
                 // executions remain charged to each candidate's lifetime execution budget.
                 if(stage == adaptive_time_stage::precise)
-                    shared_parameter_maps.clear();
+                    shared_inputs.clear();
                 /*
                  * Replacing the instruction in this small program inserts every code object
                  * and prefill required by the candidate, so split-k is timed end to end.
@@ -548,19 +562,22 @@ struct compile_plan
                     return nullopt;
                 const auto remaining = candidate_budget - used;
 
-                const auto& fill_map = results[i]->replace.fill_map;
-                auto params          = shared_parameter_maps.end();
+                const auto& fill_map  = results[i]->replace.fill_map;
+                auto parameter_shapes = bench_prog.get_parameter_shapes();
+                auto shared           = shared_inputs.end();
                 if(stage == adaptive_time_stage::coarse)
-                    params = std::find_if(shared_parameter_maps.begin(),
-                                          shared_parameter_maps.end(),
-                                          [&](const auto& x) { return x.first == fill_map; });
-                prepared = prepare_time_program(
-                    *ctx,
-                    std::move(bench_prog),
-                    fill_map,
-                    params == shared_parameter_maps.end() ? nullptr : params->second);
-                if(stage == adaptive_time_stage::coarse and params == shared_parameter_maps.end())
-                    shared_parameter_maps.emplace_back(fill_map, prepared->params);
+                    shared = std::find_if(
+                        shared_inputs.begin(), shared_inputs.end(), [&](const auto& x) {
+                            return x.matches(fill_map, parameter_shapes);
+                        });
+                prepared =
+                    prepare_time_program(*ctx,
+                                         std::move(bench_prog),
+                                         fill_map,
+                                         shared == shared_inputs.end() ? nullptr : shared->params);
+                if(stage == adaptive_time_stage::coarse and shared == shared_inputs.end())
+                    shared_inputs.push_back(
+                        {fill_map, std::move(parameter_shapes), prepared->params});
                 if(trace_level > 1)
                     std::cout << "Prepared benchmark solution: " << config->solutions.at(i)
                               << std::endl;

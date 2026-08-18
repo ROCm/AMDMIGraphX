@@ -412,6 +412,10 @@ ctest -R '^test_gpu_'
 
 # List all test cases in a file
 ./bin/test_<topic> --list
+
+# Run test cases starting from a given name or glob (in registration order),
+# skipping the ones before it
+./bin/test_<topic> --start-from '<name-or-glob>'
 ```
 
 ### Unit Tests

@@ -35,7 +35,7 @@ import subprocess
 
 sys.path.insert(0,
                 os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from migraphx_ep import ensure_migraphx_ep
+from migraphx_ep import bind_migraphx_output, ensure_migraphx_ep
 
 #Use most upto date weights
 resnet50 = models.resnet50(weights=models.ResNet50_Weights.DEFAULT,
@@ -121,7 +121,12 @@ def run_sample(session,
                verbose=False):
     io_binding = session.io_binding()
     io_binding.bind_cpu_input('input', inputs.cpu().detach().numpy())
-    io_binding.bind_output('output', 'cuda')
+    output_meta = session.get_outputs()[0]
+    output_shape = [
+        batch_size if not isinstance(dim, int) else dim
+        for dim in output_meta.shape
+    ]
+    bind_migraphx_output(io_binding, 'output', output_shape, np.float32)
     start = time.time()
     session.run_with_iobinding(io_binding)
     latency.append(time.time() - start)
@@ -240,10 +245,10 @@ def main():
         session_ops.log_verbosity_level = 0
         session_ops.log_severity_level = 0
 
-    session_fp32 = onnxruntime.InferenceSession(
-        "resnet50.onnx",
-        providers=ensure_migraphx_ep(ep_options),
-        sess_options=session_ops)
+    providers = ensure_migraphx_ep(session_ops, ep_options)
+    session_fp32 = onnxruntime.InferenceSession("resnet50.onnx",
+                                                 providers=providers,
+                                                 sess_options=session_ops)
 
     if flags.verbose:
         print("Preprocessing Batched Images")

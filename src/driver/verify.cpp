@@ -147,7 +147,7 @@ struct verify_callback
         };
     }
 
-    // A fused op carries carries multiple labels; get the last one.
+    // Get the corresponding `ref_map` iterator to the highest `order` debug symbol in `ins` that is contained in `ref_map`. Used to handle instructions with multiple debug symbols.
     ref_map::const_iterator terminal(instruction_ref ins, const shape& s) const
     {
         auto result = ref_outputs.end();

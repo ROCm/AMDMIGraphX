@@ -26,7 +26,10 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/copy_assignable_function.hpp>
+#include <cassert>
 #include <iterator>
+#include <tuple>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -63,6 +66,65 @@ template <class F>
 function_output_iterator<F> make_function_output_iterator(F f)
 {
     return {std::move(f)};
+}
+
+// Like function_output_iterator, but also advances an underlying iterator so
+// each assignment writes through a different element: `*out = value` calls
+// f(*it, value).
+template <class Iterator, class F>
+struct function_output_iterator_adaptor
+{
+    Iterator it;
+    copy_assignable_function<F> f;
+
+    using self              = function_output_iterator_adaptor;
+    using difference_type   = void;
+    using reference         = void;
+    using value_type        = void;
+    using pointer           = void;
+    using iterator_category = std::output_iterator_tag;
+
+    struct output_proxy
+    {
+        template <class T>
+        output_proxy& operator=(const T& value)
+        {
+            assert(base != nullptr);
+            base->f(*base->it, value);
+            return *this;
+        }
+        self* base;
+    };
+    output_proxy operator*() { return output_proxy{this}; }
+    self& operator++()
+    {
+        ++it;
+        return *this;
+    }
+    self operator++(int) // NOLINT
+    {
+        self result = *this;
+        ++it;
+        return result;
+    }
+};
+
+template <class Iterator, class F>
+function_output_iterator_adaptor<Iterator, F> make_function_output_iterator_adaptor(Iterator it,
+                                                                                    F f)
+{
+    return {std::move(it), std::move(f)};
+}
+
+// Output iterator that assigns through std::get<N> of each element, so
+// algorithms can write to one tuple/pair field of a sequence, such as the
+// values of a map, which an inplace std::transform cant do since the keys are
+// const.
+template <std::size_t N, class Iterator>
+auto element_output_iterator(Iterator it)
+{
+    return make_function_output_iterator_adaptor(
+        std::move(it), [](auto&& x, const auto& value) { std::get<N>(x) = value; });
 }
 
 template <class Container>

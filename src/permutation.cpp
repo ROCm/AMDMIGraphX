@@ -25,6 +25,7 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/sym.hpp>
 #include <map>
 #include <functional>
@@ -141,11 +142,12 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
     // When layouts disagree, each shape votes for every candidate it supports.
     // Shapes with singleton dims are layout-ambiguous and support several, so
     // they cannot outvote shapes with a definite layout.
-    std::for_each(count.begin(), count.end(), [&](auto& p) {
-        p.second = std::count_if(voters.begin(), voters.end(), [&](const shape& s) {
-            return supports_permutation(s, p.first);
+    std::transform(
+        count.begin(), count.end(), element_output_iterator<1>(count.begin()), [&](const auto& p) {
+            return std::count_if(voters.begin(), voters.end(), [&](const shape& s) {
+                return supports_permutation(s, p.first);
+            });
         });
-    });
     auto it = std::max_element(
         count.begin(), count.end(), by(std::less<>{}, [](auto&& p) { return p.second; }));
     assert(it != count.end());

@@ -204,7 +204,7 @@ void layout_convolution::apply(module_pass_manager& mpm) const
         // channels_last converts each parameter to NHWC and back, so allow up to two extra
         // layouts per parameter before preferring channels_first.
         auto allowance = 2 * mpm.get_module().get_parameters().size();
-        const auto& chosen    = (score(m_first) + allowance < score(m_last)) ? first : last;
+        const auto& chosen = (score(m_first) + allowance < score(m_last)) ? first : last;
         chosen.apply_layout(mpm.get_module());
     }
     else

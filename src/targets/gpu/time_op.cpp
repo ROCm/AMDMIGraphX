@@ -31,6 +31,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cmath>
 #include <functional>
@@ -63,14 +64,17 @@ static std::vector<argument> generate_arguments(const std::vector<shape>& shapes
 
 static double common_average(std::vector<double> times)
 {
+    assert(not times.empty());
     std::sort(times.begin(), times.end());
     const std::size_t quarters = times.size() / 4;
-    // With fewer than four samples there is nothing to trim, and an untrimmed mean lets a single
-    // interfered run dominate. Interference can only slow a run down, so use the fastest sample.
+    auto first                 = times.begin() + quarters;
+    auto last                  = times.end() - quarters;
+
     if(quarters == 0)
-        return times.front();
-    const auto first = times.begin() + quarters;
-    const auto last  = times.end() - quarters;
+    {
+        first = times.begin() + (times.size() - 1) / 2;
+        last  = times.begin() + times.size() / 2 + 1;
+    }
     return std::accumulate(first, last, 0.0) / std::distance(first, last);
 }
 
@@ -314,13 +318,19 @@ optional<std::size_t> adaptive_time_topk_staged(std::size_t candidate_count,
             const auto ytime = *coarse[y];
             return std::tie(xtime, x) < std::tie(ytime, y);
         });
+        // A candidate the coarse stage could not time is not known to be slow, only unmeasured, so
+        // it stays eligible for a precise measurement once the ranked candidates are exhausted.
+        std::copy_if(indices.begin(), indices.end(), std::back_inserter(ranked), [&](auto i) {
+            return not coarse[i].has_value();
+        });
 
         const auto top_k = std::min(options.top_k, ranked.size());
         std::accumulate(ranked.begin(), ranked.end(), std::size_t{0}, [&](auto measured, auto i) {
             if(measured >= top_k)
                 return measured;
-            auto candidate_options         = precise_options;
-            candidate_options.estimated_ms = *coarse[i];
+            auto candidate_options = precise_options;
+            if(coarse[i].has_value())
+                candidate_options.estimated_ms = *coarse[i];
             precise[i] = time_candidate(i,
                                         adaptive_time_stage::precise,
                                         candidate_options,
@@ -407,6 +417,15 @@ void prepared_time_program::run()
     p.eval_with_context(contexts, *params);
 }
 
+static bool covers_parameters(const parameter_map& params,
+                              const std::unordered_map<std::string, shape>& in_shapes)
+{
+    return std::all_of(in_shapes.begin(), in_shapes.end(), [&](const auto& p) {
+        const auto it = params.find(p.first);
+        return it != params.end() and it->second.get_shape() == p.second;
+    });
+}
+
 prepared_time_program
 prepare_time_program(const context& ictx,
                      program p,
@@ -417,10 +436,15 @@ prepare_time_program(const context& ictx,
     auto& gctx                              = any_cast<migraphx::gpu::context>(contexts.front());
     auto* mm                                = p.get_main_module();
     mm->finalize(contexts);
+    auto in_shapes = p.get_parameter_shapes();
+    // Buffers are only a reuse hint. Tuning candidates for one problem can allocate different
+    // workspaces, so a map that does not cover every parameter is replaced instead of being
+    // passed to a program that would reject it.
+    if(params and not covers_parameters(*params, in_shapes))
+        params = nullptr;
     if(not params)
     {
         params             = std::make_shared<parameter_map>();
-        auto in_shapes     = p.get_parameter_shapes();
         unsigned long seed = 0;
         for(const auto& [name, shape] : in_shapes)
         {

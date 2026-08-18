@@ -120,6 +120,8 @@ struct MIGRAPHX_GPU_EXPORT prepared_time_program
     void run();
 };
 
+// params is a hint for reusing input buffers across programs. It is adopted only when it covers
+// every parameter of p with a matching shape, and freshly generated buffers are used otherwise.
 MIGRAPHX_GPU_EXPORT prepared_time_program
 prepare_time_program(const context& ictx,
                      program p,

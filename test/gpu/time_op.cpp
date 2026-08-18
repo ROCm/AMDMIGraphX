@@ -245,6 +245,29 @@ TEST_CASE(adaptive_time_program_reuses_prepared_setup_and_budget)
     EXPECT(prepared.executions <= candidate_budget);
 }
 
+TEST_CASE(prepare_time_program_rejects_mismatched_parameters)
+{
+    const auto make_prog = [](std::size_t n) {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        mm->add_return(
+            {mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {n}})});
+        return p;
+    };
+
+    migraphx::gpu::context ctx;
+    auto prepared = migraphx::gpu::prepare_time_program(ctx, make_prog(2), {});
+    // Tuning candidates for one problem can allocate different workspaces, so buffers shaped for
+    // one candidate must not be handed to another.
+    auto mismatched = migraphx::gpu::prepare_time_program(ctx, make_prog(4), {}, prepared.params);
+    auto matched    = migraphx::gpu::prepare_time_program(ctx, make_prog(2), {}, prepared.params);
+
+    EXPECT(mismatched.params != prepared.params);
+    EXPECT(matched.params == prepared.params);
+    mismatched.run();
+    matched.run();
+}
+
 TEST_CASE(adaptive_time_schedule_rejects_nonfinite_estimate)
 {
     migraphx::gpu::adaptive_time_options options;
@@ -374,6 +397,32 @@ TEST_CASE(adaptive_time_topk_promotes_after_precise_failure)
 
     EXPECT(result == 2);
     EXPECT(precise_calls == std::vector<std::size_t>{1, 1, 1, 0});
+}
+
+TEST_CASE(adaptive_time_topk_promotes_after_coarse_failure)
+{
+    migraphx::gpu::adaptive_tuning_options options;
+    options.top_k                           = 2;
+    options.sleep_us                        = 0;
+    const std::vector<double> precise_times = {5.0, 1.0, 2.0, 3.0};
+    std::vector<std::size_t> precise_calls(precise_times.size());
+
+    const auto result = migraphx::gpu::adaptive_time_topk_staged(
+        precise_times.size(),
+        options,
+        [&](auto i, auto stage, const auto& timing) -> migraphx::optional<double> {
+            if(stage == migraphx::gpu::adaptive_time_stage::coarse)
+                return i == 0 ? migraphx::optional<double>{5.0} : migraphx::nullopt;
+            // Only a coarsely ranked candidate carries an estimate into precise timing.
+            EXPECT((timing.estimated_ms > 0.0) == (i == 0));
+            precise_calls[i]++;
+            return precise_times[i];
+        });
+
+    // A candidate the coarse stage could not measure is unranked, not rejected, so it is still
+    // eligible for precise timing and can win.
+    EXPECT(result == 1);
+    EXPECT(precise_calls == std::vector<std::size_t>{1, 1, 0, 0});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

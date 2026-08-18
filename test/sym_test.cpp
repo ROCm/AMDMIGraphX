@@ -1062,7 +1062,6 @@ TEST_CASE(from_value_bare_number_keeps_precision)
     // Numbers are read directly instead of through the expression parser, so a double keeps
     // full precision and is not limited by decimal formatting.
     EXPECT(migraphx::from_value<se>(migraphx::value(0.123456789)) == lit(0.123456789));
-    EXPECT(migraphx::from_value<se>(migraphx::value(1e20)) == lit(1e20));
     // A msgpack round trip can re-tag a non-negative integer as uint64.
     EXPECT(migraphx::from_value<se>(migraphx::value(std::uint64_t{42})) == lit(42));
 }

@@ -159,8 +159,9 @@ timing_schedule make_timing_schedule(double estimate_ms, const adaptive_time_opt
     // min_samples is a floor rather than another budget cap: a candidate slower than target_ms
     // would otherwise be measured once, leaving common_average nothing to reject noise with.
     const auto preferred_samples = std::max<std::size_t>(1, executions / options.preferred_bundle);
-    const auto samples =
-        std::min(options.max_samples, std::max(options.min_samples, preferred_samples));
+    const auto samples = std::min(
+        options.max_executions,
+        std::min(options.max_samples, std::max(options.min_samples, preferred_samples)));
     const auto bundle = std::max<std::size_t>(1, executions / samples);
 
     std::size_t warmup_runs = 0;
@@ -179,43 +180,88 @@ double adaptive_time_loop(migraphx::gpu::context& gctx,
                           const adaptive_time_options& input_options,
                           const std::function<void()>& f)
 {
-    const auto options = resolve_options(input_options);
+    return adaptive_time_loop(gctx, input_options, adaptive_time_budget{}, f);
+}
+
+double adaptive_time_loop(migraphx::gpu::context& gctx,
+                          const adaptive_time_options& input_options,
+                          const adaptive_time_budget& budget,
+                          const std::function<void()>& f)
+{
+    auto options = resolve_options(input_options);
     if(options.estimated_ms <= 0.0 and options.estimate_runs == 0)
         MIGRAPHX_THROW("Adaptive timing estimate runs must be greater than zero");
 
-    // Run once to initialize lazy GPU resources and count it toward the warmup budget.
-    f();
-    std::size_t completed_warmup_runs = 1;
+    const auto limited = budget.max_executions > 0;
+    std::size_t executions = 0;
+    auto run = [&] {
+        if(limited and executions >= budget.max_executions)
+            MIGRAPHX_THROW("Adaptive timing exhausted its total execution budget");
+        f();
+        executions++;
+    };
+
+    // Run once to initialize lazy GPU resources and count it toward the warmup budget. A prepared
+    // candidate promoted from coarse timing has already initialized those resources.
+    std::size_t completed_warmup_runs = 0;
+    if(not budget.skip_initialization)
+    {
+        run();
+        completed_warmup_runs = 1;
+    }
 
     double estimate_ms = options.estimated_ms;
     if(estimate_ms <= 0.0)
     {
-        estimate_ms = estimate_time(gctx, options.estimate_runs, f);
-        completed_warmup_runs += options.estimate_runs;
+        auto estimate_runs = options.estimate_runs;
+        if(limited)
+        {
+            const auto remaining = budget.max_executions - executions;
+            if(remaining <= 1)
+                MIGRAPHX_THROW("Adaptive timing budget must include an estimate and measurement");
+            estimate_runs = std::min(estimate_runs, remaining - 1);
+        }
+        estimate_ms = estimate_time(gctx, estimate_runs, run);
+        completed_warmup_runs += estimate_runs;
     }
     estimate_ms = std::max(estimate_ms, min_execution_ms);
 
+    if(limited)
+    {
+        const auto remaining = budget.max_executions - executions;
+        if(remaining == 0)
+            MIGRAPHX_THROW("Adaptive timing budget must include a measured execution");
+        options.max_executions = std::min(options.max_executions, remaining);
+    }
     const auto schedule = make_timing_schedule(estimate_ms, options);
     if(schedule.warmup_runs > completed_warmup_runs)
     {
-        const auto additional_warmup_runs = schedule.warmup_runs - completed_warmup_runs;
+        auto additional_warmup_runs = schedule.warmup_runs - completed_warmup_runs;
+        if(limited)
+        {
+            const auto remaining = budget.max_executions - executions;
+            const auto spare =
+                remaining > schedule.executions ? remaining - schedule.executions : 0;
+            additional_warmup_runs = std::min(additional_warmup_runs, spare);
+        }
         for(auto i : range(additional_warmup_runs))
         {
             (void)i;
-            f();
+            run();
         }
     }
 
-    auto times = measure_loop(gctx, schedule.bundle, schedule.samples, f);
+    auto times = measure_loop(gctx, schedule.bundle, schedule.samples, run);
     return common_average(std::move(times));
 }
 
 static optional<double> time_candidate(std::size_t i,
+                                       adaptive_time_stage stage,
                                        const adaptive_time_options& options,
                                        std::size_t candidate_delay_us,
-                                       const adaptive_time_callback& benchmark)
+                                       const adaptive_time_stage_callback& benchmark)
 {
-    auto result = benchmark(i, options);
+    auto result = benchmark(i, stage, options);
     if(result.has_value() and (not std::isfinite(*result) or *result <= 0.0))
         result = nullopt;
     if(candidate_delay_us > 0)
@@ -224,9 +270,9 @@ static optional<double> time_candidate(std::size_t i,
     return result;
 }
 
-optional<std::size_t> adaptive_time_topk(std::size_t candidate_count,
-                                         const adaptive_tuning_options& options,
-                                         const adaptive_time_callback& benchmark)
+optional<std::size_t> adaptive_time_topk_staged(std::size_t candidate_count,
+                                                const adaptive_tuning_options& options,
+                                                const adaptive_time_stage_callback& benchmark)
 {
     using delay_rep = std::chrono::microseconds::rep;
     if(options.sleep_us > static_cast<std::size_t>(std::numeric_limits<delay_rep>::max()))
@@ -241,13 +287,15 @@ optional<std::size_t> adaptive_time_topk(std::size_t candidate_count,
     if(options.top_k == 0)
     {
         std::transform(indices.begin(), indices.end(), precise.begin(), [&](auto i) {
-            return time_candidate(i, precise_options, options.sleep_us, benchmark);
+            return time_candidate(
+                i, adaptive_time_stage::precise, precise_options, options.sleep_us, benchmark);
         });
     }
     else
     {
         std::transform(indices.begin(), indices.end(), coarse.begin(), [&](auto i) {
-            return time_candidate(i, coarse_options, options.sleep_us, benchmark);
+            return time_candidate(
+                i, adaptive_time_stage::coarse, coarse_options, options.sleep_us, benchmark);
         });
 
         std::vector<std::size_t> ranked;
@@ -266,7 +314,11 @@ optional<std::size_t> adaptive_time_topk(std::size_t candidate_count,
                 return measured;
             auto candidate_options         = precise_options;
             candidate_options.estimated_ms = *coarse[i];
-            precise[i] = time_candidate(i, candidate_options, options.sleep_us, benchmark);
+            precise[i] = time_candidate(i,
+                                        adaptive_time_stage::precise,
+                                        candidate_options,
+                                        options.sleep_us,
+                                        benchmark);
             return measured + precise[i].has_value();
         });
     }
@@ -282,6 +334,16 @@ optional<std::size_t> adaptive_time_topk(std::size_t candidate_count,
         const auto ytime = *precise[y];
         return std::tie(xtime, x) < std::tie(ytime, y);
     });
+}
+
+optional<std::size_t> adaptive_time_topk(std::size_t candidate_count,
+                                         const adaptive_tuning_options& options,
+                                         const adaptive_time_callback& benchmark)
+{
+    return adaptive_time_topk_staged(
+        candidate_count, options, [&](auto i, auto, const auto& timing) {
+            return benchmark(i, timing);
+        });
 }
 
 double
@@ -318,38 +380,71 @@ double time_op(const context& ictx, operation op, int bundle, int nruns)
     return time_op(ictx, op, inputs, bundle, nruns);
 }
 
+prepared_time_program::prepared_time_program(program input,
+                                             std::vector<migraphx::context> input_contexts,
+                                             std::shared_ptr<parameter_map> input_params)
+    : p(std::move(input)),
+      contexts(std::move(input_contexts)),
+      params(std::move(input_params))
+{
+}
+
+migraphx::gpu::context& prepared_time_program::get_context()
+{
+    return any_cast<migraphx::gpu::context>(contexts.front());
+}
+
+void prepared_time_program::run()
+{
+    executions++;
+    p.eval_with_context(contexts, *params);
+}
+
+prepared_time_program
+prepare_time_program(const context& ictx,
+                     program p,
+                     const std::unordered_map<std::string, double>& fill_map,
+                     std::shared_ptr<parameter_map> params)
+{
+    std::vector<migraphx::context> contexts = {ictx};
+    auto& gctx                              = any_cast<migraphx::gpu::context>(contexts.front());
+    auto* mm                                = p.get_main_module();
+    mm->finalize(contexts);
+    if(not params)
+    {
+        params             = std::make_shared<parameter_map>();
+        auto in_shapes     = p.get_parameter_shapes();
+        unsigned long seed = 0;
+        for(const auto& [name, shape] : in_shapes)
+        {
+            std::string id = "";
+            if(shape.type() != migraphx::shape::tuple_type)
+                id = shape.type_string() + migraphx::shape::to_sizes_string({shape.as_standard()});
+
+            // fill_map inputs need specific values (host fill); the rest are generated
+            // on the GPU to skip the host PRNG + H2D copy per candidate.
+            if(contains(fill_map, id))
+            {
+                (*params)[name] = to_gpu(fill_argument(shape, fill_map.at(id)));
+            }
+            else
+            {
+                (*params)[name] = gpu_generate_random(gctx, shape, seed++);
+            }
+        }
+    }
+    return {std::move(p), std::move(contexts), std::move(params)};
+}
+
 template <class F>
 static auto time_program_impl(const context& ictx,
                               program p,
                               const std::unordered_map<std::string, double>& fill_map,
                               F f)
 {
-    std::vector<migraphx::context> contexts = {ictx};
-    auto& gctx                              = any_cast<migraphx::gpu::context>(contexts.front());
-    auto* mm                                = p.get_main_module();
-    mm->finalize(contexts);
-    auto in_shapes = p.get_parameter_shapes();
-    parameter_map params;
-    unsigned long seed = 0;
-    for(const auto& [name, shape] : in_shapes)
-    {
-        std::string id = "";
-        if(shape.type() != migraphx::shape::tuple_type)
-            id = shape.type_string() + migraphx::shape::to_sizes_string({shape.as_standard()});
-
-        // fill_map inputs need specific values (host fill); the rest are generated
-        // on the GPU to skip the host PRNG + H2D copy per candidate.
-        if(contains(fill_map, id))
-        {
-            params[name] = to_gpu(fill_argument(shape, fill_map.at(id)));
-        }
-        else
-        {
-            params[name] = gpu_generate_random(gctx, shape, seed++);
-        }
-    }
-    auto run = [&] { p.eval_with_context(contexts, params); };
-    return f(gctx, run);
+    auto prepared = prepare_time_program(ictx, std::move(p), fill_map);
+    auto run      = [&] { prepared.run(); };
+    return f(prepared.get_context(), run);
 }
 
 double time_program(const context& ictx,
@@ -373,6 +468,24 @@ double adaptive_time_program(const context& ictx,
     });
 }
 
+double
+adaptive_time_program(prepared_time_program& prepared, const adaptive_time_options& input_options)
+{
+    return adaptive_time_program(prepared, input_options, adaptive_time_budget{});
+}
+
+double adaptive_time_program(prepared_time_program& prepared,
+                             const adaptive_time_options& input_options,
+                             const adaptive_time_budget& input_budget)
+{
+    auto budget = input_budget;
+    if(prepared.executions > 0)
+        budget.skip_initialization = true;
+    auto run = [&] { prepared.run(); };
+    return adaptive_time_loop(prepared.get_context(), input_options, budget, run);
+}
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+

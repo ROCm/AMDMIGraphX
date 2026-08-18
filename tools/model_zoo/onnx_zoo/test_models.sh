@@ -3,7 +3,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,10 @@ FP16_ATOL="${FP16_ATOL:-0.04}"
 FP16_RTOL="${FP16_RTOL:-0.04}"
 TARGET="${TARGET:-gpu}"
 USE_LOCAL="${USE_LOCAL:-0}"
+MODEL_TIMEOUT="${MODEL_TIMEOUT:-20m}"
+DRIVER="${DRIVER:-migraphx-driver}"
+PERF_ITERATIONS="${PERF_ITERATIONS:-10}"
+KINDS="${KINDS:-accuracy perf}"
 
 if [[ "${DEBUG:-0}" -eq 1 ]]; then
     PIPE=/dev/stdout
@@ -47,7 +51,6 @@ if [[ "${VERBOSE:-0}" -eq 1 ]]; then
     set -x
 fi
 
-# Iterate through input recursively, process any tar.gz file
 function iterate() {
   local dir="$1"
 
@@ -64,104 +67,138 @@ function iterate() {
   done
 }
 
-# A previous run passed if its log shows zero failed cases
-function passed() {
-    [[ -f "$1" ]] && grep -qE 'Failed: 0$' "$1"
+function run_name() {
+    local base
+    base="$(basename "$1")"
+    base="${base%.tar.gz}"
+    [[ "$2" == "fp16" ]] && base="${base}_fp16"
+    echo "$base"
 }
 
-# Log file path for a given tar.gz and dtype
-function log_file() {
-    local base="$(basename "$1")"
-    echo "$WORK_DIR/logs/$2/${base//\//_}.log"
+function log_stem() {
+    echo "$WORK_DIR/logs/$2/$(run_name "$1" "$3")"
 }
 
-# Process will download the lfs file, extract model and test data
-# Test it with test_runner.py, then cleanup
+function mark_skipped() {
+    local file="$1" reason="$2" dtypes="$3"
+    local kind dt
+    for kind in $KINDS; do
+        for dt in $dtypes; do
+            echo "SKIPPED: $reason" > "$(log_stem "$file" "$kind" "$dt").out"
+        done
+    done
+    echo "WARNING: ${file}: $reason"
+}
+
 function process() {
     local file="$1"
-    # skip quantizing int8 models
-    local dt dtypes="fp32 fp16"
+    # int8/qdq archives are already quantized in-graph, so skip the fp16 pass.
+    local dtypes="fp32 fp16"
     case "$(basename "$file")" in
         *int8* | *qdq*) dtypes="int8" ;;
     esac
 
-    # skip when every precision we run for this model already passed
-    local all_passed=1
-    for dt in $dtypes; do
-        passed "$(log_file "$file" "$dt")" || all_passed=0
-    done
-    if [[ "$all_passed" -eq 1 ]]; then
-        echo "INFO: skip $file - already passed"
-        return
-    fi
-
     echo "INFO: process $file started"
-    setup $file
-    TEST_DIR="$(find "$WORK_DIR/tmp_model" -type f -name '*.onnx' ! -name '._*' -printf '%h\n' 2>/dev/null | sort -u | head -1)"
-    for dt in $dtypes; do
-        test $file "$dt"
-    done
-    cleanup $file
+    run_archive "$file" "$dtypes"
+    cleanup "$file"
     echo "INFO: process $file finished"
 }
 
-# Download and extract files
+function run_archive() {
+    local file="$1" dtypes="$2"
+    if ! setup "$file"; then
+        mark_skipped "$file" "could not extract archive" "$dtypes"
+        return 0
+    fi
+
+    local model_file
+    model_file="$(find "$WORK_DIR/tmp_model" -type f -name '*.onnx' ! -name '._*' 2>/dev/null | sort | head -1)"
+    if [[ -z "$model_file" ]]; then
+        mark_skipped "$file" "no .onnx model found in archive" "$dtypes"
+        return 0
+    fi
+
+    local kind dt
+    for kind in $KINDS; do
+        for dt in $dtypes; do
+            "run_$kind" "$file" "$dt" "$model_file"
+        done
+    done
+}
+
 function setup() {
     local file="$1"
     echo "INFO: setup $file"
-    local_file="$(basename $file)"
     if [[ "$USE_LOCAL" -ne 1 ]]; then
-        # We need to change the folder to pull the file
-        folder="$(cd -P -- "$(dirname -- "$file")" && pwd -P)"
-        cd $folder &> "${PIPE}" && git lfs pull --include="$local_file" --exclude="" &> "${PIPE}"; cd - &> "${PIPE}"
+        local folder
+        folder="$(cd -P -- "$(dirname -- "$file")" && pwd -P)" || return 1
+        (cd "$folder" && git lfs pull --include="$(basename "$file")" --exclude="") \
+            &> "${PIPE}" || return 1
     fi
-    tar xzf $file -C $WORK_DIR/tmp_model &> "${PIPE}"
+    tar xzf "$file" -C "$WORK_DIR/tmp_model" &> "${PIPE}"
 }
 
-# Remove tmp files and prune models
 function cleanup() {
     local file="$1"
     echo "INFO: cleanup $file"
     if [[ "$USE_LOCAL" -ne 1 ]]; then
-        # We need to change the folder to prune the file
-        folder="$(cd -P -- "$(dirname -- "$file")" && pwd -P)"
-        cd $folder &> "${PIPE}" && git lfs prune &> "${PIPE}"; cd - &> "${PIPE}"
+        local folder
+        folder="$(cd -P -- "$(dirname -- "$file")" && pwd -P)" || return 0
+        (cd "$folder" && git lfs prune) &> "${PIPE}" || true
     fi
-    rm -r $WORK_DIR/tmp_model/* &> "${PIPE}"
+    rm -rf "${WORK_DIR:?}/tmp_model/"* &> "${PIPE}"
 }
 
-# Run test_runner.py and log if something goes wrong
-function test() {
-    local file="$1"
-    local dtype="$2"
-    local log="$(log_file "$file" "$dtype")"
-    # skip this precision if it already passed
-    if passed "$log"; then
-        echo "INFO: skip $file ($dtype) - already passed"
-        return
+function run_logged() {
+    local file="$1" kind="$2" dtype="$3"
+    shift 3
+    local stem
+    stem="$(log_stem "$file" "$kind" "$dtype")"
+    echo "INFO: $kind $file ($dtype)"
+    if ! timeout --kill-after=30s "$MODEL_TIMEOUT" "$@" > "$stem.out" 2> "$stem.err"; then
+        echo "WARNING: $kind failed for ${file} ($dtype)"
     fi
-    echo "INFO: test $file ($dtype)"
-    if [[ -z "$TEST_DIR" ]]; then
-        echo "SKIPPED: no .onnx model found in archive" > "$log"
-        echo "WARNING: ${file} ($dtype) has no model to test"
-        return
-    fi
-    local flag
+    [[ -s "$stem.err" ]] || rm -f "$stem.err"
+}
+
+function run_accuracy() {
+    local file="$1" dtype="$2" model_file="$3"
+    local -a flag
     if [[ "$dtype" = "fp16" ]]; then
-        flag="--atol $FP16_ATOL --rtol $FP16_RTOL --target $TARGET --fp16"
+        flag=(--atol "$FP16_ATOL" --rtol "$FP16_RTOL" --target "$TARGET" --fp16)
     else
-        flag="--atol $ATOL --rtol $RTOL --target $TARGET"
+        flag=(--atol "$ATOL" --rtol "$RTOL" --target "$TARGET")
     fi
-    EXIT_CODE=0
-    python3 $TESTER_SCRIPT ${flag} "$TEST_DIR" &> "$log" || EXIT_CODE=$?
-    if [[ "${EXIT_CODE:-0}" -ne 0 ]]; then
-        echo "WARNING: ${file} failed ($dtype)"
-    fi
+    run_logged "$file" accuracy "$dtype" \
+        python3 "$TESTER_SCRIPT" "${flag[@]}" "$(dirname "$model_file")"
 }
 
-mkdir -p $WORK_DIR/logs/fp32/ $WORK_DIR/logs/fp16/ $WORK_DIR/logs/int8/ $WORK_DIR/tmp_model
-rm -fr $WORK_DIR/tmp_model/*
+function run_perf() {
+    local file="$1" dtype="$2" model_file="$3"
+    local -a flag=(--onnx "--$TARGET" -n "$PERF_ITERATIONS")
+    [[ "$dtype" = "fp16" ]] && flag+=(--fp16)
+    run_logged "$file" perf "$dtype" \
+        "$DRIVER" perf "$model_file" "${flag[@]}"
+}
+
+if [[ "$#" -eq 0 ]]; then
+    echo "usage: $(basename "$0") <model-dir> [model-dir ...]" >&2
+    exit 2
+fi
 
 for arg in "$@"; do
-    iterate "$(dirname $(readlink -e $arg))/$(basename $arg)"
+    if [[ ! -d "$arg" ]]; then
+        echo "ERROR: '$arg' is not a directory" >&2
+        exit 2
+    fi
+done
+
+mkdir -p "$WORK_DIR/tmp_model"
+for kind in $KINDS; do
+    mkdir -p "$WORK_DIR/logs/$kind"
+done
+rm -rf "${WORK_DIR:?}/tmp_model/"*
+
+for arg in "$@"; do
+    iterate "$(readlink -e "$arg")"
 done

@@ -1,0 +1,168 @@
+DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
+REPORTS_REPO_CRED = 'migraphx_reports_repo'
+REPORTS_BRANCH = 'main'
+REPORTS_SUBDIR = 'onnx-models'
+REPORTS_CLONE = 'reports_clone'
+ZOO_DIR = 'tools/model_zoo/onnx_zoo'
+
+def dockeropts(String model_root) {
+    def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
+    def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
+    return "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE" +
+           " --group-add=${video_id} --group-add=${render_id}" +
+           " -v=${env.WORKSPACE}/../:/workspaces:rw,z" +
+           " -v=${model_root}:${model_root}:ro"
+}
+
+pipeline {
+    agent {
+        label "gfx1201"
+    }
+
+    triggers {
+        cron('H H(2-5) * * 0')
+    }
+
+    options {
+        skipDefaultCheckout()
+        disableConcurrentBuilds()
+    }
+
+    parameters {
+        string(name: 'MODEL_ROOT', defaultValue: '/mnt/nas_share/onnx-model-zoo')
+        string(name: 'IMAGE_TAG', defaultValue: 'latest')
+        string(name: 'TIMEOUT_HOURS', defaultValue: '12')
+    }
+
+    environment {
+        CCACHE_DIR = '/workspaces/.cache/ccache'
+        CCACHE_COMPRESSLEVEL = '7'
+        AMD_COMGR_CACHE = '1'
+        AMD_COMGR_CACHE_DIR = '/workspaces/.cache/comgr_cache'
+        HSA_ENABLE_SDMA = '0'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    if (!(params.MODEL_ROOT ==~ /^\/[A-Za-z0-9._\/-]+$/))
+                        error("MODEL_ROOT must be an absolute path: '${params.MODEL_ROOT}'")
+                    if (sh(returnStatus: true, script: "find '${params.MODEL_ROOT}' -name '*.tar.gz' -print -quit | grep -q .") != 0)
+                        error("No .tar.gz archives under ${params.MODEL_ROOT}; is the NAS mounted on this agent?")
+                    if (!(params.IMAGE_TAG ==~ /^[A-Za-z0-9._-]+$/))
+                        error("IMAGE_TAG is not a valid docker tag: '${params.IMAGE_TAG}'")
+                    withCredentials([string(credentialsId: REPORTS_REPO_CRED,
+                                            variable: 'REPO')]) { }
+                }
+                checkout scm
+                script {
+                    def date = sh(script: 'date -u +%Y-%m-%d', returnStdout: true).trim()
+                    def sha = sh(script: 'git rev-parse --short=7 HEAD', returnStdout: true).trim()
+                    env.RUN_ID = "${date}-${sha}"
+                    sh "rm -rf '${ZOO_DIR}/logs'"
+                }
+            }
+        }
+
+        stage('Run Models') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'docker_test_cred',
+                                                      passwordVariable: 'DOCKERHUB_PASS',
+                                                      usernameVariable: 'DOCKERHUB_USER')]) {
+                        sh 'echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin'
+                        sh "docker pull ${DOCKER_IMAGE}:${params.IMAGE_TAG}"
+                    }
+
+                    withDockerContainer(image: "${DOCKER_IMAGE}:${params.IMAGE_TAG}",
+                                        args: dockeropts(params.MODEL_ROOT)) {
+                        def cores = sh(returnStdout: true, script: 'nproc').trim()
+                        env.GPU_TARGET = sh(returnStdout: true,
+                                            script: "/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*'").trim()
+
+                        timeout(time: 2, unit: 'HOURS') {
+                            sh """
+                                set -e
+                                mkdir -p '${env.CCACHE_DIR}' '${env.AMD_COMGR_CACHE_DIR}'
+                                cmake -S . -B build \
+                                    -DCMAKE_BUILD_TYPE=release \
+                                    -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+                                    -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+                                    -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+                                    -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON \
+                                    -DGPU_TARGETS='${env.GPU_TARGET}'
+                                make -C build -j${cores} migraphx_py driver
+                            """
+                        }
+
+                        timeout(time: params.TIMEOUT_HOURS.toInteger(), unit: 'HOURS') {
+                            sh """
+                                set -e
+                                export PYTHONPATH="\$PWD/build/src/py"
+                                USE_LOCAL=1 TARGET=gpu \
+                                DRIVER="\$PWD/build/bin/migraphx-driver" \
+                                    ./${ZOO_DIR}/test_models.sh '${params.MODEL_ROOT}'
+                            """
+                        }
+
+                        sh "echo /opt/rocm* > '${ZOO_DIR}/logs/rocm.txt'"
+                    }
+                }
+            }
+        }
+
+        stage('Publish logs') {
+            steps {
+                script {
+                    // Restarting only this stage would publish a "null" directory.
+                    if (!(env.RUN_ID ==~ /^\d{4}-\d{2}-\d{2}-[0-9a-f]{7}$/)) {
+                        error("RUN_ID is '${env.RUN_ID}'; run the whole pipeline rather than restarting this stage")
+                    }
+                }
+                // Kept as shell variables so neither is rendered into the build log.
+                withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}",
+                                                  usernameVariable: 'USERNAME',
+                                                  passwordVariable: 'TOKEN'),
+                                 string(credentialsId: REPORTS_REPO_CRED,
+                                        variable: 'REPO')]) {
+                    sh """
+                        set -e
+                        rm -rf '${REPORTS_CLONE}'
+                        git clone --depth 1 --branch '${REPORTS_BRANCH}' \
+                            "https://\$USERNAME:\$TOKEN@github.com/\$REPO.git" '${REPORTS_CLONE}'
+                        # Clone persists the token in .git/config; the push passes it.
+                        git -C '${REPORTS_CLONE}' remote set-url origin \
+                            "https://github.com/\$REPO.git"
+                        dest='${REPORTS_CLONE}/${REPORTS_SUBDIR}/${env.RUN_ID}'
+                        rm -rf "\$dest"
+                        mkdir -p "\$dest"
+                        cp -r '${ZOO_DIR}/logs/accuracy' '${ZOO_DIR}/logs/perf' "\$dest"
+                        cp '${ZOO_DIR}/logs/rocm.txt' "\$dest"
+                        cd '${REPORTS_CLONE}'
+                        git add '${REPORTS_SUBDIR}'
+                        if git diff --cached --quiet; then
+                            echo "INFO: logs are identical to the last run, nothing to push"
+                            exit 0
+                        fi
+                        git -c user.name='migraphx-ci' -c user.email='migraphx-ci@amd.com' \
+                            commit -m "onnx zoo run ${env.RUN_ID} (${env.GPU_TARGET}, build ${env.BUILD_NUMBER})"
+                        git push "https://\$USERNAME:\$TOKEN@github.com/\$REPO.git" \
+                            HEAD:'${REPORTS_BRANCH}'
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh "rm -rf '${REPORTS_CLONE}'"
+        }
+        // Nothing reached the repo, so this is the only copy of the run.
+        failure {
+            archiveArtifacts artifacts: "${ZOO_DIR}/logs/**/*.out,${ZOO_DIR}/logs/**/*.err",
+                             allowEmptyArchive: true
+        }
+    }
+}

@@ -65,11 +65,6 @@ struct parse_squeeze : op_parser<parse_squeeze>
         auto arg = info.make_contiguous(args.front());
         return info.add_instruction(op, arg);
     }
-
-    void infer_symbolic_values(const op_desc&, const symbolic_propagate_context& context) const
-    {
-        context.pass_through();
-    }
 };
 
 } // namespace onnx

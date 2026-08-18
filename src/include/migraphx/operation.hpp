@@ -41,7 +41,9 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/lifetime.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 #include <migraphx/config.hpp>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -62,6 +64,11 @@ struct operation
     /// operation cannot be run with input shapes, then it should throw an
     /// exception.
     shape compute_shape(const std::vector<shape>& input) const;
+    /// Optionally compute exact symbolic values stored in an integral tensor.
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>& input_shapes,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const;
     /**
      * @brief This performs the operation's computation.
      *
@@ -165,6 +172,38 @@ template <class T>
 shape compute_shape_op(const T& x, const std::vector<shape>& inputs)
 {
     return compute_shape_op(rank<3>{}, x, inputs);
+}
+
+template <class T>
+auto symbolic_compute_op(rank<1>,
+                         const T& x,
+                         const shape& output_shape,
+                         const std::vector<shape>& input_shapes,
+                         const std::vector<std::optional<symbolic_tensor_value>>& input_values)
+    -> decltype(x.symbolic_compute(output_shape, input_shapes, input_values))
+{
+    return x.symbolic_compute(output_shape, input_shapes, input_values);
+}
+
+template <class T>
+std::optional<symbolic_tensor_value>
+symbolic_compute_op(rank<0>,
+                    const T&,
+                    const shape&,
+                    const std::vector<shape>&,
+                    const std::vector<std::optional<symbolic_tensor_value>>&)
+{
+    return std::nullopt;
+}
+
+template <class T>
+std::optional<symbolic_tensor_value>
+symbolic_compute_op(const T& x,
+                    const shape& output_shape,
+                    const std::vector<shape>& input_shapes,
+                    const std::vector<std::optional<symbolic_tensor_value>>& input_values)
+{
+    return symbolic_compute_op(rank<1>{}, x, output_shape, input_shapes, input_values);
 }
 
 template <class T>
@@ -528,6 +567,11 @@ struct MIGRAPHX_EXPORT operation
     shape compute_shape(const std::vector<shape>& inputs,
                         const std::vector<module_ref>& mod_args) const;
     // (optional)
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>& input_shapes,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const;
+    // (optional)
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
     // (optional)
     argument compute(const shape& output, const std::vector<argument>& input) const;
@@ -705,6 +749,32 @@ struct operation
                                                          const std::vector<module_ref>& mod_args)
     {
         return detail::mod_compute_shape_op(private_detail_te_self, inputs, mod_args);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_symbolic_compute(
+        char,
+        T&& private_detail_te_self,
+        const shape& output_shape,
+        const std::vector<shape>& input_shapes,
+        const std::vector<std::optional<symbolic_tensor_value>>& input_values)
+        -> decltype(private_detail_te_self.symbolic_compute(output_shape,
+                                                            input_shapes,
+                                                            input_values))
+    {
+        return private_detail_te_self.symbolic_compute(output_shape, input_shapes, input_values);
+    }
+
+    template <class T>
+    static std::optional<symbolic_tensor_value> private_detail_te_default_symbolic_compute(
+        float,
+        T&& private_detail_te_self,
+        const shape& output_shape,
+        const std::vector<shape>& input_shapes,
+        const std::vector<std::optional<symbolic_tensor_value>>& input_values)
+    {
+        return detail::symbolic_compute_op(
+            private_detail_te_self, output_shape, input_shapes, input_values);
     }
 
     template <class T>
@@ -892,6 +962,12 @@ struct operation
                      std::declval<PrivateDetailTypeErasedT>(),
                      std::declval<const std::vector<shape>&>(),
                      std::declval<const std::vector<module_ref>&>()),
+                 private_detail_te_default_symbolic_compute(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<const shape&>(),
+                     std::declval<const std::vector<shape>&>(),
+                     std::declval<const std::vector<std::optional<symbolic_tensor_value>>&>()),
                  private_detail_te_default_compute(char(0),
                                                    std::declval<PrivateDetailTypeErasedT>(),
                                                    std::declval<context&>(),
@@ -1060,6 +1136,16 @@ struct operation
         return (*this).private_detail_te_get_handle().compute_shape(inputs, mod_args);
     }
 
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>& input_shapes,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().symbolic_compute(
+            output_shape, input_shapes, input_values);
+    }
+
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -1151,6 +1237,10 @@ struct operation
         virtual shape compute_shape(const std::vector<shape>& input) const           = 0;
         virtual shape compute_shape(const std::vector<shape>& inputs,
                                     const std::vector<module_ref>& mod_args) const   = 0;
+        virtual std::optional<symbolic_tensor_value> symbolic_compute(
+            const shape& output_shape,
+            const std::vector<shape>& input_shapes,
+            const std::vector<std::optional<symbolic_tensor_value>>& input_values) const = 0;
         virtual argument
         compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
         virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
@@ -1259,6 +1349,16 @@ struct operation
 
             return private_detail_te_default_compute_shape(
                 char(0), private_detail_te_value, inputs, mod_args);
+        }
+
+        std::optional<symbolic_tensor_value> symbolic_compute(
+            const shape& output_shape,
+            const std::vector<shape>& input_shapes,
+            const std::vector<std::optional<symbolic_tensor_value>>& input_values) const override
+        {
+
+            return private_detail_te_default_symbolic_compute(
+                char(0), private_detail_te_value, output_shape, input_shapes, input_values);
         }
 
         argument compute(context& ctx,

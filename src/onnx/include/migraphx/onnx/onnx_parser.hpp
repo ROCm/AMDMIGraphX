@@ -26,7 +26,6 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
-#include <migraphx/onnx/symbolic_tensor_value.hpp>
 #include <migraphx/program.hpp>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
@@ -101,7 +100,6 @@ struct onnx_parser
     node_map nodes;
     std::unordered_set<std::string> parent_input_nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    std::unordered_map<instruction_ref, symbolic_tensor_value> symbolic_tensor_values;
     program prog                                   = program();
     shape::dynamic_dimension default_dyn_dim_value = {1, 1};
     bool default_set                               = false;
@@ -132,41 +130,12 @@ struct onnx_parser
     parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining = false);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
-    std::optional<symbolic_tensor_value> get_symbolic_tensor_value(instruction_ref ins) const;
     shape parse_type(const onnx::TypeProto& t, const std::string& name) const;
     shape parse_type(const onnx::TypeProto& t,
                      const std::string& name,
                      const std::vector<shape::dynamic_dimension>& override_dims) const;
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
     std::string to_string(const onnx::AttributeProto& attr) const;
-};
-
-// Parse-local context for optional symbolic value inference.
-struct symbolic_propagate_context
-{
-    onnx_parser& parser;
-    const onnx_parser::node_info& info;
-    const std::vector<instruction_ref>& args;
-    const std::vector<instruction_ref>& results;
-
-    bool enabled() const { return parser.use_symbolic_shapes and not results.empty(); }
-
-    std::optional<symbolic_tensor_value> arg(std::size_t index) const
-    {
-        if(index >= args.size())
-            return std::nullopt;
-        return parser.get_symbolic_tensor_value(args[index]);
-    }
-
-    void set(symbolic_tensor_value value, std::size_t output_index = 0) const
-    {
-        if(output_index < results.size())
-            parser.symbolic_tensor_values[results[output_index]] = std::move(value);
-    }
-
-    bool output_has_elements(std::size_t count, std::size_t output_index = 0) const;
-
-    void pass_through(std::size_t input_index = 0, std::size_t output_index = 0) const;
 };
 
 shape::type_t get_type(int dtype);

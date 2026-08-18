@@ -28,6 +28,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -196,6 +197,14 @@ struct broadcast
         if(inputs.size() == 1)
             return compute_shape_1in(inputs.at(0));
         return compute_shape_2in(inputs.at(0), inputs.at(1));
+    }
+
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>&,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        return broadcast_scalar_symbolic_value(output_shape, input_values);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

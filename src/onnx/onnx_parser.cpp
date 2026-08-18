@@ -739,7 +739,6 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
         // Remove instructions added in module (this is turned off for subgraph inlining)
         erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
-        erase_if(symbolic_tensor_values, [&](auto&& p) { return mod->has_instruction(p.first); });
     }
 
     return output_ins;

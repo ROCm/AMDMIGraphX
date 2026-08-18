@@ -98,7 +98,7 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
             {
                 const auto dv_lit = info.add_literal(l_val);
                 instruction_ref alloc_ins;
-                const auto symbolic_dims = parser.get_symbolic_tensor_value(args[0]);
+                const auto symbolic_dims = args[0]->sym_eval();
                 if(symbolic_dims.has_value())
                 {
                     const shape output_shape{type, to_dynamic_dimensions(*symbolic_dims)};

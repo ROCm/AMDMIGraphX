@@ -34,6 +34,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 #include <cmath>
 #include <utility>
 
@@ -83,6 +84,35 @@ struct gather
         if(inputs[0].dynamic() or inputs[1].dynamic())
             return result;
         return result.to_static();
+    }
+
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>& input_shapes,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        if(input_shapes.size() != 2 or input_values.size() != 2 or input_shapes[0].ndim() != 1 or
+           axis != 0 or not input_values[0].has_value() or not input_values[1].has_value())
+            return std::nullopt;
+        const auto indices = fixed_integers(*input_values[1]);
+        if(not indices.has_value())
+            return std::nullopt;
+
+        symbolic_tensor_value result;
+        result.reserve(indices->size());
+        const auto& data        = *input_values[0];
+        const int64_t data_size = data.size();
+        for(auto index : *indices)
+        {
+            if(index < 0)
+                index += data_size;
+            if(index < 0 or index >= data_size)
+                return std::nullopt;
+            result.push_back(data.at(index));
+        }
+        if(not symbolic_value_matches_shape(output_shape, result))
+            return std::nullopt;
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

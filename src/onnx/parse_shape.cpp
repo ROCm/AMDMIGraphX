@@ -88,20 +88,6 @@ struct parse_shape : op_parser<parse_shape>
             return info.add_literal(migraphx::literal{s, vec_shape});
         }
     }
-
-    void infer_symbolic_values(const op_desc&, const symbolic_propagate_context& context) const
-    {
-        if(context.args.size() != 1)
-            return;
-        const auto& input_shape = context.args.front()->get_shape();
-        if(not can_attach_symbolic_shape(input_shape))
-            return;
-        const auto [start, end] = get_range(input_shape, context.info.attributes);
-        const auto expressions  = input_shape.sym_dims();
-        symbolic_tensor_value result{expressions.begin() + start, expressions.begin() + end};
-        if(context.output_has_elements(result.size()))
-            context.set(std::move(result));
-    }
 };
 
 } // namespace onnx

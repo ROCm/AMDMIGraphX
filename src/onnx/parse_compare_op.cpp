@@ -49,25 +49,6 @@ struct parse_compare_op : op_parser<parse_compare_op>
         }
         return l;
     }
-
-    void infer_symbolic_values(const op_desc& opd, const symbolic_propagate_context& context) const
-    {
-        if(opd.onnx_name != "Equal")
-            return;
-        const auto x = context.arg(0);
-        const auto y = context.arg(1);
-        if(not x.has_value() or not y.has_value())
-            return;
-        auto expressions = broadcast_symbolic_values(*x, *y, [](const auto& a, const auto& b) {
-            const auto equal = sym::provable_equal(a, b);
-            return equal.has_value() ? sym::lit(int64_t{*equal}) : sym::expr{};
-        });
-        if(not expressions.has_value() or
-           any_of(*expressions, [](const auto& expression) { return expression.empty(); }) or
-           not context.output_has_elements(expressions->size()))
-            return;
-        context.set(std::move(*expressions));
-    }
 };
 
 } // namespace onnx

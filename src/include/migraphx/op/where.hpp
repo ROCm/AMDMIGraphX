@@ -29,6 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -81,6 +82,38 @@ struct where
                 return {s1.type(), s1.dyn_dims()};
             return {s1.type(), s1.lens()};
         }
+    }
+
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>&,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        if(input_values.size() != 3 or not input_values[0].has_value() or
+           not input_values[1].has_value() or not input_values[2].has_value())
+            return std::nullopt;
+
+        const auto output_size = output_shape.elements();
+        const auto& condition  = *input_values[0];
+        const auto& x          = *input_values[1];
+        const auto& y          = *input_values[2];
+        if(not can_broadcast_value(condition, output_size) or
+           not can_broadcast_value(x, output_size) or not can_broadcast_value(y, output_size))
+            return std::nullopt;
+
+        symbolic_tensor_value result;
+        result.reserve(output_size);
+        for(auto i : range(output_size))
+        {
+            const auto condition_value = fixed_integer(broadcast_value_at(condition, i));
+            if(not condition_value.has_value())
+                return std::nullopt;
+            result.push_back(*condition_value != 0 ? broadcast_value_at(x, i)
+                                                   : broadcast_value_at(y, i));
+        }
+        if(not symbolic_value_matches_shape(output_shape, result))
+            return std::nullopt;
+        return result;
     }
 
     argument compute(shape output_shape, std::vector<argument> args) const

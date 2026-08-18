@@ -37,7 +37,7 @@ struct parse_expand : op_parser<parse_expand>
     std::vector<op_desc> operators() const { return {{"Expand"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
+                          const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
@@ -45,9 +45,9 @@ struct parse_expand : op_parser<parse_expand>
         if(arg_s.empty())
         {
             // variable dims input
-            const auto symbolic_dims = parser.get_symbolic_tensor_value(args[1]);
+            const auto symbolic_dims = args[1]->sym_eval();
             const auto& input_shape  = args[0]->get_shape();
-            if(symbolic_dims.has_value() and can_attach_symbolic_shape(input_shape))
+            if(symbolic_dims.has_value() and is_static_or_symbolic_shape(input_shape))
             {
                 const auto output_dims = compute_broadcasted_dyn_dims(
                     input_shape.to_symbolic().dyn_dims(), to_dynamic_dimensions(*symbolic_dims));

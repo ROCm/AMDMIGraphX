@@ -36,7 +36,7 @@ struct parse_range : op_parser<parse_range>
     std::vector<op_desc> operators() const { return {{"Range"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
+                          const onnx_parser& /*parser*/,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
@@ -46,9 +46,9 @@ struct parse_range : op_parser<parse_range>
 
         if(start_arg.empty() or limit_arg.empty() or delta_arg.empty())
         {
-            const auto start = parser.get_symbolic_tensor_value(args[0]);
-            const auto limit = parser.get_symbolic_tensor_value(args[1]);
-            const auto delta = parser.get_symbolic_tensor_value(args[2]);
+            const auto start = args[0]->sym_eval();
+            const auto limit = args[1]->sym_eval();
+            const auto delta = args[2]->sym_eval();
             if(start.has_value() and limit.has_value() and delta.has_value() and
                start->size() == 1 and limit->size() == 1 and delta->size() == 1 and
                fixed_integer(delta->front()) == int64_t{1})

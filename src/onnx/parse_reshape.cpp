@@ -56,9 +56,9 @@ struct parse_reshape : op_parser<parse_reshape>
             {
                 // arg[1] not eval-able
                 instruction_ref alloc_ins;
-                const auto symbolic_dims = parser.get_symbolic_tensor_value(args[1]);
+                const auto symbolic_dims = args[1]->sym_eval();
                 const auto& input_shape  = args[0]->get_shape();
-                if(symbolic_dims.has_value() and can_attach_symbolic_shape(input_shape))
+                if(symbolic_dims.has_value() and is_static_or_symbolic_shape(input_shape))
                 {
                     const auto output_dims = resolve_reshape_dims(
                         input_shape.to_symbolic(), to_reshape_dimensions(*symbolic_dims));
@@ -87,11 +87,6 @@ struct parse_reshape : op_parser<parse_reshape>
                 return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
             }
         }
-    }
-
-    void infer_symbolic_values(const op_desc&, const symbolic_propagate_context& context) const
-    {
-        context.pass_through();
     }
 };
 

@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -60,6 +61,20 @@ struct dimensions_of
                            ", end = " + std::to_string(end));
         }
         return shape{shape::int64_type, {end - start}};
+    }
+
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>& input_shapes,
+                     const std::vector<std::optional<symbolic_tensor_value>>&) const
+    {
+        if(input_shapes.size() != 1 or not is_static_or_symbolic_shape(input_shapes.front()))
+            return std::nullopt;
+        const auto expressions = input_shapes.front().sym_dims();
+        symbolic_tensor_value result{expressions.begin() + start, expressions.begin() + end};
+        if(not symbolic_value_matches_shape(output_shape, result))
+            return std::nullopt;
+        return result;
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

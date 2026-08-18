@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/binary.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,6 +44,19 @@ struct equal : binary<equal>
     auto apply() const
     {
         return [](auto x, auto y) { return float_equal(x, y); };
+    }
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>&,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        return compute_symbolic_binary(
+            output_shape, input_values, [](const auto& x, const auto& y) {
+                const auto equal = sym::provable_equal(x, y);
+                if(not equal.has_value())
+                    return sym::expr{};
+                return sym::lit(*equal ? 1 : 0);
+            });
     }
 };
 

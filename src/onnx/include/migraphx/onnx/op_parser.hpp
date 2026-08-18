@@ -71,22 +71,13 @@ struct register_op_parser_action
 template <class Derived>
 struct op_parser : auto_register<register_op_parser_action, Derived>
 {
-    void infer_symbolic_values(const op_desc&, const symbolic_propagate_context&) const {}
-
     std::vector<instruction_ref> base_parse(const op_desc& opd,
                                             onnx_parser& parser,
                                             const onnx_parser::node_info& info,
                                             std::vector<instruction_ref> args) const
     {
         const auto& self = static_cast<const Derived&>(*this);
-        std::vector<instruction_ref> symbolic_args;
-        if(parser.use_symbolic_shapes)
-            symbolic_args = args;
-        auto results = implicit_multi_op(self.parse(opd, parser, info, args));
-        symbolic_propagate_context context{parser, info, symbolic_args, results};
-        if(context.enabled())
-            self.infer_symbolic_values(opd, context);
-        return results;
+        return implicit_multi_op(self.parse(opd, parser, info, args));
     }
 };
 

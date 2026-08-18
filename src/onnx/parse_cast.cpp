@@ -48,13 +48,6 @@ struct parse_cast : op_parser<parse_cast>
         const shape::type_t type = get_type(to_type);
         return info.add_instruction(make_op("convert", {{"target_type", type}}), args);
     }
-
-    void infer_symbolic_values(const op_desc&, const symbolic_propagate_context& context) const
-    {
-        if(context.args.front()->get_shape().type() == shape::int64_type and
-           context.results.front()->get_shape().type() == shape::int64_type)
-            context.pass_through();
-    }
 };
 
 } // namespace onnx

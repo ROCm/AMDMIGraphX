@@ -35,6 +35,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 #include <cmath>
 #include <utility>
 
@@ -116,6 +117,25 @@ struct concat
         if(unified.front().symbolic())
             return shape::from_permutation(type, new_dds, find_permutation(unified));
         return {type, new_dds};
+    }
+
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>&,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        if(axis != 0 or input_values.empty())
+            return std::nullopt;
+        symbolic_tensor_value result;
+        for(const auto& input : input_values)
+        {
+            if(not input.has_value())
+                return std::nullopt;
+            result.insert(result.end(), input->begin(), input->end());
+        }
+        if(not symbolic_value_matches_shape(output_shape, result))
+            return std::nullopt;
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

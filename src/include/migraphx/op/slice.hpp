@@ -32,6 +32,7 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 #include <array>
 
 namespace migraphx {
@@ -422,6 +423,49 @@ struct slice
             norm_ends = this->ends;
         }
         return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
+    }
+
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>& input_shapes,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        if(input_shapes.empty() or input_shapes.front().dynamic() or
+           input_shapes.front().ndim() != 1 or input_values.empty() or
+           not input_values.front().has_value())
+            return std::nullopt;
+
+        const auto set_attributes = get_set_attributes();
+        std::size_t input_index   = 1;
+        std::array<std::optional<std::vector<int64_t>>, 3> supplied;
+        for(std::size_t i = 0; i < supplied.size(); ++i)
+        {
+            if(set_attributes[i])
+                continue;
+            if(input_index >= input_values.size() or not input_values[input_index].has_value())
+                return std::nullopt;
+            supplied[i] = fixed_integers(*input_values[input_index++]);
+            if(not supplied[i].has_value())
+                return std::nullopt;
+        }
+        if(input_index != input_values.size())
+            return std::nullopt;
+
+        const auto normalized =
+            normalize_starts_ends_axes(input_shapes.front(), supplied[0], supplied[1], supplied[2]);
+        const auto& norm_starts = normalized.at("norm_starts");
+        const auto& norm_ends   = normalized.at("norm_ends");
+        const auto& norm_axes   = normalized.at("norm_axes");
+        if(norm_starts.size() != 1 or norm_ends.size() != 1 or norm_axes.size() != 1 or
+           norm_axes.front() != 0)
+            return std::nullopt;
+
+        const auto& data = *input_values.front();
+        symbolic_tensor_value result{data.begin() + norm_starts.front(),
+                                     data.begin() + norm_ends.front()};
+        if(not symbolic_value_matches_shape(output_shape, result))
+            return std::nullopt;
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

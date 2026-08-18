@@ -35,6 +35,7 @@
 #include <unordered_set>
 #include <string>
 #include <utility>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -157,6 +158,7 @@ struct MIGRAPHX_EXPORT instruction
     bool is_undefined() const;
 
     argument eval(bool check_eval = true) const;
+    std::optional<symbolic_tensor_value> sym_eval() const;
 
     void finalize(context& ctx);
 

@@ -74,12 +74,12 @@ struct parse_slice : op_parser<parse_slice>
     {
         if(args.size() >= 3 and args[0]->get_shape().symbolic())
         {
-            const auto starts = parser.get_symbolic_tensor_value(args[1]);
-            const auto ends   = parser.get_symbolic_tensor_value(args[2]);
+            const auto starts = args[1]->sym_eval();
+            const auto ends   = args[2]->sym_eval();
             std::optional<std::vector<int64_t>> axes;
             if(args.size() >= 4)
             {
-                const auto axes_value = parser.get_symbolic_tensor_value(args[3]);
+                const auto axes_value = args[3]->sym_eval();
                 if(axes_value.has_value())
                     axes = fixed_integers(*axes_value);
             }
@@ -92,7 +92,7 @@ struct parse_slice : op_parser<parse_slice>
             std::optional<std::vector<int64_t>> steps;
             if(args.size() >= 5)
             {
-                const auto steps_value = parser.get_symbolic_tensor_value(args[4]);
+                const auto steps_value = args[4]->sym_eval();
                 if(steps_value.has_value())
                     steps = fixed_integers(*steps_value);
             }
@@ -134,47 +134,6 @@ struct parse_slice : op_parser<parse_slice>
         }
         else
             return ins;
-    }
-
-    void infer_symbolic_values(const op_desc&, const symbolic_propagate_context& context) const
-    {
-        const auto data = context.arg(0);
-        if(not data.has_value() or context.args[0]->get_shape().ndim() != 1 or
-           context.args.size() < 3)
-            return;
-        const auto starts = context.arg(1);
-        const auto ends   = context.arg(2);
-        const auto axes   = context.args.size() > 3
-                                ? context.arg(3)
-                                : std::make_optional(symbolic_tensor_value{sym::lit(int64_t{0})});
-        const auto steps  = context.args.size() > 4
-                                ? context.arg(4)
-                                : std::make_optional(symbolic_tensor_value{sym::lit(int64_t{1})});
-        if(not starts.has_value() or not ends.has_value() or not axes.has_value() or
-           not steps.has_value())
-            return;
-
-        const auto fixed_starts = fixed_integers(*starts);
-        const auto fixed_ends   = fixed_integers(*ends);
-        const auto fixed_axes   = fixed_integers(*axes);
-        const auto fixed_steps  = fixed_integers(*steps);
-        if(not fixed_starts.has_value() or not fixed_ends.has_value() or
-           not fixed_axes.has_value() or not fixed_steps.has_value() or fixed_starts->size() != 1 or
-           fixed_ends->size() != 1 or fixed_axes->size() != 1 or fixed_steps->size() != 1 or
-           fixed_axes->front() != 0 or fixed_steps->front() != 1)
-            return;
-
-        const auto size      = static_cast<int64_t>(data->size());
-        const auto normalize = [size](int64_t index) {
-            if(index < 0)
-                index += size;
-            return std::clamp(index, int64_t{0}, size);
-        };
-        const auto start = normalize(fixed_starts->front());
-        const auto end   = normalize(fixed_ends->front());
-        symbolic_tensor_value result{data->begin() + start, data->begin() + std::max(start, end)};
-        if(context.output_has_elements(result.size()))
-            context.set(std::move(result));
     }
 
     slice_desc construct_slice_desc(const onnx_parser& parser,

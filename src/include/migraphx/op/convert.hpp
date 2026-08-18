@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/unary.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 #include <cmath>
 
 namespace migraphx {
@@ -58,6 +59,25 @@ struct convert : unary<convert>
         {
             return {target_type, input.lens(), input.strides()};
         }
+    }
+
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>& input_shapes,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        if(input_shapes.size() != 1 or input_shapes.front().type() != shape::int64_type)
+            return std::nullopt;
+        if(target_type == shape::int64_type)
+            return pass_through_symbolic_value(output_shape, input_values);
+        if(target_type != shape::bool_type or input_values.size() != 1 or
+           not input_values.front().has_value())
+            return std::nullopt;
+        const auto fixed_values = fixed_integers(*input_values.front());
+        if(not fixed_values.has_value() or
+           any_of(*fixed_values, [](auto value) { return value != 0 and value != 1; }))
+            return std::nullopt;
+        return pass_through_symbolic_value(output_shape, input_values);
     }
 
     std::string point_op() const

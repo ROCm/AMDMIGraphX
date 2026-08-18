@@ -50,30 +50,6 @@ struct parse_where : op_parser<parse_where>
         return migraphx::add_common_op(
             *info.mod, make_op("where"), args, {/*common_type=*/false, /*common_lens=*/true});
     }
-
-    void infer_symbolic_values(const op_desc&, const symbolic_propagate_context& context) const
-    {
-        const auto condition = context.arg(0);
-        const auto x         = context.arg(1);
-        const auto y         = context.arg(2);
-        if(not condition.has_value() or not x.has_value() or not y.has_value())
-            return;
-        const auto size = std::max({condition->size(), x->size(), y->size()});
-        if(not can_broadcast_value(*condition, size) or not can_broadcast_value(*x, size) or
-           not can_broadcast_value(*y, size))
-            return;
-        const auto condition_values = fixed_integers(*condition);
-        if(not condition_values.has_value() or not context.output_has_elements(size))
-            return;
-
-        symbolic_tensor_value expressions;
-        expressions.reserve(size);
-        transform(range(size), std::back_inserter(expressions), [&](auto i) {
-            const auto& selected = broadcast_value_at(*condition_values, i) == 0 ? *y : *x;
-            return broadcast_value_at(selected, i);
-        });
-        context.set(std::move(expressions));
-    }
 };
 
 } // namespace onnx

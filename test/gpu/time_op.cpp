@@ -70,6 +70,39 @@ TEST_CASE(adaptive_time_schedule_coarse_stage_keeps_slow_candidate_cheap)
     EXPECT(schedule.executions == 1);
 }
 
+TEST_CASE(adaptive_time_schedule_coarse_stage_samples_fast_candidate)
+{
+    const migraphx::gpu::adaptive_tuning_options tuning;
+    auto options = tuning.coarse;
+    // Executions the coarse stage has left for measurement once its initialization and estimate
+    // runs are paid for.
+    options.max_executions = 4;
+
+    const auto schedule = migraphx::gpu::make_timing_schedule(0.01, options);
+
+    // Ranking a fast candidate from a single run would let event overhead decide the order, so the
+    // coarse budget is spent on several samples that common_average can trim.
+    EXPECT(schedule.bundle == 1);
+    EXPECT(schedule.samples == options.max_executions);
+    EXPECT(schedule.executions == options.max_executions);
+}
+
+TEST_CASE(adaptive_time_schedule_coarse_stage_bundles_split_k_candidate)
+{
+    const migraphx::gpu::adaptive_tuning_options tuning;
+    auto options             = tuning.coarse;
+    options.preferred_bundle = 5;
+    options.max_executions   = 4 * options.preferred_bundle;
+
+    const auto schedule = migraphx::gpu::make_timing_schedule(0.01, options);
+
+    // A split-k candidate keeps its prefill bundled into every sample rather than trading the
+    // bundle away for more samples.
+    EXPECT(schedule.bundle == options.preferred_bundle);
+    EXPECT(schedule.samples == 4);
+    EXPECT(schedule.executions == options.max_executions);
+}
+
 TEST_CASE(adaptive_time_schedule_clamps_max_samples_below_min)
 {
     migraphx::gpu::adaptive_time_options options;

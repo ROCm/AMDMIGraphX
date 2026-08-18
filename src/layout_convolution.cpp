@@ -156,18 +156,6 @@ void remove_layout(module& m)
     }
 }
 
-// Applies options.order, which must be resolved to channels_first or channels_last.
-void apply_layout(module& m, const layout_convolution& options)
-{
-    assert(options.order != layout_convolution::channels_auto);
-    preserve_output_layout(m);
-    transform_convolutions(m, options);
-    run_passes(
-        m, {dead_code_elimination{}, eliminate_contiguous{"contiguous"}, dead_code_elimination{}});
-    remove_layout(m);
-    run_passes(m, {dead_code_elimination{}});
-}
-
 std::size_t score(const module& m)
 {
     return std::count_if(m.begin(), m.end(), [](const instruction& ins) {
@@ -187,27 +175,42 @@ std::size_t score(const module& m)
 }
 } // namespace
 
+void layout_convolution::apply_layout(module& m) const
+{
+    assert(order != channels_auto);
+    preserve_output_layout(m);
+    transform_convolutions(m, *this);
+    run_passes(
+        m, {dead_code_elimination{}, eliminate_contiguous{"contiguous"}, dead_code_elimination{}});
+    remove_layout(m);
+    run_passes(m, {dead_code_elimination{}});
+}
+
 void layout_convolution::apply(module_pass_manager& mpm) const
 {
-    auto resolved = *this;
     if(order == layout_order::channels_auto)
     {
         // Score each candidate layout on a copy, then transform the live module in
         // place with the cheaper one. A copy is not swapped in because its parameters
         // have fresh identities, which would orphan submodules capturing the originals.
-        module m_first = mpm.get_module();
-        resolved.order = channels_first;
-        apply_layout(m_first, resolved);
-        module m_last  = mpm.get_module();
-        resolved.order = channels_last;
-        apply_layout(m_last, resolved);
+        layout_convolution first = *this;
+        first.order              = channels_first;
+        module m_first           = mpm.get_module();
+        first.apply_layout(m_first);
+        layout_convolution last = *this;
+        last.order              = channels_last;
+        module m_last           = mpm.get_module();
+        last.apply_layout(m_last);
         // channels_last converts each parameter to NHWC and back, so allow up to two extra
         // layouts per parameter before preferring channels_first.
         auto allowance = 2 * mpm.get_module().get_parameters().size();
-        resolved.order =
-            (score(m_first) + allowance < score(m_last)) ? channels_first : channels_last;
+        const auto& chosen    = (score(m_first) + allowance < score(m_last)) ? first : last;
+        chosen.apply_layout(mpm.get_module());
     }
-    apply_layout(mpm.get_module(), resolved);
+    else
+    {
+        apply_layout(mpm.get_module());
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

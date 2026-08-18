@@ -34,6 +34,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct module;
 struct module_pass_manager;
 
 /**
@@ -59,6 +60,8 @@ struct MIGRAPHX_EXPORT layout_convolution
     std::vector<shape::type_t> output_channels_last_types = {};
     std::string name() const { return "layout_convolution"; }
     void apply(module_pass_manager& mpm) const;
+    // Applies this->order, which must be resolved to channels_first or channels_last.
+    void apply_layout(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

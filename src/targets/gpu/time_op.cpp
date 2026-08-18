@@ -25,14 +25,21 @@
 #include <migraphx/gpu/time_op.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/context.hpp>
+#include <migraphx/env.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <functional>
+#include <iterator>
 #include <limits>
+#include <numeric>
 #include <thread>
 #include <tuple>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -29,7 +29,12 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/optional.hpp>
+#include <cstddef>
+#include <functional>
 #include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

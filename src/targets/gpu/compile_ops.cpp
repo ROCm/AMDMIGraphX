@@ -46,6 +46,7 @@
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <functional>
 
@@ -57,6 +58,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
+
+// Match the fixed per-candidate work budget used before adaptive timing.
+constexpr std::size_t benchmark_samples = 20;
 
 adaptive_tuning_options compile_ops_tuning_overrides::resolve() const
 {
@@ -486,10 +490,25 @@ struct compile_plan
             return *results[i];
         }
 
+        auto tuning_options = tuning;
+        if(tuning_options.top_k >= valid_indices.size())
+            tuning_options.top_k = 0;
+
         // GPU failures tend to be sticky, so one broken candidate usually takes every later one
         // down with it. Keep the first message to report instead of a more general message.
         std::string first_error;
+        std::vector<optional<prepared_time_program>> prepared(results.size());
+        std::vector<std::size_t> benchmark_bundles(results.size());
+        std::vector<std::size_t> execution_budgets(results.size());
+        std::vector<std::size_t> execution_counts(results.size());
+        // Coarse candidates share input buffers with identical fill policies. Their prepared
+        // state is released before precise timing so finalists are measured from fresh state.
+        std::vector<std::pair<std::unordered_map<std::string, double>,
+                              std::shared_ptr<parameter_map>>>
+            shared_parameter_maps;
+        bool precise_started = false;
         auto time_solution = [&](std::size_t i,
+                                 adaptive_time_stage stage,
                                  const adaptive_time_options& input_options) -> optional<double> {
             if(not results[i].has_value())
             {
@@ -499,28 +518,102 @@ struct compile_plan
             }
 
             if(trace_level > 1)
-                std::cout << "Benchmarking solution: " << config->solutions.at(i) << std::endl;
+                std::cout << (stage == adaptive_time_stage::coarse ? "Coarsely" : "Precisely")
+                          << " benchmarking solution: " << config->solutions.at(i) << std::endl;
+            std::size_t prepared_executions = 0;
             try
             {
                 if(trace_level > 2)
                     std::cout << *results[i] << std::endl;
-                /*
-                 * Replacing the instruction in this small program inserts every code object and
-                 * prefill required by the candidate, so split-k is timed end to end.
-                 */
-                auto bench_prog = results[i]->make_program();
-                if(trace_level > 2)
-                    std::cout << bench_prog << std::endl;
+                if(stage == adaptive_time_stage::precise and not precise_started)
+                {
+                    // Precise candidates start with fresh programs and parameters, while coarse
+                    // executions remain charged to each candidate's lifetime execution budget.
+                    std::fill(prepared.begin(), prepared.end(), nullopt);
+                    shared_parameter_maps.clear();
+                    precise_started = true;
+                }
+                if(not prepared[i].has_value())
+                {
+                    /*
+                     * Replacing the instruction in this small program inserts every code object
+                     * and prefill required by the candidate, so split-k is timed end to end.
+                     */
+                    auto bench_prog = results[i]->make_program();
+                    if(trace_level > 2)
+                        std::cout << bench_prog << std::endl;
+                    benchmark_bundles[i] =
+                        compute_benchmark_bundle(*bench_prog.get_main_module());
+                    if(execution_budgets[i] == 0)
+                        execution_budgets[i] =
+                            1 + benchmark_samples * benchmark_bundles[i];
+                    const auto& fill_map = results[i]->replace.fill_map;
+                    auto params = shared_parameter_maps.end();
+                    if(stage == adaptive_time_stage::coarse)
+                    {
+                        params = std::find_if(
+                            shared_parameter_maps.begin(),
+                            shared_parameter_maps.end(),
+                            [&](const auto& x) { return x.first == fill_map; });
+                    }
+                    auto benchmark = prepare_time_program(
+                        *ctx,
+                        std::move(bench_prog),
+                        fill_map,
+                        params == shared_parameter_maps.end() ? nullptr : params->second);
+                    if(stage == adaptive_time_stage::coarse and
+                       params == shared_parameter_maps.end())
+                        shared_parameter_maps.emplace_back(fill_map, benchmark.params);
+                    prepared[i] = std::move(benchmark);
+                    if(trace_level > 1)
+                        std::cout << "Prepared benchmark solution: " << config->solutions.at(i)
+                                  << std::endl;
+                }
+
+                auto& benchmark = *prepared[i];
+                prepared_executions = benchmark.executions;
+                const auto used     = execution_counts[i];
+                if(used >= execution_budgets[i])
+                {
+                    prepared[i] = nullopt;
+                    return nullopt;
+                }
+                const auto remaining = execution_budgets[i] - used;
+
                 auto options             = input_options;
-                options.preferred_bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
-                auto measured            = adaptive_time_program(
-                    *ctx, std::move(bench_prog), results[i]->replace.fill_map, options);
+                options.preferred_bundle = benchmark_bundles[i];
+                options.max_executions   = std::min(options.max_executions, remaining);
+                adaptive_time_budget budget;
+                budget.max_executions = remaining;
+                if(stage == adaptive_time_stage::coarse)
+                {
+                    // Coarse timing only needs lazy initialization, one estimate, and one short
+                    // bundled ranking measurement. Precise timing receives the lifetime budget
+                    // left by this call.
+                    budget.max_executions =
+                        std::min(budget.max_executions, 2 + options.preferred_bundle);
+                }
+                auto measured = adaptive_time_program(benchmark, options, budget);
+                execution_counts[i] += benchmark.executions - prepared_executions;
+                if(not std::isfinite(measured) or measured <= 0.0)
+                {
+                    prepared[i] = nullopt;
+                    return measured;
+                }
+
+                if(stage == adaptive_time_stage::precise)
+                    prepared[i] = nullopt;
                 if(trace_level > 1)
                     std::cout << measured << "ms" << std::endl;
                 return measured;
             }
             catch(const std::exception& e)
             {
+                if(prepared[i].has_value())
+                {
+                    execution_counts[i] += prepared[i]->executions - prepared_executions;
+                    prepared[i] = nullopt;
+                }
                 if(first_error.empty())
                     first_error =
                         "solution " + to_string(config->solutions.at(i)) + ": " + e.what();
@@ -531,10 +624,8 @@ struct compile_plan
             }
         };
 
-        auto tuning_options = tuning;
-        if(tuning_options.top_k >= valid_indices.size())
-            tuning_options.top_k = 0;
-        const auto winner = adaptive_time_topk(results.size(), tuning_options, time_solution);
+        const auto winner =
+            adaptive_time_topk_staged(results.size(), tuning_options, time_solution);
         if(not winner.has_value())
             MIGRAPHX_THROW("No valid tuned benchmark for " + preop.name() + " with " +
                            problem_string() +
@@ -732,3 +823,4 @@ void compile_ops::apply(module_pass_manager& mpm) const
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+

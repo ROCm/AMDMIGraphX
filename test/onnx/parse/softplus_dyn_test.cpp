@@ -23,33 +23,18 @@
  */
 #include <onnx_test.hpp>
 
-// Regression test: parsing Softplus with a non-fixed dynamic dimension used to abort.
-//
-// parse_softplus built its broadcast literal with
-//     multibroadcast{"out_lens", args[0]->get_shape().lens()}
-// and shape::lens() throws on a dynamic shape, so *any* model containing Softplus failed to
-// parse once an input dimension had min != max:
-//     shape.cpp: lens: SHAPE: lens() called on a dynamic shape
-//
-// Two reasons this went unnoticed: a *fixed* dynamic dimension ({n,n}) does not reproduce it,
-// only a real range does; and the existing softplus tests are all static. Softsign had the
-// identical bug and is covered by softsign_dyn_test.
+// Softplus with a non-fixed dynamic dimension used to throw in shape::lens().
 TEST_CASE(softplus_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
 
     auto input_type = migraphx::shape::float_type;
-    // Non-fixed first dimension: this is what used to throw.
     migraphx::shape s{input_type, {{1, 4}, {5, 5}}};
 
     auto x    = mm->add_parameter("x", s);
     auto ones = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
     auto exp  = mm->add_instruction(migraphx::make_op("exp"), x);
-    // add_common_op broadcasts BOTH operands to their common shape, so there are two
-    // multibroadcasts. Each takes the other operand as a second input (rather than an
-    // out_lens attribute), which is what makes it valid for dynamic shapes; the resolved
-    // dims are recorded in out_dyn_dims. Same construction as binary_dyn_brcst_mul_test.
     auto mb_exp = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(s.dyn_dims())}}),
         exp,

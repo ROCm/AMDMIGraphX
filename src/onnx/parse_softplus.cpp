@@ -43,9 +43,6 @@ struct parse_softplus : op_parser<parse_softplus>
         auto ones =
             info.add_literal(migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {1}});
         auto exp = info.add_instruction(migraphx::make_op("exp"), args[0]);
-        // add_common_op broadcasts the scalar to match exp, which works for both static and
-        // dynamic shapes. Using multibroadcast with an out_lens attribute would call lens()
-        // on the input shape and throw for a dynamic one.
         auto add = info.add_common_op("add", exp, ones);
         return info.add_instruction(migraphx::make_op("log"), add);
     }

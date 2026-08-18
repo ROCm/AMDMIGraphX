@@ -23,24 +23,18 @@
  */
 #include <onnx_test.hpp>
 
-// Regression test: parsing Softsign with a non-fixed dynamic dimension used to abort.
-// Same root cause as softplus_dyn_test - parse_softsign built its broadcast literal with
-// multibroadcast{"out_lens", args[0]->get_shape().lens()}, and shape::lens() throws on a
-// dynamic shape. See softplus_dyn_test for the full explanation.
+// Softsign with a non-fixed dynamic dimension used to throw in shape::lens().
 TEST_CASE(softsign_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
 
     auto input_type = migraphx::shape::float_type;
-    // Non-fixed first dimension: this is what used to throw.
     migraphx::shape s{input_type, {{1, 4}, {5, 5}}};
 
     auto x    = mm->add_parameter("x", s);
     auto ones = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
     auto abs  = mm->add_instruction(migraphx::make_op("abs"), x);
-    // See softplus_dyn_test: add_common_op broadcasts both operands, so two multibroadcasts,
-    // each in the two-input dynamic-safe form with the resolved dims in out_dyn_dims.
     auto mb_abs = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(s.dyn_dims())}}),
         abs,

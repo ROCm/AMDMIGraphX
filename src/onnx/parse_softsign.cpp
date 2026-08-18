@@ -43,7 +43,6 @@ struct parse_softsign : op_parser<parse_softsign>
         auto ones =
             info.add_literal(migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {1}});
         auto abs = info.add_instruction(migraphx::make_op("abs"), args[0]);
-        // See parse_softplus: add_common_op is dynamic-shape safe, multibroadcast+out_lens is not.
         auto add = info.add_common_op("add", abs, ones);
         return info.add_instruction(migraphx::make_op("div"), args[0], add);
     }

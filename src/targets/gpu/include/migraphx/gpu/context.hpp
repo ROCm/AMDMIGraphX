@@ -471,7 +471,10 @@ struct context
         return result;
     }
 
+    /// Access the problem cache directly to look up, insert, mark, and save
+    /// tuning solutions (see problem_cache for the layered priority search).
     problem_cache& get_problem_cache() { return *pc; }
+    const problem_cache& get_problem_cache() const { return *pc; }
 
     /// Configure the problem cache from a priority list of files (first hit
     /// wins). A single file is writable (solutions save back); multiple files
@@ -481,28 +484,6 @@ struct context
         pc->load(paths);
         pc->auto_save = (paths.size() == 1);
     }
-
-    /// Look up a problem across the configured caches (read-only layers first,
-    /// then writable); returns the first hit. This is what compile_ops calls.
-    optional<value> problem_cache_get(const std::string& name, const value& problem) const
-    {
-        return pc->get(name, problem);
-    }
-
-    /// Insert into the writable cache only (new tuning solutions go here).
-    void problem_cache_insert(const std::string& name, const value& problem, const value& solution)
-    {
-        pc->insert(name, problem, solution);
-    }
-
-    /// Mark a problem as seen in the writable cache.
-    void problem_cache_mark(const std::string& name, const value& problem)
-    {
-        pc->mark(name, problem);
-    }
-
-    /// Save the writable cache (called explicitly or via auto_save on destruction).
-    void save_problem_cache() const { pc->save(); }
 
     private:
     // TODO: Make this a vector to support multiple devices

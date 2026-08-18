@@ -24,7 +24,9 @@
  */
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/json_problem_cache.hpp>
+#include <migraphx/gpu/sqlite_problem_cache.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/stringutils.hpp>
 #include <algorithm>
 #include <cassert>
 
@@ -32,7 +34,19 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+// The default backend is JSON for an unconfigured/in-memory cache; load() picks
+// the backend by file type once a path is known.
 problem_cache::problem_cache() : backend(json_problem_cache{}) {}
+
+// Select the storage backend by file type: a ".db"/".sqlite" path uses the
+// SQLite backend, anything else (including no extension) uses JSON. This lets a
+// priority list mix cache formats.
+static problem_cache_backend make_backend(const std::string& path)
+{
+    if(ends_with(path, ".db") or ends_with(path, ".sqlite"))
+        return problem_cache_backend{sqlite_problem_cache{}};
+    return problem_cache_backend{json_problem_cache{}};
+}
 
 static value create_key(const std::string& name, const value& problem)
 {
@@ -62,7 +76,9 @@ void problem_cache::load(const std::string& path)
 {
     if(path.empty())
         return;
-    // Remember the path so save() writes back here; a missing file loads empty.
+    // Pick the backend by file type, then remember the path so save() writes
+    // back here; a missing file loads empty.
+    backend       = make_backend(path);
     path_override = path;
     backend.load(path);
 }
@@ -94,7 +110,7 @@ void problem_cache::load(const std::vector<std::string>& paths)
     // is written back; persisting to a writable local cache is a future item.
     for(const auto& path : paths)
     {
-        problem_cache_backend ro(json_problem_cache{});
+        problem_cache_backend ro = make_backend(path);
         if(not path.empty())
             ro.load(path);
         read_only_backends.push_back(std::move(ro));
@@ -104,11 +120,11 @@ void problem_cache::load(const std::vector<std::string>& paths)
 bool problem_cache::has(const std::string& name, const value& problem) const
 {
     const auto key = create_key(name, problem);
-    // Read-only layers first (highest priority), then the writable cache.
-    return std::any_of(read_only_backends.begin(),
-                       read_only_backends.end(),
-                       [&](const auto& ro) { return ro.has(device_key, key); }) or
-           backend.has(device_key, key);
+    // Writable cache first, then the read-only layers (lowest priority).
+    return backend.has(device_key, key) or
+           std::any_of(read_only_backends.begin(), read_only_backends.end(), [&](const auto& ro) {
+               return ro.has(device_key, key);
+           });
 }
 
 void problem_cache::insert(const std::string& name, const value& problem, const value& solution)
@@ -125,14 +141,17 @@ void problem_cache::mark(const std::string& name, const value& problem)
 optional<value> problem_cache::get(const std::string& name, const value& problem) const
 {
     const auto key = create_key(name, problem);
-    // Read-only layers first (highest priority), then the writable cache.
+    // Writable cache first (a locally tuned solution wins), then the read-only
+    // layers in priority order (first hit wins among them).
+    if(auto sol = backend.get(device_key, key))
+        return sol;
     const auto found =
         std::find_if(read_only_backends.begin(), read_only_backends.end(), [&](const auto& ro) {
             return ro.get(device_key, key).has_value();
         });
     if(found != read_only_backends.end())
         return found->get(device_key, key);
-    return backend.get(device_key, key);
+    return {};
 }
 
 } // namespace gpu

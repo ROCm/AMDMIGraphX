@@ -51,8 +51,8 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     void set_device_key(const cache_device_key& key);
     const cache_device_key& get_device_key() const;
 
-    /// Look up a problem. Read-only layers (from load(paths)) are searched in
-    /// priority order first, then the writable cache; the first hit wins.
+    /// Look up a problem. The writable cache is searched first, then the
+    /// read-only layers (from load(paths)) in priority order; first hit wins.
     bool has(const std::string& name, const value& problem) const;
     void insert(const std::string& name, const value& problem, const value& solution);
     void mark(const std::string& name, const value& problem);
@@ -62,17 +62,18 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     void load(const std::string& path);
     /// Load a priority list of caches (highest priority first, first hit wins).
     /// A single path is loaded as the writable cache (same as load(path));
-    /// multiple paths become read-only layers searched before the writable cache.
+    /// multiple paths become read-only layers searched after the writable cache.
     void load(const std::vector<std::string>& paths);
     void save() const;
 
     private:
-    // Pluggable storage backend (JSON by default); e.g. SQLite can be swapped in.
-    // This is the writable cache: new solutions are inserted and saved here.
+    // Pluggable storage backend, selected by file type at load() (JSON, or
+    // SQLite for a .db/.sqlite path). This is the writable cache: new solutions
+    // are inserted and saved here.
     problem_cache_backend backend;
 
-    // Higher-priority read-only layers searched before `backend` (first hit
-    // wins). Populated by load(paths) when multiple files are provided.
+    // Lower-priority read-only layers searched after `backend`; within the list
+    // the first hit wins. Populated by load(paths) when multiple files are given.
     std::vector<problem_cache_backend> read_only_backends{};
 
     // Device these entries were tuned on; set by the owning context. Empty

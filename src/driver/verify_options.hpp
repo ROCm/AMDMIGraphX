@@ -41,11 +41,6 @@ struct verify_options
      */
     bool ref_use_double = false;
 
-    /**
-     * Compare reference and target outputs layer by layer in a single compile of each program.
-     */
-    bool no_rebuild = false;
-
     std::string compiled_model = "";
 };
 

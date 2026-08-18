@@ -147,7 +147,8 @@ struct verify_callback
         };
     }
 
-    // Get the corresponding `ref_map` iterator to the highest `order` debug symbol in `ins` that is contained in `ref_map`. Used to handle instructions with multiple debug symbols.
+    // Get the corresponding `ref_map` iterator to the highest `order` debug symbol in `ins` that is
+    // contained in `ref_map`. Used to handle instructions with multiple debug symbols.
     ref_map::const_iterator terminal(instruction_ref ins, const shape& s) const
     {
         auto result = ref_outputs.end();
@@ -167,7 +168,8 @@ struct verify_callback
         return result;
     }
 
-    // Runs the target with ref inputs and compares the results.
+    // Scores the target output against the captured ref output, then returns the ref value so
+    // later layers read known-good inputs and each error is the layer's own.
     substitute_function compare()
     {
         return [this](instruction_ref ins, const argument& output) -> optional<argument> {
@@ -300,7 +302,6 @@ static program label_instructions(program p)
     return p;
 }
 
-// Runs ref and target
 static optional<verify_callback> run_layerwise_compare(const program& p,
                                                        const target& t,
                                                        const compile_options& options,
@@ -310,7 +311,7 @@ static optional<verify_callback> run_layerwise_compare(const program& p,
 {
     if(not any_of(p.get_modules(), [](auto* m) { return m->has_debug_symbols(); }))
     {
-        log::error() << "Layer-wise comparison (--no-rebuild) requires debug symbols. Reload the "
+        log::error() << "Layerwise comparison (--layerwise) requires debug symbols. Reload the "
                         "model with --debug-symbols.";
         return nullopt;
     }
@@ -320,7 +321,7 @@ static optional<verify_callback> run_layerwise_compare(const program& p,
     run_target(std::move(labeled), t, options, vo, inputs, vcb.compare());
     if(vcb.results.empty())
     {
-        log::error() << "Layer-wise comparison (--no-rebuild) matched no layers between the "
+        log::error() << "Layerwise comparison (--layerwise) matched no layers between the "
                         "reference and the target.";
         return nullopt;
     }
@@ -437,19 +438,6 @@ void verify_reduced_program(const program& p,
                             const parameter_map& inputs,
                             verify::tolerance tols)
 {
-    if(vo.no_rebuild)
-    {
-        auto vcb = run_layerwise_compare(p, t, options, vo, inputs, tols);
-        if(not vcb)
-            return;
-        auto failures = vcb->failures();
-        for(const auto& lr : failures)
-            log::error() << "FAILED at " << lr.name << " (" << lr.op << ")";
-        if(failures.empty())
-            log::info() << "MIGraphX verification passed successfully.";
-        return;
-    }
-
     const auto* mm = p.get_main_module();
     auto n         = std::distance(mm->begin(), mm->end());
     log::info() << "Verify steps: " << n;
@@ -523,20 +511,6 @@ void verify_bisected_program(const program& p,
                              const parameter_map& inputs,
                              verify::tolerance tols)
 {
-    if(vo.no_rebuild)
-    {
-        auto vcb = run_layerwise_compare(p, t, options, vo, inputs, tols);
-        if(not vcb)
-            return;
-        auto failure = vcb->divergence_source();
-        if(failure)
-            std::cout << "Failure introduced at: " << failure->name << " (" << failure->op << ")"
-                      << std::endl;
-        else
-            log::info() << "MIGraphX verification passed successfully.";
-        return;
-    }
-
     const auto* mm = p.get_main_module();
 
     std::vector<std::size_t> trims = find_trim_instructions(*mm);
@@ -564,6 +538,29 @@ void verify_bisected_program(const program& p,
     {
         std::cout << "Failure starts at: " << failed << std::endl;
     }
+}
+
+void verify_layerwise_program(const program& p,
+                              const target& t,
+                              const compile_options& options,
+                              const verify_options& vo,
+                              const parameter_map& inputs,
+                              verify::tolerance tols)
+{
+    auto vcb = run_layerwise_compare(p, t, options, vo, inputs, tols);
+    if(not vcb)
+        return;
+    auto failures = vcb->failures();
+    if(failures.empty())
+    {
+        log::info() << "MIGraphX verification passed successfully.";
+        return;
+    }
+    for(const auto& lr : failures)
+        log::error() << "FAILED at " << lr.name << " (" << lr.op << ")";
+    if(auto source = vcb->divergence_source())
+        std::cout << "Failure introduced at: " << source->name << " (" << source->op << ")"
+                  << std::endl;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

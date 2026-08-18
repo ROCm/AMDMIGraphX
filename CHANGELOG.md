@@ -101,6 +101,7 @@ Full documentation for MIGraphX is available at
 * Add matcher to `fuse_attention` that removes Q/DQ pairs from attention blocks (#4900).
 * Added a pass `rewrite_convolution` to rewrite `convolution_backwards` to match the v4r1 algorithm used in MIOpen for performance (#4929)
 * Added tuning for maximum block size to JIT reductions. On some configs there is 2x-10x perf improvement. (#5056)
+* Fuse expert Silu Heads (MoE) into batched GEMM via fuse_horizontal (#5087)
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).

@@ -1286,8 +1286,8 @@ TEST_CASE(from_4d_permutation)
 
 TEST_CASE(find_permutation_multi_singleton_ambiguous)
 {
-    // A standard shape with a singleton channel is layout-ambiguous, so it must
-    // not outvote the NHWC shape.
+    // A standard shape with a singleton channel is layout-ambiguous, so the
+    // NHWC shape decides the layout.
     auto nhwc = migraphx::shape::from_permutation(
         migraphx::shape::float_type, {1, 511, 32, 32}, {0, 2, 3, 1});
     migraphx::shape single{migraphx::shape::float_type, {1, 1, 32, 32}};

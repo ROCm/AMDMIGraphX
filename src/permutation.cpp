@@ -103,6 +103,7 @@ namespace {
 // stride order.
 bool supports_permutation(const shape& s, const std::vector<int64_t>& permutation)
 {
+    assert(permutation.size() == s.ndim());
     if(s.dynamic())
         return find_permutation(s) == permutation;
     std::vector<std::size_t> strides;
@@ -120,29 +121,31 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
 {
     if(shapes.empty())
         return {};
-    std::map<std::vector<int64_t>, std::size_t> count;
-    for(auto&& s : shapes)
-    {
-        if(s.broadcasted())
-            continue;
-        count[find_permutation(s)]++;
-    }
-    if(count.empty())
+    std::vector<shape> voters;
+    std::copy_if(shapes.begin(), shapes.end(), std::back_inserter(voters), [](const shape& s) {
+        return not s.broadcasted();
+    });
+    if(voters.empty())
     {
         std::vector<int64_t> r(shapes.front().ndim());
         std::iota(r.begin(), r.end(), 0);
         return r;
     }
-    // Shapes with singleton dims are layout-ambiguous, so recount with each
-    // shape voting for every candidate it supports. This stops an ambiguous
-    // shape from outvoting shapes with a definite layout.
-    if(count.size() > 1)
-    {
-        for(auto& p : count)
-            p.second = std::count_if(shapes.begin(), shapes.end(), [&](const shape& s) {
-                return not s.broadcasted() and supports_permutation(s, p.first);
-            });
-    }
+    std::map<std::vector<int64_t>, std::size_t> count;
+    std::transform(voters.begin(),
+                   voters.end(),
+                   std::inserter(count, count.end()),
+                   [](const shape& s) { return std::make_pair(find_permutation(s), 0); });
+    if(count.size() == 1)
+        return count.begin()->first;
+    // When layouts disagree, each shape votes for every candidate it supports.
+    // Shapes with singleton dims are layout-ambiguous and support several, so
+    // they cannot outvote shapes with a definite layout.
+    std::for_each(count.begin(), count.end(), [&](auto& p) {
+        p.second = std::count_if(voters.begin(), voters.end(), [&](const shape& s) {
+            return supports_permutation(s, p.first);
+        });
+    });
     auto it = std::max_element(
         count.begin(), count.end(), by(std::less<>{}, [](auto&& p) { return p.second; }));
     assert(it != count.end());

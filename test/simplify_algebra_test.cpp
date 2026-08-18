@@ -2778,6 +2778,85 @@ TEST_CASE(find_splits_for_pointwise2)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(hoist_pointwise_above_slices_relu)
+{
+    // Two sibling unit slices of the same tensor, each feeding an identical
+    // relu, do not fully tile their tensor so the constant-folding split fusion
+    // does not apply.  find_splits should instead hoist the relu above the
+    // slices: relu runs once on the bounding slice and each consumer reads its
+    // sub-range back.
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {3, 4}});
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), x);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), x);
+        auto r0 = m1.add_instruction(migraphx::make_op("relu"), s0);
+        auto r1 = m1.add_instruction(migraphx::make_op("relu"), s1);
+        m1.add_return({r0, r1});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {3, 4}});
+        auto big = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), x);
+        auto rb   = m2.add_instruction(migraphx::make_op("relu"), big);
+        auto sub0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), rb);
+        auto sub1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), rb);
+        m2.add_return({sub0, sub1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(hoist_no_tile_gap_unchanged)
+{
+    // Slices leave a gap in the bounding range ([0,1) and [2,3) over [0,3)),
+    // so hoisting would compute the chain over elements no consumer needs.
+    // find_splits must leave the module unchanged.
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {4, 4}});
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), x);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), x);
+        auto r0 = m1.add_instruction(migraphx::make_op("relu"), s0);
+        auto r1 = m1.add_instruction(migraphx::make_op("relu"), s1);
+        m1.add_return({r0, r1});
+    }
+    migraphx::module before = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == before.sort());
+}
+
+TEST_CASE(hoist_different_chains_unchanged)
+{
+    // Sibling slices feed different pointwise chains (relu vs sigmoid), so they
+    // do not group and nothing is hoisted.
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {3, 4}});
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), x);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), x);
+        auto r0 = m1.add_instruction(migraphx::make_op("relu"), s0);
+        auto r1 = m1.add_instruction(migraphx::make_op("sigmoid"), s1);
+        m1.add_return({r0, r1});
+    }
+    migraphx::module before = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == before.sort());
+}
+
 TEST_CASE(simplify_slice_different_axis)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4, 2}};

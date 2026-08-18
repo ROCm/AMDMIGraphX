@@ -26,7 +26,9 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -46,14 +48,17 @@ struct MIGRAPHX_EXPORT layout_convolution
         channels_auto
     };
     layout_order order = channels_first;
-    // Only used with channels_last: store the weights of fp32 convolutions
-    // with at least this many output channels with the output channel dim
-    // innermost (yxck for 2-D convolutions) instead of kyxc. This makes the
+    // Only used with channels_last: store the weights of convolutions with at
+    // least this many output channels with the output channel dim innermost
+    // (yxck for 2-D convolutions) instead of kyxc. This makes the
     // implicit-GEMM A matrix M-contiguous and avoids power-of-2 row strides
     // that alias in the memory system. With few output channels there is
     // nothing to vectorize along K, so kyxc's dense C loads win. 1 always
     // applies the layout; 0 disables it.
     std::size_t output_channels_last_threshold = 0;
+    // Restrict output_channels_last_threshold to weights of these types; when
+    // empty it applies to all types.
+    std::vector<shape::type_t> output_channels_last_types = {};
     std::string name() const { return "layout_convolution"; }
     void apply(module_pass_manager& mpm) const;
 };

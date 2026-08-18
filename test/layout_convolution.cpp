@@ -462,9 +462,61 @@ TEST_CASE(nhwc_conv_output_channels_last_always)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(nhwc_conv_output_channels_last_all_types)
+{
+    // An empty type list applies output_channels_last to every type.
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::half_type, {1, 8, 16, 16}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::half_type, {8, 8, 3, 3}}));
+        auto conv =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        m1.add_return({conv});
+    }
+    run_pass(m1,
+             {.order                          = migraphx::layout_convolution::channels_last,
+              .output_channels_last_threshold = 1});
+
+    migraphx::module m2;
+    {
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::half_type, {1, 8, 16, 16}}));
+        auto w = m2.add_instruction(
+            layout({2, 3, 1, 0}),
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::half_type, {8, 8, 3, 3}})));
+        auto conv =
+            m2.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        auto conv_layout = m2.add_instruction(layout(), conv);
+        m2.add_return({conv_layout});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nhwc_conv_output_channels_last_type_filtered)
+{
+    // A type not in output_channels_last_types keeps kyxc.
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::half_type, {1, 8, 16, 16}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::half_type, {8, 8, 3, 3}}));
+        auto conv =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1,
+             {.order                          = migraphx::layout_convolution::channels_last,
+              .output_channels_last_threshold = 1,
+              .output_channels_last_types     = {migraphx::shape::float_type}});
+    run_pass(m2, {.order = migraphx::layout_convolution::channels_last});
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(nhwc_quant_conv_output_channels_last_unchanged)
 {
-    // yxck applies only to fp32 convolution: quant_convolution keeps kyxc.
+    // int8 is not in output_channels_last_types, so quant_convolution keeps kyxc.
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 16, 16}});
@@ -477,7 +529,8 @@ TEST_CASE(nhwc_quant_conv_output_channels_last_unchanged)
     migraphx::module m2 = m1;
     run_pass(m1,
              {.order                          = migraphx::layout_convolution::channels_last,
-              .output_channels_last_threshold = 1});
+              .output_channels_last_threshold = 1,
+              .output_channels_last_types     = {migraphx::shape::float_type}});
     run_pass(m2, {.order = migraphx::layout_convolution::channels_last});
     EXPECT(m1.sort() == m2.sort());
 }

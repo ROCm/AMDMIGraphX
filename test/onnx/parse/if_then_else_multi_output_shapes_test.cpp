@@ -41,12 +41,12 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
     auto y                  = mm->add_parameter("y", s);
     auto cond               = mm->add_parameter("cond", sc);
 
-    auto* then_mod = p.create_module("If_5_if");
+    auto* then_mod = p.create_module("main_If_5_if");
     auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
     auto rt2       = then_mod->add_instruction(migraphx::make_op("add"), x, x);
     then_mod->add_return({rt, rt2});
 
-    auto* else_mod = p.create_module("If_5_else");
+    auto* else_mod = p.create_module("main_If_5_else");
     auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
     auto re2       = else_mod->add_instruction(migraphx::make_op("sub"), y, l2);
     else_mod->add_return({re, re2});

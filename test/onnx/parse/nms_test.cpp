@@ -52,13 +52,10 @@ TEST_CASE(nms_test)
     // The parser trims the zero-padded [6, 3] indices down to the number of boxes the op
     // selected. Added last so it lands at the front of the module, where the parser puts it.
     auto starts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
-    auto ret    = mm->add_instruction(
-        migraphx::make_op(
-            "dyn_slice",
-            {{"axes", {0}},
-                {"starts", {0}},
-                {"ends",
-                 migraphx::value::array{migraphx::to_value(var("NonMaxSuppression_5", {0, 6}))}}}),
+    auto num_selected_var = var("main_NonMaxSuppression_5", {0, 6});
+    auto ends             = migraphx::value::array{migraphx::to_value(num_selected_var)};
+    auto ret              = mm->add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", ends}}),
         indices,
         starts,
         num_selected);

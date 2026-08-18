@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/algorithm.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
@@ -204,8 +205,8 @@ TEST_CASE(offload_copy_no_rebind)
 }
 
 // The submodule's parameter binding must survive serialization: the binding is
-// by name order, while the parameter-order field get_parameter_names() reflects
-// is dropped by save/load. A reloaded program that bound positionally would pair
+// by name order, while the parameter-order field that get_parameter_names()
+// reflects is dropped by save/load. A reloaded program that bound positionally would pair
 // arguments with the wrong parameters and rebind the wrong kernel slots.
 TEST_CASE(rebind_save_load)
 {
@@ -237,12 +238,14 @@ TEST_CASE(rebind_sliced_input)
 // offload copy is disabled.
 static std::vector<std::string> output_param_names(const migraphx::program& p)
 {
+    auto param_shapes = p.get_parameter_shapes();
     std::vector<std::string> names;
-    for(auto&& [name, ps] : p.get_parameter_shapes())
-    {
-        if(migraphx::contains(name, "#output_"))
-            names.push_back(name);
-    }
+    migraphx::transform_if(
+        param_shapes.begin(),
+        param_shapes.end(),
+        std::back_inserter(names),
+        [](const auto& param) { return migraphx::contains(param.first, "#output_"); },
+        [](const auto& param) { return param.first; });
     std::sort(names.begin(), names.end());
     return names;
 }

@@ -69,7 +69,7 @@ TEST_CASE(alignment_padding)
     EXPECT(padding<char, short, int, char>() == 1);
 }
 
-// unpack_kernel_config with a kernel_args layout must return the offset and value
+// unpack_pointer_args with a kernel_args layout must return the offset and value
 // of only the pointer slots, skipping the inlined scalar arguments. Layout below
 // (matching code_object_op packing: pointer = empty value, 8 bytes align 8):
 //   [0] pointer  -> offset 0
@@ -94,7 +94,7 @@ TEST_CASE(unpack_skips_scalars)
 
     std::size_t size = buf.size();
     auto config      = migraphx::gpu::pack_kernel_config(buf.data(), &size);
-    auto pointers    = migraphx::gpu::unpack_kernel_config(
+    auto pointers    = migraphx::gpu::unpack_pointer_args(
         migraphx::gpu::unpack_kernel_config(config.data()), kernel_args);
 
     EXPECT(pointers.size() == 2);
@@ -120,7 +120,7 @@ TEST_CASE(unpack_all_pointers)
 
     std::size_t size = buf.size();
     auto config      = migraphx::gpu::pack_kernel_config(buf.data(), &size);
-    auto pointers    = migraphx::gpu::unpack_kernel_config(
+    auto pointers    = migraphx::gpu::unpack_pointer_args(
         migraphx::gpu::unpack_kernel_config(config.data()), kernel_args);
 
     EXPECT(pointers.size() == 3);
@@ -129,9 +129,10 @@ TEST_CASE(unpack_all_pointers)
     EXPECT(pointers[2] == std::make_pair(std::size_t{16}, ptr2));
 }
 
-// Configs unpack_kernel_config must reject rather than misparse: a null extra
-// array, an unknown tag word, a config terminated before its size entry, and a
-// kernel_args pointer slot whose offset lies past the end of the packed buffer.
+// Invalid inputs must be rejected rather than misparsed: unpack_kernel_config
+// with a null extra array, an unknown tag word, or a config terminated before
+// its size entry; unpack_pointer_args with a pointer slot whose offset lies
+// past the end of the packed buffer.
 TEST_CASE(unpack_invalid_configs)
 {
     std::vector<char> buf(16, 0);
@@ -155,7 +156,7 @@ TEST_CASE(unpack_invalid_configs)
     std::vector<char> small(8, 0);
     std::size_t small_size = small.size();
     auto small_config      = migraphx::gpu::pack_kernel_config(small.data(), &small_size);
-    EXPECT(migraphx::gpu::unpack_kernel_config(
+    EXPECT(migraphx::gpu::unpack_pointer_args(
                migraphx::gpu::unpack_kernel_config(small_config.data()), kernel_args)
                .empty());
 }

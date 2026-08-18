@@ -231,6 +231,8 @@ struct pipeline_factory
     {
         std::size_t max_memory =
             get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
+        const bool hip_graph_enabled =
+            enabled(MIGRAPHX_ENABLE_HIP_GRAPH{}) or backend_opts.hip_graph;
         return {
             auto_contiguous{},
             dead_code_elimination{},
@@ -265,9 +267,8 @@ struct pipeline_factory
             promote_literals{},
             dead_code_elimination{},
             write_literals{.max_memory = max_memory},
-            enable_pass(enabled(MIGRAPHX_ENABLE_HIP_GRAPH{}) or backend_opts.hip_graph,
-                        hipgraphify{}),
-            dead_code_elimination{},
+            enable_pass(hip_graph_enabled, hipgraphify{}),
+            enable_pass(hip_graph_enabled, dead_code_elimination{}),
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},

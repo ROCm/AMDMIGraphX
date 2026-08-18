@@ -111,27 +111,24 @@ std::vector<char> unpack_kernel_config(void** extra)
 {
     if(extra == nullptr)
         return {};
-    char* buffer     = nullptr;
-    std::size_t size = 0;
-    bool has_size    = false;
+    char* buffer      = nullptr;
+    std::size_t* size = nullptr;
     // The config is a sequence of (tag, value) pairs terminated by the end
-    // sentinel; the fixed cap guards against an unterminated array.
+    // sentinel; an array with no sentinel within the fixed cap is rejected.
     constexpr std::size_t max_tokens = 16;
-    for(std::size_t i = 0; i < max_tokens and extra[i] != launch_param_end(); i += 2)
+    std::size_t i                    = 0;
+    for(; i < max_tokens and extra[i] != launch_param_end(); i += 2)
     {
         if(extra[i] == launch_param_pointer())
             buffer = static_cast<char*>(extra[i + 1]);
         else if(extra[i] == launch_param_size())
-        {
-            size     = *static_cast<std::size_t*>(extra[i + 1]);
-            has_size = true;
-        }
+            size = static_cast<std::size_t*>(extra[i + 1]);
         else
             return {};
     }
-    if(buffer == nullptr or not has_size)
+    if(i >= max_tokens or buffer == nullptr or size == nullptr)
         return {};
-    return {buffer, buffer + size};
+    return {buffer, buffer + *size};
 }
 
 void write_pointer(char* pos, const char* p)
@@ -140,7 +137,7 @@ void write_pointer(char* pos, const char* p)
     std::copy(bytes.begin(), bytes.end(), pos);
 }
 
-char* read_pointer(const char* pos)
+static char* read_pointer(const char* pos)
 {
     std::array<char, sizeof(char*)> bytes{};
     std::copy(pos, pos + sizeof(char*), bytes.begin());
@@ -148,8 +145,8 @@ char* read_pointer(const char* pos)
 }
 
 std::vector<std::pair<std::size_t, char*>>
-unpack_kernel_config(const std::vector<char>& buffer,
-                     const std::map<std::size_t, kernel_argument_value>& kernel_args)
+unpack_pointer_args(const std::vector<char>& buffer,
+                    const std::map<std::size_t, kernel_argument_value>& kernel_args)
 {
     std::vector<std::pair<std::size_t, char*>> pointers;
     if(kernel_args.empty())
@@ -159,21 +156,11 @@ unpack_kernel_config(const std::vector<char>& buffer,
             pointers.emplace_back(off, read_pointer(buffer.data() + off));
         return pointers;
     }
-    // Replay the pack_args layout (code_object_op::finalize): a pointer slot has
-    // empty data (8 bytes, align 8); a scalar carries its own bytes and alignment.
     // A slot past the end of the buffer is skipped rather than read.
-    std::size_t pos = 0;
-    for(const auto& [idx, v] : kernel_args)
-    {
-        bool is_pointer   = v.data.empty();
-        std::size_t align = is_pointer ? sizeof(char*) : v.align;
-        std::size_t size  = is_pointer ? sizeof(char*) : v.data.size();
-        assert(align != 0); // a scalar argument always carries a real alignment
-        pos += pack_padding(pos, align);
+    for_each_kernarg_slot(kernel_args, [&](std::size_t pos, bool is_pointer) {
         if(is_pointer and pos + sizeof(char*) <= buffer.size())
             pointers.emplace_back(pos, read_pointer(buffer.data() + pos));
-        pos += size;
-    }
+    });
     return pointers;
 }
 

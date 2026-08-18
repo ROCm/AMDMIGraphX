@@ -350,8 +350,8 @@ TEST_CASE(idempotent)
 }
 
 // One external output writes into an allocation while another is not
-// allocation-backed: a module @return cannot mix borrow- and global-lifetime
-// values, so the mixed run is left uncaptured.
+// allocation-backed: the pass only captures a run whose outputs are all
+// allocation-backed or all not, so the mixed run is left uncaptured.
 TEST_CASE(mixed_output_backing)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};

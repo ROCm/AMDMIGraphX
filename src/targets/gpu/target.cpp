@@ -178,13 +178,15 @@ struct pipeline_factory
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
-            layout_convolution{
-                .order = enabled(MIGRAPHX_ENABLE_NHWC{}) ? layout_convolution::channels_last
-                                                         : layout_convolution::channels_auto,
-                .output_channels_last_threshold = mlir_enabled() ? std::size_t{8} : std::size_t{0},
-                // Only the non-accel path benefits from output-channels-last
-                // weights; the fp16/int8 accel path prefers kyxc filters.
-                .output_channels_last_types = {shape::float_type}},
+            layout_convolution{.order = enabled(MIGRAPHX_ENABLE_NHWC{})
+                                            ? layout_convolution::channels_last
+                                            : layout_convolution::channels_auto,
+                               // Below 8 output channels there is too little to vectorize
+                               // along K, so kyxc's dense C loads win (e.g. RGB heads).
+                               .output_channels_last_threshold = mlir_enabled() ? 8u : 0u,
+                               // Only the non-accel path benefits from output-channels-last
+                               // weights; the fp16/int8 accel path prefers kyxc filters.
+                               .output_channels_last_types = {shape::float_type}},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},

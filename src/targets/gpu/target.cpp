@@ -24,6 +24,7 @@
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_concat.hpp>
@@ -78,8 +79,8 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
+#include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/propagate_reshape_layout.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
@@ -201,7 +202,7 @@ struct pipeline_factory
     std::vector<pass> fusion_pipeline() const
     {
         return {
-            enable_pass(mlir_enabled(),
+            enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
                         fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
@@ -230,7 +231,7 @@ struct pipeline_factory
             lowering{get_context(), options.offload_copy},
             eliminate_contiguous{"gpu::contiguous"},
             dead_code_elimination{},
-            propagate_reshape_layout{},
+            lower_reshape{},
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{.use_hip_allocate = false}},
             dead_code_elimination{},
@@ -251,7 +252,9 @@ struct pipeline_factory
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
             lower_device_ops{},
-            compile_ops{get_context(), options.exhaustive_tune},
+            compile_ops{get_context(),
+                        options.exhaustive_tune,
+                        options.compile_mode == compile_modes::eager},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -278,15 +281,37 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache(); // TODO: update load_problem_cache to include gpu arch
 
+    if(options.compile_mode == compile_modes::max)
+        ctx.set_exhaustive_tune_flag(true);
+
     pipeline_factory p{&gctx, options, from_value<backend_options>(value(options.backend_options))};
 
-    std::vector<std::vector<pass>> pipelines = {
-        p.dynamic_shapes_pipeline(),
-        p.required_pipeline(),
-        p.optimize_rewrite_pipeline(),
-        p.fusion_pipeline(),
-        p.backend_pipeline(),
-    };
+    std::vector<std::vector<pass>> pipelines;
+
+    if(options.compile_mode == compile_modes::eager)
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            {optimize_module{},
+             dead_code_elimination{},
+             rewrite_reduce{},
+             rewrite_topk{},
+             dead_code_elimination{}},
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
+    else
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            p.optimize_rewrite_pipeline(),
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
 
     std::vector<pass> passes;
     std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));
@@ -298,12 +323,7 @@ std::string target::name() const { return "gpu"; }
 migraphx::context target::get_context() const
 {
     if(is_cross_compile())
-        return context(gpu_arch,
-                       gpu_num_cu,
-                       gpu_num_chiplets,
-                       gpu_max_threads_per_cu,
-                       gpu_max_threads_per_block,
-                       gpu_wavefront_size);
+        return context(desc);
     return context(gpu::get_device_id());
 }
 

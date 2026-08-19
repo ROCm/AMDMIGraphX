@@ -34,13 +34,18 @@
 #include "trim.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
+#include "verbose_terminate.hpp"
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 #include <migraphx/tf.hpp>
+#endif
+#ifdef MIGRAPHX_ENABLE_ONNX
 #include <migraphx/onnx.hpp>
-#include <migraphx/sym.hpp>
+#endif
 #ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
 #endif
+#include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
@@ -220,8 +225,12 @@ struct loader
            ap.help("Run a single GEMM to test MIGraphX"),
            ap.set_value(true),
            ap.group("input"));
+#ifdef MIGRAPHX_ENABLE_ONNX
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
+#endif
         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
         ap(batch,
@@ -439,6 +448,7 @@ struct loader
         return output_node_names;
     }
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
     tf_options get_tf_options() const
     {
         auto map_input_dims    = parse_param_dims(param_dims);
@@ -450,7 +460,9 @@ struct loader
         options.output_node_names = output_node_names;
         return options;
     }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
     onnx_options get_onnx_options() const
     {
         auto map_input_dims     = parse_param_dims(param_dims);
@@ -476,17 +488,24 @@ struct loader
         options.dim_params             = map_dim_params;
         return options;
     }
+#endif
 
     static std::string get_file_type(const std::string& file)
     {
-        if(ends_with(file, ".onnx"))
+        if(ends_with(file, ".json"))
+            return "json";
+#ifdef MIGRAPHX_ENABLE_ONNX
+        else if(ends_with(file, ".onnx"))
             return "onnx";
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
         else if(ends_with(file, ".pb"))
             return "tf";
-        else if(ends_with(file, ".json"))
-            return "json";
+#endif
+#ifdef MIGRAPHX_ENABLE_PYTHON
         else if(ends_with(file, ".py"))
             return "py";
+#endif
         else
             return "migraphx";
     }
@@ -505,20 +524,24 @@ struct loader
                 file_type = get_file_type(file);
             }
             log::info() << "Reading: " << file;
-            if(file_type == "onnx")
-            {
-                p = parse_onnx(file, get_onnx_options());
-            }
-            else if(file_type == "tf")
-            {
-                p = parse_tf(file, get_tf_options());
-            }
-            else if(file_type == "json")
+            if(file_type == "json")
             {
                 file_options options;
                 options.format = "json";
                 p              = migraphx::load(file, options);
             }
+#ifdef MIGRAPHX_ENABLE_ONNX
+            else if(file_type == "onnx")
+            {
+                p = parse_onnx(file, get_onnx_options());
+            }
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+            else if(file_type == "tf")
+            {
+                p = parse_tf(file, get_tf_options());
+            }
+#endif
 #ifdef MIGRAPHX_ENABLE_PYTHON
             else if(file_type == "py")
             {
@@ -838,6 +861,14 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+        ap(co.compile_mode,
+           {"--compile-mode"},
+           ap.help("Set compilation mode: eager, balanced, max, or an integer 0-100"),
+           ap.write_action([](auto&, auto& x, const auto& params) {
+               if(params.empty())
+                   throw std::runtime_error("Flag with no value.");
+               x = convert_to_compile_mode(params.back());
+           }));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
@@ -1141,6 +1172,8 @@ struct op : command<op>
     }
 };
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 struct onnx : command<onnx>
 {
     bool show_ops = false;
@@ -1161,6 +1194,10 @@ struct onnx : command<onnx>
     }
 };
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 struct tf : command<tf>
 {
     bool show_ops = false;
@@ -1180,6 +1217,8 @@ struct tf : command<tf>
         }
     }
 };
+
+#endif
 
 struct main_command
 {
@@ -1249,6 +1288,9 @@ using namespace migraphx::driver; // NOLINT
 
 int main(int argc, const char* argv[], const char* envp[])
 {
+#ifdef _WIN32
+    install_verbose_terminate_handler();
+#endif
     std::vector<std::string> args(argv + 1, argv + argc);
     // Save original args for display purposes before they get modified
     const std::vector<std::string> original_args = args;

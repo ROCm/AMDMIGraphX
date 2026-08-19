@@ -1243,7 +1243,7 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
 }
 
 // Get rid of min(a, b) if it can definitively determined
-expr fold_min(const expr& a, const expr& b)
+expr resolve_min(const expr& a, const expr& b)
 {
     auto lt = strict_less(a, b);
     if(lt.has_value())
@@ -1252,7 +1252,7 @@ expr fold_min(const expr& a, const expr& b)
 }
 
 // Get rid of max(a, b) if it can definitively determined
-expr fold_max(const expr& a, const expr& b)
+expr resolve_max(const expr& a, const expr& b)
 {
     auto lt = strict_less(a, b);
     if(lt.has_value())

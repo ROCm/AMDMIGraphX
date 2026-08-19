@@ -128,6 +128,9 @@ __device__ inline void wmma_octet_asm(vec<half, 8> a0,
 
 __device__ inline array<half, 16> winograd_input_transform_f23(const array<half, 16>& d_arr)
 {
+// Reassociation rewrites the hand-ordered transform trees, extending
+// accumulator live ranges into spills and lower occupancy.
+#pragma clang fp reassociate(off)
     using h2 = vec<half, 2>;
     // First pass B^T d: per-row sub/add of 4 columns. All 4 columns are
     // independent so we express each row as TWO packed half2 ops --
@@ -179,6 +182,7 @@ __device__ inline array<half, 16> winograd_input_transform_f23(const array<half,
 template <class T>
 __device__ inline void winograd_input_transform_f23_vec(const array<T, 16>& d, array<T, 16>& v)
 {
+#pragma clang fp reassociate(off)
     array<T, 16> t;
     repeat_c<4>([&](auto j) {
         t[0 * 4 + j] = d[0 * 4 + j] - d[2 * 4 + j];
@@ -231,6 +235,9 @@ template <index_int NW,
 // NOLINTNEXTLINE(readability-function-size): single fused winograd+WMMA+writeback kernel
 __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, Inputs... inputs)
 {
+// The kernel streams output transforms to keep accumulator live ranges
+// short; reassociation undoes that ordering and forces spills.
+#pragma clang fp reassociate(off)
     static_assert(CB % 16 == 0, "CB must be a multiple of WMMA K (16)");
     static_assert(KW >= 1, "KW must be >= 1");
     static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0, "SK must divide NW evenly");

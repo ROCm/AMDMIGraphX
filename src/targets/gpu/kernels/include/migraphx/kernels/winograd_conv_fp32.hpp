@@ -146,6 +146,9 @@ template <index_int NW,
 __device__ void
 winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... inputs)
 {
+// Reassociation rewrites the hand-ordered transform/FMA trees, extending
+// accumulator live ranges into spills and lower occupancy.
+#pragma clang fp reassociate(off)
     static_assert(KO >= 1, "KO must be >= 1");
     static_assert(TILES >= 1, "TILES must be >= 1");
     static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0, "SK must divide NW");

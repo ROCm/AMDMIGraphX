@@ -230,7 +230,7 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");
-
+    
     // Enable fast-math flags
     if(not contains(options.params, "-fhonor-nans"))
         options.emplace_param("-fno-honor-nans");
@@ -238,8 +238,8 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
         options.emplace_param("-fno-signed-zeros");
     if(not contains(options.params, "-ftrapping-math"))
         options.emplace_param("-fno-trapping-math");
-    // if(not contains(options.params, "-fno-associative-math"))
-    //     options.emplace_param("-fassociative-math");
+    if(not contains(options.params, "-fno-associative-math"))
+        options.emplace_param("-fassociative-math");
     if(not contains(options.params, "-fno-reciprocal-math"))
         options.emplace_param("-freciprocal-math");
     if(std::none_of(options.params.begin(), options.params.end(), [](const std::string& s) {

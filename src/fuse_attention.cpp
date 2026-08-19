@@ -645,10 +645,10 @@ struct find_flash_decoding
 
         literal result;
         lit.visit([&](auto in_view) {
-            using T = std::remove_cv_t<std::remove_reference_t<decltype(*in_view.begin())>>;
+            using type = std::remove_cv_t<std::remove_reference_t<decltype(*in_view.begin())>>;
             const shape in_shape    = lit.get_shape();
             const shape split_shape = {in_shape.type(), split_lens};
-            std::vector<T> split_data(split_shape.elements(), T{});
+            std::vector<type> split_data(split_shape.elements(), type{});
 
             shape_for_each(
                 split_shape, [&](const std::vector<std::size_t>& split_idx, std::size_t i) {

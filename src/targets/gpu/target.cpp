@@ -103,7 +103,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIP_GRAPH)
 
 namespace {
 // Backend options recognized by the GPU target, supplied via
@@ -112,7 +111,6 @@ struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
     // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
-    // Also controllable via the MIGRAPHX_ENABLE_HIP_GRAPH env var.
     bool hip_graph = false;
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
@@ -251,8 +249,6 @@ struct pipeline_factory
     {
         std::size_t max_memory =
             get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
-        const bool hip_graph_enabled =
-            enabled(MIGRAPHX_ENABLE_HIP_GRAPH{}) or backend_opts.hip_graph;
         return {
             auto_contiguous{},
             dead_code_elimination{},
@@ -287,8 +283,8 @@ struct pipeline_factory
             promote_literals{},
             dead_code_elimination{},
             write_literals{.max_memory = max_memory},
-            enable_pass(hip_graph_enabled, hipgraphify{}),
-            enable_pass(hip_graph_enabled, dead_code_elimination{}),
+            enable_pass(backend_opts.hip_graph, hipgraphify{}),
+            enable_pass(backend_opts.hip_graph, dead_code_elimination{}),
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},

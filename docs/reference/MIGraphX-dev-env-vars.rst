@@ -329,14 +329,6 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Full dynamic shape support is disabled.
 
-  * - | ``MIGRAPHX_ENABLE_HIP_GRAPH``
-      | When set, the ``hipgraphify`` pass is run, which partitions the model into runs of HIP-graph-capturable instructions and wraps each in a single ``hip::graph`` op to reduce kernel launch overhead.
-
-    - | ``1``: Runs the ``hipgraphify`` pass.
-      | ``0``: Returns to default behavior.
-
-      | Default: The ``hipgraphify`` pass isn't run.
-
   * - | ``MIGRAPHX_USE_DYNAMIC_NMS``
       | When set, the ``NonMaxSuppression`` ONNX parser performs a dynamic slice on the raw indices tensor to trim it to the number of selected boxes, producing an output with a dynamic shape.
 

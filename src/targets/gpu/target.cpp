@@ -284,7 +284,7 @@ struct pipeline_factory
             dead_code_elimination{},
             write_literals{.max_memory = max_memory},
             enable_pass(backend_opts.hip_graph, hipgraphify{}),
-            enable_pass(backend_opts.hip_graph, dead_code_elimination{}),
+            dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},

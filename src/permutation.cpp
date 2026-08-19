@@ -132,6 +132,9 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
         std::iota(r.begin(), r.end(), 0);
         return r;
     }
+    const auto ndim = voters.front().ndim();
+    if(std::any_of(voters.begin(), voters.end(), [&](const shape& s) { return s.ndim() != ndim; }))
+        MIGRAPHX_THROW("FIND_PERMUTATION: mismatched shape ranks");
     std::map<std::vector<int64_t>, std::size_t> count;
     std::transform(voters.begin(),
                    voters.end(),

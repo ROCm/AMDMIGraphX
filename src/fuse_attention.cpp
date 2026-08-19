@@ -35,9 +35,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/literal.hpp>
 #include <algorithm>
-#include <deque>
 #include <iterator>
-#include <optional>
 #include <unordered_set>
 
 namespace migraphx {
@@ -721,76 +719,6 @@ struct find_flash_decoding
         return contains(broadcast_ops, op.name());
     }
 
-    static bool uses_ins(instruction_ref start, instruction_ref target)
-    {
-        std::unordered_set<instruction_ref> visited;
-        return fix<bool>([&](auto self, instruction_ref ins) -> bool {
-            if(ins == target)
-                return true;
-            if(not visited.insert(ins).second)
-                return false;
-            return std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
-                return self(input);
-            });
-        })(start);
-    }
-
-    std::optional<instruction_ref> broadcast_shape_ins(instruction_ref bc) const
-    {
-        assert(is_broadcast_op(bc->get_operator()));
-
-        std::deque<instruction_ref> queue(bc->outputs().begin(), bc->outputs().end());
-        std::unordered_set<instruction_ref> visited;
-        while(not queue.empty())
-        {
-            auto cur = queue.front();
-            queue.pop_front();
-            if(not visited.insert(cur).second)
-                continue;
-
-            if(cur->name() == "where")
-                return cur->inputs().at(1);
-
-            if(cur->inputs().size() == 2)
-            {
-                const auto& inputs = cur->inputs();
-                const auto it      = std::find_if(inputs.begin(), inputs.end(), [&](auto input) {
-                    return not uses_ins(input, bc);
-                });
-                if(it == inputs.end())
-                    return std::nullopt;
-                return *it;
-            }
-
-            std::copy(cur->outputs().begin(), cur->outputs().end(), std::back_inserter(queue));
-        }
-        return std::nullopt;
-    }
-
-    bool broadcast_shape_ready(
-        instruction_ref bc,
-        const std::unordered_map<instruction_ref, instruction_ref>& map_old_to_new) const
-    {
-        assert(is_broadcast_op(bc->get_operator()));
-        auto shape_ins = broadcast_shape_ins(bc);
-        return shape_ins.has_value() and contains(map_old_to_new, *shape_ins);
-    }
-
-    bool
-    rebuild_ready(instruction_ref ins,
-                  const std::unordered_map<instruction_ref, instruction_ref>& map_old_to_new) const
-    {
-        if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
-               return contains(map_old_to_new, input);
-           }))
-            return false;
-
-        if(is_broadcast_op(ins->get_operator()))
-            return broadcast_shape_ready(ins, map_old_to_new);
-
-        return true;
-    }
-
     std::unordered_map<instruction_ref, instruction_ref>
     map_submod_params_to_inputs(module_ref submod,
                                 const std::vector<instruction_ref>& group_inputs) const
@@ -811,6 +739,7 @@ struct find_flash_decoding
         // map from instructions in the old module to the new ones in the target module
         std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
         std::unordered_map<std::string, instruction_ref> softmax_parts;
+        const auto split_lens = get_scores_split_lens(scores_lens, num_groups);
 
         std::vector<instruction_ref> pending;
         for(auto ins : iterator_for(source_mod))
@@ -838,7 +767,9 @@ struct find_flash_decoding
                     progress            = true;
                     continue;
                 }
-                if(not rebuild_ready(ins, map_old_to_new))
+                if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
+                       return contains(map_old_to_new, input);
+                   }))
                 {
                     next_pending.push_back(ins);
                     continue;
@@ -868,25 +799,23 @@ struct find_flash_decoding
                 else if(is_broadcast_op(op))
                 {
                     const auto orig_out_lens = op.to_value()["out_lens"].to_vector<std::size_t>();
-                    auto shape_ins           = broadcast_shape_ins(ins);
-                    if(not shape_ins.has_value())
-                        return false;
-                    const auto split_lens = map_old_to_new.at(*shape_ins)->get_shape().lens();
-                    const auto& input_lens = new_inputs.front()->get_shape().lens();
-
-                    if(not can_multibroadcast(input_lens, split_lens) and
-                       can_multibroadcast(input_lens, orig_out_lens))
+                    if(orig_out_lens == scores_lens)
                     {
-                        auto bc_ins         = target_mod.add_instruction(op, new_inputs);
-                        map_old_to_new[ins] = target_mod.add_instruction(
-                            make_op("reshape", {{"dims", split_lens}}), bc_ins);
-                        progress = true;
-                        continue;
-                    }
+                        const auto& input_lens = new_inputs.front()->get_shape().lens();
+                        if(not can_multibroadcast(input_lens, split_lens) and
+                           can_multibroadcast(input_lens, orig_out_lens))
+                        {
+                            auto bc_ins         = target_mod.add_instruction(op, new_inputs);
+                            map_old_to_new[ins] = target_mod.add_instruction(
+                                make_op("reshape", {{"dims", split_lens}}), bc_ins);
+                            progress = true;
+                            continue;
+                        }
 
-                    auto value        = op.to_value();
-                    value["out_lens"] = split_lens;
-                    op.from_value(value);
+                        auto value        = op.to_value();
+                        value["out_lens"] = split_lens;
+                        op.from_value(value);
+                    }
                 }
 
                 auto new_ins        = target_mod.add_instruction(op, new_inputs);

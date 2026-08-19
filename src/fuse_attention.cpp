@@ -650,11 +650,12 @@ struct find_flash_decoding
             const shape split_shape = {in_shape.type(), split_lens};
             std::vector<T> split_data(split_shape.elements(), T{});
 
-            shape_for_each(split_shape, [&](const std::vector<std::size_t>& split_idx, std::size_t i) {
-                const auto score_idx   = merge_split_index(split_idx, ndim, n_split);
-                const auto literal_idx = broadcastable_literal_index(score_idx, input_lens);
-                split_data[i]          = in_view[in_shape.index(literal_idx)];
-            });
+            shape_for_each(
+                split_shape, [&](const std::vector<std::size_t>& split_idx, std::size_t i) {
+                    const auto score_idx   = merge_split_index(split_idx, ndim, n_split);
+                    const auto literal_idx = broadcastable_literal_index(score_idx, input_lens);
+                    split_data[i]          = in_view[in_shape.index(literal_idx)];
+                });
             result = literal{split_shape, split_data};
         });
         return result;
@@ -748,16 +749,15 @@ struct find_flash_decoding
             if(cur->inputs().size() == 2)
             {
                 const auto& inputs = cur->inputs();
-                const auto it      = std::find_if(
-                    inputs.begin(), inputs.end(), [&](auto input) { return not uses_ins(input, bc); });
+                const auto it      = std::find_if(inputs.begin(), inputs.end(), [&](auto input) {
+                    return not uses_ins(input, bc);
+                });
                 if(it == inputs.end())
                     MIGRAPHX_THROW("Failed to find broadcast shape reference for flash decoding");
                 return *it;
             }
 
-            std::copy(cur->outputs().begin(),
-                      cur->outputs().end(),
-                      std::back_inserter(queue));
+            std::copy(cur->outputs().begin(), cur->outputs().end(), std::back_inserter(queue));
         }
         MIGRAPHX_THROW("Failed to find broadcast shape reference for flash decoding");
     }
@@ -869,7 +869,7 @@ struct find_flash_decoding
                     if(not can_multibroadcast(input_lens, split_lens) and
                        can_multibroadcast(input_lens, orig_out_lens))
                     {
-                        auto bc_ins = target_mod.add_instruction(op, new_inputs);
+                        auto bc_ins         = target_mod.add_instruction(op, new_inputs);
                         map_old_to_new[ins] = target_mod.add_instruction(
                             make_op("reshape", {{"dims", split_lens}}), bc_ins);
                         progress = true;
@@ -969,14 +969,14 @@ struct find_flash_decoding
             if(param->name() != "@param")
                 continue;
 
-            const auto main_ins = map_param_to_main.at(param);
+            const auto main_ins     = map_param_to_main.at(param);
             param_transforms[param] = flash_input_transform{main_ins, {}, {}};
         }
 
-        const auto& q_main = param_transforms.at(q_param).main;
-        const auto& k_main = param_transforms.at(k_param).main;
-        const auto& v_main = param_transforms.at(v_param).main;
-        auto qkv_shapes    = get_qkv_shapes(q_main, k_main, v_main);
+        const auto& q_main   = param_transforms.at(q_param).main;
+        const auto& k_main   = param_transforms.at(k_param).main;
+        const auto& v_main   = param_transforms.at(v_param).main;
+        auto qkv_shapes      = get_qkv_shapes(q_main, k_main, v_main);
         auto transform_info  = get_transformed_shapes(qkv_shapes, actual_groups);
         const int64_t g_axis = q_main->get_shape().ndim() - 2;
 
@@ -1004,8 +1004,8 @@ struct find_flash_decoding
                     shape{qkv_shapes[2].type(), transform_info.v_shape};
                 break;
             case flash_input_kind::scores:
-                transform.split_main = reshape_scores_aligned(
-                    mm, transform.main, attn_group_ins, actual_groups);
+                transform.split_main =
+                    reshape_scores_aligned(mm, transform.main, attn_group_ins, actual_groups);
                 transform.submodule_param_shape =
                     shape{param->get_shape().type(),
                           get_scores_split_lens(transform.main->get_shape().lens(), actual_groups)};

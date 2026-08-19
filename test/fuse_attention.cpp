@@ -61,11 +61,10 @@ static bool has_flash_decoding_submodule(const migraphx::program& p)
         p.get_main_module()->begin(), p.get_main_module()->end(), [](const auto& ins) {
             if(ins.name() != "group")
                 return false;
-            return std::any_of(ins.module_inputs().begin(),
-                               ins.module_inputs().end(),
-                               [](const auto* sm) {
-                                   return sm->name().find("flash_decoding") != std::string::npos;
-                               });
+            return std::any_of(
+                ins.module_inputs().begin(), ins.module_inputs().end(), [](const auto* sm) {
+                    return sm->name().find("flash_decoding") != std::string::npos;
+                });
         });
 }
 
@@ -1085,8 +1084,8 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
             mm->add_instruction(migraphx::make_op("convert", {{"target_type", s1.type()}}), ninf);
         k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
         v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), v);
-        auto gemm1    = mm->add_instruction(migraphx::make_op("dot"), q, k);
-        auto mask_bc  = mm->add_instruction(
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto mask_bc = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), mask);
         auto ninf_bc = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), ninf_h);
@@ -1597,7 +1596,7 @@ TEST_CASE(flash_decoding_3d_skips_uneven_sequence)
         auto a   = mm->add_parameter("q", s_3d);
         auto b   = mm->add_parameter("k", s_3d);
         auto b1  = mm->add_parameter("v", st_3d);
-        a        = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), a);
+        a = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), a);
         auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
         rmax       = mm->add_instruction(
@@ -2209,9 +2208,8 @@ TEST_CASE(fp8_quant_gemm_softmax_gemm)
     EXPECT(std::none_of(
         mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "quant_dot"; }));
     // ... and fused into an attention group.
-    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return is_attention_group(ins);
-    }));
+    EXPECT(std::any_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return is_attention_group(ins); }));
 }
 
 TEST_CASE(transposed_attention)

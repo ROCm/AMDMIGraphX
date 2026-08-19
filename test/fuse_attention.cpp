@@ -68,12 +68,6 @@ static bool has_flash_decoding_submodule(const migraphx::program& p)
         });
 }
 
-static bool is_attention_group(const migraphx::instruction& ins)
-{
-    return ins.name() == "group" and
-           ins.get_operator().to_value()["tag"].to<std::string>() == "attention";
-}
-
 // Test helper functions used in fuse_attention pass
 TEST_CASE(get_num_splits_from_member)
 {
@@ -2672,7 +2666,6 @@ TEST_CASE(flash_decoding_auto_split_max_splits_constraint)
     EXPECT(found_flash_decoding);
 }
 
-
 TEST_CASE(ceil_mul_of_function)
 {
     // Test the ceil_mul_of function used for padding calculations
@@ -2757,8 +2750,10 @@ TEST_CASE(fp8_quant_gemm_softmax_gemm)
     EXPECT(std::none_of(
         mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "quant_dot"; }));
     // ... and fused into an attention group.
-    EXPECT(std::any_of(
-        mm->begin(), mm->end(), [](const auto& ins) { return is_attention_group(ins); }));
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "group" and
+               ins.get_operator().to_value()["tag"].template to<std::string>() == "attention";
+    }));
 }
 
 TEST_CASE(transposed_attention)

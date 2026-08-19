@@ -58,6 +58,27 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
 
+std::vector<std::string> compile_hip_options(const std::vector<std::string>& params, const std::string& arch)
+{
+    auto options = params;
+    options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
+    if(enabled(MIGRAPHX_GPU_DEBUG{}))
+        options.push_back("-DMIGRAPHX_DEBUG");
+    if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
+           return starts_with(s, "--std=") or starts_with(s, "-std=");
+       }))
+        options.push_back("-std=c++17");
+    options.push_back("-fno-gpu-rdc");
+    options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
+    options.push_back("-Wno-cuda-compat");
+    options.push_back("--offload-arch=" + arch);
+    std::vector<std::string> extra_flags =
+        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
+    options.insert(options.end(), extra_flags.begin(), extra_flags.end());
+
+    return options;
+}
+
 #ifdef MIGRAPHX_USE_HIPRTC
 
 namespace {

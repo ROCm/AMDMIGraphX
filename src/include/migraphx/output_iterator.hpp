@@ -118,7 +118,7 @@ function_output_iterator_adaptor<Iterator, F> make_function_output_iterator_adap
 
 // Output iterator that assigns through std::get<N> of each element, so
 // algorithms can write to one tuple/pair field of a sequence, such as the
-// values of a map, which an inplace std::transform cant do since the keys are
+// values of a map, which an in-place std::transform can't do since the keys are
 // const.
 template <std::size_t N, class Iterator>
 auto element_output_iterator(Iterator it)

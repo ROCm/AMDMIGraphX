@@ -192,7 +192,7 @@ TEST_CASE(adaptive_time_loop_shares_coarse_and_precise_total_budget)
     migraphx::gpu::adaptive_tuning_options tuning;
     constexpr std::size_t preferred_bundle = 10;
     constexpr std::size_t candidate_budget = 1 + 20 * preferred_bundle;
-    std::size_t executions = 0;
+    std::size_t executions                 = 0;
 
     auto coarse             = tuning.coarse;
     coarse.preferred_bundle = preferred_bundle;
@@ -207,9 +207,8 @@ TEST_CASE(adaptive_time_loop_shares_coarse_and_precise_total_budget)
     migraphx::gpu::adaptive_time_budget precise_budget;
     precise_budget.skip_initialization = true;
     precise_budget.max_executions      = candidate_budget - executions;
-    precise.max_executions = precise_budget.max_executions;
-    migraphx::gpu::adaptive_time_loop(
-        ctx, precise, precise_budget, [&] { executions++; });
+    precise.max_executions             = precise_budget.max_executions;
+    migraphx::gpu::adaptive_time_loop(ctx, precise, precise_budget, [&] { executions++; });
 
     EXPECT(executions <= candidate_budget);
 }
@@ -218,12 +217,11 @@ TEST_CASE(adaptive_time_program_reuses_prepared_setup_and_budget)
 {
     migraphx::program p;
     auto* mm  = p.get_main_module();
-    auto data = mm->add_parameter(
-        "data", migraphx::shape{migraphx::shape::float_type, {1}});
+    auto data = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {1}});
     mm->add_return({data});
 
     migraphx::gpu::context ctx;
-    auto prepared = migraphx::gpu::prepare_time_program(ctx, std::move(p), {});
+    auto prepared     = migraphx::gpu::prepare_time_program(ctx, std::move(p), {});
     const auto params = prepared.params;
     constexpr std::size_t candidate_budget = 21;
 
@@ -344,8 +342,9 @@ TEST_CASE(adaptive_time_topk_zero_measures_every_candidate_precisely)
     std::size_t precise_calls               = 0;
 
     const auto result = migraphx::gpu::adaptive_time_topk_staged(
-        precise_times.size(), options, [&](auto i, auto stage, const auto&)
-                                          -> migraphx::optional<double> {
+        precise_times.size(),
+        options,
+        [&](auto i, auto stage, const auto&) -> migraphx::optional<double> {
             EXPECT(stage == migraphx::gpu::adaptive_time_stage::precise);
             precise_calls++;
             return precise_times[i];
@@ -426,4 +425,3 @@ TEST_CASE(adaptive_time_topk_promotes_after_coarse_failure)
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

@@ -94,8 +94,7 @@ using adaptive_time_callback =
     std::function<optional<double>(std::size_t, const adaptive_time_options&)>;
 
 using adaptive_time_stage_callback =
-    std::function<optional<double>(
-        std::size_t, adaptive_time_stage, const adaptive_time_options&)>;
+    std::function<optional<double>(std::size_t, adaptive_time_stage, const adaptive_time_options&)>;
 
 struct adaptive_time_budget
 {
@@ -128,15 +127,15 @@ prepare_time_program(const context& ictx,
                      const std::unordered_map<std::string, double>& fill_map,
                      std::shared_ptr<parameter_map> params = {});
 
-MIGRAPHX_GPU_EXPORT timing_schedule make_timing_schedule(double estimate_ms,
-                                                         const adaptive_time_options& options);
+MIGRAPHX_GPU_EXPORT timing_schedule
+make_timing_schedule(double estimate_ms, const adaptive_time_options& input_options);
 
 MIGRAPHX_GPU_EXPORT double adaptive_time_loop(migraphx::gpu::context& gctx,
                                               const adaptive_time_options& options,
                                               const std::function<void()>& f);
 
 MIGRAPHX_GPU_EXPORT double adaptive_time_loop(migraphx::gpu::context& gctx,
-                                              const adaptive_time_options& options,
+                                              const adaptive_time_options& input_options,
                                               const adaptive_time_budget& budget,
                                               const std::function<void()>& f);
 
@@ -168,12 +167,12 @@ adaptive_time_program(const context& ictx,
                       const std::unordered_map<std::string, double>& fill_map,
                       const adaptive_time_options& options);
 
-MIGRAPHX_GPU_EXPORT double
-adaptive_time_program(prepared_time_program& prepared, const adaptive_time_options& options);
+MIGRAPHX_GPU_EXPORT double adaptive_time_program(prepared_time_program& prepared,
+                                                 const adaptive_time_options& options);
 
 MIGRAPHX_GPU_EXPORT double adaptive_time_program(prepared_time_program& prepared,
                                                  const adaptive_time_options& options,
-                                                 const adaptive_time_budget& budget);
+                                                 const adaptive_time_budget& input_budget);
 
 /* benchmark gpu::code_object with expected input shapes over n iterations */
 MIGRAPHX_GPU_EXPORT double
@@ -186,4 +185,3 @@ time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::functi
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-

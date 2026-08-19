@@ -1027,7 +1027,7 @@ struct verify : command<verify>
         ap(layerwise,
            {"-l", "--layerwise"},
            ap.help("Compare outputs layer by layer in a single run instead of recompiling for each "
-                   "step (requires --debug-symbols)"),
+                   "step"),
            ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},

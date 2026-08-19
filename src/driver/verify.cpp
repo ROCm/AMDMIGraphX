@@ -98,13 +98,15 @@ namespace {
 using trace_function      = std::function<void(instruction_ref, const argument&)>;
 using substitute_function = std::function<optional<argument>(instruction_ref, const argument&)>;
 
-std::string source_name(instruction_ref ins)
+std::string source_name(instruction_ref ins, const std::string& label)
 {
     const auto& symbols = ins->get_debug_symbols();
     std::vector<std::string> names;
     std::copy_if(symbols.begin(), symbols.end(), std::back_inserter(names), [](const auto& symbol) {
         return not starts_with(symbol, "@verify:");
     });
+    if(names.empty())
+        return "#" + label.substr(label.find(':') + 1);
     return join_strings(std::move(names), ", ");
 }
 
@@ -140,10 +142,9 @@ struct verify_callback
             if(output.get_shape().type() == shape::tuple_type)
                 return;
             auto order = ref_count++;
-            auto name  = source_name(ins);
             for(const auto& symbol : ins->get_debug_symbols())
                 if(starts_with(symbol, "@verify:"))
-                    ref_outputs[symbol] = {output, name, order};
+                    ref_outputs[symbol] = {output, source_name(ins, symbol), order};
         };
     }
 
@@ -196,7 +197,8 @@ struct verify_callback
             // NaN never compares greater, so rank it worst.
             if(std::isnan(rms))
                 rms = std::numeric_limits<double>::infinity();
-            results[ref.order] = {ref.name, ins->name(), rms, passed};
+            auto op            = ins->get_operator().attributes().get("group", ins->name());
+            results[ref.order] = {ref.name, op, rms, passed};
             return ref_arg;
         };
     }
@@ -309,12 +311,6 @@ static optional<verify_callback> run_layerwise_compare(const program& p,
                                                        const parameter_map& inputs,
                                                        verify::tolerance tols)
 {
-    if(not any_of(p.get_modules(), [](auto* m) { return m->has_debug_symbols(); }))
-    {
-        log::error() << "Layerwise comparison (--layerwise) requires debug symbols. Reload the "
-                        "model with --debug-symbols.";
-        return nullopt;
-    }
     auto labeled = label_instructions(p);
     verify_callback vcb{tols};
     run_ref(labeled, options, vo, inputs, vcb.capture());

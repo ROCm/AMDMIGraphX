@@ -99,6 +99,18 @@ void* launch_param_pointer() { return HIP_LAUNCH_PARAM_BUFFER_POINTER; }
 void* launch_param_size() { return HIP_LAUNCH_PARAM_BUFFER_SIZE; }
 void* launch_param_end() { return HIP_LAUNCH_PARAM_END; }
 #endif
+
+// A launch-config entry: (tag, value).
+using launch_param = std::pair<void*, void*>;
+static_assert(sizeof(launch_param) == 2 * sizeof(void*),
+              "the extra config array is viewed as an array of launch_param pairs");
+
+// The value of the entry with `tag` in [first, last), or nullptr when absent.
+void* find_launch_param(const launch_param* first, const launch_param* last, void* tag)
+{
+    auto it = std::find_if(first, last, [&](const launch_param& p) { return p.first == tag; });
+    return it == last ? nullptr : it->second;
+}
 } // namespace
 
 std::array<void*, 5> pack_kernel_config(char* buffer, std::size_t* size)
@@ -110,22 +122,22 @@ std::vector<char> unpack_kernel_config(void** extra)
 {
     if(extra == nullptr)
         return {};
-    char* buffer      = nullptr;
-    std::size_t* size = nullptr;
     // The config is a sequence of (tag, value) pairs terminated by the end
     // sentinel; an array with no sentinel within the fixed cap is rejected.
-    constexpr std::size_t max_tokens = 16;
-    std::size_t i                    = 0;
-    for(; i < max_tokens and extra[i] != launch_param_end(); i += 2)
-    {
-        if(extra[i] == launch_param_pointer())
-            buffer = static_cast<char*>(extra[i + 1]);
-        else if(extra[i] == launch_param_size())
-            size = static_cast<std::size_t*>(extra[i + 1]);
-        else
-            return {};
-    }
-    if(i >= max_tokens or buffer == nullptr or size == nullptr)
+    constexpr std::size_t max_params = 8;
+    const auto* first                = reinterpret_cast<const launch_param*>(extra);
+    const auto* last = std::find_if(first, first + max_params, [](const launch_param& p) {
+        return p.first == launch_param_end();
+    });
+    if(last == first + max_params)
+        return {};
+    if(std::any_of(first, last, [](const launch_param& p) {
+           return p.first != launch_param_pointer() and p.first != launch_param_size();
+       }))
+        return {};
+    auto* buffer = static_cast<char*>(find_launch_param(first, last, launch_param_pointer()));
+    auto* size   = static_cast<std::size_t*>(find_launch_param(first, last, launch_param_size()));
+    if(buffer == nullptr or size == nullptr)
         return {};
     return {buffer, buffer + *size};
 }

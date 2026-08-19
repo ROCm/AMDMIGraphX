@@ -735,7 +735,7 @@ struct find_flash_decoding
         })(start);
     }
 
-    instruction_ref broadcast_shape_ins(instruction_ref bc) const
+    std::optional<instruction_ref> broadcast_shape_ins(instruction_ref bc) const
     {
         assert(is_broadcast_op(bc->get_operator()));
 
@@ -758,13 +758,13 @@ struct find_flash_decoding
                     return not uses_ins(input, bc);
                 });
                 if(it == inputs.end())
-                    MIGRAPHX_THROW("Failed to find broadcast shape reference for flash decoding");
+                    return std::nullopt;
                 return *it;
             }
 
             std::copy(cur->outputs().begin(), cur->outputs().end(), std::back_inserter(queue));
         }
-        MIGRAPHX_THROW("Failed to find broadcast shape reference for flash decoding");
+        return std::nullopt;
     }
 
     bool broadcast_shape_ready(
@@ -772,7 +772,8 @@ struct find_flash_decoding
         const std::unordered_map<instruction_ref, instruction_ref>& map_old_to_new) const
     {
         assert(is_broadcast_op(bc->get_operator()));
-        return contains(map_old_to_new, broadcast_shape_ins(bc));
+        auto shape_ins = broadcast_shape_ins(bc);
+        return shape_ins.has_value() and contains(map_old_to_new, *shape_ins);
     }
 
     bool
@@ -800,7 +801,7 @@ struct find_flash_decoding
         return map_param_to_main;
     }
 
-    void rebuild_attention_submodule(
+    bool rebuild_attention_submodule(
         module& target_mod,
         const module& source_mod,
         const std::unordered_map<instruction_ref, instruction_ref>& param_map,
@@ -867,8 +868,10 @@ struct find_flash_decoding
                 else if(is_broadcast_op(op))
                 {
                     const auto orig_out_lens = op.to_value()["out_lens"].to_vector<std::size_t>();
-                    const auto split_lens =
-                        map_old_to_new.at(broadcast_shape_ins(ins))->get_shape().lens();
+                    auto shape_ins           = broadcast_shape_ins(ins);
+                    if(not shape_ins.has_value())
+                        return false;
+                    const auto split_lens = map_old_to_new.at(*shape_ins)->get_shape().lens();
                     const auto& input_lens = new_inputs.front()->get_shape().lens();
 
                     if(not can_multibroadcast(input_lens, split_lens) and
@@ -898,13 +901,15 @@ struct find_flash_decoding
             }
 
             if(not progress)
-                MIGRAPHX_THROW("Failed to rebuild attention submodule for flash decoding");
+                return false;
 
             pending = std::move(next_pending);
         }
 
         // get the final partial output (O')
-        auto orig_return_ins        = std::prev(source_mod.end())->inputs().front();
+        auto orig_return_ins = std::prev(source_mod.end())->inputs().front();
+        if(not contains(map_old_to_new, orig_return_ins))
+            return false;
         auto partial_output_o_prime = map_old_to_new.at(orig_return_ins);
 
         // calculate LSE = max(S) + log(sum(exp(S - max(S))))
@@ -914,6 +919,7 @@ struct find_flash_decoding
 
         // return a tuple of {O', LSE}
         target_mod.add_return({partial_output_o_prime, lse});
+        return true;
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -1050,8 +1056,9 @@ struct find_flash_decoding
         }
 
         // don't simply fuse previous attn submod, need to rebuild all the ops
-        rebuild_attention_submodule(
-            m_flash_decode, *submod, map_old_params_to_new, scores_lens, actual_groups);
+        if(not rebuild_attention_submodule(
+               m_flash_decode, *submod, map_old_params_to_new, scores_lens, actual_groups))
+            return;
 
         auto original_submod_name = attn_group_ins->module_inputs().front()->name();
         std::string new_mod_name  = original_submod_name + "_flash_decoding";

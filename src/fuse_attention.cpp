@@ -596,10 +596,10 @@ struct find_flash_decoding
         return flash_input_kind::other;
     }
 
-    // Inverse of get_scores_split_lens: split index [..., G, M, N/G] -> score index [..., M, N]
-    static std::vector<std::size_t> unsplit_score_index(const std::vector<std::size_t>& split_idx,
-                                                        std::size_t scores_ndim,
-                                                        std::size_t n_split)
+    // Merge split index [..., G, M, N/G] into score index [..., M, N]
+    static std::vector<std::size_t> merge_split_index(const std::vector<std::size_t>& split_idx,
+                                                      std::size_t scores_ndim,
+                                                      std::size_t n_split)
     {
         const auto g = split_idx.at(scores_ndim - 2);
         const auto m = split_idx.at(scores_ndim - 1);
@@ -651,7 +651,7 @@ struct find_flash_decoding
             std::vector<T> split_data(split_shape.elements(), T{});
 
             shape_for_each(split_shape, [&](const std::vector<std::size_t>& split_idx, std::size_t i) {
-                const auto score_idx   = unsplit_score_index(split_idx, ndim, n_split);
+                const auto score_idx   = merge_split_index(split_idx, ndim, n_split);
                 const auto literal_idx = broadcastable_literal_index(score_idx, input_lens);
                 split_data[i]          = in_view[in_shape.index(literal_idx)];
             });

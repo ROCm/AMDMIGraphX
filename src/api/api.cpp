@@ -195,6 +195,11 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+static void set_compile_mode(compile_options& options, int8_t value)
+{
+    options.compile_mode = convert_to_compile_mode(value);
+}
+
 // Parse the backend options from `options_json` and merge them into the
 // compile options. See migraphx::set_backend_options for the merge semantics.
 static void set_backend_options(compile_options& options, const char* options_json, va_list vlist)
@@ -2422,6 +2427,18 @@ migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t com
             MIGRAPHX_THROW(migraphx_status_bad_param,
                            "Bad parameter compile_options: Null pointer");
         migraphx::set_exhaustive_tune_flag((compile_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_compile_options_set_compile_mode(migraphx_compile_options_t compile_options, int8_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_compile_mode((compile_options->object), (value));
     });
     return api_error_result;
 }

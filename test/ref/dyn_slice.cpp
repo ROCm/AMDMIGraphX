@@ -36,6 +36,7 @@
 #include <test.hpp>
 
 using dd = migraphx::shape::dynamic_dimension;
+using migraphx::sym::lit;
 using migraphx::sym::var;
 
 TEST_CASE(dyn_slice_concrete_bounds_test)
@@ -203,8 +204,7 @@ TEST_CASE(dyn_slice_sym_data_test)
     // resolves once the parameter is bound to a static shape.
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int32_type,
-                      {dd{var("n", {1, 4})}, dd{migraphx::sym::lit(2)}, dd{migraphx::sym::lit(3)}}};
+    migraphx::shape s{migraphx::shape::int32_type, {dd{var("n", {1, 4})}, dd{lit(2)}, dd{lit(3)}}};
     auto x = mm->add_parameter("x", s);
     migraphx::shape bounds_shape{migraphx::shape::int64_type, {1}};
     auto starts = mm->add_parameter("starts", bounds_shape);
@@ -230,6 +230,47 @@ TEST_CASE(dyn_slice_sym_data_test)
     std::vector<int> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
+    EXPECT(results_vector == gold);
+    EXPECT(result.get_shape() ==
+           migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
+}
+
+TEST_CASE(dyn_slice_eval_expr_from_shape_input_test)
+{
+    // The end bound is derived from the symbolic input shape: the attribute describes the
+    // expression at compile time and eval_expr_from_shape supplies its run time value.
+    auto n        = var("n", {1, 3});
+    auto end_expr = n - lit(1);
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int32_type, {dd{lit(2)}, dd{lit(2)}, dd{n}}};
+    auto x = mm->add_parameter("x", s);
+    migraphx::shape bounds_shape{migraphx::shape::int64_type, {1}};
+    std::vector<int64_t> starts_data = {0};
+    auto starts    = mm->add_literal(migraphx::literal{bounds_shape, starts_data});
+    auto end_value = migraphx::value::array{migraphx::to_value(end_expr)};
+    auto ends      = mm->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", end_value}}), x);
+    mm->add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {0}}, {"ends", end_value}}),
+        x,
+        starts,
+        ends);
+    // The sliced axis keeps the symbolic extent instead of being relaxed to a range.
+    EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::int32_type,
+                                                           {dd{lit(2)}, dd{lit(2)}, dd{end_expr}},
+                                                           s.dyn_strides()});
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape input_shape{migraphx::shape::int32_type, {2, 2, 3}};
+    std::vector<int> data(input_shape.elements());
+    std::iota(data.begin(), data.end(), 0);
+    auto result = p.eval({{"x", migraphx::argument{input_shape, data.data()}}}).back();
+
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
     EXPECT(results_vector == gold);
     EXPECT(result.get_shape() ==
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});

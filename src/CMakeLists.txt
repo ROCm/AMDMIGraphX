@@ -57,6 +57,7 @@ add_library(migraphx
     color.cpp
     common.cpp
     common_dims.cpp
+    compile_modes.cpp
     compile_src.cpp
     convert_to_json.cpp
     convolution.cpp
@@ -220,6 +221,7 @@ register_migraphx_ops(
     elu
     equal
     erf
+    eval_expr_from_shape
     exp
     fill
     fixed_pad
@@ -468,5 +470,3 @@ rocm_export_targets(
     Threads
     ${MIGRAPHX_CONFIG_DEPENDS}
 )
-
-

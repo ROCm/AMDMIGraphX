@@ -155,6 +155,47 @@ __device__ inline vec<half, 8> buffer_load_half8(__amdgpu_buffer_rsrc_t rsrc, in
     return bit_cast<vec<half, 8>>(v);
 }
 
+// Packed f16 subtraction. LLVM scalarizes <N x half> fsub on gfx12 (extract
+// the high halves, scalar v_sub_f16 each, repack -- 4-5 instructions per
+// half2 pair) because there is no v_pk_sub_f16 instruction and ISel does not
+// fold the negate into v_pk_add_f16's neg modifiers. Do that fold by hand:
+// one VOP3P add with src1 negated per half2 pair. The winograd input
+// transform is subtraction-dominated, so this shrinks the kernel's hot loop
+// materially.
+__device__ inline vec<half, 2> pk_sub(vec<half, 2> a, vec<half, 2> b)
+{
+    vec<half, 2> d;
+    asm("v_pk_add_f16 %[d], %[a], %[b] neg_lo:[0,1] neg_hi:[0,1]"
+        : [d] "=v"(d)
+        : [a] "v"(a), [b] "v"(b));
+    return d;
+}
+
+__device__ inline vec<half, 8> pk_sub(vec<half, 8> a, vec<half, 8> b)
+{
+    // Element pairs (2i, 2i+1) are exactly one VGPR of the 4-register vec, so
+    // the shuffles/inserts are subregister renames, not real instructions.
+    vec<half, 8> r;
+    repeat_c<4>([&](auto i_val) {
+        constexpr int i = i_val;
+        vec<half, 2> a2 = __builtin_shufflevector(a, a, 2 * i, 2 * i + 1);
+        vec<half, 2> b2 = __builtin_shufflevector(b, b, 2 * i, 2 * i + 1);
+        vec<half, 2> d  = pk_sub(a2, b2);
+        r[2 * i]        = d[0];
+        r[2 * i + 1]    = d[1];
+    });
+    return r;
+}
+
+// Generic subtract used by the element-generic input transform: packed-asm
+// form for the NHWC vec<half, 8> path, plain operator- otherwise.
+template <class T>
+__device__ inline T wg_sub(T a, T b)
+{
+    return a - b;
+}
+__device__ inline vec<half, 8> wg_sub(vec<half, 8> a, vec<half, 8> b) { return pk_sub(a, b); }
+
 // F(2x2, 3x3) Winograd transforms used inline by the WMMA path.
 // B^T (input):  | 1  0 -1  0 |     A^T (output): | 1  1  1  0 |
 //               | 0  1  1  0 |                   | 0  1 -1 -1 |
@@ -216,16 +257,16 @@ __device__ inline void winograd_input_transform_f23_vec(const array<T, 16>& d, a
 {
     array<T, 16> t;
     repeat_c<4>([&](auto j) {
-        t[0 * 4 + j] = d[0 * 4 + j] - d[2 * 4 + j];
+        t[0 * 4 + j] = wg_sub(d[0 * 4 + j], d[2 * 4 + j]);
         t[1 * 4 + j] = d[1 * 4 + j] + d[2 * 4 + j];
-        t[2 * 4 + j] = d[2 * 4 + j] - d[1 * 4 + j];
-        t[3 * 4 + j] = d[1 * 4 + j] - d[3 * 4 + j];
+        t[2 * 4 + j] = wg_sub(d[2 * 4 + j], d[1 * 4 + j]);
+        t[3 * 4 + j] = wg_sub(d[1 * 4 + j], d[3 * 4 + j]);
     });
     repeat_c<4>([&](auto i) {
-        v[i * 4 + 0] = t[i * 4 + 0] - t[i * 4 + 2];
+        v[i * 4 + 0] = wg_sub(t[i * 4 + 0], t[i * 4 + 2]);
         v[i * 4 + 1] = t[i * 4 + 1] + t[i * 4 + 2];
-        v[i * 4 + 2] = t[i * 4 + 2] - t[i * 4 + 1];
-        v[i * 4 + 3] = t[i * 4 + 1] - t[i * 4 + 3];
+        v[i * 4 + 2] = wg_sub(t[i * 4 + 2], t[i * 4 + 1]);
+        v[i * 4 + 3] = wg_sub(t[i * 4 + 1], t[i * 4 + 3]);
     });
 }
 
@@ -251,24 +292,41 @@ __device__ inline void winograd_input_transform_f23_vec(const array<T, 16>& d, a
 // codegen passes that wider type here so we feed `f` the fp32 accumulator
 // directly instead of round-tripping it through half. The final store still
 // uses the actual output type (`f` converts to it).
+//
+// RZ (fused resize): the conv's logical input is a 2x bilinear upsample
+// (ONNX Resize mode=linear, coordinate_transformation_mode=asymmetric) of x,
+// computed on the fly in the input load: logical rows {2t-1, 2t, 2t+1, 2t+2}
+// of a tile reconstruct from source rows {t-1, t, t+1} as
+// {avg(s0,s1), s1, avg(s1,s2), s2} (columns likewise), so each (tile, c)
+// needs only a 3x3 source neighbourhood (9 b128 loads instead of 16).
+// TAIL: the logical input is concat(upsample(x), xb) on channels — c-blocks
+// below split_c (= x's channel count, a multiple of 16) read the fused
+// upsample of x, the rest read xb directly. Without RZ, xb is ignored (pass
+// x again).
 template <index_int NW,
           index_int CB,
           index_int KW,
           index_int SK,
           bool FT,
           bool NHWC,
+          bool RZ,
+          bool TAIL,
           class PostInput,
           class F,
           class Output,
           class Input,
+          class InputB,
           class Weights,
           class... Inputs>
+__device__ void
 // NOLINTNEXTLINE(readability-function-size): single fused winograd+WMMA+writeback kernel
-__device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, Inputs... inputs)
+winograd_conv_f23_wmma(F f, Output output, Input x, InputB xb, Weights u, Inputs... inputs)
 {
     static_assert(CB % 16 == 0, "CB must be a multiple of WMMA K (16)");
     static_assert(KW >= 1, "KW must be >= 1");
     static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0, "SK must divide NW evenly");
+    static_assert(RZ or not TAIL, "TAIL requires RZ");
+    static_assert(NHWC or not RZ, "fused resize input is only implemented for NHWC");
     // SK = within-WG c-axis split factor. SK waves cooperate to reduce the
     // C contraction; NW/SK independent NT-groups exist per workgroup so
     // bt = bt_per_wave * (NW/SK). SK=1 is the original (no split) path.
@@ -290,9 +348,25 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const auto out_c = out_shape.lens[1];
     const auto out_h = out_shape.lens[2];
     const auto out_w = out_shape.lens[3];
-    const auto in_c  = x_shape.lens[1];
-    const auto in_h  = x_shape.lens[2];
-    const auto in_w  = x_shape.lens[3];
+    // Logical conv-input geometry. With RZ the logical input is the 2x
+    // upsample of x (plus xb's channels when TAIL); split_c is the channel
+    // boundary between the fused-upsample source and the direct tail.
+    auto xb_shape      = xb.get_shape();
+    const auto split_c = x_shape.lens[1];
+    const auto in_c    = TAIL ? split_c + xb_shape.lens[1] : split_c;
+    const auto in_h    = RZ ? 2 * x_shape.lens[2] : x_shape.lens[2];
+    const auto in_w    = RZ ? 2 * x_shape.lens[3] : x_shape.lens[3];
+
+    // Compile-time channel geometry: the JIT bakes tensor shapes into the
+    // kernel, so exact-divisibility checks fold the per-lane bounds branches
+    // (partial-channel-block zeroing, K tail masking) away entirely for
+    // aligned shapes -- each one otherwise costs exec-mask setup and a
+    // divergent branch in the hot loop.
+    constexpr index_int split_c_c = get_shape_c<Input>{}.lens[1];
+    constexpr index_int in_c_c    = TAIL ? split_c_c + get_shape_c<InputB>{}.lens[1] : split_c_c;
+    constexpr bool a_c_exact      = (split_c_c % 8) == 0;
+    constexpr bool b_c_exact      = ((in_c_c - split_c_c) % 8) == 0;
+    constexpr bool cb_exact       = (in_c_c % CB) == 0;
 
     const auto tiles_w       = (out_w + 1) / 2;
     const auto tiles_h       = (out_h + 1) / 2;
@@ -365,6 +439,12 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const uint32_t x_byte_count = static_cast<uint32_t>(x_shape.element_space()) * sizeof(half);
     auto x_rsrc                 = make_input_buffer_rsrc(x_data, x_byte_count);
 
+    // Tail (direct concat remainder) descriptor. When !TAIL, xb aliases x and
+    // everything derived from it is dead code.
+    const auto xb_sh             = xb_shape.strides;
+    const uint32_t xb_byte_count = static_cast<uint32_t>(xb_shape.element_space()) * sizeof(half);
+    auto xb_rsrc                 = make_input_buffer_rsrc(xb.data(), xb_byte_count);
+
     const auto* u_data = u.data();
     const uint32_t u_byte_count =
         static_cast<uint32_t>(u.get_shape().element_space()) * sizeof(half);
@@ -377,7 +457,16 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // V-in-registers storage: v_lane[c_chunk][c_in_chunk][wp].
     // For CB=16: v_chunks=1, c_in_chunk in 0..7 (lane's 8 c values).
     // For CB=32: v_chunks=2 (two c-chunks; one b128 read per chunk for WMMA).
+    // Two storage forms; only the layout the active path writes survives
+    // dead-code elimination. NCHW produces per-channel scalars, so the
+    // [c][wp] array is its natural store and load_v gathers across c. NHWC's
+    // vectorized transform already yields v_vecs[wp] = the exact 8-channel
+    // vec the WMMA B operand wants — storing it as vec<half, 8> keeps it in
+    // packed registers; round-tripping it through the [c][wp] scalar array
+    // makes the compiler materialize the transpose twice (hundreds of
+    // v_mov/v_lshr/v_pack per c-block, ~25% of the kernel).
     array<array<array<half, wp_count>, 8>, v_chunks> v_lane;
+    array<array<vec<half, 8>, wp_count>, v_chunks> v_vecs;
 
     // Cached per-wave / per-lane geometry. With SK>1 each NT-group occupies
     // SK consecutive waves that all map to the SAME nt range, so we use
@@ -401,6 +490,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const int32_t n_off    = static_cast<int32_t>(n_idx * x_sh[0]) * sizeof(half);
     const int32_t sh_b     = static_cast<int32_t>(x_sh[2] * sizeof(half));
     const int32_t sw_b     = static_cast<int32_t>(x_sh[3] * sizeof(half));
+    const int32_t n_off_b  = static_cast<int32_t>(n_idx * xb_sh[0]) * sizeof(half);
+    const int32_t shb_b    = static_cast<int32_t>(xb_sh[2] * sizeof(half));
+    const int32_t swb_b    = static_cast<int32_t>(xb_sh[3] * sizeof(half));
     // Per-lane H/W bounds for the V load. The X buffer descriptor only
     // checks [0, byte_count), so without these the boundary tiles silently
     // wrap into adjacent rows/channels. Precomputed once per lane (h0/w0 are
@@ -434,9 +526,174 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const array<bool, 4> hi = {v_hok0, v_hok1, v_hok2, v_hok3};
     const array<bool, 4> wj = {v_wok0, v_wok1, v_wok2, v_wok3};
 
+    // ---- weight loader (dual mode) ----
+    // FT (full transform): the weight is the raw filter g [3, 3, K, C] (9
+    // halves per (k, c)); load_trows loads it and applies the row transform
+    // T = G*g on the fly. !FT: the weight is the half-transformed T
+    // [4, 3, K, C] (12 halves) and load_trows just loads the 4 T rows. In
+    // both cases apply_gt then finishes the column transform U = T*G^T at
+    // the WMMA dispatch. Buffer caching handles reuse across waves of a WG.
+    //   T[0,j]=g0; T[1,j]=.5(g0+g1+g2); T[2,j]=.5(g0-g1+g2); T[3,j]=g2  (FT)
+    //   U[i,0]=T0; U[i,1]=.5((T0+T2)+T1); U[i,2]=.5((T0+T2)-T1); U[i,3]=T2
+    // u_sh strides are [3*K*C, K*C, C, 1] for either first-dim size (3 or
+    // 4). t_off computes a byte offset, load_t does one b128 (8 fp16) load.
+    static_assert(CB % 8 == 0, "CB must be a multiple of 8 for b128 U loads");
+    auto t_off = [&](index_int i_g, index_int j_g, index_int k, index_int c_abs) {
+        return static_cast<int32_t>(
+            (i_g * u_sh[0] + j_g * u_sh[1] + k * u_sh[2] + c_abs * u_sh[3]) * sizeof(half));
+    };
+    auto load_t = [&](int32_t off) {
+        auto raw = __builtin_amdgcn_raw_buffer_load_b128(u_rsrc, off, 0, 0);
+        return bit_cast<vec<half, 8>>(raw);
+    };
+    struct u_row
+    {
+        vec<half, 8> u0, u1, u2, u3;
+    };
+    // One row of the row-transformed filter T = G*g: 3 columns.
+    struct t_triple
+    {
+        vec<half, 8> t0, t1, t2;
+    };
+    auto apply_gt = [&](vec<half, 8> t0, vec<half, 8> t1, vec<half, 8> t2) -> u_row {
+        const half half_c = 0.5f;
+        // u0 = t0; u3 = t2; u1 = 0.5*((t0+t2) + t1); u2 = 0.5*((t0+t2) - t1)
+        vec<half, 8> s = t0 + t2;
+        return u_row{t0, (s + t1) * half_c, pk_sub(s, t1) * half_c, t2};
+    };
+    // Return the 4 rows of T (each = 3 columns of 8 c values) for (k,
+    // c_abs). FT loads the raw 3x3 g (9 b128 loads) and applies the row
+    // transform G*; !FT loads the 4 stored T rows directly (12 loads). An
+    // OOB k (>= K) reads zeros via the buffer descriptor.
+    auto load_trows = [&](index_int k, index_int c_abs) {
+        auto ld = [&](index_int i, index_int j) {
+            const int32_t off =
+                (k < out_c) ? t_off(i, j, k, c_abs) : static_cast<int32_t>(u_byte_count);
+            return load_t(off);
+        };
+        array<t_triple, 4> r;
+        if constexpr(FT)
+        {
+            const vec<half, 8> g00 = ld(0, 0);
+            const vec<half, 8> g01 = ld(0, 1);
+            const vec<half, 8> g02 = ld(0, 2);
+            const vec<half, 8> g10 = ld(1, 0);
+            const vec<half, 8> g11 = ld(1, 1);
+            const vec<half, 8> g12 = ld(1, 2);
+            const vec<half, 8> g20 = ld(2, 0);
+            const vec<half, 8> g21 = ld(2, 1);
+            const vec<half, 8> g22 = ld(2, 2);
+            const half hc          = 0.5f;
+            const vec<half, 8> s0  = g00 + g20;
+            const vec<half, 8> s1  = g01 + g21;
+            const vec<half, 8> s2  = g02 + g22;
+            r[0]                   = t_triple{g00, g01, g02};
+            r[1]                   = t_triple{(s0 + g10) * hc, (s1 + g11) * hc, (s2 + g12) * hc};
+            r[2] = t_triple{pk_sub(s0, g10) * hc, pk_sub(s1, g11) * hc, pk_sub(s2, g12) * hc};
+            r[3] = t_triple{g20, g21, g22};
+        }
+        else
+        {
+            r[0] = t_triple{ld(0, 0), ld(0, 1), ld(0, 2)};
+            r[1] = t_triple{ld(1, 0), ld(1, 1), ld(1, 2)};
+            r[2] = t_triple{ld(2, 0), ld(2, 1), ld(2, 2)};
+            r[3] = t_triple{ld(3, 0), ld(3, 1), ld(3, 2)};
+        }
+        return r;
+    };
+    // Cooperative U -> LDS store for SK==1 (every wave reads the same U):
+    // one shared load serves all NW waves' WMMA A operands. For SK>1 there is
+    // no cross-wave U sharing; U streams directly from global instead.
+    // (Double-buffering the slots to overlap the next iteration's stores with
+    // WMMA was tried and lost ~30%: the store's in-flight registers live
+    // across the WMMA phase and the added pressure costs more than the saved
+    // barrier.)
+    auto store_u = [&](index_int c_base_u, index_int slot_base) {
+        if constexpr(FT)
+        {
+            // g storage: one task per (k_idx, k_in_block, c_chunk) -- load
+            // the raw 3x3 g once and write the full 4x4 U into LDS.
+            constexpr index_int u_tasks = KW * bk * (CB / 8);
+            idx.local_stride(_c<u_tasks>, [&](auto task) {
+                // task decomposes over {KW, bk, CB/8} -> (k_idx, k_in_block, c_half).
+                const auto t3              = array<index_int, 3>{KW, bk, CB / 8}.multi(task);
+                const index_int k_idx      = t3[0];
+                const index_int k_in_block = t3[1];
+                const index_int c_in_block = t3[2] * 8;
+                const index_int k          = k_base + k_idx * bk + k_in_block;
+                auto trows                 = load_trows(k, c_base_u + c_in_block);
+                repeat_c<4>([&](auto i_t_val) {
+                    const index_int i_t = i_t_val;
+                    auto ur             = apply_gt(trows[i_t].t0, trows[i_t].t1, trows[i_t].t2);
+                    *as_vec<8>(&u_smem[u_cache_idx(
+                        slot_base + k_idx, i_t * 4 + 0, k_in_block, c_in_block)]) = ur.u0;
+                    *as_vec<8>(&u_smem[u_cache_idx(
+                        slot_base + k_idx, i_t * 4 + 1, k_in_block, c_in_block)]) = ur.u1;
+                    *as_vec<8>(&u_smem[u_cache_idx(
+                        slot_base + k_idx, i_t * 4 + 2, k_in_block, c_in_block)]) = ur.u2;
+                    *as_vec<8>(&u_smem[u_cache_idx(
+                        slot_base + k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) = ur.u3;
+                });
+            });
+        }
+        else
+        {
+            // T storage: one task per (i_t, k_idx, k_in_block, c_chunk) --
+            // load one T row's 3 columns and write its 4 U columns. The
+            // extra i_t parallelism keeps more lanes issuing loads.
+            constexpr index_int u_tasks = KW * 4 * bk * (CB / 8);
+            idx.local_stride(_c<u_tasks>, [&](auto task) {
+                // task decomposes over {KW, 4, bk, CB/8} -> (k_idx, i_t, k_in_block, c_half).
+                const auto t4              = array<index_int, 4>{KW, 4, bk, CB / 8}.multi(task);
+                const index_int k_idx      = t4[0];
+                const index_int i_t        = t4[1];
+                const index_int k_in_block = t4[2];
+                const index_int c_in_block = t4[3] * 8;
+                const index_int k          = k_base + k_idx * bk + k_in_block;
+                vec<half, 8> t0;
+                vec<half, 8> t1;
+                vec<half, 8> t2;
+                if(k < out_c)
+                {
+                    t0 = load_t(t_off(i_t, 0, k, c_base_u + c_in_block));
+                    t1 = load_t(t_off(i_t, 1, k, c_base_u + c_in_block));
+                    t2 = load_t(t_off(i_t, 2, k, c_base_u + c_in_block));
+                }
+                else
+                {
+                    t0 = vec<half, 8>{0};
+                    t1 = vec<half, 8>{0};
+                    t2 = vec<half, 8>{0};
+                }
+                auto ur = apply_gt(t0, t1, t2);
+                *as_vec<8>(
+                    &u_smem[u_cache_idx(slot_base + k_idx, i_t * 4 + 0, k_in_block, c_in_block)]) =
+                    ur.u0;
+                *as_vec<8>(
+                    &u_smem[u_cache_idx(slot_base + k_idx, i_t * 4 + 1, k_in_block, c_in_block)]) =
+                    ur.u1;
+                *as_vec<8>(
+                    &u_smem[u_cache_idx(slot_base + k_idx, i_t * 4 + 2, k_in_block, c_in_block)]) =
+                    ur.u2;
+                *as_vec<8>(
+                    &u_smem[u_cache_idx(slot_base + k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) =
+                    ur.u3;
+            });
+        }
+    };
     for(index_int cb = cb_start; cb < cb_end; ++cb)
     {
-        const index_int c_base = cb * CB;
+        const index_int c_base      = cb * CB;
+        const index_int u_slot_base = 0;
+        if constexpr(u_via_lds)
+        {
+            store_u(c_base, 0);
+            // Workgroup barrier so every wave sees the cooperative writes
+            // before reading them for WMMA. NW==1 has only one wave so the
+            // s_wait_dscnt the compiler inserts before the LDS read suffices.
+            if constexpr(NW > 1)
+                __syncthreads();
+        }
 
         // ---- Per-lane V compute into registers ----
         // Each lane processes its own 8 c values (per v_chunk). The natural
@@ -462,39 +719,149 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             repeat_c<v_chunks>([&](auto vc_val) {
                 constexpr index_int vc  = vc_val;
                 const index_int c_start = c_base + vc * 16 + c_off;
-                const bool active       = nt_active and (c_start < in_c);
-                const int32_t base_off =
-                    n_off + static_cast<int32_t>(c_start * x_sh[1]) * sizeof(half) + hw_off;
-                const bool c_partial = (c_start + 8 > in_c);
+                const bool active       = nt_active and (cb_exact or c_start < in_c);
                 array<vec<half, 8>, 16> d_vec;
-                repeat_c<4>([&](auto i_val) {
-                    constexpr int i = i_val;
-                    repeat_c<4>([&](auto j_val) {
-                        constexpr int j   = j_val;
-                        const bool ok     = active and hi[i] and wj[j];
-                        const int32_t off = ok ? base_off + i * sh_b + j * sw_b : oob_byte;
-                        auto v8           = buffer_load_half8(x_rsrc, off);
-                        // Last channel block may be partial: zero c >= C, which
-                        // would otherwise read the next pixel's channels.
-                        if(c_partial)
-                        {
-                            repeat_c<8>([&](auto ci) {
-                                if(c_start + index_int{ci} >= in_c)
-                                    v8[index_int{ci}] = hzero;
-                            });
-                        }
-                        d_vec[i * 4 + j] = v8;
+                // Direct 16-position load from a source tensor. c_rel/c_lim
+                // are the channel index/count within that tensor (the last
+                // channel block may be partial: zero c >= c_lim, which would
+                // otherwise read the next pixel's channels).
+                auto load_direct = [&](auto rsrc,
+                                       int32_t base_off,
+                                       int32_t src_oob,
+                                       int32_t sh_t,
+                                       int32_t sw_t,
+                                       index_int c_rel,
+                                       index_int c_lim,
+                                       auto c_exact) {
+                    const bool c_partial = (not decltype(c_exact)::value) and (c_rel + 8 > c_lim);
+                    repeat_c<4>([&](auto i_val) {
+                        constexpr int i = i_val;
+                        repeat_c<4>([&](auto j_val) {
+                            constexpr int j   = j_val;
+                            const bool ok     = active and hi[i] and wj[j];
+                            const int32_t off = ok ? base_off + i * sh_t + j * sw_t : src_oob;
+                            auto v8           = buffer_load_half8(rsrc, off);
+                            if(c_partial)
+                            {
+                                repeat_c<8>([&](auto ci) {
+                                    if(c_rel + index_int{ci} >= c_lim)
+                                        v8[index_int{ci}] = hzero;
+                                });
+                            }
+                            d_vec[i * 4 + j] = v8;
+                        });
                     });
-                });
-                array<vec<half, 8>, 16> v_vec;
-                winograd_input_transform_f23_vec(d_vec, v_vec);
-                repeat_c<8>([&](auto ci_val) {
-                    constexpr index_int ci = ci_val;
-                    repeat_c<16>([&](auto wp_val) {
-                        constexpr index_int wp = wp_val;
-                        v_lane[vc][ci][wp]     = v_vec[wp][index_int{ci}];
+                };
+                // Fused 2x bilinear upsample load from x: the lane's 4x4
+                // logical tile reconstructs from a 3x3 source neighbourhood
+                // around (th, tw). Logical rows {2t-1, 2t, 2t+1, 2t+2} =
+                // {avg(s0,s1), s1, avg(s1,s2), s2} of source rows
+                // {t-1, t, t+1}; columns likewise. The t+1 row/col clamps to
+                // the source edge (ONNX asymmetric linear collapses the last
+                // odd output onto the edge pixel); the t-1 side loads OOB
+                // zeros, which only feed logical row/col -1 — masked below.
+                // The averages use s*0.5 + s*0.5 (mul + fma, same cost as
+                // add + mul) so large fp16 activations cannot overflow in the
+                // intermediate sum.
+                auto load_resize = [&](index_int c_rel, index_int c_lim) {
+                    const bool c_partial = (not a_c_exact) and (c_rel + 8 > c_lim);
+                    const int32_t base_off =
+                        n_off + static_cast<int32_t>(c_rel * x_sh[1]) * sizeof(half) +
+                        static_cast<int32_t>(th_idx) * sh_b + static_cast<int32_t>(tw_idx) * sw_b;
+                    const array<int32_t, 3> ro = {
+                        -sh_b, 0, (th_idx + 1 < x_shape.lens[2]) ? sh_b : 0};
+                    const array<int32_t, 3> co = {
+                        -sw_b, 0, (tw_idx + 1 < x_shape.lens[3]) ? sw_b : 0};
+                    const array<bool, 3> rok = {th_idx > 0, true, true};
+                    const array<bool, 3> cok = {tw_idx > 0, true, true};
+                    array<vec<half, 8>, 9> s;
+                    repeat_c<3>([&](auto di_val) {
+                        constexpr int di = di_val;
+                        repeat_c<3>([&](auto dj_val) {
+                            constexpr int dj  = dj_val;
+                            const bool ok     = active and rok[di] and cok[dj];
+                            const int32_t off = ok ? base_off + ro[di] + co[dj] : oob_byte;
+                            auto v8           = buffer_load_half8(x_rsrc, off);
+                            if(c_partial)
+                            {
+                                repeat_c<8>([&](auto ci) {
+                                    if(c_rel + index_int{ci} >= c_lim)
+                                        v8[index_int{ci}] = hzero;
+                                });
+                            }
+                            s[di * 3 + dj] = v8;
+                        });
                     });
-                });
+                    const half hhalf = half(0.5f);
+                    auto havg        = [&](vec<half, 8> a, vec<half, 8> b) {
+                        return a * hhalf + b * hhalf;
+                    };
+                    // Vertical pass: 4 logical rows x 3 source columns.
+                    array<vec<half, 8>, 12> rows;
+                    repeat_c<3>([&](auto dj_val) {
+                        constexpr int dj = dj_val;
+                        rows[0 * 3 + dj] = havg(s[0 * 3 + dj], s[1 * 3 + dj]);
+                        rows[1 * 3 + dj] = s[1 * 3 + dj];
+                        rows[2 * 3 + dj] = havg(s[1 * 3 + dj], s[2 * 3 + dj]);
+                        rows[3 * 3 + dj] = s[2 * 3 + dj];
+                    });
+                    // Horizontal pass + conv zero-pad masking. Interior
+                    // positions (i, j both in {1, 2}) are always in bounds --
+                    // only the tile's outer ring needs the hi/wj select.
+                    const vec<half, 8> vzero{0};
+                    repeat_c<4>([&](auto i_val) {
+                        constexpr int i = i_val;
+                        array<vec<half, 8>, 4> dr;
+                        dr[0] = havg(rows[i * 3 + 0], rows[i * 3 + 1]);
+                        dr[1] = rows[i * 3 + 1];
+                        dr[2] = havg(rows[i * 3 + 1], rows[i * 3 + 2]);
+                        dr[3] = rows[i * 3 + 2];
+                        repeat_c<4>([&](auto j_val) {
+                            constexpr int j = j_val;
+                            if constexpr(i == 0 or i == 3 or j == 0 or j == 3)
+                                d_vec[i * 4 + j] = (hi[i] and wj[j]) ? dr[j] : vzero;
+                            else
+                                d_vec[i * 4 + j] = dr[j];
+                        });
+                    });
+                };
+                if constexpr(RZ and TAIL)
+                {
+                    // split_c is a multiple of 16 and each 16-channel c-block
+                    // lands entirely on one side, so the branch is
+                    // wave-uniform within a cb iteration.
+                    if(c_start >= split_c)
+                    {
+                        const index_int c_rel = c_start - split_c;
+                        const int32_t base_off =
+                            n_off_b + static_cast<int32_t>(c_rel * xb_sh[1]) * sizeof(half) +
+                            h0 * shb_b + w0 * swb_b;
+                        load_direct(xb_rsrc,
+                                    base_off,
+                                    static_cast<int32_t>(xb_byte_count),
+                                    shb_b,
+                                    swb_b,
+                                    c_rel,
+                                    in_c - split_c,
+                                    _c<b_c_exact>);
+                    }
+                    else
+                    {
+                        load_resize(c_start, split_c);
+                    }
+                }
+                else if constexpr(RZ)
+                {
+                    load_resize(c_start, in_c);
+                }
+                else
+                {
+                    const int32_t base_off =
+                        n_off + static_cast<int32_t>(c_start * x_sh[1]) * sizeof(half) + hw_off;
+                    load_direct(
+                        x_rsrc, base_off, oob_byte, sh_b, sw_b, c_start, in_c, _c<a_c_exact>);
+                }
+                winograd_input_transform_f23_vec(d_vec, v_vecs[vc]);
             });
         }
         else
@@ -546,163 +913,6 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             });
         }
 
-        // ---- weight loader (dual mode) ----
-        // FT (full transform): the weight is the raw filter g [3, 3, K, C] (9
-        // halves per (k, c)); load_trows loads it and applies the row transform
-        // T = G*g on the fly. !FT: the weight is the half-transformed T
-        // [4, 3, K, C] (12 halves) and load_trows just loads the 4 T rows. In
-        // both cases apply_gt then finishes the column transform U = T*G^T at
-        // the WMMA dispatch. Buffer caching handles reuse across waves of a WG.
-        //   T[0,j]=g0; T[1,j]=.5(g0+g1+g2); T[2,j]=.5(g0-g1+g2); T[3,j]=g2  (FT)
-        //   U[i,0]=T0; U[i,1]=.5((T0+T2)+T1); U[i,2]=.5((T0+T2)-T1); U[i,3]=T2
-        // u_sh strides are [3*K*C, K*C, C, 1] for either first-dim size (3 or
-        // 4). t_off computes a byte offset, load_t does one b128 (8 fp16) load.
-        static_assert(CB % 8 == 0, "CB must be a multiple of 8 for b128 U loads");
-        auto t_off = [&](index_int i_g, index_int j_g, index_int k, index_int c_abs) {
-            return static_cast<int32_t>(
-                (i_g * u_sh[0] + j_g * u_sh[1] + k * u_sh[2] + c_abs * u_sh[3]) * sizeof(half));
-        };
-        auto load_t = [&](int32_t off) {
-            auto raw = __builtin_amdgcn_raw_buffer_load_b128(u_rsrc, off, 0, 0);
-            return bit_cast<vec<half, 8>>(raw);
-        };
-        struct u_row
-        {
-            vec<half, 8> u0, u1, u2, u3;
-        };
-        // One row of the row-transformed filter T = G*g: 3 columns.
-        struct t_triple
-        {
-            vec<half, 8> t0, t1, t2;
-        };
-        auto apply_gt = [&](vec<half, 8> t0, vec<half, 8> t1, vec<half, 8> t2) -> u_row {
-            const half half_c = 0.5f;
-            // u0 = t0; u3 = t2; u1 = 0.5*((t0+t2) + t1); u2 = 0.5*((t0+t2) - t1)
-            vec<half, 8> s = t0 + t2;
-            return u_row{t0, (s + t1) * half_c, (s - t1) * half_c, t2};
-        };
-        // Return the 4 rows of T (each = 3 columns of 8 c values) for (k,
-        // c_abs). FT loads the raw 3x3 g (9 b128 loads) and applies the row
-        // transform G*; !FT loads the 4 stored T rows directly (12 loads). An
-        // OOB k (>= K) reads zeros via the buffer descriptor.
-        auto load_trows = [&](index_int k, index_int c_abs) {
-            auto ld = [&](index_int i, index_int j) {
-                const int32_t off =
-                    (k < out_c) ? t_off(i, j, k, c_abs) : static_cast<int32_t>(u_byte_count);
-                return load_t(off);
-            };
-            array<t_triple, 4> r;
-            if constexpr(FT)
-            {
-                const vec<half, 8> g00 = ld(0, 0);
-                const vec<half, 8> g01 = ld(0, 1);
-                const vec<half, 8> g02 = ld(0, 2);
-                const vec<half, 8> g10 = ld(1, 0);
-                const vec<half, 8> g11 = ld(1, 1);
-                const vec<half, 8> g12 = ld(1, 2);
-                const vec<half, 8> g20 = ld(2, 0);
-                const vec<half, 8> g21 = ld(2, 1);
-                const vec<half, 8> g22 = ld(2, 2);
-                const half hc          = 0.5f;
-                r[0]                   = t_triple{g00, g01, g02};
-                r[1]                   = t_triple{
-                    (g00 + g10 + g20) * hc, (g01 + g11 + g21) * hc, (g02 + g12 + g22) * hc};
-                r[2] = t_triple{
-                    (g00 - g10 + g20) * hc, (g01 - g11 + g21) * hc, (g02 - g12 + g22) * hc};
-                r[3] = t_triple{g20, g21, g22};
-            }
-            else
-            {
-                r[0] = t_triple{ld(0, 0), ld(0, 1), ld(0, 2)};
-                r[1] = t_triple{ld(1, 0), ld(1, 1), ld(1, 2)};
-                r[2] = t_triple{ld(2, 0), ld(2, 1), ld(2, 2)};
-                r[3] = t_triple{ld(3, 0), ld(3, 1), ld(3, 2)};
-            }
-            return r;
-        };
-        // Cooperative U → LDS load for SK==1 (every wave reads the same U).
-        // For SK>1 there is no cross-wave U sharing, so we skip this and
-        // stream U directly from global into the WMMA A operand below.
-        if constexpr(u_via_lds)
-        {
-            if constexpr(FT)
-            {
-                // g storage: one task per (k_idx, k_in_block, c_chunk) -- load
-                // the raw 3x3 g once and write the full 4x4 U into LDS.
-                constexpr index_int u_tasks = KW * bk * (CB / 8);
-                idx.local_stride(_c<u_tasks>, [&](auto task) {
-                    // task decomposes over {KW, bk, CB/8} -> (k_idx, k_in_block, c_half).
-                    const auto t3              = array<index_int, 3>{KW, bk, CB / 8}.multi(task);
-                    const index_int k_idx      = t3[0];
-                    const index_int k_in_block = t3[1];
-                    const index_int c_in_block = t3[2] * 8;
-                    const index_int k          = k_base + k_idx * bk + k_in_block;
-                    auto trows                 = load_trows(k, c_base + c_in_block);
-                    repeat_c<4>([&](auto i_t_val) {
-                        const index_int i_t = i_t_val;
-                        auto ur             = apply_gt(trows[i_t].t0, trows[i_t].t1, trows[i_t].t2);
-                        *as_vec<8>(
-                            &u_smem[u_cache_idx(k_idx, i_t * 4 + 0, k_in_block, c_in_block)]) =
-                            ur.u0;
-                        *as_vec<8>(
-                            &u_smem[u_cache_idx(k_idx, i_t * 4 + 1, k_in_block, c_in_block)]) =
-                            ur.u1;
-                        *as_vec<8>(
-                            &u_smem[u_cache_idx(k_idx, i_t * 4 + 2, k_in_block, c_in_block)]) =
-                            ur.u2;
-                        *as_vec<8>(
-                            &u_smem[u_cache_idx(k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) =
-                            ur.u3;
-                    });
-                });
-            }
-            else
-            {
-                // T storage: one task per (i_t, k_idx, k_in_block, c_chunk) --
-                // load one T row's 3 columns and write its 4 U columns. The
-                // extra i_t parallelism keeps more lanes issuing loads.
-                constexpr index_int u_tasks = KW * 4 * bk * (CB / 8);
-                idx.local_stride(_c<u_tasks>, [&](auto task) {
-                    // task decomposes over {KW, 4, bk, CB/8} -> (k_idx, i_t, k_in_block, c_half).
-                    const auto t4              = array<index_int, 4>{KW, 4, bk, CB / 8}.multi(task);
-                    const index_int k_idx      = t4[0];
-                    const index_int i_t        = t4[1];
-                    const index_int k_in_block = t4[2];
-                    const index_int c_in_block = t4[3] * 8;
-                    const index_int k          = k_base + k_idx * bk + k_in_block;
-                    vec<half, 8> t0;
-                    vec<half, 8> t1;
-                    vec<half, 8> t2;
-                    if(k < out_c)
-                    {
-                        t0 = load_t(t_off(i_t, 0, k, c_base + c_in_block));
-                        t1 = load_t(t_off(i_t, 1, k, c_base + c_in_block));
-                        t2 = load_t(t_off(i_t, 2, k, c_base + c_in_block));
-                    }
-                    else
-                    {
-                        t0 = vec<half, 8>{0};
-                        t1 = vec<half, 8>{0};
-                        t2 = vec<half, 8>{0};
-                    }
-                    auto ur = apply_gt(t0, t1, t2);
-                    *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 0, k_in_block, c_in_block)]) =
-                        ur.u0;
-                    *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 1, k_in_block, c_in_block)]) =
-                        ur.u1;
-                    *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 2, k_in_block, c_in_block)]) =
-                        ur.u2;
-                    *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) =
-                        ur.u3;
-                });
-            }
-            // Workgroup barrier so every wave sees the cooperative writes
-            // before reading them for WMMA. NW==1 has only one wave so the
-            // s_wait_dscnt the compiler inserts before the LDS read suffices.
-            if constexpr(NW > 1)
-                __syncthreads();
-        }
-
         // ---- WMMA with fused incremental output transform ----
         constexpr index_int wmma_chunks = CB / 16;
 
@@ -733,21 +943,27 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 }
             });
         };
-        // Construct V[wp] for this lane from register-resident v_lane.
+        // Construct V[wp] for this lane from register-resident storage.
         // c_offset selects which c-chunk (0 for CB=16; 0 or 16 for CB=32).
-        // The 8 fp16 values come from v_lane[vc][0..7][wp] where vc = c_offset/16.
+        // NHWC reads the packed vec directly; NCHW gathers the 8 c values
+        // from v_lane[vc][0..7][wp].
         auto load_v = [&](index_int wp, index_int c_offset) {
             const index_int vc = c_offset / 16;
-            vec<half, 8> b;
-            b.s0 = v_lane[vc][0][wp];
-            b.s1 = v_lane[vc][1][wp];
-            b.s2 = v_lane[vc][2][wp];
-            b.s3 = v_lane[vc][3][wp];
-            b.s4 = v_lane[vc][4][wp];
-            b.s5 = v_lane[vc][5][wp];
-            b.s6 = v_lane[vc][6][wp];
-            b.s7 = v_lane[vc][7][wp];
-            return b;
+            if constexpr(NHWC)
+                return v_vecs[vc][wp];
+            else
+            {
+                vec<half, 8> b;
+                b.s0 = v_lane[vc][0][wp];
+                b.s1 = v_lane[vc][1][wp];
+                b.s2 = v_lane[vc][2][wp];
+                b.s3 = v_lane[vc][3][wp];
+                b.s4 = v_lane[vc][4][wp];
+                b.s5 = v_lane[vc][5][wp];
+                b.s6 = v_lane[vc][6][wp];
+                b.s7 = v_lane[vc][7][wp];
+                return b;
+            }
         };
         // A-operand source: either LDS (cooperative SK==1 path) or computed on
         // the fly from the weight (SK>1 path, via load_trows + apply_gt).
@@ -755,14 +971,15 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             if constexpr(u_via_lds)
             {
                 u_row r;
-                r.u0 = *as_vec<8>(
-                    &u_smem[u_cache_idx(k_idx, wp_i * 4 + 0, m_in_wave, c_offset + c_off)]);
+                const index_int slot = u_slot_base + k_idx;
+                r.u0                 = *as_vec<8>(
+                    &u_smem[u_cache_idx(slot, wp_i * 4 + 0, m_in_wave, c_offset + c_off)]);
                 r.u1 = *as_vec<8>(
-                    &u_smem[u_cache_idx(k_idx, wp_i * 4 + 1, m_in_wave, c_offset + c_off)]);
+                    &u_smem[u_cache_idx(slot, wp_i * 4 + 1, m_in_wave, c_offset + c_off)]);
                 r.u2 = *as_vec<8>(
-                    &u_smem[u_cache_idx(k_idx, wp_i * 4 + 2, m_in_wave, c_offset + c_off)]);
+                    &u_smem[u_cache_idx(slot, wp_i * 4 + 2, m_in_wave, c_offset + c_off)]);
                 r.u3 = *as_vec<8>(
-                    &u_smem[u_cache_idx(k_idx, wp_i * 4 + 3, m_in_wave, c_offset + c_off)]);
+                    &u_smem[u_cache_idx(slot, wp_i * 4 + 3, m_in_wave, c_offset + c_off)]);
                 return r;
             }
             else
@@ -881,10 +1098,11 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             });
         });
 
-        // End-of-cb barrier for the SK==1 cooperative path: the next iter
-        // overwrites the WG-shared U slots, so all waves must finish their
-        // WMMA reads first. NW==1 has only one wave; SK>1 streams U direct
-        // and doesn't touch the LDS slots, so neither needs the sync.
+        // End-of-cb barrier for the SK==1 cooperative path: publishes the
+        // next iteration's U slot (stored above, overlapping this WMMA phase)
+        // and guarantees this slot's reads finished before it is overwritten
+        // two iterations from now. NW==1 has only one wave; SK>1 streams U
+        // direct and doesn't touch the LDS slots, so neither needs the sync.
         if constexpr(u_via_lds and NW > 1)
             __syncthreads();
     }

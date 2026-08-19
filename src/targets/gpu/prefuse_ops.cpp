@@ -349,25 +349,36 @@ struct winograd_conv
     // for the convolution this op replaces, so winograd is a drop-in: same
     // inputs, same output layout (e.g. NHWC in -> NHWC out). Defaults to NCHW.
     std::vector<int64_t> output_layout = {0, 1, 2, 3};
+    // When > 0, the conv's first resize_c input channels are a fused 2x
+    // bilinear upsample (ONNX Resize linear/asymmetric) of the first input
+    // tensor, computed in the kernel's input load; the logical conv input is
+    // double the first input's H/W. resize_tail: a second input tensor
+    // supplies the remaining (concat) channels at full resolution.
+    std::size_t resize_c = 0;
+    bool resize_tail     = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.full_transform, "full_transform"),
-                    f(self.output_layout, "output_layout"));
+                    f(self.output_layout, "output_layout"),
+                    f(self.resize_c, "resize_c"),
+                    f(self.resize_tail, "resize_tail"));
     }
 
     std::string name() const { return "gpu::winograd_conv"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{inputs, *this}.has(resize_tail ? 3 : 2);
         const auto& x_shape = inputs[0];
-        const auto& u_shape = inputs[1];
+        const auto& u_shape = inputs.back();
         auto x_lens         = x_shape.lens();
         // u_shape is [4 or 3, 3, K, C]; lens()[2] is the output channel count.
         auto out_c                        = u_shape.lens()[2];
-        std::vector<std::size_t> out_lens = {x_lens[0], out_c, x_lens[2], x_lens[3]};
+        const auto scale                  = resize_c > 0 ? 2 : 1;
+        std::vector<std::size_t> out_lens = {
+            x_lens[0], out_c, scale * x_lens[2], scale * x_lens[3]};
         return shape::from_permutation(x_shape.type(), out_lens, output_layout);
     }
 };
@@ -481,8 +492,12 @@ constexpr std::array<winograd_f23_shape, 10> winograd_f23_overrides{{
 //     transform-bound and lose.
 // A channel-collapsing conv (e.g. 512->8) keeps min(C,K) small, so it is not
 // caught by the large-channel rules and still wins ~2x as it should.
-bool winograd_f23_profitable(
-    std::size_t in_ch, std::size_t out_ch, std::size_t height, std::size_t width, bool nhwc)
+bool winograd_f23_profitable(std::size_t in_ch,
+                             std::size_t out_ch,
+                             std::size_t height,
+                             std::size_t width,
+                             bool nhwc,
+                             bool fused_resize)
 {
     const auto spatial = std::min(height, width);
     const auto min_ch  = std::min(in_ch, out_ch);
@@ -498,8 +513,25 @@ bool winograd_f23_profitable(
     // large-channel regime for NHWC -- this is layout-specific; NCHW still wins
     // it and is unchanged. The override table below is NCHW-derived, so the NHWC
     // gate is applied first.
+    //
+    // fused_resize shifts the economics: the conv absorbs the 2x bilinear
+    // upsample of (most of) its input, which deletes the standalone resize
+    // kernel and reads the low-resolution source (1/4 the bytes, 3x3 loads
+    // per tile instead of 4x4). Measured on the u-net decoder shapes
+    // (gfx1201 fp16 NHWC: 1024->512@12, 848->512@24, 704->288@48), that
+    // turns the large-channel MLIR wins into winograd wins at small spatial.
     if(nhwc and min_ch >= 224)
-        return false;
+    {
+        if(fused_resize and spatial <= 48)
+            return true;
+        // Plain-conv exception: equal-channel convs at tiny spatial are
+        // latency-bound in MLIR (a 6x6x512 conv gets ~3k threads) while
+        // winograd's k-block grid keeps more CUs busy. Measured on gfx1201
+        // fp16 NHWC (interleaved medians): 512x512@12 1.30x, 512x512@6 1.19x;
+        // 512x512@24 and unequal-channel shapes still lose, and very large
+        // channel products stay excluded (untested regime).
+        return in_ch == out_ch and spatial <= 12 and in_ch * out_ch < 700000;
+    }
 
     // NOLINTNEXTLINE(readability-qualified-auto)
     const auto ovr = std::find_if(
@@ -591,23 +623,133 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     // transform U at compile time.
     if(not ins->inputs().back()->can_eval())
         return false;
-    // Use the perf heuristic to skip shapes where the default lowering is
-    // faster. MIGRAPHX_ENABLE_WINOGRAD forces winograd on every eligible
-    // shape (bypassing the heuristic); MIGRAPHX_DISABLE_WINOGRAD forces it
-    // off everywhere. Both are for benchmarking/debugging.
-    if(enabled(MIGRAPHX_DISABLE_WINOGRAD{}))
-        return false;
-    // Channels-last (NHWC) when the conv input's channel axis is innermost --
-    // the same test the kernel uses to pick its NHWC path. layout_convolution
-    // runs before this pass, so the strides already reflect the chosen layout.
-    const bool nhwc = ins->inputs().front()->get_shape().strides()[1] == 1;
-    return enabled(MIGRAPHX_ENABLE_WINOGRAD{}) or
-           winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc);
+    // MIGRAPHX_DISABLE_WINOGRAD forces winograd off everywhere (for
+    // benchmarking/debugging). The per-shape perf heuristic is applied
+    // separately by each finder (see winograd_profitable_matcher) since the
+    // fused-resize variant changes the economics.
+    return not enabled(MIGRAPHX_DISABLE_WINOGRAD{});
 }
+
+// Perf heuristic as a matcher: skip shapes where the default lowering is
+// faster. MIGRAPHX_ENABLE_WINOGRAD forces winograd on every eligible shape
+// (bypassing the heuristic). fused_resize: the conv would absorb a 2x
+// upsample of its input, which shifts the winograd-vs-default tradeoff.
+auto winograd_profitable_matcher(bool fused_resize)
+{
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if(enabled(MIGRAPHX_ENABLE_WINOGRAD{}))
+            return true;
+        auto w_lens = ins->inputs().back()->get_shape().lens();
+        auto x_lens = ins->inputs().front()->get_shape().lens();
+        // Channels-last (NHWC) when the conv input's channel axis is
+        // innermost -- the same test the kernel uses to pick its NHWC path.
+        // layout_convolution runs before this pass, so the strides already
+        // reflect the chosen layout.
+        const bool nhwc = ins->inputs().front()->get_shape().strides()[1] == 1;
+        return winograd_f23_profitable(
+            w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc, fused_resize);
+    });
+}
+
+// A resize that exactly doubles H and W via asymmetric bilinear interpolation
+// (ONNX Resize mode=linear, coordinate_transformation_mode=asymmetric with an
+// integer scale of 2). This is the form the winograd kernel fuses into its
+// input load: even output rows/cols copy the source pixel, odd ones average
+// two neighbours (the last odd one collapses onto the edge pixel).
+MIGRAPHX_PRED_MATCHER(resize_linear_asym_2x, instruction_ref ins)
+{
+    if(ins->name() != "resize")
+        return false;
+    if(ins->inputs().size() != 1)
+        return false;
+    auto v = ins->get_operator().to_value();
+    if(v.at("mode").to<std::string>() != "linear")
+        return false;
+    if(v.at("coordinate_transformation_mode").to<std::string>() != "asymmetric")
+        return false;
+    const auto& in_lens  = ins->inputs().front()->get_shape().lens();
+    const auto& out_lens = ins->get_shape().lens();
+    if(in_lens.size() != 4 or out_lens.size() != 4)
+        return false;
+    return out_lens[0] == in_lens[0] and out_lens[1] == in_lens[1] and
+           out_lens[2] == 2 * in_lens[2] and out_lens[3] == 2 * in_lens[3];
+}
+
+// 4-d channels-last: the fused-resize load reads 8 contiguous channels per
+// b128, so every tensor it touches must have the channel axis innermost.
+MIGRAPHX_PRED_MATCHER(channels_last_4d, instruction_ref ins)
+{
+    const auto& s = ins->get_shape();
+    return s.lens().size() == 4 and s.strides()[1] == 1;
+}
+
+// A 2-input channel concat whose first input's channel count is a multiple
+// of 16 -- the kernel selects the source per 16-channel c-block, so the
+// concat boundary must land on a block boundary.
+MIGRAPHX_PRED_MATCHER(concat_2args_channels_16, instruction_ref ins)
+{
+    if(ins->name() != "concat")
+        return false;
+    if(ins->inputs().size() != 2)
+        return false;
+    if(ins->get_operator().to_value().at("axis").to<std::int64_t>() != 1)
+        return false;
+    return ins->inputs().front()->get_shape().lens()[1] % 16 == 0;
+}
+
+// Fused-resize variant: the conv input is a 2x bilinear upsample, optionally
+// concatenated (on channels) with a full-resolution skip tensor -- the
+// standard u-net decoder level. The kernel reads the upsampled channels
+// straight from the low-resolution tensor (3x3 source loads per tile instead
+// of 4x4, no intermediate resize kernel or buffer) and the skip channels
+// directly. Runs before find_winograd_f23 so eligible convs fuse their
+// resize; the plain matcher picks up whatever remains. All disqualifying
+// conditions live in the matcher: a matched instruction is always replaced,
+// and a non-fusible conv falls through to the plain winograd matcher.
+struct find_winograd_f23_resize
+{
+    auto matcher() const
+    {
+        auto rz = match::name("resize")(resize_linear_asym_2x(),
+                                        channels_last_4d(),
+                                        match::arg(0)(channels_last_4d()))
+                      .bind("resize");
+        auto cat = concat_2args_channels_16()(
+            channels_last_4d(), match::arg(0)(rz), match::arg(1)(channels_last_4d().bind("tail")));
+        return conv_winograd_f23()(winograd_profitable_matcher(true),
+                                   match::arg(0)(match::any_of(rz, cat)));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins            = r.result;
+        auto input          = ins->inputs().front();
+        auto weights        = ins->inputs().back();
+        auto src            = r.instructions["resize"]->inputs().front();
+        const bool has_tail = r.instructions.find("tail") != r.instructions.end();
+        const auto split_c  = src->get_shape().lens()[1];
+
+        auto w_arg      = weights->eval();
+        auto w_lens     = weights->get_shape().lens(); // [K, C, 3, 3]
+        auto x_lens     = input->get_shape().lens();   // logical [N, C, H, W]
+        const bool ft   = winograd_f23_full_transform(w_lens[1], w_lens[0], x_lens[2], x_lens[3]);
+        auto out_layout = find_permutation(ins->get_shape());
+
+        auto u_ins = m.add_literal(compute_winograd_weights_f23(w_arg, ft));
+        if(has_tail)
+            m.replace_instruction(ins,
+                                  winograd_conv{ft, out_layout, split_c, true},
+                                  src,
+                                  r.instructions["tail"],
+                                  u_ins);
+        else
+            m.replace_instruction(ins, winograd_conv{ft, out_layout, split_c, false}, src, u_ins);
+    }
+};
 
 struct find_winograd_f23
 {
-    auto matcher() const { return conv_winograd_f23(); }
+    auto matcher() const { return conv_winograd_f23()(winograd_profitable_matcher(false)); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -670,7 +812,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
         match::find_matches(mpm.get_module(), find_channelwise_convolution{});
     if(is_gfx12)
     {
-        match::find_matches(mpm.get_module(), find_winograd_f23{});
+        match::find_matches(mpm.get_module(), find_winograd_f23_resize{}, find_winograd_f23{});
         mpm.run_pass(dead_code_elimination{});
     }
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))

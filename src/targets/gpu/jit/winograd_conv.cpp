@@ -84,9 +84,9 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
-        [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}, ${ft}, ${nhwc}, ${conv_cast}>(
-                ${post}, output, x, u, inputs...);
+        [](auto output, ${xparams}, auto... inputs) {
+            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}, ${ft}, ${nhwc}, ${rz}, ${tail}, ${conv_cast}>(
+                ${post}, output, ${xargs}, u, inputs...);
         });
 }
 
@@ -132,6 +132,13 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const auto& x_shape = inputs.front();
         const bool nhwc     = x_shape.lens().size() == 4 and x_shape.strides()[1] == 1;
 
+        // Fused 2x bilinear upsample of the first input (see winograd_conv in
+        // prefuse_ops). resize_tail: a second input supplies the concat
+        // remainder channels. Without a tail, the kernel's xb parameter is
+        // fed the x tensor again (ignored).
+        const bool rz   = v.get("resize_c", std::size_t{0}) > 0;
+        const bool tail = v.get("resize_tail", false);
+
         const auto& out_lens = out_s.lens();
         assert(out_lens.size() == 4);
         const auto n        = out_lens[0];
@@ -148,19 +155,24 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
 
-        auto src = interpolate_string(winograd_conv_kernel,
-                                      {{"kernel", options.kernel_name},
-                                       {"params", enum_params(inputs.size(), "void * private_p")},
-                                       {"args", enum_params(inputs.size(), "private_p")},
-                                       {"nw", std::to_string(nw)},
-                                       {"cb", std::to_string(cb)},
-                                       {"kw", std::to_string(kw)},
-                                       {"sk", std::to_string(sk)},
-                                       {"ft", v.get("full_transform", false) ? "true" : "false"},
-                                       {"nhwc", nhwc ? "true" : "false"},
-                                       {"post", v.get("post", std::string{"op::id{}"})},
-                                       {"conv_cast", v.get("conv_cast", std::string{"half"})},
-                                       {"preamble", v.get("preamble", std::string{})}});
+        auto src =
+            interpolate_string(winograd_conv_kernel,
+                               {{"kernel", options.kernel_name},
+                                {"params", enum_params(inputs.size(), "void * private_p")},
+                                {"args", enum_params(inputs.size(), "private_p")},
+                                {"nw", std::to_string(nw)},
+                                {"cb", std::to_string(cb)},
+                                {"kw", std::to_string(kw)},
+                                {"sk", std::to_string(sk)},
+                                {"ft", v.get("full_transform", false) ? "true" : "false"},
+                                {"nhwc", nhwc ? "true" : "false"},
+                                {"rz", rz ? "true" : "false"},
+                                {"tail", tail ? "true" : "false"},
+                                {"xparams", tail ? "auto x, auto xb, auto u" : "auto x, auto u"},
+                                {"xargs", tail ? "x, xb" : "x, x"},
+                                {"post", v.get("post", std::string{"op::id{}"})},
+                                {"conv_cast", v.get("conv_cast", std::string{"half"})},
+                                {"preamble", v.get("preamble", std::string{})}});
 
         return compile_hip_code_object(ctx, src, options);
     }

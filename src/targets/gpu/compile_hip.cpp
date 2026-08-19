@@ -58,7 +58,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
 
-std::vector<std::string> compile_hip_options(const std::vector<std::string>& params, const std::string& arch)
+std::vector<std::string> compile_hip_options(const std::vector<std::string>& params,
+                                             const std::string& arch)
 {
     auto options = params;
     options.push_back("-DMIGRAPHX_USE_HIPRTC=1");

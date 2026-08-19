@@ -626,14 +626,19 @@ struct find_flash_decoding
 
     // Compile-time counterpart of reshape_scores_aligned for literals in the
     // attention submodule, like causal masks. Score-shaped params
-    // are split at runtime; literals are materialized here during submodule rebuild
+    // are split at runtime; literals that vary along N are materialized here.
+    // Broadcast-only constants (scale, -inf) keep their original shape.
     static literal transform_score_literal(const literal& lit,
                                            const std::vector<std::size_t>& scores_lens,
                                            std::size_t num_groups)
     {
         const auto& input_lens = lit.get_shape().lens();
-        if(input_lens.size() > scores_lens.size() or
+        if(input_lens.empty() or input_lens.size() > scores_lens.size() or
            (input_lens != scores_lens and not can_multibroadcast(input_lens, scores_lens)))
+            return lit;
+
+        // Right-aligned N is input_lens.back(). A size-1 axis is broadcast-only
+        if(input_lens.back() == 1)
             return lit;
 
         const auto split_lens = get_scores_split_lens(scores_lens, num_groups);

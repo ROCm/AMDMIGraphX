@@ -302,5 +302,20 @@ shape make_bcast_shape(const shape& input_shape,
                                  sym::lit(0));
 }
 
+bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
+                        const std::vector<std::size_t>& out_lens)
+{
+    if(input_lens.empty() or out_lens.empty() or input_lens.size() > out_lens.size())
+        return false;
+
+    const auto offset = out_lens.size() - input_lens.size();
+    for(std::ptrdiff_t i = input_lens.size() - 1; i >= 0; --i)
+    {
+        if(out_lens[i + offset] != input_lens[i] and input_lens[i] != 1)
+            return false;
+    }
+    return true;
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

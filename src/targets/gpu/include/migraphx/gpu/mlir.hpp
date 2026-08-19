@@ -76,11 +76,10 @@ dump_mlir_to_mxr(module m, const std::vector<instruction_ref>& inputs, const fs:
 
 // Returns true if rocMLIR estimates that a two-gemm problem with
 // the given second gemm's output dimension (gemm_o) fits within the target arch's LDS budget
-MIGRAPHX_GPU_EXPORT bool
-mlir_lds_usage_fits_arch(int64_t gemm_o,
-                         const std::string& arch,
-                         shape::type_t elem_type,
-                         const module* m = nullptr);
+MIGRAPHX_GPU_EXPORT bool mlir_lds_usage_fits_arch(int64_t gemm_o,
+                                                  const std::string& arch,
+                                                  shape::type_t elem_type,
+                                                  const module* m = nullptr);
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

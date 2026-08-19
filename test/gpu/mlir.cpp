@@ -862,7 +862,8 @@ TEST_CASE(mlir_lds_usage_fits_arch)
 {
     const auto device_name = migraphx::gpu::get_device_name();
     const auto gfx_name    = migraphx::gpu::get_gfx_name(device_name);
-    EXPECT(migraphx::gpu::mlir_lds_usage_fits_arch(64, gfx_name, migraphx::shape::type_t::half_type));
+    EXPECT(
+        migraphx::gpu::mlir_lds_usage_fits_arch(64, gfx_name, migraphx::shape::type_t::half_type));
     EXPECT(not migraphx::gpu::mlir_lds_usage_fits_arch(
         8192, gfx_name, migraphx::shape::type_t::half_type));
     EXPECT(migraphx::gpu::mlir_lds_usage_fits_arch(

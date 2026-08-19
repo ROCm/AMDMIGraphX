@@ -891,7 +891,6 @@ struct find_mlir_fused_geg_ops
         return true;
     }
 
-    // Fuse GEG only for large-batch, skinny-k GEMM chains (DLRM bottom MLP)
     bool check_heuristic(const std::vector<instruction_ref>& first_inputs,
                          const std::vector<instruction_ref>& second_inputs) const
     {
@@ -914,16 +913,28 @@ struct find_mlir_fused_geg_ops
         if(m == 0 or n == 0 or k == 0 or g == 0)
             return false;
 
-        constexpr std::int64_t m_min = 65536; // 64K (2^16)
-        constexpr std::int64_t k_max = 128;
-        if(m < m_min or k > k_max)
+        // reject if gemm1 is effectively a no-op, nothing to gain
+        if(g <= 1)
+            return false;
+        // reject if tiny batch and wide hidden dim
+        if(m <= 8 and n >= 512)
             return false;
 
-        // First GEMM must move enough work relative to the second
-        if(m * k < n * g)
-            return false;
+        // Conservative fuse gates: elemwise is a column vector, not a wide m x n tile.
+        // All dims are capped
+        constexpr std::int64_t n1_m_max = 1024;
+        constexpr std::int64_t n1_k_max = 128;
+        constexpr std::int64_t n1_g_max = 64;
+        if(n == 1 and k <= n1_k_max and m <= n1_m_max and g <= n1_g_max)
+            return true;
 
-        return true;
+        // Large batch skinny-k MLP bottom avoids huge m x n DRAM roundtrip.
+        // Skip huge second gemm (g > 256
+        constexpr std::int64_t dlrm_m_min = 98304; // 96K
+        constexpr std::int64_t dlrm_n_min = 512;
+        constexpr std::int64_t dlrm_k_max = 13;
+        constexpr std::int64_t dlrm_g_max = 256;
+        return m >= dlrm_m_min and n >= dlrm_n_min and k <= dlrm_k_max and g <= dlrm_g_max;
     }
 
     /*

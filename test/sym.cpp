@@ -2681,6 +2681,64 @@ TEST_CASE(builtin_log_exp_nested)
     EXPECT(log(exp(x)) + log(exp(y)) == x + y);
 }
 
+TEST_CASE(builtin_min_max_already_clamped)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // Clamping against a bound that is already applied folds away, with the bound in either
+    // operand of the inner node.
+    EXPECT(min(min(x, y), y) == min(x, y));
+    EXPECT(max(max(x, y), y) == max(x, y));
+    EXPECT(min(min(y, x), y) == min(y, x));
+    EXPECT(max(max(y, x), y) == max(y, x));
+}
+
+TEST_CASE(builtin_min_max_already_clamped_literal_bound)
+{
+    auto x = var("x");
+    EXPECT(min(min(x, lit(5)), lit(5)) == min(x, lit(5)));
+    EXPECT(max(max(x, lit(0)), lit(0)) == max(x, lit(0)));
+    EXPECT(min(min(lit(5), x), lit(5)) == min(lit(5), x));
+    EXPECT(max(max(lit(0), x), lit(0)) == max(lit(0), x));
+}
+
+TEST_CASE(builtin_min_max_clamp_repeated)
+{
+    // Clamping a clamped expression any number of times keeps a single min/max node, as
+    // repeated attribute normalization does.
+    auto n    = var("n", interval{int64_t{1}, int64_t{8}});
+    auto once = min(n, lit(5));
+    EXPECT(min(once, lit(5)) == once);
+    EXPECT(min(min(once, lit(5)), lit(5)) == once);
+    auto once_from = max(n, lit(0));
+    EXPECT(max(once_from, lit(0)) == once_from);
+    EXPECT(max(max(once_from, lit(0)), lit(0)) == once_from);
+}
+
+TEST_CASE(builtin_min_max_different_bound_not_folded)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto z = var("z");
+    // The inner bound is not the outer bound, so the nesting is meaningful and kept
+    EXPECT(min(min(x, y), z) != min(x, y));
+    EXPECT(min(min(x, y), z).children().front() == min(x, y));
+    EXPECT(max(max(x, y), z) != max(x, y));
+    EXPECT(max(max(x, y), z).children().front() == max(x, y));
+}
+
+TEST_CASE(builtin_min_max_already_clamped_eval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = min(min(x, y), y);
+    EXPECT(e.eval({{var("x"), int64_t{7}}, {var("y"), int64_t{5}}}) == scalar{int64_t{5}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{5}}}) == scalar{int64_t{3}});
+    auto f = max(max(x, y), y);
+    EXPECT(f.eval({{var("x"), int64_t{7}}, {var("y"), int64_t{5}}}) == scalar{int64_t{7}});
+    EXPECT(f.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{5}}}) == scalar{int64_t{5}});
+}
+
 TEST_CASE(builtin_raw_no_leak)
 {
     auto x = var("x");
@@ -3368,6 +3426,88 @@ TEST_CASE(ceildiv_to_string)
     auto s = e.to_string();
     // Just verify it produces something reasonable and roundtrips eval
     EXPECT(not s.empty());
+}
+
+TEST_CASE(interval_contains)
+{
+    interval bounds{int64_t{1}, int64_t{5}};
+    EXPECT(bounds.contains(int64_t{1}));
+    EXPECT(bounds.contains(int64_t{3}));
+    EXPECT(bounds.contains(int64_t{5}));
+    EXPECT(not bounds.contains(int64_t{0}));
+    EXPECT(not bounds.contains(int64_t{6}));
+}
+
+TEST_CASE(fixed_value_literal)
+{
+    auto result = fixed_value(lit(5));
+    EXPECT(result.has_value());
+    EXPECT(*result == scalar{int64_t{5}});
+}
+
+TEST_CASE(fixed_value_singleton_expression)
+{
+    auto result = fixed_value(var("x", interval{int64_t{5}, int64_t{5}}));
+    EXPECT(result.has_value());
+    EXPECT(*result == scalar{int64_t{5}});
+}
+
+TEST_CASE(fixed_value_compound_singleton_expression)
+{
+    auto x      = var("x", interval{int64_t{5}, int64_t{5}});
+    auto result = fixed_value((x * 2) + 1);
+    EXPECT(result.has_value());
+    EXPECT(*result == scalar{int64_t{11}});
+}
+
+TEST_CASE(fixed_value_rejects_collapsed_compound_interval)
+{
+    auto x         = var("x", interval{int64_t{0}, int64_t{10}});
+    auto remainder = x - ((x / 2) * 2);
+    EXPECT(not fixed_value(remainder).has_value());
+}
+
+TEST_CASE(fixed_value_indeterminate)
+{
+    EXPECT(not fixed_value(var("x", interval{int64_t{1}, int64_t{5}})).has_value());
+    EXPECT(not fixed_value(expr{}).has_value());
+}
+
+TEST_CASE(provable_equal_same_symbol)
+{
+    auto x      = var("x");
+    auto result = provable_equal(x + 1, x + 1);
+    EXPECT(result.has_value() and *result);
+}
+
+TEST_CASE(provable_equal_disjoint_ranges)
+{
+    auto x      = var("x", interval{int64_t{1}, int64_t{5}});
+    auto y      = var("y", interval{int64_t{10}, int64_t{20}});
+    auto result = provable_equal(x, y);
+    EXPECT(result.has_value() and not *result);
+}
+
+TEST_CASE(provable_equal_fixed_expressions)
+{
+    auto x = var("x", interval{int64_t{5}, int64_t{5}});
+    EXPECT(provable_equal(x + 1, lit(6)).value_or(false));
+    EXPECT(not provable_equal(x + 1, lit(7)).value_or(true));
+}
+
+TEST_CASE(provable_equal_rejects_collapsed_compound_interval)
+{
+    auto x         = var("x", interval{int64_t{0}, int64_t{10}});
+    auto remainder = x - ((x / 2) * 2);
+    EXPECT(not provable_equal(remainder, lit(1)).has_value());
+}
+
+TEST_CASE(provable_equal_indeterminate)
+{
+    auto x = var("x", interval{int64_t{1}, int64_t{10}});
+    auto y = var("y", interval{int64_t{5}, int64_t{15}});
+    EXPECT(not provable_equal(x, y).has_value());
+    EXPECT(not provable_equal(expr{}, expr{}).has_value());
 }
 
 // ---- strict_less tests ----

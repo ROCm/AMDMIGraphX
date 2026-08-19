@@ -26,6 +26,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
+#include <algorithm>
+#include <iterator>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,22 +42,11 @@ struct parse_where : op_parser<parse_where>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        // Fast path: when all three inputs already share the same dims, emit
-        // where() directly (no redundant broadcast)
         const auto s0 = args[0]->get_shape();
         if(shape::same_lens(args[1]->get_shape(), s0) and
            shape::same_lens(args[2]->get_shape(), s0))
             return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
 
-        // Otherwise broadcast the three inputs to a common shape. where()
-        // must NOT unify element types (args[0] is the bool condition while
-        // args[1]/args[2] carry the data type), so add_common_op is called
-        // with common_type=false. This handles static, dynamic, and mixed
-        // inputs uniformly; the dynamic path goes through
-        // compute_common_dyn_dims, so an unconstrained input (e.g. a
-        // broadcast_with_dims / ONNX Expand output {0, SIZE_MAX}) is
-        // intersected with the other operands instead of requiring every
-        // input to already share an identical dynamic shape.
         return migraphx::add_common_op(
             *info.mod, make_op("where"), args, {/*common_type=*/false, /*common_lens=*/true});
     }

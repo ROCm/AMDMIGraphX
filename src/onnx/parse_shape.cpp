@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,11 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <algorithm>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <algorithm>
+#include <cstdint>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,6 +42,24 @@ struct parse_shape : op_parser<parse_shape>
 {
     std::vector<op_desc> operators() const { return {{"Shape"}}; }
 
+    static std::pair<std::size_t, std::size_t>
+    get_range(const shape& input_shape, const onnx_parser::attribute_map& attributes)
+    {
+        const auto input_ndim = static_cast<int64_t>(input_shape.ndim());
+        const auto normalize  = [input_ndim](int64_t axis) {
+            axis = std::clamp(axis, -input_ndim, input_ndim);
+            return axis < 0 ? axis + input_ndim : axis;
+        };
+        const auto start =
+            normalize(contains(attributes, "start") ? attributes.at("start").i() : 0);
+        const auto end =
+            normalize(contains(attributes, "end") ? attributes.at("end").i() : input_ndim);
+        if(end <= start)
+            MIGRAPHX_THROW("PARSE_SHAPE: ending axis <= starting axis, end: " +
+                           std::to_string(end) + " start: " + std::to_string(start));
+        return {start, end};
+    }
+
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
@@ -47,30 +67,8 @@ struct parse_shape : op_parser<parse_shape>
     {
         if(args.size() != 1)
             MIGRAPHX_THROW("Shape: operator should have 1 operand");
-        auto input_shape  = args[0]->get_shape();
-        int input_ndim    = input_shape.ndim();
-        std::size_t start = 0;
-        std::size_t end   = input_ndim;
-        // Normalizing the start and end is handled here because of how the static shape version
-        // works. Clamping to [-r, r], where r is ndim of input and then making positive.
-        auto normalize_ind = [&](int64_t ind) {
-            ind = std::max<int64_t>(ind, -1 * input_ndim);
-            ind = std::min<int64_t>(ind, input_ndim);
-            return (ind >= 0) ? ind : input_ndim + ind;
-        };
-        if(contains(info.attributes, "end"))
-        {
-            end = normalize_ind(info.attributes.at("end").i());
-        }
-        if(contains(info.attributes, "start"))
-        {
-            start = normalize_ind(info.attributes.at("start").i());
-        }
-        if(end <= start)
-        {
-            MIGRAPHX_THROW("PARSE_SHAPE: ending axis <= starting axis, end: " +
-                           std::to_string(end) + " start: " + std::to_string(start));
-        }
+        const auto& input_shape = args[0]->get_shape();
+        const auto [start, end] = get_range(input_shape, info.attributes);
 
         if(input_shape.dynamic())
         {

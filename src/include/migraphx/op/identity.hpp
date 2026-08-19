@@ -26,6 +26,7 @@
 
 #include <migraphx/op/unary.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,6 +36,13 @@ struct identity
 {
     std::string name() const { return "identity"; }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>&,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        return pass_through_symbolic_value(output_shape, input_values);
+    }
     argument compute(shape, std::vector<argument> args) const { return args[0]; }
 
     value attributes() const { return {{"pointwise", true}, {"point_op", "${0}"}}; }

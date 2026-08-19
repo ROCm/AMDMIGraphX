@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/binary.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 #include <cmath>
 
 namespace migraphx {
@@ -44,6 +45,16 @@ struct mul : binary<mul>
     auto apply() const
     {
         return [](auto x, auto y) { return x * y; };
+    }
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>&,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        if(output_shape.type() != shape::int64_type)
+            return std::nullopt;
+        return compute_symbolic_binary(
+            output_shape, input_values, [](const auto& x, const auto& y) { return x * y; });
     }
 };
 

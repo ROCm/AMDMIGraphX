@@ -45,6 +45,17 @@ struct parse_expand : op_parser<parse_expand>
         if(arg_s.empty())
         {
             // variable dims input
+            const auto symbolic_dims = args[1]->sym_eval();
+            const auto& input_shape  = args[0]->get_shape();
+            if(symbolic_dims.has_value() and is_static_or_symbolic_shape(input_shape))
+            {
+                const auto output_dims = compute_broadcasted_dyn_dims(
+                    input_shape.to_symbolic().dyn_dims(), to_dynamic_dimensions(*symbolic_dims));
+                return info.add_instruction(
+                    make_op("broadcast_with_dims", {{"out_dyn_dims", to_value(output_dims)}}),
+                    args[0],
+                    args[1]);
+            }
             return info.add_instruction(make_op("broadcast_with_dims"), args[0], args[1]);
         }
         else

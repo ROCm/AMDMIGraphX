@@ -36,7 +36,9 @@
 #include <migraphx/pmr/unordered_map.hpp>
 #include <array>
 #include <bitset>
+#include <limits>
 #include <queue>
+#include <type_traits>
 #include <unordered_map>
 
 namespace migraphx {
@@ -436,6 +438,75 @@ argument instruction::eval(bool check_eval) const
         cache.emplace(&ins, value);
         return value;
     })(*this);
+}
+
+static std::optional<symbolic_tensor_value> lift_symbolic_tensor_value(const argument& value)
+{
+    if(value.empty() or not shape::is_integral(value.get_shape().type()))
+        return std::nullopt;
+
+    symbolic_tensor_value result;
+    bool converted = false;
+    value.visit([&](auto input) {
+        using type = std::remove_cv_t<typename decltype(input)::value_type>;
+        if constexpr(std::is_integral<type>{})
+        {
+            if constexpr(std::is_unsigned<type>{} and sizeof(type) >= sizeof(int64_t))
+            {
+                if(any_of(input, [](auto x) {
+                       return x > static_cast<type>(std::numeric_limits<int64_t>::max());
+                   }))
+                    return;
+            }
+            transform(input, std::back_inserter(result), [](auto x) { return sym::lit(x); });
+            converted = true;
+        }
+    });
+    if(not converted)
+        return std::nullopt;
+    return result;
+}
+
+std::optional<symbolic_tensor_value> instruction::sym_eval() const
+{
+#if MIGRAPHX_HAS_PMR
+    std::array<char, 1024> storage;
+    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+    pmr::unordered_map<const instruction*, std::optional<symbolic_tensor_value>> cache(&resource);
+#else
+    pmr::unordered_map<const instruction*, std::optional<symbolic_tensor_value>> cache;
+#endif
+    return fix<std::optional<symbolic_tensor_value>>(
+        [&](auto self, const instruction& ins) -> std::optional<symbolic_tensor_value> {
+            auto found = cache.find(&ins);
+            if(found != cache.end())
+                return found->second;
+
+            std::optional<symbolic_tensor_value> result;
+            const auto& output_shape = ins.get_shape();
+            if(shape::is_integral(output_shape.type()) and not output_shape.dynamic())
+            {
+                if(ins.name() == "@literal")
+                {
+                    result = lift_symbolic_tensor_value(ins.get_literal().get_argument());
+                }
+                else
+                {
+                    std::vector<std::optional<symbolic_tensor_value>> input_values;
+                    transform(ins.inputs(), std::back_inserter(input_values), [&](auto input) {
+                        return self(*input);
+                    });
+                    result = ins.normalized_operator().symbolic_compute(
+                        output_shape, to_shapes(ins.inputs()), input_values);
+                    if(not result.has_value())
+                        result = lift_symbolic_tensor_value(ins.eval());
+                }
+                if(result.has_value() and not symbolic_value_matches_shape(output_shape, *result))
+                    result = std::nullopt;
+            }
+            cache.emplace(&ins, result);
+            return result;
+        })(*this);
 }
 
 void instruction::finalize(context& ctx)

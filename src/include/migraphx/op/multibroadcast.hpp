@@ -29,6 +29,7 @@
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/symbolic_tensor_value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -133,6 +134,14 @@ struct multibroadcast
                 return make_bcast_shape(s0, bcast_lens);
             }
         }
+    }
+
+    std::optional<symbolic_tensor_value>
+    symbolic_compute(const shape& output_shape,
+                     const std::vector<shape>&,
+                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    {
+        return broadcast_scalar_symbolic_value(output_shape, input_values);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

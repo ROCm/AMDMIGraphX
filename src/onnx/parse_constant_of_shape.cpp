@@ -65,7 +65,7 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
         {
             migraphx::shape s;
             // input is empty, output is a scalar
-            auto type = l_val.get_shape().type();
+            auto type                = l_val.get_shape().type();
             migraphx::argument input = args[0]->eval();
             if(not input.empty())
             {
@@ -96,9 +96,20 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
             // has variable input (dynamic shape buffer)
             else
             {
-                auto dv_lit = info.add_literal(l_val);
-                auto alloc_ins =
-                    info.add_instruction(make_op("allocate", {{"buf_type", type}}), args[0]);
+                const auto dv_lit = info.add_literal(l_val);
+                instruction_ref alloc_ins;
+                const auto symbolic_dims = args[0]->sym_eval();
+                if(symbolic_dims.has_value())
+                {
+                    const shape output_shape{type, to_dynamic_dimensions(*symbolic_dims)};
+                    alloc_ins = info.add_instruction(
+                        make_op("allocate", {{"shape", to_value(output_shape)}}), args[0]);
+                }
+                else
+                {
+                    alloc_ins =
+                        info.add_instruction(make_op("allocate", {{"buf_type", type}}), args[0]);
+                }
                 return info.add_instruction(make_op("fill"), dv_lit, alloc_ins);
             }
         }

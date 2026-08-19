@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,8 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <numeric>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -70,6 +72,49 @@ struct parse_slice : op_parser<parse_slice>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
+        if(args.size() >= 3 and args[0]->get_shape().symbolic())
+        {
+            const auto starts = args[1]->sym_eval();
+            const auto ends   = args[2]->sym_eval();
+            std::optional<std::vector<int64_t>> axes;
+            if(args.size() >= 4)
+            {
+                const auto axes_value = args[3]->sym_eval();
+                if(axes_value.has_value())
+                    axes = fixed_integers(*axes_value);
+            }
+            else if(starts.has_value())
+            {
+                axes.emplace(starts->size());
+                std::iota(axes->begin(), axes->end(), int64_t{0});
+            }
+
+            std::optional<std::vector<int64_t>> steps;
+            if(args.size() >= 5)
+            {
+                const auto steps_value = args[4]->sym_eval();
+                if(steps_value.has_value())
+                    steps = fixed_integers(*steps_value);
+            }
+            else if(axes.has_value())
+            {
+                steps.emplace(axes->size(), int64_t{1});
+            }
+            if(starts.has_value() and ends.has_value() and axes.has_value() and
+               steps.has_value() and starts->size() == axes->size() and
+               ends->size() == axes->size() and steps->size() == axes->size() and
+               all_of(*steps, [](auto step) { return step == 1; }))
+            {
+                return info.add_instruction(make_op("dyn_slice",
+                                                    {{"axes", *axes},
+                                                     {"starts", to_value(*starts)},
+                                                     {"ends", to_value(*ends)}}),
+                                            args[0],
+                                            args[1],
+                                            args[2]);
+            }
+        }
+
         auto sd  = construct_slice_desc(parser, info, args);
         auto ins = info.add_instruction(sd.op, sd.op_args);
         if(not sd.raxes.empty())
@@ -84,8 +129,8 @@ struct parse_slice : op_parser<parse_slice>
                            sd.steps.end(),
                            std::back_inserter(nsteps),
                            [](auto s) { return std::abs(s); });
-            return ins = info.add_instruction(
-                       make_op("step", {{"axes", sd.op.axes}, {"steps", nsteps}}), ins);
+            return info.add_instruction(make_op("step", {{"axes", sd.op.axes}, {"steps", nsteps}}),
+                                        ins);
         }
         else
             return ins;

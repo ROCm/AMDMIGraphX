@@ -274,14 +274,6 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Literals are stored on the GPU.
 
-  * - | ``MIGRAPHX_VERIFY_ENABLE_ALLCLOSE``
-      | When set, the range tolerance is verified using ``allclose``.
-
-    - | ``1``: The range tolerance is verified using ``allclose``.
-      | ``0``: Returns to the default behavior.
-
-      | Default: Range tolerance isn't verified.
-
   * - | ``MIGRAPHX_LOG_CK_GEMM``
       | Turns on printing of Composable Kernel GEMM traces.
 

@@ -144,5 +144,13 @@ struct test_mxfp4_gemm : verify_program<test_mxfp4_gemm>
     }
     std::string section() const { return "gemm"; }
 
-    std::size_t get_tolerance() const { return 4e5; };
+    // The weights round trip through fp4, which has one mantissa bit, so the gemm result carries
+    // that quantization error even though the output is fp32.
+    migraphx::optional<migraphx::verify::tolerance> get_tolerance() const
+    {
+        auto tols = migraphx::default_tolerance_for(migraphx::shape::float_type, 400000);
+        tols.atol *= 5000;
+        tols.rtol *= 5000;
+        return tols;
+    };
 };

@@ -1123,10 +1123,12 @@ TEST_CASE(int8_quantization_dot)
         std::vector<float> no_quant_result;
         run_prog(p, ref_t, m, no_quant_result);
 
+        // Comparing an int8 quantized dot against the unquantized one, so the bound
+        // is set by the quantization step of the inputs rather than by fp32 precision.
         EXPECT(migraphx::verify::verify_range_with_tolerance(
             quant_result,
             migraphx::verify::expected{no_quant_result},
-            migraphx::verify::tolerance{0.004}));
+            migraphx::verify::tolerance{0.004, 2e-2, 1e-2}));
     }
 }
 

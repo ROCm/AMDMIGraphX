@@ -24,7 +24,19 @@
 
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
+#include <migraphx/verify_args.hpp>
 #include <onnx_test.hpp>
+
+// Gold values for the half_type models are reproducible to about one fp16 rounding
+// step, so widen the elementwise bounds to what the verify harness uses for half
+// tensors instead of relying on the fp32 defaults happening to be wide enough. The
+// rms bound is left as each test had it.
+static migraphx::verify::tolerance half_tolerance(double rms_tol)
+{
+    auto tols    = migraphx::tolerance_for_type(migraphx::shape::half_type);
+    tols.rms_tol = rms_tol;
+    return tols;
+}
 
 TEST_CASE(rotary_embedding_verify_test)
 {
@@ -434,7 +446,7 @@ TEST_CASE(rotary_embedding_interleaved_large_verify_test)
         0.5620f,  -0.2881f, -2.0801f, 0.4680f,  0.6011f,  -1.4160f};
 
     EXPECT(migraphx::verify::verify_range_with_tolerance(
-        result_vector, migraphx::verify::expected{gold}, migraphx::verify::tolerance{2e-3}));
+        result_vector, migraphx::verify::expected{gold}, half_tolerance(2e-3)));
 }
 
 TEST_CASE(rotary_embedding_dim_verify_test)

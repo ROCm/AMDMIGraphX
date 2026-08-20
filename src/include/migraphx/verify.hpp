@@ -33,9 +33,7 @@
 
 #include <migraphx/float_equal.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/env.hpp>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VERIFY_ENABLE_ALLCLOSE)
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace verify {
@@ -285,15 +283,9 @@ bool verify_range_with_tolerance(const R1& r1,
                                  double* out_rms_error = nullptr)
 {
     auto rms_error = rms_range(r1, r2.data());
-    // disable ewise_verify by default for now, it requires lot of tests to be fixed
-    bool ewise_verify = true;
-    if(enabled(MIGRAPHX_VERIFY_ENABLE_ALLCLOSE{}))
-    {
-        ewise_verify = allclose(r1, r2.data(), tols);
-    }
     if(out_rms_error != nullptr)
         *out_rms_error = rms_error;
-    return rms_error <= tols.rms_tol and ewise_verify;
+    return rms_error <= tols.rms_tol and allclose(r1, r2.data(), tols);
 }
 
 // expected argument should be passed as second, but if it is passed as the first by mistake then
@@ -304,7 +296,7 @@ bool verify_range_with_tolerance(const expected<R1>& r1,
                                  tolerance tols        = tolerance{},
                                  double* out_rms_error = nullptr)
 {
-    return verify_rms_range(r2, r1, tols, out_rms_error);
+    return verify_range_with_tolerance(r2, r1, tols, out_rms_error);
 }
 
 } // namespace verify

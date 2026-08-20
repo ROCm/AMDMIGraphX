@@ -25,6 +25,7 @@
 #include "perf.hpp"
 
 #include <migraphx/compile_options.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <migraphx/fp_to_double.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
@@ -35,7 +36,6 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/verify_args.hpp>
-#include <migraphx/simplify_qdq.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/logger.hpp>
 #include <utility>
@@ -46,9 +46,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 /**
  * Gives tolerances based on user input (`rms_tol`, `atol`, `rtol` parameters) and defaults.
- * Sets to fp4 tolerances if any fp4x2_type is found.
- * Else sets to fp16 tolerances if `quantize` input is fp16 or any fp16 instruction is found in the
- * model.
+ * Picks the tolerances of the lowest precision type present in the model, since that is what
+ * bounds the accuracy of the whole result.
  */
 verify::tolerance get_tolerances(const program& p,
                                  const verify_options& vo,
@@ -56,27 +55,30 @@ verify::tolerance get_tolerances(const program& p,
                                  std::optional<double> atol,
                                  std::optional<double> rtol)
 {
-    bool has_16bit = any_of(p.get_modules(), [](auto&& m) {
-        return any_of(*m, [](auto&& ins) {
-            return (ins.get_shape().type() == shape::half_type or
-                    ins.get_shape().type() == shape::bf16_type);
-        });
+    auto has_type = [&](auto pred) {
+        return any_of(p.get_modules(),
+                      [&](auto&& m) { return any_of(*m, [&](auto&& ins) { return pred(ins); }); });
+    };
+    bool has_16bit = has_type([](auto&& ins) {
+        return ins.get_shape().type() == shape::half_type or
+               ins.get_shape().type() == shape::bf16_type;
     });
-    bool has_fp4   = any_of(p.get_modules(), [](auto&& m) {
-        return any_of(*m, [](auto&& ins) { return (ins.get_shape().type() == shape::fp4x2_type); });
-    });
+    bool has_fp4 = has_type([](auto&& ins) { return ins.get_shape().type() == shape::fp4x2_type; });
+    bool has_fp8 =
+        has_type([](auto&& ins) { return contains(fp8_types{}.get(), ins.get_shape().type()); });
+
     migraphx::verify::tolerance result{};
     if(has_fp4)
     {
-        result.rms_tol = 8e-1;
-        result.atol    = 4e-1;
-        result.rtol    = 4e-1;
+        result = tolerance_for_type(shape::fp4x2_type);
+    }
+    else if(has_fp8)
+    {
+        result = tolerance_for_type(shape::fp8e4m3fn_type);
     }
     else if(has_16bit or vo.quantize == precision::fp16 or vo.quantize == precision::bf16)
     {
-        result.rms_tol = 8e-2;
-        result.atol    = 4e-2;
-        result.rtol    = 4e-2;
+        result = tolerance_for_type(shape::half_type);
     }
     if(rms_tol)
     {
@@ -100,8 +102,7 @@ static std::vector<argument> run_ref(program p,
 {
     if(vo.ref_use_double)
     {
-        run_passes(
-            p, {fp_to_double{}, simplify_qdq{.remove_qdq_only = true}, dead_code_elimination{}});
+        run_passes(p, {fp_to_double{}, dead_code_elimination{}});
     }
     p.compile(migraphx::make_target("ref"), options);
     auto out = p.eval(inputs);

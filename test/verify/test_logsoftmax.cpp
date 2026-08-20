@@ -42,6 +42,10 @@ struct test_logsoftmax : verify_program<test_logsoftmax<Axis, T>>
     }
 
     std::string section() const { return "reduce"; }
+
+    // The ref target rounds every step of the reduction in the storage type while the gpu
+    // keeps wider intermediates.
+    bool get_ref_use_double() const { return true; }
 };
 
 template struct test_logsoftmax<0, migraphx::shape::float_type>;

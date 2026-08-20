@@ -26,6 +26,19 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
+#include <algorithm>
+#include <cmath>
+
+// A sampled histogram only converges on the distribution it was drawn from at the
+// binomial rate, so the comparison has to be bounded by the sampling error rather
+// than by floating point precision. Four standard errors of the widest category
+// gives a bound the test will not flake on.
+static double sampling_tolerance(const std::vector<float>& probabilities, std::size_t samples)
+{
+    auto max_p = *std::max_element(probabilities.begin(), probabilities.end());
+    return 4.0 * std::sqrt(max_p * (1.0 - max_p) / samples);
+}
+
 TEST_CASE(multinomial_dyn_test)
 {
     migraphx::onnx_options options;
@@ -76,7 +89,9 @@ TEST_CASE(multinomial_dyn_test)
     });
 
     EXPECT(migraphx::verify::verify_range_with_tolerance(
-        norm, migraphx::verify::expected{res_norm}, migraphx::verify::tolerance{0.01}));
+        res_norm,
+        migraphx::verify::expected{norm},
+        migraphx::verify::tolerance{0.01, sampling_tolerance(norm, res_dist_sum), 0.0}));
 
     // Make a categorical histogram of output
     // for second result in batch
@@ -94,5 +109,7 @@ TEST_CASE(multinomial_dyn_test)
     });
 
     EXPECT(migraphx::verify::verify_range_with_tolerance(
-        res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
+        res_norm,
+        migraphx::verify::expected{norm},
+        migraphx::verify::tolerance{0.01, sampling_tolerance(norm, res_dist_sum), 0.0}));
 }

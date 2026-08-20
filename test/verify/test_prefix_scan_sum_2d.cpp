@@ -65,6 +65,11 @@ struct test_prefix_scan_sum_2d_large : verify_program<test_prefix_scan_sum_2d_la
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), x);
         return p;
     }
+
+    // The ref target rounds each running sum in the storage type while the gpu keeps wider
+    // intermediates, so the ref is the noisier side over a 1000 element scan. Evaluating it in
+    // double removes the bf16 disagreement entirely.
+    bool get_ref_use_double() const { return true; }
 };
 
 template struct test_prefix_scan_sum_2d_large<migraphx::shape::float_type>;

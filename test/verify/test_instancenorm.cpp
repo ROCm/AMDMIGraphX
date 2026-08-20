@@ -95,6 +95,19 @@ struct test_instancenorm_large_3d : verify_program<test_instancenorm_large_3d<TY
     }
 
     std::string section() const { return "reduce"; }
+
+    migraphx::optional<migraphx::verify::tolerance> get_tolerance() const
+    {
+        // Normalizing an 8388608 element tensor leaves a fraction of a percent of elements close
+        // enough to zero that only atol reaches them. Measured: atol alone needs 1.31x.
+        if constexpr(TYPE == migraphx::shape::bf16_type)
+        {
+            auto tols = migraphx::default_tolerance_for(TYPE);
+            tols.atol *= 3;
+            return tols;
+        }
+        return migraphx::nullopt;
+    }
 };
 
 template struct test_instancenorm_large_3d<migraphx::shape::float_type>;

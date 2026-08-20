@@ -27,6 +27,7 @@
 #include <set>
 #include <string>
 #include <migraphx/config.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/pass_manager.hpp>
 
@@ -36,12 +37,20 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Convert floating point values to double precision.
+ * Convert floating point values to double precision. Also removes fake quantization (q/dq pairs),
+ * which would otherwise keep reintroducing the narrow type the conversion is meant to remove.
+ *
+ * fp4x2 is excluded because it is not computable: shape::visit throws for it, so a convert to or
+ * from it cannot be evaluated.
  */
 struct MIGRAPHX_EXPORT fp_to_double
 {
-    std::set<shape::type_t> convert_fp_types = {shape::type_t::half_type,
-                                                shape::type_t::float_type};
+    std::set<shape::type_t> convert_fp_types = [] {
+        auto types = fp8_types{}.get();
+        types.insert(
+            {shape::type_t::half_type, shape::type_t::float_type, shape::type_t::bf16_type});
+        return types;
+    }();
     std::string name() const { return "fp_to_double"; }
     void apply(module_pass_manager& mpm) const;
 };

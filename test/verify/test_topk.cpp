@@ -48,7 +48,11 @@ struct test_topk : verify_program<test_topk<DType, K, N>>
         return p;
     }
 
-    std::size_t get_tolerance() const { return 2; };
+    // topk only reorders existing values, so the rms bound can be near exact.
+    migraphx::optional<migraphx::verify::tolerance> get_tolerance() const
+    {
+        return migraphx::default_tolerance_for(DType, 2);
+    };
 };
 
 template struct test_topk<migraphx::shape::half_type, 3, 9>;

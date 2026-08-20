@@ -32,6 +32,9 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/verify_args.hpp>
+#include <migraphx/fp_to_double.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 
 #include <set>
 #include <future>
@@ -126,11 +129,14 @@ void run_verify::validate(const migraphx::target& t,
 std::pair<migraphx::program, std::vector<migraphx::argument>>
 run_verify::run_ref(migraphx::program p,
                     const migraphx::parameter_map& inputs,
-                    const migraphx::compile_options& c_opts) const
+                    const migraphx::compile_options& c_opts,
+                    bool use_double) const
 {
     migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
+    if(use_double)
+        migraphx::run_passes(p, {migraphx::fp_to_double{}, migraphx::dead_code_elimination{}});
     compile_check(p, t, c_opts, (trace_target == "ref"));
     return std::make_pair(std::move(p), p.eval(inputs));
 }
@@ -216,7 +222,7 @@ void run_verify::verify(const program_info& pi) const
             }
         }
         const migraphx::compile_options c_opts = pi.compile_options;
-        auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
+        auto ref_f = detach_async([=] { return run_ref(p, m, c_opts, pi.ref_use_double); });
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);

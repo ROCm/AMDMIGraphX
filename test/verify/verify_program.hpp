@@ -30,12 +30,14 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/verify_args.hpp>
 
 struct program_info
 {
     std::string name;
     std::string section;
-    std::size_t tolerance;
+    migraphx::optional<migraphx::verify::tolerance> tolerance;
+    bool ref_use_double = false;
     std::function<migraphx::program()> get_program;
     migraphx::compile_options compile_options;
     std::unordered_map<std::string, migraphx::shape> test_dims;
@@ -65,6 +67,7 @@ struct register_verify_program_action
         pi.name            = migraphx::trim(migraphx::join_strings(name_without_version, "::"));
         pi.section         = x.section();
         pi.tolerance       = x.get_tolerance();
+        pi.ref_use_double  = x.get_ref_use_double();
         pi.get_program     = [x] { return x.create_program(); };
         pi.compile_options = x.get_compile_options();
         pi.test_dims       = x.get_test_dims();
@@ -80,7 +83,15 @@ struct verify_program : auto_register_verify_program<T>
 {
     std::string section() const { return "general"; };
     migraphx::compile_options get_compile_options() const { return migraphx::compile_options{}; };
-    std::size_t get_tolerance() const { return 80; };
+    /// Unset means the bound is derived from the output type. Override to state a looser bound,
+    /// with a comment recording what was measured.
+    migraphx::optional<migraphx::verify::tolerance> get_tolerance() const
+    {
+        return migraphx::nullopt;
+    };
+    /// Override to true when the ref target is the less accurate side of the comparison, so that
+    /// it evaluates in double instead of rounding every step in the storage type.
+    bool get_ref_use_double() const { return false; };
     std::unordered_map<std::string, migraphx::shape> get_test_dims() const { return {}; };
 };
 

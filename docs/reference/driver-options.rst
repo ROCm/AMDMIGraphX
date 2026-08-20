@@ -84,7 +84,10 @@ Reduces program and verifies
 
 .. option:: --ref-use-double
 
-Converts floating point values to double for the ref target
+Converts floating point values to double for the ref target, so that it stops rounding every
+step in the storage type and becomes the more accurate side of the comparison. Covers half,
+float, bf16 and the fp8 types; fp4 is left alone because it cannot be converted. Also removes
+fake quantization (q/dq pairs), which would otherwise reintroduce the narrow type.
 
 .. _roctx:
 

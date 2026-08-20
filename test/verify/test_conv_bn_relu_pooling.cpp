@@ -89,6 +89,21 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling<DTyp
         return p;
     }
     std::string section() const { return "conv"; }
+
+    migraphx::optional<migraphx::verify::tolerance> get_tolerance() const
+    {
+        // One element of 200704 straddles the relu kink differently on the two targets, so only
+        // atol reaches it. Measured: atol alone needs 50x against 2.6x for rtol, but rtol would
+        // pay that across the whole tensor.
+        // get_ref_use_double makes this marginally worse, so the ref is not the noisy side.
+        if constexpr(DType == migraphx::shape::bf16_type)
+        {
+            auto tols = migraphx::default_tolerance_for(DType);
+            tols.atol *= 110;
+            return tols;
+        }
+        return migraphx::nullopt;
+    }
 };
 
 template struct test_conv_bn_relu_pooling<migraphx::shape::float_type>;

@@ -66,5 +66,13 @@ struct test_quantizelinear_convert : verify_program<test_quantizelinear_convert>
         return p;
     };
 
-    std::size_t get_tolerance() const { return 100000; }
+    // Quantizing to fp8 and converting back is a lossy round trip, so the dequantized result
+    // differs from the ref by far more than the fp32 output type suggests.
+    migraphx::optional<migraphx::verify::tolerance> get_tolerance() const
+    {
+        auto tols = migraphx::default_tolerance_for(migraphx::shape::float_type, 100000);
+        tols.atol *= 1250;
+        tols.rtol *= 1250;
+        return tols;
+    }
 };

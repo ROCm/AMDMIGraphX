@@ -80,7 +80,15 @@ struct test_conv_3x3_winograd_convert : verify_program<test_conv_3x3_winograd_co
     // fp16 output uses the standard tolerance; fp32 output must allow for
     // winograd's fp16-magnitude input-transform error, which is preserved at
     // fp32 instead of being re-rounded to fp16 (see header comment).
-    std::size_t get_tolerance() const { return Out == migraphx::shape::half_type ? 80 : 80000; }
+    migraphx::optional<migraphx::verify::tolerance> get_tolerance() const
+    {
+        if constexpr(Out == migraphx::shape::half_type)
+            return migraphx::nullopt;
+        auto tols = migraphx::default_tolerance_for(Out, 80000);
+        tols.atol *= 1000;
+        tols.rtol *= 1000;
+        return tols;
+    }
 };
 
 // fp16 output: the convert is a no-op; exercises the 2-byte packed store.

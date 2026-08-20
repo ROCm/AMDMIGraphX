@@ -156,6 +156,20 @@ struct test_attention_flash_decoding_3d_output_fusion
         mm->add_return({final_output});
         return p1;
     }
+
+    migraphx::optional<migraphx::verify::tolerance> get_tolerance() const
+    {
+        // The trailing relu clamps part of the layernorm output to zero, and those elements are
+        // where the two targets disagree. rtol cannot reach them, needing 144x for half and an
+        // infinite widening for bf16, against 4.6x for atol.
+        if constexpr(DType == migraphx::shape::half_type or DType == migraphx::shape::bf16_type)
+        {
+            auto tols = migraphx::default_tolerance_for(DType);
+            tols.atol *= 10;
+            return tols;
+        }
+        return migraphx::nullopt;
+    }
 };
 
 // These tests are not run by default currently; the env vars below need to be set:

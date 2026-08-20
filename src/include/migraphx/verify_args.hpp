@@ -27,19 +27,33 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/optional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+/// Multiple of the type's epsilon used as the default rms bound.
+inline constexpr std::size_t default_tolerance = 80;
+
+/// Baseline elementwise tolerances for a data type.
+/// A single rounding step in a low precision type can exceed the fp32 defaults.
+MIGRAPHX_EXPORT verify::tolerance tolerance_for_type(shape::type_t type);
+
+/// Tolerance applied when a caller does not supply one: elementwise bounds from the precision
+/// class, and an rms bound scaled from the type's epsilon.
+MIGRAPHX_EXPORT verify::tolerance
+default_tolerance_for(shape::type_t type, std::size_t rms_multiplier = default_tolerance);
 
 MIGRAPHX_EXPORT bool verify_args(const std::string& name,
                                  const argument& target_arg,
                                  const verify::expected<argument>& ref_arg,
                                  verify::tolerance);
 
+/// Verify against `tols`, or against `default_tolerance_for` the target's type when unset.
 MIGRAPHX_EXPORT bool verify_args_with_tolerance(const std::string& name,
                                                 const argument& target_arg,
                                                 const verify::expected<argument>& ref_arg,
-                                                std::size_t tolerance = 80);
+                                                optional<verify::tolerance> tols = nullopt);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

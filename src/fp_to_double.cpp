@@ -24,6 +24,7 @@
 #include <migraphx/fp_to_double.hpp>
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_convert.hpp>
+#include <migraphx/simplify_qdq.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 
 namespace migraphx {
@@ -31,6 +32,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void fp_to_double::apply(module_pass_manager& mpm) const
 {
+    // Drop the q/dq pairs first so that quantizelinear is never asked to operate on double.
+    mpm.run_pass(simplify_qdq{.remove_qdq_only = true});
     mpm.run_pass(eliminate_data_type{convert_fp_types, shape::type_t::double_type});
     mpm.run_pass(eliminate_convert{});
     mpm.run_pass(migraphx::dead_code_elimination{});

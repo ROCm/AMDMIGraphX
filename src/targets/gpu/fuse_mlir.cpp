@@ -891,12 +891,36 @@ struct find_mlir_fused_geg_ops
         return true;
     }
 
-    bool check_heuristic(const std::vector<instruction_ref>& first_inputs,
+    bool check_heuristic(instruction_ref first_gemm,
                          const std::vector<instruction_ref>& second_inputs) const
     {
-        auto shape_a1 = first_inputs.front()->get_shape();
-        auto shape_b1 = first_inputs.back()->get_shape();
-        auto shape_b2 = second_inputs.back()->get_shape();
+        if(second_inputs.empty())
+            return false;
+
+        const bool is_conv = contains({"convolution", "quant_convolution"}, first_gemm->name());
+
+        // CEG uses conv output (via pointwise) feeding the second gemm, not conv weights.
+        if(is_conv and ceg_mode)
+        {
+            auto shape_a1 = second_inputs.front()->get_shape();
+            auto shape_b2 = second_inputs.back()->get_shape();
+            if(shape_a1.ndim() < 2 or shape_b2.ndim() < 2)
+                return false;
+
+            std::int64_t g = shape_b2.lens().back();
+            if(g <= 1)
+                return false;
+
+            const auto& lens_a1 = shape_a1.lens();
+            std::int64_t m      = lens_a1[lens_a1.size() - 2];
+            std::int64_t n      = lens_a1.size() >= 2 ? lens_a1[1] : 0;
+            return not(m <= 8 and n >= 512);
+        }
+
+        const auto& first_inputs = first_gemm->inputs();
+        auto shape_a1            = first_inputs.front()->get_shape();
+        auto shape_b1            = first_inputs.back()->get_shape();
+        auto shape_b2            = second_inputs.back()->get_shape();
 
         if(shape_a1.ndim() < 2 or shape_b1.ndim() < 2 or shape_b2.ndim() < 2)
             return false;
@@ -909,13 +933,10 @@ struct find_mlir_fused_geg_ops
         std::int64_t k      = lens_a1.back();
         std::int64_t g      = shape_b2.lens().back();
 
-        // skip if any dimension is 0 (extraction failed)
-        if(m == 0 or n == 0 or k == 0 or g == 0)
+        // skip if any dimension is 0 (extraction failed) or gemm1 is effectively a no-op
+        if(m == 0 or n == 0 or k == 0 or g <= 1)
             return false;
 
-        // reject if gemm1 is effectively a no-op, nothing to gain
-        if(g <= 1)
-            return false;
         // reject if tiny batch and wide hidden dim
         if(m <= 8 and n >= 512)
             return false;
@@ -981,7 +1002,7 @@ struct find_mlir_fused_geg_ops
 
         // check heuristic to determine if fusion should proceed
         const auto& second_gemm_inputs = second_gemm->inputs();
-        if(not check_heuristic(first_gemm->inputs(), second_gemm_inputs))
+        if(not check_heuristic(first_gemm, second_gemm_inputs))
             return;
         if(not mlir_lds_usage_fits_arch(second_gemm_inputs.back()->get_shape().lens().back(),
                                         gfx_name,

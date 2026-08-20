@@ -18,6 +18,7 @@ jobs:
         with:
           client-id: ${{ vars.GH_APP_MIGRAPHX_BOT_PR_WRITE_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_MIGRAPHX_BOT_PR_WRITE_PRIVATE_KEY }}
+          owner: AMD-ROCm-Internal
           repositories: AMDMIGraphX,migraphx-reports,migraphx-benchmark-utils
 
       - name: Download artifacts
@@ -54,7 +55,7 @@ jobs:
         if: steps.dl_art.outcome == 'success'
         uses: actions/checkout@v6
         with:
-          repository: ROCm/${{ env.REPORTS_DIR }}
+          repository: AMD-ROCm-Internal/${{ env.REPORTS_DIR }}
           path: ${{ env.REPORTS_DIR }}
           token: ${{ steps.generate-token.outputs.token }}
           fetch-depth: 0

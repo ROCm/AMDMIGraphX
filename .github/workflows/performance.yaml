@@ -16,7 +16,7 @@ on:
       performance_reports_repo:
         description: Repository where performance reports are stored
         required: true
-        default: 'ROCm/migraphx-reports'
+        default: 'AMD-ROCm-Internal/migraphx-reports'
       benchmark_utils_repo:
         description: Repository where benchmark utils are stored
         required: true

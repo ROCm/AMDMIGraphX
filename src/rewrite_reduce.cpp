@@ -23,6 +23,8 @@
  *
  */
 #include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/fp8_types.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/module.hpp>
@@ -245,6 +247,42 @@ struct find_reduce_mean_variance
     }
 };
 
+// An fp8 running sum stops growing once it reaches 16, since the next representable value is 18
+// and adding 1 ties to even, so an fp8 reduction has to accumulate wider than the storage type.
+// half and bf16 only drift once the reduction is long. The reduce kernel takes its accumulator
+// type from the type it reads, so converting the input is what widens it.
+constexpr std::size_t wide_reduce_elements = 16384;
+
+bool needs_wide_accumulator(shape::type_t type, std::size_t n)
+{
+    if(contains(fp8_types{}.get(), type))
+        return true;
+    if(type == shape::half_type or type == shape::bf16_type)
+        return n > wide_reduce_elements;
+    return false;
+}
+
+struct find_low_precision_reduce_sum
+{
+    auto matcher() const { return match::name("reduce_sum"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto input = ins->inputs().front();
+        auto n     = input->get_shape().elements() / ins->get_shape().elements();
+        if(not needs_wide_accumulator(input->get_shape().type(), n))
+            return;
+
+        auto axes = ins->get_operator().to_value()["axes"].to_vector<std::int64_t>();
+        auto wide = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::float_type}}), input);
+        auto sum = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", axes}}), wide);
+        m.replace_instruction(
+            ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), sum);
+    }
+};
+
 struct find_reduce_mean
 {
     auto matcher() const { return match::name("reduce_mean"); }
@@ -267,8 +305,13 @@ struct find_reduce_mean
 
         auto n = input->get_shape().elements() / ins->get_shape().elements();
 
-        // Convert accumulator to float if <= 8bit type or if < 3 bytes and n >= max_n /4
-        if(size == 1 or (n >= max_n / 4 and size < 3))
+        // Integral types widen for an 8 bit type, or for a 16 bit one once the count is a large
+        // enough fraction of what the type can hold. Floating point follows the same rule as
+        // find_low_precision_reduce_sum, which also covers bf16, whose max is too large for the
+        // max_n test to ever fire.
+        bool widen = is_integral ? (size == 1 or (n >= max_n / 4 and size < 3))
+                                 : needs_wide_accumulator(input->get_shape().type(), n);
+        if(widen)
         {
             shape::type_t t = is_integral ? shape::int32_type : shape::float_type;
             input = m.insert_instruction(ins, make_op("convert", {{"target_type", t}}), input);
@@ -311,6 +354,7 @@ void rewrite_reduce::apply(module& m) const
                               migraphx::eliminate_common_subexpression{}});
     }
 
+    match::find_matches(m, find_low_precision_reduce_sum{});
     match::find_matches(m, find_reduce_mean{});
     migraphx::run_passes(m, {simplify_reshapes{}});
 }

@@ -21,30 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/enum.hpp>
+#ifdef _WIN32
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+#include <windows.h>
 
-struct module_pass_manager;
+#include <google/protobuf/message_lite.h>
 
-/**
- * Transform convolutions layout
- */
-struct MIGRAPHX_EXPORT layout_convolution
+BOOL WINAPI DllMain(HINSTANCE /*instance*/, DWORD reason, LPVOID reserved)
 {
-    MIGRAPHX_NESTED_ENUM(layout_order, channels_first, channels_last, channels_auto)
-    layout_order order = channels_first;
-    std::string name() const { return "layout_convolution"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    // Release this DLL's private static protobuf state only for a real
+    // FreeLibrary unload. The OS reclaims it during process termination.
+    if(reason == DLL_PROCESS_DETACH and reserved == nullptr)
+    {
+        google::protobuf::ShutdownProtobufLibrary();
+    }
+    return TRUE;
+}
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
+#endif // _WIN32

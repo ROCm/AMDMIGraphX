@@ -24,6 +24,7 @@
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
+#include <migraphx/convert_to_json.hpp>
 #include <migraphx/compile_modes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_allocation.hpp>
@@ -38,6 +39,7 @@
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
+#include <migraphx/json.hpp>
 #include <migraphx/layout_convolution.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
@@ -93,7 +95,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIONS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
@@ -108,13 +110,33 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
+    layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"));
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.convolution_layout, "convolution_layout"));
     }
 };
+
+// The backend options passed to compile, with any key set by MIGRAPHX_GPU_OPTIONS (a json-like
+// object such as "{convolution_layout:channels_last}") overriding it.
+backend_options get_backend_options(const compile_options& options)
+{
+    auto opts = options.backend_options;
+    auto env  = string_value_of(MIGRAPHX_GPU_OPTIONS{});
+    if(not env.empty())
+    {
+        auto v = from_json_string(convert_to_json(env));
+        if(not v.is_object())
+            MIGRAPHX_THROW("MIGRAPHX_GPU_OPTIONS must be a json object");
+        for(const auto& opt : v)
+            opts[opt.get_key()] = opt.without_key();
+    }
+    return from_value<backend_options>(value(opts));
+}
 
 struct pipeline_factory
 {
@@ -181,9 +203,7 @@ struct pipeline_factory
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
-            layout_convolution{.order = enabled(MIGRAPHX_ENABLE_NHWC{})
-                                            ? layout_convolution::channels_last
-                                            : layout_convolution::channels_auto},
+            layout_convolution{.order = backend_opts.convolution_layout},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},
@@ -289,7 +309,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
-    pipeline_factory p{&gctx, options, from_value<backend_options>(value(options.backend_options))};
+    pipeline_factory p{&gctx, options, get_backend_options(options)};
 
     std::vector<std::vector<pass>> pipelines;
 

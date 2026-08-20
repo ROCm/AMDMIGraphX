@@ -839,4 +839,109 @@ TEST_CASE(logsoftmax)
     EXPECT(m1.sort() == m2.sort());
 }
 
+static migraphx::module make_reduce(const std::string& op, migraphx::shape s)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", s);
+    auto r = m.add_instruction(migraphx::make_op(op, {{"axes", {1}}}), x);
+    m.add_return({r});
+    return m;
+}
+
+// The reduce kernel accumulates in whatever type it reads, so the pass converts the input of a
+// low precision reduction to float and converts the result back.
+static migraphx::module make_widened_reduce_sum(migraphx::shape s)
+{
+    migraphx::module m;
+    auto x    = m.add_parameter("x", s);
+    auto wide = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+    auto r    = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), wide);
+    auto back = m.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), r);
+    m.add_return({back});
+    return m;
+}
+
+TEST_CASE(reduce_sum_fp8_widens)
+{
+    for(auto t : {migraphx::shape::fp8e4m3fnuz_type,
+                  migraphx::shape::fp8e5m2fnuz_type,
+                  migraphx::shape::fp8e4m3fn_type,
+                  migraphx::shape::fp8e5m2_type})
+    {
+        migraphx::shape s{t, {2, 8}};
+        auto m1 = make_reduce("reduce_sum", s);
+        run_pass(m1);
+        EXPECT(m1.sort() == make_widened_reduce_sum(s).sort());
+    }
+}
+
+TEST_CASE(reduce_sum_short_16bit_unchanged)
+{
+    for(auto t : {migraphx::shape::half_type, migraphx::shape::bf16_type})
+    {
+        migraphx::shape s{t, {2, 1024}};
+        auto m1 = make_reduce("reduce_sum", s);
+        run_pass(m1);
+        EXPECT(m1.sort() == make_reduce("reduce_sum", s).sort());
+    }
+}
+
+TEST_CASE(reduce_sum_long_16bit_widens)
+{
+    for(auto t : {migraphx::shape::half_type, migraphx::shape::bf16_type})
+    {
+        migraphx::shape s{t, {2, 16385}};
+        auto m1 = make_reduce("reduce_sum", s);
+        run_pass(m1);
+        EXPECT(m1.sort() == make_widened_reduce_sum(s).sort());
+    }
+}
+
+TEST_CASE(reduce_sum_float_unchanged)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 16385}};
+    auto m1 = make_reduce("reduce_sum", s);
+    run_pass(m1);
+    EXPECT(m1.sort() == make_reduce("reduce_sum", s).sort());
+}
+
+TEST_CASE(reduce_sum_widen_is_idempotent)
+{
+    migraphx::shape s{migraphx::shape::fp8e4m3fn_type, {2, 8}};
+    auto m1 = make_reduce("reduce_sum", s);
+    run_pass(m1);
+    auto m2 = m1;
+    run_pass(m2);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_mean_long_bf16_widens)
+{
+    // bf16 has the exponent range of float, so the max_n rule that covers half never fires for
+    // it; this is the case that rule used to miss.
+    migraphx::shape s{migraphx::shape::bf16_type, {2, 16385}};
+    auto m = make_reduce("reduce_mean", s);
+    run_pass(m);
+
+    auto reduces = find_all(migraphx::iterator_for(m),
+                            [&](auto ins) { return migraphx::contains(ins->name(), "reduce"); });
+    EXPECT(not reduces.empty());
+    EXPECT(all_of(reduces,
+                  [](auto ins) { return ins->get_shape().type() == migraphx::shape::float_type; }));
+}
+
+TEST_CASE(reduce_mean_short_bf16_unchanged)
+{
+    migraphx::shape s{migraphx::shape::bf16_type, {2, 1024}};
+    auto m = make_reduce("reduce_mean", s);
+    run_pass(m);
+
+    auto reduces = find_all(migraphx::iterator_for(m),
+                            [&](auto ins) { return migraphx::contains(ins->name(), "reduce"); });
+    EXPECT(not reduces.empty());
+    EXPECT(all_of(reduces,
+                  [](auto ins) { return ins->get_shape().type() == migraphx::shape::bf16_type; }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

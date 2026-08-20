@@ -42,6 +42,7 @@ Full documentation for MIGraphX is available at
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
 * Added a verbose terminate handler for exceptions on Windows (#5084).
 * Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
+* Added a `promote_storage_type` pass that treats the given types as storage-only, computing elementwise and reduction instructions of those types in float instead, and enabled it on the GPU target for `bf16` on architectures without native bf16 arithmetic instructions (#5138).
 
 
 ### Changed
@@ -62,6 +63,7 @@ Full documentation for MIGraphX is available at
 * Updated python API to allow getting and adding debug symbols from instructions. (#4803)
 * Allow for 1 arg slicing over a dynamic dimension. (#5015)
 * Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
+* Changed `propagate_constant` to skip folding a `convert` to a wider type, since that would enlarge the literal and lose the smaller storage type (#5138).
 
 ### Resolved issues
 

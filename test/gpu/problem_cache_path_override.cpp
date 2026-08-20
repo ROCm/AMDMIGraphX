@@ -175,6 +175,9 @@ TEST_CASE(problem_cache_writable_over_read_only)
     c.set_device_key(make_key());
     c.load(std::vector<std::string>{ro}, std::vector<std::string>{rw});
 
+    // Snapshot the read-only file's raw bytes to prove save() never rewrites it.
+    const auto ro_bytes_before = migraphx::read_string(ro);
+
     // Writable is empty at first, so a read-only-only problem is still found.
     EXPECT(c.has("gemm", make_problem(1)));
     EXPECT((*c.get("gemm", make_problem(1))).at("kernel").to<std::string>() == "kOnlyRO");
@@ -185,7 +188,11 @@ TEST_CASE(problem_cache_writable_over_read_only)
     EXPECT((*c.get("gemm", make_problem(0))).at("kernel").to<std::string>() == "kWritable");
     c.save();
 
-    // The read-only file is unchanged; the writable file holds the new solution.
+    // The read-only file is byte-for-byte unchanged after the writable save.
+    EXPECT(migraphx::read_string(ro) == ro_bytes_before);
+
+    // The read-only file still resolves to its original solution; the writable
+    // file holds the new solution.
     {
         migraphx::gpu::problem_cache ro_reader;
         ro_reader.set_device_key(make_key());
@@ -201,6 +208,50 @@ TEST_CASE(problem_cache_writable_over_read_only)
         EXPECT((*rw_reader.get("gemm", make_problem(0))).at("kernel").to<std::string>() ==
                "kWritable");
     }
+}
+
+// --------------------------------------------------------------------------
+// load({}, {writable}): writable-only configuration (no read-only layers).
+// Lookup, insert, and save() all use the single writable cache.
+// --------------------------------------------------------------------------
+TEST_CASE(problem_cache_writable_only)
+{
+    migraphx::tmp_dir td{"problem_cache_writable_only"};
+    auto rw = (td.path / "writable.json").string();
+
+    migraphx::gpu::problem_cache c;
+    c.set_device_key(make_key());
+    c.load(std::vector<std::string>{}, std::vector<std::string>{rw});
+
+    EXPECT(not c.has("gemm", make_problem(0)));
+    c.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kW"}});
+    EXPECT(c.has("gemm", make_problem(0)));
+    EXPECT((*c.get("gemm", make_problem(0))).at("kernel").to<std::string>() == "kW");
+    c.save();
+
+    // The solution persists to the writable file and reloads.
+    migraphx::gpu::problem_cache reader;
+    reader.set_device_key(make_key());
+    reader.load(rw);
+    EXPECT(reader.has("gemm", make_problem(0)));
+    EXPECT((*reader.get("gemm", make_problem(0))).at("kernel").to<std::string>() == "kW");
+}
+
+// --------------------------------------------------------------------------
+// load({}, {}): no cache configured. Lookup works in-memory, newly generated
+// solutions stay in-memory, and save() is a no-op (no writable path) that must
+// not throw or create a file.
+// --------------------------------------------------------------------------
+TEST_CASE(problem_cache_no_cache_config_is_noop)
+{
+    migraphx::gpu::problem_cache c;
+    c.set_device_key(make_key());
+    c.load(std::vector<std::string>{}, std::vector<std::string>{});
+
+    EXPECT(not c.has("gemm", make_problem(0)));
+    c.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kMem"}});
+    EXPECT(c.has("gemm", make_problem(0)));
+    c.save(); // no writable cache -> no-op, must not throw
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

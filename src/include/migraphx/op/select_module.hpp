@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_SELECT_MODULE_HPP
 
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
 
 namespace migraphx {
@@ -92,8 +93,10 @@ struct select_module
                                   [&](const auto& p_name, const auto& a) {
                                       const auto& actual   = a.get_shape();
                                       const auto& expected = param_shapes.at(p_name);
-                                      return actual.type() == expected.type() and
-                                             shape::is_compatible_lens(actual, expected);
+                                      if(expected.dynamic())
+                                          return actual.type() == expected.type() and
+                                                 shape::is_compatible_lens(actual, expected);
+                                      return actual == expected;
                                   });
             });
 
@@ -118,23 +121,24 @@ struct select_module
         auto out_param_names    = get_output_parameter_names(module_to_run);
         auto param_shapes       = module_to_run->get_parameter_shapes();
         auto output_sub_objects = args.back().get_sub_objects();
-        assert(out_param_names.size() == output_sub_objects.size());
-        std::transform(out_param_names.begin(),
-                       out_param_names.end(),
-                       output_sub_objects.begin(),
-                       std::inserter(p_map, p_map.end()),
-                       [&](auto&& name, auto&& a) {
-                           auto ps = param_shapes.at(name);
-                           if(a.get_shape() != ps)
-                           {
-                               assert(ps.bytes() <= a.get_shape().bytes());
-                               return std::make_pair(name, a.reshape(ps));
-                           }
-                           else
-                           {
-                               return std::make_pair(name, a);
-                           }
-                       });
+        auto module_outputs     = module_to_run->get_returns();
+        if(not out_param_names.empty() and module_outputs.size() != output_sub_objects.size())
+            MIGRAPHX_THROW("SELECT_MODULE: output allocation count does not match module outputs");
+        for(const auto& name : out_param_names)
+        {
+            auto parameter = module_to_run->get_parameter(name);
+            auto output    = std::find_if(
+                module_outputs.begin(), module_outputs.end(), [&](instruction_ref result) {
+                    return contains(instruction::get_output_alias(result), parameter);
+                });
+            if(output == module_outputs.end())
+                MIGRAPHX_THROW("SELECT_MODULE: output parameter does not alias a module output");
+            auto& allocation = output_sub_objects.at(std::distance(module_outputs.begin(), output));
+            auto ps          = param_shapes.at(name);
+            if(ps.bytes() > allocation.get_shape().bytes())
+                MIGRAPHX_THROW("SELECT_MODULE: output allocation is too small");
+            p_map.emplace(name, allocation.get_shape() == ps ? allocation : allocation.reshape(ps));
+        }
         auto results = run(module_to_run, p_map);
         return argument{results};
     }

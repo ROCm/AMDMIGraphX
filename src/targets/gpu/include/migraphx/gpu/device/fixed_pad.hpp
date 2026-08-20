@@ -35,7 +35,8 @@ namespace device {
 
 argument MIGRAPHX_DEVICE_EXPORT fixed_pad(hipStream_t stream,
                                           const argument& result,
-                                          const argument& arg);
+                                          const argument& arg,
+                                          float value);
 
 } // namespace device
 } // namespace gpu

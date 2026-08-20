@@ -28,9 +28,11 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
+#include <cmath>
 #include <numeric>
 #include <algorithm>
 #include <functional>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <iostream>
@@ -1014,10 +1016,33 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
     const auto& ds = this->dyn_strides();
     if(ds.empty())
         return {type(), static_lens};
+    std::unordered_map<sym::expr, sym::interval> symbol_intervals;
+    std::transform(symbol_map.begin(),
+                   symbol_map.end(),
+                   std::inserter(symbol_intervals, symbol_intervals.end()),
+                   [](const auto& item) {
+                       const auto& [symbol, value] = item;
+                       return std::make_pair(symbol, sym::interval{value, value});
+                   });
     std::vector<std::size_t> static_strides(ds.size());
-    std::transform(ds.cbegin(), ds.cend(), static_strides.begin(), [&](const auto& s) {
-        return s.eval_uint(symbol_map);
-    });
+    std::transform(
+        ds.cbegin(), ds.cend(), static_strides.begin(), [&](const auto& s) -> std::size_t {
+            auto interval = s.eval_interval(symbol_intervals);
+            auto fixed    = sym::scalar_invoke_common<std::optional<std::size_t>>(
+                [](auto min, auto max) -> std::optional<std::size_t> {
+                    auto value    = static_cast<long double>(min);
+                    auto integral = std::floor(value);
+                    if(min < max or max < min or value < 0 or integral < value or
+                       value < integral or value > std::numeric_limits<std::size_t>::max())
+                        return std::nullopt;
+                    return static_cast<std::size_t>(value);
+                },
+                interval.min,
+                interval.max);
+            if(not fixed.has_value())
+                MIGRAPHX_THROW("to_static: stride expression is not a fixed unsigned integer");
+            return *fixed;
+        });
     return {type(), static_lens, static_strides};
 }
 

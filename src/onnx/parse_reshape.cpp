@@ -42,11 +42,32 @@ struct parse_reshape : op_parser<parse_reshape>
                           std::vector<instruction_ref> args) const
     {
         std::vector<int64_t> dims;
+        auto add_runtime_reshape = [&](const std::vector<dim_like>& reshape_dims) {
+            const auto& input_shape = args[0]->get_shape();
+            const auto output_dims  = resolve_reshape_dims(input_shape.to_symbolic(), reshape_dims);
+            std::vector<sym::expr> output_expressions(output_dims.size());
+            transform(output_dims, output_expressions.begin(), [](const auto& dim) {
+                return dim.sym_expr;
+            });
+            const auto resolved_dims = info.add_instruction(
+                make_op("eval_expr_from_shape", {{"expressions", to_value(output_expressions)}}),
+                info.mod->get_parameters());
+            const shape output_shape{input_shape.type(), output_dims};
+            auto allocation = info.add_instruction(
+                make_op("allocate", {{"shape", to_value(output_shape)}}), resolved_dims);
+            return info.add_instruction(make_op("reshape"), args[0], allocation);
+        };
+        auto add_evaluated_reshape = [&] {
+            if(not args[0]->get_shape().symbolic())
+                return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
+            return add_runtime_reshape({dims.begin(), dims.end()});
+        };
+
         if(args.size() == 1)
         {
             literal s = parser.parse_value(info.attributes.at("shape"));
             s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
-            return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
+            return add_evaluated_reshape();
         }
         else
         {
@@ -59,21 +80,7 @@ struct parse_reshape : op_parser<parse_reshape>
                 const auto symbolic_dims = args[1]->sym_eval();
                 const auto& input_shape  = args[0]->get_shape();
                 if(symbolic_dims.has_value() and is_static_or_symbolic_shape(input_shape))
-                {
-                    const auto output_dims = resolve_reshape_dims(
-                        input_shape.to_symbolic(), to_reshape_dimensions(*symbolic_dims));
-                    std::vector<sym::expr> output_expressions(output_dims.size());
-                    transform(output_dims, output_expressions.begin(), [](const auto& dim) {
-                        return dim.sym_expr;
-                    });
-                    const auto resolved_dims = info.add_instruction(
-                        make_op("eval_expr_from_shape",
-                                {{"expressions", to_value(output_expressions)}}),
-                        info.mod->get_parameters());
-                    const shape output_shape{input_shape.type(), output_dims};
-                    alloc_ins = info.add_instruction(
-                        make_op("allocate", {{"shape", to_value(output_shape)}}), resolved_dims);
-                }
+                    return add_runtime_reshape(to_reshape_dimensions(*symbolic_dims));
                 else
                 {
                     alloc_ins = info.add_instruction(
@@ -84,7 +91,7 @@ struct parse_reshape : op_parser<parse_reshape>
             else
             {
                 s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
-                return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
+                return add_evaluated_reshape();
             }
         }
     }

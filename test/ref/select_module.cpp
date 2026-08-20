@@ -203,14 +203,48 @@ TEST_CASE(select_module_symbolic_range_test)
     mm->add_return({output});
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<float> data{1, 2, 3, 4, 5, 6};
+    auto run_case = [&](std::size_t n, std::vector<float> data, float expected) {
+        migraphx::parameter_map params;
+        params["data"] =
+            migraphx::argument{migraphx::shape{migraphx::shape::float_type, {n, 2}}, data.data()};
+        auto result = p.eval(params).back();
+        std::vector<float> result_data;
+        result.visit([&](auto values) { result_data.assign(values.begin(), values.end()); });
+        EXPECT(migraphx::verify::verify_rms_range(result_data, std::vector<float>{expected}));
+    };
+    run_case(2, {1, 2, 3, 4}, 10);
+    run_case(3, {1, 2, 3, 4, 5, 6}, 21);
+}
+
+TEST_CASE(select_module_static_stride_mismatch_error)
+{
+    migraphx::program p;
+    auto* submod = p.create_module("nonstandard");
+    migraphx::shape submod_shape{migraphx::shape::float_type, {2, 2}, {1, 2}};
+    auto submod_input = submod->add_parameter("data", submod_shape);
+    auto submod_output =
+        submod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), submod_input);
+    submod->add_return({submod_output});
+
+    auto* mm = p.get_main_module();
+    migraphx::shape input_shape{migraphx::shape::float_type, {{2, 2}, {2, 2}}};
+    auto input = mm->add_parameter("data", input_shape);
+    migraphx::shape output_shape{
+        std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type, {1, 1}}}};
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
+        {input},
+        {submod});
+    auto output = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    mm->add_return({output});
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{1, 2, 3, 4};
     migraphx::parameter_map params;
     params["data"] =
-        migraphx::argument{migraphx::shape{migraphx::shape::float_type, {3, 2}}, data.data()};
-    auto result = p.eval(params).back();
-    std::vector<float> result_data;
-    result.visit([&](auto values) { result_data.assign(values.begin(), values.end()); });
-    EXPECT(migraphx::verify::verify_rms_range(result_data, std::vector<float>{21}));
+        migraphx::argument{migraphx::shape{migraphx::shape::float_type, {2, 2}}, data.data()};
+    EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
 
 TEST_CASE(select_module_not_found_error)

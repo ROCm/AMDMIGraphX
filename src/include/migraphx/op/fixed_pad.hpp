@@ -32,51 +32,33 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/clamp.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/sym.hpp>
 #include <algorithm>
-#include <cassert>
 #include <cmath>
-#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- * Pads a dynamic input up to a target size, filling the pad with `value`.
- * With no `dims`: target is the input's max dims (no-op on a static input).
- * With `dims`: target is those (possibly symbolic) per-axis dims.
+ * Pads a dynamic input to its maximum dimensions, filling the pad with `value`.
+ * A static input is returned unchanged.
  */
 struct fixed_pad
 {
-    std::vector<sym::expr> dims = {};
-    float value                 = 0.0f;
+    float value = 0.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.dims, "dims"), f(self.value, "value"));
+        return pack(f(self.value, "value"));
     }
 
     std::string name() const { return "fixed_pad"; }
-
-    shape target_shape(const shape& s) const
-    {
-        assert(dims.size() == s.ndim());
-        std::vector<shape::dynamic_dimension> dds(dims.size());
-        std::transform(dims.begin(), dims.end(), dds.begin(), [](const auto& e) {
-            return shape::dynamic_dimension{e};
-        });
-        shape result{s.type(), std::move(dds)};
-        return result.is_fixed() ? result.to_static() : result;
-    }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
         const auto& s0 = inputs.front();
-        if(not dims.empty())
-            return target_shape(s0);
         if(s0.dynamic())
         {
             return {s0.type(), s0.max_lens()};

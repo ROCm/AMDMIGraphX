@@ -828,23 +828,18 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
     auto n         = migraphx::sym::var("n", {1, 4});
     auto optimal_n = migraphx::sym::var("#split_sym_dim_n_opt", {1, 4}, {1, 4});
     migraphx::program p0;
-    auto create_submodule0 =
-        [&](const std::string& name, const dd::interval& subrange, std::size_t target) {
-            auto* submod         = p0.create_module(name);
-            std::vector<dd> dims = {{migraphx::sym::var("n", {subrange.min, subrange.max})},
-                                    {migraphx::sym::lit(4)}};
-            auto input =
-                submod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims});
-            std::vector<se> target_dims = {migraphx::sym::lit(target), migraphx::sym::lit(4)};
-            auto output                 = submod->add_instruction(
-                migraphx::make_op("fixed_pad",
-                                                  {{"dims", migraphx::to_value(target_dims)}, {"value", 0.0f}}),
-                input);
-            submod->add_return({output});
-            return submod;
-        };
-    auto* first0                = create_submodule0("main:split_sym_dim_0_0", {1, 1}, 1);
-    auto* second0               = create_submodule0("main:split_sym_dim_0_1", {2, 4}, 4);
+    auto create_submodule0 = [&](const std::string& name, const dd::interval& subrange) {
+        auto* submod         = p0.create_module(name);
+        std::vector<dd> dims = {{migraphx::sym::var("n", {subrange.min, subrange.max})},
+                                {migraphx::sym::lit(4)}};
+        auto input =
+            submod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims});
+        auto output = submod->add_instruction(migraphx::make_op("fixed_pad"), input);
+        submod->add_return({output});
+        return submod;
+    };
+    auto* first0                = create_submodule0("main:split_sym_dim_0_0", {1, 1});
+    auto* second0               = create_submodule0("main:split_sym_dim_0_1", {2, 4});
     auto* main0                 = p0.get_main_module();
     std::vector<dd> input_dims0 = {{n}, {migraphx::sym::lit(4)}};
     auto input0 =
@@ -880,23 +875,18 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
     migraphx::run_passes(p0, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
 
     migraphx::program p1;
-    auto create_submodule1 =
-        [&](const std::string& name, const dd::interval& subrange, std::size_t target) {
-            auto* submod         = p1.create_module(name);
-            std::vector<dd> dims = {{migraphx::sym::var("n", {subrange.min, subrange.max})},
-                                    {migraphx::sym::lit(4)}};
-            auto input =
-                submod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims});
-            std::vector<se> target_dims = {migraphx::sym::lit(target), migraphx::sym::lit(4)};
-            auto output                 = submod->add_instruction(
-                migraphx::make_op("fixed_pad",
-                                                  {{"dims", migraphx::to_value(target_dims)}, {"value", 0.0f}}),
-                input);
-            submod->add_return({output});
-            return submod;
-        };
-    auto* first1                = create_submodule1("main:split_sym_dim_0_0", {1, 1}, 1);
-    auto* second1               = create_submodule1("main:split_sym_dim_0_1", {2, 4}, 4);
+    auto create_submodule1 = [&](const std::string& name, const dd::interval& subrange) {
+        auto* submod         = p1.create_module(name);
+        std::vector<dd> dims = {{migraphx::sym::var("n", {subrange.min, subrange.max})},
+                                {migraphx::sym::lit(4)}};
+        auto input =
+            submod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims});
+        auto output = submod->add_instruction(migraphx::make_op("fixed_pad"), input);
+        submod->add_return({output});
+        return submod;
+    };
+    auto* first1                = create_submodule1("main:split_sym_dim_0_0", {1, 1});
+    auto* second1               = create_submodule1("main:split_sym_dim_0_1", {2, 4});
     auto* main1                 = p1.get_main_module();
     std::vector<dd> input_dims1 = {{n}, {migraphx::sym::lit(4)}};
     auto input1 =

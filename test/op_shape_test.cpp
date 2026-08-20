@@ -2022,7 +2022,12 @@ TEST_CASE(broadcast_with_dims_symbolic_output)
     shape input{shape::float_type, {1, 1, 1}};
     shape dims{shape::int64_type, {4}};
     std::vector<dd> output_dims{dd{lit(2)}, dd{var("sequence", {1, 8})}, dd{lit(4)}, dd{lit(5)}};
-    expect_shape(shape{shape::float_type, output_dims},
+    expect_shape(shape{shape::float_type,
+                       output_dims,
+                       {migraphx::sym::lit(0),
+                        migraphx::sym::lit(0),
+                        migraphx::sym::lit(0),
+                        migraphx::sym::lit(0)}},
                  migraphx::make_op("broadcast_with_dims",
                                    {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
                  input,
@@ -2073,21 +2078,8 @@ TEST_CASE(fixed_pad)
 
     shape output{migraphx::shape::float_type, {4, 3}};
     expect_shape(output, migraphx::make_op("fixed_pad"), input);
+    expect_shape(output, migraphx::make_op("fixed_pad", {{"value", -1.0f}}), input);
     expect_shape(input_static, migraphx::make_op("fixed_pad"), input_static); // effectively no-op
-
-    auto n   = var("n", {2, 8});
-    auto opt = var("n#opt", {2, 8}, {4, 8});
-    shape symbolic_input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
-    shape symbolic_output{migraphx::shape::float_type, {dd{opt}, dd{lit(3)}}};
-    expect_shape(symbolic_output,
-                 migraphx::make_op("fixed_pad",
-                                   {{"dims",
-                                     migraphx::value::array{migraphx::to_value(opt),
-                                                            migraphx::to_value(lit(3))}}}),
-                 symbolic_input);
-    expect_shape(shape{migraphx::shape::float_type, {8, 3}},
-                 migraphx::make_op("fixed_pad", {{"dims", {8, 3}}, {"value", -1.0f}}),
-                 symbolic_input);
 }
 
 TEST_CASE(flatten_shape)
@@ -3130,6 +3122,20 @@ TEST_CASE(multibroadcast_1in_sym_input_with_static_target_error)
     throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
 }
 
+TEST_CASE(multibroadcast_2in_symbolic_target)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {1, 3}};
+    std::vector<dd> output_dims{dd{n}, dd{lit(3)}};
+    migraphx::shape target{migraphx::shape::float_type, output_dims};
+    migraphx::shape expected{migraphx::shape::float_type, output_dims, {lit(0), lit(1)}};
+    expect_shape(
+        expected,
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+        input,
+        target);
+}
+
 TEST_CASE(multibroadcast_2in_static_dyn0)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {4, 4}};
@@ -4083,6 +4089,22 @@ TEST_CASE(pooling_sym_batch)
     migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 10, 10}};
     auto static_out = pool_op.compute_shape({static_input});
     EXPECT(sym_out.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(pooling_sym_ceil_fixed_output)
+{
+    auto n = var("n", {3, 4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{n}}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 2}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::average},
+                                      {"padding", {0}},
+                                      {"stride", {2}},
+                                      {"lengths", {2}},
+                                      {"dilations", {1}},
+                                      {"ceil_mode", true},
+                                      {"count_include_pad", true}});
+    expect_shape(expected, pool_op, input);
 }
 
 TEST_CASE(pooling_sym_img)
@@ -6136,61 +6158,6 @@ TEST_CASE(slice_dyn_nonfixed_keeps_other_optimals)
     expect_shape(expected,
                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
                  input);
-}
-
-TEST_CASE(eval_expr_from_shape_shape)
-{
-    auto n = var("n", {1, 16});
-    auto h = var("h", {1, 32});
-    auto w = var("w", {1, 32});
-    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{h}, dd{w}}};
-    expect_shape(migraphx::shape{migraphx::shape::int64_type, {3}},
-                 migraphx::make_op("eval_expr_from_shape",
-                                   {{"expressions",
-                                     migraphx::value::array{migraphx::to_value(n),
-                                                            migraphx::to_value(h / lit(2)),
-                                                            migraphx::to_value(w / lit(2))}}}),
-                 input);
-}
-
-TEST_CASE(eval_expr_from_shape_missing_symbol)
-{
-    auto m = var("m", {1, 16});
-    auto n = var("n", {1, 16});
-    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
-    throws_shape(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::value::array{migraphx::to_value(m)}}}),
-        input);
-}
-
-TEST_CASE(eval_expr_from_shape_multi_input)
-{
-    auto m = var("m", {1, 16});
-    auto n = var("n", {1, 16});
-    migraphx::shape a{migraphx::shape::float_type, {dd{m}, dd{lit(3)}}};
-    migraphx::shape b{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
-    expect_shape(migraphx::shape{migraphx::shape::int64_type, {2}},
-                 migraphx::make_op(
-                     "eval_expr_from_shape",
-                     {{"expressions",
-                       migraphx::value::array{migraphx::to_value(m + n), migraphx::to_value(m)}}}),
-                 a,
-                 b);
-}
-
-TEST_CASE(eval_expr_from_shape_missing_symbol_multi_input)
-{
-    auto m = var("m", {1, 16});
-    auto n = var("n", {1, 16});
-    auto k = var("k", {1, 16});
-    migraphx::shape a{migraphx::shape::float_type, {dd{m}, dd{lit(3)}}};
-    migraphx::shape b{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
-    throws_shape(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::value::array{migraphx::to_value(m + k)}}}),
-        a,
-        b);
 }
 
 TEST_CASE(slice_sym)

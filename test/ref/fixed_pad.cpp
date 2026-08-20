@@ -66,13 +66,13 @@ TEST_CASE(fixed_pad_same_shape_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(fixed_pad_target_and_value_test)
+TEST_CASE(fixed_pad_value_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {3, 3}}};
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
     auto x = mm->add_parameter("x", s);
-    mm->add_instruction(migraphx::make_op("fixed_pad", {{"dims", {4, 3}}, {"value", -2.0f}}), x);
+    mm->add_instruction(migraphx::make_op("fixed_pad", {{"value", -2.0f}}), x);
     p.compile(migraphx::make_target("ref"));
     std::vector<float> data = {-3, -2, -1, 0, 1, 2};
     migraphx::shape s2{migraphx::shape::float_type, {2, 3}};

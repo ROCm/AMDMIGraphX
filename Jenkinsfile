@@ -272,15 +272,19 @@ def rocmtest = { Map conf = [:], Closure body ->
         }
 
         stage("build ${variant}") {
-            withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
-                timeout(time: 4, unit: 'HOURS') {
-                    sh """
-                        mkdir -p ${ccache} ${comgr_cache}
-                        ls -l /workspaces/
-                        ls -l /workspaces/.cache/
-                    """
-                    body()
+            try {
+                withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
+                    timeout(time: 4, unit: 'HOURS') {
+                        sh """
+                            mkdir -p ${ccache} ${comgr_cache}
+                            ls -l /workspaces/
+                            ls -l /workspaces/.cache/
+                        """
+                        body()
+                    }
                 }
+            } finally {
+                sh 'rm -rf build'
             }
         }
     }
@@ -562,6 +566,12 @@ pipeline {
                     }
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
         }
     }
 }

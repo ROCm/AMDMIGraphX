@@ -64,7 +64,7 @@ jobs:
         if: steps.dl_art.outcome == 'success'
         uses: actions/checkout@v6
         with:
-          repository: ROCm/migraphx-benchmark-utils
+          repository: AMD-ROCm-Internal/migraphx-benchmark-utils
           path: benchmark-utils
           token: ${{ steps.generate-token.outputs.token }}
 

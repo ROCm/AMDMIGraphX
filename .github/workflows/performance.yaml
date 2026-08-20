@@ -20,7 +20,7 @@ on:
       benchmark_utils_repo:
         description: Repository where benchmark utils are stored
         required: true
-        default: "ROCm/migraphx-benchmark-utils"
+        default: "AMD-ROCm-Internal/migraphx-benchmark-utils"
       organization:
         description: Organization based on which location of files will be different
         required: true

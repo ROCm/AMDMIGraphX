@@ -12,7 +12,7 @@ OVERWRITE_EXISTING : 'true'
 
 #=====REPOS INFO=====
 ORGANIZATION_REPO : 'AMD'
-BENCHMARK_UTILS_REPO : 'ROCm/migraphx-benchmark-utils'
+BENCHMARK_UTILS_REPO : 'AMD-ROCm-Internal/migraphx-benchmark-utils'
 PERFORMANCE_REPORTS_REPO : 'AMD-ROCm-Internal/migraphx-reports'
 PERFORMANCE_BACKUP_REPO : 'migraphx-benchmark/performance-backup'
 

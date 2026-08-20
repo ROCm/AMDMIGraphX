@@ -19,7 +19,7 @@ on:
       benchmark_utils_repo:
         description: Repository where benchmark utils are stored
         required: true
-        default: "ROCm/migraphx-benchmark-utils"
+        default: "AMD-ROCm-Internal/migraphx-benchmark-utils"
       organization:
         description: Organization based on which location of files will be different
         required: true
@@ -32,7 +32,7 @@ jobs:
       start_date: ${{ github.event.inputs.start_date || 'yyyy-mm-dd' }}
       end_date: ${{ github.event.inputs.end_date || 'yyyy-mm-dd' }}
       history_repo: ${{ github.event.inputs.history_repo || 'AMD-ROCm-Internal/migraphx-reports' }}
-      benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || 'ROCm/migraphx-benchmark-utils' }}
+      benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || 'AMD-ROCm-Internal/migraphx-benchmark-utils' }}
       organization: ${{ github.event.inputs.organization || 'AMD' }}
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

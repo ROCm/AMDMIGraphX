@@ -91,24 +91,28 @@ void problem_cache::save() const
     backend.save(path_override);
 }
 
-void problem_cache::load(const std::vector<std::string>& paths)
+void problem_cache::load(const std::vector<std::string>& read_only_paths,
+                         const std::vector<std::string>& writable_paths)
 {
     read_only_backends.clear();
-    // Drop any writable path from a prior single-file load so read-only
-    // (multi-file) mode cannot write back through a stale override.
     path_override.clear();
-    if(paths.empty())
-        return;
-    // A single file is the writable cache (new solutions save back to it).
-    if(paths.size() == 1)
+    // Reset the writable backend; only a writable path below re-populates it.
+    backend = problem_cache_backend{json_problem_cache{}};
+
+    // Read/write cache (the developer cache): new solutions save back here. Only
+    // one file is written, so the first non-empty writable path wins.
+    for(const auto& path : writable_paths)
     {
-        load(paths.front());
-        return;
+        if(not path.empty())
+        {
+            load(path);
+            break;
+        }
     }
-    // Multiple files are a read-only priority list (highest first). Shipped
-    // caches are immutable, so the writable `backend` stays empty and nothing
-    // is written back; persisting to a writable local cache is a future item.
-    for(const auto& path : paths)
+
+    // Read-only caches (e.g. shipped by gpuep or an ISV): searched after the
+    // writable cache and never written back.
+    for(const auto& path : read_only_paths)
     {
         problem_cache_backend ro = make_backend(path);
         if(not path.empty())

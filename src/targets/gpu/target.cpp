@@ -106,15 +106,19 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
-    // Problem cache files, searched in priority order (first hit wins). A single
-    // file is writable (new solutions are saved to it); multiple are read-only.
+    // Read-only problem caches (e.g. shipped by gpuep or an ISV), searched in
+    // priority order (first hit wins) and never written back.
     std::vector<std::string> problem_cache_files = {};
+    // Read/write problem caches (the developer cache): new tuning solutions are
+    // saved back to the first file listed.
+    std::vector<std::string> writable_problem_cache_files = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
-                    f(self.problem_cache_files, "problem_cache_files"));
+                    f(self.problem_cache_files, "problem_cache_files"),
+                    f(self.writable_problem_cache_files, "writable_problem_cache_files"));
     }
 };
 
@@ -285,7 +289,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     // Problem cache files arrive as a GPU backend option, searched in priority
     // order (first hit wins). A single file is writable; multiple are read-only.
-    ctx.load_problem_caches(backend_opts.problem_cache_files);
+    ctx.load_problem_caches(backend_opts.problem_cache_files,
+                            backend_opts.writable_problem_cache_files);
 
     pipeline_factory p{&gctx, options, backend_opts};
 

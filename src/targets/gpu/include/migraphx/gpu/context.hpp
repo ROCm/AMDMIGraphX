@@ -476,13 +476,14 @@ struct context
     problem_cache& get_problem_cache() { return *pc; }
     const problem_cache& get_problem_cache() const { return *pc; }
 
-    /// Configure the problem cache from a priority list of files (first hit
-    /// wins). A single file is writable (solutions save back); multiple files
-    /// are a read-only priority list. The layered search lives in problem_cache.
-    void load_problem_caches(const std::vector<std::string>& paths)
+    /// Configure the problem cache from the read-only caches (gpuep/ISV, never
+    /// written) and the read/write developer caches (solutions save back). Auto
+    /// save is enabled only when a writable cache is configured.
+    void load_problem_caches(const std::vector<std::string>& read_only_paths,
+                             const std::vector<std::string>& writable_paths)
     {
-        pc->load(paths);
-        pc->auto_save = (paths.size() == 1);
+        pc->load(read_only_paths, writable_paths);
+        pc->auto_save = not writable_paths.empty();
     }
 
     private:

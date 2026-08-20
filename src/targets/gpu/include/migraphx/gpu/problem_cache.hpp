@@ -52,18 +52,19 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     const cache_device_key& get_device_key() const;
 
     /// Look up a problem. The writable cache is searched first, then the
-    /// read-only layers (from load(paths)) in priority order; first hit wins.
+    /// read-only caches in priority order; first hit wins.
     bool has(const std::string& name, const value& problem) const;
     void insert(const std::string& name, const value& problem, const value& solution);
     void mark(const std::string& name, const value& problem);
     optional<value> get(const std::string& name, const value& problem) const;
-    /// Load from an explicit file path. An empty path is treated as "no cache"
-    /// (no-op). The path is remembered and reused for the next save().
+    /// Load a single read/write cache: new solutions are saved back to it. An
+    /// empty path is "no cache" (no-op). The path is reused for the next save().
     void load(const std::string& path);
-    /// Load a priority list of caches (highest priority first, first hit wins).
-    /// A single path is loaded as the writable cache (same as load(path));
-    /// multiple paths become read-only layers searched after the writable cache.
-    void load(const std::vector<std::string>& paths);
+    /// Configure both cache tiers: the read-only caches (searched after the
+    /// writable cache, first hit wins, never written) and the read/write caches
+    /// (only the first non-empty path is written back to).
+    void load(const std::vector<std::string>& read_only_paths,
+              const std::vector<std::string>& writable_paths);
     void save() const;
 
     private:
@@ -73,7 +74,7 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     problem_cache_backend backend;
 
     // Lower-priority read-only layers searched after `backend`; within the list
-    // the first hit wins. Populated by load(paths) when multiple files are given.
+    // the first hit wins. Populated from the read-only paths passed to load().
     std::vector<problem_cache_backend> read_only_backends{};
 
     // Device these entries were tuned on; set by the owning context. Empty

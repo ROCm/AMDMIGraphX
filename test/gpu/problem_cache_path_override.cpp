@@ -124,7 +124,8 @@ TEST_CASE(problem_cache_layered_priority_first_hit_wins)
 
     migraphx::gpu::problem_cache c;
     c.set_device_key(make_key());
-    c.load(std::vector<std::string>{high, low}); // priority order: high first
+    c.load(std::vector<std::string>{high, low},
+           std::vector<std::string>{}); // read-only, high first
 
     // Problem 0 is in both files -> the higher-priority file wins.
     EXPECT(c.has("gemm", make_problem(0)));
@@ -145,6 +146,61 @@ TEST_CASE(problem_cache_layered_priority_first_hit_wins)
     // Multiple files are a read-only list: save() must be a no-op (no writable
     // path is configured) and must not throw.
     c.save();
+}
+
+// --------------------------------------------------------------------------
+// load(read_only, writable): both tiers together. The writable cache is
+// searched first (a locally tuned solution wins over a read-only one), inserts
+// and save() go to the writable cache only, and the read-only cache stays a
+// never-written fallback.
+// --------------------------------------------------------------------------
+TEST_CASE(problem_cache_writable_over_read_only)
+{
+    migraphx::tmp_dir td{"problem_cache_two_options"};
+    auto ro = (td.path / "read_only.json").string();
+    auto rw = (td.path / "writable.json").string();
+
+    // Seed the read-only file: a solution for problem 0 and a problem 1 that
+    // lives only here.
+    {
+        migraphx::gpu::problem_cache w;
+        w.set_device_key(make_key());
+        w.load(ro);
+        w.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kReadOnly"}});
+        w.insert("gemm", make_problem(1), migraphx::value{{"kernel", "kOnlyRO"}});
+        w.save();
+    }
+
+    migraphx::gpu::problem_cache c;
+    c.set_device_key(make_key());
+    c.load(std::vector<std::string>{ro}, std::vector<std::string>{rw});
+
+    // Writable is empty at first, so a read-only-only problem is still found.
+    EXPECT(c.has("gemm", make_problem(1)));
+    EXPECT((*c.get("gemm", make_problem(1))).at("kernel").to<std::string>() == "kOnlyRO");
+
+    // Insert for problem 0 goes to the writable cache and now wins over the
+    // read-only entry for the same problem.
+    c.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kWritable"}});
+    EXPECT((*c.get("gemm", make_problem(0))).at("kernel").to<std::string>() == "kWritable");
+    c.save();
+
+    // The read-only file is unchanged; the writable file holds the new solution.
+    {
+        migraphx::gpu::problem_cache ro_reader;
+        ro_reader.set_device_key(make_key());
+        ro_reader.load(ro);
+        EXPECT((*ro_reader.get("gemm", make_problem(0))).at("kernel").to<std::string>() ==
+               "kReadOnly");
+    }
+    {
+        migraphx::gpu::problem_cache rw_reader;
+        rw_reader.set_device_key(make_key());
+        rw_reader.load(rw);
+        EXPECT(rw_reader.has("gemm", make_problem(0)));
+        EXPECT((*rw_reader.get("gemm", make_problem(0))).at("kernel").to<std::string>() ==
+               "kWritable");
+    }
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

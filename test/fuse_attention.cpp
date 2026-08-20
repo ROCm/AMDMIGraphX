@@ -1044,7 +1044,7 @@ TEST_CASE(flash_decoding_4d_with_attention_mask_param)
 TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
 {
     // Broadcastable mask literal {1,1,M,N} is multibroadcast to score shape, then consumed
-    // in where. Flash decoding rebuild materializes and splits the literal at compile time.
+    // in where. Flash decoding splits the literal's own layout at compile time.
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 384, 384}};
     migraphx::shape s_mask{migraphx::shape::bool_type, {1, 1, 384, 384}};
     const std::size_t num_splits = 2;
@@ -1086,7 +1086,7 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
               .flash_decoding_enabled    = true,
               .flash_decoding_num_splits = num_splits});
 
-    migraphx::shape expected_mask_shape{migraphx::shape::bool_type, {1, 12, num_splits, 384, 192}};
+    migraphx::shape expected_mask_shape{migraphx::shape::bool_type, {1, 1, num_splits, 384, 192}};
     EXPECT(flash_decoding_has(p1, "@literal", &expected_mask_shape));
 }
 

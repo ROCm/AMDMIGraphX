@@ -594,57 +594,45 @@ struct find_flash_decoding
         return flash_input_kind::other;
     }
 
-    // Merge split index [..., G, M, N/G] into score index [..., M, N]
+    // Merge split index [..., G, M, N/G] into unsplit index [..., M, N]
     static std::vector<std::size_t> merge_split_index(const std::vector<std::size_t>& split_idx,
-                                                      std::size_t scores_ndim,
+                                                      std::size_t unsplit_ndim,
                                                       std::size_t n_split)
     {
-        const auto g = split_idx.at(scores_ndim - 2);
-        const auto m = split_idx.at(scores_ndim - 1);
-        const auto j = split_idx.at(scores_ndim);
+        const auto g = split_idx.at(unsplit_ndim - 2);
+        const auto m = split_idx.at(unsplit_ndim - 1);
+        const auto j = split_idx.at(unsplit_ndim);
 
-        std::vector<std::size_t> score_idx(scores_ndim);
-        std::copy(split_idx.begin(), split_idx.begin() + scores_ndim - 2, score_idx.begin());
-        score_idx[scores_ndim - 2] = m;
-        score_idx[scores_ndim - 1] = g * n_split + j;
-        return score_idx;
-    }
-
-    // Score index -> literal index; broadcast axes (length 1) always read element 0
-    static std::vector<std::size_t>
-    broadcastable_literal_index(const std::vector<std::size_t>& score_idx,
-                                const std::vector<std::size_t>& literal_lens)
-    {
-        const auto offset = score_idx.size() - literal_lens.size();
-        std::vector<std::size_t> literal_idx(literal_lens.size());
-        for(std::size_t k = 0; k < literal_lens.size(); ++k)
-            literal_idx[k] = literal_lens[k] == 1 ? 0 : score_idx.at(offset + k);
-        return literal_idx;
+        std::vector<std::size_t> unsplit_idx(unsplit_ndim);
+        std::copy(split_idx.begin(), split_idx.begin() + unsplit_ndim - 2, unsplit_idx.begin());
+        unsplit_idx[unsplit_ndim - 2] = m;
+        unsplit_idx[unsplit_ndim - 1] = g * n_split + j;
+        return unsplit_idx;
     }
 
     // Compile-time counterpart of reshape_scores_aligned for literals in the
-    // attention submodule, like causal masks. Score-shaped params
-    // are split at runtime; literals that vary along N are materialized here.
+    // attention submodule, like causal masks. Split the literal's own layout
+    // (e.g. {1,1,M,N} -> {1,1,G,M,N/G}); multibroadcast covers leading 1s.
     // Broadcast-only constants (scale, -inf) keep their original shape.
     static literal transform_score_literal(const literal& lit,
                                            const std::vector<std::size_t>& scores_lens,
                                            std::size_t num_groups)
     {
         const auto& input_lens = lit.get_shape().lens();
-        if(input_lens.empty() or input_lens.size() > scores_lens.size() or
+        if(input_lens.size() < 2 or input_lens.size() > scores_lens.size() or
            (input_lens != scores_lens and not can_multibroadcast(input_lens, scores_lens)))
             return lit;
 
-        // Right-aligned N is input_lens.back(). A size-1 axis is broadcast-only
-        if(input_lens.back() == 1)
+        // Right-aligned N is input_lens.back(). A size-1 axis is broadcast-only.
+        if(input_lens.back() == 1 or input_lens.back() % num_groups != 0)
             return lit;
 
-        const auto split_lens = get_scores_split_lens(scores_lens, num_groups);
+        const auto split_lens = get_scores_split_lens(input_lens, num_groups);
         if(input_lens == split_lens)
             return lit;
 
-        const auto ndim    = scores_lens.size();
-        const auto n_split = scores_lens.back() / num_groups;
+        const auto ndim    = input_lens.size();
+        const auto n_split = input_lens.back() / num_groups;
 
         literal result;
         lit.visit([&](auto in_view) {
@@ -655,9 +643,8 @@ struct find_flash_decoding
 
             shape_for_each(
                 split_shape, [&](const std::vector<std::size_t>& split_idx, std::size_t i) {
-                    const auto score_idx   = merge_split_index(split_idx, ndim, n_split);
-                    const auto literal_idx = broadcastable_literal_index(score_idx, input_lens);
-                    split_data[i]          = in_view[in_shape.index(literal_idx)];
+                    const auto unsplit_idx = merge_split_index(split_idx, ndim, n_split);
+                    split_data[i]          = in_view[in_shape.index(unsplit_idx)];
                 });
             result = literal{split_shape, split_data};
         });
@@ -741,98 +728,77 @@ struct find_flash_decoding
         std::unordered_map<std::string, instruction_ref> softmax_parts;
         const auto split_lens = get_scores_split_lens(scores_lens, num_groups);
 
-        std::vector<instruction_ref> pending;
         for(auto ins : iterator_for(source_mod))
         {
-            if(ins->name() != "@param" and ins->name() != "@return")
-                pending.push_back(ins);
-        }
+            if(ins->name() == "@param" or ins->name() == "@return")
+                continue;
 
-        while(not pending.empty())
-        {
-            std::vector<instruction_ref> next_pending;
-            bool progress = false;
-            for(auto ins : pending)
+            if(ins->name() == "@literal")
             {
-                if(ins->name() == "@literal")
-                {
-                    map_old_to_new[ins] = target_mod.add_literal(
-                        transform_score_literal(ins->get_literal(), scores_lens, num_groups));
-                    progress = true;
-                    continue;
-                }
-                if(ins->name() == "@outline")
-                {
-                    map_old_to_new[ins] = target_mod.add_outline(ins->get_shape());
-                    progress            = true;
-                    continue;
-                }
-                if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
-                       return contains(map_old_to_new, input);
-                   }))
-                {
-                    next_pending.push_back(ins);
-                    continue;
-                }
-
-                // gather inputs for the new instruction
-                std::vector<instruction_ref> new_inputs;
-                std::transform(ins->inputs().begin(),
-                               ins->inputs().end(),
-                               std::back_inserter(new_inputs),
-                               [&](auto i) { return map_old_to_new.at(i); });
-
-                auto op = ins->get_operator();
-
-                // transform operators that depend on tensor shape/rank
-                // adjust reduction axes for the new rank
-                if(op.name() == "reduce_max" or op.name() == "reduce_sum")
-                {
-                    auto original_axes = op.to_value()["axes"].to_vector<int64_t>();
-                    assert(original_axes.size() == 1 and "Expected single axis for reduction");
-
-                    const auto& new_input_shape = new_inputs.front()->get_shape();
-                    assert(original_axes.front() == ins->inputs().front()->get_shape().ndim() - 1 or
-                           original_axes.front() == -1);
-                    op.from_value({{"axes", {new_input_shape.ndim() - 1}}});
-                }
-                else if(is_broadcast_op(op))
-                {
-                    const auto orig_out_lens = op.to_value()["out_lens"].to_vector<std::size_t>();
-                    if(orig_out_lens == scores_lens)
-                    {
-                        const auto& input_lens = new_inputs.front()->get_shape().lens();
-                        if(not can_multibroadcast(input_lens, split_lens) and
-                           can_multibroadcast(input_lens, orig_out_lens))
-                        {
-                            auto bc_ins         = target_mod.add_instruction(op, new_inputs);
-                            map_old_to_new[ins] = target_mod.add_instruction(
-                                make_op("reshape", {{"dims", split_lens}}), bc_ins);
-                            progress = true;
-                            continue;
-                        }
-
-                        auto value        = op.to_value();
-                        value["out_lens"] = split_lens;
-                        op.from_value(value);
-                    }
-                }
-
-                auto new_ins        = target_mod.add_instruction(op, new_inputs);
-                map_old_to_new[ins] = new_ins;
-                progress            = true;
-
-                // store key softmax components for LSE calculation
-                if(op.name() == "reduce_max")
-                    softmax_parts["max"] = new_ins;
-                if(op.name() == "reduce_sum")
-                    softmax_parts["sum_exp"] = new_ins;
+                map_old_to_new[ins] = target_mod.add_literal(
+                    transform_score_literal(ins->get_literal(), scores_lens, num_groups));
+                continue;
+            }
+            if(ins->name() == "@outline")
+            {
+                map_old_to_new[ins] = target_mod.add_outline(ins->get_shape());
+                continue;
             }
 
-            if(not progress)
+            if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
+                   return contains(map_old_to_new, input);
+               }))
                 return false;
 
-            pending = std::move(next_pending);
+            std::vector<instruction_ref> new_inputs;
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(new_inputs),
+                           [&](auto i) { return map_old_to_new.at(i); });
+
+            auto op = ins->get_operator();
+
+            // transform operators that depend on tensor shape/rank
+            // adjust reduction axes for the new rank
+            if(op.name() == "reduce_max" or op.name() == "reduce_sum")
+            {
+                auto original_axes = op.to_value()["axes"].to_vector<int64_t>();
+                assert(original_axes.size() == 1 and "Expected single axis for reduction");
+
+                const auto& new_input_shape = new_inputs.front()->get_shape();
+                assert(original_axes.front() == ins->inputs().front()->get_shape().ndim() - 1 or
+                       original_axes.front() == -1);
+                op.from_value({{"axes", {new_input_shape.ndim() - 1}}});
+            }
+            else if(is_broadcast_op(op))
+            {
+                const auto orig_out_lens = op.to_value()["out_lens"].to_vector<std::size_t>();
+                if(orig_out_lens == scores_lens)
+                {
+                    const auto& input_lens = new_inputs.front()->get_shape().lens();
+                    if(not can_multibroadcast(input_lens, split_lens) and
+                       can_multibroadcast(input_lens, orig_out_lens))
+                    {
+                        auto bc_ins         = target_mod.add_instruction(op, new_inputs);
+                        map_old_to_new[ins] = target_mod.add_instruction(
+                            make_op("reshape", {{"dims", split_lens}}), bc_ins);
+                        continue;
+                    }
+
+                    auto value        = op.to_value();
+                    value["out_lens"] = split_lens;
+                    op.from_value(value);
+                }
+            }
+
+            auto new_ins        = target_mod.add_instruction(op, new_inputs);
+            map_old_to_new[ins] = new_ins;
+
+            // store key softmax components for LSE calculation
+            if(op.name() == "reduce_max")
+                softmax_parts["max"] = new_ins;
+            if(op.name() == "reduce_sum")
+                softmax_parts["sum_exp"] = new_ins;
         }
 
         // get the final partial output (O')

@@ -230,7 +230,7 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");
-
+    
     // Enable fast-math flags
     if(not contains(options.params, "-fhonor-nans"))
         options.emplace_param("-fno-honor-nans");
@@ -246,6 +246,8 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
            return starts_with(s, "-ffp-contract=");
        }))
         options.emplace_param("-ffp-contract=fast-honor-pragmas");
+    options.emplace_param("-mllvm");
+    options.emplace_param("--amdgpu-kernarg-preload-count=16");
 
     auto cos = compile_hip_src(srcs, options.params, ctx.get_current_device().get_device_name());
     if(cos.size() != 1)

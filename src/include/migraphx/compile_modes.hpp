@@ -21,54 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/compile_modes.hpp>
-#include <migraphx/tracer.hpp>
-#include <migraphx/value.hpp>
+#include <cstdint>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct compile_options
+enum class compile_modes
 {
-    /**
-     * Have MIGX allocate memory for parameters and add instructions
-     * to copy parameters and output to/from an offload device like a GPU.
-     */
-    bool offload_copy = false;
-
-    bool fast_math       = true;
-    bool exhaustive_tune = false;
-
-    compile_modes compile_mode = compile_modes::balanced;
-    /**
-     * Backend-specific options keyed by name. Targets can read these to
-     * configure compilation in a way that is opaque to the core engine.
-     */
-    std::unordered_map<std::string, value> backend_options;
-
-    tracer trace{};
+    eager    = 0,
+    balanced = 50,
+    max      = 100
 };
 
-/**
- * Merge the backend options from an object value into the compile options.
- * Each top-level key of the object becomes an entry in backend_options.
- */
-inline void set_backend_options(compile_options& options, const value& v)
-{
-    if(not v.is_object())
-        MIGRAPHX_THROW("set_backend_options expects an object value");
-    for(const auto& opt : v)
-        options.backend_options[opt.get_key()] = opt.without_key();
-}
+MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(uint8_t mode);
+MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(const std::string& mode);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP

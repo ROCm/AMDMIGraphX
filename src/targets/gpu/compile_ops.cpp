@@ -342,7 +342,9 @@ struct compile_plan
         if(config.has_value())
         {
             const auto& problem = config->problem;
-            if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
+            // Priority search (read-only layers first, then writable; first hit
+            // wins) is handled inside problem_cache.
+            if(auto sol = ctx->problem_cache_get(preop.name(), problem))
             {
                 const auto& solution = sol.value();
                 // No solution yet until benchmarked so skip for now
@@ -362,13 +364,14 @@ struct compile_plan
                 if(skip_benchmark or enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
                    (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
-                    ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
+                    // Write to writable cache only (never to shipped/read-only)
+                    ctx->problem_cache_insert(preop.name(), problem, solutions.front());
                     results.resize(1);
                     insert_compiles(compiles, solutions.front(), 0);
                 }
                 else
                 {
-                    ctx->get_problem_cache().mark(preop.name(), problem);
+                    ctx->problem_cache_mark(preop.name(), problem);
                     results.resize(solutions.size());
                     for(auto i : range(solutions.size()))
                     {
@@ -478,11 +481,12 @@ struct compile_plan
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
+        // Write winner to writable cache only (never shipped/read-only caches)
+        ctx->problem_cache_insert(preop.name(), config->problem, config->solutions.at(i));
         if(trace_level > 0)
         {
             std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
-            ctx->get_problem_cache().save();
+            ctx->save_problem_cache();
         }
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +

@@ -952,6 +952,157 @@ TEST_CASE(reduce_sum_widen_is_idempotent)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(reduce_prod_fp8_widens)
+{
+    for(auto t : {migraphx::shape::fp8e4m3fnuz_type,
+                  migraphx::shape::fp8e5m2fnuz_type,
+                  migraphx::shape::fp8e4m3fn_type,
+                  migraphx::shape::fp8e5m2_type})
+    {
+        migraphx::shape s{t, {2, 8}};
+        migraphx::module m1;
+        {
+            auto x    = m1.add_parameter("x", s);
+            auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+            m1.add_return({prod});
+        }
+        run_pass(m1);
+        migraphx::module m2;
+        {
+            auto x    = m2.add_parameter("x", s);
+            auto wide = m2.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+            auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), wide);
+            auto back =
+                m2.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), prod);
+            m2.add_return({back});
+        }
+        EXPECT(m1.sort() == m2.sort());
+    }
+}
+
+TEST_CASE(reduce_prod_half_widens)
+{
+    // A short half product widens even though the equivalent sum does not, since a product can
+    // leave half's range at any length. Compare reduce_sum_short_16bit_unchanged.
+    migraphx::shape s{migraphx::shape::half_type, {2, 8}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto wide = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), wide);
+        auto back =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), prod);
+        m2.add_return({back});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_short_bf16_unchanged)
+{
+    // bf16 has the exponent range of float, so a short product has nothing to gain.
+    migraphx::shape s{migraphx::shape::bf16_type, {2, 1024}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m2.add_return({prod});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_long_bf16_widens)
+{
+    migraphx::shape s{migraphx::shape::bf16_type, {2, 16385}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto wide = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), wide);
+        auto back =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), prod);
+        m2.add_return({back});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_float_unchanged)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 16385}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m2.add_return({prod});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_int8_unchanged)
+{
+    // Integral products are left to the integral rule in find_reduce_mean and are not widened here.
+    migraphx::shape s{migraphx::shape::int8_type, {2, 8}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m2.add_return({prod});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_widen_is_idempotent)
+{
+    migraphx::shape s{migraphx::shape::half_type, {2, 8}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    auto m2 = m1;
+    run_pass(m2);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(reduce_mean_long_bf16_widens)
 {
     // bf16 has the exponent range of float, so the max_n rule that covers half never fires for

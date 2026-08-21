@@ -5162,7 +5162,7 @@ TEST_CASE(conv_concat_split_fuse_after_rewrite_convolution)
     migraphx::shape skip_s{dt, {1, 4, 15, 15}};
     migraphx::shape w_dec_s{dt, {4, 4, 3, 3}};
     migraphx::shape w_gate_s{dt, {1, 4, 3, 3}};
-    migraphx::shape w_deconv_s{dt, {4, 5, 3, 3}};
+    migraphx::shape w_deconv_s{dt, {5, 4, 3, 3}};
     migraphx::shape w_cat_s{dt, {4, 8, 3, 3}};
 
     migraphx::module m1;

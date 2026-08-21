@@ -1139,6 +1139,55 @@ struct find_concat_same_input
     }
 };
 
+// Matches `concat` of multibroadcasts along a broadcasted (stride-0) axis
+// where all inputs broadcast the same value. All conditions live in the
+// matcher so declining does not shadow later concat matchers.
+MIGRAPHX_PRED_MATCHER(concat_of_same_broadcast, instruction_ref ins)
+{
+    if(ins->name() != "concat")
+        return false;
+    if(ins->get_shape().dynamic())
+        return false;
+    const auto& inputs = ins->inputs();
+    if(inputs.empty())
+        return false;
+    if(not all_of(inputs, [](instruction_ref i) {
+           return i->name() == "multibroadcast" and i->inputs().size() == 1;
+       }))
+        return false;
+    auto axis        = any_cast<op::concat>(ins->get_operator()).axis;
+    const auto& lens = inputs.front()->get_shape().lens();
+    if(axis < 0 or axis >= lens.size())
+        return false;
+    if(not all_of(inputs, [&](instruction_ref i) { return i->get_shape().strides()[axis] == 0; }))
+        return false;
+    auto x = inputs.front()->inputs().front();
+    // The concat axis must not map to a non-unit dimension of x
+    auto offset = lens.size() - x->get_shape().ndim();
+    if(axis >= offset and x->get_shape().lens()[axis - offset] != 1)
+        return false;
+    return all_of(inputs, [&](instruction_ref i) {
+        auto y = i->inputs().front();
+        return y == x or *y == *x;
+    });
+}
+
+// Replace `concat` of multibroadcasts along a broadcasted (stride-0) axis with
+// a single multibroadcast when all inputs broadcast the same value. This avoids
+// materializing a large literal when the concat gets constant folded.
+struct find_concat_same_broadcast
+{
+    auto matcher() const { return concat_of_same_broadcast(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto x   = ins->inputs().front()->inputs().front();
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
+    }
+};
+
 struct find_concat_conv
 {
     auto matcher() const
@@ -2846,6 +2895,7 @@ void simplify_algebra::apply(module& m) const
                             find_concat_conv{},
                             find_conv_concat_split_fuse{},
                             find_concat_same_input{},
+                            find_concat_same_broadcast{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

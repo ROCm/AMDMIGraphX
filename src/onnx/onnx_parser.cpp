@@ -35,6 +35,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/checked_ops.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/sym.hpp>
@@ -87,8 +88,9 @@ static literal
 create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
 {
     // empty input
-    auto elem_num =
-        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    std::size_t elem_num = 1;
+    for(const auto d : dims)
+        elem_num = checked_mul(elem_num, d);
     if(elem_num == 0)
     {
         return literal{shape_type};
@@ -104,8 +106,9 @@ template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
 static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
 {
     // empty input
-    auto elem_num =
-        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    std::size_t elem_num = 1;
+    for(const auto d : dims)
+        elem_num = checked_mul(elem_num, d);
     if(elem_num == 0)
     {
         return literal{shape_type};
@@ -804,6 +807,33 @@ static shape parse_tensor_shape(const onnx::TensorProto& t)
     return shape{get_type(t.data_type()), dims};
 }
 
+static std::size_t parse_external_size(const std::string& value, const char* field)
+{
+    try
+    {
+        return std::stoull(value);
+    }
+    catch(const std::exception&)
+    {
+        MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+    }
+}
+
+static fs::path resolve_external_data_path(const fs::path& base_dir, const fs::path& relative)
+{
+    const fs::path base      = fs::weakly_canonical(base_dir);
+    const fs::path resolved  = fs::weakly_canonical(base_dir / relative);
+    const auto base_str      = base.string();
+    const auto resolved_str  = resolved.string();
+    if(resolved_str.size() < base_str.size() or
+       resolved_str.compare(0, base_str.size(), base_str) != 0 or
+       (resolved_str.size() > base_str.size() and resolved_str[base_str.size()] != '/'))
+    {
+        MIGRAPHX_THROW("ONNX external data path escapes model directory: " + relative.string());
+    }
+    return resolved;
+}
+
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
     auto tensor_shape         = parse_tensor_shape(t);
@@ -820,20 +850,19 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
         if(num_data_fields > 1) // if offset field is present
         {
-            offset = std::stoull(t.external_data().at(1).value());
+            offset = parse_external_size(t.external_data().at(1).value(), "offset");
         }
         if(num_data_fields > 2) // if nbytes field is present
         {
-            nbytes = std::stoull(t.external_data().at(2).value());
+            nbytes = parse_external_size(t.external_data().at(2).value(), "length");
         }
-        std::vector<char> raw_buffer;
-        if(not external_data_path.empty())
+        const fs::path base_dir =
+            external_data_path.empty() ? path : fs::path{external_data_path};
+        const fs::path data_path = resolve_external_data_path(base_dir, data_file);
+        std::vector<char> raw_buffer = read_buffer(data_path, offset, nbytes);
+        if(raw_buffer.size() != tensor_shape.bytes())
         {
-            raw_buffer = read_buffer(fs::path{external_data_path} / data_file, offset, nbytes);
-        }
-        else
-        {
-            raw_buffer = read_buffer(path / data_file, offset, nbytes);
+            MIGRAPHX_THROW("ONNX external tensor data size mismatch");
         }
         std::string s(raw_buffer.begin(), raw_buffer.end());
         return create_literal(type, dims, s.data());
@@ -842,6 +871,10 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     if(t.has_raw_data())
     {
         const std::string& s = t.raw_data();
+        if(s.size() != tensor_shape.bytes())
+        {
+            MIGRAPHX_THROW("ONNX tensor raw_data size mismatch");
+        }
         return create_literal(type, dims, s.data());
     }
 

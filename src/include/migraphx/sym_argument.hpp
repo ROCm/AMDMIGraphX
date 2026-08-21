@@ -53,12 +53,12 @@ struct MIGRAPHX_EXPORT sym_argument
 
     sym_argument reshape(const shape& s) const;
 
+    MIGRAPHX_EXPORT friend bool operator==(const sym_argument& x, const sym_argument& y);
+    MIGRAPHX_EXPORT friend bool operator!=(const sym_argument& x, const sym_argument& y);
+
     std::vector<sym::expr> m_data;
     shape m_shape;
 };
-
-MIGRAPHX_EXPORT bool operator==(const sym_argument& x, const sym_argument& y);
-MIGRAPHX_EXPORT bool operator!=(const sym_argument& x, const sym_argument& y);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -247,33 +247,30 @@ struct find_reduce_mean_variance
     }
 };
 
-// The reduce kernel takes its accumulator type from the type it reads, so converting the input is
-// what widens it.
-constexpr std::size_t wide_reduce_elements = 16384;
-
-// An fp8 running sum stops growing once it reaches 16, since the next representable value is 18
-// and adding 1 ties to even, so an fp8 reduction has to accumulate wider than the storage type.
-// half and bf16 only drift once the reduction is long.
-bool needs_wide_accumulator(shape::type_t type, std::size_t n)
+// Figure out if a wider accumulator type is needed based on `reduce`, `type` and number of reduced elements `n`.
+// All fp8 types need a wider accumulator.
+// fp16 reduce_prod needs wider accumulator because it has a smaller exponent range than fp32.
+// True for fp16 or bf16 reduce_sum if `n` > wide_reduce_elements_threshold
+bool needs_wide_accumulator(const std::string& reduce, shape::type_t type, std::size_t n)
 {
+    constexpr std::size_t wide_reduce_elements_threshold = 16384;
     if(contains(fp8_types{}.get(), type))
+    {
         return true;
+    }
+    if(reduce == "reduce_prod")
+    {
+        if(type == shape::half_type)
+            return true;
+    }
     if(type == shape::half_type or type == shape::bf16_type)
-        return n > wide_reduce_elements;
+    {
+        return n > wide_reduce_elements_threshold;
+    }
     return false;
 }
 
-// A product fails on dynamic range instead of drifting: with mixed magnitudes an intermediate can
-// overflow to inf or underflow to zero at any length, so half always needs the wider accumulator.
-// bf16 has the exponent range of float, leaving only its narrow mantissa, which needs a long
-// reduction to matter.
-bool needs_wide_product_accumulator(shape::type_t type, std::size_t n)
-{
-    if(type == shape::half_type)
-        return true;
-    return needs_wide_accumulator(type, n);
-}
-
+// Change the accumulator type for reductions over low precision types when needed.
 struct find_low_precision_reduce
 {
     auto matcher() const { return match::name("reduce_sum", "reduce_prod"); }
@@ -284,8 +281,7 @@ struct find_low_precision_reduce
         auto input = ins->inputs().front();
         auto type  = input->get_shape().type();
         auto n     = input->get_shape().elements() / ins->get_shape().elements();
-        bool widen = ins->name() == "reduce_prod" ? needs_wide_product_accumulator(type, n)
-                                                  : needs_wide_accumulator(type, n);
+        bool widen = needs_wide_accumulator(ins->name(), type, n);
         if(not widen)
             return;
 
@@ -297,6 +293,7 @@ struct find_low_precision_reduce
     }
 };
 
+// Replace `reduce_mean` with `reduce_sum` and change the accumulator type when needed.
 struct find_reduce_mean
 {
     auto matcher() const { return match::name("reduce_mean"); }
@@ -320,11 +317,10 @@ struct find_reduce_mean
         auto n = input->get_shape().elements() / ins->get_shape().elements();
 
         // Integral types widen for an 8 bit type, or for a 16 bit one once the count is a large
-        // enough fraction of what the type can hold. A mean is a sum, so floating point follows
-        // needs_wide_accumulator, which also covers bf16, whose max is too large for the max_n
-        // test to ever fire.
+        // enough fraction of what the type can hold.
+        // A mean is a sum, so floating point follows needs_wide_accumulator.
         bool widen = is_integral ? (size == 1 or (n >= max_n / 4 and size < 3))
-                                 : needs_wide_accumulator(input->get_shape().type(), n);
+                                 : needs_wide_accumulator(ins->name(), input->get_shape().type(), n);
         if(widen)
         {
             shape::type_t t = is_integral ? shape::int32_type : shape::float_type;

@@ -915,14 +915,15 @@ TEST_CASE(simplify_add_conv_no_fusion_mismatched_spatial)
 {
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 128, 16, 22}});
-        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {1, 128, 32, 44}});
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 128, 15, 15}});
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {1, 128, 39, 39}});
         auto w = m1.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
         auto v = m1.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
         auto conv1 = m1.add_instruction(migraphx::make_op("convolution"), x, w);
-        auto conv2 = m1.add_instruction(migraphx::make_op("convolution"), y, v);
+        auto conv2 = m1.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {0, 0}}, {"stride", {3, 3}}}), y, v);
         auto sum   = m1.add_instruction(migraphx::make_op("add"), conv1, conv2);
         m1.add_return({sum});
     }
@@ -5157,8 +5158,8 @@ TEST_CASE(conv_concat_split_fuse_no_fusion_mismatched_weights)
 TEST_CASE(conv_concat_split_fuse_after_rewrite_convolution)
 {
     const migraphx::shape::type_t dt = migraphx::shape::half_type;
-    migraphx::shape dec_s{dt, {1, 4, 8, 8}};
-    migraphx::shape skip_s{dt, {1, 4, 16, 16}};
+    migraphx::shape dec_s{dt, {1, 4, 7, 7}};
+    migraphx::shape skip_s{dt, {1, 4, 15, 15}};
     migraphx::shape w_dec_s{dt, {4, 4, 3, 3}};
     migraphx::shape w_gate_s{dt, {1, 4, 3, 3}};
     migraphx::shape w_deconv_s{dt, {4, 5, 3, 3}};

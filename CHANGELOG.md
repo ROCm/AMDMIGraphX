@@ -84,6 +84,7 @@ Full documentation for MIGraphX is available at
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
 * Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
+* Fixed `reduce_sum`, `reduce_prod` and `reduce_mean` accumulating in their storage type for low precision inputs; `rewrite_reduce` now widens the accumulator to float for fp8, for half and bf16 over 16384 elements, and for all half `reduce_prod`, replacing a GPU codegen special case that only covered large half `reduce_mean` (#5160).
 
 ### Optimized
 * Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).

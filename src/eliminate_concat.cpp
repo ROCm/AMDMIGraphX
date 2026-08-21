@@ -94,8 +94,6 @@ struct concat_optimizer
         return ins->name() == "allocate" or ins->name() == am.name();
     }
 
-    bool need_copy(instruction_ref ins) const { return not is_allocation(get_output_alias(ins)); }
-
     // The producer can write into a view of the super buffer only when it
     // owns its whole allocation
     bool can_write_inplace(instruction_ref producer) const
@@ -122,16 +120,31 @@ struct concat_optimizer
         if(inv.empty())
             return std::nullopt;
         auto result = inv.generate();
-        if(not std::all_of(result.begin(), result.end(), [](const operation& op) {
-               return contains(invertible_view_names(), op.name());
-           }))
+        // Reshapes need to be lazy so the slice is aliased instead of copied at runtime
+        std::transform(result.begin(), result.end(), result.begin(), [](const operation& op) {
+            if(op.name() != "reshape")
+                return op;
+            return make_op("reshape_lazy", op.to_value());
+        });
+        try
+        {
+            auto s = std::accumulate(
+                result.begin(), result.end(), slice_shape, [](const shape& acc, const operation& op) {
+                    std::vector<shape> inputs = {acc};
+                    if(op.output_alias(inputs).empty())
+                        MIGRAPHX_THROW("Not a view operator: " + op.name());
+                    auto next = op.compute_shape(inputs);
+                    if(next.elements() != acc.elements())
+                        MIGRAPHX_THROW("Not an element-preserving view: " + op.name());
+                    return next;
+                });
+            if(s.lens() != producer_shape.lens())
+                return std::nullopt;
+        }
+        catch(const migraphx::exception&)
+        {
             return std::nullopt;
-        auto s = std::accumulate(
-            result.begin(), result.end(), slice_shape, [](const shape& acc, const operation& op) {
-                return op.compute_shape({acc});
-            });
-        if(s.lens() != producer_shape.lens())
-            return std::nullopt;
+        }
         return result;
     }
 

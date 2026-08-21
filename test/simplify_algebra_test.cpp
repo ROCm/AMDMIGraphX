@@ -5166,12 +5166,12 @@ TEST_CASE(conv_concat_split_fuse_after_rewrite_convolution)
 
     migraphx::module m1;
     {
-        auto dec    = m1.add_parameter("dec", dec_s);
-        auto skip   = m1.add_parameter("skip", skip_s);
-        auto w_dec  = m1.add_literal(migraphx::generate_literal(w_dec_s, 1));
-        auto w_gate = m1.add_literal(migraphx::generate_literal(w_gate_s, 2));
-        auto w_deconv = m1.add_literal(migraphx::generate_literal(w_deconv_s, 3));
-        auto w_cat    = m1.add_literal(migraphx::generate_literal(w_cat_s, 4));
+        auto dec         = m1.add_parameter("dec", dec_s);
+        auto skip        = m1.add_parameter("skip", skip_s);
+        auto w_dec       = m1.add_literal(migraphx::generate_literal(w_dec_s, 1));
+        auto w_gate      = m1.add_literal(migraphx::generate_literal(w_gate_s, 2));
+        auto w_deconv    = m1.add_literal(migraphx::generate_literal(w_deconv_s, 3));
+        auto w_cat       = m1.add_literal(migraphx::generate_literal(w_cat_s, 4));
         auto conv_params = migraphx::value{{"padding", {1, 1}}};
         auto deconv_params =
             migraphx::value{{"padding", {0, 0}}, {"stride", {2, 2}}, {"dilation", {1, 1}}};
@@ -5179,8 +5179,8 @@ TEST_CASE(conv_concat_split_fuse_after_rewrite_convolution)
         auto gate_conv =
             m1.add_instruction(migraphx::make_op("convolution", conv_params), dec, w_gate);
         auto cat1 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), dec, gate_conv);
-        auto deconv =
-            m1.add_instruction(migraphx::make_op("convolution_backwards", deconv_params), cat1, w_deconv);
+        auto deconv = m1.add_instruction(
+            migraphx::make_op("convolution_backwards", deconv_params), cat1, w_deconv);
         auto conv_a =
             m1.add_instruction(migraphx::make_op("convolution", conv_params), deconv, w_dec);
         auto cat2 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), deconv, skip);

@@ -25,78 +25,40 @@
 #define MIGRAPHX_GUARD_SYM_ARGUMENT_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/tensor_view.hpp>
-#include <utility>
 #include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct sym_argument
+struct MIGRAPHX_EXPORT sym_argument
 {
     sym_argument() = default;
 
-    explicit sym_argument(shape s) : m_data(s.element_space()), m_shape(std::move(s)) {}
+    explicit sym_argument(shape s);
 
-    sym_argument(std::vector<sym::expr> data, shape s)
-        : m_data(std::move(data)), m_shape(std::move(s))
-    {
-    }
+    sym_argument(std::vector<sym::expr> data, shape s);
 
-    bool empty() const { return m_data.empty(); }
+    bool empty() const;
 
-    const shape& get_shape() const { return m_shape; }
+    const shape& get_shape() const;
 
-    tensor_view<sym::expr> get()
-    {
-        if(empty())
-            return {};
-        return make_view(m_shape, m_data.data());
-    }
+    tensor_view<sym::expr> get();
 
-    tensor_view<const sym::expr> get() const
-    {
-        if(empty())
-            return {};
-        return make_view(m_shape, m_data.data());
-    }
+    tensor_view<const sym::expr> get() const;
 
-    bool valid() const
-    {
-        if(empty() or m_shape.type() == shape::tuple_type or not m_shape.computable() or
-           m_shape.dynamic() or m_data.size() < m_shape.element_space())
-            return false;
-        return none_of(get(), [](const auto& expression) { return expression.empty(); });
-    }
+    bool valid() const;
 
-    sym_argument reshape(const shape& s) const
-    {
-        if(not valid() or s.type() == shape::tuple_type or not s.computable() or s.dynamic() or
-           m_data.size() < s.element_space())
-            return {};
-
-        auto result    = *this;
-        result.m_shape = s;
-        if(not result.valid())
-            return {};
-        return result;
-    }
-
-    friend bool operator==(const sym_argument& x, const sym_argument& y)
-    {
-        if(x.get_shape() != y.get_shape() or x.empty() != y.empty())
-            return false;
-        return x.empty() or x.get() == y.get();
-    }
-
-    friend bool operator!=(const sym_argument& x, const sym_argument& y) { return not(x == y); }
+    sym_argument reshape(const shape& s) const;
 
     std::vector<sym::expr> m_data;
     shape m_shape;
 };
+
+MIGRAPHX_EXPORT bool operator==(const sym_argument& x, const sym_argument& y);
+MIGRAPHX_EXPORT bool operator!=(const sym_argument& x, const sym_argument& y);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

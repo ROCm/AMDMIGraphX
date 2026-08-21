@@ -4160,7 +4160,7 @@ TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
             y);
         auto x_rsp   = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2}}}), x);
-        auto x_brcst = m2.add_instrduction(
+        auto x_brcst = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 2, 2, 6}}}), x_rsp);
         auto add_ins = m2.add_instruction(migraphx::make_op("add"), y_trans, x_brcst);
         auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}),

@@ -37,6 +37,20 @@ namespace gpu {
 
 using namespace migraphx::gpu::gen; // NOLINT
 
+// Past this many per-thread accumulator slots the `block` reduce spills VGPRs to
+// scratch and its code object explodes (page-faulted on gfx1100 for slme); above
+// it we fall back to the lazy-reread `block_large` reduce. Gating on the
+// iteration count (not relements) covers every shape and block_size. Safety cap;
+// retune if it regresses medium reductions. See
+// test/gpu/fused_reduce_block_size_guard.cpp.
+static constexpr std::size_t block_reduce_max_iterations = 16;
+
+// ceil(relements / block_size): per-thread accumulator slots in the `block` reduce.
+static std::size_t block_reduce_iterations(std::size_t relements, std::size_t block_size)
+{
+    return (relements + block_size - 1) / block_size;
+}
+
 static const char* const simple_reduce_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/reduce.hpp>
@@ -362,7 +376,8 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
             if(algo == "block")
             {
                 auto block_size = compute_block_size(ctx, relements, 256);
-                if(relements >= block_size * 256)
+                // Same iteration cap as fused_reduce (see block_reduce_max_iterations).
+                if(block_reduce_iterations(relements, block_size) > block_reduce_max_iterations)
                     algo = "block_large";
                 options.set_launch_params(
                     v, compute_global_for(ctx, nelements * block_size, 256), block_size);
@@ -542,7 +557,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             assert(n_per_block > 0);
             assert(block_size > 0);
             assert(nelements % n_per_block == 0);
-            if(relements >= (block_size - 1) * 256)
+            // Fall back to block_large once the per-thread register array exceeds
+            // the safety cap (see block_reduce_max_iterations).
+            if(block_reduce_iterations(relements, block_size) > block_reduce_max_iterations)
             {
                 algo = "block_large";
             }

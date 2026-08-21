@@ -1105,40 +1105,49 @@ TEST_CASE(reduce_prod_widen_is_idempotent)
 
 TEST_CASE(reduce_mean_long_bf16_widens)
 {
-    // bf16 has the exponent range of float, so the max_n rule that covers half never fires for
-    // it; this is the case that rule used to miss.
+    // bf16 has the exponent range of float, so the max_n rule that covers half never fires for it.
     migraphx::shape s{migraphx::shape::bf16_type, {2, 16385}};
-    migraphx::module m;
+    migraphx::module m1;
     {
-        auto x    = m.add_parameter("x", s);
-        auto mean = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), x);
-        m.add_return({mean});
+        auto x    = m1.add_parameter("x", s);
+        auto mean = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), x);
+        m1.add_return({mean});
     }
-    run_pass(m);
-
-    auto reduces = find_all(migraphx::iterator_for(m),
-                            [&](auto ins) { return migraphx::contains(ins->name(), "reduce"); });
-    EXPECT(not reduces.empty());
-    EXPECT(all_of(reduces,
-                  [](auto ins) { return ins->get_shape().type() == migraphx::shape::float_type; }));
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto wide = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto n   = m2.add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {16385}});
+        auto div = migraphx::add_common_op(m2, migraphx::make_op("div"), {wide, n});
+        auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), div);
+        auto back =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), sum);
+        m2.add_return({back});
+    }
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(reduce_mean_short_bf16_unchanged)
 {
     migraphx::shape s{migraphx::shape::bf16_type, {2, 1024}};
-    migraphx::module m;
+    migraphx::module m1;
     {
-        auto x    = m.add_parameter("x", s);
-        auto mean = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), x);
-        m.add_return({mean});
+        auto x    = m1.add_parameter("x", s);
+        auto mean = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), x);
+        m1.add_return({mean});
     }
-    run_pass(m);
-
-    auto reduces = find_all(migraphx::iterator_for(m),
-                            [&](auto ins) { return migraphx::contains(ins->name(), "reduce"); });
-    EXPECT(not reduces.empty());
-    EXPECT(all_of(reduces,
-                  [](auto ins) { return ins->get_shape().type() == migraphx::shape::bf16_type; }));
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto n   = m2.add_literal(migraphx::literal{{s.type(), {1}}, {1024}});
+        auto div = migraphx::add_common_op(m2, migraphx::make_op("div"), {x, n});
+        auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), div);
+        m2.add_return({sum});
+    }
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

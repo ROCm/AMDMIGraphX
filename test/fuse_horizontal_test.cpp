@@ -22,14 +22,21 @@
  * THE SOFTWARE.
  */
 #include <migraphx/fuse_horizontal.hpp>
+#include <migraphx/fuse_pointwise.hpp>
+#include <migraphx/simplify_algebra.hpp>
+#include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
+#include <string>
+#include <vector>
 
 static void run_pass(migraphx::module& m)
 {
@@ -1130,6 +1137,172 @@ TEST_CASE(gather_horiz_no_fusion_dynamic_index)
     auto m2 = m1;
     run_pass(m1);
     EXPECT(m1 == m2);
+}
+
+// Independent dots with identical activation/weight shapes and constant
+// weights should batch into a single GEMM, then slice+squeeze back.
+TEST_CASE(dot_horiz_fusion_basic)
+{
+    migraphx::module m1;
+    {
+        auto a0 = m1.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m1.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto a2 = m1.add_parameter("a2", {migraphx::shape::float_type, {2, 3}});
+        auto w0 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 1));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 2));
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), a0, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), a1, w1);
+        auto d2 = m1.add_instruction(migraphx::make_op("dot"), a2, w2);
+        m1.add_return({d0, d1, d2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a0 = m2.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m2.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto a2 = m2.add_parameter("a2", {migraphx::shape::float_type, {2, 3}});
+        auto w0 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
+        auto w1 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 1));
+        auto w2 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 2));
+
+        auto ua0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a0);
+        auto ua1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a1);
+        auto ua2  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a2);
+        auto bact = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua0, ua1, ua2);
+        auto uw0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w0);
+        auto uw1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
+        auto uw2  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
+        auto bwt  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw0, uw1, uw2);
+        auto bd   = m2.add_instruction(migraphx::make_op("dot"), bact, bwt);
+
+        auto s0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), bd);
+        auto sq0 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto s1  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bd);
+        auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto s2  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), bd);
+        auto sq2 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s2);
+        m2.add_return({sq0, sq1, sq2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Dots whose weights are not compile-time constants are not candidates.
+TEST_CASE(dot_horiz_fusion_non_constant_weight_unchanged)
+{
+    migraphx::module m1;
+    {
+        auto a0 = m1.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m1.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto w0 = m1.add_parameter("w0", {migraphx::shape::float_type, {3, 4}});
+        auto w1 = m1.add_parameter("w1", {migraphx::shape::float_type, {3, 4}});
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), a0, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), a1, w1);
+        m1.add_return({d0, d1});
+    }
+    migraphx::module before = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == before.sort());
+}
+
+// Dots with different activation/weight shapes do not share a group key.
+TEST_CASE(dot_horiz_fusion_mismatched_shapes_unchanged)
+{
+    migraphx::module m1;
+    {
+        auto a0 = m1.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m1.add_parameter("a1", {migraphx::shape::float_type, {2, 5}});
+        auto w0 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 4}}, 1));
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), a0, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), a1, w1);
+        m1.add_return({d0, d1});
+    }
+    migraphx::module before = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == before.sort());
+}
+
+// End-to-end: the pointwise hoist in find_splits (simplify_algebra) and
+// dot_horizontal_fusion (fuse_horizontal) cooperate in one pipeline.  The module
+// contains both opportunities and both reductions must occur.  This mirrors the
+// GPU pipeline ordering where fuse_pointwise collapses each per-slice SiLU into
+// a single pointwise op, simplify_algebra (optimize_module) then hoists it above
+// the slices, and fuse_horizontal batches the parallel dots.
+static void run_mlp_pipeline(migraphx::program& p)
+{
+    migraphx::run_passes(p,
+                         {migraphx::fuse_pointwise{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::simplify_algebra{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::fuse_horizontal{},
+                          migraphx::dead_code_elimination{}});
+}
+
+TEST_CASE(hoist_and_dot_fusion_end_to_end)
+{
+    migraphx::program p;
+    {
+        auto* m = p.get_main_module();
+        // Hoist target: a SiLU (sigmoid * x) replicated across sibling row
+        // slices of a common tensor that exactly tile it.
+        auto t = m->add_parameter("t", {migraphx::shape::float_type, {4, 8}});
+        std::vector<migraphx::instruction_ref> outs;
+        for(int i = 0; i < 4; ++i)
+        {
+            auto s = m->add_instruction(
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), t);
+            auto sig = m->add_instruction(migraphx::make_op("sigmoid"), s);
+            outs.push_back(m->add_instruction(migraphx::make_op("mul"), s, sig));
+        }
+
+        // Dot-fusion target: parallel constant-weight dots with identical shapes.
+        for(int i = 0; i < 3; ++i)
+        {
+            auto x =
+                m->add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 3}});
+            auto w = m->add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {3, 5}}, i));
+            outs.push_back(m->add_instruction(migraphx::make_op("dot"), x, w));
+        }
+
+        m->add_return(outs);
+    }
+    run_mlp_pipeline(p);
+
+    std::size_t n_dot       = 0;
+    std::size_t n_pointwise = 0;
+    for(auto ins : iterator_for(*p.get_main_module()))
+    {
+        const auto& name = ins->name();
+        if(name == "dot")
+            ++n_dot;
+        else if(name == "pointwise")
+            ++n_pointwise;
+    }
+
+    // dot_horizontal_fusion collapses the 3 towers into a single batched GEMM.
+    EXPECT(n_dot == 1);
+    // fuse_pointwise turns each per-slice SiLU into one pointwise op, which the
+    // find_splits hoist then collapses into a single pointwise on the bounding
+    // slice.
+    EXPECT(n_pointwise == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

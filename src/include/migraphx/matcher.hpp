@@ -1175,41 +1175,79 @@ inline auto literal_value_checker(F f)
     }));
 }
 
-/// Default epsilon multiples used by has_value, per literal type. The useful unit is not the
-/// number of rounding steps but the share of a binade they cover: float holds 8388608
-/// representable values between consecutive powers of two, bf16 holds 128 and fp8e4m3fn holds 8.
-/// So 10 and 10 is negligible slack in float and spans neighbouring constants in fp8, where it
-/// works out to a window of 2.5 around 1.0.
+/// Multiples of the literal type's epsilon, which has_value scales into a comparison window. One
+/// multiple is one rounding step, and a rounding step covers a different share of a binade in each
+/// type: float holds 8388608 representable values between consecutive powers of two, half holds
+/// 1024, bf16 holds 128 and fp8e4m3fn holds 8. So 10 and 10 is negligible slack in float but works
+/// out to a window of 2.5 around 1.0 in fp8, wide enough to reach the neighbouring constant.
+struct value_tolerance
+{
+    double atol_mult = 0;
+    double rtol_mult = 0;
+};
+
+/// Left undefined so that each type has to name its own window below. `literal::visit` instantiates
+/// its visitor for every type in MIGRAPHX_SHAPE_VISIT_TYPES, so a type that is missed here fails to
+/// compile rather than silently picking up a window sized for float.
 template <class T>
-struct default_value_tolerance
+struct value_tolerance_of
 {
-    static constexpr double atol_mult = 10;
-    static constexpr double rtol_mult = 10;
+    static_assert(sizeof(T) == 0, "has_value has no tolerance window for this literal type");
 };
 
-/// Covers half and bf16. Seven rounding steps is a small slice of the 1024 values half holds per
-/// binade, and about five percent of a binade in bf16, which still leaves 1.0 and 1.125 apart.
-template <unsigned int M, unsigned int E, unsigned int F>
-struct default_value_tolerance<migraphx::generic_float<M, E, F>>
+/// The historical window, and negligible slack at this width.
+template <>
+struct value_tolerance_of<float>
 {
-    static constexpr double atol_mult = 3;
-    static constexpr double rtol_mult = 4;
+    static constexpr value_tolerance value{10, 10};
+};
+template <>
+struct value_tolerance_of<double>
+{
+    static constexpr value_tolerance value{10, 10};
 };
 
-/// Covers the four fp8 types, which hold only 8 values per binade, so the window has to stay
-/// inside a single rounding step to avoid matching the neighbouring constant.
-template <migraphx::fp8::f8_type T, bool FNUZ>
-struct default_value_tolerance<migraphx::fp8::float8<T, FNUZ>>
+/// Seven rounding steps is a small slice of the values half holds per binade, and about five
+/// percent of a binade in bf16, which still leaves 1.0 and 1.125 apart.
+template <>
+struct value_tolerance_of<half>
 {
-    static constexpr double atol_mult = 0.25;
-    static constexpr double rtol_mult = 0.5;
+    static constexpr value_tolerance value{3, 4};
+};
+template <>
+struct value_tolerance_of<bf16>
+{
+    static constexpr value_tolerance value{3, 4};
+};
+
+/// Under a single rounding step, so the window cannot reach the neighbouring constant in types
+/// holding only a handful of values per binade.
+template <>
+struct value_tolerance_of<fp8::fp8e4m3fn>
+{
+    static constexpr value_tolerance value{0.25, 0.5};
+};
+template <>
+struct value_tolerance_of<fp8::fp8e4m3fnuz>
+{
+    static constexpr value_tolerance value{0.25, 0.5};
+};
+template <>
+struct value_tolerance_of<fp8::fp8e5m2>
+{
+    static constexpr value_tolerance value{0.25, 0.5};
+};
+template <>
+struct value_tolerance_of<fp8::fp8e5m2fnuz>
+{
+    static constexpr value_tolerance value{0.25, 0.5};
 };
 
 namespace detail {
 /// Compares every element of `l` against `x` within atol + rtol * abs(x), where atol and rtol are
 /// the given multiples of the literal type's epsilon. Unset multipliers come from
-/// `default_value_tolerance` for that type. Integral types, and a window of zero, require an
-/// exact match.
+/// `value_tolerance_of` for that type. Integral types, and a window of zero, require an exact
+/// match.
 template <class T>
 inline bool literal_has_value(const migraphx::literal& l,
                               T x,
@@ -1218,17 +1256,19 @@ inline bool literal_has_value(const migraphx::literal& l,
 {
     bool b = false;
     l.visit([&](auto v) {
-        // A literal views const data, so drop the qualifier or the per-type tolerances below will
-        // not match their specialization.
+        // A literal views const data, so drop the qualifier or numeric_limits will miss the
+        // specialization for the narrow types and report an epsilon of zero.
         using type    = std::remove_cv_t<typename decltype(v)::value_type>;
         double target = static_cast<double>(x);
         double window = 0;
-        if(not std::is_integral<type>{})
+        // Constexpr so that an integral type never needs a tolerance window of its own.
+        if constexpr(not std::is_integral<type>{})
         {
-            auto eps  = static_cast<double>(std::numeric_limits<type>::epsilon());
-            auto atol = eps * atol_mult.value_or(default_value_tolerance<type>::atol_mult);
-            auto rtol = eps * rtol_mult.value_or(default_value_tolerance<type>::rtol_mult);
-            window    = atol + rtol * std::fabs(target);
+            constexpr auto defaults = value_tolerance_of<type>::value;
+            auto eps                = static_cast<double>(std::numeric_limits<type>::epsilon());
+            auto atol               = eps * atol_mult.value_or(defaults.atol_mult);
+            auto rtol               = eps * rtol_mult.value_or(defaults.rtol_mult);
+            window                  = atol + rtol * std::fabs(target);
         }
         if(migraphx::float_equal(window, 0))
         {

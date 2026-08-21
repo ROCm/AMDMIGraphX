@@ -26,7 +26,8 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/binary.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym.hpp>
+#include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,6 +35,8 @@ namespace op {
 
 struct equal : binary<equal>
 {
+    static constexpr bool enable_symbolic_compute = true;
+
     value attributes() const
     {
         auto a           = base_attributes();
@@ -41,22 +44,26 @@ struct equal : binary<equal>
         return a;
     }
     std::string point_function() const { return "=="; }
+    bool supports_symbolic_compute(const shape& output_shape,
+                                   const std::vector<sym_argument>&) const
+    {
+        return shape::is_integral(output_shape.type());
+    }
     auto apply() const
     {
-        return [](auto x, auto y) { return float_equal(x, y); };
-    }
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>&,
-                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
-    {
-        return compute_symbolic_binary(
-            output_shape, input_values, [](const auto& x, const auto& y) {
-                const auto equal = sym::provable_equal(x, y);
-                if(not equal.has_value())
+        return [](auto x, auto y) {
+            if constexpr(std::is_same<std::decay_t<decltype(x)>, sym::expr>{})
+            {
+                const auto result = sym::provable_equal(x, y);
+                if(not result.has_value())
                     return sym::expr{};
-                return sym::lit(*equal ? 1 : 0);
-            });
+                return sym::lit(*result ? 1 : 0);
+            }
+            else
+            {
+                return float_equal(x, y);
+            }
+        };
     }
 };
 

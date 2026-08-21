@@ -33,7 +33,7 @@
 #include <migraphx/sat_ops.hpp>
 #include <migraphx/reshape_dims.hpp>
 
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <algorithm>
 
 namespace migraphx {
@@ -196,12 +196,10 @@ struct reshape
         return symbolic_compute_shape(s0);
     }
 
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>&,
-                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
     {
-        return pass_through_symbolic_value(output_shape, input_values);
+        return pass_through_sym_argument(output_shape, args);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

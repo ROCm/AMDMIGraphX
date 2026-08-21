@@ -32,6 +32,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/par.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,6 +41,8 @@ namespace op {
 template <class Derived>
 struct unary : op_name<Derived>
 {
+    static constexpr bool enable_symbolic_compute = false;
+
     std::string point_function() const { return this->name(); }
     std::string point_op() const
     {
@@ -64,6 +67,29 @@ struct unary : op_name<Derived>
                 {"fillcolor", "#CD5C5C" /* indianred */}};
     }
     value attributes() const { return base_attributes(); }
+
+    bool supports_symbolic_compute(const shape& output_shape,
+                                   const std::vector<sym_argument>&) const
+    {
+        return output_shape.type() == shape::int64_type;
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        const auto& self = static_cast<const Derived&>(*this);
+        if constexpr(Derived::enable_symbolic_compute)
+        {
+            if(not self.supports_symbolic_compute(output_shape, args))
+                return {};
+            return compute_sym_unary(output_shape, args, self.apply());
+        }
+        else
+        {
+            return {};
+        }
+    }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, static_cast<const Derived&>(*this), true}.has(1);

@@ -26,7 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/unary.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <cmath>
 
 namespace migraphx {
@@ -35,6 +35,8 @@ namespace op {
 
 struct convert : unary<convert>
 {
+    static constexpr bool enable_symbolic_compute = true;
+
     shape::type_t target_type = shape::half_type;
 
     template <class Self, class F>
@@ -61,23 +63,26 @@ struct convert : unary<convert>
         }
     }
 
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>& input_shapes,
-                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    bool supports_symbolic_compute(const shape& output_shape,
+                                   const std::vector<sym_argument>& args) const
     {
-        if(input_shapes.size() != 1 or input_shapes.front().type() != shape::int64_type)
-            return std::nullopt;
-        if(target_type == shape::int64_type)
-            return pass_through_symbolic_value(output_shape, input_values);
-        if(target_type != shape::bool_type or input_values.size() != 1 or
-           not input_values.front().has_value())
-            return std::nullopt;
-        const auto fixed_values = fixed_integers(*input_values.front());
-        if(not fixed_values.has_value() or
-           any_of(*fixed_values, [](auto value) { return value != 0 and value != 1; }))
-            return std::nullopt;
-        return pass_through_symbolic_value(output_shape, input_values);
+        return args.size() == 1 and args.front().get_shape().type() == shape::int64_type and
+               output_shape.type() == target_type and
+               (target_type == shape::int64_type or target_type == shape::bool_type);
+    }
+
+    auto apply() const
+    {
+        return [target = target_type](const sym::expr& x) {
+            if(target == shape::int64_type)
+                return x;
+            if(target != shape::bool_type)
+                return sym::expr{};
+            const auto value = fixed_integer(x);
+            if(not value.has_value() or (*value != 0 and *value != 1))
+                return sym::expr{};
+            return x;
+        };
     }
 
     std::string point_op() const

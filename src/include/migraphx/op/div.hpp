@@ -26,7 +26,8 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/binary.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym.hpp>
+#include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,24 +35,19 @@ namespace op {
 
 struct div : binary<div>
 {
+    static constexpr bool enable_symbolic_compute = true;
+
     std::string point_function() const { return "/"; }
     auto apply() const
     {
-        return [](auto x, auto y) { return x / y; };
-    }
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>&,
-                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
-    {
-        if(output_shape.type() != shape::int64_type)
-            return std::nullopt;
-        return compute_symbolic_binary(
-            output_shape, input_values, [](const auto& x, const auto& y) {
+        return [](auto x, auto y) {
+            if constexpr(std::is_same<std::decay_t<decltype(y)>, sym::expr>{})
+            {
                 if(y.eval_interval().contains(0))
                     return sym::expr{};
-                return x / y;
-            });
+            }
+            return x / y;
+        };
     }
 };
 

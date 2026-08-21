@@ -85,7 +85,7 @@ struct parse_slice : op_parser<parse_slice>
             }
             else if(starts.has_value())
             {
-                axes.emplace(starts->size());
+                axes.emplace(starts->get_shape().elements());
                 std::iota(axes->begin(), axes->end(), int64_t{0});
             }
 
@@ -101,14 +101,16 @@ struct parse_slice : op_parser<parse_slice>
                 steps.emplace(axes->size(), int64_t{1});
             }
             if(starts.has_value() and ends.has_value() and axes.has_value() and
-               steps.has_value() and starts->size() == axes->size() and
-               ends->size() == axes->size() and steps->size() == axes->size() and
+               steps.has_value() and starts->get_shape().elements() == axes->size() and
+               ends->get_shape().elements() == axes->size() and steps->size() == axes->size() and
                all_of(*steps, [](auto step) { return step == 1; }))
             {
+                const auto starts_values = starts->get().to_vector();
+                const auto ends_values   = ends->get().to_vector();
                 return info.add_instruction(make_op("dyn_slice",
                                                     {{"axes", *axes},
-                                                     {"starts", to_value(*starts)},
-                                                     {"ends", to_value(*ends)}}),
+                                                     {"starts", to_value(starts_values)},
+                                                     {"ends", to_value(ends_values)}}),
                                             args[0],
                                             args[1],
                                             args[2]);

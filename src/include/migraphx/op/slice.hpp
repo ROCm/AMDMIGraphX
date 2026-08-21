@@ -32,7 +32,7 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/sym.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <array>
 
 namespace migraphx {
@@ -425,15 +425,12 @@ struct slice
         return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
     }
 
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>& input_shapes,
-                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
     {
-        if(input_shapes.empty() or input_shapes.front().dynamic() or
-           input_shapes.front().ndim() != 1 or input_values.empty() or
-           not input_values.front().has_value())
-            return std::nullopt;
+        if(args.empty() or args.front().get_shape().dynamic() or
+           args.front().get_shape().ndim() != 1 or args.front().empty())
+            return {};
 
         const auto set_attributes = get_set_attributes();
         std::size_t input_index   = 1;
@@ -442,29 +439,34 @@ struct slice
         {
             if(set_attributes[i])
                 continue;
-            if(input_index >= input_values.size() or not input_values[input_index].has_value())
-                return std::nullopt;
-            supplied[i] = fixed_integers(*input_values[input_index++]);
+            if(input_index >= args.size() or args[input_index].empty())
+                return {};
+            supplied[i] = fixed_integers(args[input_index++]);
             if(not supplied[i].has_value())
-                return std::nullopt;
+                return {};
         }
-        if(input_index != input_values.size())
-            return std::nullopt;
+        if(input_index != args.size())
+            return {};
 
-        const auto normalized =
-            normalize_starts_ends_axes(input_shapes.front(), supplied[0], supplied[1], supplied[2]);
+        const auto normalized = normalize_starts_ends_axes(
+            args.front().get_shape(), supplied[0], supplied[1], supplied[2]);
         const auto& norm_starts = normalized.at("norm_starts");
         const auto& norm_ends   = normalized.at("norm_ends");
         const auto& norm_axes   = normalized.at("norm_axes");
         if(norm_starts.size() != 1 or norm_ends.size() != 1 or norm_axes.size() != 1 or
            norm_axes.front() != 0)
-            return std::nullopt;
+            return {};
+        if(output_shape.lens() !=
+           lens_calc(args.front().get_shape().lens(), norm_starts, norm_ends, norm_axes))
+            return {};
 
-        const auto& data = *input_values.front();
-        symbolic_tensor_value result{data.begin() + norm_starts.front(),
-                                     data.begin() + norm_ends.front()};
-        if(not symbolic_value_matches_shape(output_shape, result))
-            return std::nullopt;
+        const auto data = args.front().get();
+        auto result     = allocate_sym_argument(output_shape);
+        auto output     = result.get();
+        for(auto i : range(output_shape.elements()))
+            output[i] = data[norm_starts.front() + i];
+        if(not sym_argument_matches_shape(output_shape, result))
+            return {};
         return result;
     }
 

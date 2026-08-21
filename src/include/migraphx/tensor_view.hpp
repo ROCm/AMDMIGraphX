@@ -32,6 +32,7 @@
 #include <migraphx/byte.hpp>
 
 #include <iostream>
+#include <type_traits>
 #include <utility>
 
 namespace migraphx {
@@ -72,7 +73,7 @@ struct tensor_view
     const T& operator()(Ts... xs) const
     {
         assert(std::vector<std::size_t>{static_cast<std::size_t>(xs)...} < m_shape.lens());
-        assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.bytes() / sizeof(T));
+        assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.element_space());
         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
     }
 
@@ -80,7 +81,7 @@ struct tensor_view
     T& operator()(Ts... xs)
     {
         assert(std::vector<std::size_t>{static_cast<std::size_t>(xs)...} < m_shape.lens());
-        assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.bytes() / sizeof(T));
+        assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.element_space());
         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
     }
 
@@ -89,6 +90,7 @@ struct tensor_view
     {
         assert(std::distance(start, last) > 0);
         assert(std::all_of(start, last, [](auto x) { return x >= 0; }));
+        assert(m_shape.index(start, last) < m_shape.element_space());
         return m_data[m_shape.index(start, last)];
     }
 
@@ -97,6 +99,7 @@ struct tensor_view
     {
         assert(std::distance(start, last) > 0);
         assert(std::all_of(start, last, [](auto x) { return x >= 0; }));
+        assert(m_shape.index(start, last) < m_shape.element_space());
         return m_data[m_shape.index(start, last)];
     }
 
@@ -168,7 +171,7 @@ struct tensor_view
 
     const_iterator end() const { return {this->size(), this}; }
 
-    template <class U = T>
+    template <class U = std::remove_cv_t<T>>
     std::vector<U> to_vector() const
     {
         return std::vector<U>(this->begin(), this->end());

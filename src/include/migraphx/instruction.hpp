@@ -158,7 +158,7 @@ struct MIGRAPHX_EXPORT instruction
     bool is_undefined() const;
 
     argument eval(bool check_eval = true) const;
-    std::optional<symbolic_tensor_value> sym_eval() const;
+    std::optional<sym_argument> sym_eval() const;
 
     void finalize(context& ctx);
 

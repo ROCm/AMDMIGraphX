@@ -3495,6 +3495,14 @@ TEST_CASE(provable_equal_fixed_expressions)
     EXPECT(not provable_equal(x + 1, lit(7)).value_or(true));
 }
 
+TEST_CASE(provable_equal_nan)
+{
+    const auto result =
+        provable_equal(lit(std::numeric_limits<double>::quiet_NaN()), lit(0.0));
+    EXPECT(result.has_value());
+    EXPECT(not *result);
+}
+
 TEST_CASE(provable_equal_rejects_collapsed_compound_interval)
 {
     auto x         = var("x", interval{int64_t{0}, int64_t{10}});

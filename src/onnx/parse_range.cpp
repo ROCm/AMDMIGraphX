@@ -49,17 +49,22 @@ struct parse_range : op_parser<parse_range>
             const auto start = args[0]->sym_eval();
             const auto limit = args[1]->sym_eval();
             const auto delta = args[2]->sym_eval();
-            if(start.has_value() and limit.has_value() and delta.has_value() and
-               start->size() == 1 and limit->size() == 1 and delta->size() == 1 and
-               fixed_integer(delta->front()) == int64_t{1})
+            if(start.has_value() and limit.has_value() and delta.has_value())
             {
-                const auto output_length = limit->front() - start->front();
-                const auto output_bounds = output_length.eval_interval();
-                if(sym::to<int64_t>(output_bounds.min) >= 0)
+                const auto start_values = start->get();
+                const auto limit_values = limit->get();
+                const auto delta_values = delta->get();
+                if(start_values.size() == 1 and limit_values.size() == 1 and
+                   delta_values.size() == 1 and fixed_integer(delta_values.front()) == int64_t{1})
                 {
-                    const shape::dynamic_dimension output_dim{output_length};
-                    return info.add_instruction(
-                        make_op("dynamic_range", {{"output_dim", to_value(output_dim)}}), args);
+                    const auto output_length = limit_values.front() - start_values.front();
+                    const auto output_bounds = output_length.eval_interval();
+                    if(sym::to<int64_t>(output_bounds.min) >= 0)
+                    {
+                        const shape::dynamic_dimension output_dim{output_length};
+                        return info.add_instruction(
+                            make_op("dynamic_range", {{"output_dim", to_value(output_dim)}}), args);
+                    }
                 }
             }
             return info.add_instruction(make_op("dynamic_range"), args);

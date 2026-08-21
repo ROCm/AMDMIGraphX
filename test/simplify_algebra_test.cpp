@@ -932,6 +932,27 @@ TEST_CASE(simplify_add_conv_no_fusion_mismatched_spatial)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(simplify_add_conv_no_fusion_same_op_mismatched_spatial)
+{
+    migraphx::module m1;
+    {
+        auto conv_params = migraphx::value{{"padding", {1, 1}}, {"stride", {2, 2}}};
+        auto x           = m1.add_parameter("x", {migraphx::shape::float_type, {1, 128, 15, 15}});
+        auto y           = m1.add_parameter("y", {migraphx::shape::float_type, {1, 128, 16, 16}});
+        auto w           = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
+        auto v = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
+        auto conv1 = m1.add_instruction(migraphx::make_op("convolution", conv_params), x, w);
+        auto conv2 = m1.add_instruction(migraphx::make_op("convolution", conv_params), y, v);
+        auto sum   = m1.add_instruction(migraphx::make_op("add"), conv1, conv2);
+        m1.add_return({sum});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(simplify_add_conv_no_fusion_7x7_diff_strides)
 {
     migraphx::module m;

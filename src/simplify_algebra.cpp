@@ -1956,9 +1956,6 @@ struct find_add_convs
         if(not axis_shape_equal(a_weights->get_shape(), b_weights->get_shape(), 1))
             return;
 
-        if(not axis_shape_equal(a_input->get_shape(), b_input->get_shape(), 1))
-            return;
-
         auto a_op   = any_cast<op::convolution>(a_conv->get_operator());
         auto b_op   = any_cast<op::convolution>(b_conv->get_operator());
         auto new_op = a_op;
@@ -1993,6 +1990,9 @@ struct find_add_convs
             else
                 return;
         }
+
+        if(not axis_shape_equal(a_input->get_shape(), b_input->get_shape(), 1))
+            return;
 
         auto concat_input =
             m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), a_input, b_input);

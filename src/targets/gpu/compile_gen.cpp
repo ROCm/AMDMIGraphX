@@ -358,8 +358,6 @@ void reduce_op::set(const std::string& name, const shape& input, const shape& ou
         auto reduce_type     = input.type();
         reduction            = "op::sum{}";
         std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
-        // Accumulator width is decided in rewrite_reduce, which converts the input of a low
-        // precision reduction to float before it reaches here.
         if(contains({shape::float_type, shape::half_type, shape::double_type}, reduce_type))
             read = mean;
         else

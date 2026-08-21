@@ -45,8 +45,8 @@ struct parse_shape : op_parser<parse_shape>
     static std::pair<std::size_t, std::size_t>
     get_range(const shape& input_shape, const onnx_parser::attribute_map& attributes)
     {
-        const auto input_ndim = static_cast<int64_t>(input_shape.ndim());
-        const auto normalize  = [input_ndim](int64_t axis) {
+        const int64_t input_ndim = input_shape.ndim();
+        const auto normalize     = [input_ndim](int64_t axis) {
             axis = std::clamp(axis, -input_ndim, input_ndim);
             return axis < 0 ? axis + input_ndim : axis;
         };

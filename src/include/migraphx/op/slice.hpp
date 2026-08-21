@@ -33,6 +33,7 @@
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <algorithm>
 #include <array>
 
 namespace migraphx {
@@ -462,9 +463,8 @@ struct slice
 
         const auto data = args[0].get();
         sym_argument result{output_shape};
-        auto output     = result.get();
-        for(auto i : range(output_shape.elements()))
-            output[i] = data[norm_starts.front() + i];
+        auto output = result.get();
+        std::copy_n(data.begin() + norm_starts.front(), output_shape.elements(), output.begin());
         return result;
     }
 

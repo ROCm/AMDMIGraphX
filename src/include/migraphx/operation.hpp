@@ -1007,7 +1007,7 @@ struct operation
               typename = private_te_constraints<PrivateDetailTypeErasedT>,
               typename = typename std::enable_if<
                   not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, operation>{}>::type>
-    operation& operator=(PrivateDetailTypeErasedT&& value)
+    operation& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -1328,6 +1328,7 @@ struct operation
         sym_argument symbolic_compute(const shape& output_shape,
                                       const std::vector<sym_argument>& args) const override
         {
+
             return private_detail_te_default_symbolic_compute(
                 char(0), private_detail_te_value, output_shape, args);
         }

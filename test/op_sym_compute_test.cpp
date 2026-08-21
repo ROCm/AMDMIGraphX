@@ -24,22 +24,44 @@
 
 #include <migraphx/make_op.hpp>
 #include <migraphx/operation.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym_argument.hpp>
 #include "test.hpp"
 
 using migraphx::shape;
-using migraphx::symbolic_tensor_value;
 using migraphx::sym::lit;
 using migraphx::sym::var;
+using symbolic_tensor_value = std::vector<migraphx::sym::expr>;
 
 using symbolic_inputs = std::vector<std::optional<symbolic_tensor_value>>;
+
+auto symbolic_compute_argument(const migraphx::operation& op,
+                               const shape& output_shape,
+                               const std::vector<shape>& input_shapes,
+                               const symbolic_inputs& input_values)
+{
+    if(input_shapes.size() != input_values.size())
+        return migraphx::sym_argument{};
+    std::vector<migraphx::sym_argument> args;
+    transform(migraphx::range(input_shapes.size()), std::back_inserter(args), [&](auto i) {
+        return input_values[i].has_value()
+                   ? migraphx::sym_argument{*input_values[i], input_shapes[i]}
+                   : migraphx::sym_argument{{}, input_shapes[i]};
+    });
+    auto result = op.symbolic_compute(output_shape, args);
+    if(not result.empty() and (result.get_shape() != output_shape or not result.valid()))
+        return migraphx::sym_argument{};
+    return result;
+}
 
 auto symbolic_compute(const migraphx::operation& op,
                       const shape& output_shape,
                       const std::vector<shape>& input_shapes,
                       const symbolic_inputs& input_values)
 {
-    return op.symbolic_compute(output_shape, input_shapes, input_values);
+    auto result = symbolic_compute_argument(op, output_shape, input_shapes, input_values);
+    if(result.empty())
+        return std::optional<symbolic_tensor_value>{};
+    return std::optional<symbolic_tensor_value>{result.get().to_vector()};
 }
 
 TEST_CASE(op_sym_dimensions_of)
@@ -62,6 +84,15 @@ TEST_CASE(op_sym_identity)
     EXPECT(symbolic_compute(migraphx::make_op("identity"),
                             shape{shape::int64_type, {2}},
                             {shape{shape::int64_type, {2}}},
+                            {value}) == value);
+}
+
+TEST_CASE(op_sym_identity_float)
+{
+    symbolic_tensor_value value{lit(1.5), lit(-2.25)};
+    EXPECT(symbolic_compute(migraphx::make_op("identity"),
+                            shape{shape::float_type, {2}},
+                            {shape{shape::float_type, {2}}},
                             {value}) == value);
 }
 
@@ -117,6 +148,16 @@ TEST_CASE(op_sym_gather)
     EXPECT(result == symbolic_tensor_value{s, lit(10)});
 }
 
+TEST_CASE(op_sym_gather_rejects_wrong_output_size)
+{
+    EXPECT(not symbolic_compute(migraphx::make_op("gather", {{"axis", 0}}),
+                                shape{shape::int64_type, {1}},
+                                {shape{shape::int64_type, {3}}, shape{shape::int64_type, {2}}},
+                                {symbolic_tensor_value{lit(10), lit(20), lit(30)},
+                                 symbolic_tensor_value{lit(0), lit(1)}})
+                   .has_value());
+}
+
 TEST_CASE(op_sym_concat)
 {
     auto result =
@@ -127,9 +168,19 @@ TEST_CASE(op_sym_concat)
     EXPECT(result == symbolic_tensor_value{lit(1), lit(2), lit(3)});
 }
 
+TEST_CASE(op_sym_concat_rejects_wrong_output_size)
+{
+    EXPECT(
+        not symbolic_compute(migraphx::make_op("concat", {{"axis", 0}}),
+                             shape{shape::int64_type, {2}},
+                             {shape{shape::int64_type, {1}}, shape{shape::int64_type, {2}}},
+                             {symbolic_tensor_value{lit(1)}, symbolic_tensor_value{lit(2), lit(3)}})
+                .has_value());
+}
+
 TEST_CASE(op_sym_multibroadcast_scalar)
 {
-    const auto output = shape{shape::int64_type, {2}};
+    const auto output = shape{shape::int64_type, {2}, {0}};
     const auto inputs = std::vector<shape>{shape{shape::int64_type, {1}}};
     const auto values = symbolic_inputs{symbolic_tensor_value{lit(3)}};
     EXPECT(symbolic_compute(
@@ -139,7 +190,7 @@ TEST_CASE(op_sym_multibroadcast_scalar)
 
 TEST_CASE(op_sym_broadcast_scalar)
 {
-    const auto output = shape{shape::int64_type, {2}};
+    const auto output = shape{shape::int64_type, {2}, {0}};
     const auto inputs = std::vector<shape>{shape{shape::int64_type, {1}}};
     const auto values = symbolic_inputs{symbolic_tensor_value{lit(3)}};
     EXPECT(symbolic_compute(migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {2}}}),
@@ -219,7 +270,7 @@ TEST_CASE(op_sym_add)
     const auto s = var("S", {1, 16});
     const shape output{shape::int64_type, {2}};
     const std::vector<shape> inputs = {shape{shape::int64_type, {2}},
-                                       shape{shape::int64_type, {1}}};
+                                       shape{shape::int64_type, {2}, {0}}};
     const symbolic_inputs values    = {symbolic_tensor_value{s, lit(4)},
                                        symbolic_tensor_value{lit(2)}};
 
@@ -227,12 +278,22 @@ TEST_CASE(op_sym_add)
            symbolic_tensor_value{s + lit(2), lit(6)});
 }
 
+TEST_CASE(op_sym_add_broadcast_view)
+{
+    const shape output{shape::int64_type, {2, 2}};
+    const std::vector<shape> inputs = {output, shape{shape::int64_type, {2, 2}, {0, 1}}};
+    const symbolic_inputs values    = {symbolic_tensor_value{lit(1), lit(2), lit(3), lit(4)},
+                                       symbolic_tensor_value{lit(10), lit(20)}};
+    EXPECT(symbolic_compute(migraphx::make_op("add"), output, inputs, values) ==
+           symbolic_tensor_value{lit(11), lit(22), lit(13), lit(24)});
+}
+
 TEST_CASE(op_sym_sub)
 {
     const auto s = var("S", {1, 16});
     const shape output{shape::int64_type, {2}};
     const std::vector<shape> inputs = {shape{shape::int64_type, {2}},
-                                       shape{shape::int64_type, {1}}};
+                                       shape{shape::int64_type, {2}, {0}}};
     const symbolic_inputs values    = {symbolic_tensor_value{s, lit(4)},
                                        symbolic_tensor_value{lit(2)}};
 
@@ -245,7 +306,7 @@ TEST_CASE(op_sym_mul)
     const auto s = var("S", {1, 16});
     const shape output{shape::int64_type, {2}};
     const std::vector<shape> inputs = {shape{shape::int64_type, {2}},
-                                       shape{shape::int64_type, {1}}};
+                                       shape{shape::int64_type, {2}, {0}}};
     const symbolic_inputs values    = {symbolic_tensor_value{s, lit(4)},
                                        symbolic_tensor_value{lit(2)}};
 
@@ -258,7 +319,7 @@ TEST_CASE(op_sym_div)
     const auto s = var("S", {1, 16});
     const shape output{shape::int64_type, {2}};
     const std::vector<shape> inputs = {shape{shape::int64_type, {2}},
-                                       shape{shape::int64_type, {1}}};
+                                       shape{shape::int64_type, {2}, {0}}};
     const symbolic_inputs values    = {symbolic_tensor_value{s, lit(4)},
                                        symbolic_tensor_value{lit(2)}};
 
@@ -291,6 +352,30 @@ TEST_CASE(op_sym_where)
     EXPECT(result == symbolic_tensor_value{s, s});
 }
 
+TEST_CASE(op_sym_where_broadcast_view)
+{
+    const shape output{shape::int64_type, {2}};
+    auto result = symbolic_compute(migraphx::make_op("where"),
+                                   output,
+                                   {shape{shape::bool_type, {2}, {0}}, output, output},
+                                   {symbolic_tensor_value{lit(1)},
+                                    symbolic_tensor_value{lit(2), lit(3)},
+                                    symbolic_tensor_value{lit(4), lit(5)}});
+    EXPECT(result == symbolic_tensor_value{lit(2), lit(3)});
+}
+
+TEST_CASE(op_sym_where_scalar_condition)
+{
+    const shape output{shape::int64_type, {2}};
+    auto result = symbolic_compute(migraphx::make_op("where"),
+                                   output,
+                                   {shape{shape::bool_type, {1}}, output, output},
+                                   {symbolic_tensor_value{lit(0)},
+                                    symbolic_tensor_value{lit(2), lit(3)},
+                                    symbolic_tensor_value{lit(4), lit(5)}});
+    EXPECT(result == symbolic_tensor_value{lit(4), lit(5)});
+}
+
 TEST_CASE(op_sym_add_rejects_non_scalar_broadcast)
 {
     EXPECT(not symbolic_compute(migraphx::make_op("add"),
@@ -299,6 +384,24 @@ TEST_CASE(op_sym_add_rejects_non_scalar_broadcast)
                                 {symbolic_tensor_value{lit(1), lit(2), lit(3), lit(4)},
                                  symbolic_tensor_value{lit(1), lit(2)}})
                    .has_value());
+}
+
+TEST_CASE(op_sym_identity_rejects_short_storage)
+{
+    EXPECT(symbolic_compute_argument(migraphx::make_op("identity"),
+                                     shape{shape::int64_type, {2}},
+                                     {shape{shape::int64_type, {2}}},
+                                     {symbolic_tensor_value{lit(1)}})
+               .empty());
+}
+
+TEST_CASE(op_sym_compute_unsupported)
+{
+    EXPECT(symbolic_compute_argument(migraphx::make_op("neg"),
+                                     shape{shape::int64_type, {1}},
+                                     {shape{shape::int64_type, {1}}},
+                                     {symbolic_tensor_value{lit(1)}})
+               .empty());
 }
 
 TEST_CASE(op_sym_convert_rejects_unsupported_cases)

@@ -191,18 +191,25 @@ std::ostream& operator<<(std::ostream& os, const interval& i)
 
 static bool scalar_less(const scalar& a, const scalar& b)
 {
-    auto f = [](auto x, auto y) -> int64_t { return x < y ? 1 : 0; };
-    return std::get<int64_t>(scalar_invoke_common(f, a, b)) != 0;
+    return scalar_invoke_common<bool>(
+        [](auto x, auto y) { return std::less<>{}(x, y); }, a, b);
 }
 
 static bool scalar_equal(const scalar& a, const scalar& b)
 {
-    return not scalar_less(a, b) and not scalar_less(b, a);
+    return scalar_invoke_common<bool>(
+        [](auto x, auto y) { return std::equal_to<>{}(x, y); }, a, b);
 }
 
 bool interval::contains(const scalar& value) const
 {
-    return not scalar_less(value, min) and not scalar_less(max, value);
+    return scalar_invoke_common<bool>(
+        [](auto lower, auto x, auto upper) {
+            return std::less_equal<>{}(lower, x) and std::less_equal<>{}(x, upper);
+        },
+        min,
+        value,
+        max);
 }
 
 bool operator<(interval a, interval b) { return scalar_less(a.max, b.min); }

@@ -26,8 +26,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
-#include <algorithm>
-#include <iterator>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

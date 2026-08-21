@@ -40,8 +40,13 @@ TEST_CASE(symbolic_shape_arithmetic)
                                          {migraphx::shape::dynamic_dimension{
                                              sequence + migraphx::sym::lit(int64_t{1})}}});
     EXPECT(outputs[1] == migraphx::shape{migraphx::shape::float_type, {input_dims[1]}});
-    EXPECT(outputs[2].dynamic());
-    EXPECT(not outputs[2].symbolic());
+    EXPECT(outputs[2] ==
+           migraphx::shape{
+               migraphx::shape::float_type,
+               {migraphx::shape::dynamic_dimension{migraphx::sym::lit(int64_t{2})},
+                migraphx::shape::dynamic_dimension{sequence + migraphx::sym::lit(int64_t{1})},
+                migraphx::shape::dynamic_dimension{sequence + migraphx::sym::lit(int64_t{1})},
+                migraphx::shape::dynamic_dimension{sequence + sequence}}});
     EXPECT(outputs[3].dynamic());
     EXPECT(not outputs[3].symbolic());
 

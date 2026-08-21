@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/dyn_output.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -63,17 +63,14 @@ struct dimensions_of
         return shape{shape::int64_type, {end - start}};
     }
 
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>& input_shapes,
-                     const std::vector<std::optional<symbolic_tensor_value>>&) const
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
     {
-        if(input_shapes.size() != 1 or not is_static_or_symbolic_shape(input_shapes.front()))
-            return std::nullopt;
-        const auto expressions = input_shapes.front().sym_dims();
-        symbolic_tensor_value result{expressions.begin() + start, expressions.begin() + end};
-        if(not symbolic_value_matches_shape(output_shape, result))
-            return std::nullopt;
+        if(args.size() != 1 or
+           (args[0].get_shape().dynamic() and not args[0].get_shape().symbolic()))
+            return {};
+        const auto expressions = args[0].get_shape().sym_dims();
+        sym_argument result{{expressions.begin() + start, expressions.begin() + end}, output_shape};
         return result;
     }
 

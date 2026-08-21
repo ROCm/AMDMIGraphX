@@ -25,6 +25,9 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/gpu/prepare_mlir.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/module.hpp>
@@ -43,11 +46,10 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 struct mlir_gpu_target : migraphx::gpu::target
 {
     std::string name() const { return "mlir"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context& gctx,
+    std::vector<migraphx::pass> get_passes(migraphx::context&,
                                            const migraphx::compile_options&) const
     {
-        auto& ctx = migraphx::any_cast<migraphx::gpu::context>(gctx);
-        return {migraphx::gpu::write_literals{&ctx}};
+        return {migraphx::gpu::write_literals{}};
     }
 };
 
@@ -853,6 +855,36 @@ module {
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
     // Don't verify here. Tests with a verify test instead.
+}
+
+// prepare_mlir rewrites a non-standard-strided constant (as folded from a transposed literal) to
+// a standard shape so the emitted MLIR literal is accepted.
+TEST_CASE(dot_nonstandard_literal)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot(%arg0: !migraphx.shaped<1x2x3xf32, 6x3x1>) -> !migraphx.shaped<1x2x2xf32, 4x2x1> attributes ${attrs} {
+    %0 = migraphx.literal(dense<[[[1.000000e+00, 2.000000e+00], [3.000000e+00, 4.000000e+00], [5.000000e+00, 6.000000e+00]]]> : tensor<1x3x2xf32>) : <1x3x2xf32, 6x2x1>
+    %1 = migraphx.dot %arg0, %0 : <1x2x3xf32, 6x3x1>, <1x3x2xf32, 6x2x1> -> <1x2x2xf32, 4x2x1>
+    return %1 : !migraphx.shaped<1x2x2xf32, 4x2x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto arg0 = m.add_parameter("arg0", {migraphx::shape::float_type, {1, 2, 3}});
+    migraphx::shape ws{migraphx::shape::float_type, {1, 3, 2}, {6, 1, 3}};
+    auto lit = m.add_literal(migraphx::literal{ws, {1, 2, 3, 4, 5, 6}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), arg0, lit);
+    m.add_return({dot});
+    migraphx::run_passes(m, {migraphx::gpu::prepare_mlir{}});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

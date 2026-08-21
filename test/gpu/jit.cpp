@@ -37,6 +37,7 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/device_description.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
@@ -233,13 +234,28 @@ TEST_CASE(compile_target)
 TEST_CASE(cross_compile_gpu_target_gfx1101)
 {
     // Verify a cross-compile gpu::context produces a code object for the requested arch.
-    // ctx args: (arch: gfx1101, cu_count: 60, chiplets: 1).
-    migraphx::gpu::context ctx{"gfx1101", 60, 1};
+    migraphx::gpu::context ctx{migraphx::gpu::device_description{"gfx1101", 60, 1}};
     auto binaries = migraphx::gpu::compile_hip_src(
         {make_src_file("main.cpp", add_2s_binary)}, {}, ctx.get_current_device().get_device_name());
     EXPECT(binaries.size() == 1);
     std::string_view bin{binaries.front().data(), binaries.front().size()};
     EXPECT(bin.find("gfx1101") != std::string_view::npos);
+}
+
+TEST_CASE(cross_compile_wavefront_size)
+{
+    auto wavefront_size = [](const std::string& arch, std::size_t ws = 0) {
+        migraphx::gpu::device_description desc{arch, 1};
+        desc.wavefront_size = ws;
+        desc.normalize();
+        return desc.wavefront_size;
+    };
+    EXPECT(wavefront_size("gfx1101") == 32);
+    EXPECT(wavefront_size("gfx942") == 64);
+    EXPECT(wavefront_size("gfx942", 32) == 32);
+    EXPECT(wavefront_size("gfx12xx") == 32);
+    EXPECT(wavefront_size("gfx12xx", 64) == 64);
+    EXPECT(test::throws([&] { wavefront_size("gfx942", 16); }));
 }
 
 TEST_CASE(compile_errors)

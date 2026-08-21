@@ -49,7 +49,7 @@ struct as_shape
         check_shapes{inputs, *this, true}.has(1).standard();
         if(s.dynamic() and not s.symbolic())
             MIGRAPHX_THROW("AS_SHAPE: target shape must be static or symbolic");
-        assert(inputs.front().sym_elements() >= s.sym_elements());
+        assert(not strict_less(inputs.front().sym_elements(), s.sym_elements()).value_or(false));
         return s;
     }
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

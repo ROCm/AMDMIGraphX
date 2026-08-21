@@ -24,12 +24,12 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_TARGET_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_TARGET_HPP
 
-#include <cstddef>
 #include <string>
 #include <migraphx/program.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/gpu/device_description.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,20 +37,21 @@ namespace gpu {
 
 struct MIGRAPHX_GPU_EXPORT target
 {
-    /// Cross-compile arch name (e.g. "gfx942"). Empty means use the local device.
-    std::string gpu_arch         = {};
-    std::size_t gpu_num_cu       = 120;
-    std::size_t gpu_num_chiplets = 1;
+    /// The device to compile for. An empty arch means use the local device.
+    device_description desc = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.gpu_arch, "gpu_arch"),
-                    f(self.gpu_num_cu, "gpu_num_cu"),
-                    f(self.gpu_num_chiplets, "gpu_num_chiplets"));
+        return pack(f(self.desc.arch, "gpu_arch"),
+                    f(self.desc.num_cu, "gpu_num_cu"),
+                    f(self.desc.num_chiplets, "gpu_num_chiplets"),
+                    f(self.desc.max_threads_per_cu, "gpu_max_threads_per_cu"),
+                    f(self.desc.max_threads_per_block, "gpu_max_threads_per_block"),
+                    f(self.desc.wavefront_size, "gpu_wavefront_size"));
     }
 
-    bool is_cross_compile() const { return not gpu_arch.empty(); }
+    bool is_cross_compile() const { return not desc.arch.empty(); }
 
     std::string name() const;
     std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options) const;

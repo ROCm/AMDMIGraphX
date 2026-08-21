@@ -28,6 +28,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>
@@ -91,13 +92,45 @@ struct module_impl
         return emplace(pos, ins);
     }
 
-    void clear()
+    // Clear the arguments of any instruction that references an instruction owned by
+    // another module, dropping the cross-module back-references.
+    void clear_foreign_inputs_for_program()
+    {
+        for(auto& ins : instructions)
+        {
+            if(std::any_of(ins.inputs().begin(), ins.inputs().end(), [&](instruction_ref input) {
+                   return instruction_set.count(std::addressof(*input)) == 0;
+               }))
+                ins.clear_arguments();
+        }
+    }
+
+    // False if any instruction is used as an input by an instruction in another
+    // module; destroying such a module would dangle those consumers.
+    bool has_no_foreign_outputs() const
+    {
+        return std::all_of(instructions.begin(), instructions.end(), [&](const instruction& ins) {
+            return std::all_of(
+                ins.outputs().begin(), ins.outputs().end(), [&](instruction_ref output) {
+                    return instruction_set.count(std::addressof(*output)) != 0;
+                });
+        });
+    }
+
+    void reset_instructions()
     {
         changed.notify();
         instructions.clear();
         instruction_set.clear();
         nparams                    = 0;
         num_ins_with_debug_symbols = 0;
+    }
+
+    void clear()
+    {
+        assert(has_no_foreign_outputs());
+        clear_foreign_inputs_for_program();
+        reset_instructions();
     }
 
     void push_front(const instruction& ins) { insert(instructions.begin(), ins); }
@@ -145,7 +178,12 @@ module::module(const std::string& name) :impl(std::make_unique<module_impl>())
 }
 
 module::module(module&&) noexcept = default;
-module::~module() noexcept        = default;
+
+module::~module() noexcept
+{
+    if(impl)
+        impl->clear();
+}
 
 // copy constructor
 module::module(const module& m) { assign(m); }
@@ -155,6 +193,14 @@ module& module::operator=(module m)
 {
     std::swap(m.impl, this->impl);
     return *this;
+}
+
+void module::swap(module& rhs) noexcept { std::swap(impl, rhs.impl); }
+
+void module::clear_foreign_inputs_for_program()
+{
+    assert(impl);
+    impl->clear_foreign_inputs_for_program();
 }
 
 std::string module::name() const { return impl->name; }
@@ -194,10 +240,10 @@ void module::assign(const module& m)
         impl = std::make_unique<module_impl>();
     *impl = *m.impl;
 
-    // clear instructions
+    // reset instructions
     if(not impl->instructions.empty())
     {
-        impl->clear();
+        impl->reset_instructions();
     }
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
@@ -487,6 +533,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
+    auto guard     = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
     auto out_shape = compute_shape(op, args, module_args);
     std::vector<instruction_ref> prev_args;
     if(has_debug_symbols())
@@ -572,6 +619,8 @@ module::batch_replace_instruction(const std::vector<instruction_replacement>& re
         {
             prev_args = replacer.ins->inputs();
         }
+        auto guard =
+            on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*replacer.ins); });
         auto out_shape = compute_shape(replacer.op, replacer.args, replacer.module_args);
         instruction::replace(
             replacer.ins, replacer.op, out_shape, replacer.args, replacer.module_args);
@@ -844,7 +893,8 @@ instruction_ref module::replace_return(std::vector<instruction_ref> args)
         return this->add_return(args);
     }
 
-    shape r = compute_shape(last->get_operator(), args);
+    auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*last); });
+    shape r    = compute_shape(last->get_operator(), args);
     instruction::replace(last, last->get_operator(), r, std::move(args));
     assert(last->valid(begin()));
 
@@ -1039,6 +1089,7 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                            [&](auto in) { return ins_shapes.at(in); });
             if(ins->name() == "@return")
                 return input_shapes;
+            auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
             ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes, ins->module_inputs());
         }
     }
@@ -1596,6 +1647,48 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
     os << "}";
 }
 
+// Returns true when every element of the literal holds the same value, which lets
+// large literals be reproduced with a compact fill_argument instead of a seeded one.
+static bool literal_is_fill(const literal& lit, double fill_value)
+{
+    bool is_fill = false;
+    lit.visit([&](auto v) {
+        is_fill =
+            std::all_of(v.begin() + 1, v.end(), [&](auto x) { return float_equal(x, fill_value); });
+    });
+    return is_fill;
+}
+
+static void print_py_literal(std::ostream& os,
+                             const std::string& mname,
+                             const literal& lit,
+                             const shape& s,
+                             unsigned long& seed)
+{
+    os << mname << ".add_literal(";
+    if(s.elements() < 1024)
+    {
+        os << "migraphx.create_argument(";
+        print_py_shape(os, s);
+        os << ", [" << lit << "])";
+    }
+    else if(literal_is_fill(lit, lit.at<double>()))
+    {
+        os << "migraphx.fill_argument(";
+        print_py_shape(os, s);
+        os << ", " << lit.at<double>() << ")";
+        seed++;
+    }
+    else
+    {
+        os << "migraphx.generate_argument(";
+        print_py_shape(os, s);
+        os << ", " << seed << ")";
+        seed++;
+    }
+    os << ")" << std::endl;
+}
+
 std::unordered_map<instruction_ref, std::string>
 module::print_py(std::ostream& os,
                  const std::string& mname,
@@ -1615,30 +1708,7 @@ module::print_py(std::ostream& os,
                 os << cpp_var_name(ins_names.at(ins)) << " = ";
             if(ins->name() == "@literal")
             {
-                os << mname << ".add_literal(";
-                if(ins->get_shape().elements() < 1024)
-                {
-                    os << "migraphx.create_argument(";
-                    print_py_shape(os, ins->get_shape());
-                    os << ", [" << ins->get_literal() << "])";
-                }
-                else
-                {
-                    const bool use_abs = false;
-                    // Disable abs for now
-                    // ins->get_literal().visit([&](auto v) {
-                    //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
-                    // });
-                    if(use_abs)
-                        os << "migraphx.abs_literal(";
-                    os << "migraphx.generate_argument(";
-                    print_py_shape(os, ins->get_shape());
-                    os << ", " << seed << ")";
-                    if(use_abs)
-                        os << ")";
-                    seed++;
-                }
-                os << ")" << std::endl;
+                print_py_literal(os, mname, ins->get_literal(), ins->get_shape(), seed);
             }
             else if(ins->name() == "@param")
             {

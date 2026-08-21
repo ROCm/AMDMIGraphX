@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,12 @@ from PIL import Image
 import numpy as np
 import argparse
 import os
+import sys
 import subprocess
+
+sys.path.insert(0,
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from migraphx_ep import ensure_migraphx_ep
 
 #Use most upto date weights
 inception_v3 = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT,
@@ -228,23 +233,20 @@ def main():
         output_names=['output'],  # the model's output names
         verbose=flags.verbose)
 
-    # Quantize the model
-    if flags.fp16:
-        if flags.verbose:
-            print("FP16 Quantization Enabled")
-        os.environ["ORT_MIGRAPHX_FP16_ENABLE"] = "1"  # Enable FP16 precision
-    else:
-        os.environ["ORT_MIGRAPHX_FP16_ENABLE"] = "0"  # Disable FP32 precision
+    # Quantize the model via MIGraphX EP provider options
+    if flags.fp16 and flags.verbose:
+        print("FP16 Quantization Enabled")
+    ep_options = {"migraphx_fp16_enable": "1" if flags.fp16 else "0"}
 
     session_ops = onnxruntime.SessionOptions()
     if flags.verbose:
         session_ops.log_verbosity_level = 0
         session_ops.log_severity_level = 0
 
-    session_fp32 = onnxruntime.InferenceSession(
-        "inception_v3.onnx",
-        providers=['MIGraphXExecutionProvider'],
-        sess_options=session_ops)
+    providers = ensure_migraphx_ep(session_ops, ep_options)
+    session_fp32 = onnxruntime.InferenceSession("inception_v3.onnx",
+                                                 providers=providers,
+                                                 sess_options=session_ops)
 
     if flags.verbose:
         print("Preprocessing Batched Images")

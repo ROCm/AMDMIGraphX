@@ -27,6 +27,7 @@
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/stringutils.hpp>
@@ -38,9 +39,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/if_op.hpp>
-#include <migraphx/op/reshape.hpp>
 #include <migraphx/op/quant_dot.hpp>
-#include <migraphx/op/reshape_lazy.hpp>
 
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -108,15 +107,15 @@ struct miopen_apply
         add_if_op();
         add_loop_op();
         add_neg_op();
-        add_nms_op();
         add_lrn_op();
+        add_nms_op();
         add_convolution_backwards_op();
         add_select_module_op();
-        add_reshape_lazy_op();
         add_concat_past_present_op();
         add_scan_slice_op();
         add_fill_op();
         add_dyn_slice_op();
+        add_dimensions_of_op();
     }
 
     void copy_params() const
@@ -239,8 +238,8 @@ struct miopen_apply
     instruction_ref insert_dynamic_code_object_op(instruction_ref ins) const
     {
         assert(ins->get_operator().name() == "gpu::precompile_op");
-
-        if(not ins->get_shape().dynamic())
+        // some op returns a tuple shape e.g. TopK
+        if(not ins->get_shape().any_of_dynamic())
             return ins;
 
         return mod->replace_instruction(
@@ -447,24 +446,133 @@ struct miopen_apply
         });
     }
 
+    // Lowers `nonmaxsuppression` to the gpu::nms_sort -> nms_filter ->
+    // nms_compact pipeline, or to a host ref-op fallback when either input
+    // shape is dynamic (the kernels bake compile-time sizes).
     void add_nms_op()
     {
         apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
-            auto s      = ins->get_shape();
-            auto output = insert_allocation(ins, s);
-            std::vector<instruction_ref> cpu_inputs;
-            auto inputs = ins->inputs();
-            std::transform(
-                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
-                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
-                });
-            cpu_inputs.front() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
-            auto gpu_out =
-                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
-            return mod->replace_instruction(ins, gpu_out);
+            const auto& boxes_s  = ins->inputs()[0]->get_shape();
+            const auto& scores_s = ins->inputs()[1]->get_shape();
+            if(boxes_s.dynamic() or scores_s.dynamic())
+                return lower_nms_to_ref(ins);
+            const auto num_boxes = boxes_s.lens().at(1);
+            const auto num_bc    = boxes_s.lens().at(0) * scores_s.lens().at(1);
+            // Route to ref (CPU) when:
+            // - num_boxes < 2: Single box or no boxes, no sort or IoU comparison needed.
+            // - num_bc > 8192: shared-memory limit on the compact kernel.
+            if(num_boxes < 2 or num_bc > 8192)
+                return lower_nms_to_ref(ins);
+            return lower_nms_to_gpu_pipeline(ins);
         });
+    }
+
+    // Static GPU pipeline. Each gpu::nms_* is wrapped in precompile_op inline
+    // because the main lowering loop walks forward and would skip them.
+    instruction_ref lower_nms_to_gpu_pipeline(instruction_ref ins) const
+    {
+        auto inputs            = ins->inputs();
+        const auto& boxes_s    = inputs[0]->get_shape();
+        const auto& scores_s   = inputs[1]->get_shape();
+        const auto num_batches = boxes_s.lens()[0];
+        const auto num_boxes   = boxes_s.lens()[1];
+        const auto num_classes = scores_s.lens()[1];
+        assert(num_boxes > 0);
+        const auto iou_packed = num_boxes * (num_boxes - 1) / 2;
+
+        // Fill in missing optional scalar inputs with default literals.
+        const shape default_max_s{shape::int64_type, {1}};
+        const shape default_iou_s{shape::float_type, {1}};
+        const shape default_thr_s{shape::float_type, {1}};
+        if(inputs.size() < 3)
+            inputs.push_back(mod->insert_literal(ins, literal{default_max_s, {std::int64_t{0}}}));
+        if(inputs.size() < 4)
+            inputs.push_back(mod->insert_literal(ins, literal{default_iou_s, {0.0f}}));
+        if(inputs.size() < 5)
+            inputs.push_back(mod->insert_literal(ins, literal{default_thr_s, {0.0f}}));
+
+        bool center_point_box = ins->get_operator().to_value().at("center_point_box").to<bool>();
+
+        // Scratch mask; replace_allocate later turns it into hip::allocate.
+        shape mask_shape{shape::uint8_type, {num_batches * num_classes, iou_packed}};
+        auto mask_alloc = insert_allocation(ins, mask_shape);
+
+        auto sorted = mod->insert_instruction(
+            ins,
+            make_op("gpu::nms_sort", {{"center_point_box", center_point_box}}),
+            inputs[0],
+            inputs[1]);
+        sorted = insert_precompile_op(sorted);
+
+        auto filter = mod->insert_instruction(ins,
+                                              make_op("gpu::nms_filter",
+                                                      {{"num_batches", num_batches},
+                                                       {"num_classes", num_classes},
+                                                       {"num_boxes", num_boxes}}),
+                                              sorted,
+                                              inputs[2],
+                                              inputs[3],
+                                              inputs[4],
+                                              mask_alloc);
+        filter      = insert_precompile_op(filter);
+
+        auto raw_output =
+            mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), filter);
+        auto bc_counts =
+            mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), filter);
+
+        auto compact =
+            mod->insert_instruction(ins, make_op("gpu::nms_compact"), bc_counts, raw_output);
+        compact = insert_precompile_op(compact);
+        insert_fill(compact, 0);
+
+        return mod->replace_instruction(ins, compact);
+    }
+
+    // Dynamic-shape fallback: run the ref op on the host. The tuple has to be
+    // split host-side before copy_to_gpu (which is not tuple-aware), and the
+    // downstream get_tuple_elem consumers are rewritten in place.
+    instruction_ref lower_nms_to_ref(instruction_ref ins) const
+    {
+        auto inputs = ins->inputs();
+        std::vector<instruction_ref> cpu_inputs;
+        cpu_inputs.reserve(inputs.size());
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+            return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+        });
+        cpu_inputs.front() = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+
+        auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
+
+        const auto& sub_shapes = ins->get_shape().sub_shapes();
+        std::vector<instruction_ref> gpu_subs;
+        gpu_subs.reserve(sub_shapes.size());
+        for(std::size_t i = 0; i < sub_shapes.size(); ++i)
+        {
+            auto cpu_sub =
+                mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", i}}), cpu_out);
+            auto gpu_alloc = insert_allocation(ins, sub_shapes[i]);
+            gpu_subs.push_back(
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_sub, gpu_alloc));
+        }
+
+        // TODO: this needs cleanup
+        // Snapshot since we mutate the graph below.
+        auto consumers = ins->outputs();
+        for(auto consumer : consumers)
+        {
+            if(consumer->name() != "get_tuple_elem")
+                MIGRAPHX_THROW("gpu::add_nms_op: dynamic NMS fallback expects only "
+                               "get_tuple_elem consumers of nonmaxsuppression; got: " +
+                               consumer->name());
+            auto idx = consumer->get_operator().to_value().at("index").to<std::size_t>();
+            assert(idx < gpu_subs.size());
+            mod->replace_instruction(consumer, gpu_subs[idx]);
+        }
+
+        // Leave `ins` for dead_code_elimination; return it so the apply-loop
+        // tuple-shape check passes.
+        return ins;
     }
 
     void add_lrn_op()
@@ -518,32 +626,6 @@ struct miopen_apply
             std::vector<instruction_ref> inputs = ins->inputs();
             inputs.push_back(output);
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
-        });
-    }
-
-    /**
-     *  Adds reshape lazy to reshape ops that can be aliased instead of copied.
-     *  `gpu::contiguous` are added before and after the reshape; these contiguous
-     *  instructions can be removed by the eliminate_contiguous pass.
-     */
-    void add_reshape_lazy_op()
-    {
-        apply_map.emplace("reshape", [=](instruction_ref ins) {
-            std::vector<instruction_ref> before_contiguous_args = ins->inputs();
-            auto before_alloc = insert_allocation(ins, std::prev(ins)->get_shape());
-            before_contiguous_args.push_back(before_alloc);
-            auto before_contig =
-                mod->insert_instruction(ins, make_op("gpu::contiguous"), {before_contiguous_args});
-
-            auto new_reshape_lazy = mod->insert_instruction(
-                ins,
-                make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
-                before_contig);
-
-            std::vector<instruction_ref> after_contiguous_args = {new_reshape_lazy};
-            auto after_alloc = insert_allocation(new_reshape_lazy, new_reshape_lazy->get_shape());
-            after_contiguous_args.push_back(after_alloc);
-            return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
         });
     }
 
@@ -604,6 +686,20 @@ struct miopen_apply
                     ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
             }
             return ins;
+        });
+    }
+
+    // Get the argument's shape dimensions on host and then copy to gpu
+    void add_dimensions_of_op()
+    {
+        apply_map.emplace("dimensions_of", [=](instruction_ref ins) {
+            auto output = insert_allocation(ins, ins->get_shape());
+            auto sync_input =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), ins->inputs().front());
+            auto host_out = mod->insert_instruction(ins, ins->get_operator(), sync_input);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
+            return mod->replace_instruction(ins, gpu_out);
         });
     }
 };

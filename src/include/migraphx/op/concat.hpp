@@ -130,7 +130,7 @@ struct concat
         if(input_elements != output_shape.elements())
             return {};
 
-        auto result = allocate_sym_argument(output_shape);
+        sym_argument result{output_shape};
         auto output = result.get();
         auto out    = output.begin();
         for(const auto& arg : args)
@@ -138,8 +138,6 @@ struct concat
             const auto input = arg.get();
             out              = std::copy(input.begin(), input.end(), out);
         }
-        if(out != output.end() or not sym_argument_matches_shape(output_shape, result))
-            return {};
         return result;
     }
 

@@ -36,10 +36,9 @@ struct identity
 {
     std::string name() const { return "identity"; }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
-    sym_argument symbolic_compute(const shape& output_shape,
-                                  const std::vector<sym_argument>& args) const
+    sym_argument symbolic_compute(const shape&, const std::vector<sym_argument>& args) const
     {
-        return pass_through_sym_argument(output_shape, args);
+        return args[0];
     }
     argument compute(shape, std::vector<argument> args) const { return args[0]; }
 

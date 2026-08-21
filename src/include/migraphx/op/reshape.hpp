@@ -199,7 +199,15 @@ struct reshape
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const
     {
-        return pass_through_sym_argument(output_shape, args);
+        if(args.empty() or args.size() > 2 or args[0].empty() or
+           args[0].get_shape().elements() != output_shape.elements())
+            return {};
+
+        sym_argument result{output_shape};
+        const auto input = args[0].get();
+        auto output      = result.get();
+        std::copy(input.begin(), input.end(), output.begin());
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

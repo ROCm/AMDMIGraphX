@@ -203,7 +203,13 @@ static bool scalar_equal(const scalar& a, const scalar& b)
 
 bool interval::contains(const scalar& value) const
 {
-    return not scalar_less(value, min) and not scalar_less(max, value);
+    return scalar_invoke_common<bool>(
+        [](auto lower, auto x, auto upper) {
+            return std::less_equal<>{}(lower, x) and std::less_equal<>{}(x, upper);
+        },
+        min,
+        value,
+        max);
 }
 
 bool operator<(interval a, interval b) { return scalar_less(a.max, b.min); }

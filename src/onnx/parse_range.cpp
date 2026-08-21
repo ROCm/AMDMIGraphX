@@ -49,13 +49,15 @@ struct parse_range : op_parser<parse_range>
             const auto start = args[0]->sym_eval();
             const auto limit = args[1]->sym_eval();
             const auto delta = args[2]->sym_eval();
-            if(start.has_value() and limit.has_value() and delta.has_value())
+            if(not start.empty() and not limit.empty() and not delta.empty())
             {
-                const auto start_values = start->get();
-                const auto limit_values = limit->get();
-                const auto delta_values = delta->get();
+                const auto start_values = start.get();
+                const auto limit_values = limit.get();
+                const auto delta_values = delta.get();
+                const auto delta_value =
+                    delta_values.size() == 1 ? sym::fixed_value(delta_values.front()) : std::nullopt;
                 if(start_values.size() == 1 and limit_values.size() == 1 and
-                   delta_values.size() == 1 and fixed_integer(delta_values.front()) == int64_t{1})
+                   delta_value.has_value() and sym::to<int64_t>(*delta_value) == 1)
                 {
                     const auto output_length = limit_values.front() - start_values.front();
                     const auto output_bounds = output_length.eval_interval();

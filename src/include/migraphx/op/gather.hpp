@@ -92,11 +92,11 @@ struct gather
         if(args.size() != 2 or args[0].get_shape().ndim() != 1 or axis != 0 or args[0].empty() or
            args[1].empty())
             return {};
-        const auto indices = fixed_integers(args[1]);
+        const auto indices = sym::fixed_values<int64_t>(args[1].get());
         if(not indices.has_value() or indices->size() != output_shape.elements())
             return {};
 
-        auto result              = allocate_sym_argument(output_shape);
+        sym_argument result{output_shape};
         const auto data          = args[0].get();
         auto output              = result.get();
         const int64_t data_size  = data.size();
@@ -109,8 +109,6 @@ struct gather
                 return {};
             output[output_index++] = data[index];
         }
-        if(not sym_argument_matches_shape(output_shape, result))
-            return {};
         return result;
     }
 

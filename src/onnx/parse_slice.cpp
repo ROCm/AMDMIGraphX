@@ -80,12 +80,12 @@ struct parse_slice : op_parser<parse_slice>
             if(args.size() >= 4)
             {
                 const auto axes_value = args[3]->sym_eval();
-                if(axes_value.has_value())
-                    axes = fixed_integers(*axes_value);
+                if(not axes_value.empty())
+                    axes = sym::fixed_values<int64_t>(axes_value.get());
             }
-            else if(starts.has_value())
+            else if(not starts.empty())
             {
-                axes.emplace(starts->get_shape().elements());
+                axes.emplace(starts.get_shape().elements());
                 std::iota(axes->begin(), axes->end(), int64_t{0});
             }
 
@@ -93,20 +93,20 @@ struct parse_slice : op_parser<parse_slice>
             if(args.size() >= 5)
             {
                 const auto steps_value = args[4]->sym_eval();
-                if(steps_value.has_value())
-                    steps = fixed_integers(*steps_value);
+                if(not steps_value.empty())
+                    steps = sym::fixed_values<int64_t>(steps_value.get());
             }
             else if(axes.has_value())
             {
                 steps.emplace(axes->size(), int64_t{1});
             }
-            if(starts.has_value() and ends.has_value() and axes.has_value() and
-               steps.has_value() and starts->get_shape().elements() == axes->size() and
-               ends->get_shape().elements() == axes->size() and steps->size() == axes->size() and
+            if(not starts.empty() and not ends.empty() and axes.has_value() and
+               steps.has_value() and starts.get_shape().elements() == axes->size() and
+               ends.get_shape().elements() == axes->size() and steps->size() == axes->size() and
                all_of(*steps, [](auto step) { return step == 1; }))
             {
-                const auto starts_values = starts->get().to_vector();
-                const auto ends_values   = ends->get().to_vector();
+                const auto starts_values = starts.get().to_vector();
+                const auto ends_values   = ends.get().to_vector();
                 return info.add_instruction(make_op("dyn_slice",
                                                     {{"axes", *axes},
                                                      {"starts", to_value(starts_values)},

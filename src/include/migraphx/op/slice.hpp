@@ -428,8 +428,8 @@ struct slice
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const
     {
-        if(args.empty() or args.front().get_shape().dynamic() or
-           args.front().get_shape().ndim() != 1 or args.front().empty())
+        if(args.empty() or args[0].get_shape().dynamic() or args[0].get_shape().ndim() != 1 or
+           args[0].empty())
             return {};
 
         const auto set_attributes = get_set_attributes();
@@ -441,15 +441,15 @@ struct slice
                 continue;
             if(input_index >= args.size() or args[input_index].empty())
                 return {};
-            supplied[i] = fixed_integers(args[input_index++]);
+            supplied[i] = sym::fixed_values<int64_t>(args[input_index++].get());
             if(not supplied[i].has_value())
                 return {};
         }
         if(input_index != args.size())
             return {};
 
-        const auto normalized = normalize_starts_ends_axes(
-            args.front().get_shape(), supplied[0], supplied[1], supplied[2]);
+        const auto normalized =
+            normalize_starts_ends_axes(args[0].get_shape(), supplied[0], supplied[1], supplied[2]);
         const auto& norm_starts = normalized.at("norm_starts");
         const auto& norm_ends   = normalized.at("norm_ends");
         const auto& norm_axes   = normalized.at("norm_axes");
@@ -457,16 +457,14 @@ struct slice
            norm_axes.front() != 0)
             return {};
         if(output_shape.lens() !=
-           lens_calc(args.front().get_shape().lens(), norm_starts, norm_ends, norm_axes))
+           lens_calc(args[0].get_shape().lens(), norm_starts, norm_ends, norm_axes))
             return {};
 
-        const auto data = args.front().get();
-        auto result     = allocate_sym_argument(output_shape);
+        const auto data = args[0].get();
+        sym_argument result{output_shape};
         auto output     = result.get();
         for(auto i : range(output_shape.elements()))
             output[i] = data[norm_starts.front() + i];
-        if(not sym_argument_matches_shape(output_shape, result))
-            return {};
         return result;
     }
 

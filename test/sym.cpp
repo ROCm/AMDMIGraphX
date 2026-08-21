@@ -3438,6 +3438,14 @@ TEST_CASE(interval_contains)
     EXPECT(not bounds.contains(int64_t{6}));
 }
 
+TEST_CASE(interval_contains_nan)
+{
+    const auto nan = std::numeric_limits<double>::quiet_NaN();
+    EXPECT(not interval{nan, 1.0}.contains(0.0));
+    EXPECT(not interval{0.0, nan}.contains(0.0));
+    EXPECT(not interval{0.0, 1.0}.contains(nan));
+}
+
 TEST_CASE(fixed_value_literal)
 {
     auto result = fixed_value(lit(5));

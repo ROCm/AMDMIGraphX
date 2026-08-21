@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,9 +25,9 @@
 #define MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/op/binary.hpp>
 #include <migraphx/sym.hpp>
-#include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,18 +51,14 @@ struct equal : binary<equal>
     }
     auto apply() const
     {
-        return [](auto x, auto y) {
-            if constexpr(std::is_same<std::decay_t<decltype(x)>, sym::expr>{})
-            {
+        return overloaded{
+            [](auto x, auto y) { return float_equal(x, y); },
+            [](sym::expr x, sym::expr y) {
                 const auto result = sym::provable_equal(x, y);
                 if(not result.has_value())
                     return sym::expr{};
                 return sym::lit(*result ? 1 : 0);
-            }
-            else
-            {
-                return float_equal(x, y);
-            }
+            },
         };
     }
 };

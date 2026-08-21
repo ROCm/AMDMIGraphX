@@ -63,7 +63,7 @@ struct operation
     /// operation cannot be run with input shapes, then it should throw an
     /// exception.
     shape compute_shape(const std::vector<shape>& input) const;
-    /// Optionally compute exact symbolic values stored in an integral tensor.
+    /// Optionally compute exact symbolic values stored in a tensor.
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const;
     /**

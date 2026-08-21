@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,10 +47,14 @@ struct parse_expand : op_parser<parse_expand>
             // variable dims input
             const auto symbolic_dims = args[1]->sym_eval();
             const auto& input_shape  = args[0]->get_shape();
-            if(symbolic_dims.has_value() and is_static_or_symbolic_shape(input_shape))
+            if(not symbolic_dims.empty() and
+               (not input_shape.dynamic() or input_shape.symbolic()))
             {
+                const auto expressions = symbolic_dims.get();
+                const std::vector<shape::dynamic_dimension> target_dims(expressions.begin(),
+                                                                        expressions.end());
                 const auto output_dims = compute_broadcasted_dyn_dims(
-                    input_shape.to_symbolic().dyn_dims(), to_dynamic_dimensions(*symbolic_dims));
+                    input_shape.to_symbolic().dyn_dims(), target_dims);
                 return info.add_instruction(
                     make_op("broadcast_with_dims", {{"out_dyn_dims", to_value(output_dims)}}),
                     args[0],

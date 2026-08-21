@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -66,12 +66,11 @@ struct dimensions_of
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const
     {
-        if(args.size() != 1 or not is_static_or_symbolic_shape(args.front().get_shape()))
+        if(args.size() != 1 or
+           (args[0].get_shape().dynamic() and not args[0].get_shape().symbolic()))
             return {};
-        const auto expressions = args.front().get_shape().sym_dims();
+        const auto expressions = args[0].get_shape().sym_dims();
         sym_argument result{{expressions.begin() + start, expressions.begin() + end}, output_shape};
-        if(not sym_argument_matches_shape(output_shape, result))
-            return {};
         return result;
     }
 

@@ -66,7 +66,7 @@ struct convert : unary<convert>
     bool supports_symbolic_compute(const shape& output_shape,
                                    const std::vector<sym_argument>& args) const
     {
-        return args.size() == 1 and args.front().get_shape().type() == shape::int64_type and
+        return args.size() == 1 and args[0].get_shape().type() == shape::int64_type and
                output_shape.type() == target_type and
                (target_type == shape::int64_type or target_type == shape::bool_type);
     }
@@ -78,8 +78,11 @@ struct convert : unary<convert>
                 return x;
             if(target != shape::bool_type)
                 return sym::expr{};
-            const auto value = fixed_integer(x);
-            if(not value.has_value() or (*value != 0 and *value != 1))
+            const auto value = sym::fixed_value(x);
+            if(not value.has_value())
+                return sym::expr{};
+            const auto integer = sym::to<int64_t>(*value);
+            if(integer != 0 and integer != 1)
                 return sym::expr{};
             return x;
         };

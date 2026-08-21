@@ -95,20 +95,19 @@ struct where
         if(not scalar_condition and args[0].get_shape().lens() != output_shape.lens())
             return {};
 
-        auto result          = allocate_sym_argument(output_shape);
+        sym_argument result{output_shape};
         const auto condition = args[0].get();
         const auto x         = args[1].get();
         const auto y         = args[2].get();
         auto output          = result.get();
         for(auto i : range(output_shape.elements()))
         {
-            const auto condition_value = fixed_integer(condition[scalar_condition ? 0 : i]);
+            const auto condition_value =
+                sym::fixed_value(condition[scalar_condition ? 0 : i]);
             if(not condition_value.has_value())
                 return {};
-            output[i] = *condition_value != 0 ? x[i] : y[i];
+            output[i] = sym::to<int64_t>(*condition_value) != 0 ? x[i] : y[i];
         }
-        if(not sym_argument_matches_shape(output_shape, result))
-            return {};
         return result;
     }
 

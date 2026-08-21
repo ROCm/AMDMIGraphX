@@ -82,7 +82,15 @@ struct unary : op_name<Derived>
         {
             if(not self.supports_symbolic_compute(output_shape, args))
                 return {};
-            return compute_sym_unary(output_shape, args, self.apply());
+            if(args.size() != 1 or args[0].empty() or
+               args[0].get_shape().lens() != output_shape.lens())
+                return {};
+
+            sym_argument result{output_shape};
+            const auto input = args[0].get();
+            auto output      = result.get();
+            par_transform(input.begin(), input.end(), output.begin(), self.apply());
+            return result;
         }
         else
         {

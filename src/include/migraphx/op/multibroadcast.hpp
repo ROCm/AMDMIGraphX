@@ -139,7 +139,9 @@ struct multibroadcast
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const
     {
-        return broadcast_sym_argument(output_shape, args);
+        if(args.empty())
+            return {};
+        return args[0].reshape(output_shape);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

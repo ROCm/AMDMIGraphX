@@ -134,7 +134,9 @@ struct squeeze
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const
     {
-        return pass_through_sym_argument(output_shape, args);
+        if(args.size() != 1)
+            return {};
+        return args[0].reshape(output_shape);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

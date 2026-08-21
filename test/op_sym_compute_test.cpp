@@ -47,7 +47,10 @@ auto symbolic_compute_argument(const migraphx::operation& op,
                    ? migraphx::sym_argument{*input_values[i], input_shapes[i]}
                    : migraphx::sym_argument{{}, input_shapes[i]};
     });
-    return op.symbolic_compute(output_shape, args);
+    auto result = op.symbolic_compute(output_shape, args);
+    if(not result.empty() and (result.get_shape() != output_shape or not result.valid()))
+        return migraphx::sym_argument{};
+    return result;
 }
 
 auto symbolic_compute(const migraphx::operation& op,

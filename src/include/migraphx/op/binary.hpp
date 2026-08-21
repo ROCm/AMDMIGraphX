@@ -80,7 +80,17 @@ struct binary : op_name<Derived>
         {
             if(not self.supports_symbolic_compute(output_shape, args))
                 return {};
-            return compute_sym_binary(output_shape, args, self.apply());
+            if(args.size() != 2 or args[0].empty() or args[1].empty() or
+               args[0].get_shape().lens() != output_shape.lens() or
+               args[1].get_shape().lens() != output_shape.lens())
+                return {};
+
+            sym_argument result{output_shape};
+            const auto x = args[0].get();
+            const auto y = args[1].get();
+            auto output  = result.get();
+            par_transform(x.begin(), x.end(), y.begin(), output.begin(), self.apply());
+            return result;
         }
         else
         {

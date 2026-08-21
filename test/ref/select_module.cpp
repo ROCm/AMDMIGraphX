@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,13 +29,15 @@
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
+#include <algorithm>
+#include <cmath>
 
 TEST_CASE(select_module_add_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-    auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6}});
+    auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6.0f}});
 
     // create batch submodules
     auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
@@ -73,7 +75,7 @@ TEST_CASE(select_module_add_test)
     auto result    = p.eval(params).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{2, 14, 5, 10, 5, 14, 14, 2};
+    std::vector<float> gold{2.0f, 14.0f, 5.0f, 10.0f, 5.0f, 14.0f, 14.0f, 2.0f};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
@@ -208,6 +210,121 @@ TEST_CASE(select_module_not_found_error)
                                   -1, 4, -1, 8, 8,  -4, -1, 8,  8,  -4};
     migraphx::parameter_map params;
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {5, 2, 2}};
+    params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
+    EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
+}
+
+// Build a program: one bucket submodule (fixed_pad -> data+6) per
+// `bucket_sizes`, dispatched via select_module over the dynamic input shape.
+// Each bucket takes a dynamic input narrowed to (prev, size] and pads it up to
+// a static [size, 4] shape in-graph via fixed_pad. Padding is therefore
+// device-agnostic; select_module does not touch host buffers.
+static migraphx::program make_select_module_add_program(
+    const std::vector<std::size_t>& bucket_sizes, std::size_t dyn_min, std::size_t dyn_max)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+    auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6.0f}});
+
+    auto create_submodule =
+        [&](std::size_t prev_size, std::size_t batch_size, const std::string& module_name) {
+            auto* submod = p.create_module(module_name);
+            migraphx::shape sm_shape{migraphx::shape::float_type,
+                                     {migraphx::shape::dynamic_dimension{prev_size + 1, batch_size},
+                                      migraphx::shape::dynamic_dimension{4, 4}}};
+            auto sm_input = submod->add_parameter("data", sm_shape);
+            auto padded   = submod->add_instruction(migraphx::make_op("fixed_pad"), sm_input);
+            auto broadcast_lit =
+                submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, padded);
+            auto add_ins = submod->add_instruction(migraphx::make_op("add"), padded, broadcast_lit);
+            submod->add_return({add_ins});
+            return submod;
+        };
+
+    std::vector<migraphx::module_ref> submods;
+    submods.reserve(bucket_sizes.size());
+    std::size_t prev_size = 0;
+    for(auto n : bucket_sizes)
+    {
+        submods.push_back(create_submodule(prev_size, n, "dim_" + std::to_string(n)));
+        prev_size = n;
+    }
+
+    migraphx::shape s{migraphx::shape::float_type, {{dyn_min, dyn_max}, {4, 4}}};
+    auto input                              = mm->add_parameter("data", s);
+    std::vector<migraphx::shape> sub_shapes = {};
+    sub_shapes.push_back(
+        migraphx::shape{migraphx::shape::float_type, {{dyn_min, dyn_max}, {4, 4}}});
+    migraphx::shape out_attr = migraphx::shape{sub_shapes};
+    auto sm_ins              = mm->add_instruction(
+        migraphx::make_op("select_module", {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+        {input},
+        submods);
+    auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
+    mm->add_return({ret});
+    return p;
+}
+
+// Input at a bucket boundary hits that bucket with no padding.
+TEST_CASE(select_module_bucket_dispatch_exact_match)
+{
+    // N=10 lands in bucket dim_10; fixed_pad is a no-op (input == max_lens).
+    auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data(10 * 4, 2.0f); // every element = 2
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {10, 4}};
+    params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
+    auto result    = p.eval(params).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector.size() == std::size_t{10 * 4});
+    // Output should be input + 6 = 8 everywhere.
+    EXPECT(std::all_of(
+        // NOLINTNEXTLINE(clang-diagnostic-float-equal)
+        results_vector.begin(),
+        results_vector.end(),
+        [](float v) { return std::fabs(v - 8.0f) < 1e-6f; }));
+}
+
+// N=20 -> rounds up to bucket_50. First 20*4 outputs = 2+6=8 (real input);
+// tail 20*4..50*4 = 0+6=6 (zero-padded).
+TEST_CASE(select_module_bucket_dispatch_round_up_with_pad)
+{
+    auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data(20 * 4, 2.0f);
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {20, 4}};
+    params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
+    auto result    = p.eval(params).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    // Submodule produces a bucket-sized output (50 * 4) because we are
+    // dispatching to dim_50.
+    EXPECT(results_vector.size() == std::size_t{50 * 4});
+    // First 20*4 positions correspond to real input (2 + 6 = 8).
+    for(std::size_t i = 0; i < 20 * 4; ++i)
+        EXPECT(std::fabs(results_vector[i] - 8.0f) < 1e-6f);
+    // Remaining positions are zero-padded input (0 + 6 = 6).
+    for(std::size_t i = 20 * 4; i < 50 * 4; ++i)
+        EXPECT(std::fabs(results_vector[i] - 6.0f) < 1e-6f);
+}
+
+// N=200 exceeds every bucket -> must throw.
+TEST_CASE(select_module_bucket_dispatch_too_big_throws)
+{
+    auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 1000);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data(200 * 4, 2.0f);
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {200, 4}};
     params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }

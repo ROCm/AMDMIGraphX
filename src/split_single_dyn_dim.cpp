@@ -23,12 +23,14 @@
  */
 
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
+#include <set>
 #include <utility>
 
 namespace migraphx {
@@ -110,6 +112,54 @@ static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimension
 }
 
 /**
+ * Build one submodule specialised for `dim_size`.  In bucket mode the input
+ * parameter stays dynamic (narrowed to the (prev_dim_size, dim_size] range) and
+ * `fixed_pad` expands it up to a static shape in-graph; in legacy mode the input
+ * is a static shape of length `dim_size`.
+ */
+static module_ref create_dim_submodule(module_pass_manager& mpm,
+                                       const_module_ref mm,
+                                       const std::vector<dynamic_dimensions_check>& dd_checks,
+                                       bool use_buckets,
+                                       std::size_t prev_dim_size,
+                                       std::size_t dim_size)
+{
+    auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
+    // instruction map for new submodule parameters
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    for(const auto& dd_check : dd_checks)
+    {
+        const auto& dyn_param = mm->get_parameter(dd_check.dyn_param_str);
+        auto dyn_param_shape  = mm->get_parameter_shape(dd_check.dyn_param_str);
+        if(use_buckets)
+        {
+            // Bucket submodule: keep the input dynamic (narrowed to this bucket's
+            // range) and let fixed_pad expand it up to a static shape of length
+            // dim_size. Padding stays in-graph and device-agnostic instead of the
+            // caller padding the buffer.
+            auto new_dyn_dims = dyn_param_shape.dyn_dims();
+            std::replace_if(
+                new_dyn_dims.begin(),
+                new_dyn_dims.end(),
+                [](const auto& new_dd) { return not new_dd.is_fixed(); },
+                shape::dynamic_dimension{prev_dim_size + 1, dim_size});
+            auto new_dyn_shape = shape{dyn_param_shape.type(), std::move(new_dyn_dims)};
+            auto new_dyn_param = submod->add_parameter(dd_check.dyn_param_str, new_dyn_shape);
+            map_ins[dyn_param] = submod->add_instruction(make_op("fixed_pad"), new_dyn_param);
+        }
+        else
+        {
+            // Legacy submodule: one static shape per integer dim_size.
+            auto static_shape  = dyn_param_shape.to_static(dim_size);
+            map_ins[dyn_param] = submod->add_parameter(dd_check.dyn_param_str, static_shape);
+        }
+    }
+    auto outputs = submod->add_instructions(mm, &map_ins);
+    submod->add_return({outputs});
+    return submod;
+}
+
+/**
  * Makes all the shapes in the dynamic_dimension range.  Probably won't work for `if`
  * and `loop` instructions, depending on how the submodules for those
  * work. Inserts select_module instruction to the top. Replaces return, bypassing other
@@ -129,22 +179,43 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         // create submodules for each dimension size
         std::vector<module_ref> submodules;
         auto dim_interval = dyn_dim.get_interval();
-        for(size_t dim_size : migraphx::range(dim_interval.min, dim_interval.max + 1))
+
+        // Pick the dim sizes to specialise for:
+        //   * default      -> every integer in [min, max]      (legacy)
+        //   * bucket mode  -> min, max, and user-supplied optimals
+        // Bucket mode requires both `bucket_by_optimals=true` and a
+        // non-empty `optimals` set; otherwise we fall back to legacy.
+        // See select_module.hpp for the runtime side.
+        std::set<std::size_t> dim_sizes;
+        auto dim_optimals      = dyn_dim.get_optimals();
+        const bool use_buckets = this->bucket_by_optimals and not dim_optimals.empty();
+        if(use_buckets)
         {
-            auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
-            // instruction map for new static shaped submodule parameters
-            std::unordered_map<instruction_ref, instruction_ref> map_ins;
-            for(const auto& dd_check : dd_check_vec.value())
+            // Always include endpoints so every in-range input has a bucket.
+            dim_sizes.insert(dim_interval.min);
+            dim_sizes.insert(dim_interval.max);
+            // Drop optimals outside [min, max] (would be unreachable).
+            for(std::size_t opt : dim_optimals)
             {
-                // create static shape using dim_size
-                const auto& dyn_param = mm->get_parameter(dd_check.dyn_param_str);
-                auto dyn_param_shape  = mm->get_parameter_shape(dd_check.dyn_param_str);
-                auto static_shape     = dyn_param_shape.to_static(dim_size);
-                map_ins[dyn_param]    = submod->add_parameter(dd_check.dyn_param_str, static_shape);
+                if(opt >= dim_interval.min and opt <= dim_interval.max)
+                    dim_sizes.insert(opt);
             }
-            auto outputs = submod->add_instructions(mm, &map_ins);
-            submod->add_return({outputs});
-            submodules.push_back(submod);
+        }
+        else
+        {
+            for(std::size_t n : migraphx::range(dim_interval.min, dim_interval.max + 1))
+                dim_sizes.insert(n);
+        }
+
+        // Bucket submodules cover disjoint ranges (prev_dim_size, dim_size] so
+        // exactly one bucket accepts any given in-range input; prev_dim_size is
+        // unused in legacy mode.
+        std::size_t prev_dim_size = 0;
+        for(std::size_t dim_size : dim_sizes)
+        {
+            submodules.push_back(create_dim_submodule(
+                mpm, mm, dd_check_vec.value(), use_buckets, prev_dim_size, dim_size));
+            prev_dim_size = dim_size;
         }
         // sort parameters by name for consistency (vs. parameter order attr)
         std::sort(param_names.begin(), param_names.end());

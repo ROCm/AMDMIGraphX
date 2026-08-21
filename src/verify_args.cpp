@@ -46,26 +46,30 @@ static double type_epsilon(shape::type_t type)
     return result;
 }
 
-/// Rounding steps of the output type the target may differ from the reference by. Multiplying
-/// epsilon gives a bound that is this many steps at every magnitude, since the reference magnitude
-/// cancels against the widening spacing between representable values.
-static constexpr double rtol_ulps = 4;
-/// Where the reference is near zero the relative term collapses and only atol applies. Held to a
-/// fraction of a rounding step so that it governs those elements and nothing else.
-static constexpr double atol_ulps = 0.5;
+/// Multiple of epsilon for the relative bound, which is the number of rounding steps of the output
+/// type the target may differ from the reference by. Multiplying epsilon gives a bound that is this
+/// many steps at every magnitude, since the reference magnitude cancels against the widening
+/// spacing between representable values.
+static constexpr double rtol_mult = 4;
+/// Multiple of epsilon for the absolute bound. Where the reference is near zero the relative term
+/// collapses and only atol applies, so this is held to a fraction of a rounding step and governs
+/// those elements and nothing else.
+static constexpr double atol_mult = 0.5;
 
 verify::tolerance tolerance_for_type(shape::type_t type)
 {
     // float and wider keep the historical fixed bounds. They are far looser than a few rounding
     // steps, but a great many tests are calibrated to them, and a gpu library kernel legitimately
     // differs from the naive ref implementation by more than 4 fp32 steps.
-    auto eps = type_epsilon(type);
+    auto eps  = type_epsilon(type);
+    auto atol = atol_mult * eps;
+    auto rtol = rtol_mult * eps;
     if(type == shape::fp4x2_type)
-        return {8e-1, atol_ulps * eps, rtol_ulps * eps};
+        return {8e-1, atol, rtol};
     if(contains(fp8_types{}.get(), type))
-        return {2e-1, atol_ulps * eps, rtol_ulps * eps};
+        return {2e-1, atol, rtol};
     if(type == shape::half_type or type == shape::bf16_type)
-        return {8e-2, atol_ulps * eps, rtol_ulps * eps};
+        return {8e-2, atol, rtol};
     return {};
 }
 

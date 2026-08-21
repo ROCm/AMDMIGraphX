@@ -27,6 +27,7 @@ on:
 
 jobs:
   release:
+    if: github.repository == 'ROCm/AMDMIGraphX'
     uses: ROCm/migraphx-benchmark/.github/workflows/history.yml@main
     with:
       start_date: ${{ github.event.inputs.start_date || 'yyyy-mm-dd' }}

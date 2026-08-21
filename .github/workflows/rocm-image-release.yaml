@@ -33,6 +33,7 @@ on:
 
 jobs:
   release:
+    if: github.repository == 'ROCm/AMDMIGraphX'
     uses: ROCm/migraphx-benchmark/.github/workflows/rocm-release.yml@main
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || '7.2.3' }}

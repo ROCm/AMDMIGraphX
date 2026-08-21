@@ -23,6 +23,7 @@ env:
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+    if: github.repository == 'ROCm/AMDMIGraphX'
     permissions:
       deployments: write
     steps:
@@ -35,6 +36,7 @@ jobs:
           onlyRemoveDeployments: true
   deploy:
     needs: cleanup
+    if: github.repository == 'ROCm/AMDMIGraphX'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

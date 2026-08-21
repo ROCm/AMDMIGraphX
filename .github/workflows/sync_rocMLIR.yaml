@@ -45,6 +45,7 @@ on:
       
 jobs:
   get_config:
+    if: github.repository == 'ROCm/AMDMIGraphX'
     runs-on: ubuntu-latest
     outputs:
       rocm_version: ${{ steps.read_config.outputs.rocm_version }}

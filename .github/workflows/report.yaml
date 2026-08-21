@@ -10,7 +10,7 @@ env:
 jobs:
   post-report:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.repository == 'ROCm/AMDMIGraphX' && github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Generate a token
         id: generate-token

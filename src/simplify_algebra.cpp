@@ -30,6 +30,7 @@
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/transpose.hpp>
+#include <migraphx/op/unsqueeze.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/literal.hpp>
@@ -923,8 +924,9 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        auto fusable_input = match::any_of(
-            match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4"));
+        auto fusable_input =
+            match::any_of(match::pointwise(),
+                          match::name("broadcast", "multibroadcast", "unpack_int4", "unsqueeze"));
         return match::name("concat")(match::any_of[match::inputs()](fusable_input));
     }
 
@@ -944,7 +946,7 @@ struct find_concat_op
 
     static bool is_valid_op(const operation& op)
     {
-        return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
+        return contains({"broadcast", "multibroadcast", "unpack_int4", "unsqueeze"}, op.name()) or
                (op.attributes().contains("pointwise") and op.name() != "quantizelinear");
     }
 
@@ -1022,6 +1024,15 @@ struct find_concat_op
             op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
             auto delta = bshape.lens().size() - input->get_shape().lens().size();
             iaxis -= delta;
+        }
+        else if(op.name() == "unsqueeze")
+        {
+            auto u = any_cast<op::unsqueeze>(op);
+            // Cant concat along an inserted unit axis, and steps split dims
+            if(not u.steps.empty() or contains(u.axes, iaxis) or
+               any_of(u.axes, [](auto a) { return a < 0; }))
+                return {start, last};
+            iaxis -= std::count_if(u.axes.begin(), u.axes.end(), [&](auto a) { return a < iaxis; });
         }
         if(not concat_const_foldable(start, last, iaxis))
             return {start, last};

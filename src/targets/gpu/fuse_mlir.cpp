@@ -914,7 +914,7 @@ struct find_mlir_fused_geg_ops
             const auto& lens_a1 = shape_a1.lens();
             std::int64_t m      = lens_a1[lens_a1.size() - 2];
             std::int64_t n      = lens_a1.size() >= 2 ? lens_a1[1] : 0;
-            return not(m <= 8 and n >= 512);
+            return m > 8 or n < 512;
         }
 
         const auto& first_inputs = first_gemm->inputs();

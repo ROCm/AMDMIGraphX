@@ -67,9 +67,11 @@ struct gridsample
 
     std::string name() const { return "gridsample"; }
 
+    value attributes() const { return {{"require_std_shape", true}}; }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).standard();
+        check_shapes{inputs, *this}.has(2);
         bool supported_modes = contains(mode, "nearest") or contains(mode, "linear") or
                                contains(mode, "bilinear") or contains(mode, "cubic") or contains(mode, "bicubic");
         if(not supported_modes)

@@ -816,6 +816,168 @@ struct find_concat_multibroadcasts
     }
 };
 
+// Forward a slice that reads exactly one segment of a concat through the view
+// ops in between, so the concat can be removed entirely. This shows up when a
+// model repacks tensors (such as qkv) that an op decomposition then re-slices.
+struct find_slice_reshaped_concat
+{
+    static const auto& view_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "reshape", "reshape_lazy", "squeeze", "unsqueeze", "flatten", "transpose"};
+        return names;
+    }
+
+    auto matcher() const
+    {
+        return match::name("slice")(match::arg(0)(
+            match::skip(match::name(view_ops()))(match::name("concat").bind("concat"))));
+    }
+
+    // Compose the op onto a strided view, tracking the element mapping
+    static std::optional<shape> track_view(const shape& s, const operation& op)
+    {
+        try
+        {
+            if(op.name() == "transpose")
+                return op.compute_shape({s});
+            auto out_lens = op.compute_shape({shape{s.type(), s.lens()}}).lens();
+            return make_op("reshape_lazy", {{"dims", out_lens}}).compute_shape({s});
+        }
+        catch(const exception&)
+        {
+            return std::nullopt;
+        }
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto slice_ins  = mr.result;
+        auto concat_ins = mr.instructions["concat"];
+        std::vector<instruction_ref> chain;
+        auto x = slice_ins->inputs().front();
+        while(x != concat_ins)
+        {
+            if(not contains(view_ops(), x->name()))
+                return;
+            chain.push_back(x);
+            x = x->inputs().front();
+        }
+        // A direct slice of a concat is handled by find_concat_slice
+        if(chain.empty())
+            return;
+        std::reverse(chain.begin(), chain.end());
+
+        const auto& concat_shape = concat_ins->get_shape();
+        const auto& clens        = concat_shape.lens();
+        auto axis                = any_cast<op::concat>(concat_ins->get_operator()).axis;
+        if(axis < 0 or axis >= clens.size())
+            return;
+        if(not concat_shape.standard())
+            return;
+        // Only leading unit dims before the concat axis so segments are contiguous
+        if(std::any_of(clens.begin(), clens.begin() + axis, [](auto d) { return d != 1; }))
+            return;
+        auto inner = std::accumulate(
+            clens.begin() + axis + 1, clens.end(), std::size_t{1}, std::multiplies<>{});
+
+        // Compose the view chain over the concat output
+        shape view = concat_shape;
+        for(auto vins : chain)
+        {
+            auto v = track_view(view, vins->get_operator());
+            if(not v.has_value())
+                return;
+            view = *v;
+        }
+        auto sop = any_cast<op::slice>(slice_ins->get_operator());
+        auto offset =
+            std::inner_product(sop.axes.begin(),
+                               sop.axes.end(),
+                               sop.starts.begin(),
+                               std::size_t{0},
+                               std::plus<>{},
+                               [&](auto ax, auto start) { return start * view.strides()[ax]; });
+        auto sliced = slice_ins->get_operator().compute_shape({view});
+
+        // The slice offset must be at the start of a segment
+        const auto& inputs              = concat_ins->inputs();
+        std::vector<std::size_t> prefix = {0};
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(prefix), [&](auto i) {
+            return prefix.back() + i->get_shape().lens()[axis] * inner;
+        });
+        auto it = std::find(prefix.begin(), std::prev(prefix.end()), offset);
+        if(it == std::prev(prefix.end()))
+            return;
+        auto idx = std::distance(prefix.begin(), it);
+        auto seg = inputs[idx];
+        // The slice must cover the whole segment
+        if(prefix[idx + 1] - prefix[idx] != sliced.elements())
+            return;
+
+        // Synthesize the same element order on the segment as a reshape
+        // followed by a transpose: the non-unit axes ordered by decreasing
+        // stride must form a nested contiguous layout over the segment
+        const auto& slens    = sliced.lens();
+        const auto& sstrides = sliced.strides();
+        std::vector<std::size_t> nz;
+        transform_if(
+            range(slens.size()).begin(),
+            range(slens.size()).end(),
+            std::back_inserter(nz),
+            [&](auto d) { return slens[d] > 1; },
+            [](auto d) { return d; });
+        std::sort(nz.begin(), nz.end(), by(std::greater<>{}, [&](auto d) { return sstrides[d]; }));
+        std::size_t expected = 1;
+        if(not std::all_of(nz.rbegin(), nz.rend(), [&](auto d) {
+               if(sstrides[d] != expected)
+                   return false;
+               expected *= slens[d];
+               return true;
+           }))
+            return;
+
+        std::vector<std::size_t> rdims;
+        std::transform(
+            nz.begin(), nz.end(), std::back_inserter(rdims), [&](auto d) { return slens[d]; });
+        rdims.resize(slens.size(), 1);
+        std::size_t unit_pos = nz.size();
+        std::vector<std::int64_t> perm(slens.size());
+        std::transform(range(slens.size()).begin(),
+                       range(slens.size()).end(),
+                       perm.begin(),
+                       [&](auto d) -> std::int64_t {
+                           auto it = std::find(nz.begin(), nz.end(), d);
+                           if(it != nz.end())
+                               return std::distance(nz.begin(), it);
+                           return unit_pos++;
+                       });
+        std::vector<operation> new_ops = {make_op("reshape", {{"dims", rdims}}),
+                                          make_op("transpose", {{"permutation", perm}})};
+
+        // Verify the synthesized ops read the segment in the slice's order
+        auto seg_lens  = clens;
+        seg_lens[axis] = seg->get_shape().lens()[axis];
+        shape rview{concat_shape.type(), seg_lens};
+        for(const auto& op : new_ops)
+        {
+            auto v = track_view(rview, op);
+            if(not v.has_value())
+                return;
+            rview = *v;
+        }
+        if(rview.lens() != sliced.lens())
+            return;
+        // Strides on unit axes carry no element mapping
+        if(not all_of(range(rview.lens().size()), [&](auto d) {
+               return rview.lens()[d] == 1 or rview.strides()[d] == sliced.strides()[d];
+           }))
+            return;
+        auto y = insert_ops(m, slice_ins, new_ops, seg);
+        m.replace_instruction(slice_ins, y);
+    }
+};
+
 struct find_concat_slice
 {
     auto matcher() const
@@ -2115,6 +2277,7 @@ void simplify_reshapes::apply(module& m) const
     if(enable_gather_rewrite)
         match::find_matches(m, find_gather{});
     m.repeat_while_changes(depth, [&] {
+        match::find_matches(m, find_slice_reshaped_concat{});
         match::find_matches(m,
                             find_nop_reshapes{},
                             find_flatten{},

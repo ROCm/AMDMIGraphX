@@ -173,6 +173,9 @@ struct pipeline_factory
 
     std::vector<pass> optimize_rewrite_pipeline() const
     {
+        auto gfx_name = get_context()->get_current_device().get_gfx_name();
+        const bool missing_fp32_mma =
+            starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
         return {
             rewrite_convolution{},
             dead_code_elimination{},
@@ -181,11 +184,7 @@ struct pipeline_factory
             layout_convolution{.order = enabled(MIGRAPHX_ENABLE_NHWC{})
                                             ? layout_convolution::channels_last
                                             : layout_convolution::channels_auto,
-                               // Below 8 output channels there is too little to vectorize
-                               // along K, so kyxc's dense C loads win (e.g. RGB heads).
-                               .output_channels_last_threshold = mlir_enabled() ? 8u : 0u,
-                               // Only the non-accel path benefits from output-channels-last
-                               // weights; the fp16/int8 accel path prefers kyxc filters.
+                               .output_channels_last_threshold = missing_fp32_mma ? 8u : 0u,
                                .output_channels_last_types = {shape::float_type}},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),

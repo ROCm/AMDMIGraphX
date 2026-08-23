@@ -30,6 +30,7 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/enum.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,12 +43,7 @@ struct module_pass_manager;
  */
 struct MIGRAPHX_EXPORT layout_convolution
 {
-    enum layout_order
-    {
-        channels_first,
-        channels_last,
-        channels_auto
-    };
+    MIGRAPHX_NESTED_ENUM(layout_order, channels_first, channels_last, channels_auto)
     layout_order order = channels_first;
     // Only used with channels_last: convolutions with at least this many
     // output channels store their weights with the K dim innermost (yxck

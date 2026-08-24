@@ -686,6 +686,14 @@ struct parse_gridsample : op_parser<parse_gridsample>
             mode = info.attributes.at("mode").s();
         }
 
+        // Opset 16 spells the modes "bilinear"/"bicubic", opset 20 renamed them
+        // to "linear"/"cubic".  Normalize to the opset-20 spelling so the rest
+        // of the pipeline only ever sees one name per mode.
+        if(mode == "bilinear")
+            mode = "linear";
+        else if(mode == "bicubic")
+            mode = "cubic";
+
         if(contains(info.attributes, "padding_mode"))
         {
             padding_mode = info.attributes.at("padding_mode").s();

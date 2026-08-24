@@ -28,6 +28,7 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -84,6 +85,8 @@ struct concat_compiler : compiler<concat_compiler>
     static std::size_t
     max_size(const std::vector<shape>& inputs, std::size_t ninputs, std::size_t axis)
     {
+        // the first ninputs virtual inputs are the concat inputs; the output is last
+        assert(ninputs > 0 and ninputs < inputs.size());
         return std::max_element(inputs.begin(),
                                 inputs.begin() + ninputs,
                                 by(std::less<>{}, [&](const shape& s) { return s.lens()[axis]; }))
@@ -104,8 +107,7 @@ struct concat_compiler : compiler<concat_compiler>
         vectorize vec{};
         if(axis != concat_axis)
             vec = vectorize::elements(ctx, axis, options.virtual_inputs);
-        auto output           = options.virtual_inputs.back();
-        auto nelements_per_op = output.elements() / op_names.size();
+        const auto& output = options.virtual_inputs.back();
         options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;
         std::vector<std::string> concat_args;
@@ -124,8 +126,7 @@ struct concat_compiler : compiler<concat_compiler>
             concat_args.push_back("pack(" + join_strings(pack_args, ", ") + ")");
         }
         auto ninputs             = concat_params.size();
-        auto max_elements_per_op =
-            max_size(options.virtual_inputs, ninputs, concat_axis) / vec.size;
+        auto max_elements_per_op = max_size(options.virtual_inputs, ninputs, concat_axis);
         auto avg_elements_per_op = output.lens()[concat_axis] / op_names.size();
         std::string algo;
         if(concat_axis == axis and max_elements_per_op < 64 and
@@ -134,14 +135,17 @@ struct concat_compiler : compiler<concat_compiler>
             std::size_t group = 1;
             if(concat_axis > 0)
                 group = tile::compute_factor(output.lens()[concat_axis - 1], 16);
-            auto nslices    = output.elements() / output.lens()[concat_axis];
+            auto nslices = output.elements() / output.lens()[concat_axis];
+            // compute_factor returns a divisor of lens()[concat_axis - 1], so group divides nslices
+            assert(nslices % group == 0);
             auto block_size = compute_block_size(ctx, max_elements_per_op * group, 256);
             algo            = "block_tile<" + std::to_string(group) + ">";
             options.set_launch_params(v, (nslices / group) * block_size, block_size);
         }
         else
         {
-            algo = "simple";
+            algo                  = "simple";
+            auto nelements_per_op = output.elements() / op_names.size();
             options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
         }
 

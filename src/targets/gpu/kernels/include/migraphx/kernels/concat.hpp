@@ -28,6 +28,7 @@
 #include <migraphx/kernels/slice.hpp>
 #include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/uninitialized_buffer.hpp>
 
 #ifndef MIGRAPHX_GUARD_KERNELS_CONCAT_HPP
 #define MIGRAPHX_GUARD_KERNELS_CONCAT_HPP
@@ -55,7 +56,7 @@ constexpr auto concat_slices(Input input, Start start, Ts... xs)
 {
     return [=](auto f) { return f(concat_slice<Axis>(xs, input, start)...); };
 }
- 
+
 template <index_int Axis, class Input>
 constexpr auto concat_ends(Input)
 {
@@ -70,18 +71,6 @@ constexpr auto concat_max(InputPacks... input_packs)
         return input_pack([&](auto, auto x, auto...) { return max(start, concat_ends<Axis>(x)); });
     })(_c<0>, input_packs...);
 }
-
-template<class InputPack, class...>
-struct get_base_type
-{
-    static constexpr auto apply(InputPack input_pack)
-    {
-        return input_pack([&](auto g, auto... xs) {
-            return g(xs[0]...);
-        });
-    }
-    using type = decltype(declval<InputPack>());
-};
 
 template<class T, class U>
 struct concat_pair
@@ -99,19 +88,6 @@ struct info
     MaxSize max_size;
 };
 MIGRAPHX_AUTO_DEDUCE(info);
-
-template <index_int Axis, class Start, class InputPack, class F, class... Ts>
-__device__ auto concat_each(index idx, Start start, InputPack input_pack, F f, Ts... ts)
-{
-    return input_pack([&](auto g, auto x, auto... xs) {
-        return concat_slices<Axis>(x, start, ts...)([&](auto z, auto... ys) {
-            idx.global_stride(x.get_shape().elements(),
-                              [&](auto i) { z[i] = f(g(x[i], xs[i]...), ys[i]...); });
-
-            return start + concat_ends<Axis>(x);
-        });
-    });
-}
 
 template<class R>
 struct basic_algo
@@ -133,7 +109,7 @@ MIGRAPHX_AUTO_DEDUCE(basic_algo);
 
 struct simple
 {
-    template<class T, class Info, class Output>
+    template <class Info, class Output>
     static __device__ auto make(index idx, Info, Output)
     {
         return basic_algo{[=](auto, auto g, auto x, auto... xs) {
@@ -148,7 +124,7 @@ struct simple
 template <index_int NGroups>
 struct block_tile
 {
-    template <class T, class Output, index_int N, index_int MaxSize>
+    template <class T, index_int N, index_int MaxSize>
     struct algo
     {
         constexpr auto slice() const
@@ -160,14 +136,8 @@ struct block_tile
         static __device__ auto output_data()
         {
             constexpr auto s = make_shape(index_ints<NGroups, N, MaxSize>{});
-            __shared__ T storage[s.element_space()];
-            return make_tensor_view(storage, s);
-        }
-
-        template <class Array>
-        static constexpr index_int compute_group(Array a)
-        {
-            return accumulate(a.begin(), a.end() - 1, index_int{1}, op::product{});
+            __shared__ uninitialized_buffer<T, s.element_space()> storage;
+            return make_tensor_view(storage.data(), s);
         }
 
         index idx;
@@ -178,11 +148,12 @@ struct block_tile
             auto output = output_data();
             slice()(xs...)([&](auto w, auto... ws) {
                 MIGRAPHX_ASSERT(w.get_shape().lens.back() == MaxSize);
-                idx.local_stride(w.get_shape().elements(), [&](auto i) {
-                    auto multi_idx     = w.get_shape().multi(i);
-                    auto k             = multi_idx.back();
-                    auto group                = compute_group(multi_idx);
-                    output[{group, depth, k}] = g(w[i], ws[i]...);
+                // slices are enumerated group-major, so view the slice as {group, k}
+                constexpr auto gshape = make_shape(index_ints<NGroups, MaxSize>{});
+                MIGRAPHX_ASSERT(w.get_shape().elements() == gshape.elements());
+                idx.local_stride(gshape.elements(), [&](auto i) {
+                    auto m                      = gshape.multi(i);
+                    output[{m[0], depth, m[1]}] = g(w[i], ws[i]...);
                 });
             });
         }
@@ -195,18 +166,17 @@ struct block_tile
             slice()(outputs...)([&](auto z, auto... ys) {
                 MIGRAPHX_ASSERT(z.get_shape().lens.back() == N * MaxSize);
                 MIGRAPHX_ASSERT(z.get_shape().elements() == output.get_shape().elements());
-                MIGRAPHX_ASSERT(compute_group(z.get_shape().lens) == NGroups);
                 block_stride<per_block, 8>(idx, z.get_shape().elements())(
                     [&](auto i) { z[i] = f(output[i], ys[i]...); });
             });
         }
     };
 
-    template <class T, class Info, class Output>
+    template <class Info, class Output>
     static __device__ auto make(index idx, Info info, Output)
     {
         MIGRAPHX_ASSERT(info.axis == get_shape_c<Output>{}.lens.size() - 1);
-        return algo<typename Output::type, Output, info.nargs, info.max_size>{idx};
+        return algo<typename Output::type, info.nargs, info.max_size>{idx};
     }
 };
 
@@ -214,13 +184,12 @@ template <class Algo, index_int Axis, class... InputPacks>
 __device__ auto run(InputPacks... input_packs)
 {
     return [=](auto f, auto t, auto... ts) {
-        auto idx = make_index();
-        auto algo = Algo::template make<typename get_base_type<InputPacks...>::type>(
-            idx,
-            info{.axis     = _c<Axis>,
-                 .nargs    = _c<sizeof...(InputPacks)>,
-                 .max_size = concat_max<Axis>(input_packs...)},
-            t);
+        auto idx  = make_index();
+        auto algo = Algo::make(idx,
+                               info{.axis     = _c<Axis>,
+                                    .nargs    = _c<sizeof...(InputPacks)>,
+                                    .max_size = concat_max<Axis>(input_packs...)},
+                               t);
         fold([&](auto p, auto input_pack) {
             return input_pack([&](auto g, auto x, auto... xs) {
                 return concat_slices<Axis>(x, p.offset, t, ts...)([&](auto z, auto... ys) {
@@ -235,7 +204,7 @@ __device__ auto run(InputPacks... input_packs)
         algo.finish(f, t, ts...);
     };
 }
-} // concat
+} // namespace concat
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_CONCAT_HPP

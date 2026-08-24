@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <test.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 
 static const auto find_fast_axis = test::make_function("find_fast_axis", [](auto&&... xs) {
@@ -39,9 +40,8 @@ TEST_CASE(test_find_fast_axis)
                migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
 }
 
-static const auto compute_factor = test::make_function("tile::compute_factor", [](auto&&... xs) {
-    return migraphx::gpu::gen::tile::compute_factor(static_cast<decltype(xs)>(xs)...);
-});
+static const auto compute_factor = test::make_function(
+    "tile::compute_factor", MIGRAPHX_LIFT(migraphx::gpu::gen::tile::compute_factor));
 
 TEST_CASE(test_compute_factor_one) { EXPECT(compute_factor(1) == 1); }
 

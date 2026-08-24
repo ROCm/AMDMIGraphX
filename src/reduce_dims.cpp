@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/reduce_dims.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -112,20 +113,19 @@ static shape mask_shape(const shape& s, const std::vector<std::size_t>& lens)
     assert(s.lens().size() == lens.size());
 
     std::vector<std::size_t> mlens;
-    std::transform(s.lens().begin(), s.lens().end(), lens.begin(), std::back_inserter(mlens), [](auto x, auto y) -> std::size_t {
-        if(x != y)
-            return 1;
-        return x;
-    });
+    std::transform(s.lens().begin(),
+                   s.lens().end(),
+                   lens.begin(),
+                   std::back_inserter(mlens),
+                   [](auto x, auto y) -> std::size_t { return x == y ? x : 1; });
     shape base{s.type(), mlens};
     std::vector<std::size_t> rstrides(lens.size());
-    for(std::size_t i = 0; i < lens.size(); i++)
-    {
+    auto is = range(lens.size());
+    std::transform(is.begin(), is.end(), rstrides.begin(), [&](auto i) -> std::size_t {
         if(lens[i] == s.lens()[i])
-        {
-            rstrides[i] = base.strides()[i];
-        }
-    }
+            return base.strides()[i];
+        return 0;
+    });
     return shape{s.type(), lens, rstrides};
 }
 

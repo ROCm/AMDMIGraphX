@@ -344,6 +344,7 @@ constexpr auto pack_compare(Compare compare, P1 p1, P2 p2)
 template <index_int N>
 constexpr auto arg_c()
 {
+    // N == 0 is special-cased to reduce template instantiations
     if constexpr(N == 0)
     {
         return [](auto x, auto...) { return x; };

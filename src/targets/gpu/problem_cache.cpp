@@ -72,17 +72,6 @@ void problem_cache::set_device_key(const cache_device_key& key) { device_key = k
 
 const cache_device_key& problem_cache::get_device_key() const { return device_key; }
 
-void problem_cache::load(const std::string& path)
-{
-    if(path.empty())
-        return;
-    // Pick the backend by file type, then remember the path so save() writes
-    // back here; a missing file loads empty.
-    backend       = make_backend(path);
-    path_override = path;
-    backend.load(path);
-}
-
 void problem_cache::save() const
 {
     // No writable path (read-only or unconfigured cache) means save does nothing.
@@ -100,12 +89,16 @@ void problem_cache::load(const std::vector<std::string>& read_only_paths,
     backend = problem_cache_backend{json_problem_cache{}};
 
     // Read/write cache (the developer cache): new solutions save back here. Only
-    // one file is written, so the first non-empty writable path wins.
+    // one file is written, so the first non-empty writable path wins. Pick the
+    // backend by file type and remember the path so save() writes back here; a
+    // missing file loads empty.
     for(const auto& path : writable_paths)
     {
         if(not path.empty())
         {
-            load(path);
+            backend       = make_backend(path);
+            path_override = path;
+            backend.load(path);
             break;
         }
     }

@@ -46,43 +46,14 @@ migraphx::value make_problem(std::size_t variant) { return migraphx::value{{"var
 } // namespace
 
 // --------------------------------------------------------------------------
-// load(path) writes to the same path on save() -- the path is "remembered".
-// --------------------------------------------------------------------------
-TEST_CASE(problem_cache_path_override_round_trip)
-{
-    migraphx::tmp_dir td{"problem_cache_path_override"};
-    auto path = (td.path / "explicit.json").string();
-
-    {
-        migraphx::gpu::problem_cache writer;
-        writer.set_device_key(make_key());
-        writer.load(path); // path doesn't exist yet -- no-op load, but path is remembered
-        writer.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kA"}});
-        writer.save(); // must write to `path` because path_override was set
-    }
-
-    EXPECT(migraphx::fs::exists(path));
-
-    {
-        migraphx::gpu::problem_cache reader;
-        reader.set_device_key(make_key());
-        reader.load(path);
-        EXPECT(reader.has("gemm", make_problem(0)));
-        auto v = reader.get("gemm", make_problem(0));
-        EXPECT(bool(v));
-        EXPECT((*v).at("kernel").to<std::string>() == "kA");
-    }
-}
-
-// --------------------------------------------------------------------------
-// load(empty path) is a no-op and leaves the cache empty (no env-var fallback
-// from the path-arg overload).
+// load({}, {empty path}) is a no-op: an empty writable path configures no
+// cache and leaves it empty (no env-var fallback from the path arg).
 // --------------------------------------------------------------------------
 TEST_CASE(problem_cache_path_override_empty_is_noop)
 {
     migraphx::gpu::problem_cache c;
     c.set_device_key(make_key());
-    c.load(std::string{});
+    c.load(std::vector<std::string>{}, std::vector<std::string>{std::string{}});
     EXPECT(not c.has("gemm", make_problem(7)));
 
     // Subsequent save() with no path-override and no env var must be a no-op
@@ -107,7 +78,7 @@ TEST_CASE(problem_cache_layered_priority_first_hit_wins)
     {
         migraphx::gpu::problem_cache w;
         w.set_device_key(make_key());
-        w.load(high);
+        w.load(std::vector<std::string>{}, std::vector<std::string>{high});
         w.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kHigh"}});
         w.save();
     }
@@ -116,7 +87,7 @@ TEST_CASE(problem_cache_layered_priority_first_hit_wins)
     {
         migraphx::gpu::problem_cache w;
         w.set_device_key(make_key());
-        w.load(low);
+        w.load(std::vector<std::string>{}, std::vector<std::string>{low});
         w.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kLow"}});
         w.insert("gemm", make_problem(1), migraphx::value{{"kernel", "kOnlyLow"}});
         w.save();
@@ -165,7 +136,7 @@ TEST_CASE(problem_cache_writable_over_read_only)
     {
         migraphx::gpu::problem_cache w;
         w.set_device_key(make_key());
-        w.load(ro);
+        w.load(std::vector<std::string>{}, std::vector<std::string>{ro});
         w.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kReadOnly"}});
         w.insert("gemm", make_problem(1), migraphx::value{{"kernel", "kOnlyRO"}});
         w.save();
@@ -196,14 +167,14 @@ TEST_CASE(problem_cache_writable_over_read_only)
     {
         migraphx::gpu::problem_cache ro_reader;
         ro_reader.set_device_key(make_key());
-        ro_reader.load(ro);
+        ro_reader.load(std::vector<std::string>{}, std::vector<std::string>{ro});
         EXPECT((*ro_reader.get("gemm", make_problem(0))).at("kernel").to<std::string>() ==
                "kReadOnly");
     }
     {
         migraphx::gpu::problem_cache rw_reader;
         rw_reader.set_device_key(make_key());
-        rw_reader.load(rw);
+        rw_reader.load(std::vector<std::string>{}, std::vector<std::string>{rw});
         EXPECT(rw_reader.has("gemm", make_problem(0)));
         EXPECT((*rw_reader.get("gemm", make_problem(0))).at("kernel").to<std::string>() ==
                "kWritable");
@@ -232,7 +203,7 @@ TEST_CASE(problem_cache_writable_only)
     // The solution persists to the writable file and reloads.
     migraphx::gpu::problem_cache reader;
     reader.set_device_key(make_key());
-    reader.load(rw);
+    reader.load(std::vector<std::string>{}, std::vector<std::string>{rw});
     EXPECT(reader.has("gemm", make_problem(0)));
     EXPECT((*reader.get("gemm", make_problem(0))).at("kernel").to<std::string>() == "kW");
 }

@@ -57,9 +57,6 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     void insert(const std::string& name, const value& problem, const value& solution);
     void mark(const std::string& name, const value& problem);
     optional<value> get(const std::string& name, const value& problem) const;
-    /// Load a single read/write cache: new solutions are saved back to it. An
-    /// empty path is "no cache" (no-op). The path is reused for the next save().
-    void load(const std::string& path);
     /// Configure both cache tiers: the read-only caches (searched after the
     /// writable cache, first hit wins, never written) and the read/write caches
     /// (only the first non-empty path is written back to).

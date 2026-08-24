@@ -474,7 +474,6 @@ struct context
     /// Access the problem cache directly to look up, insert, mark, and save
     /// tuning solutions (see problem_cache for the layered priority search).
     problem_cache& get_problem_cache() { return *pc; }
-    const problem_cache& get_problem_cache() const { return *pc; }
 
     /// Configure the problem cache from the read-only caches (gpuep/ISV, never
     /// written) and the read/write developer caches (solutions save back). Auto

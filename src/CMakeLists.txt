@@ -135,7 +135,6 @@ add_library(migraphx
     rewrite_low_precision.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
-    rewrite_rnn.cpp
     reshape_dims.cpp
     rewrite_topk.cpp
     schedule.cpp
@@ -218,6 +217,7 @@ register_migraphx_ops(
     dimensions_of
     div
     dot
+    dyn_slice
     elu
     equal
     erf
@@ -233,7 +233,6 @@ register_migraphx_ops(
     get_tuple_elem
     greater
     group
-    gru
     identity
     if_op
     im2col
@@ -251,7 +250,6 @@ register_migraphx_ops(
     logsoftmax
     loop
     lrn
-    lstm
     max
     min
     mod
@@ -291,9 +289,6 @@ register_migraphx_ops(
     reshape_lazy
     resize
     reverse
-    rnn
-    rnn_last_cell_output
-    rnn_last_hs_output
     rnn_var_sl_last_output
     roialign
     rsqrt

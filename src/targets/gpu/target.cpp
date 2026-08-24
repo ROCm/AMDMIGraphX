@@ -59,7 +59,6 @@
 #include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/rewrite_resize.hpp>
 #include <migraphx/rewrite_quantization.hpp>
-#include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/rewrite_topk.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/serialize.hpp>
@@ -173,8 +172,6 @@ struct pipeline_factory
                         dead_code_elimination{}),
             simplify_qdq{.use_mx_quant = gpu::gfx_has_mx_intrinsics(*get_context())},
             enable_pass(not mlir_enabled(), rewrite_quantization{}),
-            dead_code_elimination{},
-            rewrite_rnn{},
             dead_code_elimination{},
             eliminate_data_type_for_gpu{.disable_64bit = options.fast_math, .ctx = get_context()},
             rewrite_resize{.affine_only = true},

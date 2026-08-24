@@ -25,6 +25,9 @@ on:
         required: true
         default: "AMD"
 
+permissions:
+  contents: read
+
 jobs:
   release:
     uses: ROCm/migraphx-benchmark/.github/workflows/history.yml@main

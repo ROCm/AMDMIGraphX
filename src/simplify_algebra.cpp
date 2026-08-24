@@ -1095,11 +1095,9 @@ struct find_concat_op
     }
 };
 
-// Collapse `concat(x, x, ..., x)` (N copies of the same instruction) into a
-// single `multibroadcast` when the concat axis has length 1 in the source
-// tensor. This is the common shape that shows up in MoE / KV-cache / RoPE
-// expansion code where a tensor is replicated N times along an axis. The
-// rewrite turns an O(output_size) memcpy into a strided view.
+// Rewrite `concat(x, x, ..., x)` (N copies of the same instruction) as a
+// broadcast-based tiling of x. This pattern shows up in MoE / KV-cache /
+// RoPE expansion code where a tensor is replicated N times along an axis.
 struct find_concat_same_input
 {
     auto matcher() const { return match::name("concat")(match::same_inputs()); }
@@ -1119,18 +1117,25 @@ struct find_concat_same_input
         if(axis < 0 or axis >= lens.size())
             return;
 
-        // Safe (no data movement) case: the concat axis is size 1 in the
-        // source, so it can be broadcast to N. The general lens[axis] > 1
-        // case requires unsqueeze + multGibroadcast + reshape and is left
-        // to a follow-up matcher.
-        if(lens[axis] != 1)
+        const auto& out_lens = ins->get_shape().lens();
+
+        // The concat axis is size 1 in the source, so replicating it is a
+        // strided view with no data movement.
+        if(lens[axis] == 1)
+        {
+            m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), x);
             return;
+        }
 
-        auto out_lens  = lens;
-        out_lens[axis] = inputs.size();
-        assert(out_lens == ins->get_shape().lens());
-
-        m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), x);
+        // General case: tile the axis by unsqueezing a unit dim before it,
+        // broadcasting that dim to N, then folding it back into the axis.
+        auto unsqueezed = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {axis}}}), x);
+        auto bcast_lens = unsqueezed->get_shape().lens();
+        assert(bcast_lens[axis] == 1);
+        bcast_lens[axis] = inputs.size();
+        auto bcast       = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", bcast_lens}}), unsqueezed);
+        m.replace_instruction(ins, make_op("reshape", {{"dims", out_lens}}), bcast);
     }
 };
 

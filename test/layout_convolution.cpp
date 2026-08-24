@@ -32,7 +32,7 @@
 
 #include <test.hpp>
 
-static void run_pass(migraphx::module& m, migraphx::layout_convolution lc = {})
+static void run_pass(migraphx::module& m, const migraphx::layout_convolution& lc = {})
 {
     migraphx::run_passes(m, {lc, migraphx::dead_code_elimination{}});
 }

@@ -24,7 +24,9 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/map_activation_functions.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
@@ -136,10 +138,11 @@ struct parse_gru : op_parser<parse_gru>
                        vec_actv_funcs.begin(),
                        [&](const auto& name) { return map_activation_functions().at(name); });
 
-        float clip = 0.0;
-        if(contains(info.attributes, "clip"))
+        // clip is not yet supported by the gru builder
+        if(contains(info.attributes, "clip") and
+           not float_equal(parser.parse_value(info.attributes.at("clip")).at<float>(), 0.0f))
         {
-            clip = parser.parse_value(info.attributes.at("clip")).at<float>();
+            MIGRAPHX_THROW("GRU: clip attribute is not supported");
         }
 
         int layout = 0;
@@ -167,18 +170,14 @@ struct parse_gru : op_parser<parse_gru>
             gru_transpose_inputs(info, args);
         }
 
-        // first output for concatenation of hidden states
-        auto hidden_states =
-            info.add_instruction(make_op("gru",
-                                         {{"hidden_size", hidden_size},
-                                          {"actv_func", to_value(vec_actv_funcs)},
-                                          {"direction", dirct},
-                                          {"clip", clip},
-                                          {"linear_before_reset", linear_before_reset}}),
-                                 args);
-
-        // second output for last gru output
-        auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
+        auto results       = op::builder::add("gru",
+                                        *info.mod,
+                                        args,
+                                              {{"actv_func", to_value(vec_actv_funcs)},
+                                               {"direction", dirct},
+                                               {"linear_before_reset", linear_before_reset}});
+        auto hidden_states = results.at(0);
+        auto last_output   = results.at(1);
 
         if(layout != 0)
         {

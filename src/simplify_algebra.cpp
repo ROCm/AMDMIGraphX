@@ -30,7 +30,6 @@
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/transpose.hpp>
-#include <migraphx/op/unsqueeze.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/literal.hpp>
@@ -1027,12 +1026,13 @@ struct find_concat_op
         }
         else if(op.name() == "unsqueeze")
         {
-            auto u = any_cast<op::unsqueeze>(op);
+            value v   = op.to_value();
+            auto axes = v["axes"].to_vector<std::int64_t>();
             // Cant concat along an inserted unit axis, and steps split dims
-            if(not u.steps.empty() or contains(u.axes, iaxis) or
-               any_of(u.axes, [](auto a) { return a < 0; }))
+            if(not v["steps"].empty() or contains(axes, iaxis) or
+               any_of(axes, [](auto a) { return a < 0; }))
                 return {start, last};
-            iaxis -= std::count_if(u.axes.begin(), u.axes.end(), [&](auto a) { return a < iaxis; });
+            iaxis -= std::count_if(axes.begin(), axes.end(), [&](auto a) { return a < iaxis; });
         }
         if(not concat_const_foldable(start, last, iaxis))
             return {start, last};

@@ -2681,6 +2681,40 @@ TEST_CASE(builtin_log_exp_nested)
     EXPECT(log(exp(x)) + log(exp(y)) == x + y);
 }
 
+TEST_CASE(builtin_min_max_same_operand)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // min/max of an operand with itself collapses to that operand, for both leaf and
+    // compound operands.
+    EXPECT(min(x, x) == x);
+    EXPECT(max(x, x) == x);
+    EXPECT(min(x + y, x + y) == x + y);
+    EXPECT(max(x + y, x + y) == x + y);
+    EXPECT(min(min(x, y), min(x, y)) == min(x, y));
+    EXPECT(max(max(x, y), max(x, y)) == max(x, y));
+}
+
+TEST_CASE(builtin_min_max_distinct_operands_not_folded)
+{
+    auto x = var("x");
+    auto y = var("y");
+    EXPECT(min(x, y) != x);
+    EXPECT(min(x, y).children().size() == 2);
+    EXPECT(max(x, y) != x);
+    EXPECT(max(x, y).children().size() == 2);
+}
+
+TEST_CASE(builtin_min_max_same_operand_eval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = min(x + y, x + y);
+    EXPECT(e.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{4}}}) == scalar{int64_t{7}});
+    auto f = max(x + y, x + y);
+    EXPECT(f.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{4}}}) == scalar{int64_t{7}});
+}
+
 TEST_CASE(builtin_min_max_already_clamped)
 {
     auto x = var("x");
@@ -3505,8 +3539,7 @@ TEST_CASE(provable_equal_fixed_expressions)
 
 TEST_CASE(provable_equal_nan)
 {
-    const auto result =
-        provable_equal(lit(std::numeric_limits<double>::quiet_NaN()), lit(0.0));
+    const auto result = provable_equal(lit(std::numeric_limits<double>::quiet_NaN()), lit(0.0));
     EXPECT(result.has_value());
     EXPECT(not *result);
 }

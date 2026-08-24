@@ -191,14 +191,12 @@ std::ostream& operator<<(std::ostream& os, const interval& i)
 
 static bool scalar_less(const scalar& a, const scalar& b)
 {
-    return scalar_invoke_common<bool>(
-        [](auto x, auto y) { return std::less<>{}(x, y); }, a, b);
+    return scalar_invoke_common<bool>([](auto x, auto y) { return std::less<>{}(x, y); }, a, b);
 }
 
 static bool scalar_equal(const scalar& a, const scalar& b)
 {
-    return scalar_invoke_common<bool>(
-        [](auto x, auto y) { return std::equal_to<>{}(x, y); }, a, b);
+    return scalar_invoke_common<bool>([](auto x, auto y) { return std::equal_to<>{}(x, y); }, a, b);
 }
 
 bool interval::contains(const scalar& value) const
@@ -986,10 +984,8 @@ static const std::vector<rewrite_rule>& get_rewrite_rules()
             sqrt(_1 / _2) >> sqrt(_1) / sqrt(_2),
             log(exp(_1)) >> _1,
             exp(log(_1)) >> _1,
-            // Clamping against a bound the expression already clamps to only nests a
-            // redundant node, so repeated clamping (as attribute normalization does on
-            // every shape computation) keeps a single min/max instead of growing without
-            // bound. The inner node can hold the bound in either operand.
+            min(_1, _1) >> _1,
+            max(_1, _1) >> _1,
             min(min(_1, _2), _2) >> min(_1, _2),
             min(min(_2, _1), _2) >> min(_2, _1),
             max(max(_1, _2), _2) >> max(_1, _2),
@@ -1320,7 +1316,7 @@ std::optional<scalar> fixed_value(const expr& expression)
     return expression.eval(values);
 }
 
-expr fold_min(const expr& a, const expr& b)
+expr resolve_min(const expr& a, const expr& b)
 {
     auto lt = strict_less(a, b);
     if(lt.has_value())
@@ -1328,7 +1324,7 @@ expr fold_min(const expr& a, const expr& b)
     return min(a, b);
 }
 
-expr fold_max(const expr& a, const expr& b)
+expr resolve_max(const expr& a, const expr& b)
 {
     auto lt = strict_less(a, b);
     if(lt.has_value())
@@ -2446,8 +2442,13 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         e = sym::expr{};
         return;
     }
-    // A bare number is a literal, so an attribute holding expressions can still be written with
-    // plain integers, as in make_op("dyn_slice", {{"starts", {1}}}).
+    // Allow a symbolic literal to be written as a bare number and a symbolic expression as a
+    // bare string, e.g. make_op("dyn_slice", {{"starts", {1}}, {"ends", {"n + 1"}}}).
+    if(const auto* s = v.if_string())
+    {
+        e = sym::parse(*s);
+        return;
+    }
     if(not v.is_object())
     {
         e = sym::lit(value_to_sym_scalar(v));

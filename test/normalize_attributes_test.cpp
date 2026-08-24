@@ -81,6 +81,22 @@ TEST_CASE(normalize_axes_below_min_throws)
         "attribute out of range!"));
 }
 
+TEST_CASE(normalize_axes_exclude_min_checks_the_lower_bound)
+{
+    migraphx::value opts = migraphx::value::array{};
+    EXPECT(migraphx::normalize_axes({-3}, rank4(), opts) == ints{1});
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::normalize_axes({-4}, rank4(), opts); },
+                                             "attribute out of range!"));
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::normalize_axes({-5}, rank4(), opts); },
+                                             "attribute out of range!"));
+}
+
+TEST_CASE(normalize_axes_include_min_allows_the_lower_bound)
+{
+    EXPECT(migraphx::normalize_axes({-4}, rank4(), migraphx::value::array{na::include_min}) ==
+           ints{0});
+}
+
 TEST_CASE(normalize_axes_include_max_allows_the_rank)
 {
     EXPECT(migraphx::normalize_axes(
@@ -208,6 +224,24 @@ struct padding_test_op
     }
 };
 
+struct named_padding_test_op
+{
+    std::vector<std::size_t> pads = {};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.pads, "pads"));
+    }
+
+    migraphx::value attributes() const { return {{"normalize_padding", "pads"}}; }
+    std::string name() const { return "normalize_attributes_test::named_padding_op"; }
+    migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        return inputs[0];
+    }
+};
+
 struct axes_test_op
 {
     std::vector<int64_t> axes = {};
@@ -328,6 +362,15 @@ TEST_CASE(normalize_padding_doubles_a_one_sided_attribute)
     migraphx::operation op = padding_test_op{{1, 2}};
     EXPECT(migraphx::normalize_attributes(op, s));
     EXPECT(op.to_value().at("padding").to_vector<std::size_t>() ==
+           std::vector<std::size_t>{1, 2, 1, 2});
+}
+
+TEST_CASE(normalize_padding_uses_the_declared_attribute_name)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 8, 8}};
+    migraphx::operation op = named_padding_test_op{{1, 2}};
+    EXPECT(migraphx::normalize_attributes(op, s));
+    EXPECT(op.to_value().at("pads").to_vector<std::size_t>() ==
            std::vector<std::size_t>{1, 2, 1, 2});
 }
 

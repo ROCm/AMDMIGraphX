@@ -342,10 +342,9 @@ std::optional<std::vector<T>> fixed_values(const Range& expressions)
     return result;
 }
 
-// `min`/`max` that fold to one operand when the ordering is provable via intervals.
-// Fall back to a symbolic min/max node when it is indeterminate.
-MIGRAPHX_EXPORT expr fold_min(const expr& a, const expr& b);
-MIGRAPHX_EXPORT expr fold_max(const expr& a, const expr& b);
+// `min`/`max` that collapse to one operand when `strict_less` proves the ordering.
+MIGRAPHX_EXPORT expr resolve_min(const expr& a, const expr& b);
+MIGRAPHX_EXPORT expr resolve_max(const expr& a, const expr& b);
 
 // Pattern matching rewrite DSL
 MIGRAPHX_EXPORT expr pvar(int id);

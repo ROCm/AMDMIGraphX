@@ -64,6 +64,9 @@ env:
   MIGRAPHX_PERF_WORKSPACE_DEFAULT: /mnt/migraphx-perf-work
   MIGRAPHX_RUNNER_LABEL: linux-migraphx-mi250-1
 
+permissions:
+  contents: read
+
 jobs:
   security_gate:
     runs-on: ubuntu-latest
@@ -123,7 +126,7 @@ jobs:
       runner_label: ${{ steps.read_config.outputs.runner_label }}
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: read_config
         id: read_config
         env:
@@ -171,6 +174,11 @@ jobs:
 
   call_reusable:
     needs: get_config
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: read
     uses: ROCm/migraphx-benchmark/.github/workflows/perf-test.yml@testing
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || needs.get_config.outputs.rocm_version }}

@@ -24,6 +24,7 @@
 
 #include <migraphx/sym.hpp>
 #include <migraphx/serialize.hpp>
+#include <cstdint>
 #include <sstream>
 #include <utility>
 #include "test.hpp"
@@ -1055,6 +1056,75 @@ TEST_CASE(from_value_bare_number_array)
     auto r = migraphx::from_value<std::vector<se>>(v);
     const std::vector<se> expected{lit(1), lit(2), lit(3)};
     EXPECT(r == expected);
+}
+
+TEST_CASE(from_value_bare_number_keeps_precision)
+{
+    // Numbers are read directly instead of through the expression parser, so a double keeps
+    // full precision and is not limited by decimal formatting.
+    EXPECT(migraphx::from_value<se>(migraphx::value(0.123456789)) == lit(0.123456789));
+    // A msgpack round trip can re-tag a non-negative integer as uint64.
+    EXPECT(migraphx::from_value<se>(migraphx::value(std::uint64_t{42})) == lit(42));
+}
+
+TEST_CASE(from_value_bare_string_is_parsed)
+{
+    // A plain string is parsed, so an attribute of expressions can be written as
+    // make_op("dyn_slice", {{"ends", {"n + 1"}}}) instead of building the nodes by hand.
+    auto h = var("h");
+    EXPECT(migraphx::from_value<se>(migraphx::value("h")) == h);
+    EXPECT(migraphx::from_value<se>(migraphx::value("5")) == lit(5));
+    EXPECT(migraphx::from_value<se>(migraphx::value("h + 1")) == h + 1);
+    EXPECT(migraphx::from_value<se>(migraphx::value("2*h")) == 2 * h);
+    EXPECT(migraphx::from_value<se>(migraphx::value("(h - 1)/2")) == (h - 1) / 2);
+    EXPECT(migraphx::from_value<se>(migraphx::value("-h")) == -1 * h);
+    EXPECT(migraphx::from_value<se>(migraphx::value("min(h, 4)")) == migraphx::sym::min(h, lit(4)));
+}
+
+TEST_CASE(from_value_bare_string_multi_symbol)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(migraphx::from_value<se>(migraphx::value("h*w + 2")) == h * w + 2);
+}
+
+TEST_CASE(from_value_bare_string_array)
+{
+    // Strings and numbers can be mixed within one attribute.
+    auto h = var("h");
+    auto v = migraphx::value::array{"h", "h + 1", 2};
+    auto r = migraphx::from_value<std::vector<se>>(v);
+    EXPECT(r == std::vector<se>{h, h + 1, lit(2)});
+}
+
+TEST_CASE(from_value_bare_string_variable_is_unconstrained)
+{
+    // A parsed name carries no constraints, so a constrained variable still needs the node form.
+    auto e = migraphx::from_value<se>(migraphx::value("n"));
+    EXPECT(e == var("n"));
+    EXPECT(e != var("n", {1, 8}));
+}
+
+TEST_CASE(from_value_bare_empty_string_is_empty)
+{
+    EXPECT(migraphx::from_value<se>(migraphx::value("")).empty());
+}
+
+TEST_CASE(from_value_bare_string_invalid_throws)
+{
+    EXPECT(test::throws([&] { migraphx::from_value<se>(migraphx::value("h +")); }));
+    EXPECT(test::throws([&] { migraphx::from_value<se>(migraphx::value("h w")); }));
+    EXPECT(test::throws([&] { migraphx::from_value<se>(migraphx::value("@")); }));
+}
+
+TEST_CASE(from_value_bare_string_round_trip)
+{
+    // The string form is input only: to_value writes the node object form, which reads back to
+    // the same expression.
+    auto e = migraphx::from_value<se>(migraphx::value("2*h + 3"));
+    EXPECT(e == 2 * var("h") + 3);
+    EXPECT(migraphx::to_value(e).is_object());
+    EXPECT(round_trip(e) == e);
 }
 
 TEST_CASE(serialize_symbol)

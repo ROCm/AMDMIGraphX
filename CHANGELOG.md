@@ -42,8 +42,8 @@ Full documentation for MIGraphX is available at
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
 * Added a verbose terminate handler for exceptions on Windows (#5084).
 * Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
-* Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, that describes its bound inputs with symbolic attributes so slicing by a data-dependent bound keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5088).
-* Added symbolic normalization of operator attributes that hold symbolic expressions, which clamps a bound against a symbolic axis length instead of leaving it unnormalized (#5088).
+* Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, whose symbolic `starts`/`ends` attributes describe the run-time bound inputs so a data-dependent slice keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5088).
+* Added symbolic normalization of operator attributes holding `sym::expr`, clamping each value against its axis length symbolically (#5088).
 
 
 ### Changed

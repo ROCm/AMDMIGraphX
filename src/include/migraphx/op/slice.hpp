@@ -151,10 +151,9 @@ struct slice
     shape compute_two_or_more(std::vector<shape> inputs) const
     {
         auto input_shape = inputs[0];
-        // The bounds arrive at run time, so the output extent cannot be expressed with the
-        // integer bounds this operator carries.
         if(input_shape.symbolic())
-            MIGRAPHX_THROW("SLICE: symbolic input shapes are not supported with bound inputs, "
+            MIGRAPHX_THROW("SLICE: symbolic input shapes are not supported with variable "
+                           "starts/ends/axes inputs, "
                            "use dyn_slice");
         auto set_attributes = get_set_attributes();
         // check that inputs [1, end) are all 1D, have the same

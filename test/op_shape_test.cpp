@@ -39,6 +39,13 @@ using se = migraphx::sym::expr;
 using migraphx::sym::lit;
 using migraphx::sym::var;
 
+/// A starts or ends attribute holding symbolic bounds, one per sliced axis.
+template <class... Ts>
+static migraphx::value sym_bound(const Ts&... bounds)
+{
+    return migraphx::value::array{migraphx::to_value(bounds)...};
+}
+
 template <class... Ts>
 struct expect_shape
 {
@@ -1474,10 +1481,9 @@ TEST_CASE(dyn_slice_negative_axis)
 TEST_CASE(dyn_slice_symbolic_end_static_input)
 {
     // Static input + symbolic end bound: the output is symbolic, so it is not demoted to static.
-    auto n  = var("n", {1, 16});
-    auto op = migraphx::make_op(
-        "dyn_slice",
-        {{"axes", {0}}, {"starts", {0}}, {"ends", migraphx::value::array{migraphx::to_value(n)}}});
+    auto n = var("n", {1, 16});
+    auto op =
+        migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", sym_bound(n)}});
 
     // end=n is clamped to the axis length 10: dim = min(n, 10).
     migraphx::shape sin{migraphx::shape::float_type, {10}};
@@ -1502,9 +1508,7 @@ TEST_CASE(dyn_slice_symbolic_bounds)
         auto m  = var("m", {1, 16});
         auto n  = var("n", {2, 16});
         auto op = migraphx::make_op("dyn_slice",
-                                    {{"axes", {1}},
-                                     {"starts", {2}},
-                                     {"ends", migraphx::value::array{migraphx::to_value(n)}}});
+                                    {{"axes", {1}}, {"starts", {2}}, {"ends", sym_bound(n)}});
         migraphx::shape sin{migraphx::shape::float_type, {dd{m}, dd{lit(12)}}};
         migraphx::shape sout{migraphx::shape::float_type,
                              {dd{m}, dd{migraphx::sym::min(n, lit(12)) - lit(2)}},
@@ -1519,9 +1523,7 @@ TEST_CASE(dyn_slice_symbolic_bounds)
         // Symbolic end provably >= the axis length collapses to the length: extent is concrete.
         auto n  = var("n", {13, 20});
         auto op = migraphx::make_op("dyn_slice",
-                                    {{"axes", {0}},
-                                     {"starts", {2}},
-                                     {"ends", migraphx::value::array{migraphx::to_value(n)}}});
+                                    {{"axes", {0}}, {"starts", {2}}, {"ends", sym_bound(n)}});
         migraphx::shape sin{migraphx::shape::float_type, {dd{lit(12)}, dd{lit(4)}}};
         migraphx::shape sout{
             migraphx::shape::float_type, {dd{lit(10)}, dd{lit(4)}}, sin.dyn_strides()};
@@ -1531,9 +1533,7 @@ TEST_CASE(dyn_slice_symbolic_bounds)
         // Symbolic start: dim = 8 - n (n <= 8 keeps the extent non-negative).
         auto n  = var("n", {1, 8});
         auto op = migraphx::make_op("dyn_slice",
-                                    {{"axes", {0}},
-                                     {"starts", migraphx::value::array{migraphx::to_value(n)}},
-                                     {"ends", {8}}});
+                                    {{"axes", {0}}, {"starts", sym_bound(n)}, {"ends", {8}}});
         migraphx::shape sin{migraphx::shape::float_type, {dd{lit(10)}, dd{lit(4)}}};
         migraphx::shape sout{
             migraphx::shape::float_type, {dd{lit(8) - n}, dd{lit(4)}}, sin.dyn_strides()};
@@ -1552,10 +1552,8 @@ TEST_CASE(dyn_slice_symbolic_bounds_may_cross)
         // Both bounds symbolic over the same range.
         auto m  = var("m", {0, 3});
         auto n  = var("n", {0, 3});
-        auto op = migraphx::make_op("dyn_slice",
-                                    {{"axes", {2}},
-                                     {"starts", migraphx::value::array{migraphx::to_value(m)}},
-                                     {"ends", migraphx::value::array{migraphx::to_value(n)}}});
+        auto op = migraphx::make_op(
+            "dyn_slice", {{"axes", {2}}, {"starts", sym_bound(m)}, {"ends", sym_bound(n)}});
         migraphx::shape sin{migraphx::shape::float_type, {2, 2, 3}};
         auto extent = migraphx::sym::max(
             migraphx::sym::min(n, lit(3)) - migraphx::sym::min(m, lit(3)), lit(0));
@@ -1576,9 +1574,7 @@ TEST_CASE(dyn_slice_symbolic_bounds_may_cross)
         // Symbolic start whose range can exceed the concrete end.
         auto m  = var("m", {0, 10});
         auto op = migraphx::make_op("dyn_slice",
-                                    {{"axes", {0}},
-                                     {"starts", migraphx::value::array{migraphx::to_value(m)}},
-                                     {"ends", {4}}});
+                                    {{"axes", {0}}, {"starts", sym_bound(m)}, {"ends", {4}}});
         migraphx::shape sin{migraphx::shape::float_type, {10, 4}};
         auto extent = migraphx::sym::max(lit(4) - migraphx::sym::min(m, lit(10)), lit(0));
         migraphx::shape sout{
@@ -1591,9 +1587,7 @@ TEST_CASE(dyn_slice_symbolic_bounds_may_cross)
         // Symbolic end whose range can fall below the concrete start.
         auto n  = var("n", {0, 10});
         auto op = migraphx::make_op("dyn_slice",
-                                    {{"axes", {0}},
-                                     {"starts", {4}},
-                                     {"ends", migraphx::value::array{migraphx::to_value(n)}}});
+                                    {{"axes", {0}}, {"starts", {4}}, {"ends", sym_bound(n)}});
         migraphx::shape sin{migraphx::shape::float_type, {10, 4}};
         auto extent = migraphx::sym::max(migraphx::sym::min(n, lit(10)) - lit(4), lit(0));
         migraphx::shape sout{
@@ -1607,10 +1601,8 @@ TEST_CASE(dyn_slice_symbolic_bounds_may_cross)
         auto k  = var("k", {4, 8});
         auto m  = var("m", {0, 8});
         auto n  = var("n", {0, 8});
-        auto op = migraphx::make_op("dyn_slice",
-                                    {{"axes", {0}},
-                                     {"starts", migraphx::value::array{migraphx::to_value(m)}},
-                                     {"ends", migraphx::value::array{migraphx::to_value(n)}}});
+        auto op = migraphx::make_op(
+            "dyn_slice", {{"axes", {0}}, {"starts", sym_bound(m)}, {"ends", sym_bound(n)}});
         migraphx::shape sin{migraphx::shape::float_type, {dd{k}, dd{lit(4)}}};
         auto extent =
             migraphx::sym::max(migraphx::sym::min(n, k) - migraphx::sym::min(m, k), lit(0));
@@ -1627,11 +1619,8 @@ TEST_CASE(dyn_slice_symbolic_bounds_clamped_multi_axes)
     // The clamp is decided per axis: axis 0 needs it, axis 1 is provably non-negative.
     auto m  = var("m", {0, 10});
     auto p  = var("p", {0, 2});
-    auto op = migraphx::make_op(
-        "dyn_slice",
-        {{"axes", {0, 1}},
-         {"starts", migraphx::value::array{migraphx::to_value(m), migraphx::to_value(p)}},
-         {"ends", {4, 10}}});
+    auto op = migraphx::make_op("dyn_slice",
+                                {{"axes", {0, 1}}, {"starts", sym_bound(m, p)}, {"ends", {4, 10}}});
 
     migraphx::shape bounds{migraphx::shape::int64_type, {2}};
     migraphx::shape sin{migraphx::shape::float_type, {10, 12}};
@@ -1662,9 +1651,7 @@ TEST_CASE(dyn_slice_provably_negative_extent_error)
     {
         auto n  = var("n", {1, 4});
         auto op = migraphx::make_op("dyn_slice",
-                                    {{"axes", {0}},
-                                     {"starts", {8}},
-                                     {"ends", migraphx::value::array{migraphx::to_value(n)}}});
+                                    {{"axes", {0}}, {"starts", {8}}, {"ends", sym_bound(n)}});
         EXPECT(test::throws<migraphx::exception>(
             [&] {
                 add_dyn_slice(op,
@@ -1678,10 +1665,7 @@ TEST_CASE(dyn_slice_provably_negative_extent_error)
         auto a  = var("a", {5, 9});
         auto b  = var("b", {1, 4});
         auto op = migraphx::make_op(
-            "dyn_slice",
-            {{"axes", {0, 1}},
-             {"starts", {2, 8}},
-             {"ends", migraphx::value::array{migraphx::to_value(a), migraphx::to_value(b)}}});
+            "dyn_slice", {{"axes", {0, 1}}, {"starts", {2, 8}}, {"ends", sym_bound(a, b)}});
         EXPECT(test::throws<migraphx::exception>(
             [&] {
                 add_dyn_slice(op,
@@ -1710,9 +1694,7 @@ TEST_CASE(dyn_slice_empty_extent_allowed)
         // dimension fixed and demotes the result to a static shape.
         auto m  = var("m", {2, 4});
         auto op = migraphx::make_op("dyn_slice",
-                                    {{"axes", {0}},
-                                     {"starts", migraphx::value::array{migraphx::to_value(m)}},
-                                     {"ends", {2}}});
+                                    {{"axes", {0}}, {"starts", sym_bound(m)}, {"ends", {2}}});
         expect_shape(sout, op, sin, bounds, bounds);
     }
 }

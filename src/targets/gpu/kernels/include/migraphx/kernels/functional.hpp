@@ -180,6 +180,18 @@ constexpr void each_args(F)
 {
 }
 
+template <class... Ts>
+constexpr auto pack(Ts... xs)
+{
+    return [=](auto f) { return f(xs...); };
+}
+
+template <class... Ts>
+constexpr auto pack_forward(Ts&&... xs)
+{
+    return [&](auto f) { return f(static_cast<Ts&&>(xs)...); };
+}
+
 template <class F, class Pack>
 constexpr void unpack_each(F f)
 {
@@ -296,18 +308,6 @@ constexpr auto partial(F f)
     return [=](auto... xs) {
         return [=](auto&&... ys) { return f(xs..., static_cast<decltype(ys)>(ys)...); };
     };
-}
-
-template <class... Ts>
-constexpr auto pack(Ts... xs)
-{
-    return [=](auto f) { return f(xs...); };
-}
-
-template <class... Ts>
-constexpr auto pack_forward(Ts&&... xs)
-{
-    return [&](auto f) { return f(static_cast<Ts&&>(xs)...); };
 }
 
 template <class G, class F>

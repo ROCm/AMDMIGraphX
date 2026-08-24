@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <vector>
 #include <migraphx/builtin.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -131,8 +132,16 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
 
 static instruction_ref find_final_split(instruction_ref split_ins)
 {
-    auto output_path = get_output_path(split_ins);
-    auto it          = std::adjacent_find(
+    auto output_path_range = get_output_path(split_ins);
+    std::vector<instruction_ref> output_path(output_path_range.begin(), output_path_range.end());
+    if(output_path.size() < 2)
+    {
+        if(output_path.empty())
+            MIGRAPHX_THROW("find_final_split: empty output path for instruction: " +
+                           split_ins->name());
+        return output_path.front();
+    }
+    auto it = std::adjacent_find(
         output_path.begin(), output_path.end(), [&](instruction_ref input, instruction_ref output) {
             if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
                 return false;
@@ -148,6 +157,8 @@ static instruction_ref find_final_split(instruction_ref split_ins)
             }
             return true;
         });
+    if(it == output_path.end())
+        return output_path.back();
     return *it;
 }
 

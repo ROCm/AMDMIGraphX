@@ -71,6 +71,38 @@ TEST_CASE(dyn_slice_lowering_runtime_inputs)
     EXPECT(m1 == m2);
 }
 
+// dyn_slice always has runtime bound inputs, so both of them are copied to the host.
+TEST_CASE(dyn_slice_lowering_dyn_slice_op)
+{
+    migraphx::shape data_s{migraphx::shape::float_type, {2, 2, 4}};
+    migraphx::shape idx_s{migraphx::shape::int64_type, {1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}});
+
+    migraphx::module m1;
+    {
+        auto data   = m1.add_parameter("data", data_s);
+        auto starts = m1.add_parameter("starts", idx_s);
+        auto ends   = m1.add_parameter("ends", idx_s);
+        auto sl     = m1.add_instruction(op, data, starts, ends);
+        m1.add_return({sl});
+    }
+    run_lowering(m1);
+
+    migraphx::module m2;
+    {
+        auto data        = m2.add_parameter("data", data_s);
+        auto starts      = m2.add_parameter("starts", idx_s);
+        auto ends        = m2.add_parameter("ends", idx_s);
+        auto copy_starts = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), starts);
+        auto copy_ends   = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
+        auto sync =
+            m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_starts, copy_ends);
+        auto sl = m2.add_instruction(op, data, sync, copy_ends);
+        m2.add_return({sl});
+    }
+    EXPECT(m1 == m2);
+}
+
 // A slice with only 1 input (all attributes inline) should not be modified
 // by the dynamic slice lowering.
 TEST_CASE(dyn_slice_lowering_single_input)

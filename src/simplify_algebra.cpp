@@ -1028,9 +1028,11 @@ struct find_concat_op
         {
             value v   = op.to_value();
             auto axes = v["axes"].to_vector<std::int64_t>();
-            // Cant concat along an inserted unit axis, and steps split dims
+            // Cant concat along an inserted unit axis, and steps split dims;
+            // unsqueeze ignores axes for scalar inputs, so the axis remap doesnt apply
             if(not v["steps"].empty() or contains(axes, iaxis) or
-               any_of(axes, [](auto a) { return a < 0; }))
+               any_of(axes, [](auto a) { return a < 0; }) or
+               x->inputs().front()->get_shape().scalar())
                 return {start, last};
             iaxis -= std::count_if(axes.begin(), axes.end(), [&](auto a) { return a < iaxis; });
         }

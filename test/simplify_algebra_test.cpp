@@ -6016,4 +6016,24 @@ TEST_CASE(simplify_concat_unsqueeze_same_axis)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_concat_unsqueeze_scalar)
+{
+    // unsqueeze ignores axes for scalar inputs, so moving the concat below the
+    // unsqueeze would insert a real axis and change the result to 2D
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1}, {0}};
+        auto a      = m1.add_parameter("a", s);
+        auto b      = m1.add_parameter("b", s);
+        auto ua     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), a);
+        auto ub     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua, ub);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

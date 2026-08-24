@@ -28,14 +28,6 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 
-// Reduced from the action-masking head of a reinforcement learning agent model, which failed to
-// compile for the GPU with --fp16. Each branch slices a shared mask and consumes that slice
-// twice, once through `1 - mask` and once through `logits * mask`. Because two branches slice the
-// same tensor, pointwise fusion creates a shared pointwise that `split_pointwise_through_slices`
-// clones per branch; common subexpression elimination then folds the cloned slices back together,
-// leaving a single instruction wired into two operand slots of the pointwise fused into the
-// reduce. Reduce code generation has to collapse those slots into one lambda parameter, otherwise
-// it emits a duplicate parameter name and HIP compilation fails.
 struct test_masked_reduce_half : verify_program<test_masked_reduce_half>
 {
     migraphx::program create_program() const

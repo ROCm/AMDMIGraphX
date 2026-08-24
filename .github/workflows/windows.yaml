@@ -99,6 +99,21 @@ jobs:
       ROCM_VERSION: "7.13"
 
     steps:
+    - name: Free disk space
+      shell: pwsh
+      run: |
+        Get-PSDrive C | Select-Object @{Name="Used (GB)"; Expression={$_.Used / 1GB}}, @{Name="Free (GB)"; Expression={$_.Free / 1GB}}
+        if (Test-Path 'C:\Android') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue 'C:\Android' }
+        if (Test-Path 'C:\ghcup') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue 'C:\ghcup' }
+        if (Test-Path 'C:\tools\stack') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue 'C:\tools\stack' }
+        Get-ChildItem 'C:\hostedtoolcache\windows' -Filter 'Java_*' -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Get-ChildItem 'C:\hostedtoolcache\windows' -Filter 'swift*' -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path 'C:\Ruby*') { Get-Item 'C:\Ruby*' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }
+        if (Test-Path 'C:\hostedtoolcache\windows\go') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue 'C:\hostedtoolcache\windows\go' }
+        Get-PSDrive C | Select-Object @{Name="Used (GB)"; Expression={$_.Used / 1GB}}, @{Name="Free (GB)"; Expression={$_.Free / 1GB}}
+
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
     - name: Set up Python

@@ -478,4 +478,44 @@ TEST_CASE(pointwise_concat_of_slices_multi_use)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(pointwise_concat_of_slices_repeated_arg)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto xb  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), x);
+        auto xa = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), x);
+        auto rot = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xb, xa);
+        auto mul = add_pointwise(p1, "main:pointwise0", {rot, rot}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(pointwise_concat_of_slices_single_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape sr{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", sr);
+        auto xa  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), x);
+        auto cat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xa);
+        auto mul = add_pointwise(p1, "main:pointwise0", {cat, y}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

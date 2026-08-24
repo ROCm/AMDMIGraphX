@@ -36,7 +36,6 @@
 #include <migraphx/pmr/unordered_map.hpp>
 #include <array>
 #include <bitset>
-#include <limits>
 #include <queue>
 #include <type_traits>
 #include <unordered_map>
@@ -440,73 +439,68 @@ argument instruction::eval(bool check_eval) const
     })(*this);
 }
 
-static std::optional<symbolic_tensor_value> lift_symbolic_tensor_value(const argument& value)
+static sym_argument lift_sym_argument(const argument& value)
 {
-    if(value.empty() or not shape::is_integral(value.get_shape().type()))
-        return std::nullopt;
+    if(value.empty() or value.get_shape().type() == shape::tuple_type or
+       not value.get_shape().computable())
+        return {};
 
-    symbolic_tensor_value result;
-    bool converted = false;
+    sym_argument result;
     value.visit([&](auto input) {
-        using type = std::remove_cv_t<typename decltype(input)::value_type>;
-        if constexpr(std::is_integral<type>{})
-        {
-            if constexpr(std::is_unsigned<type>{} and sizeof(type) >= sizeof(int64_t))
-            {
-                if(any_of(input, [](auto x) {
-                       return x > static_cast<type>(std::numeric_limits<int64_t>::max());
-                   }))
-                    return;
-            }
-            transform(input, std::back_inserter(result), [](auto x) { return sym::lit(x); });
-            converted = true;
-        }
+        result      = sym_argument{value.get_shape()};
+        auto output = result.get();
+        transform(input, output.begin(), [](auto x) {
+            if constexpr(std::is_arithmetic<decltype(x)>{})
+                return sym::lit(x);
+            else
+                return sym::lit(static_cast<double>(x));
+        });
     });
-    if(not converted)
-        return std::nullopt;
+    if(result.empty())
+        return {};
     return result;
 }
 
-std::optional<symbolic_tensor_value> instruction::sym_eval() const
+sym_argument instruction::sym_eval() const
 {
 #if MIGRAPHX_HAS_PMR
     std::array<char, 1024> storage;
     std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
-    pmr::unordered_map<const instruction*, std::optional<symbolic_tensor_value>> cache(&resource);
+    pmr::unordered_map<const instruction*, sym_argument> cache(&resource);
 #else
-    pmr::unordered_map<const instruction*, std::optional<symbolic_tensor_value>> cache;
+    pmr::unordered_map<const instruction*, sym_argument> cache;
 #endif
-    return fix<std::optional<symbolic_tensor_value>>(
-        [&](auto self, const instruction& ins) -> std::optional<symbolic_tensor_value> {
-            auto found = cache.find(&ins);
-            if(found != cache.end())
-                return found->second;
+    return fix<sym_argument>([&](auto self, const instruction& ins) -> sym_argument {
+        auto found = cache.find(&ins);
+        if(found != cache.end())
+            return found->second;
 
-            std::optional<symbolic_tensor_value> result;
-            const auto& output_shape = ins.get_shape();
-            if(shape::is_integral(output_shape.type()) and not output_shape.dynamic())
+        sym_argument result;
+        const auto& output_shape = ins.get_shape();
+        if(output_shape.type() != shape::tuple_type and output_shape.computable() and
+           not output_shape.dynamic())
+        {
+            if(ins.can_eval())
             {
-                if(ins.name() == "@literal")
-                {
-                    result = lift_symbolic_tensor_value(ins.get_literal().get_argument());
-                }
-                else
-                {
-                    std::vector<std::optional<symbolic_tensor_value>> input_values;
-                    transform(ins.inputs(), std::back_inserter(input_values), [&](auto input) {
-                        return self(*input);
-                    });
-                    result = ins.normalized_operator().symbolic_compute(
-                        output_shape, to_shapes(ins.inputs()), input_values);
-                    if(not result.has_value())
-                        result = lift_symbolic_tensor_value(ins.eval());
-                }
-                if(result.has_value() and not symbolic_value_matches_shape(output_shape, *result))
-                    result = std::nullopt;
+                result = lift_sym_argument(ins.eval(false));
             }
-            cache.emplace(&ins, result);
-            return result;
-        })(*this);
+            else
+            {
+                std::vector<sym_argument> args;
+                transform(ins.inputs(), std::back_inserter(args), [&](auto input) {
+                    auto input_value = self(*input);
+                    return input_value.empty() ? sym_argument{{}, input->get_shape()}
+                                               : std::move(input_value);
+                });
+                result = ins.normalized_operator().symbolic_compute(output_shape, args);
+            }
+            if(not result.empty() and
+               (result.get_shape() != output_shape or not result.valid()))
+                result = {};
+        }
+        cache.emplace(&ins, result);
+        return result;
+    })(*this);
 }
 
 void instruction::finalize(context& ctx)

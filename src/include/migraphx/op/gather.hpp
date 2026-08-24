@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_GATHER_HPP
 #define MIGRAPHX_GUARD_OPERATORS_GATHER_HPP
 
+#include <algorithm>
 #include <array>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/dyn_output.hpp>
@@ -34,7 +35,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <cmath>
 #include <utility>
 
@@ -86,32 +87,30 @@ struct gather
         return result.to_static();
     }
 
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>& input_shapes,
-                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
     {
-        if(input_shapes.size() != 2 or input_values.size() != 2 or input_shapes[0].ndim() != 1 or
-           axis != 0 or not input_values[0].has_value() or not input_values[1].has_value())
-            return std::nullopt;
-        const auto indices = fixed_integers(*input_values[1]);
-        if(not indices.has_value())
-            return std::nullopt;
+        if(args.size() != 2 or args[0].get_shape().ndim() != 1 or axis != 0 or args[0].empty() or
+           args[1].empty())
+            return {};
+        auto indices = sym::fixed_values<int64_t>(args[1].get());
+        if(not indices.has_value() or indices->size() != output_shape.elements())
+            return {};
 
-        symbolic_tensor_value result;
-        result.reserve(indices->size());
-        const auto& data        = *input_values[0];
+        sym_argument result{output_shape};
+        const auto data         = args[0].get();
+        auto output             = result.get();
         const int64_t data_size = data.size();
-        for(auto index : *indices)
+        for(auto& index : *indices)
         {
             if(index < 0)
                 index += data_size;
             if(index < 0 or index >= data_size)
-                return std::nullopt;
-            result.push_back(data.at(index));
+                return {};
         }
-        if(not symbolic_value_matches_shape(output_shape, result))
-            return std::nullopt;
+        std::transform(indices->begin(), indices->end(), output.begin(), [&](auto index) {
+            return data[index];
+        });
         return result;
     }
 

@@ -35,8 +35,9 @@
 #include <migraphx/value.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <cmath>
+#include <numeric>
 #include <utility>
 
 namespace migraphx {
@@ -119,22 +120,26 @@ struct concat
         return {type, new_dds};
     }
 
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>&,
-                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
     {
-        if(axis != 0 or input_values.empty())
-            return std::nullopt;
-        symbolic_tensor_value result;
-        for(const auto& input : input_values)
+        if(axis != 0 or args.empty() or any_of(args, [](const auto& arg) { return arg.empty(); }))
+            return {};
+        const auto input_elements = std::accumulate(
+            args.begin(), args.end(), std::size_t{0}, [](auto sum, const auto& arg) {
+                return sum + arg.get_shape().elements();
+            });
+        if(input_elements != output_shape.elements())
+            return {};
+
+        sym_argument result{output_shape};
+        auto output = result.get();
+        auto out    = output.begin();
+        for(const auto& arg : args)
         {
-            if(not input.has_value())
-                return std::nullopt;
-            result.insert(result.end(), input->begin(), input->end());
+            const auto input = arg.get();
+            out              = std::copy(input.begin(), input.end(), out);
         }
-        if(not symbolic_value_matches_shape(output_shape, result))
-            return std::nullopt;
         return result;
     }
 

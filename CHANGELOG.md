@@ -42,8 +42,8 @@ Full documentation for MIGraphX is available at
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
 * Added a verbose terminate handler for exceptions on Windows (#5084).
 * Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
-* Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, that describes its bound inputs with symbolic attributes so slicing by a data-dependent bound keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5088).
-* Added symbolic normalization of operator attributes that hold symbolic expressions, which clamps a bound against a symbolic axis length instead of leaving it unnormalized (#5088).
+* Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, whose symbolic `starts`/`ends` attributes describe the run-time bound inputs so a data-dependent slice keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5088).
+* Added symbolic normalization of operator attributes holding `sym::expr`, clamping each value against its axis length symbolically (#5088).
 
 
 ### Changed
@@ -86,6 +86,7 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
+* Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
 
 ### Optimized
 * Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).
@@ -104,6 +105,7 @@ Full documentation for MIGraphX is available at
 * Add matcher to `fuse_attention` that removes Q/DQ pairs from attention blocks (#4900).
 * Added a pass `rewrite_convolution` to rewrite `convolution_backwards` to match the v4r1 algorithm used in MIOpen for performance (#4929)
 * Added tuning for maximum block size to JIT reductions. On some configs there is 2x-10x perf improvement. (#5056)
+* Fuse expert Silu Heads (MoE) into batched GEMM via fuse_horizontal (#5087)
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).

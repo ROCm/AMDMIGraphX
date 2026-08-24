@@ -28,7 +28,6 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/dyn_output.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/sym.hpp>
@@ -46,8 +45,8 @@ namespace op {
 /// computed, so they are an attribute only.
 ///
 /// An end before its start is rejected: at run time by compute(), and when the shape is computed
-/// for the bounds that put the end before the start over their whole range. A slice that is only
-/// empty (end equal to start) is allowed and produces a zero-length dimension.
+/// for the bounds that put the end before the start over their whole range. An extent that is
+/// not provably positive is clamped at zero, so an empty slice gives a zero-length dimension.
 ///
 /// Attributes:
 /// axes: axes to slice over
@@ -71,21 +70,19 @@ struct dyn_slice
     }
 
     /// Ensure the axes attribute is within limits, and clip starts and ends to the sliced axis
-    /// length. Symbolic bounds are clipped symbolically; see tune_attribute_sym().
+    /// length. Symbolic bounds are clipped symbolically; see normalize_attribute.hpp.
     value attributes() const
     {
-        value normalize_axes     = value::object{};
-        normalize_axes["axes"]   = value::array{normalize_attribute::include_min};
-        normalize_axes["starts"] = value::array{normalize_attribute::clip_max,
-                                                normalize_attribute::clip_min,
-                                                normalize_attribute::include_max,
-                                                normalize_attribute::use_len,
-                                                normalize_attribute::include_min};
-        normalize_axes["ends"]   = value::array{normalize_attribute::clip_max,
-                                              normalize_attribute::clip_min,
-                                              normalize_attribute::include_max,
-                                              normalize_attribute::use_len,
-                                              normalize_attribute::include_min};
+        auto bound             = value::array{normalize_attribute::clip_max,
+                                  normalize_attribute::clip_min,
+                                  normalize_attribute::include_max,
+                                  normalize_attribute::use_len,
+                                  normalize_attribute::include_min};
+        value normalize_axes   = value::object{};
+        normalize_axes["axes"] = value::array{normalize_attribute::include_min};
+        // Both bounds normalize the same way, against the length of the axis they apply to.
+        normalize_axes["starts"] = bound;
+        normalize_axes["ends"]   = bound;
         return {{"normalize_axes", normalize_axes}, {"fillcolor", "#FFA500" /* orange */}};
     }
 
@@ -94,6 +91,7 @@ struct dyn_slice
     /// Check the attributes against each other and against the inputs.
     void check_inputs_and_attributes(const std::vector<shape>& inputs) const
     {
+        assert(inputs.size() == 3);
         if(axes.empty() or starts.size() != axes.size() or ends.size() != axes.size())
         {
             MIGRAPHX_THROW("DYN_SLICE: axes, starts, and ends attributes must all be set and "
@@ -113,13 +111,8 @@ struct dyn_slice
                      std::string("DYN_SLICE: inputs (starts, ends)"),
                      false}
             .only_dims(1)
-            .same_dims();
-        if(inputs[1].lens().front() != axes.size())
-        {
-            MIGRAPHX_THROW(
-                "DYN_SLICE: input length (" + migraphx::to_string(inputs[1].lens().front()) +
-                ") does not match attribute length (" + migraphx::to_string(axes.size()) + ")");
-        }
+            .same_dims()
+            .nelements(axes.size());
     }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
@@ -141,65 +134,68 @@ struct dyn_slice
         auto zero = sym::lit(std::int64_t{0});
         migraphx::for_each(
             axes.begin(), axes.end(), extents.begin(), [&](auto axis, const auto& extent) {
-                // Negative over its whole range means compute() would reject every run-time
-                // value, so there is no point compiling the program.
                 if(sym::strict_less(extent, zero).value_or(false))
                     MIGRAPHX_THROW("DYN_SLICE: axis " + migraphx::to_string(axis) +
                                    ": end is always before start, extent " + extent.to_string() +
                                    " is negative over its whole range");
-                // An extent that merely might be negative cannot be ruled out by interval
-                // arithmetic when the bounds are independent symbols, so clamp at zero to keep
-                // the dimension non-negative. The clamp folds away when the subtraction is
-                // provably non-negative.
-                dds[axis] = shape::dynamic_dimension{sym::fold_max(extent, zero)};
+                // Clamp at zero to keep the dimension non-negative.
+                dds.at(axis) = shape::dynamic_dimension{sym::resolve_max(extent, zero)};
             });
         shape result{input_shape.type(), std::move(dds), sym_in.dyn_strides()};
-        // A slice is a view, so a fully concrete result of a static input must stay static.
+        // Every bound resolved over a static input, so don't hand back a dynamic shape.
         if(not input_shape.symbolic() and result.is_fixed())
             return result.to_static();
         return result;
     }
 
-    argument compute(const dyn_output&, std::vector<argument> args) const
+    argument compute(const shape&, std::vector<argument> args) const
     {
-        const auto& input = args.front();
-        auto input_shape  = input.get_shape();
-        auto read         = [](const argument& arg) {
-            std::vector<int64_t> result;
-            arg.visit([&](auto values) { result = values.template to_vector<int64_t>(); });
-            return result;
-        };
-        auto axes_attrs = this->attributes().at("normalize_axes");
-        // Only use the starts_input and ends_input for the output slice. Not the attributes.
-        auto norm_starts = normalize_indices(
-            read(args[1]), axes, input_shape, axes_attrs.at("starts"), "DYN_SLICE: starts input");
-        auto norm_ends = normalize_indices(
-            read(args[2]), axes, input_shape, axes_attrs.at("ends"), "DYN_SLICE: ends input");
+        assert(args.size() == 3);
+        const auto& input       = args.front();
+        const auto& input_shape = input.get_shape();
+        auto axes_attrs         = this->attributes().at("normalize_axes");
+        // The attributes only describe these inputs at compile time; slice by the inputs.
+        auto norm_starts = normalize_indices(args[1].to_vector<int64_t>(),
+                                             axes,
+                                             input_shape,
+                                             axes_attrs.at("starts"),
+                                             "DYN_SLICE: starts input");
+        auto norm_ends   = normalize_indices(args[2].to_vector<int64_t>(),
+                                           axes,
+                                           input_shape,
+                                           axes_attrs.at("ends"),
+                                           "DYN_SLICE: ends input");
+        // Guaranteed by check_inputs_and_attributes() when the shape was computed.
+        assert(norm_starts.size() == axes.size() and norm_ends.size() == axes.size());
 
-        // Get end-start for output dimension sizes. Reject if ends before starts (no wrap around).
-        std::vector<std::size_t> extents(axes.size());
-        std::transform(norm_ends.begin(),
-                       norm_ends.end(),
-                       norm_starts.begin(),
-                       extents.begin(),
-                       [](auto end, auto start) {
-                           if(end < start)
-                               MIGRAPHX_THROW("DYN_SLICE: end (" + migraphx::to_string(end) +
-                                              ") is before start (" + migraphx::to_string(start) +
-                                              ")");
-                           return std::size_t(end - start);
-                       });
+        // Reject an end before its start; the bounds do not wrap around.
+        migraphx::for_each(
+            norm_starts.begin(), norm_starts.end(), norm_ends.begin(), [](auto start, auto end) {
+                if(end < start)
+                    MIGRAPHX_THROW("DYN_SLICE: end (" + migraphx::to_string(end) +
+                                   ") is before start (" + migraphx::to_string(start) + ")");
+            });
+
         auto new_lens = input_shape.lens();
         std::vector<std::size_t> start_indices(input_shape.ndim(), 0);
         migraphx::for_each(axes.begin(),
                            axes.end(),
                            norm_starts.begin(),
-                           [&](auto axis, auto start) { start_indices[axis] = start; });
-        migraphx::for_each(axes.begin(), axes.end(), extents.begin(), [&](auto axis, auto extent) {
-            new_lens[axis] = extent;
+                           [&](auto axis, auto start) { start_indices.at(axis) = start; });
+        // Both bounds are non-negative after normalization, and the end is not before the start.
+        migraphx::for_each(axes.begin(), axes.end(), norm_ends.begin(), [&](auto axis, auto end) {
+            new_lens.at(axis) = std::size_t(end) - start_indices.at(axis);
         });
-        auto offset = input_shape.index(start_indices) * input_shape.type_size();
-        shape output_shape{input_shape.type(), new_lens, input_shape.strides()};
+
+        shape output_shape{input_shape.type(), std::move(new_lens), input_shape.strides()};
+        // A start may be clipped to the axis length, which puts start_indices out of bounds when
+        // the slice is empty. There is nothing to point at in that case, so leave the offset at 0.
+        std::size_t offset = 0;
+        if(output_shape.elements() != 0)
+        {
+            assert(input_shape.multi_within_bounds(start_indices));
+            offset = input_shape.index(start_indices) * input_shape.type_size();
+        }
         return {output_shape, [=] { return input.data() + offset; }};
     }
 

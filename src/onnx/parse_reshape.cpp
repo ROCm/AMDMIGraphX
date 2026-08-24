@@ -42,7 +42,7 @@ struct parse_reshape : op_parser<parse_reshape>
                           std::vector<instruction_ref> args) const
     {
         std::vector<int64_t> dims;
-        auto add_runtime_reshape = [&](const std::vector<dim_like>& reshape_dims) {
+        auto add_runtime_reshape = [&](const auto& reshape_dims) {
             const auto& input_shape = args[0]->get_shape();
             const auto output_dims  = resolve_reshape_dims(input_shape.to_symbolic(), reshape_dims);
             std::vector<sym::expr> output_expressions(output_dims.size());
@@ -60,7 +60,7 @@ struct parse_reshape : op_parser<parse_reshape>
         auto add_evaluated_reshape = [&] {
             if(not args[0]->get_shape().symbolic())
                 return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
-            return add_runtime_reshape({dims.begin(), dims.end()});
+            return add_runtime_reshape(std::vector<dim_like>{dims.begin(), dims.end()});
         };
 
         if(args.size() == 1)
@@ -76,16 +76,13 @@ struct parse_reshape : op_parser<parse_reshape>
             if(s.empty())
             {
                 // arg[1] not eval-able
-                instruction_ref alloc_ins;
                 const auto symbolic_dims = args[1]->sym_eval();
                 const auto& input_shape  = args[0]->get_shape();
-                if(symbolic_dims.has_value() and is_static_or_symbolic_shape(input_shape))
-                    return add_runtime_reshape(to_reshape_dimensions(*symbolic_dims));
-                else
-                {
-                    alloc_ins = info.add_instruction(
-                        make_op("allocate", {{"buf_type", input_shape.type()}}), args[1]);
-                }
+                if(not symbolic_dims.empty() and
+                   (not input_shape.dynamic() or input_shape.symbolic()))
+                    return add_runtime_reshape(symbolic_dims.get().to_vector());
+                auto alloc_ins = info.add_instruction(
+                    make_op("allocate", {{"buf_type", input_shape.type()}}), args[1]);
                 return info.add_instruction(make_op("reshape"), args[0], alloc_ins);
             }
             else

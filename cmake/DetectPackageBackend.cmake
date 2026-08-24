@@ -29,27 +29,29 @@
 # package against TheRock so that a bare `rbuild package` (or
 # `cmake --build build --target package`) works without extra -D flags.
 #
+# Preferred usage:
+#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DGPU_TARGETS="gfx942;gfx950" ..
+#
 # It sets these cache variables (each only when not already provided):
 #   MIGRAPHX_PACKAGE_BACKEND      - "therock" if any installed package name
 #                                   starts with "amdrocm", else "default".
 #   MIGRAPHX_THEROCK_ROCM_VERSION - ROCm version suffix parsed from an installed
-#                                   amdrocm-blas<ver>-<arch> package (e.g. 7.13).
-#   MIGRAPHX_THEROCK_GPU_ARCH     - the first detected per-GPU arch (e.g. gfx942),
-#                                   used to select the per-GPU package dependency.
+#                                   amdrocm-blas<ver>[-<arch>] package (e.g. 10.0).
 #   GPU_TARGETS                   - semicolon list of ALL detected arches
 #                                   (e.g. gfx942;gfx950), used for compilation.
 #
-# Precedence per variable: an explicit -D / already-set value wins, then the
-# GPU_ARCH_FOR_THEROCK env fallback (GPU arch only), then the detected value.
+# Package dependency arches default to GPU_TARGETS. An explicit
+# MIGRAPHX_THEROCK_GPU_ARCH cache value can override them for repositories whose
+# package suffix differs from the GPU target (e.g. TheRock <=7.14 gfx94x).
 #
-# Explicit usage still works and overrides detection, e.g.:
+# MIGRAPHX_THEROCK_ROCM_VERSION normally comes from installed packages. Set it
+# explicitly when packaging for a version that cannot be detected locally, e.g.:
 #   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=gfx942 \
-#         -DMIGRAPHX_THEROCK_ROCM_VERSION=7.13 -DGPU_TARGETS="gfx942;gfx950" ..
+#         -DMIGRAPHX_THEROCK_ROCM_VERSION=7.14 -DGPU_TARGETS="gfx942;gfx950" ..
 
 # Probe installed packages via dpkg/rpm. Returns (in PARENT_SCOPE):
 #   _AMDROCM_ANY          - TRUE if any installed package name starts with amdrocm
 #   _THEROCK_VERSION      - version suffix from the first amdrocm-blas<ver>[-<arch>]
-#   _THEROCK_FIRST_ARCH   - arch suffix from the first amdrocm-blas<ver>-<arch>
 #   _THEROCK_ALL_ARCHS    - deduped, sorted list of all detected arches
 function(_probe_amdrocm_packages)
     set(_names "")
@@ -100,7 +102,6 @@ function(_probe_amdrocm_packages)
 
     set(_any FALSE)
     set(_version "")
-    set(_first_arch "")
     set(_all_archs "")
     set(_version_no_arch "")
     if(_names)
@@ -113,9 +114,6 @@ function(_probe_amdrocm_packages)
             if(_name MATCHES "^amdrocm-blas([0-9][0-9.]*)-(gfx[0-9a-z]+)$")
                 if(NOT _version)
                     set(_version "${CMAKE_MATCH_1}")
-                endif()
-                if(NOT _first_arch)
-                    set(_first_arch "${CMAKE_MATCH_2}")
                 endif()
                 list(APPEND _all_archs "${CMAKE_MATCH_2}")
             # Non-arch blas package: amdrocm-blas<ver> (version fallback only)
@@ -139,7 +137,6 @@ function(_probe_amdrocm_packages)
 
     set(_AMDROCM_ANY ${_any} PARENT_SCOPE)
     set(_THEROCK_VERSION "${_version}" PARENT_SCOPE)
-    set(_THEROCK_FIRST_ARCH "${_first_arch}" PARENT_SCOPE)
     set(_THEROCK_ALL_ARCHS "${_all_archs}" PARENT_SCOPE)
 endfunction()
 
@@ -174,19 +171,6 @@ function(detect_package_backend)
                 "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
         endif()
 
-        # Per-GPU arch used to select the per-GPU package dependency (first only).
-        if(NOT DEFINED CACHE{MIGRAPHX_THEROCK_GPU_ARCH})
-            if(DEFINED ENV{GPU_ARCH_FOR_THEROCK})
-                # Env name drops MIGRAPHX_ prefix to avoid the "unused MIGRAPHX_* env" warning.
-                set(_default_gpu_arch "$ENV{GPU_ARCH_FOR_THEROCK}")
-            else()
-                set(_default_gpu_arch "${_THEROCK_FIRST_ARCH}")
-            endif()
-            set(MIGRAPHX_THEROCK_GPU_ARCH "${_default_gpu_arch}" CACHE STRING
-                "TheRock GPU arch(es) for per-GPU package dependencies (e.g. gfx942). \
-Semicolon-separated list for per-GPU deps, or empty for device-all meta-package deps.")
-        endif()
-
         # GPU_TARGETS (what to compile) defaults to ALL detected arches. Only set
         # when not already provided by -D, the HIP package, or env so we never
         # clobber an explicit choice.
@@ -195,10 +179,7 @@ Semicolon-separated list for per-GPU deps, or empty for device-all meta-package 
                 "GPU architectures to compile for (auto-detected from TheRock amdrocm-blas packages)")
         endif()
 
-        message(STATUS "MIGraphX package backend: therock "
-            "(ROCm version: '${MIGRAPHX_THEROCK_ROCM_VERSION}', "
-            "package GPU arch: '${MIGRAPHX_THEROCK_GPU_ARCH}', "
-            "GPU_TARGETS: '${GPU_TARGETS}')")
+        message(STATUS "MIGraphX package backend: therock")
     else()
         message(STATUS "MIGraphX package backend: default (traditional ROCm)")
     endif()

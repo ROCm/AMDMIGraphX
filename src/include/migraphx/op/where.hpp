@@ -29,7 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/par_for.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -84,35 +84,30 @@ struct where
         }
     }
 
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>&,
-                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
     {
-        if(input_values.size() != 3 or not input_values[0].has_value() or
-           not input_values[1].has_value() or not input_values[2].has_value())
-            return std::nullopt;
+        if(args.size() != 3 or any_of(args, [](const auto& arg) { return arg.empty(); }) or
+           args[1].get_shape().lens() != output_shape.lens() or
+           args[2].get_shape().lens() != output_shape.lens())
+            return {};
+        const bool scalar_condition = args[0].get_shape().elements() == 1;
+        if(not scalar_condition and args[0].get_shape().lens() != output_shape.lens())
+            return {};
 
-        const auto output_size = output_shape.elements();
-        const auto& condition  = *input_values[0];
-        const auto& x          = *input_values[1];
-        const auto& y          = *input_values[2];
-        if(not can_broadcast_value(condition, output_size) or
-           not can_broadcast_value(x, output_size) or not can_broadcast_value(y, output_size))
-            return std::nullopt;
-
-        symbolic_tensor_value result;
-        result.reserve(output_size);
-        for(auto i : range(output_size))
+        sym_argument result{output_shape};
+        const auto condition = args[0].get();
+        const auto x         = args[1].get();
+        const auto y         = args[2].get();
+        auto output          = result.get();
+        for(auto i : range(output_shape.elements()))
         {
-            const auto condition_value = fixed_integer(broadcast_value_at(condition, i));
+            const auto condition_value =
+                sym::fixed_value(condition[scalar_condition ? 0 : i]);
             if(not condition_value.has_value())
-                return std::nullopt;
-            result.push_back(*condition_value != 0 ? broadcast_value_at(x, i)
-                                                   : broadcast_value_at(y, i));
+                return {};
+            output[i] = sym::to<int64_t>(*condition_value) != 0 ? x[i] : y[i];
         }
-        if(not symbolic_value_matches_shape(output_shape, result))
-            return std::nullopt;
         return result;
     }
 

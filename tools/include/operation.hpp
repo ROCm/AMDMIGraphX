@@ -41,9 +41,8 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/lifetime.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <migraphx/config.hpp>
-#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -64,11 +63,9 @@ struct operation
     /// operation cannot be run with input shapes, then it should throw an
     /// exception.
     shape compute_shape(const std::vector<shape>& input) const;
-    /// Optionally compute exact symbolic values stored in an integral tensor.
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>& input_shapes,
-                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const;
+    /// Optionally compute exact symbolic values stored in a tensor.
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const;
     /**
      * @brief This performs the operation's computation.
      *
@@ -178,32 +175,23 @@ template <class T>
 auto symbolic_compute_op(rank<1>,
                          const T& x,
                          const shape& output_shape,
-                         const std::vector<shape>& input_shapes,
-                         const std::vector<std::optional<symbolic_tensor_value>>& input_values)
-    -> decltype(x.symbolic_compute(output_shape, input_shapes, input_values))
+                         const std::vector<sym_argument>& args)
+    -> decltype(x.symbolic_compute(output_shape, args))
 {
-    return x.symbolic_compute(output_shape, input_shapes, input_values);
+    return x.symbolic_compute(output_shape, args);
 }
 
 template <class T>
-std::optional<symbolic_tensor_value>
-symbolic_compute_op(rank<0>,
-                    const T&,
-                    const shape&,
-                    const std::vector<shape>&,
-                    const std::vector<std::optional<symbolic_tensor_value>>&)
+sym_argument symbolic_compute_op(rank<0>, const T&, const shape&, const std::vector<sym_argument>&)
 {
-    return std::nullopt;
+    return {};
 }
 
 template <class T>
-std::optional<symbolic_tensor_value>
-symbolic_compute_op(const T& x,
-                    const shape& output_shape,
-                    const std::vector<shape>& input_shapes,
-                    const std::vector<std::optional<symbolic_tensor_value>>& input_values)
+sym_argument
+symbolic_compute_op(const T& x, const shape& output_shape, const std::vector<sym_argument>& args)
 {
-    return symbolic_compute_op(rank<1>{}, x, output_shape, input_shapes, input_values);
+    return symbolic_compute_op(rank<1>{}, x, output_shape, args);
 }
 
 template <class T>
@@ -586,10 +574,9 @@ lifetime get_lifetime_op(const T&)
                 const    = True,
                 default  = 'detail::mod_compute_shape_op'),
         virtual('symbolic_compute',
-                returns      = 'std::optional<symbolic_tensor_value>',
+                returns      = 'sym_argument',
                 output_shape = 'const shape&',
-                input_shapes = 'const std::vector<shape>&',
-                input_values = 'const std::vector<std::optional<symbolic_tensor_value>>&',
+                args         = 'const std::vector<sym_argument>&',
                 const        = True,
                 default      = 'detail::symbolic_compute_op'),
         virtual('compute',

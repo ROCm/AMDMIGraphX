@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,6 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/binary.hpp>
-#include <migraphx/symbolic_tensor_value.hpp>
 #include <cmath>
 
 namespace migraphx {
@@ -35,6 +34,8 @@ namespace op {
 
 struct mul : binary<mul>
 {
+    static constexpr bool enable_symbolic_compute = true;
+
     value attributes() const
     {
         auto a           = base_attributes();
@@ -45,16 +46,6 @@ struct mul : binary<mul>
     auto apply() const
     {
         return [](auto x, auto y) { return x * y; };
-    }
-    std::optional<symbolic_tensor_value>
-    symbolic_compute(const shape& output_shape,
-                     const std::vector<shape>&,
-                     const std::vector<std::optional<symbolic_tensor_value>>& input_values) const
-    {
-        if(output_shape.type() != shape::int64_type)
-            return std::nullopt;
-        return compute_symbolic_binary(
-            output_shape, input_values, [](const auto& x, const auto& y) { return x * y; });
     }
 };
 

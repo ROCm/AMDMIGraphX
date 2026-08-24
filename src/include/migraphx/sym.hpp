@@ -327,10 +327,24 @@ MIGRAPHX_EXPORT std::optional<bool>
 provable_equal(const expr& a, const expr& b, interval default_bounds = {});
 MIGRAPHX_EXPORT std::optional<scalar> fixed_value(const expr& expression);
 
-// `min`/`max` that fold to one operand when the ordering is provable via intervals.
-// Fall back to a symbolic min/max node when it is indeterminate.
-MIGRAPHX_EXPORT expr fold_min(const expr& a, const expr& b);
-MIGRAPHX_EXPORT expr fold_max(const expr& a, const expr& b);
+template <class T, class Range>
+std::optional<std::vector<T>> fixed_values(const Range& expressions)
+{
+    std::vector<T> result;
+    result.reserve(expressions.size());
+    for(const auto& expression : expressions)
+    {
+        const auto value = fixed_value(expression);
+        if(not value.has_value())
+            return std::nullopt;
+        result.push_back(to<T>(*value));
+    }
+    return result;
+}
+
+// `min`/`max` that collapse to one operand when `strict_less` proves the ordering.
+MIGRAPHX_EXPORT expr resolve_min(const expr& a, const expr& b);
+MIGRAPHX_EXPORT expr resolve_max(const expr& a, const expr& b);
 
 // Pattern matching rewrite DSL
 MIGRAPHX_EXPORT expr pvar(int id);

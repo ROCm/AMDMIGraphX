@@ -55,8 +55,9 @@ void register_op_parser()
 {
     T parser;
     for(auto&& opd : parser.operators())
-        register_op_parser(opd.onnx_name,
-                           [opd, parser](auto&&... xs) { return parser.base_parse(opd, xs...); });
+        register_op_parser(opd.onnx_name, [opd, parser](auto&&... xs) {
+            return implicit_multi_op(parser.parse(opd, xs...));
+        });
 }
 
 struct register_op_parser_action
@@ -68,18 +69,8 @@ struct register_op_parser_action
     }
 };
 
-template <class Derived>
-struct op_parser : auto_register<register_op_parser_action, Derived>
-{
-    std::vector<instruction_ref> base_parse(const op_desc& opd,
-                                            onnx_parser& parser,
-                                            const onnx_parser::node_info& info,
-                                            std::vector<instruction_ref> args) const
-    {
-        const auto& self = static_cast<const Derived&>(*this);
-        return implicit_multi_op(self.parse(opd, parser, info, args));
-    }
-};
+template <class T>
+using op_parser = auto_register<register_op_parser_action, T>;
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

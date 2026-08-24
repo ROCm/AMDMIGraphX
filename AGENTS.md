@@ -598,7 +598,7 @@ interface('pass',
 
 **2. Generate boilerplate:**
 ```bash
-make generate  # Runs tools/te.py on templates in tools/include/migraphx/
+make generate  # Runs tools/te.py on templates in tools/include/
 ```
 
 **3. Generated header** placed in `src/include/migraphx/<name>.hpp` contains wrapper class with concept/model pattern for virtual dispatch.

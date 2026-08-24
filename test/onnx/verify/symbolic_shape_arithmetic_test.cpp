@@ -32,16 +32,21 @@ TEST_CASE(symbolic_shape_arithmetic)
     options.map_dyn_input_dims["x"] = {{1, 1}, {1, 4}};
     auto p                          = read_onnx("symbolic_shape_arithmetic_test.onnx", options);
 
-    const auto& input_dims = p.get_parameter_shapes().at("x").dyn_dims();
-    const auto sequence    = input_dims[1].sym_expr;
-    const auto outputs     = p.get_output_shapes();
+    const auto input_dims = p.get_parameter_shapes().at("x").dyn_dims();
+    const auto sequence   = input_dims[1].sym_expr;
+    const auto outputs    = p.get_output_shapes();
     EXPECT(outputs.size() == 4);
     EXPECT(outputs[0] == migraphx::shape{migraphx::shape::float_type,
                                          {migraphx::shape::dynamic_dimension{
                                              sequence + migraphx::sym::lit(int64_t{1})}}});
     EXPECT(outputs[1] == migraphx::shape{migraphx::shape::float_type, {input_dims[1]}});
-    EXPECT(outputs[2].dynamic());
-    EXPECT(not outputs[2].symbolic());
+    EXPECT(outputs[2] ==
+           migraphx::shape{
+               migraphx::shape::float_type,
+               {migraphx::shape::dynamic_dimension{migraphx::sym::lit(int64_t{2})},
+                migraphx::shape::dynamic_dimension{sequence + migraphx::sym::lit(int64_t{1})},
+                migraphx::shape::dynamic_dimension{sequence + migraphx::sym::lit(int64_t{1})},
+                migraphx::shape::dynamic_dimension{sequence + sequence}}});
     EXPECT(outputs[3].dynamic());
     EXPECT(not outputs[3].symbolic());
 

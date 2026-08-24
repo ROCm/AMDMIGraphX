@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <string>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/enum.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,7 +39,8 @@ struct module_pass_manager;
  */
 struct MIGRAPHX_EXPORT layout_convolution
 {
-    bool channels_last = false;
+    MIGRAPHX_NESTED_ENUM(layout_order, channels_first, channels_last, channels_auto)
+    layout_order order = channels_first;
     std::string name() const { return "layout_convolution"; }
     void apply(module_pass_manager& mpm) const;
 };

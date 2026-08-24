@@ -26,6 +26,7 @@
 #include <cmath>
 #include <limits>
 #include <sstream>
+#include <unordered_set>
 #include <test.hpp>
 
 using migraphx::sym::abs;
@@ -829,6 +830,39 @@ TEST_CASE(expr_variable_constraint_equality)
     // Differing metadata makes them unequal, but they are the same symbol.
     EXPECT(var("x") != var("x", c));
     EXPECT(migraphx::sym::same_symbol(var("x"), var("x", c)));
+}
+
+TEST_CASE(find_variables_collects_distinct)
+{
+    auto x    = var("x");
+    auto y    = var("y");
+    auto pair = call("find_variables_collects_distinct", [](auto a, auto b) { return a + b; });
+    auto vars = migraphx::sym::find_variables(pair(x, pair(y, x)));
+    EXPECT(vars == std::unordered_set<expr>{x, y});
+}
+
+TEST_CASE(find_variables_constant_is_empty)
+{
+    EXPECT(migraphx::sym::find_variables(lit(5)).empty());
+    EXPECT(migraphx::sym::find_variables(lit(2) + lit(3)).empty());
+    EXPECT(migraphx::sym::find_variables(expr{}).empty());
+}
+
+TEST_CASE(find_variables_strips_metadata)
+{
+    auto c    = interval{int64_t{1}, int64_t{16}};
+    auto pair = call("find_variables_strips_metadata", [](auto a, auto b) { return a + b; });
+    auto vars = migraphx::sym::find_variables(pair(var("x", c), var("x")));
+    EXPECT(vars == std::unordered_set<expr>{var("x")});
+}
+
+TEST_CASE(find_variables_shared_subexpression)
+{
+    auto pair = call("find_variables_shared_subexpression", [](auto a, auto b) { return a + b; });
+    auto e    = pair(var("x"), lit(1));
+    for(int i = 0; i < 20; ++i)
+        e = pair(e, e);
+    EXPECT(migraphx::sym::find_variables(e) == std::unordered_set<expr>{var("x")});
 }
 
 TEST_CASE(expr_equal_compound)
@@ -2645,6 +2679,98 @@ TEST_CASE(builtin_log_exp_nested)
     auto y = var("y");
     // log(exp(x)) + log(exp(y)) automatically simplifies to x + y
     EXPECT(log(exp(x)) + log(exp(y)) == x + y);
+}
+
+TEST_CASE(builtin_min_max_same_operand)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // min/max of an operand with itself collapses to that operand, for both leaf and
+    // compound operands.
+    EXPECT(min(x, x) == x);
+    EXPECT(max(x, x) == x);
+    EXPECT(min(x + y, x + y) == x + y);
+    EXPECT(max(x + y, x + y) == x + y);
+    EXPECT(min(min(x, y), min(x, y)) == min(x, y));
+    EXPECT(max(max(x, y), max(x, y)) == max(x, y));
+}
+
+TEST_CASE(builtin_min_max_distinct_operands_not_folded)
+{
+    auto x = var("x");
+    auto y = var("y");
+    EXPECT(min(x, y) != x);
+    EXPECT(min(x, y).children().size() == 2);
+    EXPECT(max(x, y) != x);
+    EXPECT(max(x, y).children().size() == 2);
+}
+
+TEST_CASE(builtin_min_max_same_operand_eval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = min(x + y, x + y);
+    EXPECT(e.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{4}}}) == scalar{int64_t{7}});
+    auto f = max(x + y, x + y);
+    EXPECT(f.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{4}}}) == scalar{int64_t{7}});
+}
+
+TEST_CASE(builtin_min_max_already_clamped)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // Clamping against a bound that is already applied folds away, with the bound in either
+    // operand of the inner node.
+    EXPECT(min(min(x, y), y) == min(x, y));
+    EXPECT(max(max(x, y), y) == max(x, y));
+    EXPECT(min(min(y, x), y) == min(y, x));
+    EXPECT(max(max(y, x), y) == max(y, x));
+}
+
+TEST_CASE(builtin_min_max_already_clamped_literal_bound)
+{
+    auto x = var("x");
+    EXPECT(min(min(x, lit(5)), lit(5)) == min(x, lit(5)));
+    EXPECT(max(max(x, lit(0)), lit(0)) == max(x, lit(0)));
+    EXPECT(min(min(lit(5), x), lit(5)) == min(lit(5), x));
+    EXPECT(max(max(lit(0), x), lit(0)) == max(lit(0), x));
+}
+
+TEST_CASE(builtin_min_max_clamp_repeated)
+{
+    // Clamping a clamped expression any number of times keeps a single min/max node, as
+    // repeated attribute normalization does.
+    auto n    = var("n", interval{int64_t{1}, int64_t{8}});
+    auto once = min(n, lit(5));
+    EXPECT(min(once, lit(5)) == once);
+    EXPECT(min(min(once, lit(5)), lit(5)) == once);
+    auto once_from = max(n, lit(0));
+    EXPECT(max(once_from, lit(0)) == once_from);
+    EXPECT(max(max(once_from, lit(0)), lit(0)) == once_from);
+}
+
+TEST_CASE(builtin_min_max_different_bound_not_folded)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto z = var("z");
+    // The inner bound is not the outer bound, so the nesting is meaningful and kept
+    EXPECT(min(min(x, y), z) != min(x, y));
+    EXPECT(min(min(x, y), z).children().front() == min(x, y));
+    EXPECT(max(max(x, y), z) != max(x, y));
+    EXPECT(max(max(x, y), z).children().front() == max(x, y));
+}
+
+TEST_CASE(builtin_min_max_already_clamped_eval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = min(min(x, y), y);
+    EXPECT(e.eval({{var("x"), int64_t{7}}, {var("y"), int64_t{5}}}) == scalar{int64_t{5}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{5}}}) == scalar{int64_t{3}});
+    auto f = max(max(x, y), y);
+    EXPECT(f.eval({{var("x"), int64_t{7}}, {var("y"), int64_t{5}}}) == scalar{int64_t{7}});
+    EXPECT(f.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{5}}}) == scalar{int64_t{5}});
 }
 
 TEST_CASE(builtin_raw_no_leak)

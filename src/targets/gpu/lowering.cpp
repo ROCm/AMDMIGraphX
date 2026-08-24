@@ -39,9 +39,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/if_op.hpp>
-#include <migraphx/op/reshape.hpp>
 #include <migraphx/op/quant_dot.hpp>
-#include <migraphx/op/reshape_lazy.hpp>
 
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -113,7 +111,6 @@ struct miopen_apply
         add_nms_op();
         add_convolution_backwards_op();
         add_select_module_op();
-        add_reshape_lazy_op();
         add_concat_past_present_op();
         add_scan_slice_op();
         add_fill_op();
@@ -461,7 +458,9 @@ struct miopen_apply
                 return lower_nms_to_ref(ins);
             const auto num_boxes = boxes_s.lens().at(1);
             const auto num_bc    = boxes_s.lens().at(0) * scores_s.lens().at(1);
-            // bound on (batch, class) from shared memory limit on compact kernel
+            // Route to ref (CPU) when:
+            // - num_boxes < 2: Single box or no boxes, no sort or IoU comparison needed.
+            // - num_bc > 8192: shared-memory limit on the compact kernel.
             if(num_boxes < 2 or num_bc > 8192)
                 return lower_nms_to_ref(ins);
             return lower_nms_to_gpu_pipeline(ins);
@@ -630,32 +629,6 @@ struct miopen_apply
         });
     }
 
-    /**
-     *  Adds reshape lazy to reshape ops that can be aliased instead of copied.
-     *  `gpu::contiguous` are added before and after the reshape; these contiguous
-     *  instructions can be removed by the eliminate_contiguous pass.
-     */
-    void add_reshape_lazy_op()
-    {
-        apply_map.emplace("reshape", [=](instruction_ref ins) {
-            std::vector<instruction_ref> before_contiguous_args = ins->inputs();
-            auto before_alloc = insert_allocation(ins, std::prev(ins)->get_shape());
-            before_contiguous_args.push_back(before_alloc);
-            auto before_contig =
-                mod->insert_instruction(ins, make_op("gpu::contiguous"), {before_contiguous_args});
-
-            auto new_reshape_lazy = mod->insert_instruction(
-                ins,
-                make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
-                before_contig);
-
-            std::vector<instruction_ref> after_contiguous_args = {new_reshape_lazy};
-            auto after_alloc = insert_allocation(new_reshape_lazy, new_reshape_lazy->get_shape());
-            after_contiguous_args.push_back(after_alloc);
-            return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
-        });
-    }
-
     void add_concat_past_present_op()
     {
         apply_map.emplace("concat_past_present", [=](instruction_ref ins) {
@@ -691,7 +664,7 @@ struct miopen_apply
 
     void add_dyn_slice_op()
     {
-        apply_map.emplace("slice", [=](instruction_ref ins) {
+        auto lower_runtime_bounds = [=](instruction_ref ins) {
             auto inputs = ins->inputs();
             if(inputs.size() > 1)
             {
@@ -713,7 +686,9 @@ struct miopen_apply
                     ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
             }
             return ins;
-        });
+        };
+        apply_map.emplace("slice", lower_runtime_bounds);
+        apply_map.emplace("dyn_slice", lower_runtime_bounds);
     }
 
     // Get the argument's shape dimensions on host and then copy to gpu

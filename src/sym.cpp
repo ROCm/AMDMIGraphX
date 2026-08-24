@@ -969,6 +969,12 @@ static const std::vector<rewrite_rule>& get_rewrite_rules()
             sqrt(_1 / _2) >> sqrt(_1) / sqrt(_2),
             log(exp(_1)) >> _1,
             exp(log(_1)) >> _1,
+            min(_1, _1) >> _1,
+            max(_1, _1) >> _1,
+            min(min(_1, _2), _2) >> min(_1, _2),
+            min(min(_2, _1), _2) >> min(_2, _1),
+            max(max(_1, _2), _2) >> max(_1, _2),
+            max(max(_2, _1), _2) >> max(_2, _1),
         };
     }();
     return rules;
@@ -1234,6 +1240,24 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
     }
 
     return std::nullopt;
+}
+
+// Get rid of min(a, b) if it can definitively determined
+expr resolve_min(const expr& a, const expr& b)
+{
+    auto lt = strict_less(a, b);
+    if(lt.has_value())
+        return *lt ? a : b;
+    return min(a, b);
+}
+
+// Get rid of max(a, b) if it can definitively determined
+expr resolve_max(const expr& a, const expr& b)
+{
+    auto lt = strict_less(a, b);
+    if(lt.has_value())
+        return *lt ? b : a;
+    return max(a, b);
 }
 
 bool operator==(const expr& a, const expr& b)
@@ -1621,6 +1645,40 @@ bool same_symbol(const expr& a, const expr& b)
            std::equal(ca.begin(), ca.end(), cb.begin(), [](const expr& x, const expr& y) {
                return same_symbol(x, y);
            });
+}
+
+std::unordered_set<expr> find_variables(const expr& e)
+{
+    std::unordered_set<expr> visited;
+    std::unordered_set<expr> result;
+    fix([&](auto self, const expr& x) {
+        if(x.empty() or not visited.insert(x).second)
+            return;
+        if(x.name() == "variable")
+        {
+            result.insert(as_symbol(x));
+            return;
+        }
+        for(const auto& c : x.children())
+            self(c);
+    })(e);
+    return result;
+}
+
+[[maybe_unused]] static bool has_float_literal(const expr& e)
+{
+    if(e.empty())
+        return false;
+    if(const auto* n = std::get_if<literal_node>(&get_node(e)))
+        return std::holds_alternative<double>(n->val);
+    return std::any_of(e.children().begin(), e.children().end(), has_float_literal);
+}
+
+bool is_divisible(const expr& dividend, const expr& divisor)
+{
+    // Float literals make the /-reconstruction rounding-dependent.
+    assert(not has_float_literal(dividend) and not has_float_literal(divisor));
+    return same_symbol((dividend / divisor) * divisor, dividend);
 }
 
 // Number of levels in e: a leaf (literal/variable) is depth 1, empty is 0.
@@ -2310,6 +2368,18 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
     if(v.is_null())
     {
         e = sym::expr{};
+        return;
+    }
+    // Allow a symbolic literal to be written as a bare number and a symbolic expression as a
+    // bare string, e.g. make_op("dyn_slice", {{"starts", {1}}, {"ends", {"n + 1"}}}).
+    if(const auto* s = v.if_string())
+    {
+        e = sym::parse(*s);
+        return;
+    }
+    if(not v.is_object())
+    {
+        e = sym::lit(value_to_sym_scalar(v));
         return;
     }
     auto type = v.at("type").get_string();

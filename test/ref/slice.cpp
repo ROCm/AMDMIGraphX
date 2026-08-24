@@ -32,6 +32,10 @@
 
 #include <test.hpp>
 
+using dd = migraphx::shape::dynamic_dimension;
+using migraphx::sym::lit;
+using migraphx::sym::var;
+
 TEST_CASE(slice_test_1)
 {
     migraphx::program p;
@@ -76,6 +80,33 @@ TEST_CASE(slice_test_2)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     EXPECT(result.get_shape() == sresult);
+}
+
+TEST_CASE(slice_sym_data_test)
+{
+    // A symbolic input sliced on a fixed axis keeps a symbolic output shape after compiling and
+    // resolves once the parameter is bound to a static shape.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int32_type, {dd{var("n", {1, 4})}, dd{lit(2)}, dd{lit(3)}}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape input_fixed_shape{migraphx::shape::int32_type, {2, 2, 3}};
+    std::vector<int> data(input_fixed_shape.elements());
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(input_fixed_shape, data.data());
+
+    auto result = p.eval(params).back();
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(result.get_shape() ==
+           migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
 }
 
 TEST_CASE(slice_var_inputs_static0)
@@ -410,37 +441,4 @@ TEST_CASE(slice_dyn_test1)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     EXPECT(result.get_shape() == sresult);
-}
-
-TEST_CASE(slice_eval_expr_from_shape_input)
-{
-    using dd = migraphx::shape::dynamic_dimension;
-    auto n   = migraphx::sym::var("n", {1, 3});
-
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int32_type,
-                      {dd{migraphx::sym::lit(2)}, dd{migraphx::sym::lit(2)}, dd{n}}};
-    auto x = mm->add_parameter("x", s);
-
-    auto end_vals = mm->add_instruction(
-        migraphx::make_op(
-            "eval_expr_from_shape",
-            {{"expressions",
-              migraphx::value::array{migraphx::to_value(n - migraphx::sym::lit(1))}}}),
-        x);
-    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}}), x, end_vals);
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<int> data(2 * 2 * 3);
-    std::iota(data.begin(), data.end(), 0);
-    migraphx::shape input_shape{migraphx::shape::int32_type, {2, 2, 3}};
-    auto result = p.eval({{"x", migraphx::argument{input_shape, data.data()}}}).back();
-
-    std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
-    std::vector<int> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
-    EXPECT(result.get_shape() ==
-           migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
 }

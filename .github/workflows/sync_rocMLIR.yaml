@@ -42,7 +42,10 @@ on:
         description: Organization based on which location of files will be different
         required: true
         default: 'AMD'
-      
+
+permissions:
+  contents: read
+
 jobs:
   get_config:
     runs-on: ubuntu-latest
@@ -56,7 +59,7 @@ jobs:
       repo_org: ${{ steps.read_config.outputs.repo_org }}
     steps:
       - name: checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       - name: read_config
         id: read_config
         run: |
@@ -77,6 +80,9 @@ jobs:
            
   call_reusable:
     needs: get_config
+    permissions:
+      contents: write
+      pull-requests: write
     uses: ROCm/migraphx-benchmark/.github/workflows/rocMLIR_sync.yml@main
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || needs.get_config.outputs.rocm_version }}

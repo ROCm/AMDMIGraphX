@@ -30,7 +30,6 @@
 #include <migraphx/value.hpp>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

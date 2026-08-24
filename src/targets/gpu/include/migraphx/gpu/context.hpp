@@ -274,16 +274,13 @@ struct context
     {
         auto_save_problem_cache() : problem_cache{} {}
 
-        bool auto_save = false;
-
         auto_save_problem_cache(const auto_save_problem_cache&)            = delete;
         auto_save_problem_cache& operator=(const auto_save_problem_cache&) = delete;
         virtual ~auto_save_problem_cache()
         {
-            if(not auto_save)
-                return;
             // The destructor is implicitly noexcept, so a save() failure (disk
             // full, permissions) must be swallowed here or it would terminate.
+            // save() is a no-op when no writable file paths are configured.
             try
             {
                 this->save();
@@ -475,14 +472,12 @@ struct context
     /// tuning solutions (see problem_cache for the layered priority search).
     problem_cache& get_problem_cache() { return *pc; }
 
-    /// Configure the problem cache from the read-only caches (gpuep/ISV, never
-    /// written) and the read/write developer caches (solutions save back). Auto
-    /// save is enabled only when a writable cache is configured.
+    /// Configure the problem cache from the read-only caches (system-level,
+    /// never written) and the read/write developer caches (solutions save back).
     void load_problem_caches(const std::vector<std::string>& read_only_paths,
                              const std::vector<std::string>& writable_paths)
     {
         pc->load(read_only_paths, writable_paths);
-        pc->auto_save = not writable_paths.empty();
     }
 
     private:

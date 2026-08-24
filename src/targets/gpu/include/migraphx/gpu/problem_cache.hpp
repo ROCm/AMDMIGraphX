@@ -42,7 +42,7 @@ struct context;
 
 struct MIGRAPHX_GPU_EXPORT problem_cache
 {
-    // Default-constructs with the JSON storage backend.
+    // Seeds an in-memory JSON writable cache, used until load() configures files.
     problem_cache();
 
     // Build and store this cache's device key from the owning context.
@@ -51,36 +51,37 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     void set_device_key(const cache_device_key& key);
     const cache_device_key& get_device_key() const;
 
-    /// Look up a problem. The writable cache is searched first, then the
+    /// Look up a problem. The writable caches are searched first, then the
     /// read-only caches in priority order; first hit wins.
     bool has(const std::string& name, const value& problem) const;
     void insert(const std::string& name, const value& problem, const value& solution);
     void mark(const std::string& name, const value& problem);
     optional<value> get(const std::string& name, const value& problem) const;
     /// Configure both cache tiers: the read-only caches (searched after the
-    /// writable cache, first hit wins, never written) and the read/write caches
-    /// (only the first non-empty path is written back to).
+    /// writable caches, first hit wins, never written) and the read/write caches
+    /// (every writable file is loaded and saved back to).
     void load(const std::vector<std::string>& read_only_paths,
               const std::vector<std::string>& writable_paths);
     void save() const;
 
     private:
-    // Pluggable storage backend, selected by file type at load() (JSON, or
-    // SQLite for a .db/.sqlite path). This is the writable cache: new solutions
-    // are inserted and saved here.
-    problem_cache_backend backend;
+    // Read/write caches (one per writable file), searched before the read-only
+    // layers. Always holds at least one entry: an in-memory JSON cache when no
+    // writable file is configured. New solutions are inserted into the first.
+    std::vector<problem_cache_backend> writable_backends{};
 
-    // Lower-priority read-only layers searched after `backend`; within the list
-    // the first hit wins. Populated from the read-only paths passed to load().
+    // Save-back path for each writable file cache, parallel to the leading
+    // entries of writable_backends. Empty means nothing is written (save() is a
+    // no-op); the in-memory cache has no path.
+    std::vector<std::string> save_paths{};
+
+    // Lower-priority read-only layers searched after the writable caches; within
+    // the list the first hit wins. Populated from the read-only paths in load().
     std::vector<problem_cache_backend> read_only_backends{};
 
     // Device these entries were tuned on; set by the owning context. Empty
     // key = unidentified device, entries land in a single bucket.
     cache_device_key device_key{};
-
-    // File path set by load(path). When non-empty, save() writes here. Empty
-    // means no writable cache is configured.
-    std::string path_override{};
 };
 
 } // namespace gpu

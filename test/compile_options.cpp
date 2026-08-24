@@ -43,19 +43,19 @@ TEST_CASE(set_backend_options_merges_object)
 
 TEST_CASE(set_backend_options_distinguishes_problem_cache_tiers)
 {
-    // The read-only and writable problem-cache options must parse as two
+    // The writable and read-only problem-cache options must parse as two
     // distinct backend-option entries (the GPU target routes each tier).
     migraphx::value v;
-    v["problem_cache_files"]          = "ship.json";
-    v["writable_problem_cache_files"] = "dev.json";
+    v["problem_cache_files"]           = "dev.json";
+    v["read_only_problem_cache_files"] = "ship.json";
 
     migraphx::compile_options options;
     migraphx::set_backend_options(options, v);
 
     EXPECT(options.backend_options.size() == 2);
-    EXPECT(options.backend_options.at("problem_cache_files") == migraphx::value("ship.json"));
-    EXPECT(options.backend_options.at("writable_problem_cache_files") ==
-           migraphx::value("dev.json"));
+    EXPECT(options.backend_options.at("problem_cache_files") == migraphx::value("dev.json"));
+    EXPECT(options.backend_options.at("read_only_problem_cache_files") ==
+           migraphx::value("ship.json"));
 }
 
 TEST_CASE(set_backend_options_overwrites_existing)

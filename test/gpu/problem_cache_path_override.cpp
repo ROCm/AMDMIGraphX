@@ -209,6 +209,50 @@ TEST_CASE(problem_cache_writable_only)
 }
 
 // --------------------------------------------------------------------------
+// load({}, {a, b}): every writable file is loaded (not just the first), so
+// lookups see entries from all of them. A newly inserted solution goes to the
+// primary writable cache and save() writes each writable file back.
+// --------------------------------------------------------------------------
+TEST_CASE(problem_cache_multiple_writable_load_all_and_save)
+{
+    migraphx::tmp_dir td{"problem_cache_multi_writable"};
+    auto a = (td.path / "a.json").string();
+    auto b = (td.path / "b.json").string();
+
+    // Seed file a with problem 0 and file b with problem 1.
+    {
+        migraphx::gpu::problem_cache w;
+        w.set_device_key(make_key());
+        w.load(std::vector<std::string>{}, std::vector<std::string>{a});
+        w.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kA"}});
+        w.save();
+    }
+    {
+        migraphx::gpu::problem_cache w;
+        w.set_device_key(make_key());
+        w.load(std::vector<std::string>{}, std::vector<std::string>{b});
+        w.insert("gemm", make_problem(1), migraphx::value{{"kernel", "kB"}});
+        w.save();
+    }
+
+    // Load both as writable: lookups resolve entries from either file.
+    migraphx::gpu::problem_cache c;
+    c.set_device_key(make_key());
+    c.load(std::vector<std::string>{}, std::vector<std::string>{a, b});
+    EXPECT((*c.get("gemm", make_problem(0))).at("kernel").to<std::string>() == "kA");
+    EXPECT((*c.get("gemm", make_problem(1))).at("kernel").to<std::string>() == "kB");
+
+    // A new solution lands in the primary writable cache and persists on save().
+    c.insert("gemm", make_problem(2), migraphx::value{{"kernel", "kNew"}});
+    c.save();
+
+    migraphx::gpu::problem_cache reader;
+    reader.set_device_key(make_key());
+    reader.load(std::vector<std::string>{}, std::vector<std::string>{a});
+    EXPECT(reader.has("gemm", make_problem(2)));
+}
+
+// --------------------------------------------------------------------------
 // load({}, {}): no cache configured. Lookup works in-memory, newly generated
 // solutions stay in-memory, and save() is a no-op (no writable path) that must
 // not throw or create a file.

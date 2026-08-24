@@ -34,14 +34,15 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// The default backend is JSON for an unconfigured/in-memory cache; load() picks
-// the backend by file type once a path is known.
-problem_cache::problem_cache() : backend(json_problem_cache{}) {}
+// Seed the writable set with an in-memory JSON cache so lookups and inserts work
+// before (or without) any load(); load() replaces it with the configured
+// writable files. save() stays a no-op until a writable file path is set.
+problem_cache::problem_cache() { writable_backends.emplace_back(json_problem_cache{}); }
 
 // Select the storage backend by file type: a ".db"/".sqlite" path uses the
 // SQLite backend, anything else (including no extension) uses JSON. This lets a
 // priority list mix cache formats.
-static problem_cache_backend make_backend(const std::string& path)
+static problem_cache_backend make_problem_cache_backend(const std::string& path)
 {
     if(ends_with(path, ".db") or ends_with(path, ".sqlite"))
         return problem_cache_backend{sqlite_problem_cache{}};
@@ -74,42 +75,42 @@ const cache_device_key& problem_cache::get_device_key() const { return device_ke
 
 void problem_cache::save() const
 {
-    // No writable path (read-only or unconfigured cache) means save does nothing.
-    if(path_override.empty())
-        return;
-    backend.save(path_override);
+    // A no-op when no writable file paths are configured (in-memory or read-only
+    // cache); otherwise each writable cache saves to its own file.
+    for(std::size_t i = 0; i < save_paths.size(); ++i)
+        writable_backends[i].save(save_paths[i]);
 }
 
 void problem_cache::load(const std::vector<std::string>& read_only_paths,
                          const std::vector<std::string>& writable_paths)
 {
     read_only_backends.clear();
-    path_override.clear();
-    // Reset the writable backend; only a writable path below re-populates it.
-    backend = problem_cache_backend{json_problem_cache{}};
+    writable_backends.clear();
+    save_paths.clear();
 
-    // Read/write cache (the developer cache): new solutions save back here. Only
-    // one file is written, so the first non-empty writable path wins. Pick the
-    // backend by file type and remember the path so save() writes back here; a
-    // missing file loads empty.
+    // Read/write caches (the developer caches, the common tuning case): every
+    // file is loaded and saved back to. Pick each backend by file type.
     for(const auto& path : writable_paths)
     {
-        if(not path.empty())
-        {
-            backend       = make_backend(path);
-            path_override = path;
-            backend.load(path);
-            break;
-        }
+        if(path.empty())
+            continue;
+        save_paths.push_back(path);
+        writable_backends.push_back(make_problem_cache_backend(path));
+        writable_backends.back().load(path);
     }
+    // Keep an in-memory JSON cache when no writable file is configured so new
+    // solutions still have somewhere to go; save() then stays a no-op.
+    if(writable_backends.empty())
+        writable_backends.emplace_back(json_problem_cache{});
 
-    // Read-only caches (e.g. shipped by gpuep or an ISV): searched after the
-    // writable cache and never written back.
+    // Read-only caches (e.g. system-level caches shipped by gpuep or an ISV):
+    // searched after the writable caches and never written back.
     for(const auto& path : read_only_paths)
     {
-        problem_cache_backend ro = make_backend(path);
-        if(not path.empty())
-            ro.load(path);
+        if(path.empty())
+            continue;
+        auto ro = make_problem_cache_backend(path);
+        ro.load(path);
         read_only_backends.push_back(std::move(ro));
     }
 }
@@ -117,37 +118,36 @@ void problem_cache::load(const std::vector<std::string>& read_only_paths,
 bool problem_cache::has(const std::string& name, const value& problem) const
 {
     const auto key = create_key(name, problem);
-    // Writable cache first, then the read-only layers (lowest priority).
-    return backend.has(device_key, key) or
-           std::any_of(read_only_backends.begin(), read_only_backends.end(), [&](const auto& ro) {
-               return ro.has(device_key, key);
-           });
+    const auto in  = [&](const auto& b) { return b.has(device_key, key); };
+    // Writable caches first, then the read-only layers (lowest priority).
+    return std::any_of(writable_backends.begin(), writable_backends.end(), in) or
+           std::any_of(read_only_backends.begin(), read_only_backends.end(), in);
 }
 
 void problem_cache::insert(const std::string& name, const value& problem, const value& solution)
 {
     assert(not solution.is_null());
-    backend.insert(device_key, create_key(name, problem), solution);
+    // New solutions go to the primary writable cache (always present: a file
+    // cache, or the in-memory json seeded at construction/load).
+    writable_backends.front().insert(device_key, create_key(name, problem), solution);
 }
 
 void problem_cache::mark(const std::string& name, const value& problem)
 {
-    backend.mark(device_key, create_key(name, problem));
+    writable_backends.front().mark(device_key, create_key(name, problem));
 }
 
 optional<value> problem_cache::get(const std::string& name, const value& problem) const
 {
     const auto key = create_key(name, problem);
-    // Writable cache first (a locally tuned solution wins), then the read-only
+    // Writable caches first (a locally tuned solution wins), then the read-only
     // layers in priority order (first hit wins among them).
-    if(auto sol = backend.get(device_key, key))
-        return sol;
-    const auto found =
-        std::find_if(read_only_backends.begin(), read_only_backends.end(), [&](const auto& ro) {
-            return ro.get(device_key, key).has_value();
-        });
-    if(found != read_only_backends.end())
-        return found->get(device_key, key);
+    for(const auto& b : writable_backends)
+        if(auto sol = b.get(device_key, key))
+            return sol;
+    for(const auto& ro : read_only_backends)
+        if(auto sol = ro.get(device_key, key))
+            return sol;
     return {};
 }
 

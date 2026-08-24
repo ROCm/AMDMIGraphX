@@ -368,6 +368,39 @@ TEST_CASE(pointwise_concat_fusion)
     EXPECT(p1 == p2);
 }
 
+// The pointwise input y is sliced to match each concat segment and the mul is
+// split across the fused_concat's input submodules:
+//
+// Before:
+//            x
+//      +-----+-----+
+//      |           |
+//  slice[4:8] slice[0:4]
+//    (xb)        (xa)
+//      |           |
+//      +-----+-----+
+//            |
+//     concat(axis=1)
+//            |             y
+//            +------+------+
+//                   |
+//                  mul
+//                   |
+//                 return
+//
+// After:
+//            x                        y
+//      +-----+-----+            +-----+-----+
+//      |           |            |           |
+//  slice[4:8] slice[0:4]    slice[0:4] slice[4:8]
+//    (xb)        (xa)         (y0)        (y1)
+//      |           |            |           |
+//  +---+-----------+------------+-----------+---+
+//  |            fused_concat(axis=1)            |
+//  |  split0: mul(xb, y0), split1: mul(xa, y1)  |
+//  +---------------------+----------------------+
+//                        |
+//                      return
 TEST_CASE(pointwise_concat_of_slices_split)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 8}};
@@ -409,6 +442,43 @@ TEST_CASE(pointwise_concat_of_slices_split)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// The split mul segments and the outer concat's extra input all become inputs
+// of a single fused_concat:
+//
+// Before:
+//                   x
+//      +------------+------------+
+//      |            |            |
+//  slice[4:8]   slice[0:4]   slice[8:12]
+//    (xb)         (xa)        (xtail)
+//      |            |            |
+//      +-----+------+            |
+//            |                   |
+//     concat(axis=1)       y     |
+//            |             |     |
+//            +------+------+     |
+//                   |            |
+//                  mul           |
+//                   |            |
+//                   +-----+------+
+//                         |
+//                  concat(axis=1)
+//                         |
+//                       return
+//
+// After:
+//                   x                             y
+//      +------------+------------+          +-----+-----+
+//      |            |            |          |           |
+//  slice[4:8]   slice[0:4]   slice[8:12] slice[0:4] slice[4:8]
+//    (xb)         (xa)        (xtail)      (y0)        (y1)
+//      |            |            |          |           |
+//  +---+------------+------------+----------+-----------+---+
+//  |                  fused_concat(axis=1)                   |
+//  |  split0: mul(xb, y0)  split1: mul(xa, y1)  noop(xtail)  |
+//  +----------------------------+----------------------------+
+//                               |
+//                             return
 TEST_CASE(pointwise_concat_of_slices_split_outer_concat)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 12}};
@@ -457,6 +527,26 @@ TEST_CASE(pointwise_concat_of_slices_split_outer_concat)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// The concat has a second use besides the pointwise (it is returned directly),
+// so splitting the pointwise would duplicate work and no fusion happens:
+//
+//            x
+//      +-----+-----+
+//      |           |
+//  slice[4:8] slice[0:4]
+//    (xb)        (xa)
+//      |           |
+//      +-----+-----+
+//            |
+//     concat(axis=1)
+//        |       |         y
+//        |       +----+----+
+//        |            |
+//        |           mul
+//        |            |
+//        +-----+------+
+//              |
+//            return
 TEST_CASE(pointwise_concat_of_slices_multi_use)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 8}};
@@ -478,6 +568,24 @@ TEST_CASE(pointwise_concat_of_slices_multi_use)
     EXPECT(p1 == p2);
 }
 
+// The concat feeds both arguments of the pointwise, so the segments can't be
+// paired one-to-one with slices of another input and no fusion happens:
+//
+//            x
+//      +-----+-----+
+//      |           |
+//  slice[4:8] slice[0:4]
+//    (xb)        (xa)
+//      |           |
+//      +-----+-----+
+//            |
+//     concat(axis=1)
+//        |       |
+//        +---+---+
+//            |
+//           mul
+//            |
+//          return
 TEST_CASE(pointwise_concat_of_slices_repeated_arg)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 8}};
@@ -498,6 +606,21 @@ TEST_CASE(pointwise_concat_of_slices_repeated_arg)
     EXPECT(p1 == p2);
 }
 
+// A single-input concat is a no-op copy; there is nothing to split, so no
+// fusion happens:
+//
+//        x
+//        |
+//  slice[0:4]
+//     (xa)
+//        |
+//   concat(axis=1)
+//          |           y
+//          +-----+-----+
+//                |
+//               mul
+//                |
+//              return
 TEST_CASE(pointwise_concat_of_slices_single_input)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 8}};

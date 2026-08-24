@@ -1438,6 +1438,27 @@ TEST_CASE(concat_reshape_different_axis_dims_mismatch)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(concat_reshape_different_axis_dims_nonaxis_mismatch)
+{
+    // Non-axis dims differ (96x32 vs 64x48) but have the same product, so the
+    // pre-reshape inputs cannot be concatenated directly
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {3072, 96, 32}});
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {1024, 64, 48}});
+        auto xreshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3072, 3072}}}), x);
+        auto yreshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1024, 3072}}}), y);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xreshape, yreshape);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(concat_reshape_broadcast)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {11008, 32, 1}};

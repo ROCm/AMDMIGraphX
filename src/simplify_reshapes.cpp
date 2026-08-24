@@ -1002,14 +1002,21 @@ struct find_concat_reshape
         if(it == input_shape.lens().end())
             return;
         op.axis = it - input_shape.lens().begin();
-        // Each input must decompose as predims x axis x postdims at the mapped axis
+        // Each input must decompose as predims x axis x postdims at the mapped
+        // axis, with the same non-axis dims so the inputs can be concatenated
         if(not std::all_of(reshapes.begin(), reshapes.end(), [&](instruction_ref r) {
                const auto& lens = r->inputs().front()->get_shape().lens();
                auto ipredims    = std::accumulate(
                    lens.begin(), lens.begin() + op.axis, std::size_t{1}, std::multiplies<>{});
                auto ipostdims = std::accumulate(
                    lens.begin() + op.axis + 1, lens.end(), std::size_t{1}, std::multiplies<>{});
-               return ipredims == predims and ipostdims == postdims;
+               if(ipredims != predims or ipostdims != postdims)
+                   return false;
+               return std::equal(
+                          lens.begin(), lens.begin() + op.axis, input_shape.lens().begin()) and
+                      std::equal(lens.begin() + op.axis + 1,
+                                 lens.end(),
+                                 input_shape.lens().begin() + op.axis + 1);
            }))
             return;
 

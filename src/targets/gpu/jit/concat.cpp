@@ -133,7 +133,7 @@ struct concat_compiler : compiler<concat_compiler>
         {
             std::size_t group = 1;
             if(concat_axis > 0)
-                group = compute_tile_factor(output.lens()[concat_axis - 1], 16);
+                group = tile::compute_factor(output.lens()[concat_axis - 1], 16);
             auto nslices    = output.elements() / output.lens()[concat_axis];
             auto block_size = compute_block_size(ctx, max_elements_per_op * group, 256);
             algo            = "block_tile<" + std::to_string(group) + ">";

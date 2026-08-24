@@ -39,4 +39,60 @@ TEST_CASE(test_find_fast_axis)
                migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
 }
 
+static const auto compute_factor = test::make_function("tile::compute_factor", [](auto&&... xs) {
+    return migraphx::gpu::gen::tile::compute_factor(static_cast<decltype(xs)>(xs)...);
+});
+
+TEST_CASE(test_compute_factor_one) { EXPECT(compute_factor(1) == 1); }
+
+TEST_CASE(test_compute_factor_small_primes)
+{
+    EXPECT(compute_factor(2) == 2);
+    EXPECT(compute_factor(3) == 3);
+    EXPECT(compute_factor(5) == 5);
+    EXPECT(compute_factor(7) == 7);
+    EXPECT(compute_factor(11) == 11);
+}
+
+TEST_CASE(test_compute_factor_large_primes)
+{
+    EXPECT(compute_factor(13) == 1);
+    EXPECT(compute_factor(101) == 1);
+}
+
+TEST_CASE(test_compute_factor_composite)
+{
+    EXPECT(compute_factor(12) == 12);
+    EXPECT(compute_factor(30) == 30);
+    EXPECT(compute_factor(35) == 35);
+}
+
+TEST_CASE(test_compute_factor_skips_large_prime_factors)
+{
+    EXPECT(compute_factor(26) == 2);
+    EXPECT(compute_factor(39) == 3);
+}
+
+TEST_CASE(test_compute_factor_default_max_size)
+{
+    EXPECT(compute_factor(64) == 64);
+    EXPECT(compute_factor(128) == 64);
+    EXPECT(compute_factor(1024) == 64);
+}
+
+TEST_CASE(test_compute_factor_custom_max_size)
+{
+    EXPECT(compute_factor(64, 8) == 8);
+    EXPECT(compute_factor(64, 1) == 1);
+    EXPECT(compute_factor(12, 2) == 2);
+}
+
+TEST_CASE(test_compute_factor_can_exceed_max_size)
+{
+    // max_size is checked before multiplying, so the last factor can overshoot it
+    EXPECT(compute_factor(25, 4) == 5);
+    EXPECT(compute_factor(12, 6) == 12);
+    EXPECT(compute_factor(6, 4) == 6);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

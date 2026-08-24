@@ -178,7 +178,7 @@ static std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
     return (x + y - std::size_t{1}) / y;
 }
 
-std::size_t compute_tile_factor(std::size_t r, std::size_t max_size)
+std::size_t tile::compute_factor(std::size_t r, std::size_t max_size)
 {
     std::size_t n = 1;
     auto factors  = make_array(2, 3, 5, 7, 11);
@@ -231,8 +231,8 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
 
     const auto& s  = inputs.front();
-    auto dim1      = compute_tile_factor(s.lens()[result.axis]);
-    auto dim2      = compute_tile_factor(s.lens().back(), 4096 / dim1);
+    auto dim1      = compute_factor(s.lens()[result.axis]);
+    auto dim2      = compute_factor(s.lens().back(), 4096 / dim1);
     auto tile_size = dim1 * dim2;
     // equivalent to dim2 * (dim1 + 1) to avoid bank conflicts
     auto tile_bytes = (tile_size + dim2) * s.type_size();

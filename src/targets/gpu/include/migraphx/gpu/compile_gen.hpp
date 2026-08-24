@@ -63,7 +63,6 @@ struct preload
     std::string str() const;
 };
 
-std::size_t compute_tile_factor(std::size_t r, std::size_t max_size = 64);
 struct tile
 {
     enum mode
@@ -78,6 +77,7 @@ struct tile
     std::size_t block_size = 0;
     std::vector<std::size_t> inner{};
     std::vector<std::size_t> outer{};
+    MIGRAPHX_GPU_EXPORT static std::size_t compute_factor(std::size_t r, std::size_t max_size = 64);
     static tile elements(const std::vector<shape>& inputs, std::size_t noutputs);
     // bool is_preloading() const;
     std::string str() const;

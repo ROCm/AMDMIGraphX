@@ -5950,7 +5950,7 @@ TEST_CASE(slice_reshaped_concat_misaligned)
     }
     run_pass(m1);
 
-    // The concat cannot be forwarded through misaligned slices
+    // The slices do not align with the segment boundary, so the concat must remain
     EXPECT(
         std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
 }

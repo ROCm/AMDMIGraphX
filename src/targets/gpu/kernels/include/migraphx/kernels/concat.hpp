@@ -153,7 +153,7 @@ struct block_tile
     {
         constexpr auto slice() const
         {
-            return slice_schedule<single_group<per_block>>(
+            return slice_schedule<per_block>(
                 idx, slice_axes<-1>(), slice_group<NGroups>());
         }
 

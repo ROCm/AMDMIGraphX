@@ -850,87 +850,6 @@ struct find_slice_reshaped_concat
                                         match::name("concat").bind("concat"))));
     }
 
-    // The range of the concat axis subdimension selected by the slice. The sub
-    // pointer points into the descriptor, so it must be consumed before any
-    // structural mutation such as simplify()
-    struct sub_slice
-    {
-        shape_transform_descriptor::dimension::sub* sub;
-        std::size_t start;
-        std::size_t end;
-
-        bool full() const { return start == 0 and end == sub->len; }
-        std::size_t size() const { return end - start; }
-    };
-
-    static bool from_concat_axis(const shape_transform_descriptor::dimension::sub& s,
-                                 std::size_t axis)
-    {
-        return not s.origin_axis().empty() and s.origin_axis().front() == axis;
-    }
-
-    // Map each subdimension of the concat axis to the range the slice selects
-    // from it. Returns nullopt when the slice restricts an output axis that
-    // does not map entirely to a subdimension of the concat axis.
-    static std::optional<std::vector<sub_slice>>
-    collect_sub_slices(shape_transform_descriptor& desc,
-                       std::size_t axis,
-                       const std::vector<std::size_t>& slice_axes,
-                       const std::vector<std::size_t>& starts,
-                       const std::vector<std::size_t>& ends)
-    {
-        assert(slice_axes.size() == starts.size() and slice_axes.size() == ends.size());
-        std::vector<sub_slice> result;
-        for(auto i : range(desc.dimensions.size()))
-        {
-            auto& dim = desc.dimensions[i];
-            auto it   = std::find(slice_axes.begin(), slice_axes.end(), i);
-            if(it == slice_axes.end())
-            {
-                // Unsliced output axes keep the full range of each subdimension
-                transform_if(
-                    dim.subdimensions.begin(),
-                    dim.subdimensions.end(),
-                    std::back_inserter(result),
-                    [&](const auto& s) { return from_concat_axis(s, axis); },
-                    [](auto& s) { return sub_slice{&s, 0, s.len}; });
-                continue;
-            }
-            auto sit = std::find_if(
-                dim.subdimensions.begin(), dim.subdimensions.end(), [&](const auto& s) {
-                    return from_concat_axis(s, axis) and s.len == dim.len();
-                });
-            if(sit == dim.subdimensions.end())
-                return std::nullopt;
-            auto k = std::distance(slice_axes.begin(), it);
-            if(starts[k] >= ends[k])
-                return std::nullopt;
-            result.push_back({&*sit, starts[k], ends[k]});
-        }
-        return result;
-    }
-
-    // Unit subdimensions carry no element order, so if the wider subdimensions
-    // are already in output order, renumber all split indices to output order
-    // to avoid generating a gratuitous transpose
-    static void renumber_in_output_order(const std::vector<sub_slice>& dst_slices, std::size_t axis)
-    {
-        auto wider = [](const sub_slice& s) { return s.sub->len > 1; };
-        std::vector<shape_transform_descriptor::dimension::sub*> dst_order;
-        transform_if(dst_slices.begin(),
-                     dst_slices.end(),
-                     std::back_inserter(dst_order),
-                     wider,
-                     [](const sub_slice& s) { return s.sub; });
-        if(not std::is_sorted(
-               dst_order.begin(),
-               dst_order.end(),
-               by(std::less<>{}, [](const auto* s) -> const auto& { return s->origin_axis(); })))
-            return;
-        for(std::size_t i : range(dst_slices.size()))
-            dst_slices[i].sub->axis = {axis, i};
-    }
-
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto slice_ins  = mr.result;
@@ -960,48 +879,15 @@ struct find_slice_reshaped_concat
         if(desc.empty())
             return;
 
-        auto slice_val  = slice_ins->normalized_operator().to_value();
-        auto dst_slices = collect_sub_slices(desc,
-                                             axis,
-                                             slice_val["axes"].to_vector<std::size_t>(),
-                                             slice_val["starts"].to_vector<std::size_t>(),
-                                             slice_val["ends"].to_vector<std::size_t>());
-        if(not dst_slices.has_value())
+        // Restrict the concat axis to the range of elements the slice selects
+        auto slice_val = slice_ins->normalized_operator().to_value();
+        auto selected  = desc.slice_axis(axis,
+                                         slice_val["axes"].to_vector<std::size_t>(),
+                                         slice_val["starts"].to_vector<std::size_t>(),
+                                         slice_val["ends"].to_vector<std::size_t>());
+        if(not selected.has_value())
             return;
-
-        // The subdimensions ordered by their split lineage form a mixed-radix
-        // decomposition of the concat axis, outermost first
-        auto sub_slices = *dst_slices;
-        std::sort(sub_slices.begin(),
-                  sub_slices.end(),
-                  by(std::less<>{},
-                     [](const sub_slice& s) -> const auto& { return s.sub->origin_axis(); }));
-
-        // The selected ranges must form one contiguous range along the concat
-        // axis: every subdimension outside the innermost restricted one must
-        // select a single index, and everything inside it the full range
-        auto rit = std::find_if(sub_slices.rbegin(), sub_slices.rend(), [](const sub_slice& s) {
-            return not s.full();
-        });
-        if(rit != sub_slices.rend() and
-           not std::all_of(sub_slices.begin(), std::prev(rit.base()), [](const sub_slice& s) {
-               return s.size() == 1;
-           }))
-            return;
-        auto [lo, total] = std::accumulate(
-            sub_slices.rbegin(),
-            sub_slices.rend(),
-            std::make_pair(std::size_t{0}, std::size_t{1}),
-            [](auto acc, const sub_slice& s) {
-                return std::make_pair(acc.first + s.start * acc.second, acc.second * s.sub->len);
-            });
-        if(total != clens[axis])
-            return;
-        auto hi = lo + transform_accumulate(sub_slices.begin(),
-                                            sub_slices.end(),
-                                            std::size_t{1},
-                                            std::multiplies<>{},
-                                            [](const sub_slice& s) { return s.size(); });
+        auto [lo, hi] = *selected;
 
         // The selected range must be exactly one segment of the concat
         const auto& inputs = concat_ins->inputs();
@@ -1014,14 +900,8 @@ struct find_slice_reshaped_concat
             return;
         auto seg = inputs[idx];
 
-        // Restrict each subdimension to its selected range so the descriptor
-        // now maps the segment to the slice output
-        std::for_each(sub_slices.begin(), sub_slices.end(), [](const sub_slice& s) {
-            s.sub->len = s.size();
-        });
         if(desc.lens() != slice_ins->get_shape().lens())
             return;
-        renumber_in_output_order(*dst_slices, axis);
         desc.simplify();
         auto y = insert_ops(m, slice_ins, desc.generate(), seg);
         m.replace_instruction(slice_ins, y);

@@ -988,6 +988,153 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
     return true;
 }
 
+// The range of an axis subdimension selected by a slice of the output
+struct dimension_slice
+{
+    dimension::sub* sub;
+    std::size_t start;
+    std::size_t end;
+
+    bool full() const { return start == 0 and end == sub->len; }
+    std::size_t size() const { return end - start; }
+};
+
+static bool sub_from_axis(const dimension::sub& s, std::size_t axis)
+{
+    return not s.origin_axis().empty() and s.origin_axis().front() == axis;
+}
+
+// Unit subdimensions carry no element order, so if the wider subdimensions
+// are already in output order, renumber all split indices to output order to
+// avoid generating a gratuitous transpose
+static void renumber_in_output_order(const std::vector<dimension_slice>& dst_slices,
+                                     std::size_t axis)
+{
+    std::vector<dimension::sub*> wider;
+    transform_if(
+        dst_slices.begin(),
+        dst_slices.end(),
+        std::back_inserter(wider),
+        [](const dimension_slice& s) { return s.sub->len > 1; },
+        [](const dimension_slice& s) { return s.sub; });
+    if(not std::is_sorted(
+           wider.begin(), wider.end(), by(std::less<>{}, [](const auto* s) -> const auto& {
+               return s->origin_axis();
+           })))
+        return;
+    for(std::size_t i : range(dst_slices.size()))
+        set_origin_axis(*dst_slices[i].sub, {axis, i});
+}
+
+// Map each subdimension of the axis to the range the slice selects from it.
+// Returns nullopt when a sliced output dimension does not map entirely to a
+// subdimension of the axis.
+static optional<std::vector<dimension_slice>>
+collect_dimension_slices(std::vector<dimension>& dimensions,
+                         std::size_t axis,
+                         const std::vector<std::size_t>& slice_axes,
+                         const std::vector<std::size_t>& starts,
+                         const std::vector<std::size_t>& ends)
+{
+    std::vector<dimension_slice> result;
+    for(auto i : range(dimensions.size()))
+    {
+        auto& dim = dimensions[i];
+        auto it   = std::find(slice_axes.begin(), slice_axes.end(), i);
+        if(it == slice_axes.end())
+        {
+            // Unsliced output axes keep the full range of each subdimension
+            transform_if(
+                dim.subdimensions.begin(),
+                dim.subdimensions.end(),
+                std::back_inserter(result),
+                [&](const auto& s) { return sub_from_axis(s, axis); },
+                [](auto& s) { return dimension_slice{&s, 0, s.len}; });
+            continue;
+        }
+        auto sit =
+            std::find_if(dim.subdimensions.begin(), dim.subdimensions.end(), [&](const auto& s) {
+                return sub_from_axis(s, axis) and s.len == dim.len();
+            });
+        if(sit == dim.subdimensions.end())
+            return nullopt;
+        auto k = std::distance(slice_axes.begin(), it);
+        if(starts[k] >= ends[k])
+            return nullopt;
+        // The remaining subdimensions of the axis have a length of 1, so they
+        // keep their full range
+        transform_if(
+            dim.subdimensions.begin(),
+            dim.subdimensions.end(),
+            std::back_inserter(result),
+            [&](const auto& s) { return sub_from_axis(s, axis); },
+            [&](auto& s) -> dimension_slice {
+                if(&s == &*sit)
+                    return {&s, starts[k], ends[k]};
+                return {&s, 0, s.len};
+            });
+    }
+    return result;
+}
+
+optional<std::pair<std::size_t, std::size_t>>
+shape_transform_descriptor::slice_axis(std::size_t axis,
+                                       const std::vector<std::size_t>& slice_axes,
+                                       const std::vector<std::size_t>& starts,
+                                       const std::vector<std::size_t>& ends)
+{
+    assert(slice_axes.size() == starts.size() and slice_axes.size() == ends.size());
+    auto dst_slices = collect_dimension_slices(dimensions, axis, slice_axes, starts, ends);
+    if(not dst_slices.has_value())
+        return nullopt;
+    // Broadcasted subdimensions do not map back to a source range
+    if(std::any_of(dst_slices->begin(), dst_slices->end(), [](const dimension_slice& s) {
+           return s.sub->has_hidden_axis();
+       }))
+        return nullopt;
+
+    // The subdimensions ordered by their split lineage form a mixed-radix
+    // decomposition of the axis, outermost first
+    auto sub_slices = *dst_slices;
+    std::sort(sub_slices.begin(),
+              sub_slices.end(),
+              by(std::less<>{},
+                 [](const dimension_slice& s) -> const auto& { return s.sub->origin_axis(); }));
+
+    // The selected ranges must form one contiguous range along the axis:
+    // every subdimension outside the innermost restricted one must select a
+    // single index, and everything inside it the full range
+    auto rit = std::find_if(sub_slices.rbegin(), sub_slices.rend(), [](const dimension_slice& s) {
+        return not s.full();
+    });
+    if(rit != sub_slices.rend() and
+       not std::all_of(sub_slices.begin(), std::prev(rit.base()), [](const dimension_slice& s) {
+           return s.size() == 1;
+       }))
+        return nullopt;
+    auto [start, total] = std::accumulate(
+        sub_slices.rbegin(),
+        sub_slices.rend(),
+        std::make_pair(std::size_t{0}, std::size_t{1}),
+        [](auto acc, const dimension_slice& s) {
+            return std::make_pair(acc.first + s.start * acc.second, acc.second * s.sub->len);
+        });
+    auto end = start + transform_accumulate(sub_slices.begin(),
+                                            sub_slices.end(),
+                                            std::size_t{1},
+                                            std::multiplies<>{},
+                                            [](const dimension_slice& s) { return s.size(); });
+    assert(end <= total);
+
+    // Restrict each subdimension to its selected range so the descriptor now
+    // maps the sliced source axis to the sliced output
+    std::for_each(sub_slices.begin(), sub_slices.end(), [](const dimension_slice& s) {
+        s.sub->len = s.size();
+    });
+    renumber_in_output_order(*dst_slices, axis);
+    return std::make_pair(start, end);
+}
+
 // Remove subdimensions of 1
 static void remove_1_sub_dims(std::vector<dimension::sub>& subdimensions)
 {

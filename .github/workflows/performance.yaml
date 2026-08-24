@@ -16,11 +16,11 @@ on:
       performance_reports_repo:
         description: Repository where performance reports are stored
         required: true
-        default: 'ROCm/migraphx-reports'
+        default: 'AMD-ROCm-Internal/migraphx-reports'
       benchmark_utils_repo:
         description: Repository where benchmark utils are stored
         required: true
-        default: "ROCm/migraphx-benchmark-utils"
+        default: "AMD-ROCm-Internal/migraphx-benchmark-utils"
       organization:
         description: Organization based on which location of files will be different
         required: true
@@ -93,6 +93,13 @@ jobs:
 
           if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ok-to-test') }}" != "true" ]]; then
             echo "Missing 'ok-to-test' label; BLOCKED"
+            echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          PR_HEAD=$(gh pr view ${{ github.event.pull_request.number }} --json headRefOid,labels --jq '.headRefOid')
+          if [[ "$PR_HEAD" != "${{ github.event.pull_request.head.sha }}" ]]; then
+            echo "::error::PR head SHA changed since event dispatch; blocking until re-review."
+            gh pr edit ${{ github.event.pull_request.number }} --remove-label "ok-to-test" --repo ${{ github.repository }} || true
             echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
             exit 1
           fi
@@ -171,6 +178,7 @@ jobs:
 
   call_reusable:
     needs: get_config
+    # Pin to immutable commit once available in migraphx-benchmark; @testing is mutable.
     uses: ROCm/migraphx-benchmark/.github/workflows/perf-test.yml@testing
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || needs.get_config.outputs.rocm_version }}

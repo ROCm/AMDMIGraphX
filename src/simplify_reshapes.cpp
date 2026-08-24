@@ -834,26 +834,91 @@ struct find_slice_reshaped_concat
             match::skip(match::name(view_ops()))(match::name("concat").bind("concat"))));
     }
 
-    // Compose the op onto a strided view, tracking the element mapping
-    static std::optional<shape> track_view(const shape& s, const operation& op)
+    // The range of the concat axis subdimension selected by the slice
+    struct sub_slice
     {
-        try
+        shape_transform_descriptor::dimension::sub* sub;
+        std::size_t start;
+        std::size_t end;
+
+        bool full() const { return start == 0 and end == sub->len; }
+        std::size_t size() const { return end - start; }
+    };
+
+    static bool from_concat_axis(const shape_transform_descriptor::dimension::sub& s,
+                                 std::size_t axis)
+    {
+        return not s.origin_axis().empty() and s.origin_axis().front() == axis;
+    }
+
+    // Map each subdimension of the concat axis to the range the slice selects
+    // from it. Returns nullopt when the slice restricts an output axis that
+    // does not map entirely to a subdimension of the concat axis.
+    static std::optional<std::vector<sub_slice>>
+    collect_sub_slices(shape_transform_descriptor& desc,
+                       std::size_t axis,
+                       const std::vector<std::size_t>& slice_axes,
+                       const std::vector<std::size_t>& starts,
+                       const std::vector<std::size_t>& ends)
+    {
+        std::vector<sub_slice> result;
+        for(auto i : range(desc.dimensions.size()))
         {
-            if(op.name() == "transpose")
-                return op.compute_shape({s});
-            auto out_lens = op.compute_shape({shape{s.type(), s.lens()}}).lens();
-            return make_op("reshape_lazy", {{"dims", out_lens}}).compute_shape({s});
+            auto& dim = desc.dimensions[i];
+            auto it   = std::find(slice_axes.begin(), slice_axes.end(), i);
+            if(it == slice_axes.end())
+            {
+                // Unsliced output axes keep the full range of each subdimension
+                transform_if(
+                    dim.subdimensions.begin(),
+                    dim.subdimensions.end(),
+                    std::back_inserter(result),
+                    [&](const auto& s) { return from_concat_axis(s, axis); },
+                    [](auto& s) { return sub_slice{&s, 0, s.len}; });
+                continue;
+            }
+            auto sit = std::find_if(
+                dim.subdimensions.begin(), dim.subdimensions.end(), [&](const auto& s) {
+                    return from_concat_axis(s, axis) and s.len == dim.len();
+                });
+            if(sit == dim.subdimensions.end())
+                return std::nullopt;
+            auto k = std::distance(slice_axes.begin(), it);
+            if(starts[k] >= ends[k])
+                return std::nullopt;
+            result.push_back({&*sit, starts[k], ends[k]});
         }
-        catch(const exception&)
-        {
-            return std::nullopt;
-        }
+        return result;
+    }
+
+    // Unit subdimensions carry no element order, so when the wider
+    // subdimensions already appear in output order renumber the split
+    // indices to output order to avoid generating a gratuitous transpose
+    static void renumber_in_output_order(const std::vector<sub_slice>& dst_slices, std::size_t axis)
+    {
+        auto wider = [](const sub_slice& s) { return s.sub->len > 1; };
+        std::vector<shape_transform_descriptor::dimension::sub*> dst_order;
+        transform_if(dst_slices.begin(),
+                     dst_slices.end(),
+                     std::back_inserter(dst_order),
+                     wider,
+                     [](const sub_slice& s) { return s.sub; });
+        auto split_order = dst_order;
+        std::sort(split_order.begin(), split_order.end(), by(std::less<>{}, [](const auto* s) {
+                      return s->origin_axis();
+                  }));
+        if(split_order != dst_order)
+            return;
+        for(std::size_t i : range(dst_slices.size()))
+            dst_slices[i].sub->axis = {axis, i};
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto slice_ins  = mr.result;
         auto concat_ins = mr.instructions["concat"];
+        if(concat_ins->get_shape().dynamic())
+            return;
         std::vector<instruction_ref> chain;
         auto x = slice_ins->inputs().front();
         while(x != concat_ins)
@@ -868,112 +933,87 @@ struct find_slice_reshaped_concat
             return;
         std::reverse(chain.begin(), chain.end());
 
-        const auto& concat_shape = concat_ins->get_shape();
-        const auto& clens        = concat_shape.lens();
-        auto axis                = any_cast<op::concat>(concat_ins->get_operator()).axis;
+        const auto& clens = concat_ins->get_shape().lens();
+        auto axis         = any_cast<op::concat>(concat_ins->normalized_operator()).axis;
         if(axis < 0 or axis >= clens.size())
             return;
-        if(not concat_shape.standard())
-            return;
-        // Only leading unit dims before the concat axis so segments are contiguous
-        if(std::any_of(clens.begin(), clens.begin() + axis, [](auto d) { return d != 1; }))
-            return;
-        auto inner = std::accumulate(
-            clens.begin() + axis + 1, clens.end(), std::size_t{1}, std::multiplies<>{});
 
-        // Compose the view chain over the concat output
-        shape view = concat_shape;
-        for(auto vins : chain)
-        {
-            auto v = track_view(view, vins->get_operator());
-            if(not v.has_value())
-                return;
-            view = *v;
-        }
-        auto sop = any_cast<op::slice>(slice_ins->get_operator());
-        auto offset =
-            std::inner_product(sop.axes.begin(),
-                               sop.axes.end(),
-                               sop.starts.begin(),
-                               std::size_t{0},
-                               std::plus<>{},
-                               [&](auto ax, auto start) { return start * view.strides()[ax]; });
-        auto sliced = slice_ins->get_operator().compute_shape({view});
+        // Track the element mapping of the view chain with a descriptor
+        std::vector<operation> ops;
+        std::transform(chain.begin(),
+                       chain.end(),
+                       std::back_inserter(ops),
+                       [](instruction_ref vins) { return vins->get_operator(); });
+        auto desc = shape_transform_descriptor::create(clens, ops);
+        if(desc.empty())
+            return;
 
-        // The slice offset must be at the start of a segment
+        auto slice_val  = slice_ins->normalized_operator().to_value();
+        auto dst_slices = collect_sub_slices(desc,
+                                             axis,
+                                             slice_val["axes"].to_vector<std::size_t>(),
+                                             slice_val["starts"].to_vector<std::size_t>(),
+                                             slice_val["ends"].to_vector<std::size_t>());
+        if(not dst_slices.has_value())
+            return;
+
+        // The subdimensions ordered by their split lineage form a mixed-radix
+        // decomposition of the concat axis, outermost first
+        auto sub_slices = *dst_slices;
+        std::sort(sub_slices.begin(), sub_slices.end(), by(std::less<>{}, [](const sub_slice& s) {
+                      return s.sub->origin_axis();
+                  }));
+
+        // The selected ranges must form one contiguous range along the concat
+        // axis: every subdimension outside the innermost restricted one must
+        // select a single index, and everything inside it the full range
+        auto rit = std::find_if(sub_slices.rbegin(), sub_slices.rend(), [](const sub_slice& s) {
+            return not s.full();
+        });
+        if(rit != sub_slices.rend() and
+           not std::all_of(sub_slices.begin(), std::prev(rit.base()), [](const sub_slice& s) {
+               return s.size() == 1;
+           }))
+            return;
+        auto [lo, total] = std::accumulate(
+            sub_slices.rbegin(),
+            sub_slices.rend(),
+            std::make_pair(std::size_t{0}, std::size_t{1}),
+            [](auto acc, const sub_slice& s) {
+                return std::make_pair(acc.first + s.start * acc.second, acc.second * s.sub->len);
+            });
+        if(total != clens[axis])
+            return;
+        auto hi = lo + transform_accumulate(sub_slices.begin(),
+                                            sub_slices.end(),
+                                            std::size_t{1},
+                                            std::multiplies<>{},
+                                            [](const sub_slice& s) { return s.size(); });
+
+        // The selected range must be exactly one segment of the concat
         const auto& inputs              = concat_ins->inputs();
         std::vector<std::size_t> prefix = {0};
         std::transform(inputs.begin(), inputs.end(), std::back_inserter(prefix), [&](auto i) {
-            return prefix.back() + i->get_shape().lens()[axis] * inner;
+            return prefix.back() + i->get_shape().lens()[axis];
         });
-        auto it = std::find(prefix.begin(), std::prev(prefix.end()), offset);
+        auto it = std::find(prefix.begin(), std::prev(prefix.end()), lo);
         if(it == std::prev(prefix.end()))
             return;
         auto idx = std::distance(prefix.begin(), it);
+        if(prefix[idx + 1] != hi)
+            return;
         auto seg = inputs[idx];
-        // The slice must cover the whole segment
-        if(prefix[idx + 1] - prefix[idx] != sliced.elements())
-            return;
 
-        // Synthesize the same element order on the segment as a reshape
-        // followed by a transpose: the non-unit axes ordered by decreasing
-        // stride must form a nested contiguous layout over the segment
-        const auto& slens    = sliced.lens();
-        const auto& sstrides = sliced.strides();
-        std::vector<std::size_t> nz;
-        transform_if(
-            range(slens.size()).begin(),
-            range(slens.size()).end(),
-            std::back_inserter(nz),
-            [&](auto d) { return slens[d] > 1; },
-            [](auto d) { return d; });
-        std::sort(nz.begin(), nz.end(), by(std::greater<>{}, [&](auto d) { return sstrides[d]; }));
-        std::size_t expected = 1;
-        if(not std::all_of(nz.rbegin(), nz.rend(), [&](auto d) {
-               if(sstrides[d] != expected)
-                   return false;
-               expected *= slens[d];
-               return true;
-           }))
+        // Restrict each subdimension to its selected range so the descriptor
+        // now maps the segment to the slice output
+        std::for_each(sub_slices.begin(), sub_slices.end(), [](const sub_slice& s) {
+            s.sub->len = s.size();
+        });
+        renumber_in_output_order(*dst_slices, axis);
+        if(desc.lens() != slice_ins->get_shape().lens())
             return;
-
-        std::vector<std::size_t> rdims;
-        std::transform(
-            nz.begin(), nz.end(), std::back_inserter(rdims), [&](auto d) { return slens[d]; });
-        rdims.resize(slens.size(), 1);
-        std::size_t unit_pos = nz.size();
-        std::vector<std::int64_t> perm(slens.size());
-        std::transform(range(slens.size()).begin(),
-                       range(slens.size()).end(),
-                       perm.begin(),
-                       [&](auto d) -> std::int64_t {
-                           auto it = std::find(nz.begin(), nz.end(), d);
-                           if(it != nz.end())
-                               return std::distance(nz.begin(), it);
-                           return unit_pos++;
-                       });
-        std::vector<operation> new_ops = {make_op("reshape", {{"dims", rdims}}),
-                                          make_op("transpose", {{"permutation", perm}})};
-
-        // Verify the synthesized ops read the segment in the slice's order
-        auto seg_lens  = clens;
-        seg_lens[axis] = seg->get_shape().lens()[axis];
-        shape rview{concat_shape.type(), seg_lens};
-        for(const auto& op : new_ops)
-        {
-            auto v = track_view(rview, op);
-            if(not v.has_value())
-                return;
-            rview = *v;
-        }
-        if(rview.lens() != sliced.lens())
-            return;
-        // Strides on unit axes carry no element mapping
-        if(not all_of(range(rview.lens().size()), [&](auto d) {
-               return rview.lens()[d] == 1 or rview.strides()[d] == sliced.strides()[d];
-           }))
-            return;
-        auto y = insert_ops(m, slice_ins, new_ops, seg);
+        desc.simplify();
+        auto y = insert_ops(m, slice_ins, desc.generate(), seg);
         m.replace_instruction(slice_ins, y);
     }
 };

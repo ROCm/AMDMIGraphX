@@ -5923,8 +5923,8 @@ TEST_CASE(slice_reshaped_concat)
         auto c  = m2.add_parameter("c", {migraphx::shape::float_type, {2}});
         auto ra = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2}}}), a);
         auto ta = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ra);
-        auto rb = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1}}}), b);
-        auto rc = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1}}}), c);
+        auto rb = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), b);
+        auto rc = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), c);
         m2.add_return({ta, rb, rc});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -5953,6 +5953,66 @@ TEST_CASE(slice_reshaped_concat_misaligned)
     // The concat cannot be forwarded through misaligned slices
     EXPECT(
         std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+}
+
+TEST_CASE(slice_reshaped_concat_leading_dims)
+{
+    migraphx::module m1;
+    {
+        auto a      = m1.add_parameter("a", {migraphx::shape::float_type, {2, 6}});
+        auto b      = m1.add_parameter("b", {migraphx::shape::float_type, {2, 4}});
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), a, b);
+        auto transpose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), concat);
+        auto sa = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {6}}}), transpose);
+        auto sb = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {10}}}),
+            transpose);
+        m1.add_return({sa, sb});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a  = m2.add_parameter("a", {migraphx::shape::float_type, {2, 6}});
+        auto b  = m2.add_parameter("b", {migraphx::shape::float_type, {2, 4}});
+        auto ta = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), a);
+        auto tb = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), b);
+        m2.add_return({ta, tb});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_reshaped_concat_nonstandard)
+{
+    // The concat output preserves the permuted layout of its inputs, so it is
+    // not a standard shape
+    migraphx::shape ps{migraphx::shape::float_type, {4, 3}, {1, 4}};
+    migraphx::module m1;
+    {
+        auto a      = m1.add_parameter("a", ps);
+        auto b      = m1.add_parameter("b", ps);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto reshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 3}}}), concat);
+        auto sa = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), reshape);
+        auto sb = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), reshape);
+        m1.add_return({sa, sb});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a  = m2.add_parameter("a", ps);
+        auto b  = m2.add_parameter("b", ps);
+        auto ua = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a);
+        auto ub = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b);
+        m2.add_return({ua, ub});
+    }
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

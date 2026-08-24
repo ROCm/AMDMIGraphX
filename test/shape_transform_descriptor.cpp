@@ -224,6 +224,14 @@ TEST_CASE(record_reshape_split)
     EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}});
 }
 
+TEST_CASE(record_reshape_lazy_split)
+{
+    auto desc = make_descriptor({3, 20}, make_op("reshape_lazy", {{"dims", {3, 4, 5}}}));
+    EXPECT(get_final_lens(desc) == final_lens{3, 4, 5});
+    EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {5}});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}});
+}
+
 TEST_CASE(record_reshape_merge_split)
 {
     auto desc = make_descriptor({3, 10, 16}, make_op("reshape", {{"dims", {3, 40, 2, 2}}}));
@@ -353,6 +361,17 @@ TEST_CASE(optimize_reshape_reshape2)
                                                make_op("reshape", {{"dims", {15, 2, 2}}}),
                                            }) == ops{
                                                      make_op("reshape", {{"dims", {15, 2, 2}}}),
+                                                 });
+}
+
+TEST_CASE(optimize_reshape_lazy_reshape)
+{
+    EXPECT(check_optimize_shape_transforms({3, 5, 2},
+                                           {
+                                               make_op("reshape_lazy", {{"dims", {30}}}),
+                                               make_op("reshape", {{"dims", {3, 10}}}),
+                                           }) == ops{
+                                                     make_op("reshape", {{"dims", {3, 10}}}),
                                                  });
 }
 

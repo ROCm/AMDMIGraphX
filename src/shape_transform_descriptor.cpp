@@ -816,7 +816,7 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
     for(const auto& op : ops)
     {
         auto v = op.to_value();
-        if(contains({"reshape", "squeeze", "unsqueeze", "flatten"}, op.name()))
+        if(contains({"reshape", "reshape_lazy", "squeeze", "unsqueeze", "flatten"}, op.name()))
         {
             dims = compute_dims(op, dims);
             if(not apply_reshape(dims))

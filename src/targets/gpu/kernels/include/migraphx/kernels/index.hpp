@@ -296,12 +296,6 @@ struct index
     {
         for_stride<true>(local_wave(), n, nlocal_wave(), f);
     }
-
-    template <class F, class N>
-    __device__ void wave_stride(N n, F f) const
-    {
-        for_stride<false>(wave(), n, nwave(), f);
-    }
 };
 
 #ifdef MIGRAPHX_NLOCAL
@@ -315,40 +309,6 @@ inline __device__ __attribute__((const)) index make_index()
     return index{
         blockIdx.x * compute_max_local_size() + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
 }
-
-struct per_wave
-{
-    index idx;
-
-    constexpr auto local() const
-    {
-        return idx.local_wave();
-    }
-
-    constexpr auto nlocal() const
-    {
-        return idx.nlocal_wave();
-    }
-
-    constexpr auto size() const
-    {
-        return idx.nwave();
-    }
-
-    constexpr auto group() const { return idx.wave(); }
-
-    template<class N, class F>
-    constexpr void group_stride(N n, F f) const
-    {
-        return idx.wave_stride(n, f);
-    }
-
-    template<class N, class F>
-    constexpr void local_stride(N n, F f) const
-    {
-        return idx.local_wave_stride(n, f);
-    }
-};
 
 struct per_block
 {
@@ -372,17 +332,6 @@ struct per_block
     constexpr void local_stride(N n, F f) const
     {
         return idx.local_stride(n, f);
-    }
-};
-
-template <class Base>
-struct single_group : Base
-{
-    template <class N, class F>
-    constexpr void group_stride(N n, F f) const
-    {
-        // MIGRAPHX_ASSERT(this->size() >= n);
-        return this->idx.group_stride(n, f);
     }
 };
 

@@ -5948,11 +5948,11 @@ TEST_CASE(slice_reshaped_concat_misaligned)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {5}}}), transpose);
         m1.add_return({sa, sb});
     }
-    run_pass(m1);
 
-    // The slices do not align with the segment boundary, so the concat must remain
-    EXPECT(
-        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    // The slices do not align with the segment boundary, so nothing is simplified
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(slice_reshaped_concat_leading_dims)

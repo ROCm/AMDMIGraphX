@@ -69,7 +69,7 @@ struct topk
     shape symbolic_compute_shape(const shape& s0) const
     {
         auto dds  = s0.dyn_dims();
-        dds[axis] = shape::dynamic_dimension{sym::fold_min(sym::lit(k), dds[axis].sym_expr)};
+        dds[axis] = shape::dynamic_dimension{sym::resolve_min(sym::lit(k), dds[axis].sym_expr)};
         return shape({shape{s0.type(), dds}, shape{shape::int64_type, dds}});
     }
 

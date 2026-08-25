@@ -1243,7 +1243,7 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
 }
 
 // Get rid of min(a, b) if it can definitively determined
-expr fold_min(const expr& a, const expr& b)
+expr resolve_min(const expr& a, const expr& b)
 {
     auto lt = strict_less(a, b);
     if(lt.has_value())
@@ -1252,7 +1252,7 @@ expr fold_min(const expr& a, const expr& b)
 }
 
 // Get rid of max(a, b) if it can definitively determined
-expr fold_max(const expr& a, const expr& b)
+expr resolve_max(const expr& a, const expr& b)
 {
     auto lt = strict_less(a, b);
     if(lt.has_value())
@@ -1645,6 +1645,24 @@ bool same_symbol(const expr& a, const expr& b)
            std::equal(ca.begin(), ca.end(), cb.begin(), [](const expr& x, const expr& y) {
                return same_symbol(x, y);
            });
+}
+
+std::unordered_set<expr> find_variables(const expr& e)
+{
+    std::unordered_set<expr> visited;
+    std::unordered_set<expr> result;
+    fix([&](auto self, const expr& x) {
+        if(x.empty() or not visited.insert(x).second)
+            return;
+        if(x.name() == "variable")
+        {
+            result.insert(as_symbol(x));
+            return;
+        }
+        for(const auto& c : x.children())
+            self(c);
+    })(e);
+    return result;
 }
 
 [[maybe_unused]] static bool has_float_literal(const expr& e)

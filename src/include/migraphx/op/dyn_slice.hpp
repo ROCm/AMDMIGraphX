@@ -139,7 +139,7 @@ struct dyn_slice
                                    ": end is always before start, extent " + extent.to_string() +
                                    " is negative over its whole range");
                 // Clamp at zero to keep the dimension non-negative.
-                dds.at(axis) = shape::dynamic_dimension{sym::fold_max(extent, zero)};
+                dds.at(axis) = shape::dynamic_dimension{sym::resolve_max(extent, zero)};
             });
         shape result{input_shape.type(), std::move(dds), sym_in.dyn_strides()};
         // Every bound resolved over a static input, so don't hand back a dynamic shape.

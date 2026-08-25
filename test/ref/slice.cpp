@@ -26,6 +26,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/verify.hpp>
 

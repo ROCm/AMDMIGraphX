@@ -27,6 +27,7 @@
 #include <string>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/enum.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,12 +39,7 @@ struct module_pass_manager;
  */
 struct MIGRAPHX_EXPORT layout_convolution
 {
-    enum layout_order
-    {
-        channels_first,
-        channels_last,
-        channels_auto
-    };
+    MIGRAPHX_NESTED_ENUM(layout_order, channels_first, channels_last, channels_auto)
     layout_order order = channels_first;
     std::string name() const { return "layout_convolution"; }
     void apply(module_pass_manager& mpm) const;

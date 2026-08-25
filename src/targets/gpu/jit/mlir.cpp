@@ -22,8 +22,10 @@
  * THE SOFTWARE.
  */
 
+#include <algorithm>
 #include <iterator>
 #include <migraphx/builtin.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -41,6 +43,18 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP_TO_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP);
+
+void validate_pointwise_module(const module& m)
+{
+    auto invalid_ins = std::find_if(m.begin(), m.end(), [](const auto& ins) {
+        const auto& name = ins.name();
+        return not contains({"@literal", "@param", "@return"}, name) and
+               not ins.get_operator().attributes().get("pointwise", false);
+    });
+    if(invalid_ins != m.end())
+        MIGRAPHX_THROW("Pointwise module contains non-pointwise instruction: " +
+                       invalid_ins->name());
+}
 
 static module create_pointwise_module(module_ref in_mod)
 {
@@ -73,6 +87,8 @@ static module create_pointwise_module(module_ref in_mod)
 static code_object_op
 compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_ref mod)
 {
+    // Validate before create_pointwise_module removes aliasing shape operations.
+    validate_pointwise_module(*mod);
     operation cop;
     auto pw_mod = create_pointwise_module(mod);
     if(any_of(mod->get_parameters(), [&](instruction_ref param) {

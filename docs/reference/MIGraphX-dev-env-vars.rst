@@ -21,13 +21,14 @@ Model performance tunable variables change the compilation behavior of a model. 
   * - Environment variable
     - Values
 
-  * - | ``MIGRAPHX_ENABLE_NHWC``
-      | Forces the model to use the NHWC layout.
-      
-    - | ``1``: Forces the use of the NHWC layout.
-      | ``0``: Returns to default behavior.
+  * - | ``MIGRAPHX_GPU_OPTIONS``
+      | Overrides the backend options the gpu target is compiled with.
 
-      | Default: The use of the NHWC layout isn't forced.
+    - | A JSON object of backend options, such as ``{convolution_layout:channels_last}``.
+      | Quotes around the keys and values are optional. Options the target doesn't
+      | recognize are ignored.
+
+      | Default: The backend options passed to compile are used unchanged.
 
   * - | ``MIGRAPHX_DISABLE_MLIR``
       | When set, the rocMLIR library won't be used.

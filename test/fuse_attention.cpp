@@ -35,6 +35,7 @@
 #include <migraphx/split_factor.hpp>
 #include <migraphx/generic_float.hpp>
 #include <migraphx/literal.hpp>
+#include <numeric>
 #include <migraphx/op/builder/insert.hpp>
 #include <basic_ops.hpp>
 #include <group.hpp>
@@ -51,17 +52,20 @@ static void run_pass(migraphx::program& p, migraphx::fuse_attention fa = {})
 
 static const migraphx::module* flash_decoding_submodule(const migraphx::program& p)
 {
-    for(const auto& ins : *p.get_main_module())
-    {
+    const auto& main_mod = *p.get_main_module();
+    const auto group_it  = std::find_if(main_mod.begin(), main_mod.end(), [](const auto& ins) {
         if(ins.name() != "group")
-            continue;
-        for(const auto* mod : ins.module_inputs())
-        {
-            if(mod->name().find("flash_decoding") != std::string::npos)
-                return mod;
-        }
-    }
-    return nullptr;
+            return false;
+        return std::any_of(ins.module_inputs().begin(), ins.module_inputs().end(), [](auto* mod) {
+            return mod->name().find("flash_decoding") != std::string::npos;
+        });
+    });
+    if(group_it == main_mod.end())
+        return nullptr;
+    const auto& module_inputs = group_it->module_inputs();
+    return *std::find_if(module_inputs.begin(), module_inputs.end(), [](auto* mod) {
+        return mod->name().find("flash_decoding") != std::string::npos;
+    });
 }
 
 static bool flash_decoding_has(const migraphx::program& p,
@@ -1041,6 +1045,81 @@ TEST_CASE(flash_decoding_4d_with_attention_mask_param)
     EXPECT(flash_decoding_has(p1, "@param", &expected_mask_shape));
 }
 
+TEST_CASE(flash_decoding_score_param_split_preserves_values)
+{
+    // A score-shaped @param is split so that split[..., g, m, j] == in[..., m, g*N/G + j],
+    // matching how K is chunked. Reshaping straight to [..., G, M, N/G] interleaves M and N.
+    const std::size_t num_splits = 2;
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 4, 4}};
+    const std::vector<std::size_t> split_lens = {1, 1, num_splits, 4, 2};
+
+    std::vector<float> bias_data(s1.elements());
+    std::iota(bias_data.begin(), bias_data.end(), 0.0f);
+
+    migraphx::program p;
+    {
+        auto* mm   = p.get_main_module();
+        auto q     = mm->add_parameter("q", s1);
+        auto k     = mm->add_parameter("k", s1);
+        auto v     = mm->add_parameter("v", s1);
+        auto bias  = mm->add_parameter("bias", s1);
+        auto group = add_group(
+            p,
+            "attn0",
+            "attention",
+            {q, k, v, bias},
+            {"x0", "x1", "x2", "x3"},
+            [&](auto* gm, const auto& inputs) {
+                auto gemm1  = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto biased = gm->add_instruction(migraphx::make_op("add"), gemm1, inputs[3]);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), biased);
+                rmax = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), biased, rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                return std::vector<migraphx::instruction_ref>{
+                    gm->add_instruction(migraphx::make_op("dot"), div, inputs[2])};
+            });
+        mm->add_return({group});
+    }
+    run_pass(p,
+             {.attn_enabled              = false,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
+    EXPECT(flash_decoding_has(p));
+
+    // Return the split bias (4th group input) on its own so its values can be evaluated.
+    auto* mm = p.get_main_module();
+    auto group_ins =
+        std::find_if(mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "group"; });
+    EXPECT(group_ins != mm->end());
+    auto split_bias = group_ins->inputs().at(3);
+    EXPECT(split_bias->get_shape().lens() == split_lens);
+
+    auto packed = mm->add_instruction(migraphx::make_op("contiguous"), split_bias);
+    mm->replace_return({packed});
+    migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
+
+    migraphx::parameter_map params;
+    params["q"]    = migraphx::generate_argument(s1);
+    params["k"]    = migraphx::generate_argument(s1);
+    params["v"]    = migraphx::generate_argument(s1);
+    params["bias"] = migraphx::argument(s1, bias_data.data());
+
+    std::vector<float> result;
+    p.eval(params).back().visit([&](auto out) { result.assign(out.begin(), out.end()); });
+
+    // bias rows [0..3], [4..7], [8..11], [12..15] chunked into halves along N
+    const std::vector<float> expected = {0, 1, 4, 5, 8, 9, 12, 13, 2, 3, 6, 7, 10, 11, 14, 15};
+    EXPECT(result == expected);
+}
+
 TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
 {
     // Broadcastable mask literal {1,1,M,N} is multibroadcast to score shape, then consumed
@@ -1146,14 +1225,19 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_param)
               .flash_decoding_enabled    = true,
               .flash_decoding_num_splits = num_splits});
 
-    // @param mask {1,1,M,N} -> multibroadcast {1,12,M,N} -> reshape {1,12,G,M,N/G} -> where
+    // @param mask {1,1,M,N} -> multibroadcast {1,12,M,N} -> reshape {1,12,M,G,N/G}
+    //   -> transpose {1,12,G,M,N/G} -> where
     const auto* sm                            = flash_decoding_submodule(p);
     const std::vector<std::size_t> split_lens = {1, 12, num_splits, 256, 128};
+    const std::vector<std::size_t> reshape_lens = {1, 12, 256, num_splits, 128};
     EXPECT(sm != nullptr and std::any_of(sm->begin(), sm->end(), [&](const auto& ins) {
                if(ins.name() != "where")
                    return false;
-               auto reshape = ins.inputs()[0];
-               if(reshape->name() != "reshape" or reshape->get_shape().lens() != split_lens)
+               auto transpose = ins.inputs()[0];
+               if(transpose->name() != "transpose" or transpose->get_shape().lens() != split_lens)
+                   return false;
+               auto reshape = transpose->inputs()[0];
+               if(reshape->name() != "reshape" or reshape->get_shape().lens() != reshape_lens)
                    return false;
                auto broadcast = reshape->inputs()[0];
                if(broadcast->name() != "multibroadcast" or
@@ -1977,16 +2061,14 @@ TEST_CASE(kv_cache_attention_with_fp32_softmax_upcast)
 
     // Verify fusion happened: the output should contain a group instruction
     // with tag "kv_cache_attention"
-    bool found_kv_cache_attention = false;
-    for(const auto& ins : *p.get_main_module())
-    {
-        if(ins.name() == "group")
-        {
+    const auto& main_mod = *p.get_main_module();
+    const bool found_kv_cache_attention =
+        std::any_of(main_mod.begin(), main_mod.end(), [](const auto& ins) {
+            if(ins.name() != "group")
+                return false;
             auto tag = ins.get_operator().to_value()["tag"].to<std::string>();
-            if(tag == "kv_cache_attention")
-                found_kv_cache_attention = true;
-        }
-    }
+            return tag == "kv_cache_attention";
+        });
     EXPECT(found_kv_cache_attention);
 }
 
@@ -2513,46 +2595,29 @@ TEST_CASE(flash_decoding_auto_split_threshold_behavior)
               .flash_decoding_min_chunk_size = 32});
 
     // Check results - look for flash decoding by checking module names
-    bool found_flash_decoding_p1    = false;
-    bool found_flash_decoding_p2    = false;
-    bool found_regular_attention_p1 = false;
-
-    for(const auto& ins : *p1.get_main_module())
-    {
-        if(ins.name().find("group") != std::string::npos)
-        {
-            // Check the module name to distinguish flash decoding from regular attention
+    const auto is_flash_decoding_group = [](const auto& ins) {
+        if(ins.name().find("group") == std::string::npos)
+            return false;
+        const auto& module_inputs = ins.module_inputs();
+        if(module_inputs.empty())
+            return false;
+        return module_inputs[0]->name().find("flash_decoding") != std::string::npos;
+    };
+    const auto& main_mod_p1              = *p1.get_main_module();
+    const bool found_flash_decoding_p1   = std::any_of(main_mod_p1.begin(), main_mod_p1.end(),
+                                                     is_flash_decoding_group);
+    const bool found_regular_attention_p1 =
+        std::any_of(main_mod_p1.begin(), main_mod_p1.end(), [&](const auto& ins) {
+            if(ins.name().find("group") == std::string::npos)
+                return false;
             const auto& module_inputs = ins.module_inputs();
-            if(not module_inputs.empty())
-            {
-                const auto& mod_name = module_inputs[0]->name();
-                if(mod_name.find("flash_decoding") != std::string::npos)
-                {
-                    found_flash_decoding_p1 = true;
-                }
-                else
-                {
-                    found_regular_attention_p1 = true;
-                }
-            }
-        }
-    }
-
-    for(const auto& ins : *p2.get_main_module())
-    {
-        if(ins.name().find("group") != std::string::npos)
-        {
-            const auto& module_inputs = ins.module_inputs();
-            if(not module_inputs.empty())
-            {
-                const auto& mod_name = module_inputs[0]->name();
-                if(mod_name.find("flash_decoding") != std::string::npos)
-                {
-                    found_flash_decoding_p2 = true;
-                }
-            }
-        }
-    }
+            if(module_inputs.empty())
+                return false;
+            return module_inputs[0]->name().find("flash_decoding") == std::string::npos;
+        });
+    const auto& main_mod_p2            = *p2.get_main_module();
+    const bool found_flash_decoding_p2 = std::any_of(main_mod_p2.begin(), main_mod_p2.end(),
+                                                    is_flash_decoding_group);
 
     // Below threshold: should have regular attention, not flash decoding
     EXPECT(not found_flash_decoding_p1);

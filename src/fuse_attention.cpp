@@ -36,6 +36,7 @@
 #include <migraphx/literal.hpp>
 #include <algorithm>
 #include <iterator>
+#include <numeric>
 #include <unordered_set>
 
 namespace migraphx {
@@ -555,15 +556,30 @@ struct find_flash_decoding
         return result;
     }
 
-    // Score-aligned tensor [B, H, M, N] -> [B, H, G, M, N/G] for flash decoding splits
-    instruction_ref reshape_scores_aligned(module& mm,
-                                           instruction_ref ins,
-                                           instruction_ref insert_before,
-                                           std::size_t num_groups) const
+    // Split the key axis of a score-aligned tensor: [B, H, M, N] -> [B, H, G, M, N/G].
+    instruction_ref insert_scores_split(module& mm,
+                                        instruction_ref ins,
+                                        instruction_ref insert_before,
+                                        std::size_t num_groups) const
     {
-        const auto split_lens = get_scores_split_lens(ins->get_shape().lens(), num_groups);
+        const auto& lens = ins->get_shape().lens();
+        const auto ndim  = lens.size();
+        assert(ndim >= 2 and num_groups > 0 and lens.back() % num_groups == 0);
+
+        // Two step process: reshape then transpose to avoid interleaving
+        // [..., M, N] -> [..., M, G, N/G]
+        std::vector<std::size_t> dims(lens.begin(), lens.end() - 1);
+        dims.push_back(num_groups);
+        dims.push_back(lens.back() / num_groups);
+        auto reshaped =
+            mm.insert_instruction(insert_before, make_op("reshape", {{"dims", dims}}), ins);
+
+        // [..., M, G, N/G] -> [..., G, M, N/G]
+        std::vector<int64_t> perm(ndim + 1);
+        std::iota(perm.begin(), perm.end(), 0);
+        std::swap(perm[ndim - 2], perm[ndim - 1]);
         return mm.insert_instruction(
-            insert_before, make_op("reshape", {{"dims", split_lens}}), ins);
+            insert_before, make_op("transpose", {{"permutation", perm}}), reshaped);
     }
 
     // how each submodule @param is transformed for flash decoding
@@ -610,7 +626,7 @@ struct find_flash_decoding
         return unsplit_idx;
     }
 
-    // Compile-time counterpart of reshape_scores_aligned for literals in the
+    // Compile-time counterpart of insert_scores_split for literals in the
     // attention submodule, like causal masks. Split the literal's own layout
     // (e.g. {1,1,M,N} -> {1,1,G,M,N/G}); multibroadcast covers leading 1s.
     // Broadcast-only constants (scale, -inf) keep their original shape.
@@ -778,8 +794,8 @@ struct find_flash_decoding
                        can_multibroadcast(input_lens, orig_out_lens))
                     {
                         auto bc_ins         = target_mod.add_instruction(op, new_inputs);
-                        map_old_to_new[ins] = target_mod.add_instruction(
-                            make_op("reshape", {{"dims", split_lens}}), bc_ins);
+                        map_old_to_new[ins] = insert_scores_split(
+                            target_mod, bc_ins, target_mod.insert_end(), num_groups);
                         continue;
                     }
 
@@ -907,7 +923,7 @@ struct find_flash_decoding
                 break;
             case flash_input_kind::scores:
                 transform.split_main =
-                    reshape_scores_aligned(mm, transform.main, attn_group_ins, actual_groups);
+                    insert_scores_split(mm, transform.main, attn_group_ins, actual_groups);
                 transform.submodule_param_shape =
                     shape{param->get_shape().type(),
                           get_scores_split_lens(transform.main->get_shape().lens(), actual_groups)};

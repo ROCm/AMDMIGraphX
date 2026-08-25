@@ -92,6 +92,7 @@ Full documentation for MIGraphX is available at
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
 * Fixed the `--py` and `--cpp` program printers throwing `SHAPE: lens() called on a dynamic shape` for any program holding a dynamic shape; each dynamic dimension is now printed as its bounds. This also broke the ONNX backend test harness, which builds a Python repro string for every model.
 * Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
+* Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
 
 ### Optimized
 * Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).

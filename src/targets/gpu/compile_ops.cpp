@@ -342,8 +342,6 @@ struct compile_plan
         if(config.has_value())
         {
             const auto& problem = config->problem;
-            // Priority search (writable cache first, then read-only layers;
-            // first hit wins) is handled inside problem_cache.
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
                 const auto& solution = sol.value();
@@ -364,7 +362,6 @@ struct compile_plan
                 if(skip_benchmark or enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
                    (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
-                    // Write to writable cache only (never to shipped/read-only)
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
                     insert_compiles(compiles, solutions.front(), 0);
@@ -481,7 +478,6 @@ struct compile_plan
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        // Write winner to writable cache only (never shipped/read-only caches)
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(trace_level > 0)
         {

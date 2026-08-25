@@ -84,7 +84,7 @@ Full documentation for MIGraphX is available at
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
 * Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
-* Fixed the `has_value` matcher reporting a match for a neighbouring representable value in narrow types. Its tolerance window was sized with multipliers chosen for `float`, which in `fp8e4m3fn` spans several representable values, so a literal of 2 matched `has_value(1.0f)` and a `pow` exponent of 0.5 matched `has_value(2.0f)`, letting `simplify_algebra` delete a real multiply and `rewrite_reduce` misfire on a batchnorm. The window is now scaled per literal type and `float` keeps its previous behavior.
+* Fixed the `has_value` matcher matching a neighbouring representable value in narrow types, where its `float`-sized tolerance window spans several `fp8`/`bf16` values; the window is now scaled per literal type (#5190).
 
 ### Optimized
 * Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).

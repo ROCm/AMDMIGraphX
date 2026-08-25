@@ -289,6 +289,22 @@ extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SY
     set(OUTPUT_SYMBOL ${OUTPUT_SYMBOL} PARENT_SCOPE)
 endfunction()
 
+# The launcher is only cleared when it is ccache, so other launchers (such as distcc or
+# sccache) are left in place
+function(embed_disable_ccache TARGET)
+    foreach(LANG C CXX)
+        get_target_property(LAUNCHER ${TARGET} ${LANG}_COMPILER_LAUNCHER)
+        if(NOT LAUNCHER)
+            continue()
+        endif()
+        list(GET LAUNCHER 0 PROGRAM)
+        get_filename_component(PROGRAM_NAME "${PROGRAM}" NAME_WE)
+        if(PROGRAM_NAME STREQUAL "ccache")
+            set_target_properties(${TARGET} PROPERTIES ${LANG}_COMPILER_LAUNCHER "")
+        endif()
+    endforeach()
+endfunction()
+
 function(add_embed_library EMBED_NAME)
     set(options)
     set(oneValueArgs RELATIVE)
@@ -331,6 +347,11 @@ function(add_embed_library EMBED_NAME)
         endif()
     endforeach()
     set_target_properties(${INTERNAL_EMBED_LIB} PROPERTIES POSITION_INDEPENDENT_CODE On)
+    if(EMBED_USE STREQUAL "HASH_EMBED")
+        # ccache does not track the data files read by the #embed directive, so it will
+        # return a stale object when only the data file changes
+        embed_disable_ccache(${INTERNAL_EMBED_LIB})
+    endif()
     add_library(${EMBED_NAME} INTERFACE)
     if(EMBED_USE STREQUAL "RC")
         target_link_libraries(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}>)

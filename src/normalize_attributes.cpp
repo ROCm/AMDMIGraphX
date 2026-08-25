@@ -71,8 +71,8 @@ static std::vector<sym::expr> tune_attribute_sym(const std::vector<sym::expr>& e
             if(not neg.has_value())
                 MIGRAPHX_THROW(m() + "bound of indeterminate sign cannot be normalized");
             // Only a from-the-end index can land below zero once it is shifted.
-            auto abs_v = *neg ? sym::fold_max(v + len, zero) : v;
-            return sym::fold_min(abs_v, len);
+            auto abs_v = *neg ? sym::resolve_max(v + len, zero) : v;
+            return sym::resolve_min(abs_v, len);
         });
     return result;
 }

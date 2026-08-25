@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,34 +21,40 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_RNN_LAST_CELL_OUTPUT_HPP
-#define MIGRAPHX_GUARD_OPERATORS_RNN_LAST_CELL_OUTPUT_HPP
+#ifndef MIGRAPHX_GUARD_GPU_DEVICE_DESCRIPTION_HPP
+#define MIGRAPHX_GUARD_GPU_DEVICE_DESCRIPTION_HPP
 
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/config.hpp>
+#include <cstddef>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
+namespace gpu {
 
-struct rnn_last_cell_output
+/// The properties of a GPU that are needed to compile for it. It can either be
+/// queried from a local device or filled in by the user to compile for a device
+/// that is not present.
+struct MIGRAPHX_GPU_EXPORT device_description
 {
-    std::string name() const { return "rnn_last_cell_output"; }
+    /// Query the properties of the device with the given hip device id.
+    static device_description from_device(std::size_t device);
 
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        auto dims = inputs[0].lens();
+    /// Resolve the fields that can be derived from the other fields: a
+    /// `wavefront_size` of 0 is derived from the `arch`. Counts are clamped to
+    /// at least one. Throws when a field is set to an unsupported value.
+    void normalize();
 
-        // remove the first dimension, remaing are output shape
-        dims.erase(dims.begin());
-        return {inputs[0].type(), dims};
-    }
+    std::string arch                  = {};
+    std::size_t num_cu                = 120;
+    std::size_t num_chiplets          = 1;
+    std::size_t max_threads_per_cu    = 2048;
+    std::size_t max_threads_per_block = 1024;
+    std::size_t wavefront_size        = 0;
 };
 
-} // namespace op
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_GPU_DEVICE_DESCRIPTION_HPP

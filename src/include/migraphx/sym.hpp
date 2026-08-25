@@ -36,6 +36,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -254,6 +255,8 @@ MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar>
 MIGRAPHX_EXPORT expr as_symbol(const expr& e, int max_depth = -1);
 MIGRAPHX_EXPORT bool same_symbol(const expr& a, const expr& b);
 
+// Find distinct variables as metadata-free symbols.
+MIGRAPHX_EXPORT std::unordered_set<expr> find_variables(const expr& e);
 // Whether dividend is evenly divisible by divisor (integral operands only).
 MIGRAPHX_EXPORT bool is_divisible(const expr& dividend, const expr& divisor);
 
@@ -321,9 +324,8 @@ MIGRAPHX_EXPORT std::optional<bool>
 strict_less(const expr& a, const expr& b, interval default_bounds = {});
 
 // `min`/`max` that collapse to one operand when `strict_less` proves the ordering.
-MIGRAPHX_EXPORT expr fold_min(const expr& a, const expr& b);
-MIGRAPHX_EXPORT expr fold_max(const expr& a, const expr& b);
-
+MIGRAPHX_EXPORT expr resolve_min(const expr& a, const expr& b);
+MIGRAPHX_EXPORT expr resolve_max(const expr& a, const expr& b);
 // Pattern matching rewrite DSL
 MIGRAPHX_EXPORT expr pvar(int id);
 

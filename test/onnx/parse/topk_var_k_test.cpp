@@ -26,18 +26,6 @@
 #include <migraphx/sym.hpp>
 #include <onnx_test.hpp>
 
-// The parser names the symbol after the node: "<module>_<op type>_<instruction number>", where
-// the instruction number is the module size when the TopK node is reached (the two parameters).
-static migraphx::operation trim_to_k(int64_t axis, migraphx::sym::interval bounds)
-{
-    return migraphx::make_op(
-        "dyn_slice",
-        {{"axes", {axis}},
-         {"starts", {0}},
-         {"ends",
-          migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", bounds))}}});
-}
-
 // `k` is a runtime input (graph input, not an initializer), so the parser takes the var_k
 // path: topk runs over the whole axis, then dyn_slice trims both outputs down to the runtime
 // `k`, which the output shape carries as a symbol.
@@ -52,9 +40,14 @@ TEST_CASE(topk_var_k_test)
         migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    auto ds  = trim_to_k(1, {0, 4});
-    val      = mm->add_instruction(ds, val, zero, k);
-    ind      = mm->add_instruction(ds, ind, zero, k);
+    auto ds = migraphx::make_op(
+        "dyn_slice",
+        {{"axes", {1}},
+         {"starts", {0}},
+         {"ends",
+          migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", {0, 4}))}}});
+    val = mm->add_instruction(ds, val, zero, k);
+    ind = mm->add_instruction(ds, ind, zero, k);
     mm->add_return({val, ind});
 
     auto prog = read_onnx("topk_var_k_test.onnx");
@@ -78,9 +71,14 @@ TEST_CASE(topk_var_k_symbolic_test)
         migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    auto ds  = trim_to_k(1, {0, 4});
-    val      = mm->add_instruction(ds, val, zero, k);
-    ind      = mm->add_instruction(ds, ind, zero, k);
+    auto ds = migraphx::make_op(
+        "dyn_slice",
+        {{"axes", {1}},
+         {"starts", {0}},
+         {"ends",
+          migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", {0, 4}))}}});
+    val = mm->add_instruction(ds, val, zero, k);
+    ind = mm->add_instruction(ds, ind, zero, k);
     mm->add_return({val, ind});
 
     migraphx::onnx_options options;

@@ -28,7 +28,7 @@ jobs:
     steps:
       - name: Delete Deployment Environment
         continue-on-error: true
-        uses: strumwolf/delete-deployment-environment@v3
+        uses: strumwolf/delete-deployment-environment@a4825dd9648c57da8437a4885c3fcad58beac69c  # v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           environment: github-pages
@@ -40,9 +40,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: '3.12'
 
@@ -50,7 +50,7 @@ jobs:
 
       - name: Generate a token
         id: generate-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
         with:
           client-id: ${{ vars.GH_APP_MIGRAPHX_BOT_PR_WRITE_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_MIGRAPHX_BOT_PR_WRITE_PRIVATE_KEY }}
@@ -61,10 +61,10 @@ jobs:
         run: python tools/pr_review_dashboard/pr-review-status.py --json > tools/pr_review_dashboard/data.json
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b  # v4
         with:
           path: tools/pr_review_dashboard
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128  # v5

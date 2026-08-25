@@ -21,25 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 #include <onnx_test.hpp>
 
-TEST_CASE(softplus_nd_test)
+// Softplus with a non-fixed dynamic dimension used to throw in shape::lens().
+TEST_CASE(softplus_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<std::size_t> input_lens{3, 4, 5};
-    auto input_type = migraphx::shape::half_type;
+    auto input_type = migraphx::shape::float_type;
+    migraphx::shape s{input_type, {{1, 4}, {5, 5}}};
 
-    auto x = mm->add_parameter("x", migraphx::shape{input_type, input_lens});
+    auto x    = mm->add_parameter("x", s);
     auto ones = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
     auto exp  = mm->add_instruction(migraphx::make_op("exp"), x);
-    auto mb_ones =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), ones);
-    auto add = mm->add_instruction(migraphx::make_op("add"), exp, mb_ones);
-    mm->add_instruction(migraphx::make_op("log"), add);
+    auto mb_exp = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(s.dyn_dims())}}),
+        exp,
+        ones);
+    auto mb_ones = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(s.dyn_dims())}}),
+        ones,
+        mb_exp);
+    auto add = mm->add_instruction(migraphx::make_op("add"), mb_exp, mb_ones);
+    auto r   = mm->add_instruction(migraphx::make_op("log"), add);
+    mm->add_return({r});
 
-    auto prog = optimize_onnx("softplus_nd_test.onnx");
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{1, 4}, {5, 5}};
+    auto prog                       = read_onnx("softplus_test.onnx", options);
     EXPECT(p == prog);
 }

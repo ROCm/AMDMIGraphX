@@ -6679,6 +6679,27 @@ def gru_f_1af_test():
 
 
 @onnx_test()
+def gru_clip_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 60, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('GRU',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['sigmoid', 'tanh'],
+                                 clip=0.5,
+                                 direction='forward',
+                                 hidden_size=20)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
 def gru_r_layout_test():
     seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
@@ -8805,7 +8826,7 @@ def lstm_bi_layout_cell_test():
         clip=0,
         direction='bidirectional',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [cellout])
@@ -8834,7 +8855,7 @@ def lstm_bi_layout_last_test():
         clip=0,
         direction='bidirectional',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs, output])
@@ -8863,7 +8884,7 @@ def lstm_f_layout_hs_test():
         clip=0,
         direction='forward',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs, output])
@@ -8891,7 +8912,7 @@ def lstm_f_layout_cell_test():
         clip=0,
         direction='forward',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [cellout])
@@ -8911,6 +8932,50 @@ def lstm_f_1af_test():
                                  inputs=['seq', 'w', 'r'],
                                  outputs=['hs', 'output'],
                                  activations=['sigmoid'],
+                                 clip=0,
+                                 direction='forward',
+                                 hidden_size=20,
+                                 input_forget=0)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
+def lstm_clip_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('LSTM',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['sigmoid', 'tanh', 'tanh'],
+                                 clip=0.5,
+                                 direction='forward',
+                                 hidden_size=20,
+                                 input_forget=0)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
+def lstm_input_forget_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('LSTM',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['sigmoid', 'tanh', 'tanh'],
                                  clip=0,
                                  direction='forward',
                                  hidden_size=20,
@@ -8940,7 +9005,7 @@ def lstm_r_layout_test():
         clip=0,
         direction='reverse',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs])
@@ -8970,7 +9035,7 @@ def lstm_r_layout_hs_cell_test():
         clip=0,
         direction='reverse',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [output, cellout])
@@ -15127,6 +15192,27 @@ def rnn_f_default_af_test():
                                  inputs=['seq', 'w', 'r'],
                                  outputs=['hs', 'output'],
                                  clip=0,
+                                 direction='forward',
+                                 hidden_size=20)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
+def rnn_clip_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('RNN',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['tanh'],
+                                 clip=0.5,
                                  direction='forward',
                                  hidden_size=20)
 

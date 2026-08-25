@@ -53,6 +53,7 @@
 #include <migraphx/op/dimensions_of.hpp>
 #include <migraphx/op/div.hpp>
 #include <migraphx/op/dot.hpp>
+#include <migraphx/op/dyn_slice.hpp>
 #include <migraphx/op/elu.hpp>
 #include <migraphx/op/equal.hpp>
 #include <migraphx/op/erf.hpp>
@@ -67,7 +68,6 @@
 #include <migraphx/op/greater.hpp>
 #include <migraphx/op/gridsample.hpp>
 #include <migraphx/op/group.hpp>
-#include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/im2col.hpp>
@@ -83,7 +83,6 @@
 #include <migraphx/op/logsoftmax.hpp>
 #include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
-#include <migraphx/op/lstm.hpp>
 #include <migraphx/op/max.hpp>
 #include <migraphx/op/min.hpp>
 #include <migraphx/op/mod.hpp>
@@ -110,9 +109,6 @@
 #include <migraphx/op/relu.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/reverse.hpp>
-#include <migraphx/op/rnn.hpp>
-#include <migraphx/op/rnn_last_cell_output.hpp>
-#include <migraphx/op/rnn_last_hs_output.hpp>
 #include <migraphx/op/rnn_variable_seq_lens.hpp>
 #include <migraphx/op/rnn_var_sl_last_output.hpp>
 #include <migraphx/op/roialign.hpp>

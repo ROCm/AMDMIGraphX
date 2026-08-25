@@ -178,8 +178,7 @@ def checkoutWithRetry = { int maxAttempts = 3 ->
                 throw e
             }
             if (attempt == maxAttempts) {
-                sh 'git remote -v || true'
-                sh 'git config --list | grep -v -i "token\\|password\\|auth\\|header" || true'
+                sh 'git config --list | grep -v -i "token\\|password\\|auth\\|header\\|\\.url" || true'
                 sh 'ip route || true'
                 sh 'curl -sv https://github.com 2>&1 | tail -20 || true'
                 throw e

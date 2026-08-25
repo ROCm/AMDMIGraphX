@@ -16,7 +16,7 @@ def dockeropts(String model_root) {
 
 pipeline {
     agent {
-        label "gfx1201"
+        label "gfx1201 && nfs"
     }
 
     triggers {
@@ -29,7 +29,7 @@ pipeline {
     }
 
     parameters {
-        string(name: 'MODEL_ROOT', defaultValue: '/mnt/nas_share/onnx-model-zoo')
+        string(name: 'MODEL_ROOT', defaultValue: '/datasets/onnx-model-zoo')
         string(name: 'IMAGE_TAG', defaultValue: 'latest')
         string(name: 'TIMEOUT_HOURS', defaultValue: '12')
     }
@@ -105,8 +105,6 @@ pipeline {
                                     ./${ZOO_DIR}/test_models.sh '${params.MODEL_ROOT}'
                             """
                         }
-
-                        sh "echo /opt/rocm* > '${ZOO_DIR}/logs/rocm.txt'"
                     }
                 }
             }
@@ -138,7 +136,6 @@ pipeline {
                         rm -rf "\$dest"
                         mkdir -p "\$dest"
                         cp -r '${ZOO_DIR}/logs/accuracy' '${ZOO_DIR}/logs/perf' "\$dest"
-                        cp '${ZOO_DIR}/logs/rocm.txt' "\$dest"
                         cd '${REPORTS_CLONE}'
                         git add '${REPORTS_SUBDIR}'
                         if git diff --cached --quiet; then

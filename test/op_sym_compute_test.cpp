@@ -463,13 +463,14 @@ TEST_CASE(op_sym_gather_rejects_out_of_bounds_index)
                 .has_value());
 }
 
-TEST_CASE(op_sym_concat_rejects_nonzero_axis)
+TEST_CASE(op_sym_concat_rejects_nonvector_input)
 {
-    EXPECT(not symbolic_compute(migraphx::make_op("concat", {{"axis", 1}}),
-                                shape{shape::int64_type, {2}},
-                                {shape{shape::int64_type, {1}}, shape{shape::int64_type, {1}}},
-                                {symbolic_tensor_value{lit(1)}, symbolic_tensor_value{lit(2)}})
-                   .has_value());
+    EXPECT(
+        not symbolic_compute(migraphx::make_op("concat", {{"axis", 0}}),
+                             shape{shape::int64_type, {2}},
+                             {shape{shape::int64_type, {1, 1}}, shape{shape::int64_type, {1, 1}}},
+                             {symbolic_tensor_value{lit(1)}, symbolic_tensor_value{lit(2)}})
+                .has_value());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

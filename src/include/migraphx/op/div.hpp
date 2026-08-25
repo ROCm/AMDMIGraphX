@@ -43,6 +43,7 @@ struct div : binary<div>
         return [](auto x, auto y) {
             if constexpr(std::is_same<std::decay_t<decltype(y)>, sym::expr>{})
             {
+                // Symbolic division requires a divisor that is nonzero over its full range.
                 if(y.eval_interval().contains(0))
                     return sym::expr{};
             }

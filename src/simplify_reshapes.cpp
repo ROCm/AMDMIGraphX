@@ -2052,6 +2052,48 @@ struct find_flatten
     }
 };
 
+// Rewrite layout(multibroadcast|broadcast(x)) to broadcast(layout(x)), skipping
+// the inner layout when it would be a no-op, so only the unique data is
+// materialized instead of a full copy per broadcast output.
+struct find_layout_broadcast
+{
+    auto matcher() const
+    {
+        return match::name("layout")(
+            match::args(match::broadcast(match::nargs(1)).bind("broadcast")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto broadcast = r.instructions["broadcast"];
+        auto input     = broadcast->inputs().front();
+        auto permutation =
+            ins->get_operator().to_value().at("permutation").to_vector<std::size_t>();
+        auto ndim = input->get_shape().ndim();
+        // multibroadcast aligns the input to the trailing axes of the output;
+        // broadcast places it at the range starting at its axis attribute
+        const auto& bcast_op = broadcast->get_operator();
+        auto offset          = permutation.size() - ndim;
+        if(bcast_op.name() == "broadcast")
+            offset = bcast_op.to_value().at("axis").to<std::size_t>();
+        std::vector<std::size_t> inner_permutation;
+        transform_if(
+            permutation.begin(),
+            permutation.end(),
+            std::back_inserter(inner_permutation),
+            [&](auto axis) { return axis >= offset and axis < offset + ndim; },
+            [&](auto axis) { return axis - offset; });
+        assert(inner_permutation.size() == ndim);
+        auto data = input;
+        if(input->get_shape().transposed() or
+           not std::is_sorted(inner_permutation.begin(), inner_permutation.end()))
+            data = m.insert_instruction(
+                ins, make_op("layout", {{"permutation", inner_permutation}}), input);
+        m.replace_instruction(ins, bcast_op, data);
+    }
+};
+
 // Match slice->squeeze->pw/reduce where the squeeze and slice share the same
 // single axis, then rewrite to slice->pw/reduce->squeeze (unsqueezing the
 // other inputs).  find_op_shape_transform_op propagates the squeeze through
@@ -2118,6 +2160,7 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m,
                             find_nop_reshapes{},
                             find_flatten{},
+                            find_layout_broadcast{},
                             find_reshape_cont{},
                             find_slice_shape_transforms{},
                             find_nested_shape_transforms{},

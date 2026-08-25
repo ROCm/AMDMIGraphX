@@ -264,6 +264,7 @@ TEST_CASE(compile_errors)
         migraphx::gpu::compile_hip_src({make_src_file("main.cpp", incorrect_program)},
                                        {},
                                        migraphx::gpu::get_device_name(),
+                                       false,
                                        true);
     }));
 }
@@ -274,6 +275,7 @@ TEST_CASE(compile_warnings)
         return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", unused_param)},
                                               params,
                                               migraphx::gpu::get_device_name(),
+                                              false,
                                               true);
     };
 

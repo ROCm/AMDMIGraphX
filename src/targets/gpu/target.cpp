@@ -110,12 +110,15 @@ struct backend_options
     std::vector<std::string> mlss_use_specific_ops = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
+    // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
+    bool hiprtc_disable_processes = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
-                    f(self.convolution_layout, "convolution_layout"));
+                    f(self.convolution_layout, "convolution_layout"),
+                    f(self.hiprtc_disable_processes, "hiprtc_disable_processes"));
     }
 };
 
@@ -271,7 +274,8 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager},
+                        options.compile_mode == compile_modes::eager,
+                        backend_opts.hiprtc_disable_processes},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},

@@ -69,7 +69,8 @@ MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs,
                 const std::vector<std::string>& params,
                 const std::string& arch,
-                bool quiet = false);
+                bool disable_processes = false,
+                bool quiet             = false);
 
 MIGRAPHX_GPU_EXPORT std::string enum_params(std::size_t count, std::string param);
 

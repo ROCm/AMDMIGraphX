@@ -230,6 +230,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
                                                const std::string& arch,
+                                               bool disable_processes,
                                                bool quiet)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
@@ -243,34 +244,37 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         }
     }
 
-    auto fname  = make_executable_filename("migraphx-hiprtc-driver");
-    auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
-    auto driver = p.parent_path() / fname;
-
-    bool found = fs::exists(driver);
-    if(not found)
+    if(not disable_processes)
     {
-        driver = p.parent_path().parent_path() / "bin" / fname;
-        found  = fs::exists(driver);
-    }
+        auto fname  = make_executable_filename("migraphx-hiprtc-driver");
+        auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
+        auto driver = p.parent_path() / fname;
 
-    if(found)
-    {
-        value v;
-        v["srcs"]   = to_value(hsrcs);
-        v["params"] = to_value(params);
-        v["arch"]   = to_value(arch);
-        v["quiet"]  = quiet;
+        bool found = fs::exists(driver);
+        if(not found)
+        {
+            driver = p.parent_path().parent_path() / "bin" / fname;
+            found  = fs::exists(driver);
+        }
 
-        tmp_dir td{};
-        auto out = td.path / "output";
+        if(found)
+        {
+            value v;
+            v["srcs"]   = to_value(hsrcs);
+            v["params"] = to_value(params);
+            v["arch"]   = to_value(arch);
+            v["quiet"]  = quiet;
 
-        process(driver, {quote_string(out.string())}).write([&](auto writer) {
-            to_msgpack(v, std::move(writer));
-        });
-        if(fs::exists(out))
-            return {read_buffer(out)};
-        MIGRAPHX_THROW("hiprtc compilation failed!");
+            tmp_dir td{};
+            auto out = td.path / "output";
+
+            process(driver, {quote_string(out.string())}).write([&](auto writer) {
+                to_msgpack(v, std::move(writer));
+            });
+            if(fs::exists(out))
+                return {read_buffer(out)};
+            MIGRAPHX_THROW("hiprtc compilation failed!");
+        }
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 }
@@ -378,7 +382,7 @@ bool hip_can_compile(const std::string& src, const std::vector<std::string>& fla
     try
     {
         std::string arch = "gfx900";
-        compile_hip_src(srcs, flags, arch, true);
+        compile_hip_src(srcs, flags, arch, false, true);
         return true;
     }
     catch(...)

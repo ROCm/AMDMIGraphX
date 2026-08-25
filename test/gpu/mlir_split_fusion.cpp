@@ -35,12 +35,9 @@ struct dot_graph
 
 static dot_graph make_dot_graph(migraphx::module& m)
 {
-    auto a = m.add_parameter(
-        "a", migraphx::shape{migraphx::shape::float_type, {1, 5, 4}});
-    auto b = m.add_parameter(
-        "b", migraphx::shape{migraphx::shape::float_type, {1, 4, 3}});
-    auto bias = m.add_parameter(
-        "bias", migraphx::shape{migraphx::shape::float_type, {1, 5, 3}});
+    auto a    = m.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 5, 4}});
+    auto b    = m.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 4, 3}});
+    auto bias = m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {1, 5, 3}});
     return {m.add_instruction(migraphx::make_op("dot"), a, b), bias};
 }
 
@@ -70,8 +67,7 @@ TEST_CASE(find_final_split_without_boundary)
 {
     migraphx::module m;
     auto graph   = make_dot_graph(m);
-    auto reshape = m.add_instruction(
-        migraphx::make_op("reshape", {{"dims", {1, 15}}}), graph.dot);
+    auto reshape = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 15}}}), graph.dot);
 
     EXPECT(migraphx::gpu::find_final_split(graph.dot) == reshape);
 }

@@ -159,24 +159,65 @@ struct __attribute__((packed, may_alias)) generic_float
         return f.to_float();
     }
 
+    /// Shift `significand` right by `drop` bits, rounding to nearest with ties to even. This is
+    /// the rounding the hardware conversions this type emulates use, so truncating instead would
+    /// bias every converted value toward zero.
+    static constexpr std::uint32_t rne_shift(std::uint32_t significand, int drop) noexcept
+    {
+        if(drop <= 0)
+            return significand;
+        if(drop >= int(sizeof(std::uint32_t) * 8))
+            return 0;
+        const auto lsb = (significand >> drop) & 1u;
+        return (significand + (1u << (drop - 1u)) - 1u + lsb) >> drop;
+    }
+
+    /// Round a value that stays normal in the target by biasing the whole float32 bit pattern:
+    /// because the exponent field sits directly above the mantissa, a significand carry ripples
+    /// into the exponent (and on into infinity) for free.
+    static constexpr float32_parts round_normal(float32_parts f) noexcept
+    {
+        constexpr const int drop = int(float32_parts::mantissa_width() - MantissaSize);
+        if(drop <= 0)
+            return f;
+        auto bits      = migraphx::bit_cast<std::uint32_t>(f);
+        const auto lsb = (bits >> drop) & 1u;
+        bits += (1u << (drop - 1u)) - 1u + lsb;
+        return migraphx::bit_cast<float32_parts>(bits);
+    }
+
     constexpr void from_float(float32_parts f) noexcept
     {
+        constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
+        constexpr const int drop = int(float32_parts::mantissa_width() - MantissaSize);
+
+        if(f.exponent != 0 and f.exponent != float32_parts::max_exponent() and
+           int(f.exponent) - diff >= 1)
+            f = round_normal(f);
+
         sign = f.sign;
 
         if(f.exponent == 0)
         {
-            exponent = 0;
-            mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
+            // A float32 subnormal, so there is no implicit leading one. Its significand sits `diff`
+            // binades below the target's. A target with a narrower exponent range (`diff > 0`, as
+            // for half) therefore puts the whole float32 subnormal span under its own smallest
+            // subnormal and the shift flushes it to a signed zero, whereas bf16 has float32's
+            // exponent range (`diff == 0`) and lands on genuine bf16 subnormals.
+            auto m = rne_shift(f.mantissa, drop + diff);
+            // Rounding can carry out of the mantissa field, which promotes the result to the
+            // smallest normal; letting that carry land in `exponent` is what applies it.
+            exponent = m >> MantissaSize;
+            mantissa = m;
         }
         else if(f.exponent == float32_parts::max_exponent())
         {
             exponent = all_ones<ExponentSize>();
-            mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
+            mantissa = f.mantissa >> drop;
         }
         else
         {
-            constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
-            auto e                   = int(f.exponent) - diff;
+            auto e = int(f.exponent) - diff;
 
             if(e >= static_cast<int>(all_ones<ExponentSize>()))
             {
@@ -185,25 +226,18 @@ struct __attribute__((packed, may_alias)) generic_float
             }
             else if(e < 1)
             {
-                exponent = 0;
-
-                auto shift        = diff - int(f.exponent);
-                auto shift_amount = shift + (float32_parts::mantissa_width() - MantissaSize) + 1;
-
-                if(shift_amount < (sizeof(unsigned int) * 8))
-                {
-                    mantissa = (f.mantissa | (1u << float32_parts::mantissa_width())) >>
-                               (shift + (float32_parts::mantissa_width() - MantissaSize) + 1);
-                }
-                else
-                {
-                    mantissa = 0;
-                }
+                // Subnormal in the target: the implicit bit becomes explicit and every exponent
+                // step below the target's minimum drops one more significand bit. As above, a
+                // carry out of the mantissa field promotes the result to the smallest normal.
+                auto m =
+                    rne_shift(f.mantissa | (1u << float32_parts::mantissa_width()), drop + 1 - e);
+                exponent = m >> MantissaSize;
+                mantissa = m;
             }
             else
             {
-                exponent = int(f.exponent) - diff;
-                mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
+                exponent = e;
+                mantissa = f.mantissa >> drop;
             }
         }
 

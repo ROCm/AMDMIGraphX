@@ -130,7 +130,7 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
     return co;
 }
 
-static instruction_ref find_final_split(instruction_ref split_ins)
+instruction_ref find_final_split(instruction_ref split_ins)
 {
     auto output_path_range = get_output_path(split_ins);
     std::vector<instruction_ref> output_path(output_path_range.begin(), output_path_range.end());

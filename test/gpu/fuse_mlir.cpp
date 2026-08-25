@@ -2048,17 +2048,18 @@ TEST_CASE(dot_add_dot_square)
 {
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;
-    migraphx::shape s1{migraphx::shape::half_type, {98304, 13}};
-    migraphx::shape s2{migraphx::shape::half_type, {13, 512}};
-    migraphx::shape s3{migraphx::shape::half_type, {98304, 512}};
-    migraphx::shape s4{migraphx::shape::half_type, {512, 256}};
+    // Square-dimension GEG case via n==1 heuristic: (m,k,n,g)=(64,64,1,64)
+    migraphx::shape sa{migraphx::shape::half_type, {64, 64}};
+    migraphx::shape sb{migraphx::shape::half_type, {64, 1}};
+    migraphx::shape sx{migraphx::shape::half_type, {64, 1}};
+    migraphx::shape sy{migraphx::shape::half_type, {1, 64}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s1);
-        auto b    = mm->add_parameter("b", s2);
-        auto x    = mm->add_parameter("x", s3);
-        auto y    = mm->add_parameter("y", s4);
+        auto a    = mm->add_parameter("a", sa);
+        auto b    = mm->add_parameter("b", sb);
+        auto x    = mm->add_parameter("x", sx);
+        auto y    = mm->add_parameter("y", sy);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);
@@ -2068,10 +2069,10 @@ TEST_CASE(dot_add_dot_square)
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s1);
-        auto b     = mm->add_parameter("b", s2);
-        auto x     = mm->add_parameter("x", s3);
-        auto y     = mm->add_parameter("y", s4);
+        auto a     = mm->add_parameter("a", sa);
+        auto b     = mm->add_parameter("b", sb);
+        auto x     = mm->add_parameter("x", sx);
+        auto y     = mm->add_parameter("y", sy);
         auto fused =
             add_mlir(p2,
                      "mlir_main:pointwise0_mlir_dot1_geg",

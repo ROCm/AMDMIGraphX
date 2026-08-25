@@ -34,16 +34,19 @@ struct test_dot_dot_add_multi_out : verify_program<test_dot_dot_add_multi_out<DT
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s1{DType, {256, 256}};
-        migraphx::shape s2{DType, {256, 128}};
-        auto a    = mm->add_parameter("a", s1);
-        auto b    = mm->add_parameter("b", s1);
-        auto c    = mm->add_parameter("c", s2);
-        auto d    = mm->add_parameter("d", s2);
+        // Shapes chosen for GEG heuristic n==1 branch: (m,k,n,g)=(4,8,1,16)
+        migraphx::shape sa{DType, {4, 8}};
+        migraphx::shape sb{DType, {8, 1}};
+        migraphx::shape sc{DType, {1, 16}};
+        migraphx::shape sd{DType, {4, 16}};
+        auto a    = mm->add_parameter("a", sa);
+        auto b    = mm->add_parameter("b", sb);
+        auto c    = mm->add_parameter("c", sc);
+        auto d    = mm->add_parameter("d", sd);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), dot1, c);
         auto add  = mm->add_instruction(migraphx::make_op("add"), dot2, d);
-        // dot2 has another user (creating multi-out scenario)
+        // dot2 has another user while the submodule still returns a single gemm result
         auto transpose =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});

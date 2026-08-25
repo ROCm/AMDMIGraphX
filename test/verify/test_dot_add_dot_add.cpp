@@ -34,12 +34,17 @@ struct test_dot_add_dot_add : verify_program<test_dot_add_dot_add<DType>>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{DType, {256, 256}};
-        auto a    = mm->add_parameter("a", s);
-        auto b    = mm->add_parameter("b", s);
-        auto c    = mm->add_parameter("c", s);
-        auto d    = mm->add_parameter("d", s);
-        auto e    = mm->add_parameter("e", s);
+        // Shapes chosen for GEG heuristic n==1 branch: (m,k,n,g)=(4,8,1,16)
+        migraphx::shape sa{DType, {4, 8}};
+        migraphx::shape sb{DType, {8, 1}};
+        migraphx::shape sc{DType, {4, 1}};
+        migraphx::shape sd{DType, {1, 16}};
+        migraphx::shape se{DType, {4, 16}};
+        auto a    = mm->add_parameter("a", sa);
+        auto b    = mm->add_parameter("b", sb);
+        auto c    = mm->add_parameter("c", sc);
+        auto d    = mm->add_parameter("d", sd);
+        auto e    = mm->add_parameter("e", se);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add1 = mm->add_instruction(migraphx::make_op("add"), dot1, c);
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add1, d);

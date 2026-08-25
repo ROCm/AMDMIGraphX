@@ -452,7 +452,9 @@ auto is_mlir_fusible_geg_op()
         match::make_basic_pred_matcher(
             [](instruction_ref ins) { return not ins->module_inputs().empty(); }),
         match::any_of(match::has_op_value("tag", "standalone_dot"),
+                      match::has_op_value("tag", "standalone_quant_dot"),
                       match::has_op_value("tag", "standalone_convolution"),
+                      match::has_op_value("tag", "standalone_quant_convolution"),
                       match::has_op_value("tag", "dot_pointwise"),
                       match::has_op_value("tag", "conv_pointwise")));
 }
@@ -962,7 +964,7 @@ struct find_mlir_fused_geg_ops
      * Matches:
      * gpu::mlir_op(standalone_dot/standalone_convolution/dot_pointwise/conv_pointwise) <binds to
      * "first_gemm_based_op"> ->
-     * gpu::mlir_op(standalone_dot/standalone_convolution/dot_pointwise/conv_pointwise) <matcher
+     * gpu::mlir_op(standalone_dot/dot_pointwise) <matcher
      * result, binds to "second_gemm_op">
      */
     auto matcher() const
@@ -980,16 +982,15 @@ struct find_mlir_fused_geg_ops
         auto first_gemm_ins  = r.instructions["first_gemm_based_op"];
 
         // extract the actual gemm instructions from the submodules
-        auto* first_submod = first_gemm_ins->module_inputs().front();
-        auto first_gemm =
-            std::find_if(first_submod->begin(), first_submod->end(), [](const auto& i) {
-                return contains({"dot", "convolution"}, i.name());
+        auto find_geg_gemm = [](const module* submod) {
+            return std::find_if(submod->begin(), submod->end(), [](const auto& i) {
+                return contains({"dot", "quant_dot", "convolution", "quant_convolution"}, i.name());
             });
-
+        };
+        auto* first_submod  = first_gemm_ins->module_inputs().front();
+        auto first_gemm     = find_geg_gemm(first_submod);
         auto* second_submod = second_gemm_ins->module_inputs().front();
-        auto second_gemm    = std::find_if(second_submod->begin(),
-                                        second_submod->end(),
-                                        [](const auto& i) { return contains({"dot"}, i.name()); });
+        auto second_gemm    = find_geg_gemm(second_submod);
 
         // check if both gemms exist and are supported on this architecture
         if(first_gemm == first_submod->end() or second_gemm == second_submod->end())
@@ -1013,9 +1014,6 @@ struct find_mlir_fused_geg_ops
         if(first_gemm_ins->outputs().size() > 1)
             return;
 
-        // check if the second mlir_op has multiple users in the parent module
-        bool second_gemm_has_multi_outs = second_gemm_ins->outputs().size() > 1;
-
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         std::string module_name = first_submod->name() + "_" + second_submod->name() + "_geg";
         module_ref mm           = mpm.create_module(module_name);
@@ -1033,8 +1031,8 @@ struct find_mlir_fused_geg_ops
         auto second_rins = mm->fuse(*second_submod, second_gemm_ins->inputs(), &map_ins);
         // second_rins contains the outputs of the second submodule (may be multiple if
         // dot_pointwise/conv_pointwise with multi-outs)
-        assert((second_gemm_has_multi_outs and second_rins.size() == 2) or
-               (not second_gemm_has_multi_outs and second_rins.size() == 1));
+        const bool second_gemm_has_multi_outs = second_rins.size() > 1;
+        assert(second_rins.size() == 1 or second_rins.size() == 2);
         map_ins[second_gemm_ins] = second_rins.front();
 
         // if second submodule has multi-outs, second_rins already contains [pointwise, gemm]
@@ -1063,13 +1061,10 @@ struct find_mlir_fused_geg_ops
             }
 
             // replace the pointwise result (the main output) with tuple elem 0
-            if(second_rins.size() == 2)
-            {
-                mpm.get_module().replace_instruction(
-                    second_gemm_ins,
-                    migraphx::make_op("get_tuple_elem", {{"index", 0}}),
-                    fused_ins);
-            }
+            mpm.get_module().replace_instruction(
+                second_gemm_ins,
+                migraphx::make_op("get_tuple_elem", {{"index", 0}}),
+                fused_ins);
         }
         else
         {

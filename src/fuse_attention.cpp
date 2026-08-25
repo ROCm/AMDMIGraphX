@@ -641,11 +641,11 @@ struct find_flash_decoding
             const shape split_shape = {in_shape.type(), split_lens};
             std::vector<type> split_data(split_shape.elements(), type{});
 
-            shape_for_each(
-                split_shape, [&](const std::vector<std::size_t>& split_idx, std::size_t i) {
-                    const auto unsplit_idx = merge_split_index(split_idx, ndim, n_split);
-                    split_data[i]          = in_view[in_shape.index(unsplit_idx)];
-                });
+            shape_for_each(split_shape,
+                           [&](const std::vector<std::size_t>& split_idx, std::size_t i) {
+                               const auto unsplit_idx = merge_split_index(split_idx, ndim, n_split);
+                               split_data[i]          = in_view[in_shape.index(unsplit_idx)];
+                           });
             result = literal{split_shape, split_data};
         });
         return result;

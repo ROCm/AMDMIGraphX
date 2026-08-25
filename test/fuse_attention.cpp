@@ -65,7 +65,7 @@ static const migraphx::module* flash_decoding_submodule(const migraphx::program&
 }
 
 static bool flash_decoding_has(const migraphx::program& p,
-                               const std::string& ins_name = {},
+                               const std::string& ins_name  = {},
                                const migraphx::shape* shape = nullptr)
 {
     const auto* sm = flash_decoding_submodule(p);
@@ -1115,7 +1115,7 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_param)
             {q, k, v, mask},
             {"x0", "x1", "x2", "x3"},
             [&](auto* gm, const auto& inputs) {
-                auto ninf = gm->add_literal(-std::numeric_limits<float>::infinity());
+                auto ninf   = gm->add_literal(-std::numeric_limits<float>::infinity());
                 auto ninf_h = gm->add_instruction(
                     migraphx::make_op("convert", {{"target_type", s1.type()}}), ninf);
                 auto gemm1   = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
@@ -1125,8 +1125,8 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_param)
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), ninf_h);
                 auto masked =
                     gm->add_instruction(migraphx::make_op("where"), mask_bc, gemm1, ninf_bc);
-                auto rmax = gm->add_instruction(
-                    migraphx::make_op("reduce_max", {{"axes", {3}}}), masked);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), masked);
                 rmax = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
                 auto sub = gm->add_instruction(migraphx::make_op("sub"), masked, rmax);
@@ -1247,10 +1247,9 @@ TEST_CASE(flash_decoding_rebuild_instruction_order)
         mm->add_return({group});
     }
 
-    run_pass(p1,
-             {.attn_enabled              = false,
-              .flash_decoding_enabled    = true,
-              .flash_decoding_num_splits = 2});
+    run_pass(
+        p1,
+        {.attn_enabled = false, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
     EXPECT(flash_decoding_has(p1));
 }
 
@@ -1294,10 +1293,9 @@ TEST_CASE(flash_decoding_rebuild_with_outline)
         mm->add_return({group});
     }
 
-    run_pass(p1,
-             {.attn_enabled              = false,
-              .flash_decoding_enabled    = true,
-              .flash_decoding_num_splits = 2});
+    run_pass(
+        p1,
+        {.attn_enabled = false, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
     EXPECT(flash_decoding_has(p1));
 }
 
@@ -1574,7 +1572,8 @@ TEST_CASE(flash_decoding_3d_rectangular)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE_SKIP(flash_decoding_3d_padding, "Uneven sequence padding not yet supported in flash decoding")
+TEST_CASE_SKIP(flash_decoding_3d_padding,
+               "Uneven sequence padding not yet supported in flash decoding")
 {
     // 3D Shape: [batch, head_dim, sequence_length]
     migraphx::shape s_3d{migraphx::shape::half_type, {1, 256, 241}};

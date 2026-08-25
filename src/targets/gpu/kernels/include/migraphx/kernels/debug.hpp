@@ -154,6 +154,7 @@ struct source_location_capture
     template <class... Us>
     using convert = decltype(T(declval<Us>()...));
 
+// NOLINTBEGIN(cppcoreguidelines-macro-usage, readability-function-size)
 #define MIGRAPHX_SOURCE_LOCATION_CAPTURE_CONSTRUCTOR(n, ...)                                     \
     template <class U, MIGRAPHX_PP_ENUM(n, class U), class = convert<U, MIGRAPHX_PP_ENUM(n, U)>> \
     constexpr source_location_capture(                                                           \
@@ -162,8 +163,11 @@ struct source_location_capture
     {                                                                                            \
     }
 
+#ifndef CPPCHECK
     MIGRAPHX_PP_EXPAND(MIGRAPHX_PP_REPEAT(8)(
         MIGRAPHX_PP_DEFER_UNTIL(MIGRAPHX_SOURCE_LOCATION_CAPTURE_CONSTRUCTOR), ))
+#endif
+    // NOLINTEND(cppcoreguidelines-macro-usage, readability-function-size)
 
     template <class U, class = decltype(T(declval<U>()))>
     constexpr source_location_capture(U px, source_location ploc = source_location{})

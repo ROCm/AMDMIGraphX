@@ -74,11 +74,13 @@ struct tensor_view
         }
 
         template <class... Us>
-        constexpr index_to_offset(Us... is) : offset(Shape{}.index({is...}))
-        {
+        constexpr index_to_offset(Us... is)
+            : offset(Shape{}.index({is...}))
 #ifdef MIGRAPHX_DEBUG
-            idx = Shape{}.single({is...});
+              ,
+              idx(Shape{}.single({is...}))
 #endif
+        {
         }
     };
 

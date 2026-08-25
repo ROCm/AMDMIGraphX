@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/test.hpp>
 
 template <class T>
@@ -38,9 +39,8 @@ constexpr auto test_returns_twice(T x) MIGRAPHX_RETURNS(x + x);
 
 TEST_CASE(swallow_ignores_arguments)
 {
-    [[maybe_unused]] migraphx::swallow s{1, 2.0f, 'c'};
-    [[maybe_unused]] migraphx::ignore<3> i{42};
-    EXPECT(true);
+    EXPECT(migraphx::is_constructible<migraphx::swallow, int, float, char>{});
+    EXPECT(migraphx::is_constructible<migraphx::ignore<3>, int>{});
 }
 
 TEST_CASE(overload_dispatch)

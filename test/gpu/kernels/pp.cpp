@@ -26,35 +26,38 @@
 #include <migraphx/kernels/test.hpp>
 
 // NOLINTBEGIN(*-macro-to-enum)
-#define TEST_PP_INDEX 2
+#define MIGRAPHX_TEST_PP_INDEX 2
 // NOLINTEND(*-macro-to-enum)
 
 // NOLINTNEXTLINE
-#define TEST_PP_DOUBLE(x) ((x) * 2)
+#define MIGRAPHX_TEST_PP_DOUBLE(x) ((x) * 2)
 // NOLINTNEXTLINE
-#define TEST_PP_MUL(x, d) ((x) * (d))
+#define MIGRAPHX_TEST_PP_MUL(x, d) ((x) * (d))
 // NOLINTNEXTLINE
-#define TEST_PP_ADD_STMT(x) sum += (x);
+#define MIGRAPHX_TEST_PP_ADD_STMT(x) sum += (x);
 // NOLINTNEXTLINE
-#define TEST_PP_MUL_ADD_STMT(x, d) sum += (x) * (d);
+#define MIGRAPHX_TEST_PP_MUL_ADD_STMT(x, d) sum += (x) * (d);
 // NOLINTNEXTLINE
-#define TEST_PP_ACCUM(i, x) sum += (i) + (x);
+#define MIGRAPHX_TEST_PP_ACCUM(i, x) sum += (i) + (x);
 
 TEST_CASE(pp_primitive_cat)
 {
     int x2 = 5;
+    // cppcheck-suppress knownConditionTrueFalse
     EXPECT(MIGRAPHX_PP_PRIMITIVE_CAT(x, 2) == 5);
 }
 
 TEST_CASE(pp_cat_expands_arguments)
 {
     int x2 = 5;
-    EXPECT(MIGRAPHX_PP_CAT(x, TEST_PP_INDEX) == 5);
+    // cppcheck-suppress knownConditionTrueFalse
+    EXPECT(MIGRAPHX_PP_CAT(x, MIGRAPHX_TEST_PP_INDEX) == 5);
 }
 
 TEST_CASE(pp_eat)
 {
     int x = 1 MIGRAPHX_PP_EAT(+100);
+    // cppcheck-suppress knownConditionTrueFalse
     EXPECT(x == 1);
 }
 
@@ -70,7 +73,9 @@ TEST_CASE(pp_comma)
 
 TEST_CASE(pp_iif)
 {
+    // cppcheck-suppress duplicateExpression
     EXPECT(MIGRAPHX_PP_IIF(1)(10, 20) == 10);
+    // cppcheck-suppress duplicateExpression
     EXPECT(MIGRAPHX_PP_IIF(0)(10, 20) == 20);
 }
 
@@ -84,7 +89,9 @@ TEST_CASE(pp_bitand)
 {
     EXPECT(MIGRAPHX_PP_BITAND(0)(0) == 0);
     EXPECT(MIGRAPHX_PP_BITAND(0)(1) == 0);
+    // cppcheck-suppress duplicateExpression
     EXPECT(MIGRAPHX_PP_BITAND(1)(0) == 0);
+    // cppcheck-suppress duplicateExpression
     EXPECT(MIGRAPHX_PP_BITAND(1)(1) == 1);
 }
 
@@ -119,23 +126,25 @@ TEST_CASE(pp_is_empty_arg)
 TEST_CASE(pp_repeat_fixed)
 {
     int sum = 0;
-    MIGRAPHX_PP_REPEAT3(TEST_PP_ACCUM, 1)
+    MIGRAPHX_PP_REPEAT3(MIGRAPHX_TEST_PP_ACCUM, 1)
     EXPECT(sum == 10);
 }
 
 TEST_CASE(pp_repeat_selected)
 {
     int sum = 0;
-    MIGRAPHX_PP_REPEAT(2)(TEST_PP_ACCUM, 5) EXPECT(sum == 18);
+    MIGRAPHX_PP_REPEAT(2)(MIGRAPHX_TEST_PP_ACCUM, 5) EXPECT(sum == 18);
 }
 
 TEST_CASE(pp_repeat_zero)
 {
     int sum = 0;
-    MIGRAPHX_PP_REPEAT0(TEST_PP_ACCUM, 3)
+    MIGRAPHX_PP_REPEAT0(MIGRAPHX_TEST_PP_ACCUM, 3)
     EXPECT(sum == 3);
 }
 
+// cppcheck's preprocessor cannot expand the recursive argument-transform macros
+#ifndef CPPCHECK
 TEST_CASE(pp_generate)
 {
     int arr[] = {MIGRAPHX_PP_GENERATE(4)};
@@ -150,34 +159,35 @@ TEST_CASE(pp_generate)
 TEST_CASE(pp_each_args)
 {
     int sum = 0;
-    MIGRAPHX_PP_EACH_ARGS(TEST_PP_ADD_STMT, 1, 2, 3)
+    MIGRAPHX_PP_EACH_ARGS(MIGRAPHX_TEST_PP_ADD_STMT, 1, 2, 3)
     EXPECT(sum == 6);
 }
 
 TEST_CASE(pp_each_args_single)
 {
     int sum = 0;
-    MIGRAPHX_PP_EACH_ARGS(TEST_PP_ADD_STMT, 42)
+    MIGRAPHX_PP_EACH_ARGS(MIGRAPHX_TEST_PP_ADD_STMT, 42)
     EXPECT(sum == 42);
 }
 
 TEST_CASE(pp_each_args_max)
 {
     int sum = 0;
-    MIGRAPHX_PP_EACH_ARGS(TEST_PP_ADD_STMT, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+    MIGRAPHX_PP_EACH_ARGS(
+        MIGRAPHX_TEST_PP_ADD_STMT, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
     EXPECT(sum == 136);
 }
 
 TEST_CASE(pp_each_args_data)
 {
     int sum = 0;
-    MIGRAPHX_PP_EACH_ARGS_DATA(TEST_PP_MUL_ADD_STMT, 10, 1, 2, 3)
+    MIGRAPHX_PP_EACH_ARGS_DATA(MIGRAPHX_TEST_PP_MUL_ADD_STMT, 10, 1, 2, 3)
     EXPECT(sum == 60);
 }
 
 TEST_CASE(pp_transform_args)
 {
-    int arr[] = {MIGRAPHX_PP_TRANSFORM_ARGS(TEST_PP_DOUBLE, 1, 2, 3)};
+    int arr[] = {MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_TEST_PP_DOUBLE, 1, 2, 3)};
     EXPECT(sizeof(arr) == 3 * sizeof(int));
     EXPECT(arr[0] == 2);
     EXPECT(arr[1] == 4);
@@ -186,14 +196,14 @@ TEST_CASE(pp_transform_args)
 
 TEST_CASE(pp_transform_args_single)
 {
-    int arr[] = {MIGRAPHX_PP_TRANSFORM_ARGS(TEST_PP_DOUBLE, 21)};
+    int arr[] = {MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_TEST_PP_DOUBLE, 21)};
     EXPECT(sizeof(arr) == sizeof(int));
     EXPECT(arr[0] == 42);
 }
 
 TEST_CASE(pp_transform_args_data)
 {
-    int arr[] = {MIGRAPHX_PP_TRANSFORM_ARGS_DATA(TEST_PP_MUL, 3, 1, 2)};
+    int arr[] = {MIGRAPHX_PP_TRANSFORM_ARGS_DATA(MIGRAPHX_TEST_PP_MUL, 3, 1, 2)};
     EXPECT(sizeof(arr) == 2 * sizeof(int));
     EXPECT(arr[0] == 3);
     EXPECT(arr[1] == 6);
@@ -224,3 +234,4 @@ TEST_CASE(pp_enum_pairs)
     auto f      = [](MIGRAPHX_PP_ENUM(1, type, y)) { return y0 * 10 + y1; };
     EXPECT(f(3, 4) == 34);
 }
+#endif

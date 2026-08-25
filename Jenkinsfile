@@ -174,9 +174,12 @@ def checkoutWithRetry = { int maxAttempts = 3 ->
             ])
             return
         } catch (Exception e) {
+            if (e instanceof InterruptedException || e.class.name == 'org.jenkinsci.plugins.workflow.steps.FlowInterruptedException') {
+                throw e
+            }
             if (attempt == maxAttempts) {
                 sh 'git remote -v || true'
-                sh 'git config --list || true'
+                sh 'git config --list | grep -v -i "token\\|password\\|auth\\|header" || true'
                 sh 'ip route || true'
                 sh 'curl -sv https://github.com 2>&1 | tail -20 || true'
                 throw e

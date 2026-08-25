@@ -38,7 +38,7 @@ TEST_CASE(loop_default_test)
     auto icond = mm->add_literal(migraphx::literal(sc, {1}));
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    auto* body = p.create_module("Loop_3_loop");
+    auto* body = p.create_module("main_Loop_3_loop");
     body->add_parameter("iteration_num", {migraphx::shape::int64_type});
     body->add_parameter("keep_going_inp", {migraphx::shape::bool_type});
     auto var = body->add_parameter("b_in", su);

@@ -39,7 +39,7 @@ TEST_CASE(if_tuple_test)
     auto x    = mm->add_parameter("x", sx);
     auto y    = mm->add_parameter("y", sy);
 
-    auto* then_mod = p.create_module("If_6_if");
+    auto* then_mod = p.create_module("main_If_6_if");
     auto m1 =
         then_mod->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), l1);
     auto add0 = then_mod->add_instruction(migraphx::make_op("add"), x, m1);
@@ -48,7 +48,7 @@ TEST_CASE(if_tuple_test)
     auto mul0 = then_mod->add_instruction(migraphx::make_op("mul"), y, m2);
     then_mod->add_return({add0, mul0});
 
-    auto* else_mod = p.create_module("If_6_else");
+    auto* else_mod = p.create_module("main_If_6_else");
     auto me1 =
         else_mod->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), l3);
     auto mul1 = else_mod->add_instruction(migraphx::make_op("mul"), x, me1);

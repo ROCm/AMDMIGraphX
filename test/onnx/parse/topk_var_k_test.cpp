@@ -22,23 +22,32 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/serialize.hpp>
+#include <migraphx/sym.hpp>
 #include <onnx_test.hpp>
 
 // `k` is a runtime input (graph input, not an initializer), so the parser takes the var_k
-// path: topk runs with k set to the axis dimension, then the outputs are sliced down to the
-// runtime `k`.
+// path: topk runs over the whole axis, then dyn_slice trims both outputs down to the runtime
+// `k`, which the output shape carries as a symbol.
 TEST_CASE(topk_var_k_test)
 {
     migraphx::program p;
     auto* mm  = p.get_main_module();
     auto data = mm->add_parameter("data", {migraphx::shape::float_type, {2, 4}});
     auto k    = mm->add_parameter("k", {migraphx::shape::int64_type, {1}});
+    auto zero = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
     auto out  = mm->add_instruction(
         migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    val = mm->add_instruction(migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}}), val, k);
-    ind = mm->add_instruction(migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}}), ind, k);
+    auto ds = migraphx::make_op(
+        "dyn_slice",
+        {{"axes", {1}},
+         {"starts", {0}},
+         {"ends",
+          migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", {0, 4}))}}});
+    val = mm->add_instruction(ds, val, zero, k);
+    ind = mm->add_instruction(ds, ind, zero, k);
     mm->add_return({val, ind});
 
     auto prog = read_onnx("topk_var_k_test.onnx");
@@ -46,25 +55,45 @@ TEST_CASE(topk_var_k_test)
     EXPECT(p == prog);
 }
 
-// Same model, but `data` is overridden to a dynamic shape. `k` stays a runtime input, so the
+// Same model with `data` overridden to a symbolic shape. `k` stays a runtime input, so the
 // var_k path still fires and sets the topk `k` to the axis dimension's max length.
-TEST_CASE(topk_var_k_dynamic_test)
+TEST_CASE(topk_var_k_symbolic_test)
 {
+    using migraphx::sym::var;
+    auto dims = [] { return sym_dims({var("n", {1, 4}), var("m", {2, 4})}); };
+
     migraphx::program p;
     auto* mm  = p.get_main_module();
-    auto data = mm->add_parameter("data", {migraphx::shape::float_type, {{1, 4}, {2, 4}}});
+    auto data = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims()});
     auto k    = mm->add_parameter("k", {migraphx::shape::int64_type, {1}});
+    auto zero = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
     auto out  = mm->add_instruction(
         migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    val = mm->add_instruction(migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}}), val, k);
-    ind = mm->add_instruction(migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}}), ind, k);
+    auto ds = migraphx::make_op(
+        "dyn_slice",
+        {{"axes", {1}},
+         {"starts", {0}},
+         {"ends",
+          migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", {0, 4}))}}});
+    val = mm->add_instruction(ds, val, zero, k);
+    ind = mm->add_instruction(ds, ind, zero, k);
     mm->add_return({val, ind});
 
     migraphx::onnx_options options;
-    options.map_dyn_input_dims["data"] = {{1, 4}, {2, 4}};
+    options.use_symbolic_shapes        = true;
+    options.map_dyn_input_dims["data"] = dims();
     auto prog                          = read_onnx("topk_var_k_test.onnx", options);
 
     EXPECT(p == prog);
+}
+
+// A range-based dynamic shape has no symbol to slice against, so the runtime `k` is rejected.
+TEST_CASE(topk_var_k_range_dynamic_error_test)
+{
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["data"] = {{1, 4}, {2, 4}};
+
+    EXPECT(test::throws([&] { read_onnx("topk_var_k_test.onnx", options); }));
 }

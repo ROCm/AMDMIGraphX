@@ -326,7 +326,6 @@ strict_less(const expr& a, const expr& b, interval default_bounds = {});
 // `min`/`max` that collapse to one operand when `strict_less` proves the ordering.
 MIGRAPHX_EXPORT expr resolve_min(const expr& a, const expr& b);
 MIGRAPHX_EXPORT expr resolve_max(const expr& a, const expr& b);
-
 // Pattern matching rewrite DSL
 MIGRAPHX_EXPORT expr pvar(int id);
 

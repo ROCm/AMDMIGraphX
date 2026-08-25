@@ -32,10 +32,6 @@
 
 #include <test.hpp>
 
-// Mirrors what the ONNX NonMaxSuppression parser emits. The op pads its indices output out to the
-// largest possible selection, so trim it to the count the op reports. That count is only known at
-// run time, so the end bound is a symbol constrained by the padded length. Every test case here
-// has a single nonmaxsuppression per module, so one fixed symbol name is enough.
 static migraphx::instruction_ref add_nms_dynamic_slice(migraphx::module* mm,
                                                        migraphx::instruction_ref nms)
 {

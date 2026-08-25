@@ -49,8 +49,6 @@ TEST_CASE(nms_test)
     auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
     auto num_selected =
         mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
-    // The parser trims the zero-padded [6, 3] indices down to the number of boxes the op
-    // selected. Added last so it lands at the front of the module, where the parser puts it.
     auto starts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
     auto num_selected_var = var("main_NonMaxSuppression_5", {0, 6});
     auto ends             = migraphx::value::array{migraphx::to_value(num_selected_var)};

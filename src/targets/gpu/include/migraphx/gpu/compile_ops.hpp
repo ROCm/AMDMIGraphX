@@ -38,10 +38,9 @@ struct context;
 
 struct MIGRAPHX_GPU_EXPORT compile_ops
 {
-    context* ctx              = nullptr;
-    bool exhaustive_tune      = false;
-    bool skip_benchmark       = false;
-    bool disable_processes    = false;
+    context* ctx         = nullptr;
+    bool exhaustive_tune = false;
+    bool skip_benchmark  = false;
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module_pass_manager& mpm) const;
 };

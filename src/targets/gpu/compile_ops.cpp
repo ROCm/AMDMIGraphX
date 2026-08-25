@@ -632,9 +632,9 @@ static void replace_inserted_device_ops(context& ctx, module& m)
 
 void compile_ops::apply(module_pass_manager& mpm) const
 {
+    assert(ctx != nullptr);
     bool is_root = &mpm.get_module() == mpm.get_root_module();
     auto& m      = mpm.get_module();
-    ctx->set_disable_processes(disable_processes);
     compile_manager cm;
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;

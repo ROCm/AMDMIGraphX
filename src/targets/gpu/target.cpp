@@ -274,8 +274,7 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager,
-                        backend_opts.hiprtc_disable_processes},
+                        options.compile_mode == compile_modes::eager},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -298,14 +297,16 @@ struct pipeline_factory
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto& ctx = any_cast<context>(gctx);
+    auto& ctx          = any_cast<context>(gctx);
+    auto backend_opts  = get_backend_options(options);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
+    ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
     ctx.load_problem_cache(); // TODO: update load_problem_cache to include gpu arch
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
-    pipeline_factory p{&gctx, options, get_backend_options(options)};
+    pipeline_factory p{&gctx, options, backend_opts};
 
     std::vector<std::vector<pass>> pipelines;
 

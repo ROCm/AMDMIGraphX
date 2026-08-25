@@ -525,8 +525,8 @@ TEST_CASE(assert_type_min_max)
     }
 }
 
-// Test 1: compile_hip_src with disable_processes=true produces a valid, executable kernel.
-// Mirrors simple_compile_hip but forces the in-process hiprtc path.
+// Compile with disable_processes=true to force in-process hiprtc instead of spawning
+// migraphx-hiprtc-driver; the resulting binary must be valid and execute correctly.
 TEST_CASE(compile_hip_src_disable_processes)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
@@ -544,10 +544,8 @@ TEST_CASE(compile_hip_src_disable_processes)
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
 }
 
-
-// Test 3: hiprtc_disable_processes via backend_options threads through the full GPU
-// target pass pipeline (backend_options -> compile_ops -> context -> compile_hip_src)
-// and produces a correct compiled result.
+// hiprtc_disable_processes set via backend_options must thread through the full GPU target
+// pass pipeline (backend_options -> context -> compile_hip_src) and still produce a correct result.
 TEST_CASE(compile_code_object_disable_processes_backend_option)
 {
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};

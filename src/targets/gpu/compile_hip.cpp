@@ -244,37 +244,32 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         }
     }
 
-    if(not disable_processes)
+    if(disable_processes)
+        return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
+
+    auto fname  = make_executable_filename("migraphx-hiprtc-driver");
+    auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
+    auto driver = p.parent_path() / fname;
+    if(not fs::exists(driver))
+        driver = p.parent_path().parent_path() / "bin" / fname;
+
+    if(fs::exists(driver))
     {
-        auto fname  = make_executable_filename("migraphx-hiprtc-driver");
-        auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
-        auto driver = p.parent_path() / fname;
+        value v;
+        v["srcs"]   = to_value(hsrcs);
+        v["params"] = to_value(params);
+        v["arch"]   = to_value(arch);
+        v["quiet"]  = quiet;
 
-        bool found = fs::exists(driver);
-        if(not found)
-        {
-            driver = p.parent_path().parent_path() / "bin" / fname;
-            found  = fs::exists(driver);
-        }
+        tmp_dir td{};
+        auto out = td.path / "output";
 
-        if(found)
-        {
-            value v;
-            v["srcs"]   = to_value(hsrcs);
-            v["params"] = to_value(params);
-            v["arch"]   = to_value(arch);
-            v["quiet"]  = quiet;
-
-            tmp_dir td{};
-            auto out = td.path / "output";
-
-            process(driver, {quote_string(out.string())}).write([&](auto writer) {
-                to_msgpack(v, std::move(writer));
-            });
-            if(fs::exists(out))
-                return {read_buffer(out)};
-            MIGRAPHX_THROW("hiprtc compilation failed!");
-        }
+        process(driver, {quote_string(out.string())}).write([&](auto writer) {
+            to_msgpack(v, std::move(writer));
+        });
+        if(fs::exists(out))
+            return {read_buffer(out)};
+        MIGRAPHX_THROW("hiprtc compilation failed!");
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 }

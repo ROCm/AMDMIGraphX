@@ -123,7 +123,8 @@ struct concat
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const
     {
-        if(axis != 0 or args.empty() or any_of(args, [](const auto& arg) { return arg.empty(); }))
+        if(args.empty() or
+           any_of(args, [](const auto& arg) { return arg.empty() or arg.get_shape().ndim() != 1; }))
             return {};
         const auto input_elements = std::accumulate(
             args.begin(), args.end(), std::size_t{0}, [](auto sum, const auto& arg) {

@@ -15909,42 +15909,37 @@ def symbolic_shape_arithmetic_test():
 
 
 @onnx_test()
-def symbolic_reshape_markers_test():
+def symbolic_reshape_zero_dim_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
-    zero_output = helper.make_tensor_value_info('zero_output',
-                                                TensorProto.FLOAT,
-                                                ['batch', 4])
-    inferred_output = helper.make_tensor_value_info('inferred_output',
-                                                    TensorProto.FLOAT,
-                                                    ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
 
-    index_0 = helper.make_tensor('index_0_value', TensorProto.INT64, [], [0])
-    index_1 = helper.make_tensor('index_1_value', TensorProto.INT64, [], [1])
-    axis = helper.make_tensor('axis_value', TensorProto.INT64, [1], [0])
     zero = helper.make_tensor('zero_value', TensorProto.INT64, [1], [0])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['width'], start=1, end=2),
+        helper.make_node('Constant', [], ['zero'], value=zero),
+        helper.make_node('Concat', ['zero', 'width'], ['target_shape'],
+                         axis=0),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_negative_one_dim_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+
     neg_one = helper.make_tensor('neg_one_value', TensorProto.INT64, [1], [-1])
 
     nodes = [
-        helper.make_node('Shape', ['x'], ['x_shape']),
-        helper.make_node('Constant', [], ['index_0'], value=index_0),
-        helper.make_node('Constant', [], ['index_1'], value=index_1),
-        helper.make_node('Gather', ['x_shape', 'index_0'], ['batch'], axis=0),
-        helper.make_node('Gather', ['x_shape', 'index_1'], ['width'], axis=0),
-        helper.make_node('Constant', [], ['axis'], value=axis),
-        helper.make_node('Unsqueeze', ['batch', 'axis'], ['batch_vector']),
-        helper.make_node('Unsqueeze', ['width', 'axis'], ['width_vector']),
-        helper.make_node('Constant', [], ['zero'], value=zero),
+        helper.make_node('Shape', ['x'], ['batch_dim'], start=0, end=1),
         helper.make_node('Constant', [], ['neg_one'], value=neg_one),
-        helper.make_node('Concat', ['zero', 'width_vector'], ['zero_shape'],
+        helper.make_node('Concat', ['batch_dim', 'neg_one'], ['target_shape'],
                          axis=0),
-        helper.make_node('Concat', ['batch_vector', 'neg_one'],
-                         ['inferred_shape'],
-                         axis=0),
-        helper.make_node('Reshape', ['x', 'zero_shape'], ['zero_output']),
-        helper.make_node('Reshape', ['x', 'inferred_shape'],
-                         ['inferred_output']),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
     ]
-    return (nodes, [x], [zero_output, inferred_output])
+    return (nodes, [x], [y])
 
 
 @onnx_test()

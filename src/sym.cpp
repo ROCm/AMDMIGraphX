@@ -1285,6 +1285,7 @@ std::optional<bool> provable_equal(const expr& a, const expr& b, interval defaul
     return std::nullopt;
 }
 
+// Returns the value when every variable has a fixed value.
 std::optional<scalar> fixed_value(const expr& expression)
 {
     if(expression.empty())

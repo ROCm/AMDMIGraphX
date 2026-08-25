@@ -54,8 +54,9 @@ struct parse_range : op_parser<parse_range>
                 const auto start_values = start.get();
                 const auto limit_values = limit.get();
                 const auto delta_values = delta.get();
-                const auto delta_value =
-                    delta_values.size() == 1 ? sym::fixed_value(delta_values.front()) : std::nullopt;
+                const auto delta_value  = delta_values.size() == 1
+                                              ? sym::fixed_value(delta_values.front())
+                                              : std::nullopt;
                 if(start_values.size() == 1 and limit_values.size() == 1 and
                    delta_value.has_value() and sym::to<int64_t>(*delta_value) == 1)
                 {

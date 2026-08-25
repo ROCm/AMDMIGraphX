@@ -61,8 +61,8 @@ struct parse_reshape : op_parser<parse_reshape>
                 if(not symbolic_dims.empty() and
                    (not input_shape.dynamic() or input_shape.symbolic()))
                 {
-                    const auto output_dims = resolve_reshape_dims(
-                        input_shape.to_symbolic(), symbolic_dims.get().to_vector());
+                    const auto output_dims = resolve_reshape_dims(input_shape.to_symbolic(),
+                                                                  symbolic_dims.get().to_vector());
                     std::vector<sym::expr> output_expressions(output_dims.size());
                     transform(output_dims, output_expressions.begin(), [](const auto& dim) {
                         return dim.sym_expr;

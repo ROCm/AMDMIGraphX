@@ -39,6 +39,7 @@ namespace op {
 template <class Derived>
 struct binary : op_name<Derived>
 {
+    // The inherited symbolic_compute is opt-in because not every Derived::apply supports sym::expr.
     static constexpr bool enable_symbolic_compute = false;
 
     std::string point_function() const { return this->name(); }

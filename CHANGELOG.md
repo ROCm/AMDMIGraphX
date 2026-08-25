@@ -44,6 +44,7 @@ Full documentation for MIGraphX is available at
 * Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
 * Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, whose symbolic `starts`/`ends` attributes describe the run-time bound inputs so a data-dependent slice keeps a symbolic output shape (#5088).
 * Added symbolic normalization of operator attributes holding `sym::expr`, clamping each value against its axis length symbolically (#5088).
+* Added find_concat_same_broadcast matcher to convert concat of identical broadcasts into a single multibroadcast to reduce hipCopy() (#5179).
 
 
 ### Changed

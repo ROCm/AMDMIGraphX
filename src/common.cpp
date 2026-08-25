@@ -28,6 +28,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -308,13 +309,10 @@ bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
     if(input_lens.empty() or out_lens.empty() or input_lens.size() > out_lens.size())
         return false;
 
-    const auto offset = out_lens.size() - input_lens.size();
-    for(std::ptrdiff_t i = input_lens.size() - 1; i >= 0; --i)
-    {
-        if(out_lens[i + offset] != input_lens[i] and input_lens[i] != 1)
-            return false;
-    }
-    return true;
+    return std::equal(input_lens.rbegin(),
+                      input_lens.rend(),
+                      out_lens.rbegin(),
+                      [](std::size_t in, std::size_t out) { return out == in or in == 1; });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

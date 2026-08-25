@@ -490,7 +490,7 @@ struct find_flash_decoding
         size_t n    = k_lens[ndim - 1];
         size_t g    = num_groups;
 
-        // sequence length must divide evenly across splitsfor now
+        // sequence length must divide evenly across splits for now
         assert(n % g == 0 and
                "Key-value sequence length must be divisible by number of splits/groups");
         size_t n_split = n / g;
@@ -699,13 +699,6 @@ struct find_flash_decoding
         shape submodule_param_shape{};
     };
 
-    static bool is_broadcast_op(const operation& op)
-    {
-        static const std::unordered_set<std::string> broadcast_ops = {"multibroadcast",
-                                                                      "broadcast"};
-        return contains(broadcast_ops, op.name());
-    }
-
     std::unordered_map<instruction_ref, instruction_ref>
     map_submod_params_to_inputs(module_ref submod,
                                 const std::vector<instruction_ref>& group_inputs) const
@@ -770,9 +763,14 @@ struct find_flash_decoding
                        original_axes.front() == -1);
                 op.from_value({{"axes", {new_input_shape.ndim() - 1}}});
             }
-            else if(is_broadcast_op(op))
+            else if(op.name() == "broadcast")
             {
-                const auto orig_out_lens = op.to_value()["out_lens"].to_vector<std::size_t>();
+                if(ins->get_shape().lens() == scores_lens)
+                    return false;
+            }
+            else if(op.name() == "multibroadcast")
+            {
+                const auto& orig_out_lens = ins->get_shape().lens();
                 if(orig_out_lens == scores_lens)
                 {
                     const auto& input_lens = new_inputs.front()->get_shape().lens();
@@ -869,12 +867,10 @@ struct find_flash_decoding
         // gemm1 output shape (Q@K attention scores); used to detect extra @param inputs
         const auto scores_lens = gemm1->get_shape().lens();
         std::unordered_map<instruction_ref, flash_input_transform> param_transforms;
+        const auto submod_params = submod->get_parameters();
 
-        for(auto param : iterator_for(*submod))
+        for(auto param : submod_params)
         {
-            if(param->name() != "@param")
-                continue;
-
             const auto main_ins     = map_param_to_main.at(param);
             param_transforms[param] = flash_input_transform{main_ins, {}, {}};
         }
@@ -940,11 +936,8 @@ struct find_flash_decoding
         m_flash_decode.set_bypass();
 
         std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new;
-        for(auto param : iterator_for(*submod))
+        for(auto param : submod_params)
         {
-            if(param->name() != "@param")
-                continue;
-
             const auto& name = param->get_operator().to_value()["parameter"].to<std::string>();
             map_old_params_to_new[param] = m_flash_decode.add_parameter(
                 name, param_transforms.at(param).submodule_param_shape);

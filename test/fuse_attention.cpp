@@ -1204,7 +1204,7 @@ TEST_CASE(flash_decoding_4d_with_unary_on_softmax_broadcast)
 
 TEST_CASE(flash_decoding_rebuild_instruction_order)
 {
-    // Submodule inserts scale multibroadcast before dot; linear rebuild fails without topo-sort.
+    // Submodule inserts scale multibroadcast before dot
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
     migraphx::shape s_scalar{migraphx::shape::half_type, {1}};
 

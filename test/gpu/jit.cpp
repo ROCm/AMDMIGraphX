@@ -30,6 +30,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -522,6 +523,58 @@ TEST_CASE(assert_type_min_max)
             auto co = migraphx::gpu::compile_hip_code_object(ctx, src, options);
         });
     }
+}
+
+// Test 1: compile_hip_src with disable_processes=true produces a valid, executable kernel.
+// Mirrors simple_compile_hip but forces the in-process hiprtc path.
+TEST_CASE(compile_hip_src_disable_processes)
+{
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, {}, migraphx::gpu::get_device_name(), true);
+    EXPECT(binaries.size() == 1);
+
+    migraphx::argument input{{migraphx::shape::int8_type, {5}}};
+    auto ginput = migraphx::gpu::to_gpu(input);
+    migraphx::gpu::kernel k{binaries.front(), "write"};
+    k.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int8_t>());
+    auto output = migraphx::gpu::from_gpu(ginput);
+
+    EXPECT(output != input);
+    auto data = output.get<std::int8_t>();
+    EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+
+// Test 3: hiprtc_disable_processes via backend_options threads through the full GPU
+// target pass pipeline (backend_options -> compile_ops -> context -> compile_hip_src)
+// and produces a correct compiled result.
+TEST_CASE(compile_code_object_disable_processes_backend_option)
+{
+    migraphx::shape input{migraphx::shape::float_type, {5, 2}};
+    migraphx::gpu::hip_compile_options hopts;
+    migraphx::gpu::context ctx;
+    hopts.global = 256 * 1024;
+    hopts.local  = 1024;
+    hopts.inputs = {input, input};
+    hopts.output = input;
+
+    auto co = migraphx::gpu::compile_hip_code_object(ctx, simple_pointwise_increment, hopts);
+
+    migraphx::program p;
+    auto* mm            = p.get_main_module();
+    auto input_literal  = migraphx::generate_literal(input);
+    auto output_literal = migraphx::transform(input_literal, [](auto x) { return x + 1; });
+    auto x              = mm->add_literal(input_literal);
+    auto y              = mm->add_parameter("output", input);
+    mm->add_instruction(co, x, y);
+
+    migraphx::compile_options options;
+    options.backend_options["hiprtc_disable_processes"] = migraphx::value(true);
+    p.compile(migraphx::make_target("gpu"), options);
+
+    auto result =
+        migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
+    EXPECT(result == output_literal.get_argument());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

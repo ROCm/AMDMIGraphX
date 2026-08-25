@@ -268,6 +268,7 @@ struct find_reduce_broadcast
     {
         auto reduce           = match::name("fused_reduce")(match::used_once()).bind("reduce");
         auto broadcast_reduce = match::name("multibroadcast")(match::args(reduce),
+                                                              match::nargs(1),
                                                               match::used_once(),
                                                               input_output_ndim_match())
                                     .bind("broadcast");

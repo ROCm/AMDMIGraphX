@@ -1186,90 +1186,65 @@ struct value_tolerance
     double rtol_mult = 0;
 };
 
-/// Left undefined so that each type has to name its own window below. `literal::visit` instantiates
-/// its visitor for every type in MIGRAPHX_SHAPE_VISIT_TYPES, so a type that is missed here fails to
-/// compile rather than silently picking up a window sized for float.
-template <class T>
-struct value_tolerance_of
+/// The window has_value uses when the caller does not name one. Every enumerator is listed so that
+/// a type added to shape::type_t has to name its own window here rather than silently picking up a
+/// window sized for float.
+inline value_tolerance default_value_tolerance(shape::type_t t)
 {
-    static_assert(sizeof(T) == 0, "has_value has no tolerance window for this literal type");
-};
-
-/// The historical window, and negligible slack at this width.
-template <>
-struct value_tolerance_of<float>
-{
-    static constexpr value_tolerance value{10, 10};
-};
-template <>
-struct value_tolerance_of<double>
-{
-    static constexpr value_tolerance value{10, 10};
-};
-
-/// Seven rounding steps is a small slice of the values half holds per binade, and about five
-/// percent of a binade in bf16, which still leaves 1.0 and 1.125 apart.
-template <>
-struct value_tolerance_of<half>
-{
-    static constexpr value_tolerance value{3, 4};
-};
-template <>
-struct value_tolerance_of<bf16>
-{
-    static constexpr value_tolerance value{3, 4};
-};
-
-/// Under a single rounding step, so the window cannot reach the neighbouring constant in types
-/// holding only a handful of values per binade.
-template <>
-struct value_tolerance_of<fp8::fp8e4m3fn>
-{
-    static constexpr value_tolerance value{0.25, 0.5};
-};
-template <>
-struct value_tolerance_of<fp8::fp8e4m3fnuz>
-{
-    static constexpr value_tolerance value{0.25, 0.5};
-};
-template <>
-struct value_tolerance_of<fp8::fp8e5m2>
-{
-    static constexpr value_tolerance value{0.25, 0.5};
-};
-template <>
-struct value_tolerance_of<fp8::fp8e5m2fnuz>
-{
-    static constexpr value_tolerance value{0.25, 0.5};
-};
+    switch(t)
+    {
+    // The historical window, and negligible slack at these widths.
+    case shape::float_type: [[fallthrough]];
+    case shape::double_type: return {10, 10};
+    // Seven rounding steps is a small slice of the values half holds per binade, and about five
+    // percent of a binade in bf16, which still leaves 1.0 and 1.125 apart.
+    case shape::half_type: [[fallthrough]];
+    case shape::bf16_type: return {3, 4};
+    // Under a single rounding step, so the window cannot reach the neighbouring constant in types
+    // holding only a handful of values per binade.
+    case shape::fp8e4m3fn_type: [[fallthrough]];
+    case shape::fp8e4m3fnuz_type: [[fallthrough]];
+    case shape::fp8e5m2_type: [[fallthrough]];
+    case shape::fp8e5m2fnuz_type: return {0.25, 0.5};
+    // Integral types compare exactly. literal::visit throws for tuple and fp4x2, so their window
+    // is never reached.
+    case shape::bool_type: [[fallthrough]];
+    case shape::uint8_type: [[fallthrough]];
+    case shape::int8_type: [[fallthrough]];
+    case shape::uint16_type: [[fallthrough]];
+    case shape::int16_type: [[fallthrough]];
+    case shape::uint32_type: [[fallthrough]];
+    case shape::int32_type: [[fallthrough]];
+    case shape::uint64_type: [[fallthrough]];
+    case shape::int64_type: [[fallthrough]];
+    case shape::tuple_type: [[fallthrough]];
+    case shape::fp4x2_type: return {0, 0};
+    }
+    MIGRAPHX_THROW("has_value: invalid literal type");
+}
 
 namespace detail {
-/// Compares every element of `l` against `x` within atol + rtol * abs(x), where atol and rtol are
-/// the given multiples of the literal type's epsilon. Unset multipliers come from
-/// `value_tolerance_of` for that type. Integral types, and a window of zero, require an exact
-/// match.
+/// Compares every element of `l` against `x` within eps * (atol + rtol * abs(x)), where eps is the
+/// literal type's epsilon and the multiples default to `default_value_tolerance` for that type.
+/// Integral types have an epsilon of zero, so they require an exact match, as does a window of
+/// zero.
 template <class T>
 inline bool literal_has_value(const migraphx::literal& l,
                               T x,
                               optional<double> atol_mult,
                               optional<double> rtol_mult)
 {
-    bool b = false;
+    auto defaults = default_value_tolerance(l.get_shape().type());
+    auto atol     = atol_mult.value_or(defaults.atol_mult);
+    auto rtol     = rtol_mult.value_or(defaults.rtol_mult);
+    auto target   = static_cast<double>(x);
+    bool b        = false;
     l.visit([&](auto v) {
         // A literal views const data, so drop the qualifier or numeric_limits will miss the
         // specialization for the narrow types and report an epsilon of zero.
-        using type    = std::remove_cv_t<typename decltype(v)::value_type>;
-        double target = static_cast<double>(x);
-        double window = 0;
-        // Constexpr so that an integral type never needs a tolerance window of its own.
-        if constexpr(not std::is_integral<type>{})
-        {
-            constexpr auto defaults = value_tolerance_of<type>::value;
-            auto eps                = static_cast<double>(std::numeric_limits<type>::epsilon());
-            auto atol               = eps * atol_mult.value_or(defaults.atol_mult);
-            auto rtol               = eps * rtol_mult.value_or(defaults.rtol_mult);
-            window                  = atol + rtol * std::fabs(target);
-        }
+        using type  = std::remove_cv_t<typename decltype(v)::value_type>;
+        auto eps    = static_cast<double>(std::numeric_limits<type>::epsilon());
+        auto window = eps * (atol + rtol * std::fabs(target));
         if(migraphx::float_equal(window, 0))
         {
             // cast to the literal's data type before comparing

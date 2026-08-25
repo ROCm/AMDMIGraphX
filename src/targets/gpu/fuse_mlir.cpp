@@ -1062,9 +1062,7 @@ struct find_mlir_fused_geg_ops
 
             // replace the pointwise result (the main output) with tuple elem 0
             mpm.get_module().replace_instruction(
-                second_gemm_ins,
-                migraphx::make_op("get_tuple_elem", {{"index", 0}}),
-                fused_ins);
+                second_gemm_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
         }
         else
         {

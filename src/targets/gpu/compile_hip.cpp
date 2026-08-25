@@ -311,8 +311,9 @@ static src_compiler assemble(src_compiler compiler)
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
                                                const std::string& arch,
-                                               bool)
+                                               bool /*disable_processes*/)
 {
+    // disable_processes has no effect on the clang path — there is no subprocess to skip.
     assert(not srcs.empty());
 
     if(not is_hip_clang_compiler())

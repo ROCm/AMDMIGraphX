@@ -546,33 +546,32 @@ TEST_CASE(compile_hip_src_disable_processes)
 
 // hiprtc_disable_processes set via backend_options must thread through the full GPU target
 // pass pipeline (backend_options -> context -> compile_hip_src) and still produce a correct result.
+// relu lowers to gpu::precompile_op so compile_ops::apply triggers hiprtc compilation,
+// exercising the disable_processes path end-to-end through the pass pipeline.
 TEST_CASE(compile_code_object_disable_processes_backend_option)
 {
-    migraphx::shape input{migraphx::shape::float_type, {5, 2}};
-    migraphx::gpu::hip_compile_options hopts;
-    migraphx::gpu::context ctx;
-    hopts.global = 256 * 1024;
-    hopts.local  = 1024;
-    hopts.inputs = {input, input};
-    hopts.output = input;
+    migraphx::shape input_shape{migraphx::shape::float_type, {5, 2}};
+    auto input_literal = migraphx::generate_literal(input_shape);
 
-    auto co = migraphx::gpu::compile_hip_code_object(ctx, simple_pointwise_increment, hopts);
+    auto make_prog = [&] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        mm->add_return({mm->add_instruction(migraphx::make_op("relu"),
+                                            mm->add_literal(input_literal))});
+        return p;
+    };
 
-    migraphx::program p;
-    auto* mm            = p.get_main_module();
-    auto input_literal  = migraphx::generate_literal(input);
-    auto output_literal = migraphx::transform(input_literal, [](auto x) { return x + 1; });
-    auto x              = mm->add_literal(input_literal);
-    auto y              = mm->add_parameter("output", input);
-    mm->add_instruction(co, x, y);
+    auto p_ref = make_prog();
+    p_ref.compile(migraphx::make_target("ref"), migraphx::compile_options{});
+    auto expected = p_ref.eval({}).front();
 
+    auto p_gpu = make_prog();
     migraphx::compile_options options;
     options.backend_options["hiprtc_disable_processes"] = migraphx::value(true);
-    p.compile(migraphx::make_target("gpu"), options);
+    p_gpu.compile(migraphx::make_target("gpu"), options);
+    auto result = migraphx::gpu::from_gpu(p_gpu.eval({}).front());
 
-    auto result =
-        migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
-    EXPECT(result == output_literal.get_argument());
+    EXPECT(result == expected);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

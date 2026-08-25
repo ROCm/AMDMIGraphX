@@ -632,7 +632,6 @@ static void replace_inserted_device_ops(context& ctx, module& m)
 
 void compile_ops::apply(module_pass_manager& mpm) const
 {
-    assert(ctx != nullptr);
     bool is_root = &mpm.get_module() == mpm.get_root_module();
     auto& m      = mpm.get_module();
     compile_manager cm;

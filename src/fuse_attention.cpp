@@ -664,94 +664,85 @@ struct find_flash_decoding
         const std::vector<std::size_t>& scores_lens,
         std::size_t num_groups) const
     {
-        // map from instructions in the old module to the new ones in the target module
-        std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
-        std::unordered_map<std::string, instruction_ref> softmax_parts;
         const auto split_lens = get_scores_split_lens(scores_lens, num_groups);
 
+        // The rewrites below run from an inserter, which is not given the source instruction,
+        // so anything that must inspect it is checked here, before target_mod is touched.
+        auto unsupported = [&](const instruction& ins) {
+            // score-shaped broadcasts would need axis adjusted as the rank grows
+            if(ins.name() == "broadcast")
+                return ins.get_shape().lens() == scores_lens;
+            // reductions are rewritten onto the innermost axis of the split rank
+            if(ins.name() == "reduce_max" or ins.name() == "reduce_sum")
+            {
+                const int64_t last_axis = ins.inputs().front()->get_shape().ndim() - 1;
+                auto axes = ins.get_operator().to_value()["axes"].to_vector<int64_t>();
+                return axes.size() != 1 or (axes.front() != -1 and axes.front() != last_axis);
+            }
+            return false;
+        };
+        if(std::any_of(source_mod.begin(), source_mod.end(), unsupported))
+            return false;
+
+        // map from instructions in the old module to the new ones in the target module
+        std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
+
+        // add_instructions copies literals verbatim and offers no hook for rewriting one, so
+        // we split them up front and map them. This then skips literals in the rebuild below.
         for(auto ins : iterator_for(source_mod))
         {
-            if(ins->name() == "@param" or ins->name() == "@return")
+            if(ins->name() != "@literal")
                 continue;
+            map_old_to_new[ins] = target_mod.add_literal(
+                transform_score_literal(ins->get_literal(), scores_lens, num_groups));
+        }
 
-            if(ins->name() == "@literal")
-            {
-                map_old_to_new[ins] = target_mod.add_literal(
-                    transform_score_literal(ins->get_literal(), scores_lens, num_groups));
-                continue;
-            }
-            if(ins->name() == "@outline")
-            {
-                map_old_to_new[ins] = target_mod.add_outline(ins->get_shape());
-                continue;
-            }
-
-            if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
-                   return contains(map_old_to_new, input);
-               }))
-                return false;
-
-            std::vector<instruction_ref> new_inputs;
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           std::back_inserter(new_inputs),
-                           [&](auto i) { return map_old_to_new.at(i); });
-
-            auto op = ins->get_operator();
-
-            // transform operators that depend on tensor shape/rank
-            // adjust reduction axes for the new rank
-            if(op.name() == "reduce_max" or op.name() == "reduce_sum")
-            {
-                auto original_axes = op.to_value()["axes"].to_vector<int64_t>();
-                assert(original_axes.size() == 1 and "Expected single axis for reduction");
-
-                const auto& new_input_shape = new_inputs.front()->get_shape();
-                assert(original_axes.front() == ins->inputs().front()->get_shape().ndim() - 1 or
-                       original_axes.front() == -1);
-                op.from_value({{"axes", {new_input_shape.ndim() - 1}}});
-            }
-            else if(op.name() == "broadcast")
-            {
-                if(ins->get_shape().lens() == scores_lens)
-                    return false;
-            }
-            else if(op.name() == "multibroadcast")
-            {
-                const auto& orig_out_lens = ins->get_shape().lens();
-                if(orig_out_lens == scores_lens)
+        // Rebuild the rest, transforming operators that depend on tensor shape/rank.
+        // Params, outlines, and return are handled by add_instructions
+        std::unordered_map<std::string, instruction_ref> softmax_parts;
+        auto outputs = target_mod.add_instructions(
+            &source_mod,
+            &map_old_to_new,
+            [&](module& m,
+                instruction_ref pos,
+                const operation& op,
+                const std::vector<instruction_ref>& inputs,
+                const std::vector<module_ref>& mod_args) {
+                auto new_op = op;
+                if(op.name() == "reduce_max" or op.name() == "reduce_sum")
                 {
-                    const auto& input_lens = new_inputs.front()->get_shape().lens();
+                    new_op.from_value({{"axes", {inputs.front()->get_shape().ndim() - 1}}});
+                }
+                else if(op.name() == "multibroadcast" and
+                        op.to_value()["out_lens"].to_vector<std::size_t>() == scores_lens)
+                {
+                    const auto& input_lens = inputs.front()->get_shape().lens();
+                    // If the input cannot broadcast to the split shape directly, broadcast to
+                    // the original score shape first and then split that
                     if(not can_multibroadcast(input_lens, split_lens) and
-                       can_multibroadcast(input_lens, orig_out_lens))
-                    {
-                        auto bc_ins         = target_mod.add_instruction(op, new_inputs);
-                        map_old_to_new[ins] = insert_scores_split(
-                            target_mod, bc_ins, target_mod.insert_end(), num_groups);
-                        continue;
-                    }
+                       can_multibroadcast(input_lens, scores_lens))
+                        return insert_scores_split(
+                            m, m.insert_instruction(pos, op, inputs), pos, num_groups);
 
                     auto value        = op.to_value();
                     value["out_lens"] = split_lens;
-                    op.from_value(value);
+                    new_op.from_value(value);
                 }
-            }
 
-            auto new_ins        = target_mod.add_instruction(op, new_inputs);
-            map_old_to_new[ins] = new_ins;
+                auto new_ins = m.insert_instruction(pos, new_op, inputs, mod_args);
 
-            // store key softmax components for LSE calculation
-            if(op.name() == "reduce_max")
-                softmax_parts["max"] = new_ins;
-            if(op.name() == "reduce_sum")
-                softmax_parts["sum_exp"] = new_ins;
-        }
+                // store key softmax components for LSE calculation
+                if(op.name() == "reduce_max")
+                    softmax_parts["max"] = new_ins;
+                if(op.name() == "reduce_sum")
+                    softmax_parts["sum_exp"] = new_ins;
+                return new_ins;
+            });
 
-        // get the final partial output (O')
-        auto orig_return_ins = std::prev(source_mod.end())->inputs().front();
-        if(not contains(map_old_to_new, orig_return_ins))
+        // the final partial output (O')
+        if(outputs.size() != 1)
             return false;
-        auto partial_output_o_prime = map_old_to_new.at(orig_return_ins);
+        auto partial_output_o_prime = outputs.front();
 
         // calculate LSE = max(S) + log(sum(exp(S - max(S))))
         assert(contains(softmax_parts, "max") and contains(softmax_parts, "sum_exp"));

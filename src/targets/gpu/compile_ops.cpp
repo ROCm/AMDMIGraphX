@@ -596,10 +596,7 @@ struct compile_manager
             }
         }
 
-        // Only throw on the root module so that submodules (which are processed
-        // first by the pass manager and may legitimately have no precompile ops
-        // or no multi-solution candidates) don't abort compilation before the
-        // root module has had a chance to dump its benchmark MXR files.
+        // Exit on the root module so all submodules get processed first.
         if(dump_mxr and is_root)
         {
             if(dumped_mxr_files > 0)
@@ -613,8 +610,7 @@ struct compile_manager
             {
                 log::info()
                     << "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR is set to " << mxr_path
-                    << ", but no benchmark MXR files were dumped because no operator had "
-                       "multiple solutions to benchmark.";
+                    << ", but no benchmark files were dumped.";
             }
             std::exit(0);
         }

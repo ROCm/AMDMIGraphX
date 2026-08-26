@@ -63,6 +63,8 @@ struct hip_compiler_info
     /// The full __clang_version__ string, which also names the source revision.
     std::string version = {};
 
+    std::vector<std::string> flags = {};
+
     bool empty() const { return version.empty(); }
 };
 

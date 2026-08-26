@@ -59,6 +59,29 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
 
+std::vector<std::string> compile_hip_options(const std::vector<std::string>& params,
+                                             const std::string& arch)
+{
+    auto options = params;
+    if(enabled(MIGRAPHX_GPU_DEBUG{}))
+        options.push_back("-DMIGRAPHX_DEBUG");
+    if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
+           return starts_with(s, "--std=") or starts_with(s, "-std=");
+       }))
+        options.push_back("-std=c++17");
+    if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
+        options.emplace_back("-g");
+    options.push_back("-fno-gpu-rdc");
+    options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
+    options.push_back("-Wno-cuda-compat");
+    options.push_back("--offload-arch=" + arch);
+    std::vector<std::string> extra_flags =
+        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
+    options.insert(options.end(), extra_flags.begin(), extra_flags.end());
+
+    return options;
+}
+
 #ifdef MIGRAPHX_USE_HIPRTC
 
 namespace {
@@ -207,21 +230,8 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
                                                            bool quiet)
 {
     hiprtc_program prog(std::move(srcs));
-    auto options = params;
+    auto options = compile_hip_options(params, arch);
     options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
-    if(enabled(MIGRAPHX_GPU_DEBUG{}))
-        options.push_back("-DMIGRAPHX_DEBUG");
-    if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
-           return starts_with(s, "--std=") or starts_with(s, "-std=");
-       }))
-        options.push_back("-std=c++17");
-    options.push_back("-fno-gpu-rdc");
-    options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
-    options.push_back("-Wno-cuda-compat");
-    options.push_back("--offload-arch=" + arch);
-    std::vector<std::string> extra_flags =
-        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
-    options.insert(options.end(), extra_flags.begin(), extra_flags.end());
 
     prog.compile(options, quiet);
 
@@ -321,34 +331,15 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         MIGRAPHX_THROW("Unknown hip compiler: " MIGRAPHX_HIP_COMPILER);
 
     src_compiler compiler;
-    compiler.flags    = params;
+    compiler.flags    = compile_hip_options(params, arch);
     compiler.compiler = MIGRAPHX_HIP_COMPILER;
 #ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
     if(has_compiler_launcher())
         compiler.launcher = MIGRAPHX_HIP_COMPILER_LAUNCHER;
 #endif
 
-    if(std::none_of(params.begin(), params.end(), [](const std::string& s) {
-           return starts_with(s, "--std=") or starts_with(s, "-std=");
-       }))
-        compiler.flags.emplace_back("--std=c++17");
-    compiler.flags.emplace_back(" -fno-gpu-rdc");
-    if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
-        compiler.flags.emplace_back("-g");
     compiler.flags.emplace_back("-c");
-    compiler.flags.emplace_back("--offload-arch=" + arch);
-    compiler.flags.emplace_back("--cuda-device-only");
-    compiler.flags.emplace_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ");
-
-    if(enabled(MIGRAPHX_GPU_DEBUG{}))
-        compiler.flags.emplace_back("-DMIGRAPHX_DEBUG");
-
-    compiler.flags.emplace_back("-Wno-unused-command-line-argument");
-    compiler.flags.emplace_back("-Wno-cuda-compat");
     compiler.flags.emplace_back(MIGRAPHX_HIP_COMPILER_FLAGS);
-    std::vector<std::string> extra_flags =
-        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
-    compiler.flags.insert(compiler.flags.end(), extra_flags.begin(), extra_flags.end());
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {
@@ -419,7 +410,7 @@ static hip_compiler_info parse_version(const std::vector<char>& obj)
     auto fields = split_string(std::string{begin, end}, '|');
     if(fields.size() != 3)
         return {};
-    return {fields[0], fields[1], fields[2]};
+    return {.major = fields[0], .minor = fields[1], .version = fields[2], .flags = compile_hip_options({}, version_probe_arch)};
 }
 
 const hip_compiler_info& hip_compiler_version()

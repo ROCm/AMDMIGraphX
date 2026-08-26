@@ -339,6 +339,8 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 #endif
 
     compiler.flags.emplace_back("-c");
+    compiler.flags.emplace_back("--cuda-device-only");
+    compiler.flags.emplace_back("-Wno-unused-command-line-argument");
     compiler.flags.emplace_back(MIGRAPHX_HIP_COMPILER_FLAGS);
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))

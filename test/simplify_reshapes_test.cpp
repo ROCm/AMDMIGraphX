@@ -5334,6 +5334,33 @@ TEST_CASE(slice_squeeze_binary_two_inputs)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(slice_squeeze_binary_scalar)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 8}};
+    migraphx::module m1;
+    {
+        auto input  = m1.add_parameter("input", s);
+        auto scalar = m1.add_literal(0.5f);
+        auto slice  = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), slice);
+        auto mul     = m1.add_instruction(migraphx::make_op("mul"), squeeze, scalar);
+        m1.add_return({mul});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s);
+        auto scalar  = m2.add_literal(0.5f);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), input);
+        auto slice   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), squeeze);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), slice, scalar);
+        m2.add_return({mul});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(slice_squeeze_binary_different_inputs)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 4}};

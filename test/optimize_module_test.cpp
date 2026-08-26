@@ -24,11 +24,15 @@
 
 #include <migraphx/literal.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/fuse_pointwise.hpp>
+#include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/serialize.hpp>
@@ -345,6 +349,76 @@ TEST_CASE(slice_squeeze_non_zero_axis)
         m2.add_return({s0, s1});
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+// End-to-end guard for the MLP prediction-tower SiLU pattern.
+//
+// This mirrors the GPU compile ordering around optimize_module:
+//   * fuse_pointwise collapses each per-slice SiLU (sigmoid * x) into a single
+//     pointwise op,
+//   * optimize_module (via find_splits) hoists that pointwise above the sibling
+//     slices that exactly tile a common tensor, and
+//   * fuse_horizontal batches the parallel constant-weight dots into one GEMM.
+//
+// All three reductions must occur.  This captures regressions like
+// dot_horizontal_fusion becoming unregistered in fuse_horizontal, which
+// silently stops the tower dots from batching.
+TEST_CASE(mlp_tower_silu_pipeline_end_to_end)
+{
+    migraphx::program p;
+    {
+        auto* m = p.get_main_module();
+        std::vector<migraphx::instruction_ref> outs;
+
+        // SiLU hoist target: sigmoid * x replicated over sibling row slices that
+        // exactly tile a common tensor.
+        auto t = m->add_parameter("t", {migraphx::shape::float_type, {4, 8}});
+        for(int i = 0; i < 4; ++i)
+        {
+            auto s = m->add_instruction(
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), t);
+            auto sig = m->add_instruction(migraphx::make_op("sigmoid"), s);
+            outs.push_back(m->add_instruction(migraphx::make_op("mul"), s, sig));
+        }
+
+        // Dot-batch target: parallel constant-weight dots with identical shapes.
+        for(int i = 0; i < 3; ++i)
+        {
+            auto x =
+                m->add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 3}});
+            auto w = m->add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {3, 5}}, i));
+            outs.push_back(m->add_instruction(migraphx::make_op("dot"), x, w));
+        }
+
+        m->add_return(outs);
+    }
+
+    migraphx::run_passes(p,
+                         {migraphx::fuse_pointwise{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::optimize_module{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::fuse_horizontal{},
+                          migraphx::dead_code_elimination{}});
+
+    std::size_t n_dot       = 0;
+    std::size_t n_pointwise = 0;
+    for(auto ins : migraphx::iterator_for(*p.get_main_module()))
+    {
+        const auto& name = ins->name();
+        if(name == "dot")
+            ++n_dot;
+        else if(name == "pointwise")
+            ++n_pointwise;
+    }
+
+    // dot_horizontal_fusion collapses the 3 parallel dots into one batched GEMM.
+    EXPECT(n_dot == 1);
+    // fuse_pointwise turns each per-slice SiLU into one pointwise op, which the
+    // find_splits hoist inside optimize_module then collapses into a single
+    // pointwise on the bounding slice.
+    EXPECT(n_pointwise == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

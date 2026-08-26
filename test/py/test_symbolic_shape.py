@@ -62,6 +62,32 @@ def test_create_symbolic_dyn_shape():
     assert not s.dyn_dims()[1].is_symbolic()
 
 
+def _symbolic_program():
+    p = migraphx.program()
+    m = p.get_main_module()
+    s = migraphx.shape(type='float',
+                       dyn_dims=[
+                           migraphx.shape.dynamic_dimension(
+                               "n * 3 + 1",
+                               {"n": migraphx.shape.dynamic_dimension(1, 8)}),
+                           migraphx.shape.dynamic_dimension(3, 3)
+                       ])
+    m.add_return(
+        [m.add_instruction(migraphx.op("neg"), [m.add_parameter("x", s)])])
+    return p
+
+
+def test_to_py_preserves_symbolic_expression():
+    p = _symbolic_program()
+    assert "migraphx.shape.from_json" in p.to_py()
+
+    # The generated code has to rebuild an equal program, expression included. Sorting first
+    # because to_py does not preserve the declaration order of parameters.
+    scope = {"migraphx": migraphx}
+    exec(p.to_py(), scope)
+    assert scope["p"].sort() == p.sort()
+
+
 def test_parse_onnx_symbolic_dyn_input():
     p = migraphx.parse_onnx(
         "dim_param_test.onnx",
@@ -84,4 +110,5 @@ if __name__ == "__main__":
     test_create_symbolic_dyn_dims()
     test_create_symbolic_compound_expr()
     test_create_symbolic_dyn_shape()
+    test_to_py_preserves_symbolic_expression()
     test_parse_onnx_symbolic_dyn_input()

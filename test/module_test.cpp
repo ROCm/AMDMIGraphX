@@ -28,6 +28,9 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/json.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/sym.hpp>
 #include <random>
 #include <sstream>
 
@@ -2304,6 +2307,74 @@ TEST_CASE(module_assign_clears_previous_foreign_outputs)
     // Assigning over a drops the instruction that referenced x.
     a = migraphx::module{};
     EXPECT(x->outputs().empty());
+}
+
+// The printers spell a shape carrying a symbolic dimension as its json value form, so build the
+// expected call the same way the printers do and check it appears verbatim.
+static std::string json_shape_call(const std::string& factory, const migraphx::shape& s)
+{
+    auto json = migraphx::to_json_string(migraphx::to_value(s));
+    return factory + "(\"" + migraphx::replace_string(json, "\"", "\\\"") + "\")";
+}
+
+static migraphx::module symbolic_param_module(const migraphx::shape& s)
+{
+    migraphx::module m;
+    m.add_return({m.add_instruction(migraphx::make_op("neg"), m.add_parameter("x", s))});
+    return m;
+}
+
+TEST_CASE(module_print_symbolic_shape_cpp)
+{
+    migraphx::shape s{migraphx::shape::float_type,
+                      {migraphx::shape::dynamic_dimension{migraphx::sym::var("n", {1, 8})},
+                       migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}}};
+    auto m = symbolic_param_module(s);
+
+    std::stringstream ss;
+    m.print_cpp(ss);
+    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx::make_json_shape", s)));
+}
+
+TEST_CASE(module_print_symbolic_shape_py)
+{
+    migraphx::shape s{migraphx::shape::float_type,
+                      {migraphx::shape::dynamic_dimension{migraphx::sym::var("n", {1, 8})},
+                       migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}}};
+    auto m = symbolic_param_module(s);
+
+    std::stringstream ss;
+    m.print_py(ss);
+    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx.shape.from_json", s)));
+}
+
+// A symbol name that sym::parse would reject must not need any escaping beyond the json quoting.
+TEST_CASE(module_print_symbolic_shape_name_not_an_identifier)
+{
+    migraphx::shape s{
+        migraphx::shape::float_type,
+        {migraphx::shape::dynamic_dimension{migraphx::sym::var("input.1_d0", {1, 8})}}};
+    auto m = symbolic_param_module(s);
+
+    std::stringstream ss;
+    m.print_cpp(ss);
+    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx::make_json_shape", s)));
+}
+
+// Only symbolic dimensions need the json form; a range-based dynamic shape keeps the readable one.
+TEST_CASE(module_print_dyn_range_shape_stays_readable)
+{
+    auto m = symbolic_param_module({migraphx::shape::float_type, {{1, 4}, {3, 3}}});
+
+    std::stringstream ss_cpp;
+    m.print_cpp(ss_cpp);
+    EXPECT(migraphx::contains(ss_cpp.str(), "migraphx::shape{migraphx::shape::float_type"));
+    EXPECT(not migraphx::contains(ss_cpp.str(), "make_json_shape"));
+
+    std::stringstream ss_py;
+    m.print_py(ss_py);
+    EXPECT(migraphx::contains(ss_py.str(), "migraphx.shape.dynamic_dimension(1, 4)"));
+    EXPECT(not migraphx::contains(ss_py.str(), "from_json"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

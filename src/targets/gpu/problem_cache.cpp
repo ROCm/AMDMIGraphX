@@ -142,13 +142,17 @@ optional<value> problem_cache::get(const std::string& name, const value& problem
     const auto key = create_key(name, problem);
     // Writable caches first (a locally tuned solution wins), then the read-only
     // layers in priority order (first hit wins among them).
-    for(const auto& b : writable_backends)
-        if(auto sol = b.get(device_key, key))
-            return sol;
-    for(const auto& ro : read_only_backends)
-        if(auto sol = ro.get(device_key, key))
-            return sol;
-    return {};
+    const auto search = [&](const std::vector<problem_cache_backend>& backends) -> optional<value> {
+        const auto it = std::find_if(backends.begin(), backends.end(), [&](const auto& b) {
+            return b.get(device_key, key).has_value();
+        });
+        if(it != backends.end())
+            return it->get(device_key, key);
+        return {};
+    };
+    if(auto sol = search(writable_backends))
+        return sol;
+    return search(read_only_backends);
 }
 
 } // namespace gpu

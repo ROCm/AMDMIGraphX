@@ -58,8 +58,6 @@ struct fused_reduce
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         const auto* sm = mods.front();
-        if(sm->get_output_shapes().size() != 1)
-            MIGRAPHX_THROW("Only one output supported");
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
@@ -72,6 +70,13 @@ struct fused_reduce
                return shape::same_lens(input, s);
            }))
             MIGRAPHX_THROW("Input dimension does not match the submodule.");
+
+        if(sm->get_output_shapes().size() != 1)
+        {
+            auto result = sm->compute_shapes(
+                inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+            return shape{result};
+        }
 
         if(sm->get_output_shapes().front().dynamic())
             return sm->get_output_shapes().front();

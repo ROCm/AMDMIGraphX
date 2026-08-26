@@ -33,15 +33,26 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
 
-/// For large reductions that are larger than the split_size, this pass will
-/// split the fused_reduce operators so that the reduction will happen across
-/// multiple compute units gaining better occupancy for targets with many
-/// compute units. Since the reduction is split across compute units, any
-/// elementwise operators will be split into separate operators as well due to
-/// needing global synchronization.
+/// This pass will split large fused_reduce operators so that the reduction
+/// will happen across multiple compute units gaining better occupancy for
+/// targets with many compute units. For reductions larger than the
+/// partial_split_size, the reduce axis is split into groups by reshaping the
+/// inputs(so {M, N} becomes {M, N/G, G}), a first fused_reduce computes a
+/// partial reduction for each group, and the trailing module completes it
+/// with another reduction over the groups. For reductions larger than the
+/// split_size, the atomic-based split_fused_reduce can be used instead,
+/// which splits any elementwise operators into separate operators as well
+/// due to needing global synchronization. When both thresholds are
+/// applicable, prefer_partial_reduce selects which one is used.
 struct MIGRAPHX_EXPORT split_reduce
 {
+    /// Threshold to use the atomic-based split_fused_reduce
     std::size_t split_size = 8192;
+    /// Threshold to split into a partial reduction that is completed by a
+    /// second fused_reduce
+    std::size_t partial_split_size = 8192;
+    /// Use the partial reduction when both thresholds are applicable
+    bool prefer_partial_reduce = true;
     std::string name() const { return "split_reduce"; }
     void apply(module_pass_manager& mpm) const;
 };

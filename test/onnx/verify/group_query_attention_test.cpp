@@ -80,11 +80,16 @@ TEST_CASE(group_query_attention_decode_local_test)
     std::vector<float> pres_val_vector;
     pres_val.visit([&](auto output) { pres_val_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold   = {1,        1,         1,        1,       1,        1,        1,
-                                 1,        1,         1,        1,       1,        1,        1,
-                                 1,        1,         2.80469,  7.04297, 2.4668,   8.39844,  0.737793,
-                                 -3.96094, -4.94531,  7.45703,  2.5332,  -4.35156, -5.60547, 2.41016,
-                                 -7.48438, -0.263916, -7.88672, 0.12793};
+    // output from onnxruntime CPU EP. Only this array is ORT-sourced: ORT zeroes the present
+    // cache rows it does not write whereas this implementation leaves the incoming
+    // past_key_values in place, so gold_k and gold_v below still pin our own behavior.
+    std::vector<float> gold   = {1,           1,          1,           1,           1,
+                                 1,           1,          1,           1,           1,
+                                 1,           1,          1,           1,           1,
+                                 1,           2.8046875,  7.04296875,  2.46679688,  8.40625,
+                                 0.737792969, -3.9609375, -4.94921875, 7.4609375,   2.53320312,
+                                 -4.35546875, -5.609375,  2.41015625,  -7.48828125, -0.263916016,
+                                 -7.88671875, 0.128051758};
     std::vector<float> gold_k = {
         1,        1,        1,        1,        1,         1,        1,        1,        1,
         1,        1,        1,        1,        1,         1,        1,        1,        1,
@@ -457,11 +462,16 @@ TEST_CASE(group_query_attention_decode_test)
     std::vector<float> pres_val_vector;
     pres_val.visit([&](auto output) { pres_val_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold   = {1,        1,         1,        1,       1,        1,        1,
-                                 1,        1,         1,        1,       1,        1,        1,
-                                 1,        1,         2.80469,  7.04297, 2.4668,   8.39844,  0.737793,
-                                 -3.96094, -4.94531,  7.45703,  2.5332,  -4.35156, -5.60547, 2.41016,
-                                 -7.48438, -0.263916, -7.88672, 0.12793};
+    // output from onnxruntime CPU EP. Only this array is ORT-sourced: ORT zeroes the present
+    // cache rows it does not write whereas this implementation leaves the incoming
+    // past_key_values in place, so gold_k and gold_v below still pin our own behavior.
+    std::vector<float> gold   = {1,           1,          1,           1,           1,
+                                 1,           1,          1,           1,           1,
+                                 1,           1,          1,           1,           1,
+                                 1,           2.8046875,  7.04296875,  2.46679688,  8.40625,
+                                 0.737792969, -3.9609375, -4.94921875, 7.4609375,   2.53320312,
+                                 -4.35546875, -5.609375,  2.41015625,  -7.48828125, -0.263916016,
+                                 -7.88671875, 0.128051758};
     std::vector<float> gold_k = {
         1,        1,        1,        1,        1,         1,        1,        1,        1,
         1,        1,        1,        1,        1,         1,        1,        1,        1,

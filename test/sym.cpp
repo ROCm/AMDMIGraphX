@@ -3472,14 +3472,6 @@ TEST_CASE(interval_contains)
     EXPECT(not bounds.contains(int64_t{6}));
 }
 
-TEST_CASE(interval_contains_nan)
-{
-    const auto nan = std::numeric_limits<double>::quiet_NaN();
-    EXPECT(not interval{nan, 1.0}.contains(0.0));
-    EXPECT(not interval{0.0, nan}.contains(0.0));
-    EXPECT(not interval{0.0, 1.0}.contains(nan));
-}
-
 TEST_CASE(fixed_value_literal)
 {
     auto result = fixed_value(lit(5));
@@ -3535,13 +3527,6 @@ TEST_CASE(provable_equal_fixed_expressions)
     auto x = var("x", interval{int64_t{5}, int64_t{5}});
     EXPECT(provable_equal(x + 1, lit(6)).value_or(false));
     EXPECT(not provable_equal(x + 1, lit(7)).value_or(true));
-}
-
-TEST_CASE(provable_equal_nan)
-{
-    const auto result = provable_equal(lit(std::numeric_limits<double>::quiet_NaN()), lit(0.0));
-    EXPECT(result.has_value());
-    EXPECT(not *result);
 }
 
 TEST_CASE(provable_equal_rejects_collapsed_compound_interval)

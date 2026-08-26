@@ -305,8 +305,8 @@ struct match_find_quantizable_ops
             }
         }
 
-        // The correction inherits a transposed layout from its broadcast zero-point operand, which
-        // folds to a transposed literal that the fused MLIR dequant kernel misreads as standard.
+        // The correction inherits its layout from a zero point broadcast to all-zero strides, so
+        // find_permutation has no strides to read and orders the axes by length instead.
         if(out_zp->get_shape().packed() and not out_zp->get_shape().standard())
             out_zp = m.insert_instruction(qop, make_op("contiguous"), out_zp);
 

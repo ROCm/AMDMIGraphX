@@ -971,6 +971,47 @@ TEST_CASE(conv_asymmetric_input)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(conv_asymmetric_input_nonstandard_correction)
+{
+    // Spatial dims larger than the channel count leave the zero-point correction channels-last,
+    // unlike conv_asymmetric_input above. It must still reach dequantizelinear standard.
+    migraphx::shape sx{migraphx::shape::float_type, {1, 2, 4, 4}};
+    migraphx::shape sw{migraphx::shape::int8_type, {2, 2, 3, 3}};
+
+    migraphx::module m1;
+    {
+        auto input   = m1.add_parameter("input", sx);
+        auto weights = m1.add_parameter("weights", sw);
+        auto scale   = m1.add_literal(0.5f);
+        auto zp_in   = m1.add_literal(std::int8_t{1});
+        auto zp_w    = m1.add_literal(std::int8_t{0});
+
+        auto d1 = add_quantize_op(m1, "dequantizelinear", weights, scale, zp_w);
+        auto q1 = add_quantize_op(m1, "quantizelinear", input, scale, zp_in);
+        auto d5 = add_quantize_op(m1, "dequantizelinear", q1, scale, zp_in);
+        auto c1 = m1.add_instruction(migraphx::make_op("convolution",
+                                                       {{"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1},
+                                                        {"padding_mode", 0}}),
+                                     d5,
+                                     d1);
+        m1.add_return({c1});
+    }
+
+    run_pass(m1);
+
+    // The pass must have quantized the conv, otherwise there is no correction to check.
+    EXPECT(none_of(m1, &is_convolution));
+
+    auto dq = std::find_if(m1.begin(), m1.end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "dequantizelinear" and ins.inputs().size() == 3;
+    });
+    EXPECT(dq != m1.end());
+    EXPECT(dq->inputs().at(2)->get_shape().standard());
+}
+
 TEST_CASE(conv_multi_scale)
 {
     migraphx::shape s4{migraphx::shape::int8_type, {1280, 320, 1, 1}};

@@ -1002,7 +1002,6 @@ TEST_CASE(conv_asymmetric_input_nonstandard_correction)
 
     run_pass(m1);
 
-    // The pass must have quantized the conv, otherwise there is no correction to check.
     EXPECT(none_of(m1, &is_convolution));
 
     auto dq = std::find_if(m1.begin(), m1.end(), [](const migraphx::instruction& ins) {

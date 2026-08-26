@@ -65,6 +65,7 @@ Full documentation for MIGraphX is available at
 * Allow for 1 arg slicing over a dynamic dimension. (#5015)
 * Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
 * Rejected symbolic input shapes in the multi-input `slice` calls, and pointed both symbolic `slice` errors at `dyn_slice` (#5088).
+* Updated `find_concat_reshape` matcher to fuse concats of reshapes whose inputs differ along the concat axis, as long as the non-axis dimensions match (#5181).
 
 ### Resolved issues
 
@@ -72,6 +73,7 @@ Full documentation for MIGraphX is available at
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
+* Fixed a regression in `simplify_algebra` where `find_add_convs` and `find_conv_concat_split_fuse` could fuse parallel convolutions with mismatched spatial dimensions after `rewrite_convolution`, causing `CONCAT: all input dimensions should match` failures when compiling U-Net-style models.
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
 * Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518).
@@ -86,6 +88,7 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
+* Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).
 * Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
 

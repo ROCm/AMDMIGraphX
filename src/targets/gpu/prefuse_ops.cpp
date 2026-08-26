@@ -607,8 +607,17 @@ bool winograd_f23_profitable(
     // large-channel regime for NHWC -- this is layout-specific; NCHW still wins
     // it and is unchanged. The override table below is NCHW-derived, so the NHWC
     // gate is applied first.
-    if(nhwc and min_ch >= 224)
-        return false;
+    if(nhwc)
+    {
+        if(min_ch >= 224)
+            return false;
+        if(min_ch >= 128 and spatial >= 48)
+            return false;
+        if(min_ch >= 64 and spatial >= 64)
+            return false;
+        if(max_ch >= 4 * min_ch and spatial >= 32)
+            return false;
+    }
 
     if(const auto* ovr = find_shape_override(winograd_f23_overrides, in_ch, out_ch, height, width))
         return ovr->use_winograd;

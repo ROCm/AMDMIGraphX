@@ -68,6 +68,9 @@ struct hip_compiler_info
     bool empty() const { return version.empty(); }
 };
 
+std::vector<std::string> compile_hip_options(const std::vector<std::string>& params,
+                                             const std::string& arch);
+
 /**
  * Ask the device compiler what version it is.
  *

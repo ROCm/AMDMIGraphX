@@ -253,6 +253,7 @@ std::string hip_compile_key(const context& ctx, const hip_src& src)
            src.options.virtual_inputs.empty());
     auto options = src.options;
     add_derived_params(ctx, options);
+    options.params = compile_hip_options(options.params, ctx.get_current_device().get_device_name());
 
     std::stringstream ss;
     ss << "arch=" << ctx.get_current_device().get_device_name() << "\n";

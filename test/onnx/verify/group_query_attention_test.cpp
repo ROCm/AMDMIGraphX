@@ -668,14 +668,10 @@ TEST_CASE(group_query_attention_prefill_test)
     std::vector<float> pres_val_vector;
     pres_val.visit([&](auto output) { pres_val_vector.assign(output.begin(), output.end()); });
 
-    // fp16 output. Only the last two rows were re-measured when float32 -> half conversion moved
-    // from truncation to round-to-nearest; every value above them shifted by at most one ULP,
-    // which this test's 1e-3 RMS tolerance absorbs, so they keep their earlier literals and cost
-    // 0.070 of the 0.160 total error the tolerance allows. Those last two rows are the query
-    // positions past seqlens_k = 8, where the softmax denominator is degenerate and cancellation
-    // turns a 1-ULP input change into swings of up to 860 ULP, so they pin this implementation
-    // rather than GroupQueryAttention's specified behavior and will move again on any unrelated
-    // numeric change in the chain.
+    // fp16 output, pinning this implementation rather than GroupQueryAttention's specified
+    // behavior. The last two rows are the query positions past seqlens_k = 8, where a degenerate
+    // softmax denominator turns a 1-ULP input change into swings of up to 860 ULP, so expect them
+    // to move on any unrelated numeric change in the chain.
     std::vector<float> gold = {
         -5.27734,  -8.74219,  -9.92188,  7.54297,    -7.33984,  2.73047,   -2.63477, -9.71094,
         5.64062,   -6.34766,  5.39062,   -0.0889893, -9.89844,  1.39355,   9.28125,  1.88281,

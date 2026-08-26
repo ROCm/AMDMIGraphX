@@ -32,7 +32,7 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/tensor_view.hpp>
 #include <migraphx/literal.hpp>
 #include <algorithm>
 #include <iterator>
@@ -584,22 +584,6 @@ struct find_flash_decoding
             insert_before, make_op("transpose", {{"permutation", perm}}), reshaped);
     }
 
-    // Merge split index [..., G, M, N/G] into unsplit index [..., M, N]
-    static std::vector<std::size_t> merge_split_index(const std::vector<std::size_t>& split_idx,
-                                                      std::size_t unsplit_ndim,
-                                                      std::size_t n_split)
-    {
-        const auto g = split_idx.at(unsplit_ndim - 2);
-        const auto m = split_idx.at(unsplit_ndim - 1);
-        const auto j = split_idx.at(unsplit_ndim);
-
-        std::vector<std::size_t> unsplit_idx(unsplit_ndim);
-        std::copy(split_idx.begin(), split_idx.begin() + unsplit_ndim - 2, unsplit_idx.begin());
-        unsplit_idx[unsplit_ndim - 2] = m;
-        unsplit_idx[unsplit_ndim - 1] = g * n_split + j;
-        return unsplit_idx;
-    }
-
     // Compile-time counterpart of insert_scores_split for literals in the
     // attention submodule, like causal masks. Split the literal's own layout
     // (e.g. {1,1,M,N} -> {1,1,G,M,N/G}); multibroadcast covers leading 1s.
@@ -626,17 +610,19 @@ struct find_flash_decoding
 
         literal result;
         lit.visit([&](auto in_view) {
-            using type = std::remove_cv_t<std::remove_reference_t<decltype(*in_view.begin())>>;
-            const shape in_shape    = lit.get_shape();
-            const shape split_shape = {in_shape.type(), split_lens};
-            std::vector<type> split_data(split_shape.elements(), type{});
+            using type           = std::remove_cv_t<typename decltype(in_view)::value_type>;
+            const auto& in_shape = in_view.get_shape();
 
-            shape_for_each(split_shape,
-                           [&](const std::vector<std::size_t>& split_idx, std::size_t i) {
-                               const auto unsplit_idx = merge_split_index(split_idx, ndim, n_split);
-                               split_data[i]          = in_view[in_shape.index(unsplit_idx)];
-                           });
-            result = literal{split_shape, split_data};
+            // Split element [..., g, m, j] reads [..., m, g * n_split + j], so the split layout
+            // is a strided view of the same buffer: g steps a chunk of N, m keeps its stride.
+            const auto& strides = in_shape.strides();
+            std::vector<std::size_t> split_strides(strides.begin(), strides.end() - 2);
+            split_strides.insert(split_strides.end(),
+                                 {n_split * strides.back(), strides[ndim - 2], strides.back()});
+
+            auto src = make_view(shape{in_shape.type(), split_lens, split_strides}, in_view.data());
+            result   = literal{shape{in_shape.type(), split_lens},
+                             std::vector<type>(src.begin(), src.end())};
         });
         return result;
     }

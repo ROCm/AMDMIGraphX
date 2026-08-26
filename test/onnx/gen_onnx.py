@@ -3196,6 +3196,41 @@ def dim_param_test():
 
 
 @onnx_test()
+def split_prefill_decode_test():
+    x = helper.make_tensor_value_info(
+        'x', TensorProto.FLOAT, [1, "sequence_length", 2])
+    y = helper.make_tensor_value_info(
+        'y', TensorProto.FLOAT, [1, "sequence_length", 2])
+    one = helper.make_tensor(
+        name='one', data_type=TensorProto.FLOAT, dims=[1], vals=[1.0])
+    node = helper.make_node('Add', inputs=['x', 'one'], outputs=['y'])
+
+    return ([node], [x], [y], [one])
+
+
+@onnx_test()
+def split_prefill_decode_multi_io_test():
+    x = helper.make_tensor_value_info(
+        'x', TensorProto.FLOAT, [1, "sequence_length", 2])
+    y = helper.make_tensor_value_info(
+        'y', TensorProto.FLOAT, [1, "sequence_length", 2])
+    z = helper.make_tensor_value_info(
+        'z', TensorProto.FLOAT, ["other_dimension", 2])
+    sum_output = helper.make_tensor_value_info(
+        'sum_output', TensorProto.FLOAT, [1, "sequence_length", 2])
+    independent_output = helper.make_tensor_value_info(
+        'independent_output', TensorProto.FLOAT, ["other_dimension", 2])
+    add = helper.make_node('Add',
+                           inputs=['x', 'y'],
+                           outputs=['sum_output'])
+    identity = helper.make_node('Identity',
+                                inputs=['z'],
+                                outputs=['independent_output'])
+
+    return ([add, identity], [x, y, z], [sum_output, independent_output])
+
+
+@onnx_test()
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
@@ -6243,6 +6278,62 @@ def group_query_attention_decode_test():
     return ([node
              ], [qkv, key, value, past_key_values_key,
                  past_key_values_value, seqlens_k], [output, present_key, present_value],
+            [total_sequence_length, cos_cache, sin_cache])
+
+
+@onnx_test()
+def group_query_attention_symbolic_test():
+    qkv = helper.make_tensor_value_info(
+        'qkv', TensorProto.FLOAT16, [1, "sequence_length", 96])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
+    past_key_values_key = helper.make_tensor_value_info(
+        'past_key_values_key', TensorProto.FLOAT16, [1, 2, 10, 16])
+    past_key_values_value = helper.make_tensor_value_info(
+        'past_key_values_value', TensorProto.FLOAT16, [1, 2, 10, 16])
+    seqlens_k = helper.make_tensor_value_info(
+        'seqlens_k', TensorProto.INT32, [1, 1])
+    total_sequence_length = helper.make_tensor(
+        name="total_sequence_length",
+        data_type=TensorProto.INT32,
+        dims=[1, 1],
+        vals=[10])
+    cos_cache = helper.make_tensor(
+        name="cos_cache",
+        data_type=TensorProto.FLOAT16,
+        dims=[10, 8],
+        vals=np.ones([10, 8], dtype=np.float16))
+    sin_cache = helper.make_tensor(
+        name="sin_cache",
+        data_type=TensorProto.FLOAT16,
+        dims=[10, 8],
+        vals=np.ones([10, 8], dtype=np.float16))
+    output = helper.make_tensor_value_info(
+        'output', TensorProto.FLOAT16, [1, "sequence_length", 32])
+    present_key = helper.make_tensor_value_info(
+        'present_key', TensorProto.FLOAT16, [1, 2, 10, 16])
+    present_value = helper.make_tensor_value_info(
+        'present_value', TensorProto.FLOAT16, [1, 2, 10, 16])
+
+    node = helper.make_node(
+        'GroupQueryAttention',
+        inputs=[
+            'qkv', 'key', 'value', 'past_key_values_key',
+            'past_key_values_value', 'seqlens_k', 'total_sequence_length',
+            'cos_cache', 'sin_cache'
+        ],
+        outputs=['output', 'present_key', 'present_value'],
+        do_rotary=1,
+        kv_num_heads=2,
+        local_window_size=-1,
+        num_heads=2,
+        rotary_interleaved=0,
+        scale=0.25,
+        domain="com.microsoft")
+
+    return ([node], [
+        qkv, key, value, past_key_values_key, past_key_values_value, seqlens_k
+    ], [output, present_key, present_value],
             [total_sequence_length, cos_cache, sin_cache])
 
 

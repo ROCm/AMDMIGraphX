@@ -30,6 +30,7 @@
 #include <migraphx/common.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <migraphx/sym_substitute.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -56,6 +57,19 @@ struct multibroadcast
     }
 
     std::string name() const { return "multibroadcast"; }
+
+    // The symbolic target is opt-in through a fully symbolic out_dyn_dims, so once every
+    // dimension has a size the target has to move over to out_lens.
+    multibroadcast to_static(const symbol_map& symbols) const
+    {
+        auto result = substitute_symbols(*this, symbols);
+        if(auto lens = fixed_lens(result.output_dyn_dims))
+        {
+            result.output_lens = *lens;
+            result.output_dyn_dims.clear();
+        }
+        return result;
+    }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

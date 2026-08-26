@@ -57,10 +57,14 @@ struct dynamic_range : op_name<dynamic_range>
         const auto& type = inputs.at(0).type();
         if(output_dim.has_value())
         {
-            if(not output_dim->is_symbolic())
+            if(not output_dim->is_symbolic() and not output_dim->is_fixed())
                 MIGRAPHX_THROW("dynamic_range: output_dim must be symbolic");
             if(output_dim->get_interval().max > max_output)
                 MIGRAPHX_THROW("dynamic_range: output_dim exceeds max_output");
+            // Specializing a symbolic graph settles the length on one size, and the range
+            // becomes a static one.
+            if(output_dim->is_fixed())
+                return shape{type, {output_dim->get_interval().min}};
             return shape{type, {*output_dim}};
         }
         return shape{type, {shape::dynamic_dimension{0, max_output}}};

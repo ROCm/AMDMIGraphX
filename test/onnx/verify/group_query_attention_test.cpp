@@ -80,11 +80,11 @@ TEST_CASE(group_query_attention_decode_local_test)
     std::vector<float> pres_val_vector;
     pres_val.visit([&](auto output) { pres_val_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold   = {1,        1,         1,        1,       1,        1,        1,
-                                 1,        1,         1,        1,       1,        1,        1,
-                                 1,        1,         2.80469,  7.04297, 2.4668,   8.39844,  0.737793,
-                                 -3.96094, -4.94531,  7.45703,  2.5332,  -4.35156, -5.60547, 2.41016,
-                                 -7.48438, -0.263916, -7.88672, 0.12793};
+    std::vector<float> gold = {1,        1,         1,        1,       1,        1,        1,
+                               1,        1,         1,        1,       1,        1,        1,
+                               1,        1,         2.80469,  7.04297, 2.4668,   8.39844,  0.737793,
+                               -3.96094, -4.94531,  7.45703,  2.5332,  -4.35156, -5.60547, 2.41016,
+                               -7.48438, -0.263916, -7.88672, 0.12793};
     std::vector<float> gold_k = {
         1,        1,        1,        1,        1,         1,        1,        1,        1,
         1,        1,        1,        1,        1,         1,        1,        1,        1,
@@ -253,7 +253,7 @@ TEST_CASE(group_query_attention_prefill_local_test)
     std::vector<float> past_key_values_data(past_key_values_shape.elements(), 1);
 
     migraphx::shape slk_shape{migraphx::shape::int32_type, {1, 1}};
-    std::vector<int> slk_data = {8};
+    std::vector<int> slk_data = {7};
 
     migraphx::literal qkv{qkv_shape, qkv_data};
     migraphx::literal key{key_value_shape, key_value_data};
@@ -457,11 +457,11 @@ TEST_CASE(group_query_attention_decode_test)
     std::vector<float> pres_val_vector;
     pres_val.visit([&](auto output) { pres_val_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold   = {1,        1,         1,        1,       1,        1,        1,
-                                 1,        1,         1,        1,       1,        1,        1,
-                                 1,        1,         2.80469,  7.04297, 2.4668,   8.39844,  0.737793,
-                                 -3.96094, -4.94531,  7.45703,  2.5332,  -4.35156, -5.60547, 2.41016,
-                                 -7.48438, -0.263916, -7.88672, 0.12793};
+    std::vector<float> gold = {1,        1,         1,        1,       1,        1,        1,
+                               1,        1,         1,        1,       1,        1,        1,
+                               1,        1,         2.80469,  7.04297, 2.4668,   8.39844,  0.737793,
+                               -3.96094, -4.94531,  7.45703,  2.5332,  -4.35156, -5.60547, 2.41016,
+                               -7.48438, -0.263916, -7.88672, 0.12793};
     std::vector<float> gold_k = {
         1,        1,        1,        1,        1,         1,        1,        1,        1,
         1,        1,        1,        1,        1,         1,        1,        1,        1,
@@ -630,7 +630,7 @@ TEST_CASE(group_query_attention_prefill_test)
     std::vector<float> past_key_values_data(past_key_values_shape.elements(), 1);
 
     migraphx::shape slk_shape{migraphx::shape::int32_type, {1, 1}};
-    std::vector<int> slk_data = {8};
+    std::vector<int> slk_data = {7};
 
     migraphx::literal qkv{qkv_shape, qkv_data};
     migraphx::literal key{key_value_shape, key_value_data};

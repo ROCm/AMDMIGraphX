@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/simplify_dyn_ops.hpp>
+#include <migraphx/op/eval_expr_from_shape.hpp>
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/onehot.hpp>
 #include <migraphx/op/resize.hpp>
@@ -348,6 +349,36 @@ struct find_static_dimensions_of : match::supports_dynamic_shapes
 };
 
 /**
+ * Replace an eval_expr_from_shape whose expressions no longer contain any symbol with the
+ * constant it computes. Specializing a symbolic module substitutes sizes into the expressions,
+ * which leaves this operator reading dimensions it already knows. Folding it to a literal is
+ * what lets find_const_alloc_reshapes below collapse the rest of the scaffolding that
+ * parse_reshape emits for a symbolic reshape.
+ */
+struct find_const_eval_expr_from_shape : match::supports_dynamic_shapes
+{
+    auto matcher() const { return match::name("eval_expr_from_shape"); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        const auto& expressions =
+            any_cast<op::eval_expr_from_shape>(ins->get_operator()).expressions;
+        if(std::any_of(expressions.begin(), expressions.end(), [](const auto& e) {
+               return not sym::find_variables(e).empty();
+           }))
+            return;
+
+        std::vector<int64_t> dims(expressions.size());
+        std::transform(expressions.begin(), expressions.end(), dims.begin(), [](const auto& e) {
+            return static_cast<int64_t>(e.eval_uint({}));
+        });
+        m.replace_instruction(
+            ins, m.add_literal(literal{shape{shape::int64_type, {dims.size()}}, dims}));
+    }
+};
+
+/**
  * Simplify allocate into 2 argument reshape that has constant output dimensions into a static 1
  * argument reshape. Intended to simplify what ONNX parse_reshape creates for dynamic reshapes.
  * This matcher can be generalized to matching reshape(data, static_shape_output_tensor).
@@ -540,7 +571,13 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto sm_ins           = mr.result;
+        auto sm_ins = mr.result;
+        // The submodules are already specialized, so all this pass can recover from them is the
+        // range their outputs span. A symbolic output_dyn_shapes ties those dimensions to the
+        // inputs that drive them, which says strictly more, so leave it alone.
+        const auto& current = sm_ins->get_shape().sub_shapes();
+        if(std::any_of(current.begin(), current.end(), [](const shape& s) { return s.symbolic(); }))
+            return;
         auto sm_module_inputs = sm_ins->module_inputs();
         std::vector<std::vector<shape>> all_output_shapes(sm_module_inputs.size());
         std::transform(sm_module_inputs.begin(),
@@ -667,6 +704,7 @@ void simplify_dyn_ops::apply(module& m) const
                         find_broadcast_with_dims_static{},
                         find_resize_static{},
                         find_static_dimensions_of{},
+                        find_const_eval_expr_from_shape{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},
                         find_const_2in_slice{},

@@ -101,7 +101,8 @@ struct loop
             *dst.cast<T>() = src;
         }
 
-        void append(const std::vector<argument>& iter_state,
+        void append(context&,
+                    const std::vector<argument>& iter_state,
                     const std::vector<argument>& concatenated_outputs,
                     const std::vector<int64_t>& scan_output_dirs,
                     int64_t curr_iter,
@@ -137,7 +138,11 @@ struct loop
             }
         }
 
-        std::unordered_map<std::string, int> get_output_params(const module&) const { return {}; }
+        std::unordered_map<std::string, std::vector<std::size_t>>
+        get_output_params(const module&) const
+        {
+            return {};
+        }
     };
 
     argument compute(context& ctx,

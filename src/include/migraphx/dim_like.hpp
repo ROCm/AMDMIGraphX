@@ -75,6 +75,21 @@ inline bool all_ints(const std::vector<dim_like>& dims)
     });
 }
 
+/// Converts expressions to dim entries, collapsing any expression with a known value to a plain
+/// int64_t so that a fully determined set of dims emits the same attribute a static shape would.
+inline std::vector<dim_like> to_dim_like(const std::vector<sym::expr>& exprs)
+{
+    std::vector<dim_like> result;
+    result.reserve(exprs.size());
+    std::transform(exprs.begin(), exprs.end(), std::back_inserter(result), [](const sym::expr& e) {
+        const auto value = sym::fixed_value(e);
+        if(value.has_value())
+            return dim_like{sym::to<int64_t>(*value)};
+        return dim_like{shape::dynamic_dimension{e}};
+    });
+    return result;
+}
+
 /// Extracts the concrete int64_t from each entry; throws (via std::get) if any entry holds a
 /// dynamic_dimension.
 inline std::vector<int64_t> to_ints(const std::vector<dim_like>& dims)

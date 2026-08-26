@@ -302,7 +302,6 @@ static void warn_unresolved_dim_params(const onnx_parser& parser, const onnx::Gr
 
 void onnx_parser::parse_from(std::istream& is, std::string name)
 {
-    auto* mm         = prog.get_main_module();
     this->filename   = std::move(name);
     auto parent_path = fs::path(this->filename).parent_path();
     if(not parent_path.empty())
@@ -311,14 +310,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
     onnx::ModelProto model;
     if(model.ParseFromIstream(&is))
     {
-        auto version  = get_opset_version(model);
-        opset_version = (version == -1) ? opset_version : version;
-
-        if(model.has_graph())
-        {
-            warn_unresolved_dim_params(*this, model.graph());
-            (void)this->parse_graph(mm, model.graph());
-        }
+        this->parse_model(model);
     }
     else
     {
@@ -328,18 +320,10 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
 
 void onnx_parser::parse_from(const void* data, std::size_t size)
 {
-    auto* mm = prog.get_main_module();
     onnx::ModelProto model;
     if(model.ParseFromArray(data, size))
     {
-        auto version  = get_opset_version(model);
-        opset_version = (version == -1) ? opset_version : version;
-
-        if(model.has_graph())
-        {
-            warn_unresolved_dim_params(*this, model.graph());
-            (void)this->parse_graph(mm, model.graph());
-        }
+        this->parse_model(model);
     }
     else
     {
@@ -438,6 +422,229 @@ parse_inputs(const onnx_parser& parser,
         }
     }
     return mod_insts;
+}
+
+// A kv-cache model is exported with a `sequence_length` dim-param: it is 1 while decoding one
+// token at a time, and up to some maximum while prefilling a zero-padded prompt. With
+// split_prefill_decode the graph is parsed twice, once specialized to each length, and a
+// select_module in the main module dispatches between the two specializations. That puts both
+// phases in one program instead of the two the caller would otherwise have to compile and load
+// separately.
+//
+// Specializing has to happen while the graph is parsed rather than as a later pass over the IR:
+// operators bake the dimensions they were built with into their attributes, and some parsers
+// (group query attention, for one) reject a symbolic sequence length outright.
+static const char sequence_length_dim_param[] = "sequence_length";
+
+static bool uses_sequence_length(const onnx_parser& parser, const onnx::GraphProto& graph)
+{
+    return std::any_of(graph.input().begin(), graph.input().end(), [&](const auto& input) {
+        // Explicit dims replace the dim-param, so such an input does not use it at all.
+        if(contains(parser.map_input_dims, input.name()))
+            return false;
+        const auto& dims = input.type().tensor_type().shape().dim();
+        return std::any_of(dims.begin(), dims.end(), [](const auto& dim) {
+            return dim.has_dim_param() and dim.dim_param() == sequence_length_dim_param;
+        });
+    });
+}
+
+/// The length to specialize the prefill module to. Throws rather than quietly parsing the model
+/// unsplit, since the caller has asked for the split explicitly.
+static std::size_t prefill_sequence_length(const onnx_parser& parser, const onnx::GraphProto& graph)
+{
+    const std::string dim_param{sequence_length_dim_param};
+    auto sequence_length = parser.dim_params.find(dim_param);
+    if(sequence_length == parser.dim_params.end())
+        MIGRAPHX_THROW("PARSE_MODEL: splitting prefill from decode needs a \"" + dim_param +
+                       "\" dim_param of {1, MAX_SEQ_LEN}, but none was set");
+
+    auto interval = sequence_length->second.get_interval();
+    if(interval.min != 1 or interval.max <= 1)
+        MIGRAPHX_THROW("PARSE_MODEL: splitting prefill from decode needs a \"" + dim_param +
+                       "\" dim_param of {1, MAX_SEQ_LEN}, but it is {" +
+                       std::to_string(interval.min) + ", " + std::to_string(interval.max) + "}");
+
+    if(not uses_sequence_length(parser, graph))
+        MIGRAPHX_THROW("PARSE_MODEL: splitting prefill from decode needs an input dimension named "
+                       "\"" +
+                       dim_param + "\", but no input has one");
+
+    return interval.max;
+}
+
+static shape::dynamic_dimension make_symbol(const std::string& sym_name,
+                                            const shape::dynamic_dimension& bounds);
+
+// The specializations differ only in the sequence length, so their outputs differ only on the
+// dimensions it feeds. Widening those to a dynamic dimension gives select_module an
+// output_dyn_shapes attribute that covers both.
+//
+// Those dimensions are written back as the sequence length symbol so that a caller sizing an
+// output buffer resolves them exactly as it resolves the inputs; select_module reshapes the
+// buffer onto the outputs of the specialization it picks, so a buffer sized for the wrong phase
+// is not merely wasteful. A dimension that varies some other way carries no such symbol and is
+// only known to lie between the two, so the shape stays a plain range.
+static shape combine_output_shapes(const shape& decode,
+                                   const shape& prefill,
+                                   const shape::dynamic_dimension& sequence_length)
+{
+    if(decode.type() != prefill.type() or decode.ndim() != prefill.ndim())
+        MIGRAPHX_THROW("PARSE_MODEL: prefill and decode disagree on the output shape, {" +
+                       to_string(decode) + "} vs {" + to_string(prefill) + "}");
+
+    auto min_lens           = decode.min_lens();
+    const auto prefill_mins = prefill.min_lens();
+    std::transform(min_lens.begin(),
+                   min_lens.end(),
+                   prefill_mins.begin(),
+                   min_lens.begin(),
+                   [](auto x, auto y) { return std::min(x, y); });
+
+    auto max_lens            = decode.max_lens();
+    const auto prefill_maxes = prefill.max_lens();
+    std::transform(max_lens.begin(),
+                   max_lens.end(),
+                   prefill_maxes.begin(),
+                   max_lens.begin(),
+                   [](auto x, auto y) { return std::max(x, y); });
+
+    if(min_lens == max_lens)
+        return {decode.type(), min_lens};
+
+    const auto interval     = sequence_length.get_interval();
+    auto is_sequence_length = [&](auto lo, auto hi) {
+        return lo == interval.min and hi == interval.max;
+    };
+    // A shape is symbolic only if every dimension is, so fall back to a range whenever some
+    // dimension varies for a reason other than the sequence length.
+    if(not sequence_length.is_symbolic() or
+       not std::equal(min_lens.begin(), min_lens.end(), max_lens.begin(), [&](auto lo, auto hi) {
+           return lo == hi or is_sequence_length(lo, hi);
+       }))
+        return {decode.type(), min_lens, max_lens, {}};
+
+    std::vector<shape::dynamic_dimension> dims(min_lens.size());
+    std::transform(min_lens.begin(),
+                   min_lens.end(),
+                   max_lens.begin(),
+                   dims.begin(),
+                   [&](auto lo, auto hi) -> shape::dynamic_dimension {
+                       return lo == hi ? shape::dynamic_dimension{sym::lit(lo)} : sequence_length;
+                   });
+    return {decode.type(), dims};
+}
+
+static std::vector<shape> common_output_shapes(const module& decode,
+                                               const module& prefill,
+                                               const shape::dynamic_dimension& sequence_length)
+{
+    auto decode_shapes  = decode.get_output_shapes();
+    auto prefill_shapes = prefill.get_output_shapes();
+    if(decode_shapes.size() != prefill_shapes.size())
+        MIGRAPHX_THROW("PARSE_MODEL: prefill returns " + std::to_string(prefill_shapes.size()) +
+                       " outputs but decode returns " + std::to_string(decode_shapes.size()));
+
+    std::vector<shape> result(decode_shapes.size());
+    std::transform(
+        decode_shapes.begin(),
+        decode_shapes.end(),
+        prefill_shapes.begin(),
+        result.begin(),
+        [&](const auto& d, const auto& p) { return combine_output_shapes(d, p, sequence_length); });
+    return result;
+}
+
+/// Dispatch between the two specializations from `root` and return their outputs. select_module
+/// pairs its arguments with the submodule parameters sorted by name, so the arguments are passed
+/// in that order and both specializations have to take the same parameters.
+static void add_select_module(module& root,
+                              const onnx_parser::instruction_map& inputs,
+                              module_ref decode,
+                              module_ref prefill,
+                              const shape::dynamic_dimension& sequence_length)
+{
+    auto names = decode->get_parameter_names();
+    std::sort(names.begin(), names.end());
+
+    auto prefill_names = prefill->get_parameter_names();
+    std::sort(prefill_names.begin(), prefill_names.end());
+    if(prefill_names != names)
+        MIGRAPHX_THROW("PARSE_MODEL: module \"" + prefill->name() + "\" takes {" +
+                       join_strings(prefill_names, ", ") + "} but \"" + decode->name() +
+                       "\" takes {" + join_strings(names, ", ") + "}");
+
+    std::vector<instruction_ref> args(names.size());
+    std::transform(names.begin(), names.end(), args.begin(), [&](const auto& name) {
+        if(not contains(inputs, name))
+            MIGRAPHX_THROW("PARSE_MODEL: specialization parameter \"" + name +
+                           "\" is not a main-module input");
+        return inputs.at(name);
+    });
+
+    auto output_shapes = common_output_shapes(*decode, *prefill, sequence_length);
+    auto select        = root.add_instruction(
+        make_op("select_module", {{"output_dyn_shapes", to_value(shape{output_shapes})}}),
+        args,
+        {decode, prefill});
+
+    std::vector<instruction_ref> outputs(output_shapes.size());
+    auto output_indices = range(output_shapes.size());
+    std::transform(
+        output_indices.begin(), output_indices.end(), outputs.begin(), [&](std::size_t index) {
+            return root.add_instruction(make_op("get_tuple_elem", {{"index", index}}), select);
+        });
+    root.add_return(outputs);
+}
+
+static void parse_prefill_decode(onnx_parser& parser, const onnx::GraphProto& graph)
+{
+    auto max_sequence_length = prefill_sequence_length(parser, graph);
+    auto* root               = parser.prog.get_main_module();
+    // Parse constants once into the root and let both specializations capture them. This keeps
+    // their literal storage shared without routing constants through runtime parameters.
+    const auto initializers = parse_initializer(parser, root, graph);
+    const auto root_inputs  = parse_inputs(parser, root, graph, initializers);
+
+    const auto sequence_length_bounds = parser.dim_params.at(sequence_length_dim_param);
+    auto parse_specialization         = [&](const std::string& name, std::size_t length) {
+        // parse_graph resolves node inputs through the parser's instruction map, so each pass
+        // over the graph has to start from an empty one.
+        parser.instructions.clear();
+        parser.parent_input_nodes.clear();
+        parser.dim_params[sequence_length_dim_param] = {length, length};
+
+        auto* mod = parser.prog.create_module(root->name() + ":split:" + name);
+        (void)parser.parse_graph(mod, graph, false, &initializers);
+        return mod;
+    };
+    auto* decode  = parse_specialization("decode", 1);
+    auto* prefill = parse_specialization("prefill", max_sequence_length);
+
+    parser.dim_params[sequence_length_dim_param] = sequence_length_bounds;
+    parser.instructions.clear();
+    parser.parent_input_nodes.clear();
+
+    auto sequence_length = parser.use_symbolic_shapes
+                               ? make_symbol(sequence_length_dim_param, sequence_length_bounds)
+                               : sequence_length_bounds;
+    add_select_module(*root, root_inputs, decode, prefill, sequence_length);
+}
+
+void onnx_parser::parse_model(const onnx::ModelProto& model)
+{
+    auto version  = get_opset_version(model);
+    opset_version = (version == -1) ? opset_version : version;
+    if(not model.has_graph())
+        return;
+
+    const auto& graph = model.graph();
+    warn_unresolved_dim_params(*this, graph);
+
+    if(split_prefill_decode)
+        parse_prefill_decode(*this, graph);
+    else
+        (void)this->parse_graph(prog.get_main_module(), graph);
 }
 
 struct node_maps
@@ -617,8 +824,10 @@ static void log_node_parse_exception(const onnx::NodeProto& node,
     }
 }
 
-std::vector<instruction_ref>
-onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
+std::vector<instruction_ref> onnx_parser::parse_graph(module* mod,
+                                                      const onnx::GraphProto& graph,
+                                                      bool inlining,
+                                                      const instruction_map* initializers)
 {
     std::vector<size_t> node_indices(graph.node_size());
 
@@ -634,7 +843,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     }
 
     std::unordered_map<std::string, instruction_ref> mod_insts =
-        parse_initializer(*this, mod, graph);
+        initializers == nullptr ? parse_initializer(*this, mod, graph) : *initializers;
 
     mod_insts = parse_inputs(*this, mod, graph, mod_insts);
 
@@ -956,7 +1165,13 @@ static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
     {
         const auto& dim_param = model_dim->dim_param();
         if(parser.use_symbolic_shapes)
-            return make_symbol(dim_param, dim_param_bounds(parser, dim_param, override_dim));
+        {
+            const auto bounds = dim_param_bounds(parser, dim_param, override_dim);
+            // A dim_param pinned to a single value is a constant, so emit it as a literal.
+            if(bounds.is_fixed())
+                return shape::dynamic_dimension{sym::lit(bounds.get_interval().min)};
+            return make_symbol(dim_param, bounds);
+        }
         if(override_dim != nullptr)
             return *override_dim;
         if(contains(parser.dim_params, dim_param))

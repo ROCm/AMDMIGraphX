@@ -25,6 +25,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -41,7 +42,9 @@ TEST_CASE(select_module_add_test)
     auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
         auto* submod = p.create_module(module_name);
         migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
+        auto unused   = submod->add_parameter("unused", sm_shape);
         auto sm_input = submod->add_parameter("data", sm_shape);
+        submod->remove_instruction(unused);
         auto broadcast_lit =
             submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
         auto add_ins = submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
@@ -65,6 +68,18 @@ TEST_CASE(select_module_add_test)
     auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
     mm->add_return({ret});
     p.compile(migraphx::make_target("ref"));
+    p = migraphx::load_buffer(migraphx::save_buffer(p));
+
+    std::vector<float> batch1_input_data{-4, 8, -1, 4};
+    migraphx::parameter_map batch1_params;
+    migraphx::shape batch1_shape{migraphx::shape::float_type, {1, 4}};
+    batch1_params["data"] = migraphx::argument(batch1_shape, batch1_input_data.data());
+    auto batch1_result    = p.eval(batch1_params).back();
+    std::vector<float> batch1_results_vector;
+    batch1_result.visit(
+        [&](auto output) { batch1_results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(batch1_results_vector,
+                                              std::vector<float>{2, 14, 5, 10}));
 
     std::vector<float> input_data{-4, 8, -1, 4, -1, 8, 8, -4};
     migraphx::parameter_map params;
@@ -75,6 +90,14 @@ TEST_CASE(select_module_add_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{2, 14, 5, 10, 5, 14, 14, 2};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+
+    migraphx::execution_environment env;
+    env.trace          = [](migraphx::instruction_ref, const migraphx::argument&) {};
+    auto traced_result = p.eval(params, env).back();
+    std::vector<float> traced_results_vector;
+    traced_result.visit(
+        [&](auto output) { traced_results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(traced_results_vector, gold));
 }
 
 TEST_CASE(select_module_reduce_test0)

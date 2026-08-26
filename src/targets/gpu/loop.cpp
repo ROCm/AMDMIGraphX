@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <cstdint>
+#include <migraphx/instruction.hpp>
 #include <migraphx/run_loop.hpp>
 #include <migraphx/gpu/loop.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -57,12 +58,28 @@ struct gpu_loop
         copy_to_gpu(ctx, arg_src, dst);
     }
 
-    void append(const std::vector<argument>&,
-                const std::vector<argument>&,
-                const std::vector<int64_t>&,
-                int64_t,
-                int64_t) const
+    void append(context& ctx,
+                const std::vector<argument>& iter_state,
+                const std::vector<argument>& concatenated_outputs,
+                const std::vector<int64_t>& scan_output_dirs,
+                int64_t curr_iter,
+                int64_t num_iters) const
     {
+        assert(iter_state.size() == concatenated_outputs.size());
+        migraphx::for_each(
+            iter_state.begin(),
+            iter_state.end(),
+            concatenated_outputs.begin(),
+            [&, index = std::size_t{0}](const auto& src, const auto& dst) mutable {
+                auto dir          = scan_output_dirs.empty() ? 0 : scan_output_dirs[index];
+                auto output_index = (1 - dir) * curr_iter + dir * (num_iters - 1 - curr_iter);
+                auto output_size  = src.get_shape().bytes();
+                assert((output_index + 1) * output_size <= dst.get_shape().bytes());
+                argument output{src.get_shape(), dst.data() + output_index * output_size};
+                if(src.data() != output.data())
+                    gpu_copy(ctx, src, output);
+                index++;
+            });
     }
 
     void set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, int iter) const
@@ -83,29 +100,69 @@ struct gpu_loop
         }
     }
 
-    std::unordered_map<std::string, int> get_output_params(const module& m) const
+    std::unordered_map<std::string, std::vector<std::size_t>>
+    get_output_params(const module& m) const
     {
-        auto get_output_index = [](const std::string& name) {
-            std::string out_prefix = "#output_";
-            auto loc               = name.find(out_prefix);
-            if(loc != std::string::npos)
-            {
-                return std::stoi(name.substr(loc + out_prefix.size()));
-            }
+        auto param_names = m.get_parameter_names();
+        std::vector<std::string> output_names;
+        std::copy_if(param_names.begin(),
+                     param_names.end(),
+                     std::back_inserter(output_names),
+                     [](const auto& name) { return contains(name, "#output_"); });
 
-            return -1;
-        };
+        auto parameters = m.get_parameters();
+        auto returns    = m.get_returns();
+        auto indices    = range(returns.size());
+        std::unordered_map<std::string, std::vector<std::size_t>> result;
+        std::transform(
+            output_names.begin(),
+            output_names.end(),
+            std::inserter(result, result.end()),
+            [&](const auto& name) {
+                auto parameter =
+                    std::find_if(parameters.begin(), parameters.end(), [&](instruction_ref ins) {
+                        return any_cast<builtin::param>(ins->get_operator()).parameter == name;
+                    });
+                assert(parameter != parameters.end());
 
-        const auto& param_names = m.get_parameter_names();
-        std::unordered_map<std::string, int> result;
-        for(const auto& name : param_names)
-        {
-            auto index = get_output_index(name);
-            if(index == -1)
-                continue;
-            result[name] = index;
-        }
-
+                std::vector<std::pair<std::size_t, std::size_t>> output_positions;
+                transform_if(
+                    indices.begin(),
+                    indices.end(),
+                    std::back_inserter(output_positions),
+                    [&](std::size_t index) {
+                        auto aliases = instruction::get_output_alias(returns[index]);
+                        return contains(aliases, *parameter);
+                    },
+                    [&](std::size_t index) {
+                        auto tuple_index = std::size_t{0};
+                        if((*parameter)->get_shape().type() == shape::tuple_type)
+                        {
+                            auto output = returns[index];
+                            if(output->name() != "get_tuple_elem")
+                                MIGRAPHX_THROW("GPU_LOOP: tuple output parameter \"" + name +
+                                               "\" does not map to tuple element returns");
+                            tuple_index =
+                                output->get_operator().to_value().at("index").to<std::size_t>();
+                        }
+                        return std::make_pair(tuple_index, index);
+                    });
+                std::sort(output_positions.begin(),
+                          output_positions.end(),
+                          [](const auto& x, const auto& y) {
+                              return std::tie(x.first, y.second) < std::tie(y.first, x.second);
+                          });
+                auto unique_end =
+                    std::unique(output_positions.begin(),
+                                output_positions.end(),
+                                [](const auto& x, const auto& y) { return x.first == y.first; });
+                std::vector<std::size_t> output_indices;
+                std::transform(output_positions.begin(),
+                               unique_end,
+                               std::back_inserter(output_indices),
+                               [](const auto& item) { return item.second; });
+                return std::make_pair(name, std::move(output_indices));
+            });
         return result;
     }
 };

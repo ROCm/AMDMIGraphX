@@ -147,6 +147,7 @@ add_library(migraphx
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
     sym.cpp
+    sym_substitute.cpp
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp

@@ -24,7 +24,9 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
 #define MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
 
+#include <cstddef>
 #include <string>
+#include <vector>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
@@ -33,11 +35,28 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
- * Split dynamic dimension over submodules if exactly one dimension in the parameter list is
- * dynamic.
+ * Replace a module that varies in one dimension with a set of submodules that are static in that
+ * dimension, selected at runtime by the size the dimension actually takes. The parameters keep
+ * their original shapes so the module still accepts every size it did before.
  */
 struct MIGRAPHX_EXPORT split_single_dyn_dim
 {
+    /**
+     * Name of the symbolic dimension to specialize. When empty the pass looks instead for a
+     * single non-fixed dynamic dimension shared by every dynamic parameter, which is as much as
+     * a range-based module can express. Naming a symbol lets the remaining symbols stay
+     * symbolic, so a module can be specialized on one dimension while others still vary.
+     */
+    std::string symbol = "";
+
+    /**
+     * Sizes to build a submodule for. When empty every size in the dimension's range gets one,
+     * the only safe choice when any size can turn up at runtime. A caller that knows the model
+     * is only ever run at particular sizes can list them here instead; sizes outside the
+     * dimension's range are rejected, and any size left out will fail to select at runtime.
+     */
+    std::vector<std::size_t> sizes = {};
+
     std::string name() const { return "split_single_dyn_dim"; }
     void apply(module_pass_manager&) const;
 };

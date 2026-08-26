@@ -78,6 +78,8 @@
 namespace {
 
 using dims_map = std::unordered_map<std::string, std::vector<std::size_t>>;
+// Fixed values bound to named dim_params, used to resolve symbolic shapes.
+using symbol_bindings = std::unordered_map<migraphx::sym::expr, std::size_t>;
 
 std::vector<std::string>
 get_unrecognized_migraphx_envs(const char* envp[],
@@ -209,6 +211,7 @@ struct loader
     bool strip_context          = false;
     bool use_debug_symbols      = false;
     bool use_symbolic           = false;
+    bool split_prefill_decode   = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -258,6 +261,15 @@ struct loader
                    "of this flag. "
                    "Example: --enable-symbolic --default-dyn-dim \"{min:1, max:1024}\""),
            ap.set_value(true));
+        ap(split_prefill_decode,
+           {"--split-prefill-decode"},
+           ap.help("Compile the prefill and decode phases of a kv-cache model into one program. "
+                   "Needs a \"sequence_length\" dim_param of {1, MAX_SEQ_LEN}; the model is "
+                   "specialized to a single token for decode and to MAX_SEQ_LEN for prefill, and "
+                   "the phase is selected at runtime from the input shapes. "
+                   "Example: --split-prefill-decode --dim-param \"@sequence_length\" "
+                   "\"{min:1, max:1024}\""),
+           ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
@@ -272,6 +284,8 @@ struct loader
                "Fixed:   \"@dim_param_name\" \"x\". "
                "Dynamic: \"@dim_param_name\" \"{min:x, max:y, optimals:[o1,o2]}\". "
                "With --enable-symbolic the dim_param becomes a symbolic dimension over this range. "
+               "A fixed value also resolves that dimension when inputs are generated, so it "
+               "selects the shape a compiled program is run with. "
                "Example: --enable-symbolic --dim-param \"@seq\" "
                "\"{min:1, max:128, optimals:[64, 128]}\""),
            ap.append(),
@@ -438,6 +452,18 @@ struct loader
         return map_dim_params;
     }
 
+    // Bind each dim_param that was given a single fixed value. Symbolic parameter shapes are
+    // resolved from these when generating inputs, since `batch` alone cannot express a
+    // dimension such as sequence_length.
+    static auto parse_symbol_bindings(const std::vector<std::string>& dim_params_info)
+    {
+        symbol_bindings bindings;
+        for(const auto& [name, dd] : parse_dim_params(dim_params_info))
+            if(dd.is_fixed())
+                bindings.emplace(sym::var(name), dd.get_interval().min);
+        return bindings;
+    }
+
     static auto parse_output_names(const std::vector<std::string>& output_names_info)
     {
         std::vector<std::string> output_node_names;
@@ -484,6 +510,7 @@ struct loader
         options.print_program_on_error = true;
         options.use_debug_symbols      = use_debug_symbols;
         options.use_symbolic_shapes    = use_symbolic;
+        options.split_prefill_decode   = split_prefill_decode;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;
@@ -684,10 +711,14 @@ struct program_params
                 load_arg_names.insert(x.substr(1));
         std::set<std::string> unset;
         for(const auto& param : param_shapes)
-            if(shape::is_integral(param.second.type()) and not contains(param.first, "#output_") and
-               not contains(fill0, param.first) and not contains(fill1, param.first) and
-               not contains(load_arg_names, param.first))
+        {
+            // Output allocations are not user inputs, and a tuple has no single type to check.
+            if(contains(param.first, "#output_") or param.second.type() == shape::tuple_type)
+                continue;
+            if(shape::is_integral(param.second.type()) and not contains(fill0, param.first) and
+               not contains(fill1, param.first) and not contains(load_arg_names, param.first))
                 unset.insert(param.first);
+        }
         if(unset.empty())
             return;
         log::warn() << "Input(s) without explicit values: " << join_strings(std::move(unset), ", ")
@@ -696,11 +727,51 @@ struct program_params
                        "`--load-arg @<name> <file>` if the program fails to run.";
     }
 
+    // to_static resolves a symbolic dimension from the bindings and leaves a static one alone,
+    // but has nothing to go on for a plain range. Tuples, such as the output allocation of a
+    // select_module, are resolved one sub-shape at a time.
+    static bool is_resolvable(const shape& s)
+    {
+        if(not s.sub_shapes().empty())
+            return std::all_of(s.sub_shapes().begin(), s.sub_shapes().end(), [](const auto& sub) {
+                return is_resolvable(sub);
+            });
+        return not s.dynamic() or s.symbolic();
+    }
+
+    // Pick the concrete shape to generate an input with. A symbolic shape is resolved from the
+    // --dim-param bindings, which is the only way to reach a dimension that is not the batch.
+    static shape to_static_shape(const std::string& name,
+                                 const shape& s,
+                                 unsigned batch,
+                                 const symbol_bindings& bindings)
+    {
+        if(bindings.empty() or not is_resolvable(s))
+            return s.to_static(batch);
+        try
+        {
+            return s.to_static(bindings);
+        }
+        catch(const std::exception&)
+        {
+            std::set<std::string> bound;
+            std::transform(bindings.begin(),
+                           bindings.end(),
+                           std::inserter(bound, bound.end()),
+                           [](const auto& b) { return sym::to_string(b.first); });
+            MIGRAPHX_THROW("Cannot resolve symbolic input '" + name + "' of shape " + to_string(s) +
+                           ". Every symbolic dimension needs a fixed `--dim-param @<name> <value>`,"
+                           " but only these are bound: " +
+                           join_strings(bound, ", "));
+        }
+    }
+
     auto generate(const program& p,
                   const target& t,
                   bool offload,
                   unsigned batch,
-                  dims_map map_input_dims = {})
+                  dims_map map_input_dims   = {},
+                  const symbol_bindings& sb = {})
     {
         parameter_map m;
         auto param_shapes = p.get_parameter_shapes();
@@ -711,7 +782,8 @@ struct program_params
                 static_param_shapes[param.first] = {param.second.type(),
                                                     map_input_dims[param.first]};
             else
-                static_param_shapes[param.first] = param.second.to_static(batch);
+                static_param_shapes[param.first] =
+                    to_static_shape(param.first, param.second, batch, sb);
         }
 
         for(auto&& s : fill0)
@@ -897,13 +969,18 @@ struct compiler
 
     auto params(const program& p)
     {
-        return parameters.generate(
-            p, ct.get_target(), co.offload_copy, l.batch, loader::parse_param_dims(l.param_dims));
+        return parameters.generate(p,
+                                   ct.get_target(),
+                                   co.offload_copy,
+                                   l.batch,
+                                   loader::parse_param_dims(l.param_dims),
+                                   loader::parse_symbol_bindings(l.dim_params));
     }
 
     auto host_params(const program& p)
     {
-        return parameters.generate(p, ct.get_target(), true, l.batch);
+        return parameters.generate(
+            p, ct.get_target(), true, l.batch, {}, loader::parse_symbol_bindings(l.dim_params));
     }
 
     program compile()

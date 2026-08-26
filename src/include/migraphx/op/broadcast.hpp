@@ -29,6 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <migraphx/sym_substitute.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -71,6 +72,19 @@ struct broadcast
     }
 
     std::string name() const { return "broadcast"; }
+
+    // The symbolic target is opt-in through a fully symbolic out_dyn_dims, so once every
+    // dimension has a size the target has to move over to out_lens.
+    broadcast to_static(const symbol_map& symbols) const
+    {
+        auto result = substitute_symbols(*this, symbols);
+        if(auto lens = fixed_lens(result.output_dyn_dims))
+        {
+            result.broadcast_lens = *lens;
+            result.output_dyn_dims.clear();
+        }
+        return result;
+    }
 
     // Validate axis/dims and place `in_strides` at `axis`, filling broadcast positions with
     // `zero`. Templated for the static (size_t) and symbolic (sym::expr) paths.

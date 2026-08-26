@@ -38,6 +38,43 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
+// Order a set of instructions the way they appear in the module. The set can also hold constants
+// an enclosing module owns, since a select_module submodule captures the literals of its parent
+// rather than copying them. Those have no position in this module, so each is placed just before
+// its first use, which keeps the result dependency-ordered and independent of set iteration order.
+template <class Set>
+std::vector<instruction_ref> in_module_order(const module& m, const Set& inss)
+{
+    std::vector<instruction_ref> result;
+    result.reserve(inss.size());
+    std::unordered_set<instruction_ref> placed;
+    for(auto ins : iterator_for(m))
+    {
+        if(not contains(inss, ins))
+            continue;
+        for(auto input : ins->inputs())
+        {
+            if(contains(inss, input) and not m.has_instruction(input) and
+               placed.insert(input).second)
+                result.push_back(input);
+        }
+        placed.insert(ins);
+        result.push_back(ins);
+    }
+    return result;
+}
+
+// Whether an instruction feeds anything outside the given set. Consumers in another module are
+// ignored: a captured constant is still reachable there through the capture, so it does not need
+// to become an output of the fused group.
+template <class Set>
+bool escapes(const module& m, instruction_ref ins, const Set& inss)
+{
+    return not std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto out) {
+        return not m.has_instruction(out) or contains(inss, out);
+    });
+}
+
 // env vars for flash decoding configuration
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE);
@@ -112,6 +149,15 @@ inline std::size_t calculate_groups(std::size_t groups,
 
     // groups == 1 or invalid, no splitting
     return 0;
+}
+
+// Submodule names have to be unique across the program, but the counter that numbers them starts
+// over for every module the pass visits, so qualify the name outside of the main module.
+inline std::string submodule_name(const module& parent, const std::string& name)
+{
+    if(parent.name() == "main")
+        return name;
+    return parent.name() + ":" + name;
 }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
@@ -287,13 +333,7 @@ struct find_attention
         for(auto ins : starts)
             expand(ins);
 
-        std::vector<instruction_ref> sorted_inss(attn_inss.begin(), attn_inss.end());
-        std::sort(
-            sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
-                return std::distance(m.begin(), x) < std::distance(m.begin(), y);
-            });
-
-        return sorted_inss;
+        return in_module_order(m, attn_inss);
     }
 
     static bool has_lse_out(std::vector<instruction_ref>& group_outs)
@@ -393,7 +433,8 @@ struct find_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        module_ref mpm_attn = mpm.create_module(
+            submodule_name(mpm.get_module(), "attn" + get_count()), std::move(m_attn));
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(
@@ -894,8 +935,8 @@ struct find_kv_cache_attention
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
         auto queries = match::name("slice");
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
-        auto gemm1_maybe_cvt = match::skip(match::name("convert"))(gemm1);
-        auto scale           = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
+        auto gemm1_maybe_cvt   = match::skip(match::name("convert"))(gemm1);
+        auto scale             = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
         auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
         auto attn_scores       = match::any_of(scale, gemm1_maybe_cvt);
         auto causal_mask =
@@ -989,12 +1030,7 @@ struct find_kv_cache_attention
             expand(ins);
         }
 
-        std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());
-        std::sort(
-            sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
-                return std::distance(m.begin(), x) < std::distance(m.begin(), y);
-            });
-        return sorted_inss;
+        return in_module_order(m, inss);
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -1032,12 +1068,10 @@ struct find_kv_cache_attention
 
         // Define outputs based on instructions that are used elsewhere in the graph
         std::vector<instruction_ref> required_outputs;
-        std::copy_if(
-            attn_inss.begin(), attn_inss.end(), std::back_inserter(required_outputs), [&](auto i) {
-                return not std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
-                    return contains(attn_inss, o);
-                });
-            });
+        std::copy_if(attn_inss.begin(),
+                     attn_inss.end(),
+                     std::back_inserter(required_outputs),
+                     [&](auto i) { return escapes(mpm.get_module(), i, attn_inss); });
 
         assert(not required_outputs.empty());
 
@@ -1053,7 +1087,8 @@ struct find_kv_cache_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        module_ref mpm_attn = mpm.create_module(
+            submodule_name(mpm.get_module(), "attn" + get_count()), std::move(m_attn));
         mpm_attn->set_bypass();
 
         // Construct group op with the attention module

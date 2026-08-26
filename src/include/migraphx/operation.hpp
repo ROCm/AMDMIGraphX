@@ -42,6 +42,7 @@
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/lifetime.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <migraphx/sym_substitute.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -66,6 +67,10 @@ struct operation
     /// Optionally compute exact symbolic values stored in a tensor.
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const;
+    /// Specialize the operation by replacing each symbol in its attributes with the size that
+    /// symbol takes. The default substitutes every reflected attribute, so an operation only
+    /// needs to implement this when its symbols are not reachable through reflection.
+    operation to_static(const symbol_map& symbol_map) const;
     /**
      * @brief This performs the operation's computation.
      *
@@ -192,6 +197,25 @@ sym_argument
 symbolic_compute_op(const T& x, const shape& output_shape, const std::vector<sym_argument>& args)
 {
     return symbolic_compute_op(rank<1>{}, x, output_shape, args);
+}
+
+template <class T>
+auto to_static_op(rank<1>, const T& x, const symbol_map& symbols) -> decltype(x.to_static(symbols))
+{
+    return x.to_static(symbols);
+}
+
+template <class T>
+auto to_static_op(rank<0>, const T& x, const symbol_map& symbols)
+{
+    return substitute_symbols(x, symbols);
+}
+
+// Deduced rather than declared as operation, which is still incomplete here.
+template <class T>
+auto to_static_op(const T& x, const symbol_map& symbols)
+{
+    return to_static_op(rank<1>{}, x, symbols);
 }
 
 template <class T>
@@ -558,6 +582,8 @@ struct MIGRAPHX_EXPORT operation
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const;
     // (optional)
+    operation to_static(const migraphx::symbol_map& symbol_map) const;
+    // (optional)
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
     // (optional)
     argument compute(const shape& output, const std::vector<argument>& input) const;
@@ -758,6 +784,23 @@ struct operation
     }
 
     template <class T>
+    static auto private_detail_te_default_to_static(char,
+                                                    T&& private_detail_te_self,
+                                                    const migraphx::symbol_map& symbol_map)
+        -> decltype(private_detail_te_self.to_static(symbol_map))
+    {
+        return private_detail_te_self.to_static(symbol_map);
+    }
+
+    template <class T>
+    static operation private_detail_te_default_to_static(float,
+                                                         T&& private_detail_te_self,
+                                                         const migraphx::symbol_map& symbol_map)
+    {
+        return detail::to_static_op(private_detail_te_self, symbol_map);
+    }
+
+    template <class T>
     static auto private_detail_te_default_compute(char,
                                                   T&& private_detail_te_self,
                                                   context& ctx,
@@ -947,6 +990,9 @@ struct operation
                      std::declval<PrivateDetailTypeErasedT>(),
                      std::declval<const shape&>(),
                      std::declval<const std::vector<sym_argument>&>()),
+                 private_detail_te_default_to_static(char(0),
+                                                     std::declval<PrivateDetailTypeErasedT>(),
+                                                     std::declval<const migraphx::symbol_map&>()),
                  private_detail_te_default_compute(char(0),
                                                    std::declval<PrivateDetailTypeErasedT>(),
                                                    std::declval<context&>(),
@@ -1007,7 +1053,7 @@ struct operation
               typename = private_te_constraints<PrivateDetailTypeErasedT>,
               typename = typename std::enable_if<
                   not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, operation>{}>::type>
-    operation& operator=(PrivateDetailTypeErasedT&& value)
+    operation& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -1122,6 +1168,12 @@ struct operation
         return (*this).private_detail_te_get_handle().symbolic_compute(output_shape, args);
     }
 
+    operation to_static(const migraphx::symbol_map& symbol_map) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().to_static(symbol_map);
+    }
+
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -1215,6 +1267,7 @@ struct operation
                                     const std::vector<module_ref>& mod_args) const         = 0;
         virtual sym_argument symbolic_compute(const shape& output_shape,
                                               const std::vector<sym_argument>& args) const = 0;
+        virtual operation to_static(const migraphx::symbol_map& symbol_map) const          = 0;
         virtual argument
         compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
         virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
@@ -1328,8 +1381,16 @@ struct operation
         sym_argument symbolic_compute(const shape& output_shape,
                                       const std::vector<sym_argument>& args) const override
         {
+
             return private_detail_te_default_symbolic_compute(
                 char(0), private_detail_te_value, output_shape, args);
+        }
+
+        operation to_static(const migraphx::symbol_map& symbol_map) const override
+        {
+
+            return private_detail_te_default_to_static(
+                char(0), private_detail_te_value, symbol_map);
         }
 
         argument compute(context& ctx,

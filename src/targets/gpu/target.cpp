@@ -111,12 +111,17 @@ struct backend_options
     std::vector<std::string> mlss_use_specific_ops = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
+    // The sizes a dynamic dimension is specialized for. Empty means every size it can take, which
+    // is only reasonable for a narrow range; a model run at a few known sizes, such as an LLM at
+    // one token and at a padded prompt length, should name them here instead.
+    std::vector<std::size_t> split_sizes = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
-                    f(self.convolution_layout, "convolution_layout"));
+                    f(self.convolution_layout, "convolution_layout"),
+                    f(self.split_sizes, "split_sizes"));
     }
 };
 
@@ -151,7 +156,8 @@ struct pipeline_factory
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
-            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
+                        split_single_dyn_dim{.sizes = backend_opts.split_sizes}),
             dead_code_elimination{},
             simplify_dyn_ops{},
             dead_code_elimination{},

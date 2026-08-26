@@ -105,27 +105,18 @@ struct test_loop_op
     {
         test_loop(int64_t iter_num) { max_iterations = iter_num; }
 
-        std::unordered_map<std::string, int> get_output_params(const migraphx::module& m) const
+        std::unordered_map<std::string, std::vector<std::size_t>>
+        get_output_params(const migraphx::module& m) const
         {
-            auto get_output_index = [](const std::string& name) {
-                std::string out_prefix = "#output_";
-                auto loc               = name.find(out_prefix);
-                if(loc != std::string::npos)
-                {
-                    return std::stoi(name.substr(loc + out_prefix.size()));
-                }
-
-                return -1;
-            };
-
             const auto& param_names = m.get_parameter_names();
-            std::unordered_map<std::string, int> result;
+            std::unordered_map<std::string, std::vector<std::size_t>> result;
+            const std::string out_prefix = "#output_";
             for(const auto& name : param_names)
             {
-                auto index = get_output_index(name);
-                if(index == -1)
+                auto loc = name.find(out_prefix);
+                if(loc == std::string::npos)
                     continue;
-                result[name] = index;
+                result[name] = {std::stoul(name.substr(loc + out_prefix.size()))};
             }
 
             return result;

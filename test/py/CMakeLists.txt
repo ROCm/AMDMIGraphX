@@ -112,6 +112,7 @@ add_py_test(literal test_literal.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX
 add_py_test(autocast_fp8 test_autocast_fp8.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(compile_modes test_compile_modes.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(debug_symbols test_debug_symbols.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(split_prefill_decode test_split_prefill_decode.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 if(MIGRAPHX_ENABLE_GPU)
 add_py_test(gpu_offload test_gpu_offload.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(gpu test_gpu.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})

@@ -42,6 +42,7 @@
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/lifetime.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <migraphx/sym_substitute.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -66,6 +67,10 @@ struct operation
     /// Optionally compute exact symbolic values stored in a tensor.
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const;
+    /// Specialize the operation by replacing each symbol in its attributes with the size that
+    /// symbol takes. The default substitutes every reflected attribute, so an operation only
+    /// needs to implement this when its symbols are not reachable through reflection.
+    operation to_static(const symbol_map& symbol_map) const;
     /**
      * @brief This performs the operation's computation.
      *
@@ -192,6 +197,25 @@ sym_argument
 symbolic_compute_op(const T& x, const shape& output_shape, const std::vector<sym_argument>& args)
 {
     return symbolic_compute_op(rank<1>{}, x, output_shape, args);
+}
+
+template <class T>
+auto to_static_op(rank<1>, const T& x, const symbol_map& symbols) -> decltype(x.to_static(symbols))
+{
+    return x.to_static(symbols);
+}
+
+template <class T>
+auto to_static_op(rank<0>, const T& x, const symbol_map& symbols)
+{
+    return substitute_symbols(x, symbols);
+}
+
+// Deduced rather than declared as operation, which is still incomplete here.
+template <class T>
+auto to_static_op(const T& x, const symbol_map& symbols)
+{
+    return to_static_op(rank<1>{}, x, symbols);
 }
 
 template <class T>
@@ -579,6 +603,11 @@ lifetime get_lifetime_op(const T&)
                 args         = 'const std::vector<sym_argument>&',
                 const        = True,
                 default      = 'detail::symbolic_compute_op'),
+        virtual('to_static',
+                returns    = 'operation',
+                symbol_map = 'const migraphx::symbol_map&',
+                const      = True,
+                default    = 'detail::to_static_op'),
         virtual('compute',
                 returns = 'argument',
                 ctx     = 'context&',

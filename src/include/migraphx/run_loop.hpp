@@ -83,7 +83,20 @@ argument run_loop(const LoopModel& model,
 
         // wrap up the inputs and outputs
         std::unordered_map<std::string, argument> params;
-        int input_index = 0;
+        int input_index          = 0;
+        auto get_output_argument = [&](std::size_t output_index, const shape& output_shape) {
+            if(output_index > dep_num)
+            {
+                int64_t dir     = scan_output_directions.empty()
+                                      ? 0
+                                      : scan_output_directions[output_index - dep_num - 1];
+                auto idx        = (1 - dir) * iter + dir * (iter_num - 1 - iter);
+                const auto& arg = out_args.at(output_index);
+                assert((idx + 1) * output_shape.bytes() <= arg.get_shape().bytes());
+                return argument(output_shape, arg.data() + idx * output_shape.bytes());
+            }
+            return out_args.at(output_index);
+        };
         for(const auto& name : param_names)
         {
             auto ps = mod->get_parameter_shape(name);
@@ -99,20 +112,29 @@ argument run_loop(const LoopModel& model,
             }
             else
             {
-                auto output_index = out_param_indices[name];
-                if(output_index > dep_num)
+                const auto& output_indices = out_param_indices.at(name);
+                if(ps.type() == shape::tuple_type)
                 {
-                    int64_t dir     = scan_output_directions.empty()
-                                          ? 0
-                                          : scan_output_directions[output_index - dep_num - 1];
-                    auto idx        = (1 - dir) * iter + dir * (iter_num - 1 - iter);
-                    const auto& arg = out_args.at(output_index);
-                    assert((idx + 1) * ps.bytes() <= arg.get_shape().bytes());
-                    params[name] = argument(ps, arg.data() + idx * ps.bytes());
+                    const auto& sub_shapes = ps.sub_shapes();
+                    if(sub_shapes.size() != output_indices.size())
+                        MIGRAPHX_THROW("LOOP: tuple output parameter \"" + name +
+                                       "\" does not match the module returns");
+                    std::vector<argument> output_args;
+                    std::transform(sub_shapes.begin(),
+                                   sub_shapes.end(),
+                                   output_indices.begin(),
+                                   std::back_inserter(output_args),
+                                   [&](const shape& sub_shape, std::size_t output_index) {
+                                       return get_output_argument(output_index, sub_shape);
+                                   });
+                    params[name] = argument{output_args};
                 }
                 else
                 {
-                    params[name] = out_args.at(output_index);
+                    if(output_indices.size() != 1)
+                        MIGRAPHX_THROW("LOOP: output parameter \"" + name +
+                                       "\" does not map to one module return");
+                    params[name] = get_output_argument(output_indices.front(), ps);
                 }
             }
         }
@@ -128,7 +150,7 @@ argument run_loop(const LoopModel& model,
         std::copy(dep_out.begin(), dep_out.end(), out_args.begin());
 
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
-        model.append(mod_scan_outs, scan_outputs, scan_output_directions, iter, iter_num);
+        model.append(ctx, mod_scan_outs, scan_outputs, scan_output_directions, iter, iter_num);
     }
 
     out_args.erase(out_args.begin());

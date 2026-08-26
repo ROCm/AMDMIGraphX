@@ -271,11 +271,18 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
                                                {"ends", {num_heads + (2 * kv_num_heads)}}}),
                             transposed_qkv);
 
+    auto first_pos = migraphx::add_common_op(
+        *mm,
+        migraphx::make_op("sub"),
+        {slk_lit,
+         mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {1}},
+                                           {static_cast<int>(sequence_length) - 1}})});
+
     if(do_rotary)
     {
         qk = migraphx::op::builder::add("rotary_embedding",
                                         *mm,
-                                        {qk, slk_lit, cos_cache, sin_cache},
+                                        {qk, first_pos, cos_cache, sin_cache},
                                         {{"interleaved", false}})
                  .at(0);
     }
@@ -300,8 +307,6 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
 
     auto kv_num_heads_factor = num_heads / kv_num_heads;
     auto max_seq_len         = kv_s.lens()[2];
-    auto past_sl             = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk_lit);
 
     if(kv_num_heads_factor != 1)
     {
@@ -340,28 +345,22 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
     auto mul = mm->add_instruction(migraphx::make_op("mul"), gemm1, scale_ins);
 
-    if(sequence_length > 1)
-    {
-        std::vector<int> seq_range_vec(sequence_length);
-        std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
-        migraphx::shape seq_range_s{slk_s.type(), {sequence_length}};
-        auto seq_range = mm->add_literal(seq_range_s, seq_range_vec);
-        seq_range      = mm->add_instruction(
-            migraphx::make_op("reshape", {{"dims", {sequence_length, 1}}}), seq_range);
-        seq_range = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}),
-                                        seq_range);
-        auto causal_mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, seq_range);
-        causal_mask      = mm->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
-            causal_mask);
-        mul = mm->add_instruction(migraphx::make_op("where"), causal_mask, ninf, mul);
-    }
+    auto row_pos = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), first_pos);
+    row_pos = mm->add_instruction(
+        migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), row_pos);
+    row_pos =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), row_pos);
 
-    auto bc_past_sl = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
-    auto mask_comp =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
-    auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, mask_comp);
+    std::vector<int> seq_range_vec(sequence_length);
+    std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
+    auto seq_range =
+        mm->add_literal(migraphx::shape{slk_s.type(), {1, 1, sequence_length, 1}}, seq_range_vec);
+    seq_range =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
+    row_pos = mm->add_instruction(migraphx::make_op("add"), row_pos, seq_range);
+
+    auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, row_pos);
     mask      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), mask);
     auto where   = mm->add_instruction(migraphx::make_op("where"), mask, ninf, mul);
@@ -369,9 +368,9 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     auto scores  = mm->add_instruction(migraphx::make_op("dot"), softmax, v);
     auto out = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                    scores);
-    out          = mm->add_instruction(
+    out      = mm->add_instruction(
         migraphx::make_op("reshape",
-                                   {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
+                          {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
         out);
 
     return p;
@@ -497,7 +496,7 @@ inline migraphx::program make_group_norm(
     auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshaped, mean});
     auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshaped, mean});
     auto var     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}),
-                                   x_sqdiff_mean);
+                                       x_sqdiff_mean);
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
     auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
     auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
@@ -544,7 +543,7 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
     auto var     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}),
-                                   x_sqdiff_mean);
+                                       x_sqdiff_mean);
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
     auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
     auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
@@ -669,7 +668,7 @@ make_simplified_layer_norm(const std::vector<int64_t>& input_shape,
     auto x_sq      = add_common_op(*mm, migraphx::make_op("mul"), {float_x, float_x});
     auto norm_axis = axis < 0 ? axis + x->get_shape().lens().size() : axis;
     auto rms = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {norm_axis}}}), x_sq);
-    rms         = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), rms);
+    rms      = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), rms);
     rms      = add_common_op(*mm, migraphx::make_op("add"), {rms, eps});
     auto rrms   = mm->add_instruction(migraphx::make_op("rsqrt"), {rms});
     auto result = add_common_op(*mm, migraphx::make_op("mul"), {x, rrms});

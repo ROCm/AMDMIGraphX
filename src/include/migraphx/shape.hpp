@@ -640,6 +640,11 @@ MIGRAPHX_EXPORT std::vector<shape> flatten_tuple_shapes(const std::vector<shape>
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const shape& s);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, shape& s);
 
+/// Rebuild a shape from the json form of its value representation. Unlike the
+/// constructors, this preserves symbolic dimensions exactly, so it is the
+/// spelling used by the generated-code printers.
+MIGRAPHX_EXPORT shape make_json_shape(const std::string& s);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

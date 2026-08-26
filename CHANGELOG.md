@@ -90,7 +90,7 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
-* Fixed the `--py` and `--cpp` program printers throwing `SHAPE: lens() called on a dynamic shape` for any program holding a dynamic shape; each dynamic dimension is now printed as its bounds. This also broke the ONNX backend test harness, which builds a Python repro string for every model.
+* Fixed the `--py` and `--cpp` program printers throwing `SHAPE: lens() called on a dynamic shape` for any program holding a dynamic shape. A range-based dynamic dimension is now printed as its bounds, and a symbolic one is printed as the json form of its value representation via the new `migraphx::make_json_shape` and `migraphx.shape.from_json`, so the generated code rebuilds the symbolic expression, its bounds and optimals, and any symbolic strides exactly. This also broke the ONNX backend test harness, which builds a Python repro string for every model.
 * Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
 

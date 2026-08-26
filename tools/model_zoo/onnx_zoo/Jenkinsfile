@@ -1,9 +1,11 @@
 DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
+REPORTS_APP_CRED = 'migraphx_reports_github_app'
 REPORTS_REPO_CRED = 'migraphx_reports_repo'
 REPORTS_BRANCH = 'main'
 REPORTS_SUBDIR = 'onnx-models'
 REPORTS_CLONE = 'reports_clone'
 ZOO_DIR = 'tools/model_zoo/onnx_zoo'
+MODEL_ROOT = '/datasets/onnx-model-zoo'
 
 def dockeropts(String model_root) {
     def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
@@ -29,7 +31,6 @@ pipeline {
     }
 
     parameters {
-        string(name: 'MODEL_ROOT', defaultValue: '/datasets/onnx-model-zoo')
         string(name: 'IMAGE_TAG', defaultValue: 'latest')
         string(name: 'TIMEOUT_HOURS', defaultValue: '12')
     }
@@ -46,10 +47,8 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
-                    if (!(params.MODEL_ROOT ==~ /^\/[A-Za-z0-9._\/-]+$/))
-                        error("MODEL_ROOT must be an absolute path: '${params.MODEL_ROOT}'")
-                    if (sh(returnStatus: true, script: "find '${params.MODEL_ROOT}' -name '*.tar.gz' -print -quit | grep -q .") != 0)
-                        error("No .tar.gz archives under ${params.MODEL_ROOT}; is the NAS mounted on this agent?")
+                    if (sh(returnStatus: true, script: "find '${MODEL_ROOT}' -name '*.tar.gz' -print -quit | grep -q .") != 0)
+                        error("No .tar.gz archives under ${MODEL_ROOT}; is the NFS mount available on this agent?")
                     if (!(params.IMAGE_TAG ==~ /^[A-Za-z0-9._-]+$/))
                         error("IMAGE_TAG is not a valid docker tag: '${params.IMAGE_TAG}'")
                     withCredentials([string(credentialsId: REPORTS_REPO_CRED,
@@ -76,7 +75,7 @@ pipeline {
                     }
 
                     withDockerContainer(image: "${DOCKER_IMAGE}:${params.IMAGE_TAG}",
-                                        args: dockeropts(params.MODEL_ROOT)) {
+                                        args: dockeropts(MODEL_ROOT)) {
                         def cores = sh(returnStdout: true, script: 'nproc').trim()
                         env.GPU_TARGET = sh(returnStdout: true,
                                             script: "/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*'").trim()
@@ -102,7 +101,7 @@ pipeline {
                                 export PYTHONPATH="\$PWD/build/src/py"
                                 USE_LOCAL=1 TARGET=gpu \
                                 DRIVER="\$PWD/build/bin/migraphx-driver" \
-                                    ./${ZOO_DIR}/test_models.sh '${params.MODEL_ROOT}'
+                                    ./${ZOO_DIR}/test_models.sh '${MODEL_ROOT}'
                             """
                         }
                     }
@@ -119,16 +118,16 @@ pipeline {
                     }
                 }
                 // Kept as shell variables so neither is rendered into the build log.
-                withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}",
-                                                  usernameVariable: 'USERNAME',
-                                                  passwordVariable: 'TOKEN'),
+                withCredentials([usernamePassword(credentialsId: REPORTS_APP_CRED,
+                                                  usernameVariable: 'GITHUB_APP',
+                                                  passwordVariable: 'GITHUB_TOKEN'),
                                  string(credentialsId: REPORTS_REPO_CRED,
                                         variable: 'REPO')]) {
                     sh """
                         set -e
                         rm -rf '${REPORTS_CLONE}'
                         git clone --depth 1 --branch '${REPORTS_BRANCH}' \
-                            "https://\$USERNAME:\$TOKEN@github.com/\$REPO.git" '${REPORTS_CLONE}'
+                            "https://\$GITHUB_APP:\$GITHUB_TOKEN@github.com/\$REPO.git" '${REPORTS_CLONE}'
                         # Clone persists the token in .git/config; the push passes it.
                         git -C '${REPORTS_CLONE}' remote set-url origin \
                             "https://github.com/\$REPO.git"
@@ -144,7 +143,7 @@ pipeline {
                         fi
                         git -c user.name='migraphx-ci' -c user.email='migraphx-ci@amd.com' \
                             commit -m "onnx zoo run ${env.RUN_ID} (${env.GPU_TARGET}, build ${env.BUILD_NUMBER})"
-                        git push "https://\$USERNAME:\$TOKEN@github.com/\$REPO.git" \
+                        git push "https://\$GITHUB_APP:\$GITHUB_TOKEN@github.com/\$REPO.git" \
                             HEAD:'${REPORTS_BRANCH}'
                     """
                 }

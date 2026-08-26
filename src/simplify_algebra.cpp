@@ -923,8 +923,9 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        auto fusable_input = match::any_of(
-            match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4"));
+        auto fusable_input =
+            match::any_of(match::pointwise(),
+                          match::name("broadcast", "multibroadcast", "unpack_int4", "unsqueeze"));
         return match::name("concat")(match::any_of[match::inputs()](fusable_input));
     }
 
@@ -944,7 +945,7 @@ struct find_concat_op
 
     static bool is_valid_op(const operation& op)
     {
-        return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
+        return contains({"broadcast", "multibroadcast", "unpack_int4", "unsqueeze"}, op.name()) or
                (op.attributes().contains("pointwise") and op.name() != "quantizelinear");
     }
 
@@ -1022,6 +1023,18 @@ struct find_concat_op
             op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
             auto delta = bshape.lens().size() - input->get_shape().lens().size();
             iaxis -= delta;
+        }
+        else if(op.name() == "unsqueeze")
+        {
+            value v   = op.to_value();
+            auto axes = v["axes"].to_vector<std::int64_t>();
+            // Cant concat along an inserted unit axis, and steps split dims;
+            // unsqueeze ignores axes for scalar inputs, so the axis remap doesnt apply
+            if(not v["steps"].empty() or contains(axes, iaxis) or
+               any_of(axes, [](auto a) { return a < 0; }) or
+               x->inputs().front()->get_shape().scalar())
+                return {start, last};
+            iaxis -= std::count_if(axes.begin(), axes.end(), [&](auto a) { return a < iaxis; });
         }
         if(not concat_const_foldable(start, last, iaxis))
             return {start, last};

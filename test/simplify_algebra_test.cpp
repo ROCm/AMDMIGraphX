@@ -4679,8 +4679,32 @@ TEST_CASE(mul_dot_a_int4_dq_concat)
         auto dot    = m1.add_instruction(migraphx::make_op("dot"), mul, concat);
         m1.add_return({dot});
     };
-    migraphx::module m2 = m1;
     run_pass(m1);
+
+    // The mul stays on the A side, while the concat is moved below the
+    // unsqueeze/dequantizelinear/unpack_int4 onto the packed weights.
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("input", as);
+
+        auto lit =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4096}}));
+        auto litb = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", as.lens()}}), lit);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), a, litb);
+
+        auto b1      = m2.add_literal(migraphx::generate_literal(bs));
+        auto b2      = m2.add_literal(migraphx::generate_literal(bs));
+        auto bconcat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), b1, b2);
+        auto unpack  = m2.add_instruction(migraphx::make_op("unpack_int4"), bconcat);
+        auto s1      = m2.add_literal(migraphx::generate_literal(cs));
+        auto s2      = m2.add_literal(migraphx::generate_literal(cs));
+        auto sconcat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), s1, s2);
+        auto dq      = m2.add_instruction(migraphx::make_op("dequantizelinear"), unpack, sconcat);
+        auto unsq    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), dq);
+        auto dot     = m2.add_instruction(migraphx::make_op("dot"), mul, unsq);
+        m2.add_return({dot});
+    };
 
     EXPECT(m1.sort() == m2.sort());
 }
@@ -5924,6 +5948,91 @@ TEST_CASE(simplify_concat_same_input_dynamic)
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x, x);
         m2.add_return({concat});
     }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_unsqueeze)
+{
+    migraphx::module m1;
+    {
+        auto a      = m1.add_parameter("a", {migraphx::shape::float_type, {2, 3}});
+        auto b      = m1.add_parameter("b", {migraphx::shape::float_type, {4, 3}});
+        auto ua     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a);
+        auto ub     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), ua, ub);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a      = m2.add_parameter("a", {migraphx::shape::float_type, {2, 3}});
+        auto b      = m2.add_parameter("b", {migraphx::shape::float_type, {4, 3}});
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto unsq   = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), concat);
+        m2.add_return({unsq});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_unsqueeze_multi_axes)
+{
+    migraphx::module m1;
+    {
+        auto a      = m1.add_parameter("a", {migraphx::shape::float_type, {2, 3}});
+        auto b      = m1.add_parameter("b", {migraphx::shape::float_type, {2, 5}});
+        auto ua     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 2}}}), a);
+        auto ub     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 2}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), ua, ub);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a      = m2.add_parameter("a", {migraphx::shape::float_type, {2, 3}});
+        auto b      = m2.add_parameter("b", {migraphx::shape::float_type, {2, 5}});
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), a, b);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 2}}}), concat);
+        m2.add_return({unsq});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_unsqueeze_same_axis)
+{
+    migraphx::module m1;
+    {
+        auto a      = m1.add_parameter("a", {migraphx::shape::float_type, {2, 3}});
+        auto b      = m1.add_parameter("b", {migraphx::shape::float_type, {2, 3}});
+        auto ua     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a);
+        auto ub     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua, ub);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_unsqueeze_scalar)
+{
+    // unsqueeze ignores axes for scalar inputs, so moving the concat below the
+    // unsqueeze would insert a real axis and change the result to 2D
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1}, {0}};
+        auto a      = m1.add_parameter("a", s);
+        auto b      = m1.add_parameter("b", s);
+        auto ua     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), a);
+        auto ub     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua, ub);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
     EXPECT(m1 == m2);
 }
 

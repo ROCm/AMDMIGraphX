@@ -469,11 +469,12 @@ struct find_flash_decoding
 
     struct transformed_shapes_result
     {
-        std::vector<size_t> q_shape;           // final Q shape: [B, G, M, k]
-        std::vector<size_t> k_intermediate;    // K intermediate: [B, k, G, N/G]
-        std::vector<size_t> k_shape;           // final K shape: [B, G, k, N/G]
-        std::vector<int64_t> k_transpose_perm; // permutation for K transpose
-        std::vector<size_t> v_shape;           // final V shape: [B, G, N/G, D]
+        std::vector<size_t> q_shape;  // final Q shape: [B, G, M, k]
+        std::vector<size_t> k_shape;  // final K shape: [B, G, k, N/G]
+        std::vector<size_t> v_shape;  // final V shape: [B, G, N/G, D]
+        std::vector<operation> q_ops; // unsqueeze + multibroadcast
+        std::vector<operation> k_ops; // reshape + transpose
+        std::vector<operation> v_ops; // reshape
     };
 
     transformed_shapes_result get_transformed_shapes(const std::vector<shape>& input_shapes,
@@ -507,27 +508,26 @@ struct find_flash_decoding
         };
 
         // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
-        result.q_shape = insert_g(q_lens);
+        const int64_t g_axis = ndim - 2;
+        result.q_shape       = insert_g(q_lens);
+        result.q_ops         = {make_op("unsqueeze", {{"axes", {g_axis}}}),
+                                make_op("multibroadcast", {{"out_lens", result.q_shape}})};
 
         // K: [B, k, N] -> [B, G, k, N/G] via reshape + transpose
         // intermediate shape for reshape: [B, k, G, N/G]
-        result.k_intermediate.clear();
-        for(size_t i = 0; i < k_lens.size() - 1; ++i)
-        {
-            result.k_intermediate.push_back(k_lens[i]);
-        }
-        result.k_intermediate.push_back(g);
-        result.k_intermediate.push_back(n_split);
+        std::vector<size_t> k_intermediate(k_lens.begin(), k_lens.end() - 1);
+        k_intermediate.push_back(g);
+        k_intermediate.push_back(n_split);
 
-        // transpose permutation to get [B, G, k, N/G]
-        result.k_transpose_perm.clear();
-        for(size_t i = 0; i < k_lens.size() - 2; ++i)
-        {
-            result.k_transpose_perm.push_back(i); // batch dims stay in place
-        }
-        result.k_transpose_perm.push_back(k_lens.size() - 1); // G dimension
-        result.k_transpose_perm.push_back(k_lens.size() - 2); // k dimension
-        result.k_transpose_perm.push_back(k_lens.size());     // N/G dimension
+        // transpose permutation to get [B, G, k, N/G]; batch dims stay in place
+        std::vector<int64_t> k_transpose_perm(k_lens.size() - 2);
+        std::iota(k_transpose_perm.begin(), k_transpose_perm.end(), 0);
+        k_transpose_perm.push_back(k_lens.size() - 1); // G dimension
+        k_transpose_perm.push_back(k_lens.size() - 2); // k dimension
+        k_transpose_perm.push_back(k_lens.size());     // N/G dimension
+
+        result.k_ops = {make_op("reshape", {{"dims", k_intermediate}}),
+                        make_op("transpose", {{"permutation", k_transpose_perm}})};
 
         // final K shape after transpose
         result.k_shape                            = insert_g(k_lens);
@@ -536,6 +536,7 @@ struct find_flash_decoding
         // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
         result.v_shape                            = insert_g(v_lens);
         result.v_shape[result.v_shape.size() - 2] = n_split;
+        result.v_ops = {make_op("reshape", {{"dims", result.v_shape}})};
 
         return result;
     }
@@ -627,45 +628,16 @@ struct find_flash_decoding
         return result;
     }
 
-    // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
-    instruction_ref reshape_q_for_flash_decoding(module& mm,
-                                                 instruction_ref q,
-                                                 instruction_ref insert_before,
-                                                 const transformed_shapes_result& transform_info,
-                                                 int64_t g_axis) const
+    // Apply ops in order, each to the result of the previous one.
+    static instruction_ref insert_ops(module& mm,
+                                      instruction_ref insert_before,
+                                      const std::vector<operation>& ops,
+                                      instruction_ref input)
     {
-        auto q_unsqueeze =
-            mm.insert_instruction(insert_before, make_op("unsqueeze", {{"axes", {g_axis}}}), q);
-        return mm.insert_instruction(
-            insert_before,
-            make_op("multibroadcast", {{"out_lens", transform_info.q_shape}}),
-            q_unsqueeze);
-    }
-
-    // K: [B, k, N] -> [B, G, k, N/G] via reshape + transpose
-    instruction_ref
-    reshape_k_for_flash_decoding(module& mm,
-                                 instruction_ref k,
-                                 instruction_ref insert_before,
-                                 const transformed_shapes_result& transform_info) const
-    {
-        auto k_intermediate = mm.insert_instruction(
-            insert_before, make_op("reshape", {{"dims", transform_info.k_intermediate}}), k);
-        return mm.insert_instruction(
-            insert_before,
-            make_op("transpose", {{"permutation", transform_info.k_transpose_perm}}),
-            k_intermediate);
-    }
-
-    // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
-    instruction_ref
-    reshape_v_for_flash_decoding(module& mm,
-                                 instruction_ref v,
-                                 instruction_ref insert_before,
-                                 const transformed_shapes_result& transform_info) const
-    {
-        return mm.insert_instruction(
-            insert_before, make_op("reshape", {{"dims", transform_info.v_shape}}), v);
+        return std::accumulate(
+            ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op) {
+                return mm.insert_instruction(insert_before, op, x);
+            });
     }
 
     struct flash_input_transform
@@ -865,22 +837,22 @@ struct find_flash_decoding
             auto& transform = param_transforms.at(param);
             if(param == q_param)
             {
-                transform.split_main = reshape_q_for_flash_decoding(
-                    mm, transform.main, attn_group_ins, transform_info, g_axis);
+                transform.split_main =
+                    insert_ops(mm, attn_group_ins, transform_info.q_ops, transform.main);
                 transform.submodule_param_shape =
                     shape{qkv_shapes[0].type(), transform_info.q_shape};
             }
             else if(param == k_param)
             {
-                transform.split_main = reshape_k_for_flash_decoding(
-                    mm, transform.main, attn_group_ins, transform_info);
+                transform.split_main =
+                    insert_ops(mm, attn_group_ins, transform_info.k_ops, transform.main);
                 transform.submodule_param_shape =
                     shape{qkv_shapes[1].type(), transform_info.k_shape};
             }
             else if(param == v_param)
             {
-                transform.split_main = reshape_v_for_flash_decoding(
-                    mm, transform.main, attn_group_ins, transform_info);
+                transform.split_main =
+                    insert_ops(mm, attn_group_ins, transform_info.v_ops, transform.main);
                 transform.submodule_param_shape =
                     shape{qkv_shapes[2].type(), transform_info.v_shape};
             }

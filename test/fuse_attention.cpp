@@ -1227,8 +1227,8 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_param)
 
     // @param mask {1,1,M,N} -> multibroadcast {1,12,M,N} -> reshape {1,12,M,G,N/G}
     //   -> transpose {1,12,G,M,N/G} -> where
-    const auto* sm                            = flash_decoding_submodule(p);
-    const std::vector<std::size_t> split_lens = {1, 12, num_splits, 256, 128};
+    const auto* sm                              = flash_decoding_submodule(p);
+    const std::vector<std::size_t> split_lens   = {1, 12, num_splits, 256, 128};
     const std::vector<std::size_t> reshape_lens = {1, 12, 256, num_splits, 128};
     EXPECT(sm != nullptr and std::any_of(sm->begin(), sm->end(), [&](const auto& ins) {
                if(ins.name() != "where")
@@ -2066,7 +2066,7 @@ TEST_CASE(kv_cache_attention_with_fp32_softmax_upcast)
         std::any_of(main_mod.begin(), main_mod.end(), [](const auto& ins) {
             if(ins.name() != "group")
                 return false;
-            auto tag = ins.get_operator().to_value()["tag"].to<std::string>();
+            auto tag = ins.get_operator().to_value()["tag"].template to<std::string>();
             return tag == "kv_cache_attention";
         });
     EXPECT(found_kv_cache_attention);
@@ -2603,9 +2603,9 @@ TEST_CASE(flash_decoding_auto_split_threshold_behavior)
             return false;
         return module_inputs[0]->name().find("flash_decoding") != std::string::npos;
     };
-    const auto& main_mod_p1              = *p1.get_main_module();
-    const bool found_flash_decoding_p1   = std::any_of(main_mod_p1.begin(), main_mod_p1.end(),
-                                                     is_flash_decoding_group);
+    const auto& main_mod_p1 = *p1.get_main_module();
+    const bool found_flash_decoding_p1 =
+        std::any_of(main_mod_p1.begin(), main_mod_p1.end(), is_flash_decoding_group);
     const bool found_regular_attention_p1 =
         std::any_of(main_mod_p1.begin(), main_mod_p1.end(), [&](const auto& ins) {
             if(ins.name().find("group") == std::string::npos)
@@ -2615,9 +2615,9 @@ TEST_CASE(flash_decoding_auto_split_threshold_behavior)
                 return false;
             return module_inputs[0]->name().find("flash_decoding") == std::string::npos;
         });
-    const auto& main_mod_p2            = *p2.get_main_module();
-    const bool found_flash_decoding_p2 = std::any_of(main_mod_p2.begin(), main_mod_p2.end(),
-                                                    is_flash_decoding_group);
+    const auto& main_mod_p2 = *p2.get_main_module();
+    const bool found_flash_decoding_p2 =
+        std::any_of(main_mod_p2.begin(), main_mod_p2.end(), is_flash_decoding_group);
 
     // Below threshold: should have regular attention, not flash decoding
     EXPECT(not found_flash_decoding_p1);

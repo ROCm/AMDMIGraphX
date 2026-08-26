@@ -898,9 +898,11 @@ struct find_flash_decoding
         auto transform_info  = get_transformed_shapes(qkv_shapes, actual_groups);
         const int64_t g_axis = q_main->get_shape().ndim() - 2;
 
-        // insert reshape operations before the group for every submodule @param
-        for(auto& [param, transform] : param_transforms)
+        // Insert reshape operations before the group for every submodule @param.
+        // Iterate submod_params so the inserted instructions are ordered.
+        for(auto param : submod_params)
         {
+            auto& transform = param_transforms.at(param);
             switch(get_flash_input_kind(param, q_param, k_param, v_param, scores_lens))
             {
             case flash_input_kind::q:

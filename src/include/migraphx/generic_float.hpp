@@ -159,9 +159,8 @@ struct __attribute__((packed, may_alias)) generic_float
         return f.to_float();
     }
 
-    /// Shift `significand` right by `drop` bits, rounding to nearest with ties to even. This is
-    /// the rounding the hardware conversions this type emulates use, so truncating instead would
-    /// bias every converted value toward zero.
+    // Shift `significand` right by `drop` bits, rounding to nearest with ties to even.
+    // This is the rounding the hardware conversions use.
     static constexpr std::uint32_t rne_shift(std::uint32_t significand, int drop) noexcept
     {
         if(drop <= 0)
@@ -172,9 +171,9 @@ struct __attribute__((packed, may_alias)) generic_float
         return (significand + (1u << (drop - 1u)) - 1u + lsb) >> drop;
     }
 
-    /// Round a value that stays normal in the target by biasing the whole float32 bit pattern:
-    /// because the exponent field sits directly above the mantissa, a significand carry ripples
-    /// into the exponent (and on into infinity) for free.
+    // Round a value that stays normal in the target by biasing the whole float32 bit pattern.
+    // Because the exponent field sits directly above the mantissa, a significand carry ripples
+    // into the exponent (and on into infinity) for free.
     static constexpr float32_parts round_normal(float32_parts f) noexcept
     {
         constexpr const int drop = int(float32_parts::mantissa_width() - MantissaSize);
@@ -199,14 +198,11 @@ struct __attribute__((packed, may_alias)) generic_float
 
         if(f.exponent == 0)
         {
-            // A float32 subnormal, so there is no implicit leading one. Its significand sits `diff`
-            // binades below the target's. A target with a narrower exponent range (`diff > 0`, as
-            // for half) therefore puts the whole float32 subnormal span under its own smallest
-            // subnormal and the shift flushes it to a signed zero, whereas bf16 has float32's
-            // exponent range (`diff == 0`) and lands on genuine bf16 subnormals.
+            // float32 subnormal: no implicit leading one, and its significand sits `diff` binades
+            // below the target's, so a narrower exponent range (half) flushes to a signed zero
+            // while bf16 (`diff == 0`) reaches genuine subnormals.
             auto m = rne_shift(f.mantissa, drop + diff);
-            // Rounding can carry out of the mantissa field, which promotes the result to the
-            // smallest normal; letting that carry land in `exponent` is what applies it.
+            // A carry out of the mantissa field promotes the result to the smallest normal.
             exponent = m >> MantissaSize;
             mantissa = m;
         }

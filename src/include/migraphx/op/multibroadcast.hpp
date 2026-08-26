@@ -29,10 +29,44 @@
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/errors.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
+
+inline bool is_broadcastable_lens(std::vector<std::size_t> s0, std::vector<std::size_t> s1)
+{
+    if(s0 == s1)
+        return true;
+    if(s0.size() > s1.size())
+        s0.swap(s1);
+    const auto offset = s1.size() - s0.size();
+    return std::equal(s0.begin(), s0.end(), s1.begin() + offset, s1.end(), [](auto a, auto b) {
+        return a == b or a == 1 or b == 1;
+    });
+}
+
+inline std::vector<std::size_t>
+fixed_dyn_dims_lens(const std::vector<shape::dynamic_dimension>& dims)
+{
+    std::vector<std::size_t> target_lens;
+    target_lens.reserve(dims.size());
+    std::transform(dims.begin(), dims.end(), std::back_inserter(target_lens), [](const auto& d) {
+        return shape::static_dim_value(d);
+    });
+    return target_lens;
+}
+
+inline shape broadcast_to_fixed_dims(const shape& s0,
+                                     shape::type_t t,
+                                     const std::vector<shape::dynamic_dimension>& fixed_dims)
+{
+    const auto target_lens = fixed_dyn_dims_lens(fixed_dims);
+    if(is_broadcastable_lens(s0.lens(), target_lens))
+        return make_bcast_shape(s0, compute_broadcasted_lens(s0.lens(), target_lens));
+    return {t, target_lens};
+}
 
 /**
  * Broadcast multiple dimensions between two tensors.
@@ -71,6 +105,16 @@ struct multibroadcast
 
         if(inputs.size() == 1)
         {
+            if(not output_dyn_dims.empty() and not s0.dynamic())
+            {
+                if(std::all_of(output_dyn_dims.begin(), output_dyn_dims.end(), [](const auto& d) {
+                       return d.is_fixed();
+                   }))
+                {
+                    return broadcast_to_fixed_dims(s0, t, output_dyn_dims);
+                }
+            }
+
             // Symbolic 1-input mode: opt-in via a fully-symbolic output_dyn_dims attribute.
             // Input may be static (bridged via to_symbolic()) or already symbolic.
             // Range-based dynamic input is not allowed.
@@ -128,6 +172,17 @@ struct multibroadcast
             }
             else
             {
+                if(not output_dyn_dims.empty())
+                {
+                    if(std::all_of(output_dyn_dims.begin(),
+                                   output_dyn_dims.end(),
+                                   [](const auto& d) { return d.is_fixed(); }))
+                    {
+                        return broadcast_to_fixed_dims(s0, t, output_dyn_dims);
+                    }
+                    auto bcast_lens = compute_common_lens(inputs);
+                    return make_bcast_shape(s0, bcast_lens);
+                }
                 // output_lens will not be set for 2+ input version
                 auto bcast_lens = compute_common_lens(inputs);
                 return make_bcast_shape(s0, bcast_lens);

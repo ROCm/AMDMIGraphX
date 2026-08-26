@@ -22,21 +22,40 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(shape_start_oob_test)
+static std::vector<float> run_onnx()
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
-    mm->add_parameter("x", s);
-    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
-    auto ret = mm->add_literal(migraphx::literal{s_shape, {-1, 4, -1, -1}});
-    mm->add_return({ret});
-
     migraphx::onnx_options options;
-    options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    auto prog                       = read_onnx("shape_start_oob_test.onnx", options);
+    options.default_dyn_dim_value = {3, 8};
+    options.use_symbolic_shapes   = true;
+    auto p                        = read_onnx("expand_dyn_input_static_dims_throw.onnx", options);
+    p.compile(migraphx::make_target("ref"));
 
-    EXPECT(p == prog);
+    migraphx::shape sx{migraphx::shape::float_type, {3, 1, 1}};
+    std::vector<float> data(sx.elements());
+    std::iota(data.begin(), data.end(), 1.0f);
+    migraphx::parameter_map pp;
+    pp["x"]     = migraphx::argument(sx, data.data());
+    auto result = p.eval(pp).back();
+
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    return result_vector;
+}
+
+TEST_CASE(expand_dyn_input_static_dims_test)
+{
+    std::vector<float> gold(48);
+    for(std::size_t i = 0; i < 3; ++i)
+    {
+        const float v = i + 1;
+        std::fill_n(gold.begin() + i * 16, 16, v);
+    }
+
+    auto ref_result = run_onnx();
+
+    EXPECT(migraphx::verify::verify_rms_range(ref_result, gold));
 }

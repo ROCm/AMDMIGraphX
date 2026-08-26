@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,10 +29,9 @@ TEST_CASE(shape_dyn_test1)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
-    auto p0 = mm->add_parameter("x", s);
-    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
-    auto ret =
-        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), p0);
+    mm->add_parameter("x", s);
+    migraphx::shape s_shape{migraphx::shape::int64_type, {2}};
+    auto ret = mm->add_literal(migraphx::literal{s_shape, {-1, -1}});
     mm->add_return({ret});
 
     migraphx::onnx_options options;

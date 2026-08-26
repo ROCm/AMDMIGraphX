@@ -16,27 +16,31 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <onnx_test.hpp>
-
-TEST_CASE(shape_start_oob_test)
+// Regression: multibroadcast with fixed output_dyn_dims on a static-shape input.
+// The matching expand_dyn_input_static_dims_test in test/onnx/verify/ keeps the
+// ONNX parser path honest end-to-end from the ONNX parser.
+struct test_expand_dyn_static_dims : verify_program<test_expand_dyn_static_dims>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
-    mm->add_parameter("x", s);
-    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
-    auto ret = mm->add_literal(migraphx::literal{s_shape, {-1, 4, -1, -1}});
-    mm->add_return({ret});
-
-    migraphx::onnx_options options;
-    options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    auto prog                       = read_onnx("shape_start_oob_test.onnx", options);
-
-    EXPECT(p == prog);
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {3, 1, 1}};
+        auto param = mm->add_parameter("x", s);
+        std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims{{3, 3}, {4, 4}, {4, 4}};
+        auto ret = mm->add_instruction(
+            migraphx::make_op("multibroadcast",
+                              {{"out_dyn_dims", migraphx::to_value(out_dyn_dims)}}),
+            param);
+        mm->add_return({ret});
+        return p;
+    }
+};

@@ -65,6 +65,7 @@ Full documentation for MIGraphX is available at
 * Allow for 1 arg slicing over a dynamic dimension. (#5015)
 * Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
 * Rejected symbolic input shapes in the multi-input `slice` calls, and pointed both symbolic `slice` errors at `dyn_slice` (#5088).
+* Changed host conversion of float32 to `migraphx::half` and `migraphx::bf16` to round to nearest with ties to even instead of truncating, matching the hardware conversions these types emulate. Values above the target type's overflow threshold, including `std::numeric_limits<float>::max()`, now convert to infinity rather than to the largest finite value, so fp16 and bf16 model output can shift by up to one ULP (#5193).
 
 ### Resolved issues
 

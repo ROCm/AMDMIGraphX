@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1180,16 +1180,57 @@ TEST_CASE(test_neg_infinity)
 
 TEST_CASE(test_numeric_max_1)
 {
-    float fmax = std::numeric_limits<float>::max(); // fp32 max is fp16 inf
+    float fmax = std::numeric_limits<float>::max(); // fp32 max rounds past bf16 max, to inf
     migraphx::bf16 bf16_inf(fmax);
-    CHECK(bit_equal(bf16_inf, std::numeric_limits<migraphx::bf16>::max()));
+    CHECK(bit_equal(bf16_inf, std::numeric_limits<migraphx::bf16>::infinity()));
 }
 
 TEST_CASE(test_numeric_lowest_1)
 {
     float flowest = std::numeric_limits<float>::lowest();
     migraphx::bf16 bf16_neginf(flowest);
-    CHECK(bit_equal(bf16_neginf, std::numeric_limits<migraphx::bf16>::lowest()));
+    CHECK(bit_equal(bf16_neginf, -std::numeric_limits<migraphx::bf16>::infinity()));
+}
+
+// Conversion from float32 rounds to nearest with ties to even, matching the hardware conversion
+// this type emulates. Truncating instead biases every converted value toward zero.
+TEST_CASE(test_round_nearest_even)
+{
+    // Exactly halfway between mantissa 0 and mantissa 1; the tie goes to the even mantissa, so it
+    // stays at 1.0. Round-half-away-from-zero would give 0x3f81 here.
+    CHECK(bit_equal(migraphx::bf16(1.0f + 1.0f / 256.0f), uint16_t{0x3f80}));
+    // Halfway between mantissa 1 and mantissa 2; the even one is 2, so this tie rounds up.
+    CHECK(bit_equal(migraphx::bf16(1.0f + 3.0f / 256.0f), uint16_t{0x3f82}));
+    // Past the midpoint, so it rounds up whatever the tie rule is.
+    CHECK(bit_equal(migraphx::bf16(1.0f + 7.0f / 512.0f), uint16_t{0x3f82}));
+    // Short of the midpoint, so it rounds down.
+    CHECK(bit_equal(migraphx::bf16(1.0f + 1.0f / 512.0f), uint16_t{0x3f80}));
+}
+
+TEST_CASE(test_round_carries_into_exponent)
+{
+    // The rounded mantissa overflows its field, so the carry has to reach the exponent: 1.998
+    // rounds to 2.0 rather than staying at the largest mantissa of the binade below.
+    CHECK(bit_equal(migraphx::bf16(1.998f), uint16_t{0x4000}));
+    // The same carry out of the largest finite bf16 has to produce infinity, not wrap.
+    CHECK(bit_equal(migraphx::bf16(std::ldexp(1.9975f, 127)),
+                    std::numeric_limits<migraphx::bf16>::infinity()));
+    CHECK(bit_equal(migraphx::bf16(std::ldexp(1.9945f, 127)),
+                    std::numeric_limits<migraphx::bf16>::max()));
+}
+
+// bf16 has float32's exponent width, so the two share a subnormal binade: float32 subnormals map
+// onto bf16 subnormals rather than flushing to zero, and rounding one up can carry it all the way
+// into the smallest normal.
+TEST_CASE(test_subnormal_rounding)
+{
+    CHECK(bit_equal(migraphx::bf16(migraphx::bit_cast<float>(uint32_t{0x007fffff})),
+                    std::numeric_limits<migraphx::bf16>::min()));
+    CHECK(bit_equal(migraphx::bf16(migraphx::bit_cast<float>(uint32_t{0x00008001})),
+                    std::numeric_limits<migraphx::bf16>::denorm_min()));
+    // Short of half of denorm_min, so this one does flush to zero.
+    CHECK(bit_equal(migraphx::bf16(migraphx::bit_cast<float>(uint32_t{0x00007fff})),
+                    migraphx::bf16(0.0f)));
 }
 
 TEST_CASE(test_max_eq_lowest)

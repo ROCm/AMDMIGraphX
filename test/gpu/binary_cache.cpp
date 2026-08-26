@@ -37,7 +37,13 @@
 #include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/compiled_code.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/compile_ops.hpp>
+#include <migraphx/gpu/lowering.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
 #include <test.hpp>
+#include <pointwise.hpp>
 #include <algorithm>
 
 static migraphx::program pointwise_program()
@@ -165,6 +171,47 @@ TEST_CASE(no_directory_writes_nothing)
     EXPECT(cache.get(ctx, "in-memory-only").has_value());
     EXPECT(cache.get_stats().reused == 1);
     EXPECT(migraphx::fs::is_empty(td.path));
+}
+
+static migraphx::program two_identical_pointwise()
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 8}};
+    auto x   = mm->add_parameter("x", s);
+    auto y   = mm->add_parameter("y", s);
+    auto pw1 = add_pointwise(p, "main:pointwise0", {x, y}, single_pointwise("add"));
+    auto pw2 = add_pointwise(p, "main:pointwise1", {y, x}, single_pointwise("add"));
+    mm->add_return({pw1, pw2});
+    return p;
+}
+
+static std::size_t count_code_objects(const migraphx::module& m)
+{
+    return std::count_if(
+        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "gpu::code_object"; });
+}
+
+// The in-memory cache needs no directory: two identical kernels in one model compile once, and
+// a later module compiled with the same context reuses the result without compiling at all.
+TEST_CASE(duplicate_kernels_compile_once_without_a_directory)
+{
+    auto cache = std::make_shared<migraphx::gpu::binary_cache>(
+        migraphx::gpu::binary_cache_settings{.path = ""});
+    migraphx::gpu::context ctx{0, 1, cache};
+
+    auto p1 = two_identical_pointwise();
+    migraphx::run_passes(*p1.get_main_module(),
+                         {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::compile_ops{&ctx}});
+    EXPECT(count_code_objects(*p1.get_main_module()) == 2);
+    EXPECT(cache->get_stats().compiled == 1);
+
+    auto p2 = two_identical_pointwise();
+    migraphx::run_passes(*p2.get_main_module(),
+                         {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::compile_ops{&ctx}});
+    EXPECT(count_code_objects(*p2.get_main_module()) == 2);
+    EXPECT(cache->get_stats().compiled == 1);
+    EXPECT(cache->get_stats().reused == 1);
 }
 
 // Compiling twice against the same directory has to leave entries behind and keep producing the

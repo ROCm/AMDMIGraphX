@@ -65,6 +65,7 @@ Full documentation for MIGraphX is available at
 * Allow for 1 arg slicing over a dynamic dimension. (#5015)
 * Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
 * Rejected symbolic input shapes in the multi-input `slice` calls, and pointed both symbolic `slice` errors at `dyn_slice` (#5088).
+* Changed the ONNX `NonMaxSuppression` parser to trim its zero-padded indices output down to the number of selected boxes with a `dyn_slice`, so a parsed model now returns the ONNX specification's `[num_selected_indices, 3]` output instead of a fixed padded size. This removes the `MIGRAPHX_USE_DYNAMIC_NMS` environment variable that previously gated the trim (#5150).
 * Parsed ONNX `TopK` with a run-time `k` into `dyn_slice`, so the output shape carries `k` as a symbol instead of the widest possible dimension. A range-based dynamic input shape is now rejected; parse with symbolic shapes instead (#5150).
 * Made the ONNX parser's per-node identifier unique across modules by prefixing it with the module name, which also renames parsed subgraph modules (for example `If_5_if` is now `main_If_5_if`) (#5150).
 
@@ -89,6 +90,7 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
+* Fixed the `--py` and `--cpp` program printers throwing `SHAPE: lens() called on a dynamic shape` for any program holding a dynamic shape. A range-based dynamic dimension is now printed as its bounds, and a symbolic one is printed as the json form of its value representation via the new `migraphx::make_json_shape` and `migraphx.shape.from_json`, so the generated code rebuilds the symbolic expression, its bounds and optimals, and any symbolic strides exactly. This also broke the ONNX backend test harness, which builds a Python repro string for every model.
 * Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
 

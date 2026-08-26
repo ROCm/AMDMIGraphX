@@ -31,6 +31,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/functional.hpp>
+#include <algorithm>
 #include <numeric>
 #include <vector>
 #include <unordered_map>
@@ -449,19 +450,12 @@ struct gather_horizontal_fusion
 // Batches structurally-identical dot operations into a single batched GEMM by
 // stacking activations and weights along a new leading dimension (axis 0).  The
 // batched dot output is sliced and squeezed back into the individual results.
+//
+// Parallel MoE-style expert heads (dot + bias/activation epilogue) are batched
+// here too: the dots collapse into one GEMM and the per-slice epilogues are
+// re-fused afterwards by find_splits in simplify_algebra, so nothing is stranded
+// behind the slice.
 // ---------------------------------------------------------------------------
-
-// A dot whose sole consumer is a pointwise op gets that op folded into its GEMM
-// epilogue by fuse_mlir/fuse_ops (e.g. mlir_dot_add, mlir_dot_add_sigmoid_mul).
-// Horizontally batching such a dot inserts a slice+squeeze between the batched
-// dot and the pointwise, which is a fusion boundary, so the epilogue would fall
-// out as a separate kernel.  Skip these to avoid regressing epilogue fusion.
-static bool feeds_fusable_pointwise(instruction_ref ins)
-{
-    if(ins->outputs().size() != 1)
-        return false;
-    return ins->outputs().front()->get_operator().attributes().contains("pointwise");
-}
 
 struct dot_horizontal_fusion
 {
@@ -476,9 +470,6 @@ struct dot_horizontal_fusion
         if(ins->get_shape().dynamic())
             return false;
         if(ins->get_shape().ndim() < 2)
-            return false;
-        // Don't break an existing GEMM-epilogue fusion (see helper).
-        if(feeds_fusable_pointwise(ins))
             return false;
         // Only fold when the weight is a compile-time constant so the batched
         // weight tensor can be materialized.

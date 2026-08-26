@@ -664,7 +664,7 @@ struct miopen_apply
 
     void add_dyn_slice_op()
     {
-        apply_map.emplace("slice", [=](instruction_ref ins) {
+        auto lower_runtime_bounds = [=](instruction_ref ins) {
             auto inputs = ins->inputs();
             if(inputs.size() > 1)
             {
@@ -686,7 +686,9 @@ struct miopen_apply
                     ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
             }
             return ins;
-        });
+        };
+        apply_map.emplace("slice", lower_runtime_bounds);
+        apply_map.emplace("dyn_slice", lower_runtime_bounds);
     }
 
     // Get the argument's shape dimensions on host and then copy to gpu

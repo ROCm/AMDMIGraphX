@@ -66,6 +66,8 @@ Full documentation for MIGraphX is available at
 * Allow for 1 arg slicing over a dynamic dimension. (#5015)
 * Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
 * The 1 arg `slice` operator accepts symbolic input shapes when every sliced axis has a fixed length. Slicing a non-fixed symbolic axis, or supplying the bounds as inputs, needs `dyn_slice` since the integer bounds cannot express a symbolic output extent (#5088).
+* Rejected symbolic input shapes in the multi-input `slice` calls, and pointed both symbolic `slice` errors at `dyn_slice` (#5088).
+* Updated `find_concat_reshape` matcher to fuse concats of reshapes whose inputs differ along the concat axis, as long as the non-axis dimensions match (#5181).
 
 ### Resolved issues
 

@@ -169,13 +169,9 @@ shape make_bcast_shape(const shape& input_shape,
                        const std::vector<shape::dynamic_dimension>& bcast_dyn_dims);
 
 /**
- * @brief Whether input_lens can multibroadcast to out_lens (right-aligned, axis-1 rules).
- *
- * Predicate only: checks whether A can broadcast to B; does not compute a result shape.
- * See compute_broadcasted_lens() to compute broadcasted dimensions.
- *
- * @param input_lens shape to broadcast from (rank must be <= out_lens)
- * @param out_lens target shape
+ * @brief Whether input_lens can multibroadcast to out_lens, right-aligned with size-1 axes
+ * broadcastable. Returns false if input_lens has the higher rank or either is empty. See
+ * compute_broadcasted_lens() to compute the broadcasted dimensions.
  */
 MIGRAPHX_EXPORT
 bool can_multibroadcast(const std::vector<std::size_t>& input_lens,

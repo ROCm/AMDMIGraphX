@@ -475,6 +475,7 @@ struct find_flash_decoding
         std::vector<operation> q_ops; // unsqueeze + multibroadcast
         std::vector<operation> k_ops; // reshape + transpose
         std::vector<operation> v_ops; // reshape
+        int64_t g_axis = 0;           // position of G in the split shapes
     };
 
     transformed_shapes_result get_transformed_shapes(const std::vector<shape>& input_shapes,
@@ -492,7 +493,8 @@ struct find_flash_decoding
         size_t n    = k_lens[ndim - 1];
         size_t g    = num_groups;
 
-        // sequence length must divide evenly across splits for now
+        assert(ndim >= 2 and k_lens.size() == ndim and v_lens.size() == ndim and
+               "Q, K, V must have matching rank of at least 2");
         assert(n % g == 0 and
                "Key-value sequence length must be divisible by number of splits/groups");
         size_t n_split = n / g;
@@ -508,30 +510,15 @@ struct find_flash_decoding
         };
 
         // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
-        const int64_t g_axis = ndim - 2;
-        result.q_shape       = insert_g(q_lens);
-        result.q_ops         = {make_op("unsqueeze", {{"axes", {g_axis}}}),
-                                make_op("multibroadcast", {{"out_lens", result.q_shape}})};
+        result.g_axis  = ndim - 2;
+        result.q_shape = insert_g(q_lens);
+        result.q_ops   = {make_op("unsqueeze", {{"axes", {result.g_axis}}}),
+                          make_op("multibroadcast", {{"out_lens", result.q_shape}})};
 
-        // K: [B, k, N] -> [B, G, k, N/G] via reshape + transpose
-        // intermediate shape for reshape: [B, k, G, N/G]
-        std::vector<size_t> k_intermediate(k_lens.begin(), k_lens.end() - 1);
-        k_intermediate.push_back(g);
-        k_intermediate.push_back(n_split);
-
-        // transpose permutation to get [B, G, k, N/G]; batch dims stay in place
-        std::vector<int64_t> k_transpose_perm(k_lens.size() - 2);
-        std::iota(k_transpose_perm.begin(), k_transpose_perm.end(), 0);
-        k_transpose_perm.push_back(k_lens.size() - 1); // G dimension
-        k_transpose_perm.push_back(k_lens.size() - 2); // k dimension
-        k_transpose_perm.push_back(k_lens.size());     // N/G dimension
-
-        result.k_ops = {make_op("reshape", {{"dims", k_intermediate}}),
-                        make_op("transpose", {{"permutation", k_transpose_perm}})};
-
-        // final K shape after transpose
-        result.k_shape                            = insert_g(k_lens);
-        result.k_shape[result.k_shape.size() - 1] = n_split;
+        // K: [B, k, N] -> [B, G, k, N/G]. Splitting K's sequence axis is the same transform as
+        // splitting a score-shaped tensor's key axis, so it reuses the same ops.
+        result.k_shape = get_scores_split_lens(k_lens, g);
+        result.k_ops   = scores_split_ops(k_lens, g);
 
         // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
         result.v_shape                            = insert_g(v_lens);
@@ -559,59 +546,58 @@ struct find_flash_decoding
         return result;
     }
 
-    // Split the key axis of a score-aligned tensor: [B, H, M, N] -> [B, H, G, M, N/G].
-    instruction_ref insert_scores_split(module& mm,
-                                        instruction_ref ins,
-                                        instruction_ref insert_before,
-                                        std::size_t num_groups) const
+    // Ops splitting the key axis of a score-aligned tensor: [..., M, N] -> [..., G, M, N/G].
+    // Reshaping straight to the split lens would regroup M with N, so reshape to
+    // [..., M, G, N/G] and transpose G ahead of M instead.
+    static std::vector<operation> scores_split_ops(const std::vector<std::size_t>& lens,
+                                                   std::size_t num_groups)
     {
-        const auto& lens = ins->get_shape().lens();
-        const auto ndim  = lens.size();
+        const auto ndim = lens.size();
         assert(ndim >= 2 and num_groups > 0 and lens.back() % num_groups == 0);
 
-        // Two step process: reshape then transpose to avoid interleaving
-        // [..., M, N] -> [..., M, G, N/G]
         std::vector<std::size_t> dims(lens.begin(), lens.end() - 1);
         dims.push_back(num_groups);
         dims.push_back(lens.back() / num_groups);
-        auto reshaped =
-            mm.insert_instruction(insert_before, make_op("reshape", {{"dims", dims}}), ins);
 
-        // [..., M, G, N/G] -> [..., G, M, N/G]
         std::vector<int64_t> perm(ndim + 1);
         std::iota(perm.begin(), perm.end(), 0);
         std::swap(perm[ndim - 2], perm[ndim - 1]);
-        return mm.insert_instruction(
-            insert_before, make_op("transpose", {{"permutation", perm}}), reshaped);
+
+        return {make_op("reshape", {{"dims", dims}}),
+                make_op("transpose", {{"permutation", perm}})};
     }
 
-    // Compile-time counterpart of insert_scores_split for literals in the
-    // attention submodule, like causal masks. Split the literal's own layout
-    // (e.g. {1,1,M,N} -> {1,1,G,M,N/G}); multibroadcast covers leading 1s.
-    // Broadcast-only constants (scale, -inf) keep their original shape.
+    static instruction_ref insert_scores_split(module& mm,
+                                               instruction_ref ins,
+                                               instruction_ref insert_before,
+                                               std::size_t num_groups)
+    {
+        return insert_ops(
+            mm, insert_before, scores_split_ops(ins->get_shape().lens(), num_groups), ins);
+    }
+
+    // Compile-time counterpart of insert_scores_split for literals in the attention submodule,
+    // like causal masks. Splits the literal's own layout (e.g. {1,1,M,N} -> {1,1,G,M,N/G}), so
+    // the consumer's multibroadcast still expands the leading 1s. Broadcast-only constants
+    // (scale, -inf) keep their original shape.
     static literal transform_score_literal(const literal& lit,
                                            const std::vector<std::size_t>& scores_lens,
                                            std::size_t num_groups)
     {
         const auto& input_lens = lit.get_shape().lens();
-        if(input_lens.size() < 2 or input_lens.size() > scores_lens.size() or
-           (input_lens != scores_lens and not can_multibroadcast(input_lens, scores_lens)))
+        if(input_lens.size() < 2 or not can_multibroadcast(input_lens, scores_lens))
             return lit;
 
-        // Right-aligned N is input_lens.back(). A size-1 axis is broadcast-only.
+        // N is the last axis; if it is 1 the literal only broadcasts along N, so nothing to split
         if(input_lens.back() == 1 or input_lens.back() % num_groups != 0)
             return lit;
 
         const auto split_lens = get_scores_split_lens(input_lens, num_groups);
-        if(input_lens == split_lens)
-            return lit;
-
-        const auto ndim    = input_lens.size();
-        const auto n_split = input_lens.back() / num_groups;
+        const auto ndim       = input_lens.size();
+        const auto n_split    = input_lens.back() / num_groups;
 
         literal result;
         lit.visit([&](auto in_view) {
-            using type           = std::remove_cv_t<typename decltype(in_view)::value_type>;
             const auto& in_shape = in_view.get_shape();
 
             // Split element [..., g, m, j] reads [..., m, g * n_split + j], so the split layout
@@ -621,9 +607,11 @@ struct find_flash_decoding
             split_strides.insert(split_strides.end(),
                                  {n_split * strides.back(), strides[ndim - 2], strides.back()});
 
-            auto src = make_view(shape{in_shape.type(), split_lens, split_strides}, in_view.data());
-            result   = literal{shape{in_shape.type(), split_lens},
-                             std::vector<type>(src.begin(), src.end())};
+            const shape split_view{in_shape.type(), split_lens, split_strides};
+            assert(split_view.element_space() <= in_shape.element_space() and
+                   "split view must stay inside the literal's buffer");
+            auto src = make_view(split_view, in_view.data());
+            result   = literal{shape{in_shape.type(), split_lens}, src.begin(), src.end()};
         });
         return result;
     }
@@ -669,11 +657,12 @@ struct find_flash_decoding
         // The rewrites below run from an inserter, which is not given the source instruction,
         // so anything that must inspect it is checked here, before target_mod is touched.
         auto unsupported = [&](const instruction& ins) {
-            // score-shaped broadcasts would need axis adjusted as the rank grows
-            if(ins.name() == "broadcast")
+            const auto name = ins.name();
+            // "broadcast" pins an explicit axis, which shifts once G is inserted
+            if(name == "broadcast")
                 return ins.get_shape().lens() == scores_lens;
             // reductions are rewritten onto the innermost axis of the split rank
-            if(ins.name() == "reduce_max" or ins.name() == "reduce_sum")
+            if(name == "reduce_max" or name == "reduce_sum")
             {
                 const int64_t last_axis = ins.inputs().front()->get_shape().ndim() - 1;
                 auto axes = ins.get_operator().to_value()["axes"].to_vector<int64_t>();
@@ -697,10 +686,11 @@ struct find_flash_decoding
                 transform_score_literal(ins->get_literal(), scores_lens, num_groups));
         }
 
-        // Rebuild the rest, transforming operators that depend on tensor shape/rank.
-        // Params, outlines, and return are handled by add_instructions
-        std::unordered_map<std::string, instruction_ref> softmax_parts;
-        auto outputs = target_mod.add_instructions(
+        // Rebuild the rest, transforming operators that depend on tensor shape/rank. The inserter
+        // is never called for @param, @outline, or @return; add_instructions handles those.
+        auto max_ins     = target_mod.end();
+        auto sum_exp_ins = target_mod.end();
+        auto outputs     = target_mod.add_instructions(
             &source_mod,
             &map_old_to_new,
             [&](module& m,
@@ -708,46 +698,48 @@ struct find_flash_decoding
                 const operation& op,
                 const std::vector<instruction_ref>& inputs,
                 const std::vector<module_ref>& mod_args) {
-                auto new_op = op;
-                if(op.name() == "reduce_max" or op.name() == "reduce_sum")
+                const auto name = op.name();
+                auto new_op     = op;
+                if(name == "reduce_max" or name == "reduce_sum")
                 {
                     new_op.from_value({{"axes", {inputs.front()->get_shape().ndim() - 1}}});
                 }
-                else if(op.name() == "multibroadcast" and
-                        op.to_value()["out_lens"].to_vector<std::size_t>() == scores_lens)
+                else if(name == "multibroadcast")
                 {
-                    const auto& input_lens = inputs.front()->get_shape().lens();
-                    // If the input cannot broadcast to the split shape directly, broadcast to
-                    // the original score shape first and then split that
-                    if(not can_multibroadcast(input_lens, split_lens) and
-                       can_multibroadcast(input_lens, scores_lens))
-                        return insert_scores_split(
-                            m, m.insert_instruction(pos, op, inputs), pos, num_groups);
+                    auto value = op.to_value();
+                    if(value["out_lens"].to_vector<std::size_t>() == scores_lens)
+                    {
+                        const auto& input_lens = inputs.front()->get_shape().lens();
+                        // If the input cannot broadcast to the split shape directly, broadcast to
+                        // the original score shape first and then split that
+                        if(not can_multibroadcast(input_lens, split_lens) and
+                           can_multibroadcast(input_lens, scores_lens))
+                            return insert_scores_split(
+                                m, m.insert_instruction(pos, op, inputs), pos, num_groups);
 
-                    auto value        = op.to_value();
-                    value["out_lens"] = split_lens;
-                    new_op.from_value(value);
+                        value["out_lens"] = split_lens;
+                        new_op.from_value(value);
+                    }
                 }
 
                 auto new_ins = m.insert_instruction(pos, new_op, inputs, mod_args);
 
                 // store key softmax components for LSE calculation
-                if(op.name() == "reduce_max")
-                    softmax_parts["max"] = new_ins;
-                if(op.name() == "reduce_sum")
-                    softmax_parts["sum_exp"] = new_ins;
+                if(name == "reduce_max")
+                    max_ins = new_ins;
+                if(name == "reduce_sum")
+                    sum_exp_ins = new_ins;
                 return new_ins;
             });
 
-        // the final partial output (O')
-        if(outputs.size() != 1)
-            return false;
+        assert(outputs.size() == 1 and "Attention submodule must have a single output");
         auto partial_output_o_prime = outputs.front();
 
         // calculate LSE = max(S) + log(sum(exp(S - max(S))))
-        assert(contains(softmax_parts, "max") and contains(softmax_parts, "sum_exp"));
-        auto log_sum_exp = target_mod.add_instruction(make_op("log"), softmax_parts["sum_exp"]);
-        auto lse = target_mod.add_instruction(make_op("add"), softmax_parts["max"], log_sum_exp);
+        assert(max_ins != target_mod.end() and sum_exp_ins != target_mod.end() and
+               "Softmax max and sum must be rebuilt");
+        auto log_sum_exp = target_mod.add_instruction(make_op("log"), sum_exp_ins);
+        auto lse         = target_mod.add_instruction(make_op("add"), max_ins, log_sum_exp);
 
         // return a tuple of {O', LSE}
         target_mod.add_return({partial_output_o_prime, lse});
@@ -795,7 +787,8 @@ struct find_flash_decoding
         if(actual_groups == 0)
             return;
 
-        // TODO: uneven splits require padding score-shaped inputs
+        // TODO: support uneven splits by padding K, V, and score-shaped inputs up to a
+        // multiple of the split count
         if(sequence_length % actual_groups != 0)
             return;
 
@@ -803,8 +796,8 @@ struct find_flash_decoding
         auto group_inputs      = attn_group_ins->inputs();
         auto map_param_to_main = map_submod_params_to_inputs(submod, group_inputs);
 
-        // gemm1 output shape (Q@K attention scores); used to detect extra @param inputs
-        const auto scores_lens = gemm1->get_shape().lens();
+        // gemm1 output lens (Q@K attention scores): the lens whose key axis is split by G
+        const auto& scores_lens = gemm1->get_shape().lens();
         std::unordered_map<instruction_ref, flash_input_transform> param_transforms;
         const auto submod_params = submod->get_parameters();
 
@@ -814,15 +807,15 @@ struct find_flash_decoding
             param_transforms[param] = flash_input_transform{main_ins, {}, {}};
         }
 
-        const auto& q_main   = param_transforms.at(q_param).main;
-        const auto& k_main   = param_transforms.at(k_param).main;
-        const auto& v_main   = param_transforms.at(v_param).main;
+        const auto q_main    = map_param_to_main.at(q_param);
+        const auto k_main    = map_param_to_main.at(k_param);
+        const auto v_main    = map_param_to_main.at(v_param);
         auto qkv_shapes      = get_qkv_shapes(q_main, k_main, v_main);
         auto transform_info  = get_transformed_shapes(qkv_shapes, actual_groups);
-        const int64_t g_axis = q_main->get_shape().ndim() - 2;
+        const int64_t g_axis = transform_info.g_axis;
 
-        // Insert reshape operations before the group for every submodule @param.
-        // Iterate submod_params so the inserted instructions are ordered.
+        // Split each submodule @param that needs it. Iterate submod_params rather than the
+        // unordered param_transforms map so insertion order is deterministic.
         for(auto param : submod_params)
         {
             auto& transform = param_transforms.at(param);
@@ -852,9 +845,8 @@ struct find_flash_decoding
             {
                 transform.split_main =
                     insert_scores_split(mm, transform.main, attn_group_ins, actual_groups);
-                transform.submodule_param_shape =
-                    shape{param->get_shape().type(),
-                          get_scores_split_lens(transform.main->get_shape().lens(), actual_groups)};
+                transform.submodule_param_shape = shape{
+                    param->get_shape().type(), get_scores_split_lens(scores_lens, actual_groups)};
             }
             else
             {
@@ -882,7 +874,7 @@ struct find_flash_decoding
         std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new;
         for(auto param : submod_params)
         {
-            const auto& name = param->get_operator().to_value()["parameter"].to<std::string>();
+            const auto& name = any_cast<builtin::param>(param->get_operator()).parameter;
             map_old_params_to_new[param] = m_flash_decode.add_parameter(
                 name, param_transforms.at(param).submodule_param_shape);
         }

@@ -32,9 +32,11 @@
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/generic_float.hpp>
 #include <migraphx/literal.hpp>
+#include <cassert>
 #include <numeric>
 #include <migraphx/op/builder/insert.hpp>
 #include <basic_ops.hpp>
@@ -52,20 +54,23 @@ static void run_pass(migraphx::program& p, migraphx::fuse_attention fa = {})
 
 static const migraphx::module* flash_decoding_submodule(const migraphx::program& p)
 {
+    const auto is_flash_mod = [](const migraphx::module* mod) {
+        return migraphx::contains(mod->name(), "flash_decoding");
+    };
     const auto& main_mod = *p.get_main_module();
-    const auto group_it  = std::find_if(main_mod.begin(), main_mod.end(), [](const auto& ins) {
-        if(ins.name() != "group")
-            return false;
-        return std::any_of(ins.module_inputs().begin(), ins.module_inputs().end(), [](auto* mod) {
-            return mod->name().find("flash_decoding") != std::string::npos;
+    const auto group_it =
+        std::find_if(main_mod.begin(), main_mod.end(), [&](const migraphx::instruction& ins) {
+            if(ins.name() != "group")
+                return false;
+            const auto& mods = ins.module_inputs();
+            return std::any_of(mods.begin(), mods.end(), is_flash_mod);
         });
-    });
     if(group_it == main_mod.end())
         return nullptr;
     const auto& module_inputs = group_it->module_inputs();
-    return *std::find_if(module_inputs.begin(), module_inputs.end(), [](auto* mod) {
-        return mod->name().find("flash_decoding") != std::string::npos;
-    });
+    const auto mod_it = std::find_if(module_inputs.begin(), module_inputs.end(), is_flash_mod);
+    assert(mod_it != module_inputs.end());
+    return *mod_it;
 }
 
 static bool flash_decoding_has(const migraphx::program& p,
@@ -1172,7 +1177,8 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
 TEST_CASE(flash_decoding_4d_with_broadcastable_mask_param)
 {
     // Mask @param {1,1,M,N} lives in the attention submodule. It cannot multibroadcast directly to
-    // the split score shape; rebuild broadcasts to the original score shape, then reshapes.
+    // the split score shape; rebuild broadcasts to the original score shape, then splits that
+    // with a reshape and transpose.
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
     migraphx::shape s_mask{migraphx::shape::bool_type, {1, 1, 256, 256}};
     const std::size_t num_splits = 2;
@@ -1250,8 +1256,8 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_param)
 
 TEST_CASE(flash_decoding_4d_with_unary_on_softmax_broadcast)
 {
-    // Unary ops (e.g. contiguous) between multibroadcast(reduce_max) and sub must not
-    // block multibroadcast shape inference during flash decoding rebuild.
+    // A unary op (contiguous) between multibroadcast(reduce_max) and sub must not stop the
+    // multibroadcast from being rewritten to the split score shape.
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 384, 384}};
     migraphx::shape s_qv{migraphx::shape::half_type, {1, 12, 384, 64}};
     migraphx::shape s_k{migraphx::shape::half_type, {1, 12, 64, 384}};
@@ -2063,11 +2069,10 @@ TEST_CASE(kv_cache_attention_with_fp32_softmax_upcast)
     // with tag "kv_cache_attention"
     const auto& main_mod = *p.get_main_module();
     const bool found_kv_cache_attention =
-        std::any_of(main_mod.begin(), main_mod.end(), [](const auto& ins) {
+        std::any_of(main_mod.begin(), main_mod.end(), [](const migraphx::instruction& ins) {
             if(ins.name() != "group")
                 return false;
-            auto tag = ins.get_operator().to_value()["tag"].template to<std::string>();
-            return tag == "kv_cache_attention";
+            return ins.get_operator().to_value()["tag"].to<std::string>() == "kv_cache_attention";
         });
     EXPECT(found_kv_cache_attention);
 }

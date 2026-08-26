@@ -1201,6 +1201,20 @@ struct find_concat_conv
     }
 };
 
+static bool
+axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
+{
+    return x.size() == y.size() and x.size() > axis and
+           std::equal(x.begin(), x.begin() + axis, y.begin()) and
+           std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
+}
+
+static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
+{
+    // TODO: Check strides
+    return axis_equal(x.lens(), y.lens(), axis);
+}
+
 // Horizontal fusion for convolutions through concat decomposition.
 // When conv_b operates on concat(A, extra) and conv_a operates on A,
 // we can decompose conv_b = conv(A, w_prefix) + conv(extra, w_suffix)
@@ -1301,6 +1315,14 @@ struct find_conv_concat_split_fuse
         auto total_chans  = concat_ins->get_shape().lens()[1];
 
         if(prefix_chans >= total_chans)
+            return;
+
+        if(not std::all_of(concat_inputs.begin(), concat_inputs.end(), [&](auto inp) {
+               return axis_shape_equal(input_a->get_shape(), inp->get_shape(), concat_axis);
+           }))
+            return;
+
+        if(not axis_shape_equal(weight_a->get_shape(), weight_b->get_shape(), 1))
             return;
 
         auto out_a = weight_a->get_shape().lens()[0];
@@ -1910,20 +1932,6 @@ struct find_split_concat
     }
 };
 
-static bool
-axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
-{
-    return x.size() == y.size() and x.size() > axis and
-           std::equal(x.begin(), x.begin() + axis, y.begin()) and
-           std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
-}
-
-static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
-{
-    // TODO: Check strides
-    return axis_equal(x.lens(), y.lens(), axis);
-}
-
 struct find_add_convs
 {
     auto matcher() const
@@ -1995,6 +2003,9 @@ struct find_add_convs
             else
                 return;
         }
+
+        if(not axis_shape_equal(a_input->get_shape(), b_input->get_shape(), 1))
+            return;
 
         auto concat_input =
             m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), a_input, b_input);

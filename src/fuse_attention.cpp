@@ -540,6 +540,8 @@ struct find_flash_decoding
         return result;
     }
 
+    // Lens of a score-shaped tensor after its key axis is split:
+    // [..., M, N] -> [..., G, M, N/G]
     static std::vector<size_t> get_scores_split_lens(const std::vector<size_t>& lens,
                                                      std::size_t num_groups)
     {
@@ -580,34 +582,6 @@ struct find_flash_decoding
         std::swap(perm[ndim - 2], perm[ndim - 1]);
         return mm.insert_instruction(
             insert_before, make_op("transpose", {{"permutation", perm}}), reshaped);
-    }
-
-    // how each submodule @param is transformed for flash decoding
-    enum class flash_input_kind
-    {
-        q,
-        k,
-        v,
-        // Extra @param with the same lens() as gemm1 (Q@K attention scores), e.g. a mask.
-        scores,
-        other,
-    };
-
-    static flash_input_kind get_flash_input_kind(instruction_ref param,
-                                                 instruction_ref q_param,
-                                                 instruction_ref k_param,
-                                                 instruction_ref v_param,
-                                                 const std::vector<size_t>& scores_lens)
-    {
-        if(param == q_param)
-            return flash_input_kind::q;
-        if(param == k_param)
-            return flash_input_kind::k;
-        if(param == v_param)
-            return flash_input_kind::v;
-        if(param->get_shape().lens() == scores_lens)
-            return flash_input_kind::scores;
-        return flash_input_kind::other;
     }
 
     // Merge split index [..., G, M, N/G] into unsplit index [..., M, N]
@@ -903,37 +877,40 @@ struct find_flash_decoding
         for(auto param : submod_params)
         {
             auto& transform = param_transforms.at(param);
-            switch(get_flash_input_kind(param, q_param, k_param, v_param, scores_lens))
+            if(param == q_param)
             {
-            case flash_input_kind::q:
                 transform.split_main = reshape_q_for_flash_decoding(
                     mm, transform.main, attn_group_ins, transform_info, g_axis);
                 transform.submodule_param_shape =
                     shape{qkv_shapes[0].type(), transform_info.q_shape};
-                break;
-            case flash_input_kind::k:
+            }
+            else if(param == k_param)
+            {
                 transform.split_main = reshape_k_for_flash_decoding(
                     mm, transform.main, attn_group_ins, transform_info);
                 transform.submodule_param_shape =
                     shape{qkv_shapes[1].type(), transform_info.k_shape};
-                break;
-            case flash_input_kind::v:
+            }
+            else if(param == v_param)
+            {
                 transform.split_main = reshape_v_for_flash_decoding(
                     mm, transform.main, attn_group_ins, transform_info);
                 transform.submodule_param_shape =
                     shape{qkv_shapes[2].type(), transform_info.v_shape};
-                break;
-            case flash_input_kind::scores:
+            }
+            // extra @param with the same lens() as gemm1 (Q@K attention scores), e.g. a mask
+            else if(param->get_shape().lens() == scores_lens)
+            {
                 transform.split_main =
                     insert_scores_split(mm, transform.main, attn_group_ins, actual_groups);
                 transform.submodule_param_shape =
                     shape{param->get_shape().type(),
                           get_scores_split_lens(transform.main->get_shape().lens(), actual_groups)};
-                break;
-            case flash_input_kind::other:
+            }
+            else
+            {
                 transform.split_main            = transform.main;
                 transform.submodule_param_shape = param->get_shape();
-                break;
             }
         }
 

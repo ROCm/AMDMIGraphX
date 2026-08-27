@@ -21,33 +21,45 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_IDENTITY_HPP
-#define MIGRAPHX_GUARD_OPERATORS_IDENTITY_HPP
+#ifndef MIGRAPHX_GUARD_SYM_ARGUMENT_HPP
+#define MIGRAPHX_GUARD_SYM_ARGUMENT_HPP
 
-#include <migraphx/op/unary.hpp>
-#include <migraphx/argument.hpp>
-#include <migraphx/sym_argument.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
+#include <migraphx/tensor_view.hpp>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
 
-struct identity
+struct MIGRAPHX_EXPORT sym_argument
 {
-    std::string name() const { return "identity"; }
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
-    sym_argument symbolic_compute(const shape&, const std::vector<sym_argument>& args) const
-    {
-        return args[0];
-    }
-    argument compute(shape, std::vector<argument> args) const { return args[0]; }
+    sym_argument() = default;
 
-    value attributes() const { return {{"pointwise", true}, {"point_op", "${0}"}}; }
+    explicit sym_argument(shape s);
 
-    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
+    sym_argument(std::vector<sym::expr> data, shape s);
+
+    bool empty() const;
+
+    const shape& get_shape() const;
+
+    tensor_view<sym::expr> get();
+
+    tensor_view<const sym::expr> get() const;
+
+    bool valid() const;
+
+    sym_argument reshape(const shape& s) const;
+
+    MIGRAPHX_EXPORT friend bool operator==(const sym_argument& x, const sym_argument& y);
+    MIGRAPHX_EXPORT friend bool operator!=(const sym_argument& x, const sym_argument& y);
+
+    std::vector<sym::expr> m_data;
+    shape m_shape;
 };
 
-} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

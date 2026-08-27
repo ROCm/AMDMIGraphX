@@ -7,7 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
-* Added `migraphx::shape::from_json` and the matching `migraphx.shape.from_json` Python binding, which rebuild a shape from the json form of its value representation, preserving the symbolic dimension expressions, bounds, and optimals that no constructor argument can spell.
+* Added `migraphx::shape::from_json` and the matching `migraphx.shape.from_json` Python binding, which rebuild a shape from the json form of its value representation, preserving the symbolic dimension expressions, bounds, and optimals that no constructor argument can spell (#5205).
 * Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added support for building against ROCm 7.13 and newer using TheRock (#4952)
 * Added YOLO26 object detection example notebook.
@@ -92,7 +92,7 @@ Full documentation for MIGraphX is available at
 * Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).
 * Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
-* Fixed the `--py` and `--cpp` program printers throwing `SHAPE: lens() called on a dynamic shape` for any program holding a dynamic shape. A range-based dynamic dimension is now printed as its bounds, and a symbolic one is printed as the json form of its value representation via the new `migraphx::shape::from_json` and `migraphx.shape.from_json`, so the generated code rebuilds the symbolic expression, its bounds and optimals, and any symbolic strides exactly.
+* Fixed the `--py` and `--cpp` program printers throwing `SHAPE: lens() called on a dynamic shape` for any program holding a dynamic shape. A range-based dynamic dimension is now printed as its bounds, and a symbolic one is printed as the json form of its value representation via the new `migraphx::shape::from_json` and `migraphx.shape.from_json`, so the generated code rebuilds the symbolic expression, its bounds and optimals, and any symbolic strides exactly (#5205).
 
 ### Optimized
 * Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).

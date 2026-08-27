@@ -47,6 +47,7 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/promote_storage_type.hpp>
 #include <migraphx/propagate_precision.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/register_target.hpp>
@@ -113,6 +114,12 @@ struct backend_options
     std::string binary_cache = binary_cache_settings{}.path;
     /// Compile even when a kernel could be reused, and fail if the two disagree.
     bool binary_cache_verify = false;
+    // Read/write problem caches (the common case: a user tuning a model). New
+    // tuning solutions are saved back to these files.
+    std::vector<std::string> problem_cache_files = {};
+    // Read-only problem caches (system-level, e.g. shipped by gpuep or an ISV),
+    // searched after the writable caches and never written back.
+    std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
 
@@ -122,6 +129,8 @@ struct backend_options
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
                     f(self.binary_cache, "binary_cache"),
                     f(self.binary_cache_verify, "binary_cache_verify"),
+                    f(self.problem_cache_files, "problem_cache_files"),
+                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
                     f(self.convolution_layout, "convolution_layout"));
     }
 };
@@ -199,6 +208,8 @@ struct pipeline_factory
 
     std::vector<pass> optimize_rewrite_pipeline() const
     {
+        auto gfx_name          = get_context()->get_current_device().get_gfx_name();
+        bool bf16_missing_valu = not starts_with(gfx_name, "gfx125");
         return {
             rewrite_convolution{},
             dead_code_elimination{},
@@ -215,6 +226,8 @@ struct pipeline_factory
             rewrite_topk{},
             rewrite_low_precision{},
             enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
+            dead_code_elimination{},
+            enable_pass(bf16_missing_valu, promote_storage_type{{shape::bf16_type}}),
             dead_code_elimination{},
             propagate_precision{},
             dead_code_elimination{},
@@ -315,10 +328,15 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     ctx.set_binary_cache(std::make_shared<binary_cache>(
         binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
-    ctx.load_problem_cache(); // TODO: update load_problem_cache to include gpu arch
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
+
+    // Problem cache files arrive as GPU backend options. The writable caches
+    // (problem_cache_files) save new tuning solutions back; the read-only caches
+    // (read_only_problem_cache_files) are system-level and never written.
+    ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
+                            backend_opts.problem_cache_files);
 
     pipeline_factory p{&gctx, options, backend_opts};
 

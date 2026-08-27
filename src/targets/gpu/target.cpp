@@ -114,11 +114,9 @@ struct backend_options
     std::string binary_cache = binary_cache_settings{}.path;
     /// Compile even when a kernel could be reused, and fail if the two disagree.
     bool binary_cache_verify = false;
-    // Read/write problem caches (the common case: a user tuning a model). New
-    // tuning solutions are saved back to these files.
+    // Problem caches that new tuning solutions are saved back to.
     std::vector<std::string> problem_cache_files = {};
-    // Read-only problem caches (system-level, e.g. shipped by gpuep or an ISV),
-    // searched after the writable caches and never written back.
+    // System-level problem caches, searched after the writable ones and never written.
     std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
@@ -323,8 +321,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 {
     auto backend_opts = get_backend_options(options);
     auto& ctx         = any_cast<context>(gctx);
-    // The initial context predates the compile options, so install a cache constructed with the
-    // settings they carry.
+    // The context predates the compile options, so the cache they configure is installed here.
     ctx.set_binary_cache(std::make_shared<binary_cache>(
         binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
@@ -332,9 +329,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
-    // Problem cache files arrive as GPU backend options. The writable caches
-    // (problem_cache_files) save new tuning solutions back; the read-only caches
-    // (read_only_problem_cache_files) are system-level and never written.
     ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
                             backend_opts.problem_cache_files);
 

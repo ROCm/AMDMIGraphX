@@ -105,10 +105,8 @@ static fs::path entry_path(const fs::path& root, const context& ctx, const std::
     return root / version / device_dir(ctx) / (md5(key) + ".mxr");
 }
 
-/// Publish content by writing it in a temporary directory beside the destination and renaming
-/// it into place, so a reader never sees a half-written file and concurrent writers cannot
-/// tear it. The temporary stays beside the destination because the rename is only atomic
-/// within one filesystem; the tmp_dir removes whatever a failed write leaves behind.
+/// Publish by rename so a reader never sees a half-written file. The temporary stays beside
+/// the destination since the rename is only atomic within one filesystem.
 static void write_atomically(const fs::path& dest, const std::vector<char>& content)
 {
     tmp_dir td{"cache", dest.parent_path()};
@@ -132,9 +130,8 @@ static void write_stamp(const fs::path& dir)
     write_atomically(stamp, std::vector<char>(s.begin(), s.end()));
 }
 
-/// Read the entry for a key off disk, or nullopt when there is no usable one. A damaged or
-/// stale entry is only worth a recompile, so every failure is a miss and the result is written
-/// over the top.
+/// Read the entry for a key off disk. Any failure is just a miss, so a damaged entry costs a
+/// recompile and is written over.
 static optional<binary_cache::entry>
 read_entry(const fs::path& root, const context& ctx, const std::string& key)
 {

@@ -246,8 +246,7 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
     return cos.front();
 }
 
-/// The generated args.hpp for a compile, from the same inputs the compile hands to clang. Shared
-/// with hip_compile_key so the key cannot drift from what is compiled.
+/// Shared between the compile and hip_compile_key so the key cannot drift from what is compiled.
 static std::string make_args_hpp(const hip_compile_options& options)
 {
     assert(not options.inputs.empty());

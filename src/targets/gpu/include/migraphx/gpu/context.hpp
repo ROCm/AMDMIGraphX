@@ -492,8 +492,7 @@ struct context
         return *bc;
     }
 
-    /// Install a cache built with the settings the compile options carry, replacing the default
-    /// one the context was constructed with.
+    /// Replace the default cache with one built from the compile options.
     void set_binary_cache(std::shared_ptr<binary_cache> bcache) { bc = std::move(bcache); }
 
     private:

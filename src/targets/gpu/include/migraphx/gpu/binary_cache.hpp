@@ -90,8 +90,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     /// Counts of what the cache did.
     struct stats
     {
-        /// Served from memory: the key was already compiled or read off disk earlier in this
-        /// process.
+        /// Served from memory, from an earlier compile or disk read in this process.
         std::size_t reused = 0;
         /// Served from the cache directory.
         std::size_t hits = 0;

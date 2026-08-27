@@ -175,10 +175,9 @@ static void verify_reuse(context& ctx,
                    to_string(fresh.code.fragment));
 }
 
-/// Prefix of placeholder keys for cells whose compiler cannot describe its output. Each
-/// placeholder is unique, so such cells never group with another cell, and the cache must
-/// ignore them: they are numbered by slot, so the same key names different code from one
-/// compile batch to the next.
+/// Prefix of unique placeholder keys for cells whose compiler cannot describe its output, so
+/// they never group with another cell. The cache must ignore them, since a slot number names
+/// different code from one compile batch to the next.
 static constexpr const char* private_key_prefix = "__migraphx_private_unique_key";
 
 static bool is_private_key(const std::string& key) { return starts_with(key, private_key_prefix); }
@@ -398,20 +397,15 @@ MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 // forward declared since it requires compile_manager
 static void replace_inserted_device_ops(context& ctx, module& m);
 
-/**
- * One compilation and its result, shared by every result slot whose key matches.
- *
- * Duplicate compiles are grouped by pointing the slots of every matching plan at the same cell,
- * so writing the result once puts it in place everywhere. During the parallel compile each cell
- * is written by exactly one worker; the plans sharing it read it only after the workers join.
- */
+/// One compilation and its result, shared by every result slot whose key matches. Each cell is
+/// written by exactly one worker during the parallel compile; sharers read it after the join.
 struct compile_cell
 {
     explicit compile_cell(value s) : solution(std::move(s)) {}
 
     value solution = {};
-    /// Identifies the code the compile would produce. When the compiler cannot say, a private
-    /// key is invented instead, which keeps the cell out of the cache and out of the grouping.
+    /// Identifies the code the compile would produce, or an invented private key when the
+    /// compiler cannot say.
     std::string key                   = {};
     optional<compiler_replace> result = nullopt;
 };
@@ -487,8 +481,7 @@ struct compile_plan
         }
     }
 
-    /// A standalone program with just this instruction and the compiled code objects inserted,
-    /// used for benchmarking a result and for dumping it.
+    /// A standalone program with just this instruction and its compiled code objects inserted.
     program make_program(const compiler_replace& cr) const
     {
         program bench_prog;
@@ -618,8 +611,7 @@ struct compile_plan
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
-        // One slot was created per solution, and grouping only redirects slots, never adds or
-        // removes them.
+        // One slot per solution; grouping only redirects slots.
         assert(results.size() == config->solutions.size());
         std::vector<double> times;
         times.reserve(results.size());
@@ -764,12 +756,9 @@ struct compile_manager
             });
         }
 
-        // Group the slots that would compile to the same code by pointing them at one shared
-        // cell; writing that cell's result once then puts it in place for every plan that
-        // shares it. The plan kept with the cell drives the compile, which any of the sharers
-        // could do since they compile to the same code. The keys are whole kernel sources, so
-        // the index views the canonical cell's key instead of copying; it does not outlive
-        // this function.
+        // Group slots that would compile to the same code by pointing them at one shared cell,
+        // so writing the result once puts it in place everywhere; the stored plan drives the
+        // compile. The keys are whole kernel sources, so the index views them instead of copying.
         std::unordered_map<std::string_view,
                            std::pair<compile_plan*, std::shared_ptr<compile_cell>>>
             index;
@@ -778,26 +767,24 @@ struct compile_manager
             for(auto& cell : cp.results)
             {
                 auto [it, inserted] = index.emplace(cell->key, std::make_pair(&cp, cell));
-                // The map key must view the string owned by the cell stored alongside it, or it
-                // dangles when a duplicate cell is dropped.
+                // The key must view the stored cell's string, or it dangles when a duplicate
+                // cell is dropped.
                 assert(it->first.data() == it->second.second->key.data());
                 if(not inserted)
                     cell = it->second.second;
             }
         }
 
-        // The cache is unguarded, so everything it can answer is looked up before any compile
-        // starts, and everything compiled is stored after they all finish. Until the compiles
-        // run below, a cell holding a result is one whose result was reused from the cache.
+        // The cache is unguarded, so all lookups happen before any compile starts and stores
+        // after they finish. Until then, a cell holding a result is one reused from the cache.
         for(const auto& entry : index)
         {
             const auto& [cp, cell] = entry.second;
             cell->result           = cp->lookup(cell->key);
         }
 
-        // Only the cells that still need parallel work, a compile or a verify of a reused
-        // result, become tasks; since every key is known before any compile starts, each cell
-        // is handed to exactly one task and the compiles never have to coordinate.
+        // Only cells that still need work, a compile or a verify of a reused result, become
+        // tasks; each cell gets exactly one task, so the compiles never coordinate.
         std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>> tasks;
         transform_if(
             index.begin(),
@@ -821,13 +808,12 @@ struct compile_manager
         {
             if(not cell->result.has_value())
                 continue;
-            // When verifying, this also stores reused results back, which rewrites the same
-            // bytes under the same key and is harmless.
+            // When verifying, reused results are stored again, rewriting the same bytes
+            // harmlessly.
             cp->store(cell->solution, cell->key, cell->result->code);
             assert(not cell->result->code.empty());
-            // Only the serializable code is used from here on. Dropping the replace function
-            // releases the code objects and split modules its closure holds, and keeps it from
-            // being run against an instruction other than the one it was built for.
+            // Only the serializable code is used from here on; dropping the replace function
+            // releases what its closure holds and keeps it off other instructions.
             cell->result->replace_fn = nullptr;
         }
 

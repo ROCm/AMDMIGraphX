@@ -24,10 +24,8 @@
 
 find_package(hip REQUIRED)
 
-# Produce a short identity for a list of toolchain library files, used to separate binary cache
-# entries that different toolchains cannot share. Entries that are not files (e.g. target names)
-# are skipped; CMake cannot stream one hash across several files, so hash the per-file content
-# hashes instead.
+# A short identity for a list of toolchain libraries, used to separate binary cache entries
+# that different toolchains cannot share. Non-file entries (e.g. target names) are skipped.
 function(migraphx_hash_libraries LIB_PATHS OUT_VAR)
     set(HASH_INPUT "")
     foreach(LIB_PATH IN LISTS LIB_PATHS)

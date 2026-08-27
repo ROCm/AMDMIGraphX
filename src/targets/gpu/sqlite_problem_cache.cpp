@@ -94,12 +94,15 @@ void sqlite_problem_cache::load(const std::string& path)
     }
     for(const auto& row : rows)
     {
+        // Drop persisted null mark() sentinels (see json_problem_cache::load).
+        auto solution = from_json_string(row.at("solution"));
+        if(solution.is_null())
+            continue;
         cache_device_key dk;
         from_value(from_json_string(row.at("device_key")), dk);
         // Normalize keys on load: JSON erases value types, so a serialized key
         // must be canonicalized to match the normalized runtime lookup key.
-        cache[dk][from_json_string(row.at("problem_key")).normalize()] =
-            from_json_string(row.at("solution"));
+        cache[dk][from_json_string(row.at("problem_key")).normalize()] = solution;
     }
 }
 

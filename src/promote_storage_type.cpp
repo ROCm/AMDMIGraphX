@@ -21,21 +21,41 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/truncate_float.hpp>
+#include <migraphx/promote_storage_type.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/instruction_ref.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/eliminate_convert.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/replace_data_type.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void truncate_float_pass::apply(module& m) const
+static bool is_computation(instruction_ref ins)
 {
-    replace_data_type(
-        m, {shape::float_type, shape::double_type}, float_type, [&](instruction_ref ins) {
-            return contains(ins_names, ins->name()) or contains(ins_names, "all");
-        });
+    // convert and bit_cast are storage boundaries themselves, and layout and
+    // identity don't compute anything even though they all carry the pointwise
+    // attribute
+    if(contains({"convert", "bit_cast", "layout", "identity"}, ins->name()))
+        return false;
+    auto attrs = ins->get_operator().attributes();
+    return attrs.get("reduce", false) or attrs.get("pointwise", false);
+}
+
+void promote_storage_type::apply(module_pass_manager& mpm) const
+{
+    auto& m      = mpm.get_module();
+    auto promote = [&](instruction_ref ins) {
+        return contains(types, ins->get_shape().type()) and is_computation(ins);
+    };
+    if(none_of(iterator_for(m), promote))
+        return;
+    replace_data_type(m, types, shape::float_type, promote);
+    // Adjacent promoted instructions are connected by a convert to the
+    // storage type followed by a convert back to float, which cancel
+    mpm.run_pass(eliminate_convert{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

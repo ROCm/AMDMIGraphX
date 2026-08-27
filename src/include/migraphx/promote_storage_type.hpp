@@ -21,22 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/truncate_float.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/replace_data_type.hpp>
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_PROMOTE_STORAGE_TYPE_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_PROMOTE_STORAGE_TYPE_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/shape.hpp>
+#include <string>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void truncate_float_pass::apply(module& m) const
+struct module_pass_manager;
+
+/// Treat the listed types as storage-only: elementwise and reduction
+/// instructions of such a type are computed in float instead, with converts
+/// inserted around them. Adjacent promoted instructions pass the float values
+/// directly, which avoids rounding every intermediate result and the cost of
+/// emulating math for types without native instructions (such as bf16).
+struct MIGRAPHX_EXPORT promote_storage_type
 {
-    replace_data_type(
-        m, {shape::float_type, shape::double_type}, float_type, [&](instruction_ref ins) {
-            return contains(ins_names, ins->name()) or contains(ins_names, "all");
-        });
-}
+    std::vector<shape::type_t> types = {};
+    std::string name() const { return "promote_storage_type"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_PROMOTE_STORAGE_TYPE_HPP

@@ -1155,10 +1155,8 @@ MIGRAPHX_PRED_MATCHER(concat_of_same_broadcast, instruction_ref ins)
            return i->name() == "multibroadcast" and i->inputs().size() == 1;
        }))
         return false;
-    auto axis        = any_cast<op::concat>(ins->get_operator()).axis;
+    auto axis        = any_cast<op::concat>(ins->normalized_operator()).axis;
     const auto& lens = inputs.front()->get_shape().lens();
-    if(axis < 0 or axis >= lens.size())
-        return false;
     if(not all_of(inputs, [&](instruction_ref i) { return i->get_shape().strides()[axis] == 0; }))
         return false;
     auto x = inputs.front()->inputs().front();

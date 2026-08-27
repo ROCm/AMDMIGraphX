@@ -752,37 +752,47 @@ struct compile_manager
         }
 
         // Group the slots that would compile to the same code by pointing them at one shared
-        // cell, and look each unique cell up in the cache as it is first seen; the cache is
-        // unguarded, so everything it can answer is looked up here before any compile starts,
-        // and everything compiled is stored after they all finish. Only the cells that still
-        // need parallel work, a compile or a verify of a reused result, become tasks; since
-        // every key is known before any compile starts, each cell is handed to exactly one task
-        // and the compiles never have to coordinate. The plan kept with the cell drives the
-        // compile, which any of the sharers could do since they compile to the same code.
-        std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>> tasks;
-        // The keys are whole kernel sources, so the index views the canonical cell's key
-        // instead of copying; the index does not outlive this function.
-        std::unordered_map<std::string_view, std::shared_ptr<compile_cell>> index;
-        for(auto& cp : cps)
+        // cell; writing that cell's result once then puts it in place for every plan that
+        // shares it. The plan kept with the cell drives the compile, which any of the sharers
+        // could do since they compile to the same code.
+        std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>> cells;
         {
-            for(auto& cell : cp.results)
+            // The keys are whole kernel sources, so the index views the canonical cell's key
+            // instead of copying; the index does not outlive this block.
+            std::unordered_map<std::string_view, std::shared_ptr<compile_cell>> index;
+            for(auto& cp : cps)
             {
-                if(not cell->key.empty())
+                for(auto& cell : cp.results)
                 {
-                    auto [it, inserted] = index.emplace(cell->key, cell);
-                    if(not inserted)
+                    if(not cell->key.empty())
                     {
-                        cell = it->second;
-                        continue;
+                        auto [it, inserted] = index.emplace(cell->key, cell);
+                        if(not inserted)
+                        {
+                            cell = it->second;
+                            continue;
+                        }
                     }
+                    cells.emplace_back(&cp, cell);
                 }
-                cell->result = cp.lookup(cell->key);
-                cell->reused = cell->result.has_value();
-                if(cell->reused and not cp.verify_enabled())
-                    continue;
-                tasks.emplace_back(&cp, cell);
             }
         }
+
+        // The cache is unguarded, so everything it can answer is looked up before any compile
+        // starts, and everything compiled is stored after they all finish.
+        for(const auto& [cp, cell] : cells)
+        {
+            cell->result = cp->lookup(cell->key);
+            cell->reused = cell->result.has_value();
+        }
+
+        // Only the cells that still need parallel work, a compile or a verify of a reused
+        // result, become tasks; since every key is known before any compile starts, each cell
+        // is handed to exactly one task and the compiles never have to coordinate.
+        std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>> tasks;
+        std::copy_if(cells.begin(), cells.end(), std::back_inserter(tasks), [](const auto& task) {
+            return not task.second->reused or task.first->verify_enabled();
+        });
 
         par_compile(tasks.size(), [&](auto i) {
             const auto& [cp, cell] = tasks[i];

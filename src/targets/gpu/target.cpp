@@ -47,6 +47,7 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/promote_storage_type.hpp>
 #include <migraphx/propagate_precision.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/register_target.hpp>
@@ -192,6 +193,8 @@ struct pipeline_factory
 
     std::vector<pass> optimize_rewrite_pipeline() const
     {
+        auto gfx_name          = get_context()->get_current_device().get_gfx_name();
+        bool bf16_missing_valu = not starts_with(gfx_name, "gfx125");
         return {
             rewrite_convolution{},
             dead_code_elimination{},
@@ -208,6 +211,8 @@ struct pipeline_factory
             rewrite_topk{},
             rewrite_low_precision{},
             enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
+            dead_code_elimination{},
+            enable_pass(bf16_missing_valu, promote_storage_type{{shape::bf16_type}}),
             dead_code_elimination{},
             propagate_precision{},
             dead_code_elimination{},

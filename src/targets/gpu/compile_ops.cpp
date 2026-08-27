@@ -413,8 +413,6 @@ struct compile_cell
     /// key is invented instead, which keeps the cell out of the cache and out of the grouping.
     std::string key                   = {};
     optional<compiler_replace> result = nullopt;
-    /// Set when the result came from the cache, so it is not stored back afterwards.
-    bool reused = false;
 };
 
 struct compile_plan
@@ -782,12 +780,12 @@ struct compile_manager
         }
 
         // The cache is unguarded, so everything it can answer is looked up before any compile
-        // starts, and everything compiled is stored after they all finish.
+        // starts, and everything compiled is stored after they all finish. Until the compiles
+        // run below, a cell holding a result is one whose result was reused from the cache.
         for(const auto& entry : index)
         {
             const auto& [cp, cell] = entry.second;
             cell->result           = cp->lookup(cell->key);
-            cell->reused           = cell->result.has_value();
         }
 
         // Only the cells that still need parallel work, a compile or a verify of a reused
@@ -800,13 +798,13 @@ struct compile_manager
             std::back_inserter(tasks),
             [](const auto& entry) {
                 const auto& [cp, cell] = entry.second;
-                return not cell->reused or cp->verify_enabled();
+                return not cell->result.has_value() or cp->verify_enabled();
             },
             [](const auto& entry) { return entry.second; });
 
         par_compile(tasks.size(), [&](auto i) {
             const auto& [cp, cell] = tasks[i];
-            if(cell->reused)
+            if(cell->result.has_value())
                 cp->verify(cell->solution, cell->result->code);
             else
                 cell->result = cp->run_compile(cell->solution);
@@ -814,8 +812,10 @@ struct compile_manager
 
         for(const auto& [cp, cell] : tasks)
         {
-            if(cell->reused or not cell->result.has_value())
+            if(not cell->result.has_value())
                 continue;
+            // When verifying, this also stores reused results back, which rewrites the same
+            // bytes under the same key and is harmless.
             cp->store(cell->solution, cell->key, cell->result->code);
             assert(not cell->result->code.empty());
             // Only the serializable code is used from here on. Dropping the replace function

@@ -345,7 +345,9 @@ struct compile_plan
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
                 const auto& solution = sol.value();
-                // No solution yet until benchmarked so skip for now
+                // A null solution is a mark() sentinel: this problem is already
+                // being benchmarked, so skip re-queuing it and let the duplicate
+                // op reuse that benchmark's result instead of tuning it again.
                 if(solution.is_null())
                     return;
                 results.resize(1);

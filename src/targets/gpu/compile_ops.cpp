@@ -175,10 +175,19 @@ static void verify_reuse(context& ctx,
                    to_string(fresh.code.fragment));
 }
 
+/// Marks keys invented for grouping only, given to cells whose compiler cannot describe its
+/// output so they are never grouped with another cell. The cache must ignore them: they are
+/// numbered by slot, so the same key names different code from one compile batch to the next.
+static constexpr const char* private_key_prefix = "__migraphx_private_unique_key";
+
+static bool is_private_key(const std::string& key) { return starts_with(key, private_key_prefix); }
+
 /// Look for an earlier result. The cache is not guarded, so callers must not do this while
 /// compiles are running.
 static optional<compiler_replace> cache_lookup(context& ctx, const std::string& key)
 {
+    if(is_private_key(key))
+        return nullopt;
     auto cached = ctx.get_binary_cache().get(ctx, key);
     if(not cached.has_value())
         return nullopt;
@@ -195,6 +204,8 @@ static void cache_store(context& ctx,
                         const value& problem,
                         const compiled_code& code)
 {
+    if(is_private_key(key))
+        return;
     binary_cache::entry e;
     e.key      = key;
     e.op_name  = preop.name();
@@ -398,8 +409,8 @@ struct compile_cell
     explicit compile_cell(value s) : solution(std::move(s)) {}
 
     value solution = {};
-    /// Identifies the code the compile would produce. Empty when the compiler cannot say, which
-    /// keeps the cell out of the cache and out of the grouping.
+    /// Identifies the code the compile would produce. When the compiler cannot say, a private
+    /// key is invented instead, which keeps the cell out of the cache and out of the grouping.
     std::string key                   = {};
     optional<compiler_replace> result = nullopt;
     /// Set when the result came from the cache, so it is not stored back afterwards.
@@ -748,51 +759,52 @@ struct compile_manager
             par_compile(slots.size(), [&](auto i) {
                 auto [cp, cell] = slots[i];
                 cell->key       = cp->get_key(cell->solution);
+                if(cell->key.empty())
+                    cell->key = private_key_prefix + std::to_string(i);
             });
         }
 
         // Group the slots that would compile to the same code by pointing them at one shared
         // cell; writing that cell's result once then puts it in place for every plan that
         // shares it. The plan kept with the cell drives the compile, which any of the sharers
-        // could do since they compile to the same code.
-        std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>> cells;
+        // could do since they compile to the same code. The keys are whole kernel sources, so
+        // the index views the canonical cell's key instead of copying; it does not outlive
+        // this function.
+        std::unordered_map<std::string_view,
+                           std::pair<compile_plan*, std::shared_ptr<compile_cell>>>
+            index;
+        for(auto& cp : cps)
         {
-            // The keys are whole kernel sources, so the index views the canonical cell's key
-            // instead of copying; the index does not outlive this block.
-            std::unordered_map<std::string_view, std::shared_ptr<compile_cell>> index;
-            for(auto& cp : cps)
+            for(auto& cell : cp.results)
             {
-                for(auto& cell : cp.results)
-                {
-                    if(not cell->key.empty())
-                    {
-                        auto [it, inserted] = index.emplace(cell->key, cell);
-                        if(not inserted)
-                        {
-                            cell = it->second;
-                            continue;
-                        }
-                    }
-                    cells.emplace_back(&cp, cell);
-                }
+                auto [it, inserted] = index.emplace(cell->key, std::make_pair(&cp, cell));
+                if(not inserted)
+                    cell = it->second.second;
             }
         }
 
         // The cache is unguarded, so everything it can answer is looked up before any compile
         // starts, and everything compiled is stored after they all finish.
-        for(const auto& [cp, cell] : cells)
+        for(const auto& entry : index)
         {
-            cell->result = cp->lookup(cell->key);
-            cell->reused = cell->result.has_value();
+            const auto& [cp, cell] = entry.second;
+            cell->result           = cp->lookup(cell->key);
+            cell->reused           = cell->result.has_value();
         }
 
         // Only the cells that still need parallel work, a compile or a verify of a reused
         // result, become tasks; since every key is known before any compile starts, each cell
         // is handed to exactly one task and the compiles never have to coordinate.
         std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>> tasks;
-        std::copy_if(cells.begin(), cells.end(), std::back_inserter(tasks), [](const auto& task) {
-            return not task.second->reused or task.first->verify_enabled();
-        });
+        transform_if(
+            index.begin(),
+            index.end(),
+            std::back_inserter(tasks),
+            [](const auto& entry) {
+                const auto& [cp, cell] = entry.second;
+                return not cell->reused or cp->verify_enabled();
+            },
+            [](const auto& entry) { return entry.second; });
 
         par_compile(tasks.size(), [&](auto i) {
             const auto& [cp, cell] = tasks[i];

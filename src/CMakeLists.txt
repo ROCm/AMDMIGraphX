@@ -234,6 +234,7 @@ register_migraphx_ops(
     gathernd
     get_tuple_elem
     greater
+    gridsample
     group
     identity
     if_op

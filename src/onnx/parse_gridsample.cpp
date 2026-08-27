@@ -26,6 +26,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/dfor.hpp>
+#include <migraphx/env.hpp>
 #include <array>
 #include <string>
 #include <vector>
@@ -33,6 +34,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+// Set to fall back to the op-decomposition below for bilinear sampling instead
+// of emitting the gridsample operator. Kept for A/B testing the two paths.
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_GRIDSAMPLE_OP)
 
 struct grid_sampler
 {
@@ -314,8 +319,8 @@ struct linear_sampler : grid_sampler
             nc_values_data.push_back(n);
             nc_values_data.push_back(c);
         });
-        size_t num_indices  = m_batch * m_out_height * m_out_width * m_channel;
-        auto xy_indices_t   = info.add_literal(
+        size_t num_indices = m_batch * m_out_height * m_out_width * m_channel;
+        auto xy_indices_t  = info.add_literal(
             migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 3}}, xy_indices_data});
         auto weight_index_t = info.add_literal(
             migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 3}}, weight_indices_data});
@@ -681,6 +686,14 @@ struct parse_gridsample : op_parser<parse_gridsample>
             mode = info.attributes.at("mode").s();
         }
 
+        // Opset 16 spells the modes "bilinear"/"bicubic", opset 20 renamed them
+        // to "linear"/"cubic".  Normalize to the opset-20 spelling so the rest
+        // of the pipeline only ever sees one name per mode.
+        if(mode == "bilinear")
+            mode = "linear";
+        else if(mode == "bicubic")
+            mode = "cubic";
+
         if(contains(info.attributes, "padding_mode"))
         {
             padding_mode = info.attributes.at("padding_mode").s();
@@ -702,6 +715,28 @@ struct parse_gridsample : op_parser<parse_gridsample>
         if(x_dims != 4)
         {
             MIGRAPHX_THROW("PARSE_GRID_SAMPLE: only 4-D inputs are supported");
+        }
+
+        // "cubic" is a substring of "bicubic" so a single check covers both
+        // opset-16/opset-20+ spellings, same as for "nearest"/"linear".
+        bool supported_modes =
+            contains(mode, "nearest") or contains(mode, "linear") or contains(mode, "cubic");
+        bool is_dynamic = x->get_shape().dynamic() or grid_shape.dynamic();
+
+        if(not enabled(MIGRAPHX_DISABLE_GRIDSAMPLE_OP{}) and supported_modes and
+           x->get_shape().type() == grid_shape.type() and not is_dynamic)
+        {
+            auto x_c =
+                x->get_shape().standard() ? x : info.add_instruction(make_op("contiguous"), x);
+            auto g_c =
+                grid_shape.standard() ? grid : info.add_instruction(make_op("contiguous"), grid);
+
+            return info.add_instruction(make_op("gridsample",
+                                                {{"mode", mode},
+                                                 {"padding_mode", padding_mode},
+                                                 {"align_corners", align_corners}}),
+                                        x_c,
+                                        g_c);
         }
 
         return contains(mode, "nearest")

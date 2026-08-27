@@ -25,22 +25,22 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-TEST_CASE(gridsample_channel_test)
+// Opset-16 mode="bicubic" must normalize to the canonical "cubic".
+TEST_CASE(gridsample_opset16_bicubic_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 4}});
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 4, 4}});
     auto grid =
         mm->add_parameter("grid", migraphx::shape{migraphx::shape::float_type, {1, 6, 6, 2}});
 
     mm->add_instruction(
-        migraphx::make_op(
-            "gridsample",
-            {{"mode", "linear"}, {"padding_mode", "border"}, {"align_corners", true}}),
+        migraphx::make_op("gridsample",
+                          {{"mode", "cubic"}, {"padding_mode", "border"}, {"align_corners", true}}),
         x,
         grid);
 
-    auto prog = optimize_onnx("gridsample_channel_test.onnx");
+    auto prog = optimize_onnx("gridsample_opset16_bicubic_test.onnx");
     EXPECT(p == prog);
 }

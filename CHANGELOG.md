@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added `migraphx::shape::from_json` and the matching `migraphx.shape.from_json` Python binding, which rebuild a shape from the json form of its value representation, preserving the symbolic dimension expressions, bounds, and optimals that no constructor argument can spell.
 * Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added support for building against ROCm 7.13 and newer using TheRock (#4952)
 * Added YOLO26 object detection example notebook.

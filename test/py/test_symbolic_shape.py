@@ -84,6 +84,26 @@ def test_to_py_preserves_symbolic_expression():
     exec(code, scope)
     assert scope["p"].sort() == p.sort()
 
+    # Program equality compares printed IR, which renders neither optimals nor symbolic strides,
+    # so the expression is only really pinned by comparing the shape itself.
+    assert scope["p"].get_parameter_shapes()["x"] == s
+
+
+def test_to_py_preserves_dyn_dim_optimals():
+    p = migraphx.program()
+    m = p.get_main_module()
+    s = migraphx.shape(type='float',
+                       dyn_dims=[
+                           migraphx.shape.dynamic_dimension(1, 4, {2, 4}),
+                           migraphx.shape.dynamic_dimension(3, 3)
+                       ])
+    m.add_return(
+        [m.add_instruction(migraphx.op("neg"), [m.add_parameter("x", s)])])
+
+    scope = {"migraphx": migraphx}
+    exec(p.to_py(), scope)
+    assert scope["p"].get_parameter_shapes()["x"] == s
+
 
 def test_parse_onnx_symbolic_dyn_input():
     p = migraphx.parse_onnx(
@@ -108,4 +128,5 @@ if __name__ == "__main__":
     test_create_symbolic_compound_expr()
     test_create_symbolic_dyn_shape()
     test_to_py_preserves_symbolic_expression()
+    test_to_py_preserves_dyn_dim_optimals()
     test_parse_onnx_symbolic_dyn_input()

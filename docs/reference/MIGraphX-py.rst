@@ -101,6 +101,16 @@ shape
 
     :rtype: bool
 
+.. py:staticmethod:: from_json(s)
+
+    Rebuilds a shape from the json form of its value representation, which is the spelling
+    :py:meth:`program.to_py` emits for a shape carrying a symbolic dimension. Unlike the
+    constructor this preserves symbolic dimension expressions, their bounds and optimals, and
+    symbolic strides.
+
+    :param str s: The json form of a shape's value representation.
+    :rtype: shape
+
 dynamic_dimension
 -----------------
 

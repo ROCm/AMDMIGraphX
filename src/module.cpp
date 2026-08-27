@@ -1694,7 +1694,7 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
     os << "migraphx::shape{migraphx::shape::" << s.type_string();
     if(s.dynamic())
     {
-        os << ", {" << dyn_dims_string(s, "{", "}") << "}";
+        os << ", {" << dyn_dims_string(s, "migraphx::shape::dynamic_dimension{", "}") << "}";
     }
     else
     {

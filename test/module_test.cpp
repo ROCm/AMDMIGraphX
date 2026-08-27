@@ -28,7 +28,6 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/json.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/sym.hpp>
 #include <random>
@@ -2309,11 +2308,17 @@ TEST_CASE(module_assign_clears_previous_foreign_outputs)
     EXPECT(x->outputs().empty());
 }
 
-// Builds the from_json call the printers are expected to emit for a shape with a symbolic dim.
-static std::string json_shape_call(const std::string& factory, const migraphx::shape& s)
+// The printers emit factory("<json with escaped quotes>"). Recover that json and rebuild the shape,
+// so the tests exercise the round trip rather than recomputing the printer's own escaping. Every
+// quote in the payload is escaped, so the last ") on the line is the closing one.
+static migraphx::shape rebuild_printed_shape(const std::string& text, const std::string& factory)
 {
-    auto json = migraphx::to_json_string(migraphx::to_value(s));
-    return factory + "(\"" + migraphx::replace_string(json, "\"", "\\\"") + "\")";
+    auto call  = text.find(factory + "(\"");
+    auto start = call + factory.size() + 2;
+    auto line  = text.find('\n', start);
+    auto end   = text.rfind("\")", line);
+    return migraphx::shape::from_json(
+        migraphx::replace_string(text.substr(start, end - start), "\\\"", "\""));
 }
 
 TEST_CASE(module_print_symbolic_shape_cpp)
@@ -2326,7 +2331,8 @@ TEST_CASE(module_print_symbolic_shape_cpp)
 
     std::stringstream ss;
     m.print_cpp(ss);
-    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx::shape::from_json", s)));
+    EXPECT(migraphx::contains(ss.str(), "migraphx::shape::from_json("));
+    EXPECT(rebuild_printed_shape(ss.str(), "migraphx::shape::from_json") == s);
 }
 
 TEST_CASE(module_print_symbolic_shape_py)
@@ -2339,7 +2345,8 @@ TEST_CASE(module_print_symbolic_shape_py)
 
     std::stringstream ss;
     m.print_py(ss);
-    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx.shape.from_json", s)));
+    EXPECT(migraphx::contains(ss.str(), "migraphx.shape.from_json("));
+    EXPECT(rebuild_printed_shape(ss.str(), "migraphx.shape.from_json") == s);
 }
 
 // A symbol name that sym::parse would reject still survives the printers, because the name travels
@@ -2354,7 +2361,8 @@ TEST_CASE(module_print_symbolic_shape_name_not_an_identifier)
 
     std::stringstream ss;
     m.print_cpp(ss);
-    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx::shape::from_json", s)));
+    EXPECT(migraphx::contains(ss.str(), "migraphx::shape::from_json("));
+    EXPECT(rebuild_printed_shape(ss.str(), "migraphx::shape::from_json") == s);
 }
 
 // Only symbolic dimensions need the json form; a range-based dynamic shape keeps the readable one.
@@ -2383,11 +2391,24 @@ TEST_CASE(module_print_dyn_dim_optimals)
 
     std::stringstream ss_cpp;
     m.print_cpp(ss_cpp);
-    EXPECT(migraphx::contains(ss_cpp.str(), "{1, 4, {2, 4}}"));
+    EXPECT(migraphx::contains(ss_cpp.str(), "migraphx::shape::dynamic_dimension{1, 4, {2, 4}}"));
 
     std::stringstream ss_py;
     m.print_py(ss_py);
     EXPECT(migraphx::contains(ss_py.str(), "migraphx.shape.dynamic_dimension(1, 4, {2, 4})"));
+}
+
+// A single dimension is the case where a bare brace pair would be an ambiguous constructor call,
+// because it is also viable as the lens vector.
+TEST_CASE(module_print_dyn_range_shape_single_dim)
+{
+    migraphx::shape s{migraphx::shape::float_type, {migraphx::shape::dynamic_dimension{1, 4}}};
+    migraphx::module m;
+    m.add_return({m.add_instruction(migraphx::make_op("neg"), m.add_parameter("x", s))});
+
+    std::stringstream ss;
+    m.print_cpp(ss);
+    EXPECT(migraphx::contains(ss.str(), "{migraphx::shape::dynamic_dimension{1, 4}}"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

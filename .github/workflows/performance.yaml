@@ -68,7 +68,7 @@ permissions:
   contents: read
 
 jobs:
-  security_gate:
+  gate_check:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -80,7 +80,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${{ github.event_name }}" == 'schedule' || "${{ github.event_name }}" == 'workflow_dispatch' || "${{ github.event.action }}" == 'closed' 
+          if [[ "${{ github.event_name }}" == 'schedule' || "${{ github.event_name }}" == 'workflow_dispatch' || "${{ github.event.action }}" == 'closed'
               || "${{ github.event.pull_request.head.repo.full_name }}" == "${{ github.repository }}"
               || "${{ github.event.pull_request.author_association }}" =~ ^(OWNER|COLLABORATOR|MEMBER)$ ]]; then
             echo "Internal/trusted; APPROVED"
@@ -91,27 +91,32 @@ jobs:
           if [[ "${{ github.event.action }}" == 'opened' ]]; then
             echo "::notice::New external PR opened. Adding external-contributor label."
             gh pr edit ${{ github.event.pull_request.number }} --add-label "external-contributor" --repo ${{ github.repository }} || true
-            gh pr comment ${{ github.event.pull_request.number }} --body "Thank you for your contribution! Since this is an external pull request, a maintainer must review PR and add the \"ok-to-test\" label if it is approved for testing." --repo ${{ github.repository }} || true  
+            gh pr comment ${{ github.event.pull_request.number }} --body "Thank you for your contribution! Since this is an external pull request, a maintainer must review PR and add the \"ok-to-test\" label if it is approved for testing." --repo ${{ github.repository }} || true
           fi
 
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ok-to-test') }}" != "true" ]]; then
-            echo "::notice::Missing 'ok-to-test' label; skipping performance tests"
-            echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
           if [[ "${{ github.event.action }}" == 'synchronize' ]]; then
             echo "::notice::New commits pushed. Removing ok-to-test label and skipping until re-approved. Please re-review new changes and add ok-to-test label again if approved for testing."
             gh pr edit ${{ github.event.pull_request.number }} --remove-label "ok-to-test" --repo ${{ github.repository }} || true
-            echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
-            exit 0
           fi
-          echo "External PR approved for testing"
-          echo "is_ok_to_test=true" >> $GITHUB_OUTPUT
-         
+
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ok-to-test') }}" == "true" ]]; then
+            echo "External PR approved for testing"
+            echo "is_ok_to_test=true" >> $GITHUB_OUTPUT
+          else
+            echo "::notice::Missing 'ok-to-test' label; skipping performance tests"
+            echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
+          fi
+
+  security_gate:
+    needs: gate_check
+    runs-on: ubuntu-latest
+    if: needs.gate_check.outputs.is_ok_to_test == 'true'
+    steps:
+      - run: echo "Approved for testing"
+
   get_config:
     needs: security_gate
     runs-on: ubuntu-latest
-    if: needs.security_gate.outputs.is_ok_to_test == 'true'
     outputs:
       rocm_version: ${{ steps.read_config.outputs.rocm_version }}
       utils_repo: ${{ steps.read_config.outputs.utils_repo }}

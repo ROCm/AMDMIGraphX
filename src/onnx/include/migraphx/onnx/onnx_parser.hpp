@@ -110,7 +110,7 @@ struct onnx_parser
     bool skip_unknown_operators  = false;
     bool use_debug_symbols       = false;
     bool use_symbolic_shapes     = false;
-    bool split_prefill_decode    = false;
+    bool unify_prefill_decode    = false;
     int64_t max_loop_iterations  = 10;
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     int64_t opset_version        = 13;

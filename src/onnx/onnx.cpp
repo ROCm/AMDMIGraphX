@@ -48,7 +48,7 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     parser.map_dyn_input_dims   = options.map_dyn_input_dims;
     parser.use_debug_symbols    = options.use_debug_symbols;
     parser.use_symbolic_shapes  = options.use_symbolic_shapes;
-    parser.split_prefill_decode = options.split_prefill_decode;
+    parser.unify_prefill_decode = options.unify_prefill_decode;
     auto dim_val                = options.default_dim_value;
     if(dim_val != 0)
     {

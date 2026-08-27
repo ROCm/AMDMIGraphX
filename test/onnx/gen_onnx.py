@@ -3196,7 +3196,7 @@ def dim_param_test():
 
 
 @onnx_test()
-def split_prefill_decode_test():
+def unify_prefill_decode_test():
     x = helper.make_tensor_value_info(
         'x', TensorProto.FLOAT, [1, "sequence_length", 2])
     y = helper.make_tensor_value_info(
@@ -3209,7 +3209,7 @@ def split_prefill_decode_test():
 
 
 @onnx_test()
-def split_prefill_decode_multi_io_test():
+def unify_prefill_decode_multi_io_test():
     x = helper.make_tensor_value_info(
         'x', TensorProto.FLOAT, [1, "sequence_length", 2])
     y = helper.make_tensor_value_info(

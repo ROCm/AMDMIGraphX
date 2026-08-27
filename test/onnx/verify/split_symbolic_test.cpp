@@ -116,7 +116,7 @@ void expect_matches_static_parse(migraphx::program split,
 
 TEST_CASE(split_symbolic_sequence_length)
 {
-    auto p = read_onnx("split_prefill_decode_test.onnx", symbolic_options(4));
+    auto p = read_onnx("unify_prefill_decode_test.onnx", symbolic_options(4));
     split_sequence_length(p, 4);
 
     auto* mm             = p.get_main_module();
@@ -147,7 +147,7 @@ TEST_CASE(split_symbolic_sequence_length)
     {
         migraphx::shape xs{migraphx::shape::float_type, {1, sequence_length, 2}};
         expect_matches_static_parse(p,
-                                    "split_prefill_decode_test.onnx",
+                                    "unify_prefill_decode_test.onnx",
                                     static_options({{"sequence_length", sequence_length}}),
                                     {{"x", ramp(xs, 1.0f)}});
     }
@@ -159,7 +159,7 @@ TEST_CASE(split_symbolic_independent_dimension)
 {
     auto options                          = symbolic_options(4);
     options.dim_params["other_dimension"] = {2, 3};
-    auto p = read_onnx("split_prefill_decode_multi_io_test.onnx", options);
+    auto p = read_onnx("unify_prefill_decode_multi_io_test.onnx", options);
     split_sequence_length(p, 4);
 
     auto* mm             = p.get_main_module();
@@ -185,7 +185,7 @@ TEST_CASE(split_symbolic_independent_dimension)
             migraphx::shape zs{migraphx::shape::float_type, {other, 2}};
             expect_matches_static_parse(
                 p,
-                "split_prefill_decode_multi_io_test.onnx",
+                "unify_prefill_decode_multi_io_test.onnx",
                 static_options({{"sequence_length", sequence_length}, {"other_dimension", other}}),
                 {{"x", ramp(xs, 1.0f)}, {"y", ramp(xs, 10.0f)}, {"z", ramp(zs, 100.0f)}});
         }

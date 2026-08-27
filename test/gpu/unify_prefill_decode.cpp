@@ -30,10 +30,10 @@
 
 namespace {
 
-migraphx::onnx_options split_options()
+migraphx::onnx_options unify_options()
 {
     migraphx::onnx_options options;
-    options.split_prefill_decode          = true;
+    options.unify_prefill_decode          = true;
     options.use_symbolic_shapes           = true;
     options.dim_params["sequence_length"] = {1, 4};
     return options;
@@ -71,9 +71,9 @@ std::vector<float> to_vector(const migraphx::argument& arg)
 
 } // namespace
 
-TEST_CASE(split_prefill_decode_gpu)
+TEST_CASE(unify_prefill_decode_gpu)
 {
-    auto source = read_onnx("split_prefill_decode_test.onnx", split_options());
+    auto source = read_onnx("unify_prefill_decode_test.onnx", unify_options());
     auto ref    = source;
     ref.compile(migraphx::make_target("ref"));
     auto gpu = migraphx::make_target("gpu");

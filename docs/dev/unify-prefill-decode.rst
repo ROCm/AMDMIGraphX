@@ -1,4 +1,4 @@
-Split prefill/decode: design and review guide
+Unify prefill/decode: design and review guide
 ================================================
 
 Purpose
@@ -34,7 +34,7 @@ the parser constructs::
                              |
                 select_module(input shapes)
                    /                     \
-      main:split:decode             main:split:prefill
+      main:phase:decode             main:phase:prefill
       sequence_length = 1           sequence_length = MAX_SEQ_LEN
                    \                     /
                     tuple of model outputs
@@ -48,22 +48,22 @@ configured maximum.
 User-facing contract
 --------------------
 
-The C++ API adds ``onnx_options::split_prefill_decode``. The driver exposes the same option as
-``--split-prefill-decode``.
+The C++ API adds ``onnx_options::unify_prefill_decode``. The driver exposes the same option as
+``--unify-prefill-decode``.
 
-The split requires all of the following:
+Unifying the phases requires all of the following:
 
 * The option is explicitly enabled. Existing parsing behavior is unchanged by default.
 * ``onnx_options::dim_params["sequence_length"]`` is a range whose minimum is ``1`` and whose
   maximum is greater than ``1``.
 * At least one graph input still has an ONNX axis named ``sequence_length``. A
   ``map_input_dims`` override replaces the ONNX dimension names and therefore cannot be used to
-  identify the split axis.
+  identify the specialized axis.
 
 Invalid configurations fail during parsing instead of silently producing a program that handles
 only one phase.
 
-Symbolic shapes are recommended but not required for the split. With
+Symbolic shapes are recommended but not required for unification. With
 ``use_symbolic_shapes = true``, the main module retains the ``sequence_length`` symbol, which lets
 callers and driver-generated arguments resolve related input and output dimensions consistently.
 Without symbolic shapes, the main module uses ordinary bounded dynamic dimensions while the two
@@ -73,7 +73,7 @@ For example, the parse/compile side of a driver workflow is::
 
   migraphx-driver compile model.onnx --gpu \
       --enable-symbolic \
-      --split-prefill-decode \
+      --unify-prefill-decode \
       --dim-param "@sequence_length" "{min:1, max:2048}" \
       -o model.mxr
 
@@ -87,7 +87,7 @@ The Python file and buffer parsers expose the same options::
 
   options = {
       "use_symbolic_shapes": True,
-      "split_prefill_decode": True,
+      "unify_prefill_decode": True,
       "dim_params": {
           "sequence_length": migraphx.shape.dynamic_dimension(1, 2048),
       },
@@ -105,16 +105,16 @@ ONNX graph has become MIGraphX IR, operator parsers may already have:
 * copied concrete dimensions into operation attributes.
 
 The first branch prototype used a standalone IR pass. It was removed when this constraint became
-clear; the final branch performs the split during ONNX import. This explains why the feature is
+clear; the final branch specializes during ONNX import. This explains why the feature is
 an ONNX option rather than a target pass and why no new pass remains in the final diff.
 
 ``parse_prefill_decode`` therefore performs these steps:
 
 1. Validate the ``sequence_length`` bounds and confirm that the graph uses the named dimension.
 2. Parse graph initializers once into the main module.
-3. Parse the graph into ``main:split:decode`` after temporarily fixing
+3. Parse the graph into ``main:phase:decode`` after temporarily fixing
    ``sequence_length = 1``.
-4. Parse it again into ``main:split:prefill`` after fixing
+4. Parse it again into ``main:phase:prefill`` after fixing
    ``sequence_length = MAX_SEQ_LEN``.
 5. Restore the caller's original dimension range and parser state.
 6. Add one ``select_module`` to the main module and unpack its tuple result into the original
@@ -272,7 +272,7 @@ The main files are:
 Tests and intended coverage
 ---------------------------
 
-``test/onnx/parse/split_prefill_decode_test.cpp`` checks:
+``test/onnx/parse/unify_prefill_decode_test.cpp`` checks:
 
 * construction and naming of both static specializations;
 * initializer sharing;
@@ -282,13 +282,13 @@ Tests and intended coverage
 * opt-in behavior; and
 * errors for missing/invalid bounds and overridden input dimensions.
 
-``test/onnx/verify/split_prefill_decode_test.cpp`` compiles one program for the reference target
+``test/onnx/verify/unify_prefill_decode_test.cpp`` compiles one program for the reference target
 and covers:
 
 * one-token decode and maximum-length prefill results;
 * rejection of intermediate sequence lengths;
-* split-program serialization and reload;
-* GroupQueryAttention results compared with fixed, unsplit specializations; and
+* unified-program serialization and reload;
+* GroupQueryAttention results compared with separately compiled single-phase programs; and
 * numerical multi-input/multi-output execution with an independent dynamic dimension.
 
 ``test/ref/select_module.cpp`` covers dispatch after save/load, captured literals, ordinary and
@@ -297,7 +297,7 @@ traced evaluation, and multiple candidate shapes.
 ``test/argument_test.cpp`` and ``test/replace_allocate.cpp`` cover direct tuple access and the
 distinction between aliased allocation subobjects and ordinary tuple outputs.
 
-``test/gpu/split_prefill_decode.cpp`` compares both endpoint phases with reference results on a
+``test/gpu/unify_prefill_decode.cpp`` compares both endpoint phases with reference results on a
 ROCm device. ``test_driver_symbolic_args`` exercises compile-then-run driver commands with fixed
 decode and prefill symbol bindings. ``test/simplify_dyn_ops_test.cpp`` directly verifies that the
 symbolic output shape is preserved. The Python tests cover both file and buffer parsing.

@@ -48,10 +48,10 @@ std::size_t count_literals(migraphx::const_module_ref mod)
     });
 }
 
-migraphx::onnx_options split_options(std::size_t max_sequence_length)
+migraphx::onnx_options unify_options(std::size_t max_sequence_length)
 {
     migraphx::onnx_options options;
-    options.split_prefill_decode          = true;
+    options.unify_prefill_decode          = true;
     options.use_symbolic_shapes           = true;
     options.dim_params["sequence_length"] = {1, max_sequence_length};
     return options;
@@ -59,14 +59,14 @@ migraphx::onnx_options split_options(std::size_t max_sequence_length)
 
 } // namespace
 
-TEST_CASE(split_prefill_decode_test)
+TEST_CASE(unify_prefill_decode_test)
 {
-    auto p = read_onnx("split_prefill_decode_test.onnx", split_options(4));
+    auto p = read_onnx("unify_prefill_decode_test.onnx", unify_options(4));
 
     auto specializations = find_specializations(p.get_main_module());
     EXPECT(specializations.size() == 2);
-    EXPECT(specializations.at(0)->name() == "main:split:decode");
-    EXPECT(specializations.at(1)->name() == "main:split:prefill");
+    EXPECT(specializations.at(0)->name() == "main:phase:decode");
+    EXPECT(specializations.at(1)->name() == "main:phase:prefill");
     EXPECT(specializations.at(0)->get_parameter_shape("x") ==
            migraphx::shape{migraphx::shape::float_type, {1, 1, 2}});
     EXPECT(specializations.at(1)->get_parameter_shape("x") ==
@@ -80,11 +80,11 @@ TEST_CASE(split_prefill_decode_test)
     EXPECT(specializations.at(1)->get_parameter_shape("one") == migraphx::shape{});
 }
 
-// The split has to happen while parsing because a kv-cache attention operator cannot be parsed
+// Specializing has to happen while parsing because a kv-cache attention operator cannot be parsed
 // with a symbolic sequence length at all.
-TEST_CASE(split_prefill_decode_group_query_attention_test)
+TEST_CASE(unify_prefill_decode_group_query_attention_test)
 {
-    auto p = read_onnx("group_query_attention_symbolic_test.onnx", split_options(8));
+    auto p = read_onnx("group_query_attention_symbolic_test.onnx", unify_options(8));
 
     auto specializations = find_specializations(p.get_main_module());
     EXPECT(specializations.size() == 2);
@@ -100,13 +100,13 @@ TEST_CASE(split_prefill_decode_group_query_attention_test)
     EXPECT(specializations.at(1)->get_parameter_shape("cos_cache") == migraphx::shape{});
 }
 
-// The split describes how the model is used, not how its shapes are spelled, so it applies to
+// Unifying describes how the model is used, not how its shapes are spelled, so it applies to
 // plain dynamic dimensions too.
-TEST_CASE(split_prefill_decode_without_symbolic_shapes_test)
+TEST_CASE(unify_prefill_decode_without_symbolic_shapes_test)
 {
-    auto options                = split_options(4);
+    auto options                = unify_options(4);
     options.use_symbolic_shapes = false;
-    auto p                      = read_onnx("split_prefill_decode_test.onnx", options);
+    auto p                      = read_onnx("unify_prefill_decode_test.onnx", options);
 
     auto specializations = find_specializations(p.get_main_module());
     EXPECT(specializations.size() == 2);
@@ -117,46 +117,46 @@ TEST_CASE(split_prefill_decode_without_symbolic_shapes_test)
 }
 
 // Without the opt-in a sequence_length range is an ordinary dynamic dimension.
-TEST_CASE(split_prefill_decode_not_enabled_test)
+TEST_CASE(unify_prefill_decode_not_enabled_test)
 {
-    auto options                 = split_options(4);
-    options.split_prefill_decode = false;
-    auto p                       = read_onnx("split_prefill_decode_test.onnx", options);
+    auto options                 = unify_options(4);
+    options.unify_prefill_decode = false;
+    auto p                       = read_onnx("unify_prefill_decode_test.onnx", options);
 
     EXPECT(find_specializations(p.get_main_module()).empty());
 }
 
-// Asking for the split without giving it something to split on is worth reporting: the
+// Asking to unify without giving it something to specialize on is worth reporting: the
 // alternative is a program that silently handles only one of the two phases.
-TEST_CASE(split_prefill_decode_missing_dim_param_test)
+TEST_CASE(unify_prefill_decode_missing_dim_param_test)
 {
     migraphx::onnx_options options;
-    options.split_prefill_decode = true;
+    options.unify_prefill_decode = true;
     options.use_symbolic_shapes  = true;
-    EXPECT(test::throws([&] { read_onnx("split_prefill_decode_test.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("unify_prefill_decode_test.onnx", options); }));
 }
 
 // Only a range that bottoms out at a single token describes decoding.
-TEST_CASE(split_prefill_decode_range_does_not_start_at_one_test)
+TEST_CASE(unify_prefill_decode_range_does_not_start_at_one_test)
 {
-    auto options                          = split_options(4);
+    auto options                          = unify_options(4);
     options.dim_params["sequence_length"] = {2, 4};
-    EXPECT(test::throws([&] { read_onnx("split_prefill_decode_test.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("unify_prefill_decode_test.onnx", options); }));
 }
 
 // Explicit dims replace the dim-param, so there is no sequence length left to specialize on.
-TEST_CASE(split_prefill_decode_input_dim_override_test)
+TEST_CASE(unify_prefill_decode_input_dim_override_test)
 {
-    auto options                = split_options(4);
+    auto options                = unify_options(4);
     options.map_input_dims["x"] = {1, 4, 2};
-    EXPECT(test::throws([&] { read_onnx("split_prefill_decode_test.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("unify_prefill_decode_test.onnx", options); }));
 }
 
-TEST_CASE(split_prefill_decode_independent_dynamic_dimension_test)
+TEST_CASE(unify_prefill_decode_independent_dynamic_dimension_test)
 {
-    auto options                          = split_options(4);
+    auto options                          = unify_options(4);
     options.dim_params["other_dimension"] = {2, 3};
-    auto p = read_onnx("split_prefill_decode_multi_io_test.onnx", options);
+    auto p = read_onnx("unify_prefill_decode_multi_io_test.onnx", options);
 
     auto specializations = find_specializations(p.get_main_module());
     EXPECT(specializations.size() == 2);

@@ -808,7 +808,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            int64_t limit_max_iterations,
            bool use_debug_symbols,
            bool use_symbolic_shapes,
-           bool split_prefill_decode) {
+           bool unify_prefill_decode) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -821,7 +821,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.limit_max_iterations   = limit_max_iterations;
             options.use_debug_symbols      = use_debug_symbols;
             options.use_symbolic_shapes    = use_symbolic_shapes;
-            options.split_prefill_decode   = split_prefill_decode;
+            options.unify_prefill_decode   = unify_prefill_decode;
             return migraphx::parse_onnx(filename, options);
         },
         "Parse onnx file",
@@ -839,7 +839,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("limit_max_iterations")   = std::numeric_limits<uint16_t>::max(),
         py::arg("use_debug_symbols")      = false,
         py::arg("use_symbolic_shapes")    = false,
-        py::arg("split_prefill_decode")   = false);
+        py::arg("unify_prefill_decode")   = false);
 
     m.def(
         "parse_onnx_buffer",
@@ -855,7 +855,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            const std::string& external_data_path,
            bool use_debug_symbols,
            bool use_symbolic_shapes,
-           bool split_prefill_decode) {
+           bool unify_prefill_decode) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -867,7 +867,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.external_data_path     = external_data_path;
             options.use_debug_symbols      = use_debug_symbols;
             options.use_symbolic_shapes    = use_symbolic_shapes;
-            options.split_prefill_decode   = split_prefill_decode;
+            options.unify_prefill_decode   = unify_prefill_decode;
             return migraphx::parse_onnx_buffer(onnx_buffer, options);
         },
         "Parse onnx file",
@@ -884,7 +884,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("external_data_path")     = "",
         py::arg("use_debug_symbols")      = false,
         py::arg("use_symbolic_shapes")    = false,
-        py::arg("split_prefill_decode")   = false);
+        py::arg("unify_prefill_decode")   = false);
 #endif
 
     m.def(

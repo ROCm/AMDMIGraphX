@@ -28,31 +28,31 @@ import migraphx
 def _options():
     return {
         "use_symbolic_shapes": True,
-        "split_prefill_decode": True,
+        "unify_prefill_decode": True,
         "dim_params": {
             "sequence_length": migraphx.shape.dynamic_dimension(1, 4)
         },
     }
 
 
-def _is_split(program):
+def _is_unified(program):
     return any(ins.name() == "select_module"
                for ins in program.get_main_module())
 
 
-def test_parse_onnx_split_prefill_decode():
-    program = migraphx.parse_onnx("split_prefill_decode_test.onnx",
+def test_parse_onnx_unify_prefill_decode():
+    program = migraphx.parse_onnx("unify_prefill_decode_test.onnx",
                                   **_options())
-    assert _is_split(program)
+    assert _is_unified(program)
     assert program.get_parameter_shapes()["x"].dyn_dims()[1].is_symbolic()
 
 
-def test_parse_onnx_buffer_split_prefill_decode():
-    with open("split_prefill_decode_test.onnx", "rb") as model:
+def test_parse_onnx_buffer_unify_prefill_decode():
+    with open("unify_prefill_decode_test.onnx", "rb") as model:
         program = migraphx.parse_onnx_buffer(model.read(), **_options())
-    assert _is_split(program)
+    assert _is_unified(program)
 
 
 if __name__ == "__main__":
-    test_parse_onnx_split_prefill_decode()
-    test_parse_onnx_buffer_split_prefill_decode()
+    test_parse_onnx_unify_prefill_decode()
+    test_parse_onnx_buffer_unify_prefill_decode()

@@ -211,7 +211,7 @@ struct loader
     bool strip_context          = false;
     bool use_debug_symbols      = false;
     bool use_symbolic           = false;
-    bool split_prefill_decode   = false;
+    bool unify_prefill_decode   = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -261,13 +261,13 @@ struct loader
                    "of this flag. "
                    "Example: --enable-symbolic --default-dyn-dim \"{min:1, max:1024}\""),
            ap.set_value(true));
-        ap(split_prefill_decode,
-           {"--split-prefill-decode"},
+        ap(unify_prefill_decode,
+           {"--unify-prefill-decode"},
            ap.help("Compile the prefill and decode phases of a kv-cache model into one program. "
                    "Needs a \"sequence_length\" dim_param of {1, MAX_SEQ_LEN}; the model is "
                    "specialized to a single token for decode and to MAX_SEQ_LEN for prefill, and "
                    "the phase is selected at runtime from the input shapes. "
-                   "Example: --split-prefill-decode --dim-param \"@sequence_length\" "
+                   "Example: --unify-prefill-decode --dim-param \"@sequence_length\" "
                    "\"{min:1, max:1024}\""),
            ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
@@ -510,7 +510,7 @@ struct loader
         options.print_program_on_error = true;
         options.use_debug_symbols      = use_debug_symbols;
         options.use_symbolic_shapes    = use_symbolic;
-        options.split_prefill_decode   = split_prefill_decode;
+        options.unify_prefill_decode   = unify_prefill_decode;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;

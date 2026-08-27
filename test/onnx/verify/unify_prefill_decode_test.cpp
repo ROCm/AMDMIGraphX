@@ -32,10 +32,10 @@ namespace {
 
 const auto ref_target = migraphx::make_target("ref");
 
-migraphx::onnx_options split_options(std::size_t max_sequence_length)
+migraphx::onnx_options unify_options(std::size_t max_sequence_length)
 {
     migraphx::onnx_options options;
-    options.split_prefill_decode          = true;
+    options.unify_prefill_decode          = true;
     options.use_symbolic_shapes           = true;
     options.dim_params["sequence_length"] = {1, max_sequence_length};
     return options;
@@ -93,9 +93,9 @@ migraphx::parameter_map make_gqa_parameters(std::size_t sequence_length)
 
 // One compiled program serves both a single decode token and a full prefill sequence; the
 // select_module picks the specialization from the shape of the input.
-TEST_CASE(split_prefill_decode_test)
+TEST_CASE(unify_prefill_decode_test)
 {
-    auto p = read_onnx("split_prefill_decode_test.onnx", split_options(4));
+    auto p = read_onnx("unify_prefill_decode_test.onnx", unify_options(4));
     p.compile(ref_target);
 
     EXPECT(migraphx::verify::verify_rms_range(run(p, {1, 1, 2}, {1.0f, 2.0f}),
@@ -105,17 +105,17 @@ TEST_CASE(split_prefill_decode_test)
         std::vector<float>{2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f}));
 }
 
-TEST_CASE(split_prefill_decode_intermediate_length_rejected_test)
+TEST_CASE(unify_prefill_decode_intermediate_length_rejected_test)
 {
-    auto p = read_onnx("split_prefill_decode_test.onnx", split_options(4));
+    auto p = read_onnx("unify_prefill_decode_test.onnx", unify_options(4));
     p.compile(ref_target);
 
     EXPECT(test::throws([&] { run(p, {1, 2, 2}, std::vector<float>(4)); }));
 }
 
-TEST_CASE(split_prefill_decode_save_load_test)
+TEST_CASE(unify_prefill_decode_save_load_test)
 {
-    auto p = read_onnx("split_prefill_decode_test.onnx", split_options(4));
+    auto p = read_onnx("unify_prefill_decode_test.onnx", unify_options(4));
     p.compile(ref_target);
     p = migraphx::load_buffer(migraphx::save_buffer(p));
 
@@ -126,10 +126,10 @@ TEST_CASE(split_prefill_decode_save_load_test)
         std::vector<float>{2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f}));
 }
 
-TEST_CASE(split_prefill_decode_group_query_attention_test)
+TEST_CASE(unify_prefill_decode_group_query_attention_test)
 {
-    auto split = read_onnx("group_query_attention_symbolic_test.onnx", split_options(8));
-    split.compile(ref_target);
+    auto unified = read_onnx("group_query_attention_symbolic_test.onnx", unify_options(8));
+    unified.compile(ref_target);
 
     auto verify_specialization = [&](std::size_t sequence_length) {
         migraphx::onnx_options fixed_options;
@@ -139,18 +139,18 @@ TEST_CASE(split_prefill_decode_group_query_attention_test)
         fixed.compile(ref_target);
 
         auto params = make_gqa_parameters(sequence_length);
-        EXPECT(verify_outputs(split.eval(params), fixed.eval(params)));
+        EXPECT(verify_outputs(unified.eval(params), fixed.eval(params)));
     };
 
     verify_specialization(1);
     verify_specialization(8);
 }
 
-TEST_CASE(split_prefill_decode_multi_io_test)
+TEST_CASE(unify_prefill_decode_multi_io_test)
 {
-    auto options                          = split_options(4);
+    auto options                          = unify_options(4);
     options.dim_params["other_dimension"] = {2, 3};
-    auto p = read_onnx("split_prefill_decode_multi_io_test.onnx", options);
+    auto p = read_onnx("unify_prefill_decode_multi_io_test.onnx", options);
     p.compile(ref_target);
 
     auto run_phase = [&](std::size_t sequence_length) {

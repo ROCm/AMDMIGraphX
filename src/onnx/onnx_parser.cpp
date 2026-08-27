@@ -426,7 +426,7 @@ parse_inputs(const onnx_parser& parser,
 
 // A kv-cache model is exported with a `sequence_length` dim-param: it is 1 while decoding one
 // token at a time, and up to some maximum while prefilling a zero-padded prompt. With
-// split_prefill_decode the graph is parsed twice, once specialized to each length, and a
+// unify_prefill_decode the graph is parsed twice, once specialized to each length, and a
 // select_module in the main module dispatches between the two specializations. That puts both
 // phases in one program instead of the two the caller would otherwise have to compile and load
 // separately.
@@ -450,23 +450,23 @@ static bool uses_sequence_length(const onnx_parser& parser, const onnx::GraphPro
 }
 
 /// The length to specialize the prefill module to. Throws rather than quietly parsing the model
-/// unsplit, since the caller has asked for the split explicitly.
+/// as a single phase, since the caller has asked for both explicitly.
 static std::size_t prefill_sequence_length(const onnx_parser& parser, const onnx::GraphProto& graph)
 {
     const std::string dim_param{sequence_length_dim_param};
     auto sequence_length = parser.dim_params.find(dim_param);
     if(sequence_length == parser.dim_params.end())
-        MIGRAPHX_THROW("PARSE_MODEL: splitting prefill from decode needs a \"" + dim_param +
+        MIGRAPHX_THROW("PARSE_MODEL: unifying prefill and decode needs a \"" + dim_param +
                        "\" dim_param of {1, MAX_SEQ_LEN}, but none was set");
 
     auto interval = sequence_length->second.get_interval();
     if(interval.min != 1 or interval.max <= 1)
-        MIGRAPHX_THROW("PARSE_MODEL: splitting prefill from decode needs a \"" + dim_param +
+        MIGRAPHX_THROW("PARSE_MODEL: unifying prefill and decode needs a \"" + dim_param +
                        "\" dim_param of {1, MAX_SEQ_LEN}, but it is {" +
                        std::to_string(interval.min) + ", " + std::to_string(interval.max) + "}");
 
     if(not uses_sequence_length(parser, graph))
-        MIGRAPHX_THROW("PARSE_MODEL: splitting prefill from decode needs an input dimension named "
+        MIGRAPHX_THROW("PARSE_MODEL: unifying prefill and decode needs an input dimension named "
                        "\"" +
                        dim_param + "\", but no input has one");
 
@@ -614,7 +614,7 @@ static void parse_prefill_decode(onnx_parser& parser, const onnx::GraphProto& gr
         parser.parent_input_nodes.clear();
         parser.dim_params[sequence_length_dim_param] = {length, length};
 
-        auto* mod = parser.prog.create_module(root->name() + ":split:" + name);
+        auto* mod = parser.prog.create_module(root->name() + ":phase:" + name);
         (void)parser.parse_graph(mod, graph, false, &initializers);
         return mod;
     };
@@ -641,7 +641,7 @@ void onnx_parser::parse_model(const onnx::ModelProto& model)
     const auto& graph = model.graph();
     warn_unresolved_dim_params(*this, graph);
 
-    if(split_prefill_decode)
+    if(unify_prefill_decode)
         parse_prefill_decode(*this, graph);
     else
         (void)this->parse_graph(prog.get_main_module(), graph);

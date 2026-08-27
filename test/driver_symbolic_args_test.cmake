@@ -35,7 +35,7 @@ function(run_driver)
 endfunction()
 
 run_driver(
-    compile "${MODEL}" --ref --enable-symbolic --split-prefill-decode
+    compile "${MODEL}" --ref --enable-symbolic --unify-prefill-decode
     --dim-param "@sequence_length" "{min:1, max:4}" -o "${OUTPUT}")
 run_driver(
     run "${OUTPUT}" --migraphx --dim-param "@sequence_length" 1 --fill1 x)

@@ -950,10 +950,10 @@ struct find_concat_reshape
         if(reshapes.empty())
             return;
         auto input_shape = reshapes.front()->inputs().front()->get_shape();
-        // All inputs should have the same dimensions
+        // All inputs should have the same rank
         if(not std::all_of(
                std::next(reshapes.begin()), reshapes.end(), [&](instruction_ref reshape) {
-                   return reshape->inputs().front()->get_shape().lens() == input_shape.lens();
+                   return reshape->inputs().front()->get_shape().ndim() == input_shape.ndim();
                }))
             return;
         // axis could be a negative value
@@ -1001,18 +1001,23 @@ struct find_concat_reshape
         });
         if(it == input_shape.lens().end())
             return;
-        op.axis       = it - input_shape.lens().begin();
-        auto ipredims = std::accumulate(input_shape.lens().begin(),
-                                        input_shape.lens().begin() + op.axis,
-                                        std::size_t{1},
-                                        std::multiplies<>{});
-        if(ipredims != predims)
-            return;
-        auto ipostdims = std::accumulate(input_shape.lens().begin() + op.axis + 1,
-                                         input_shape.lens().end(),
-                                         std::size_t{1},
-                                         std::multiplies<>{});
-        if(ipostdims != postdims)
+        op.axis = it - input_shape.lens().begin();
+        // Each input must decompose as predims x axis x postdims at the mapped
+        // axis, with the same non-axis dims so the inputs can be concatenated
+        if(not std::all_of(reshapes.begin(), reshapes.end(), [&](instruction_ref r) {
+               const auto& lens = r->inputs().front()->get_shape().lens();
+               auto ipredims    = std::accumulate(
+                   lens.begin(), lens.begin() + op.axis, std::size_t{1}, std::multiplies<>{});
+               auto ipostdims = std::accumulate(
+                   lens.begin() + op.axis + 1, lens.end(), std::size_t{1}, std::multiplies<>{});
+               if(ipredims != predims or ipostdims != postdims)
+                   return false;
+               return std::equal(
+                          lens.begin(), lens.begin() + op.axis, input_shape.lens().begin()) and
+                      std::equal(lens.begin() + op.axis + 1,
+                                 lens.end(),
+                                 input_shape.lens().begin() + op.axis + 1);
+           }))
             return;
 
         std::vector<instruction_ref> inputs;

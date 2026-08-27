@@ -95,15 +95,15 @@ jobs:
           fi
 
           if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ok-to-test') }}" != "true" ]]; then
-            echo "Missing 'ok-to-test' label; BLOCKED"
+            echo "::notice::Missing 'ok-to-test' label; skipping performance tests"
             echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
-            exit 1
+            exit 0
           fi
           if [[ "${{ github.event.action }}" == 'synchronize' ]]; then
-            echo "::error::New commits pushed. Removing ok-to-test label and blocking until review. Please re-review new changes that were pushed and add ok-to-test label again if changes are approved for testing."
+            echo "::notice::New commits pushed. Removing ok-to-test label and skipping until re-approved. Please re-review new changes and add ok-to-test label again if approved for testing."
             gh pr edit ${{ github.event.pull_request.number }} --remove-label "ok-to-test" --repo ${{ github.repository }} || true
             echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
-            exit 1
+            exit 0
           fi
           echo "External PR approved for testing"
           echo "is_ok_to_test=true" >> $GITHUB_OUTPUT

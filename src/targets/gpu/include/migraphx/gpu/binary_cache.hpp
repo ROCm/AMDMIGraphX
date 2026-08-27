@@ -90,7 +90,8 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     /// Counts of what the cache did.
     struct stats
     {
-        /// Served from memory, so an earlier compile in this process was shared.
+        /// Served from memory: the key was already compiled or read off disk earlier in this
+        /// process.
         std::size_t reused = 0;
         /// Served from the cache directory.
         std::size_t hits = 0;
@@ -109,7 +110,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     void insert(const context& ctx, entry e);
 
     /// True when reused results should be checked against a fresh compile.
-    bool verify() const;
+    bool verify() const { return settings.verify; }
 
     const stats& get_stats() const { return counters; }
 

@@ -246,14 +246,23 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
     return cos.front();
 }
 
+/// The generated args.hpp for a compile, from the same inputs the compile hands to clang. Shared
+/// with hip_compile_key so the key cannot drift from what is compiled.
+static std::string make_args_hpp(const hip_compile_options& options)
+{
+    assert(not options.inputs.empty());
+    assert(options.inputs.size() == options.virtual_inputs.size() or
+           options.virtual_inputs.empty());
+    return generate_args_hpp(options.virtual_inputs.empty() ? options.inputs
+                                                            : options.virtual_inputs);
+}
+
 std::string hip_compile_key(const context& ctx, const hip_src& src)
 {
-    assert(not src.options.inputs.empty());
-    assert(src.options.inputs.size() == src.options.virtual_inputs.size() or
-           src.options.virtual_inputs.empty());
     auto options = src.options;
     add_derived_params(ctx, options);
-    options.params = compile_hip_options(options.params, ctx.get_current_device().get_device_name());
+    options.params =
+        compile_hip_options(options.params, ctx.get_current_device().get_device_name());
 
     std::stringstream ss;
     ss << "arch=" << ctx.get_current_device().get_device_name() << "\n";
@@ -273,8 +282,7 @@ std::string hip_compile_key(const context& ctx, const hip_src& src)
     // contents running together.
     for(const auto& f : options.additional_src_files)
         ss << "src=" << f.path << ":" << f.content.size() << "\n" << f.content << "\n";
-    auto args_hpp =
-        generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
+    auto args_hpp = make_args_hpp(options);
     ss << "args.hpp:" << args_hpp.size() << "\n" << args_hpp;
     ss << "main.cpp:" << src.content.size() << "\n" << src.content;
     return ss.str();
@@ -283,11 +291,8 @@ std::string hip_compile_key(const context& ctx, const hip_src& src)
 operation
 compile_hip_code_object(context& ctx, const std::string& content, hip_compile_options options)
 {
-    assert(not options.inputs.empty());
-    assert(options.inputs.size() == options.virtual_inputs.size() or
-           options.virtual_inputs.empty());
-    auto args_hpp =
-        generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
+    // src_file views the string, so args_hpp must outlive the compile below.
+    auto args_hpp = make_args_hpp(options);
     options.additional_src_files.emplace_back("args.hpp", args_hpp);
 
     return code_object_op{value::binary{compile_hip_raw(ctx, content, options)},

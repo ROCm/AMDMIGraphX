@@ -198,7 +198,8 @@ TEST_CASE(duplicate_kernels_compile_once_without_a_directory)
 {
     auto cache = std::make_shared<migraphx::gpu::binary_cache>(
         migraphx::gpu::binary_cache_settings{.path = ""});
-    migraphx::gpu::context ctx{0, 1, cache};
+    migraphx::gpu::context ctx{0, 1};
+    ctx.set_binary_cache(cache);
 
     auto p1 = two_identical_pointwise();
     migraphx::run_passes(*p1.get_main_module(),

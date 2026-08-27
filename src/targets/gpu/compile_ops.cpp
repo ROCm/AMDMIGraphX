@@ -150,8 +150,8 @@ static compiler_replace
 compile_fragment(context& ctx, instruction_ref ins, const operation& preop, const value& solution)
 {
     auto cr = compile(ctx, ins, preop, solution);
-    if(cr.code.empty())
-        cr.code.fragment = make_fragment(cr, ins);
+    assert(cr.code.empty());
+    cr.code.fragment = make_fragment(cr, ins);
     return cr;
 }
 
@@ -175,9 +175,10 @@ static void verify_reuse(context& ctx,
                    to_string(fresh.code.fragment));
 }
 
-/// Marks keys invented for grouping only, given to cells whose compiler cannot describe its
-/// output so they are never grouped with another cell. The cache must ignore them: they are
-/// numbered by slot, so the same key names different code from one compile batch to the next.
+/// Prefix of placeholder keys for cells whose compiler cannot describe its output. Each
+/// placeholder is unique, so such cells never group with another cell, and the cache must
+/// ignore them: they are numbered by slot, so the same key names different code from one
+/// compile batch to the next.
 static constexpr const char* private_key_prefix = "__migraphx_private_unique_key";
 
 static bool is_private_key(const std::string& key) { return starts_with(key, private_key_prefix); }
@@ -617,6 +618,9 @@ struct compile_plan
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
+        // One slot was created per solution, and grouping only redirects slots, never adds or
+        // removes them.
+        assert(results.size() == config->solutions.size());
         std::vector<double> times;
         times.reserve(results.size());
         std::transform(results.begin(),
@@ -774,6 +778,9 @@ struct compile_manager
             for(auto& cell : cp.results)
             {
                 auto [it, inserted] = index.emplace(cell->key, std::make_pair(&cp, cell));
+                // The map key must view the string owned by the cell stored alongside it, or it
+                // dangles when a duplicate cell is dropped.
+                assert(it->first.data() == it->second.second->key.data());
                 if(not inserted)
                     cell = it->second.second;
             }

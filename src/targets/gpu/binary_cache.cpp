@@ -52,8 +52,6 @@ static constexpr const char* rocmlir_id = "nomlir";
 
 std::shared_ptr<binary_cache> make_binary_cache() { return std::make_shared<binary_cache>(); }
 
-bool binary_cache::verify() const { return settings.verify; }
-
 static std::string short_digest(const std::string& s) { return md5(s).substr(0, 12); }
 
 /// A digest of the kernel headers compiled into this build. Taken from the embedded sources
@@ -107,6 +105,26 @@ static fs::path entry_path(const fs::path& root, const context& ctx, const std::
     return root / version / device_dir(ctx) / (md5(key) + ".mxr");
 }
 
+/// Publish content by writing a temporary and renaming it into place, so a reader never sees a
+/// half-written file and concurrent writers cannot tear it. The temporary is removed on
+/// failure, since leaving it behind would accumulate in the cache directory.
+static void write_atomically(const fs::path& dest, const std::vector<char>& content)
+{
+    auto tmp = dest;
+    tmp += "." + unique_string("tmp");
+    try
+    {
+        write_buffer(tmp, content);
+        fs::rename(tmp, dest);
+    }
+    catch(...)
+    {
+        std::error_code ec;
+        fs::remove(tmp, ec);
+        throw;
+    }
+}
+
 /// Record what this build is, so a directory full of hashes can be identified later.
 static void write_stamp(const fs::path& dir)
 {
@@ -118,11 +136,37 @@ static void write_stamp(const fs::path& dir)
     ss << "hip: " << hip_compiler_version().version << "\n";
     ss << "kernels: " << kernels_digest() << "\n";
     ss << "rocmlir: " << rocmlir_id << "\n";
-    // Publish by rename like the entries, so concurrent writers cannot tear the file.
-    auto tmp = stamp;
-    tmp += "." + unique_string("tmp");
-    write_string(tmp, ss.str());
-    fs::rename(tmp, stamp);
+    auto s = ss.str();
+    write_atomically(stamp, std::vector<char>(s.begin(), s.end()));
+}
+
+/// Read the entry for a key off disk, or nullopt when there is no usable one. A damaged or
+/// stale entry is only worth a recompile, so every failure is a miss and the result is written
+/// over the top.
+static optional<binary_cache::entry>
+read_entry(const fs::path& root, const context& ctx, const std::string& key)
+{
+    if(root.empty())
+        return nullopt;
+    auto path = entry_path(root, ctx, key);
+    if(path.empty() or not fs::exists(path))
+        return nullopt;
+    binary_cache::entry e;
+    try
+    {
+        migraphx::from_value(from_msgpack(read_buffer(path)), e);
+    }
+    catch(const std::exception& ex)
+    {
+        log::warn() << "Ignoring unreadable binary cache entry " << path << ": " << ex.what();
+        return nullopt;
+    }
+    if(e.key != key)
+    {
+        log::warn() << "Ignoring binary cache entry with mismatched key: " << path;
+        return nullopt;
+    }
+    return e;
 }
 
 optional<compiled_code> binary_cache::get(const context& ctx, const std::string& key)
@@ -135,40 +179,14 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
         counters.reused++;
         return it->second;
     }
-    const auto& root = settings.path;
-    if(root.empty())
+    auto e = read_entry(settings.path, ctx, key);
+    if(not e.has_value())
     {
         counters.misses++;
         return nullopt;
     }
-    auto path = entry_path(root, ctx, key);
-    if(path.empty() or not fs::exists(path))
-    {
-        counters.misses++;
-        return nullopt;
-    }
-    entry e;
-    try
-    {
-        migraphx::from_value(from_msgpack(read_buffer(path)), e);
-    }
-    catch(const std::exception& ex)
-    {
-        // A damaged or stale entry is only worth a recompile, so treat every failure as a miss
-        // and let the result be written over the top.
-        log::warn() << "Ignoring unreadable binary cache entry " << path << ": " << ex.what();
-        counters.misses++;
-        return nullopt;
-    }
-    if(e.key != key)
-    {
-        log::warn() << "Ignoring binary cache entry with mismatched key: " << path;
-        counters.misses++;
-        return nullopt;
-    }
-
     counters.hits++;
-    return memo[key] = std::move(e.code);
+    return memo.emplace(key, std::move(e->code)).first->second;
 }
 
 void binary_cache::insert(const context& ctx, entry e)
@@ -180,23 +198,16 @@ void binary_cache::insert(const context& ctx, entry e)
     auto path        = root.empty() ? fs::path{} : entry_path(root, ctx, e.key);
     if(not path.empty())
     {
-        // Publish by rename so a reader never sees a half-written entry. The content is decided
-        // entirely by the key, so a writer that loses the race replaces the file with the same
-        // bytes and no locking is needed.
-        auto tmp = path;
-        tmp += "." + unique_string("tmp");
+        // The content is decided entirely by the key, so a writer that loses the publish race
+        // replaces the file with the same bytes and no locking is needed.
         try
         {
             fs::create_directories(path.parent_path());
             write_stamp(fs::path(root) / version_dir());
-            write_buffer(tmp, to_msgpack(migraphx::to_value(e)));
-            fs::rename(tmp, path);
+            write_atomically(path, to_msgpack(migraphx::to_value(e)));
         }
         catch(const std::exception& ex)
         {
-            // Leaving the temporary behind would accumulate in the cache directory.
-            std::error_code ec;
-            fs::remove(tmp, ec);
             log::warn() << "Failed to write binary cache entry " << path << ": " << ex.what();
         }
     }

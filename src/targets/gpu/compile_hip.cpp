@@ -412,7 +412,7 @@ static hip_compiler_info parse_version(const std::vector<char>& obj)
     auto fields = split_string(std::string{begin, end}, '|');
     if(fields.size() != 3)
         return {};
-    return {.major = fields[0], .minor = fields[1], .version = fields[2], .flags = compile_hip_options({}, version_probe_arch)};
+    return {.major = fields[0], .minor = fields[1], .version = fields[2]};
 }
 
 const hip_compiler_info& hip_compiler_version()

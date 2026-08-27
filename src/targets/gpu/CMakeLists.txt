@@ -24,45 +24,25 @@
 
 find_package(hip REQUIRED)
 
-# Produce a short identity for a toolchain file, used to separate binary cache entries that
-# different toolchains cannot share.
-function(migraphx_hash_file FILE_PATH OUT_VAR)
-    if(NOT FILE_PATH OR NOT EXISTS "${FILE_PATH}")
+# Produce a short identity for a list of toolchain library files, used to separate binary cache
+# entries that different toolchains cannot share. Entries that are not files (e.g. target names)
+# are skipped; CMake cannot stream one hash across several files, so hash the per-file content
+# hashes instead.
+function(migraphx_hash_libraries LIB_PATHS OUT_VAR)
+    set(HASH_INPUT "")
+    foreach(LIB_PATH IN LISTS LIB_PATHS)
+        if(EXISTS "${LIB_PATH}" AND NOT IS_DIRECTORY "${LIB_PATH}")
+            file(MD5 "${LIB_PATH}" HASH_FILE_MD5)
+            string(APPEND HASH_INPUT "${HASH_FILE_MD5};")
+        endif()
+    endforeach()
+    if(HASH_INPUT STREQUAL "")
         set(${OUT_VAR} "unknown" PARENT_SCOPE)
         return()
     endif()
-    file(MD5 "${FILE_PATH}" HASH_RESULT)
+    string(MD5 HASH_RESULT "${HASH_INPUT}")
     string(SUBSTRING "${HASH_RESULT}" 0 12 HASH_RESULT)
     set(${OUT_VAR} "${HASH_RESULT}" PARENT_SCOPE)
-endfunction()
-
-# Hash a list of library files, skipping entries that are not files (e.g. target names).
-# CMake cannot stream one hash across several files, so hash the size and content hash
-# of each file instead.
-function(migraphx_hash_libraries LIB_PATHS OUT_VAR)
-    set(HASH_FILES "")
-    foreach(LIB_PATH IN LISTS LIB_PATHS)
-        if(EXISTS "${LIB_PATH}" AND NOT IS_DIRECTORY "${LIB_PATH}")
-            list(APPEND HASH_FILES "${LIB_PATH}")
-        endif()
-    endforeach()
-    list(LENGTH HASH_FILES HASH_FILE_COUNT)
-    if(HASH_FILE_COUNT EQUAL 0)
-        set(${OUT_VAR} "unknown" PARENT_SCOPE)
-    elseif(HASH_FILE_COUNT EQUAL 1)
-        migraphx_hash_file("${HASH_FILES}" HASH_RESULT)
-        set(${OUT_VAR} "${HASH_RESULT}" PARENT_SCOPE)
-    else()
-        set(HASH_INPUT "")
-        foreach(HASH_FILE IN LISTS HASH_FILES)
-            file(SIZE "${HASH_FILE}" HASH_FILE_SIZE)
-            file(MD5 "${HASH_FILE}" HASH_FILE_MD5)
-            string(APPEND HASH_INPUT "${HASH_FILE_SIZE}-${HASH_FILE_MD5};")
-        endforeach()
-        string(MD5 HASH_RESULT "${HASH_INPUT}")
-        string(SUBSTRING "${HASH_RESULT}" 0 12 HASH_RESULT)
-        set(${OUT_VAR} "${HASH_RESULT}" PARENT_SCOPE)
-    endif()
 endfunction()
 
 # MIGRAPHX_USE_AMDMLSS is resolved to a plain boolean at the top-level CMakeLists.

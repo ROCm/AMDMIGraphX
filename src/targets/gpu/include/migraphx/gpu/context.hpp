@@ -288,13 +288,10 @@ struct context
                 this->save();
         }
     };
-    context(std::size_t device_id                = 0,
-            std::size_t n                        = value_of(MIGRAPHX_NSTREAMS{}, 1),
-            std::shared_ptr<binary_cache> bcache = make_binary_cache())
+    context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
         : current_device(std::make_shared<hip_device>(device_id, n)),
           begin_event(create_event()),
-          finish_event(create_event()),
-          bc(std::move(bcache))
+          finish_event(create_event())
     {
         // Bind the cache to this context's device (cross-compile safe: the
         // key is derived from the context, not a live HIP query).
@@ -303,9 +300,8 @@ struct context
 
     /// Construct a context for a device that is not present, which can only be
     /// used to compile and not to execute.
-    explicit context(const device_description& desc,
-                     std::shared_ptr<binary_cache> bcache = make_binary_cache())
-        : current_device(std::make_shared<hip_device>(desc)), bc(std::move(bcache))
+    explicit context(const device_description& desc)
+        : current_device(std::make_shared<hip_device>(desc))
     {
     }
 
@@ -479,6 +475,10 @@ struct context
         return *bc;
     }
 
+    /// Install a cache built with the settings the compile options carry, replacing the default
+    /// one the context was constructed with.
+    void set_binary_cache(std::shared_ptr<binary_cache> bcache) { bc = std::move(bcache); }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -492,7 +492,7 @@ struct context
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = std::make_shared<auto_save_problem_cache>();
-    std::shared_ptr<binary_cache> bc;
+    std::shared_ptr<binary_cache> bc            = make_binary_cache();
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

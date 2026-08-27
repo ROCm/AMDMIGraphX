@@ -294,6 +294,11 @@ struct MIGRAPHX_EXPORT shape
                                   const std::vector<dynamic_dimension>& dds,
                                   const std::vector<int64_t>& perm);
 
+    /// Rebuild a shape from `to_json_string(migraphx::to_value(s))`. Unlike the constructors this
+    /// restores symbolic dimension expressions, their bounds and optimals, and symbolic strides
+    /// exactly, which is why the --cpp and --py printers emit this spelling.
+    static shape from_json(const std::string& s);
+
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
     const std::vector<std::size_t>& strides() const;

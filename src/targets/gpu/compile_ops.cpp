@@ -575,7 +575,7 @@ struct compile_manager
 
         static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
         bool dump_mxr              = not mxr_path.empty();
-        static std::size_t dumped_mxr_files = 0;
+        std::size_t dumped_mxr_files = 0;
 
         if(dump_mxr)
         {

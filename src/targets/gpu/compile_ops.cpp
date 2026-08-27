@@ -415,8 +415,6 @@ struct compile_cell
     optional<compiler_replace> result = nullopt;
     /// Set when the result came from the cache, so it is not stored back afterwards.
     bool reused = false;
-    /// A failure raised while verifying the reused result, rethrown after the workers join.
-    std::exception_ptr error = nullptr;
 };
 
 struct compile_plan
@@ -809,28 +807,10 @@ struct compile_manager
         par_compile(tasks.size(), [&](auto i) {
             const auto& [cp, cell] = tasks[i];
             if(cell->reused)
-            {
-                // A throw would escape the worker thread and terminate the process, so carry
-                // the failure back and rethrow it after the workers join.
-                try
-                {
-                    cp->verify(cell->solution, cell->result->code);
-                }
-                catch(...)
-                {
-                    cell->error = std::current_exception();
-                }
-            }
+                cp->verify(cell->solution, cell->result->code);
             else
-            {
                 cell->result = cp->run_compile(cell->solution);
-            }
         });
-        auto failed = std::find_if(tasks.begin(), tasks.end(), [](const auto& task) {
-            return task.second->error != nullptr;
-        });
-        if(failed != tasks.end())
-            std::rethrow_exception(failed->second->error);
 
         for(const auto& [cp, cell] : tasks)
         {

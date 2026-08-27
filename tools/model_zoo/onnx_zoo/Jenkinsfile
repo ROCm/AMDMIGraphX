@@ -67,13 +67,7 @@ pipeline {
         stage('Run Models') {
             steps {
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'docker_test_cred',
-                                                      passwordVariable: 'DOCKERHUB_PASS',
-                                                      usernameVariable: 'DOCKERHUB_USER')]) {
-                        sh 'echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin'
-                        sh "docker pull ${DOCKER_IMAGE}:${params.IMAGE_TAG}"
-                    }
-
+                    sh "docker pull ${DOCKER_IMAGE}:${params.IMAGE_TAG}"
                     withDockerContainer(image: "${DOCKER_IMAGE}:${params.IMAGE_TAG}",
                                         args: dockeropts(MODEL_ROOT)) {
                         def cores = sh(returnStdout: true, script: 'nproc').trim()

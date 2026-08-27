@@ -311,8 +311,8 @@ struct find_nested_concat
 {
     auto matcher() const
     {
-        return match::name("concat")(
-            match::any_of[match::inputs()](match::name("concat")(match::used_once())));
+        auto concat_used_once = match::name("concat")(match::used_once());
+        return match::name("concat")(match::any_of[match::inputs()](concat_used_once));
     }
 
     static int64_t get_axis(instruction_ref ins)

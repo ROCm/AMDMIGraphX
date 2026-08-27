@@ -109,6 +109,12 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Read/write problem caches (the common case: a user tuning a model). New
+    // tuning solutions are saved back to these files.
+    std::vector<std::string> problem_cache_files = {};
+    // Read-only problem caches (system-level, e.g. shipped by gpuep or an ISV),
+    // searched after the writable caches and never written back.
+    std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
 
@@ -116,6 +122,8 @@ struct backend_options
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.problem_cache_files, "problem_cache_files"),
+                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
                     f(self.convolution_layout, "convolution_layout"));
     }
 };
@@ -301,12 +309,19 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 {
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
-    ctx.load_problem_cache(); // TODO: update load_problem_cache to include gpu arch
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
-    pipeline_factory p{&gctx, options, get_backend_options(options)};
+    auto backend_opts = get_backend_options(options);
+
+    // Problem cache files arrive as GPU backend options. The writable caches
+    // (problem_cache_files) save new tuning solutions back; the read-only caches
+    // (read_only_problem_cache_files) are system-level and never written.
+    ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
+                            backend_opts.problem_cache_files);
+
+    pipeline_factory p{&gctx, options, backend_opts};
 
     std::vector<std::vector<pass>> pipelines;
 

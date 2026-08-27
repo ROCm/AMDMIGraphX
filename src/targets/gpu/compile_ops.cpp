@@ -50,6 +50,7 @@
 #include <cstdlib>
 #include <exception>
 #include <functional>
+#include <memory>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -382,55 +383,29 @@ struct dynamic_code_object_op
 };
 MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 
-struct compiled_result
-{
-    compiler_replace replace;
-    instruction_ref ins;
-
-    friend std::ostream& operator<<(std::ostream& os, const compiled_result& cr)
-    {
-        cr.replace.trace(os, cr.ins);
-        return os;
-    }
-
-    program make_program() const
-    {
-        program bench_prog;
-        auto* mm = bench_prog.get_main_module();
-
-        std::vector<instruction_ref> bench_ins_inputs;
-        std::transform(ins->inputs().begin(),
-                       ins->inputs().end(),
-                       std::back_inserter(bench_ins_inputs),
-                       [&](const auto& arg) {
-                           return mm->add_parameter(std::to_string(bench_ins_inputs.size()),
-                                                    arg->get_shape());
-                       });
-        auto bench_ins =
-            mm->add_instruction(ins->get_operator(), bench_ins_inputs, ins->module_inputs());
-        mm->add_return({bench_ins});
-        replace.replace(*mm, bench_ins);
-        run_passes(*mm,
-                   {
-                       eliminate_identity{},
-                       dead_code_elimination{},
-                       memory_coloring{"hip::allocate"},
-                   });
-        return bench_prog;
-    }
-};
-
 // forward declared since it requires compile_manager
 static void replace_inserted_device_ops(context& ctx, module& m);
 
-/// One compilation a plan is waiting on. Candidates are collected before anything is compiled,
-/// so identical ones can be found and compiled only once.
-struct compile_candidate
+/**
+ * One compilation and its result, shared by every result slot whose key matches.
+ *
+ * Duplicate compiles are grouped by pointing the slots of every matching plan at the same cell,
+ * so writing the result once puts it in place everywhere. During the parallel compile each cell
+ * is written by exactly one worker; the plans sharing it read it only after the workers join.
+ */
+struct compile_cell
 {
-    std::size_t plan_index   = 0;
-    std::size_t result_index = 0;
-    value solution           = {};
-    std::string key          = {};
+    explicit compile_cell(value s) : solution(std::move(s)) {}
+
+    value solution = {};
+    /// Identifies the code the compile would produce. Empty when the compiler cannot say, which
+    /// keeps the cell out of the cache and out of the grouping.
+    std::string key                   = {};
+    optional<compiler_replace> result = nullopt;
+    /// Set when the result came from the cache, so it is not stored back afterwards.
+    bool reused = false;
+    /// A failure raised while verifying the reused result, rethrown after the workers join.
+    std::exception_ptr error = nullptr;
 };
 
 struct compile_plan
@@ -439,8 +414,10 @@ struct compile_plan
     operation preop;
     instruction_ref ins;
     module_ref mod;
-    optional<tuning_config> config                 = nullopt;
-    std::vector<optional<compiled_result>> results = {};
+    optional<tuning_config> config = nullopt;
+    /// One slot per candidate solution, aligned with config->solutions when benchmarking.
+    /// Slots of different plans point at the same cell when their keys match.
+    std::vector<std::shared_ptr<compile_cell>> results = {};
     void update_config(bool exhaustive)
     {
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
@@ -501,10 +478,37 @@ struct compile_plan
         }
     }
 
-    void add_candidates(std::vector<compile_candidate>& candidates,
-                        std::size_t plan_index,
-                        bool skip_benchmark)
+    /// A standalone program with just this instruction and the compiled code objects inserted,
+    /// used for benchmarking a result and for dumping it.
+    program make_program(const compiler_replace& cr) const
     {
+        program bench_prog;
+        auto* mm = bench_prog.get_main_module();
+
+        std::vector<instruction_ref> bench_ins_inputs;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(bench_ins_inputs),
+                       [&](const auto& arg) {
+                           return mm->add_parameter(std::to_string(bench_ins_inputs.size()),
+                                                    arg->get_shape());
+                       });
+        auto bench_ins =
+            mm->add_instruction(ins->get_operator(), bench_ins_inputs, ins->module_inputs());
+        mm->add_return({bench_ins});
+        cr.replace(*mm, bench_ins);
+        run_passes(*mm,
+                   {
+                       eliminate_identity{},
+                       dead_code_elimination{},
+                       memory_coloring{"hip::allocate"},
+                   });
+        return bench_prog;
+    }
+
+    void add_cells(bool skip_benchmark)
+    {
+        assert(results.empty());
         if(config.has_value())
         {
             const auto& problem = config->problem;
@@ -514,8 +518,7 @@ struct compile_plan
                 // No solution yet until benchmarked so skip for now
                 if(solution.is_null())
                     return;
-                results.resize(1);
-                candidates.push_back({plan_index, 0, solution});
+                results.push_back(std::make_shared<compile_cell>(solution));
             }
             else
             {
@@ -529,27 +532,23 @@ struct compile_plan
                    (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
-                    results.resize(1);
-                    candidates.push_back({plan_index, 0, solutions.front()});
+                    results.push_back(std::make_shared<compile_cell>(solutions.front()));
                 }
                 else
                 {
                     ctx->get_problem_cache().mark(preop.name(), problem);
-                    results.resize(solutions.size());
-                    auto indices = range(solutions.size());
-                    std::transform(indices.begin(),
-                                   indices.end(),
-                                   std::back_inserter(candidates),
-                                   [&](std::size_t i) {
-                                       return compile_candidate{plan_index, i, solutions[i]};
+                    std::transform(solutions.begin(),
+                                   solutions.end(),
+                                   std::back_inserter(results),
+                                   [](const value& solution) {
+                                       return std::make_shared<compile_cell>(solution);
                                    });
                 }
             }
         }
         else
         {
-            results.resize(1);
-            candidates.push_back({plan_index, 0, value{}});
+            results.push_back(std::make_shared<compile_cell>(value{}));
         }
     }
     std::string problem_string() const
@@ -588,7 +587,7 @@ struct compile_plan
         return input_shapes.str();
     }
 
-    const compiled_result& benchmark() const
+    const compiler_replace& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
         if(trace_level > 0 and not results.empty())
@@ -601,10 +600,10 @@ struct compile_plan
                            problem_string() + "\n\n" + print_modules());
         if(results.size() == 1)
         {
-            if(not results.front().has_value())
+            if(not results.front()->result.has_value())
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                                problem_string() + "\n\n" + print_modules());
-            return *results.front();
+            return *results.front()->result;
         }
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
@@ -616,29 +615,32 @@ struct compile_plan
                        results.end(),
                        config->solutions.begin(),
                        std::back_inserter(times),
-                       [&](const auto& cr, const auto& solution) {
+                       [&](const auto& cell, const auto& solution) {
                            if(trace_level > 1)
                                std::cout << "Benchmarking solution: " << solution << std::endl;
-                           if(not cr.has_value())
+                           if(not cell->result.has_value())
                            {
                                if(trace_level > 1)
                                    std::cout << "No binary" << std::endl;
                                return std::numeric_limits<double>::max();
                            }
                            if(trace_level > 2)
-                               std::cout << *cr << std::endl;
+                           {
+                               cell->result->trace(std::cout, ins);
+                               std::cout << std::endl;
+                           }
                            /*
                            create a small program with insturction being compiled and call "replace"
                            on that which would insert all the compiled code objects, prefills etc.
                            necessary to run candidate code object
                            */
-                           auto bench_prog = cr->make_program();
+                           auto bench_prog = make_program(*cell->result);
                            if(trace_level > 2)
                                std::cout << bench_prog << std::endl;
                            auto bundle = benchmark_bundle(*bench_prog.get_main_module());
                            auto t      = time_program(*ctx,
                                                  std::move(bench_prog),
-                                                 cr->replace.code.fill_map,
+                                                 cell->result->code.fill_map,
                                                  bundle,
                                                  /* nrun */ 20);
                            if(trace_level > 1)
@@ -653,22 +655,19 @@ struct compile_plan
             std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
             ctx->get_problem_cache().save();
         }
-        if(not results[i].has_value())
+        if(not results[i]->result.has_value())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                            problem_string() + "\n\n" + print_modules());
-        auto skipped = std::count_if(
-            results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
+        auto skipped = std::count_if(results.begin(), results.end(), [](const auto& cell) {
+            return not cell->result.has_value();
+        });
         if(skipped > 0)
             log::info() << "Skipped " << skipped << " configs for " << preop.name();
 
-        return *results[i];
+        return *results[i]->result;
     }
 
-    void replace(module& m) const
-    {
-        const auto& cr = benchmark();
-        cr.replace.replace(m, cr.ins);
-    }
+    void replace(module& m) const { benchmark().replace(m, ins); }
 
     void save_binaries(const fs::path& mxr_dir) const
     {
@@ -676,10 +675,10 @@ struct compile_plan
             return;
         for(auto i : range(results.size()))
         {
-            if(not results[i].has_value())
+            if(not results[i]->result.has_value())
                 continue;
             const auto& solution = config->solutions[i];
-            auto bench_prog      = results[i]->make_program();
+            auto bench_prog      = make_program(*results[i]->result);
             auto* mm             = bench_prog.get_main_module();
 
             replace_inserted_device_ops(*ctx, *mm);
@@ -713,27 +712,6 @@ static void par_compile(std::size_t n, F f)
     par_for(n, n / d, f);
 }
 
-/// A compile that one or more plans are waiting on, along with the places its result goes.
-struct compile_task
-{
-    value solution  = {};
-    std::string key = {};
-    /// Where the result goes, as (plan, result) slots. The first one also drives the compile,
-    /// since every target shares this key and therefore compiles to the same code.
-    std::vector<std::pair<std::size_t, std::size_t>> targets = {};
-    optional<compiler_replace> result                        = nullopt;
-    /// Set when the result came from the cache, so it is not stored back afterwards.
-    bool reused = false;
-    /// A failure raised while verifying the reused result, rethrown after the workers join.
-    std::exception_ptr error = nullptr;
-
-    std::size_t plan_index() const
-    {
-        assert(not targets.empty());
-        return targets.front().first;
-    }
-};
-
 struct compile_manager
 {
     std::vector<compile_plan> cps;
@@ -751,111 +729,97 @@ struct compile_manager
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
-    /**
-     * Group the candidates that would compile to the same code.
-     *
-     * Since every key is known before any compile starts, each group can be handed to exactly
-     * one task and the results shared afterwards, so the compiles never have to coordinate.
-     */
-    static std::vector<compile_task> make_tasks(const std::vector<compile_candidate>& candidates)
-    {
-        std::vector<compile_task> tasks;
-        // The keys are whole kernel sources, so the index views them instead of copying; the
-        // index does not outlive this function.
-        std::unordered_map<std::string_view, std::size_t> task_index;
-        for(const auto& c : candidates)
-        {
-            std::size_t i = tasks.size();
-            if(c.key.empty())
-            {
-                tasks.push_back({c.solution, c.key});
-            }
-            else
-            {
-                auto [it, inserted] = task_index.emplace(c.key, i);
-                if(inserted)
-                    tasks.push_back({c.solution, c.key});
-                i = it->second;
-            }
-            tasks[i].targets.emplace_back(c.plan_index, c.result_index);
-        }
-        return tasks;
-    }
-
     void compile(module& m, bool is_root)
     {
-        std::vector<compile_candidate> candidates;
-        for(auto i : range(cps.size()))
+        for(auto& cp : cps)
+            cp.add_cells(skip_benchmark);
+
         {
-            cps[i].add_candidates(candidates, i, skip_benchmark);
+            // Every slot is collected so the keys can be computed in parallel.
+            std::vector<std::pair<compile_plan*, compile_cell*>> slots;
+            for(auto& cp : cps)
+            {
+                std::transform(cp.results.begin(),
+                               cp.results.end(),
+                               std::back_inserter(slots),
+                               [&](const auto& cell) { return std::make_pair(&cp, cell.get()); });
+            }
+            par_compile(slots.size(), [&](auto i) {
+                auto [cp, cell] = slots[i];
+                cell->key       = cp->get_key(cell->solution);
+            });
         }
-        par_compile(candidates.size(), [&](auto i) {
-            candidates[i].key = cps[candidates[i].plan_index].get_key(candidates[i].solution);
-        });
-        auto tasks = make_tasks(candidates);
-        assert(tasks.size() <= candidates.size());
+
+        // Group the slots that would compile to the same code by pointing them at one shared
+        // cell; since every key is known before any compile starts, each cell can be handed to
+        // exactly one task and the compiles never have to coordinate. The plan kept with the
+        // cell drives the compile, which any of the sharers could do since they compile to the
+        // same code.
+        std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>> tasks;
+        // The keys are whole kernel sources, so the index views the canonical cell's key
+        // instead of copying; the index does not outlive this function.
+        std::unordered_map<std::string_view, std::shared_ptr<compile_cell>> index;
+        for(auto& cp : cps)
+        {
+            for(auto& cell : cp.results)
+            {
+                if(not cell->key.empty())
+                {
+                    auto [it, inserted] = index.emplace(cell->key, cell);
+                    if(not inserted)
+                    {
+                        cell = it->second;
+                        continue;
+                    }
+                }
+                tasks.emplace_back(&cp, cell);
+            }
+        }
 
         // The cache is unguarded, so everything it can answer is looked up before any compile
         // starts, and everything compiled is stored after they all finish.
-        for(auto& task : tasks)
+        for(const auto& [cp, cell] : tasks)
         {
-            task.result = cps[task.plan_index()].lookup(task.key);
-            task.reused = task.result.has_value();
+            cell->result = cp->lookup(cell->key);
+            cell->reused = cell->result.has_value();
         }
 
         par_compile(tasks.size(), [&](auto i) {
-            auto& task       = tasks[i];
-            const auto& plan = cps[task.plan_index()];
-            if(task.reused)
+            const auto& [cp, cell] = tasks[i];
+            if(cell->reused)
             {
                 // A throw would escape the worker thread and terminate the process, so carry
                 // the failure back and rethrow it after the workers join.
                 try
                 {
-                    plan.verify(task.solution, task.result->code);
+                    cp->verify(cell->solution, cell->result->code);
                 }
                 catch(...)
                 {
-                    task.error = std::current_exception();
+                    cell->error = std::current_exception();
                 }
             }
             else
             {
-                task.result = plan.run_compile(task.solution);
+                cell->result = cp->run_compile(cell->solution);
             }
         });
-        auto failed = std::find_if(
-            tasks.begin(), tasks.end(), [](const auto& task) { return task.error != nullptr; });
+        auto failed = std::find_if(tasks.begin(), tasks.end(), [](const auto& task) {
+            return task.second->error != nullptr;
+        });
         if(failed != tasks.end())
-            std::rethrow_exception(failed->error);
+            std::rethrow_exception(failed->second->error);
 
-        for(const auto& task : tasks)
+        for(const auto& [cp, cell] : tasks)
         {
-            if(task.reused or not task.result.has_value())
+            if(cell->reused or not cell->result.has_value())
                 continue;
-            cps[task.plan_index()].store(task.solution, task.key, task.result->code);
-        }
-
-        for(auto& task : tasks)
-        {
-            // The slots start out empty, so a task that failed to compile needs no write.
-            if(not task.result.has_value())
-                continue;
-            assert(not task.result->code.empty());
+            cp->store(cell->solution, cell->key, cell->result->code);
+            assert(not cell->result->code.empty());
             // Only the serializable code is used from here on. Dropping the replace function
             // releases the code objects and split modules its closure holds, and keeps it from
             // being run against an instruction other than the one it was built for.
-            task.result->replace_fn = nullptr;
-            // Every target gets its own copy; the last takes the result itself.
-            const auto last = task.targets.size() - 1;
-            for(auto i : range(task.targets.size()))
-            {
-                auto [pi, ri] = task.targets[i];
-                assert(pi < cps.size());
-                assert(ri < cps[pi].results.size());
-                auto cr             = i == last ? std::move(*task.result) : *task.result;
-                cps[pi].results[ri] = compiled_result{std::move(cr), cps[pi].ins};
-            }
+            cell->result->replace_fn = nullptr;
         }
 
         static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});

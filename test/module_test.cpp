@@ -2317,19 +2317,13 @@ static std::string json_shape_call(const std::string& factory, const migraphx::s
     return factory + "(\"" + migraphx::replace_string(json, "\"", "\\\"") + "\")";
 }
 
-static migraphx::module symbolic_param_module(const migraphx::shape& s)
-{
-    migraphx::module m;
-    m.add_return({m.add_instruction(migraphx::make_op("neg"), m.add_parameter("x", s))});
-    return m;
-}
-
 TEST_CASE(module_print_symbolic_shape_cpp)
 {
     migraphx::shape s{migraphx::shape::float_type,
                       {migraphx::shape::dynamic_dimension{migraphx::sym::var("n", {1, 8})},
                        migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}}};
-    auto m = symbolic_param_module(s);
+    migraphx::module m;
+    m.add_return({m.add_instruction(migraphx::make_op("neg"), m.add_parameter("x", s))});
 
     std::stringstream ss;
     m.print_cpp(ss);
@@ -2341,7 +2335,8 @@ TEST_CASE(module_print_symbolic_shape_py)
     migraphx::shape s{migraphx::shape::float_type,
                       {migraphx::shape::dynamic_dimension{migraphx::sym::var("n", {1, 8})},
                        migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}}};
-    auto m = symbolic_param_module(s);
+    migraphx::module m;
+    m.add_return({m.add_instruction(migraphx::make_op("neg"), m.add_parameter("x", s))});
 
     std::stringstream ss;
     m.print_py(ss);
@@ -2354,7 +2349,8 @@ TEST_CASE(module_print_symbolic_shape_name_not_an_identifier)
     migraphx::shape s{
         migraphx::shape::float_type,
         {migraphx::shape::dynamic_dimension{migraphx::sym::var("input.1_d0", {1, 8})}}};
-    auto m = symbolic_param_module(s);
+    migraphx::module m;
+    m.add_return({m.add_instruction(migraphx::make_op("neg"), m.add_parameter("x", s))});
 
     std::stringstream ss;
     m.print_cpp(ss);
@@ -2364,7 +2360,9 @@ TEST_CASE(module_print_symbolic_shape_name_not_an_identifier)
 // Only symbolic dimensions need the json form; a range-based dynamic shape keeps the readable one.
 TEST_CASE(module_print_dyn_range_shape_stays_readable)
 {
-    auto m = symbolic_param_module({migraphx::shape::float_type, {{1, 4}, {3, 3}}});
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    migraphx::module m;
+    m.add_return({m.add_instruction(migraphx::make_op("neg"), m.add_parameter("x", s))});
 
     std::stringstream ss_cpp;
     m.print_cpp(ss_cpp);

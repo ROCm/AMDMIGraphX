@@ -1144,6 +1144,8 @@ static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
+    if(solution.if_string() == nullptr)
+        return true;
     auto mm = m;
     prepare(mm);
     mlir_program mp;

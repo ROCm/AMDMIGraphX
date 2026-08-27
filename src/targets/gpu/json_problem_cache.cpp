@@ -66,9 +66,13 @@ void json_problem_cache::load(const std::string& path)
     // Canonicalize keys only (JSON erases value types); solutions verbatim.
     std::unordered_map<cache_device_key, std::unordered_map<value, value>> raw;
     from_value(root, raw);
+    // Drop persisted null mark() sentinels: they are transient "benchmark in
+    // progress" markers, not real solutions, so a stale/shipped null is a miss
+    // and the problem is compiled and tuned fresh.
     for(const auto& dev : raw)
         for(const auto& entry : dev.second)
-            cache[dev.first][entry.first.normalize()] = entry.second;
+            if(not entry.second.is_null())
+                cache[dev.first][entry.first.normalize()] = entry.second;
 }
 
 void json_problem_cache::save(const std::string& path) const

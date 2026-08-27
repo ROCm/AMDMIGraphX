@@ -80,8 +80,9 @@ TEST_CASE(unify_prefill_decode_test)
     EXPECT(specializations.at(1)->get_parameter_shape("one") == migraphx::shape{});
 }
 
-// Specializing has to happen while parsing because a kv-cache attention operator cannot be parsed
-// with a symbolic sequence length at all.
+// GroupQueryAttention parses against a symbolic sequence length on its own, so what matters here
+// is that unifying it still produces two concretely shaped specializations sharing one set of
+// initializers.
 TEST_CASE(unify_prefill_decode_group_query_attention_test)
 {
     auto p = read_onnx("group_query_attention_symbolic_test.onnx", unify_options(8));

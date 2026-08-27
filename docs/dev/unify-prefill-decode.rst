@@ -13,10 +13,8 @@ Treating the sequence length as one ordinary dynamic dimension is not sufficient
 model. Many operator parsers read concrete lengths while building IR: 50 of the 105
 ``parse_*.cpp`` files call ``shape::lens()``, which throws on a dynamic input, and the quantized
 and fused-attention operators common in exported language models are the heaviest users.
-GroupQueryAttention does accept a symbolic sequence length, but not when ``local_window_size`` is
-set: sliding-window attention needs a different window bound for each phase, so it has to know
-while parsing which phase it is building. Compiling two independent programs works, but
-duplicates model state and requires the caller to load and manage two programs.
+Compiling two independent programs works, but duplicates model state and requires the caller to
+load and manage two programs.
 
 This change makes one MIGraphX program contain both static specializations. The main module keeps
 the dynamic interface and dispatches to the matching specialization from the concrete runtime
@@ -157,19 +155,23 @@ main module, different scratch offsets on four ``load`` instructions, and 32 per
 ``mlir_dot`` kernels that compile to slightly different code-object sizes. Parsing twice folds the
 sequence length before MLIR sees it; the pass folds it afterwards.
 
-The ONNX option earns its place on the models the compile-time path cannot reach at all. A
-GroupQueryAttention graph with ``local_window_size = 4`` and a symbolic sequence length fails
-during parsing, before any target pass runs::
+What is left to the ONNX option is reach: the models the compile-time path cannot get to, because
+they never reach a target pass. Those are the graphs whose operators read a concrete length while
+parsing, which is the ``shape::lens()`` population described under Purpose. Parsing each phase
+with a fixed length is the only way to admit them.
 
-  GroupQueryAttention: local_window_size is not supported with a symbolic sequence length
-
-The same graph parsed with ``unify_prefill_decode`` yields the usual three modules, because each
-specialization is parsed with a concrete length.
+Sliding-window GroupQueryAttention used to be the clearest example, since it rejected a symbolic
+sequence length outright. It no longer is. That guard existed because the two phases were given
+window bounds that differed by one key, so the bound could not be written without knowing the
+phase. Checking the intended bound against onnxruntime showed that both bounds were wrong and
+that the correct one, ``local_window_size - 1`` keys before the row's absolute cache position,
+does not depend on the phase at all. With the branch gone the operator parses symbolically like
+any other.
 
 The choice is therefore about reach rather than about the compiled result. Prefer ``split_sizes``
 when the whole model parses symbolically; it needs no ONNX option and produces an equivalent
-program. Use ``unify_prefill_decode`` when the model does not, which today means sliding-window
-attention or any of the operators that require concrete lengths while parsing.
+program. Reach for ``unify_prefill_decode`` only when some operator in the model cannot be parsed
+against an unresolved length.
 
 Main-module output shapes
 -------------------------

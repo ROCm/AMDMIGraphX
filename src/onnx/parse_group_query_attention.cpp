@@ -261,18 +261,12 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         if(local_window_size > 0)
         {
-            // The two phases disagree by one key on where the window starts. Preserved verbatim
-            // until the intended bound is confirmed against onnxruntime; only the row index it is
-            // measured from has been unified here. Until that is settled the bound cannot be
-            // written without knowing which phase it is for.
-            const auto seq_value = sym::fixed_value(sequence_length);
-            if(not seq_value.has_value())
-                MIGRAPHX_THROW("GroupQueryAttention: local_window_size is not supported with a "
-                               "symbolic sequence length");
-            bool is_prompt       = sym::to<std::size_t>(*seq_value) > 1;
-            auto window_size_lit = info.add_literal(
-                literal{shape{index_type, {1}},
-                        {is_prompt ? -local_window_size : -(local_window_size + 1)}});
+            // local_window_size counts the keys a row may attend to, including the row's own
+            // key, so the window opens local_window_size - 1 keys earlier. row_pos is an
+            // absolute cache position, which makes this bound the same for a fresh prompt and
+            // for a continuation and so independent of the sequence length.
+            auto window_size_lit =
+                info.add_literal(literal{shape{index_type, {1}}, {-(local_window_size - 1)}});
             window_size_lit  = info.add_instruction(make_multibroadcast(bnsm), window_size_lit);
             auto window_comp = info.add_instruction(make_op("add"), row_pos, window_size_lit);
             auto window_mask = info.add_instruction(make_op("greater"), window_comp, bc_range);

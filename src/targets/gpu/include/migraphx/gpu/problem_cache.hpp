@@ -52,7 +52,9 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     const cache_device_key& get_device_key() const;
 
     /// Look up a problem. Read-only layers (from load(paths)) are searched in
-    /// priority order first, then the writable cache; the first hit wins.
+    /// priority order first, then the writable cache; the first *usable* hit
+    /// wins. A `mark()` null sentinel is not a solution and is skipped so a
+    /// later layer (or a miss) can still provide a real perfConfig.
     bool has(const std::string& name, const value& problem) const;
     void insert(const std::string& name, const value& problem, const value& solution);
     void mark(const std::string& name, const value& problem);

@@ -26,6 +26,7 @@
 #define MIGRAPHX_GUARD_GPU_PREPARE_MLIR_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/export.h>
 #include <string>
 
 namespace migraphx {
@@ -35,7 +36,7 @@ struct module;
 
 namespace gpu {
 
-struct prepare_mlir
+struct MIGRAPHX_GPU_EXPORT prepare_mlir
 {
     std::string name() const { return "gpu::prepare_mlir"; }
     void apply(module& m) const;
@@ -44,4 +45,4 @@ struct prepare_mlir
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP
+#endif // MIGRAPHX_GUARD_GPU_PREPARE_MLIR_HPP

@@ -438,12 +438,13 @@ struct compile_plan
         cache_store(*ctx, preop, solution, key, config ? config->problem : value{}, code);
     }
 
+    /// True when the cache was configured to check reused results against a fresh compile.
+    bool verify_enabled() const { return ctx->get_binary_cache().verify(); }
+
     /// Compile again and compare, so a key that fails to describe its result fails loudly.
-    /// Does nothing unless the cache was configured to verify reuse.
+    /// Only called when verify_enabled.
     void verify(const value& solution, const compiled_code& reused) const
     {
-        if(not ctx->get_binary_cache().verify())
-            return;
         verify_reuse(*ctx, ins, preop, solution, reused);
     }
 
@@ -751,10 +752,13 @@ struct compile_manager
         }
 
         // Group the slots that would compile to the same code by pointing them at one shared
-        // cell; since every key is known before any compile starts, each cell can be handed to
-        // exactly one task and the compiles never have to coordinate. The plan kept with the
-        // cell drives the compile, which any of the sharers could do since they compile to the
-        // same code.
+        // cell, and look each unique cell up in the cache as it is first seen; the cache is
+        // unguarded, so everything it can answer is looked up here before any compile starts,
+        // and everything compiled is stored after they all finish. Only the cells that still
+        // need parallel work, a compile or a verify of a reused result, become tasks; since
+        // every key is known before any compile starts, each cell is handed to exactly one task
+        // and the compiles never have to coordinate. The plan kept with the cell drives the
+        // compile, which any of the sharers could do since they compile to the same code.
         std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>> tasks;
         // The keys are whole kernel sources, so the index views the canonical cell's key
         // instead of copying; the index does not outlive this function.
@@ -772,16 +776,12 @@ struct compile_manager
                         continue;
                     }
                 }
+                cell->result = cp.lookup(cell->key);
+                cell->reused = cell->result.has_value();
+                if(cell->reused and not cp.verify_enabled())
+                    continue;
                 tasks.emplace_back(&cp, cell);
             }
-        }
-
-        // The cache is unguarded, so everything it can answer is looked up before any compile
-        // starts, and everything compiled is stored after they all finish.
-        for(const auto& [cp, cell] : tasks)
-        {
-            cell->result = cp->lookup(cell->key);
-            cell->reused = cell->result.has_value();
         }
 
         par_compile(tasks.size(), [&](auto i) {

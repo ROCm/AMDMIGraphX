@@ -183,6 +183,11 @@ struct ref_op
     {
         return op.compute(output_shape, args);
     }
+    void
+    finalize(migraphx::context& ctx, const shape& output_shape, const std::vector<shape>& inputs)
+    {
+        op.finalize(ctx, output_shape, inputs);
+    }
     value to_value() const
     {
         value v;

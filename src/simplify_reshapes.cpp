@@ -31,7 +31,6 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/op/as_shape.hpp>
-#include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/gather.hpp>
@@ -906,39 +905,40 @@ struct find_concat_transpose
         return match::name("concat")(match::all_of[match::inputs()](match::name("transpose")));
     }
 
+    // Use the permutation of the transpose operator instead of deducing it from the strides of
+    // its output shape, since the output shape may not be transposed at all.
+    static std::vector<int64_t> get_permutation(instruction_ref ins)
+    {
+        return ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
+    }
+
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins          = mr.result;
         auto trans_inputs = ins->inputs();
-        auto s            = trans_inputs.front()->get_shape();
-        assert(s.transposed());
-        auto op          = any_cast<op::concat>(ins->get_operator());
-        auto permutation = find_permutation(s);
+        auto v            = ins->get_operator().to_value();
+        auto permutation  = get_permutation(trans_inputs.front());
 
         // permutation should be the same for all inputs
         if(not std::all_of(trans_inputs.begin(), trans_inputs.end(), [&](auto in) {
-               return (find_permutation(in->get_shape()) == permutation);
+               return (get_permutation(in) == permutation);
            }))
         {
             return;
         }
 
         // axis could be a negative value
-        int64_t n_dim = s.lens().size();
-        op.axis       = tune_axis(n_dim, op.axis, op.name());
-
-        auto ipermutation = invert_permutation(permutation);
-        op.axis           = ipermutation[op.axis];
+        int64_t n_dim = ins->get_shape().ndim();
+        v["axis"]     = permutation[tune_axis(n_dim, v.at("axis").to<int64_t>(), ins->name())];
 
         std::vector<instruction_ref> inputs;
-        std::transform(
-            ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
-                return m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", permutation}}), i);
-            });
-        auto concat = m.insert_instruction(ins, op, inputs);
-        auto t      = m.insert_instruction(
-            ins, make_op("transpose", {{"permutation", ipermutation}}), concat);
+        std::transform(trans_inputs.begin(),
+                       trans_inputs.end(),
+                       std::back_inserter(inputs),
+                       [](instruction_ref i) { return i->inputs().front(); });
+        auto concat = m.insert_instruction(ins, make_op(ins->name(), v), inputs);
+        auto t =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), concat);
         assert(ins->get_shape().lens() == t->get_shape().lens());
         m.replace_instruction(ins, t);
     }
@@ -960,10 +960,10 @@ struct find_concat_reshape
         if(reshapes.empty())
             return;
         auto input_shape = reshapes.front()->inputs().front()->get_shape();
-        // All inputs should have the same dimensions
+        // All inputs should have the same rank
         if(not std::all_of(
                std::next(reshapes.begin()), reshapes.end(), [&](instruction_ref reshape) {
-                   return reshape->inputs().front()->get_shape().lens() == input_shape.lens();
+                   return reshape->inputs().front()->get_shape().ndim() == input_shape.ndim();
                }))
             return;
         // axis could be a negative value
@@ -1011,18 +1011,23 @@ struct find_concat_reshape
         });
         if(it == input_shape.lens().end())
             return;
-        op.axis       = it - input_shape.lens().begin();
-        auto ipredims = std::accumulate(input_shape.lens().begin(),
-                                        input_shape.lens().begin() + op.axis,
-                                        std::size_t{1},
-                                        std::multiplies<>{});
-        if(ipredims != predims)
-            return;
-        auto ipostdims = std::accumulate(input_shape.lens().begin() + op.axis + 1,
-                                         input_shape.lens().end(),
-                                         std::size_t{1},
-                                         std::multiplies<>{});
-        if(ipostdims != postdims)
+        op.axis = it - input_shape.lens().begin();
+        // Each input must decompose as predims x axis x postdims at the mapped
+        // axis, with the same non-axis dims so the inputs can be concatenated
+        if(not std::all_of(reshapes.begin(), reshapes.end(), [&](instruction_ref r) {
+               const auto& lens = r->inputs().front()->get_shape().lens();
+               auto ipredims    = std::accumulate(
+                   lens.begin(), lens.begin() + op.axis, std::size_t{1}, std::multiplies<>{});
+               auto ipostdims = std::accumulate(
+                   lens.begin() + op.axis + 1, lens.end(), std::size_t{1}, std::multiplies<>{});
+               if(ipredims != predims or ipostdims != postdims)
+                   return false;
+               return std::equal(
+                          lens.begin(), lens.begin() + op.axis, input_shape.lens().begin()) and
+                      std::equal(lens.begin() + op.axis + 1,
+                                 lens.end(),
+                                 input_shape.lens().begin() + op.axis + 1);
+           }))
             return;
 
         std::vector<instruction_ref> inputs;
@@ -2071,6 +2076,48 @@ struct find_flatten
     }
 };
 
+// Rewrite layout(multibroadcast|broadcast(x)) to broadcast(layout(x)), skipping
+// the inner layout when it would be a no-op, so only the unique data is
+// materialized instead of a full copy per broadcast output.
+struct find_layout_broadcast
+{
+    auto matcher() const
+    {
+        return match::name("layout")(
+            match::args(match::broadcast(match::nargs(1)).bind("broadcast")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto broadcast = r.instructions["broadcast"];
+        auto input     = broadcast->inputs().front();
+        auto permutation =
+            ins->get_operator().to_value().at("permutation").to_vector<std::size_t>();
+        auto ndim = input->get_shape().ndim();
+        // multibroadcast aligns the input to the trailing axes of the output;
+        // broadcast places it at the range starting at its axis attribute
+        const auto& bcast_op = broadcast->get_operator();
+        auto offset          = permutation.size() - ndim;
+        if(bcast_op.name() == "broadcast")
+            offset = bcast_op.to_value().at("axis").to<std::size_t>();
+        std::vector<std::size_t> inner_permutation;
+        transform_if(
+            permutation.begin(),
+            permutation.end(),
+            std::back_inserter(inner_permutation),
+            [&](auto axis) { return axis >= offset and axis < offset + ndim; },
+            [&](auto axis) { return axis - offset; });
+        assert(inner_permutation.size() == ndim);
+        auto data = input;
+        if(input->get_shape().transposed() or
+           not std::is_sorted(inner_permutation.begin(), inner_permutation.end()))
+            data = m.insert_instruction(
+                ins, make_op("layout", {{"permutation", inner_permutation}}), input);
+        m.replace_instruction(ins, bcast_op, data);
+    }
+};
+
 // Match slice->squeeze->pw/reduce where the squeeze and slice share the same
 // single axis, then rewrite to slice->pw/reduce->squeeze (unsqueezing the
 // other inputs).  find_op_shape_transform_op propagates the squeeze through
@@ -2137,6 +2184,7 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m,
                             find_nop_reshapes{},
                             find_flatten{},
+                            find_layout_broadcast{},
                             find_reshape_cont{},
                             find_slice_shape_transforms{},
                             find_nested_shape_transforms{},

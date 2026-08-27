@@ -34,7 +34,6 @@ written out as a sourceable ``export`` file with one ``export`` line per
 env var in the winning row. Pass ``--no-combos`` to skip the multi-knob
 combinations (faster, but cannot find coupled wins). The probed knobs are:
 
-* ``MIGRAPHX_ENABLE_NHWC`` - prefer NHWC layout for convolutions.
 * ``MIGRAPHX_SET_GEMM_PROVIDER`` - select the GEMM backend (rocBLAS).
 * ``MIGRAPHX_ENABLE_CK`` - enable Composable Kernel GEMMs.
 * ``MIGRAPHX_DISABLE_MLIR`` - disable the MLIR code path.
@@ -66,7 +65,6 @@ Setting = tuple[str, str]
 Settings = tuple[Setting, ...]
 
 KNOBS: tuple[tuple[str, Setting], ...] = (
-    ("NHWC layout", ("MIGRAPHX_ENABLE_NHWC", "1")),
     ("GEMM provider rocBLAS", ("MIGRAPHX_SET_GEMM_PROVIDER", "rocblas")),
     ("Enable CK GEMM", ("MIGRAPHX_ENABLE_CK", "1")),
     ("Disable MLIR", ("MIGRAPHX_DISABLE_MLIR", "1")),
@@ -92,12 +90,7 @@ COMBOS: tuple[tuple[str, Settings], ...] = (
         ("MIGRAPHX_ENABLE_CK", "1"),
         ("MIGRAPHX_MLIR_USE_SPECIFIC_OPS", _MLIR_OPS_WHITELIST),
     )),
-    ("NHWC + MIOpen pooling", (
-        ("MIGRAPHX_ENABLE_NHWC", "1"),
-        ("MIGRAPHX_ENABLE_MIOPEN_POOLING", "1"),
-    )),
-    ("NHWC + Conv->dot + rocBLAS", (
-        ("MIGRAPHX_ENABLE_NHWC", "1"),
+    ("Conv->dot + rocBLAS", (
         ("MIGRAPHX_ENABLE_REWRITE_DOT", "1"),
         ("MIGRAPHX_SET_GEMM_PROVIDER", "rocblas"),
     )),

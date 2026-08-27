@@ -147,4 +147,53 @@ TEST_CASE(problem_cache_layered_priority_first_hit_wins)
     c.save();
 }
 
+TEST_CASE(problem_cache_null_sentinel_is_miss)
+{
+    migraphx::tmp_dir td{"problem_cache_null_sentinel"};
+    auto path = (td.path / "cache.json").string();
+
+    {
+        migraphx::gpu::problem_cache w;
+        w.set_device_key(make_key());
+        w.load(path);
+        w.mark("gpu::mlir_op", make_problem(0));
+        w.save();
+    }
+
+    migraphx::gpu::problem_cache c;
+    c.set_device_key(make_key());
+    c.load(path);
+    EXPECT(not bool(c.get("gpu::mlir_op", make_problem(0))));
+}
+
+TEST_CASE(problem_cache_null_sentinel_does_not_hide_lower_layer)
+{
+    migraphx::tmp_dir td{"problem_cache_null_hidden"};
+    auto high = (td.path / "high.json").string();
+    auto low  = (td.path / "low.json").string();
+
+    {
+        migraphx::gpu::problem_cache w;
+        w.set_device_key(make_key());
+        w.load(high);
+        w.mark("gpu::mlir_op", make_problem(0));
+        w.save();
+    }
+    {
+        migraphx::gpu::problem_cache w;
+        w.set_device_key(make_key());
+        w.load(low);
+        w.insert("gpu::mlir_op", make_problem(0), migraphx::value{{"kernel", "kLow"}});
+        w.save();
+    }
+
+    migraphx::gpu::problem_cache c;
+    c.set_device_key(make_key());
+    c.load(std::vector<std::string>{high, low});
+
+    auto s0 = c.get("gpu::mlir_op", make_problem(0));
+    EXPECT(bool(s0));
+    EXPECT((*s0).at("kernel").to<std::string>() == "kLow");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

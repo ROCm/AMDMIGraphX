@@ -342,16 +342,14 @@ struct compile_plan
         if(config.has_value())
         {
             const auto& problem = config->problem;
-            // Priority search (read-only layers first, then writable; first hit
-            // wins) is handled inside problem_cache.
-            if(auto sol = ctx->problem_cache_get(preop.name(), problem))
+            // Priority search (read-only layers first, then writable; first
+            // usable hit wins) is handled inside problem_cache. A null sentinel
+            // is a miss, so compile still generates solutions.
+            if(auto sol = ctx->problem_cache_get(preop.name(), problem);
+               sol.has_value() and not sol->is_null())
             {
-                const auto& solution = sol.value();
-                // No solution yet until benchmarked so skip for now
-                if(solution.is_null())
-                    return;
                 results.resize(1);
-                insert_compiles(compiles, solution, 0);
+                insert_compiles(compiles, *sol, 0);
             }
             else
             {

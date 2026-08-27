@@ -125,14 +125,20 @@ void problem_cache::mark(const std::string& name, const value& problem)
 optional<value> problem_cache::get(const std::string& name, const value& problem) const
 {
     const auto key = create_key(name, problem);
-    // Read-only layers first (highest priority), then the writable cache.
-    const auto found =
-        std::find_if(read_only_backends.begin(), read_only_backends.end(), [&](const auto& ro) {
-            return ro.get(device_key, key).has_value();
-        });
+    // A mark() placeholder is stored as null. That is "no tuned solution yet",
+    // not a perfConfig: skip it and keep searching so a shipped cache full of
+    // those sentinels cannot hide a real solution (or force a miss).
+    auto usable = [&](const problem_cache_backend& b) -> optional<value> {
+        if(auto v = b.get(device_key, key); v.has_value() and not v->is_null())
+            return v;
+        return nullopt;
+    };
+    const auto found = std::find_if(read_only_backends.begin(),
+                                    read_only_backends.end(),
+                                    [&](const auto& ro) { return bool(usable(ro)); });
     if(found != read_only_backends.end())
-        return found->get(device_key, key);
-    return backend.get(device_key, key);
+        return usable(*found);
+    return usable(backend);
 }
 
 } // namespace gpu

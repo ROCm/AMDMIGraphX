@@ -1497,7 +1497,7 @@ void migraphx_from_value(const value& v, shape& s)
     }
 }
 
-shape make_json_shape(const std::string& s)
+shape shape::from_json(const std::string& s)
 {
     return from_value<shape>(from_json_string(convert_to_json(s)));
 }

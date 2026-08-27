@@ -2520,25 +2520,25 @@ TEST_CASE(to_symbolic_range_based_throws)
 
 static bool json_shape_roundtrips(const migraphx::shape& s)
 {
-    return migraphx::make_json_shape(migraphx::to_json_string(migraphx::to_value(s))) == s;
+    return migraphx::shape::from_json(migraphx::to_json_string(migraphx::to_value(s))) == s;
 }
 
-TEST_CASE(make_json_shape_static)
+TEST_CASE(from_json_static)
 {
     EXPECT(json_shape_roundtrips({migraphx::shape::float_type, {2, 3, 4}}));
 }
 
-TEST_CASE(make_json_shape_static_non_standard_strides)
+TEST_CASE(from_json_static_non_standard_strides)
 {
     EXPECT(json_shape_roundtrips({migraphx::shape::float_type, {2, 3, 4}, {0, 4, 1}}));
 }
 
-TEST_CASE(make_json_shape_dyn_range)
+TEST_CASE(from_json_dyn_range)
 {
     EXPECT(json_shape_roundtrips({migraphx::shape::float_type, {{1, 4, {2, 4}}, {3, 3}}}));
 }
 
-TEST_CASE(make_json_shape_symbolic)
+TEST_CASE(from_json_symbolic)
 {
     auto n = var("n", {1, 8});
     migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
@@ -2547,7 +2547,7 @@ TEST_CASE(make_json_shape_symbolic)
     EXPECT(json_shape_roundtrips(s));
 }
 
-TEST_CASE(make_json_shape_symbolic_compound_expr)
+TEST_CASE(from_json_symbolic_compound_expr)
 {
     auto n = var("n", {1, 8});
     auto m = var("m", {2, 16}, {4, 8});
@@ -2555,7 +2555,7 @@ TEST_CASE(make_json_shape_symbolic_compound_expr)
 }
 
 // A mixed shape carries no dyn_strides, so it exercises the other branch of the codec.
-TEST_CASE(make_json_shape_symbolic_mixed_with_range)
+TEST_CASE(from_json_symbolic_mixed_with_range)
 {
     auto n = var("n", {1, 8});
     migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{3, 5}}};
@@ -2564,14 +2564,14 @@ TEST_CASE(make_json_shape_symbolic_mixed_with_range)
 }
 
 // The json codec is structural, so a symbol name that sym::parse would reject still round trips.
-TEST_CASE(make_json_shape_symbolic_name_not_an_identifier)
+TEST_CASE(from_json_symbolic_name_not_an_identifier)
 {
     auto n = var("input.1_d0", {1, 8});
     migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
     EXPECT(json_shape_roundtrips(s));
 }
 
-TEST_CASE(make_json_shape_tuple_of_symbolic)
+TEST_CASE(from_json_tuple_of_symbolic)
 {
     auto n = var("n", {1, 8});
     migraphx::shape s0{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};

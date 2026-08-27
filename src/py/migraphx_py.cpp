@@ -387,7 +387,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             else
                 return migraphx::shape(t, lens);
         }))
-        .def_static("from_json", &migraphx::make_json_shape, py::arg("s"))
+        .def_static("from_json", &migraphx::shape::from_json, py::arg("s"))
         .def("type", &migraphx::shape::type)
         .def("lens", &migraphx::shape::lens)
         .def("strides", &migraphx::shape::strides)

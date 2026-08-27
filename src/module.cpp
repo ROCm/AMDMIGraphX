@@ -1630,7 +1630,7 @@ static void print_make_op(std::ostream& os, const operation& op)
 }
 
 // A range-based dynamic dimension is fully described by its bounds, so it is printed as those
-// bounds. A symbolic dimension is not: see print_json_shape.
+// bounds.
 static std::string
 dyn_dims_string(const migraphx::shape& s, const std::string& open, const std::string& close)
 {
@@ -1650,10 +1650,7 @@ static bool has_symbolic_dim(const migraphx::shape& s)
            });
 }
 
-// A symbolic dimension carries an expression that no constructor argument can spell, so the shape
-// is instead rebuilt from the json form of its value representation. That is the same codec used
-// for serialization, so the expression, its per-variable bounds and optimals, and any symbolic
-// strides all survive the round trip.
+// Use enclose_name to make sure symbolic variable name is preserved.
 static void print_json_shape(std::ostream& os, const std::string& factory, const migraphx::shape& s)
 {
     os << factory << "(" << enclose_name(to_json_string(migraphx::to_value(s))) << ")";
@@ -1684,7 +1681,7 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
 {
     if(has_symbolic_dim(s))
     {
-        print_json_shape(os, "migraphx::make_json_shape", s);
+        print_json_shape(os, "migraphx::shape::from_json", s);
         return;
     }
     os << "migraphx::shape{migraphx::shape::" << s.type_string();

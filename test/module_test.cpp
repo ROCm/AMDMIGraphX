@@ -2327,7 +2327,7 @@ TEST_CASE(module_print_symbolic_shape_cpp)
 
     std::stringstream ss;
     m.print_cpp(ss);
-    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx::make_json_shape", s)));
+    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx::shape::from_json", s)));
 }
 
 TEST_CASE(module_print_symbolic_shape_py)
@@ -2354,7 +2354,7 @@ TEST_CASE(module_print_symbolic_shape_name_not_an_identifier)
 
     std::stringstream ss;
     m.print_cpp(ss);
-    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx::make_json_shape", s)));
+    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx::shape::from_json", s)));
 }
 
 // Only symbolic dimensions need the json form; a range-based dynamic shape keeps the readable one.
@@ -2367,7 +2367,7 @@ TEST_CASE(module_print_dyn_range_shape_stays_readable)
     std::stringstream ss_cpp;
     m.print_cpp(ss_cpp);
     EXPECT(migraphx::contains(ss_cpp.str(), "migraphx::shape{migraphx::shape::float_type"));
-    EXPECT(not migraphx::contains(ss_cpp.str(), "make_json_shape"));
+    EXPECT(not migraphx::contains(ss_cpp.str(), "from_json"));
 
     std::stringstream ss_py;
     m.print_py(ss_py);

@@ -140,14 +140,22 @@ void problem_cache::mark(const std::string& name, const value& problem)
 optional<value> problem_cache::get(const std::string& name, const value& problem) const
 {
     const auto key = create_key(name, problem);
+    // A null value is a mark() sentinel (benchmark started, no tuned solution
+    // yet), not a real solution: treat it as a miss so the op is compiled and
+    // tuned instead of skipped. This also stops a stale/shipped null entry from
+    // hiding a real solution in a lower-priority layer.
+    const auto usable = [&](const problem_cache_backend& b) -> optional<value> {
+        if(auto sol = b.get(device_key, key); sol.has_value() and not sol->is_null())
+            return sol;
+        return {};
+    };
     // Writable caches first (a locally tuned solution wins), then the read-only
-    // layers in priority order (first hit wins among them).
+    // layers in priority order (first usable hit wins among them).
     const auto search = [&](const std::vector<problem_cache_backend>& backends) -> optional<value> {
-        const auto it = std::find_if(backends.begin(), backends.end(), [&](const auto& b) {
-            return b.get(device_key, key).has_value();
-        });
+        const auto it = std::find_if(
+            backends.begin(), backends.end(), [&](const auto& b) { return bool(usable(b)); });
         if(it != backends.end())
-            return it->get(device_key, key);
+            return usable(*it);
         return {};
     };
     if(auto sol = search(writable_backends))

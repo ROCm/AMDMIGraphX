@@ -344,12 +344,10 @@ struct compile_plan
             const auto& problem = config->problem;
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
-                const auto& solution = sol.value();
-                // No solution yet until benchmarked so skip for now
-                if(solution.is_null())
-                    return;
+                // get() never returns a null sentinel (a null cache entry is
+                // treated as a miss), so a value here is always a real solution.
                 results.resize(1);
-                insert_compiles(compiles, solution, 0);
+                insert_compiles(compiles, sol.value(), 0);
             }
             else
             {

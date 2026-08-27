@@ -269,4 +269,62 @@ TEST_CASE(problem_cache_no_cache_config_is_noop)
     c.save(); // no writable cache -> no-op, must not throw
 }
 
+// --------------------------------------------------------------------------
+// A null cache entry (a mark() sentinel: benchmark started, no tuned solution
+// yet) is treated as a miss by get(), so the op is compiled and tuned instead
+// of being handed a null "solution". has() still reports the marked key as
+// present; only get() filters the sentinel out.
+// --------------------------------------------------------------------------
+TEST_CASE(problem_cache_null_sentinel_is_miss)
+{
+    migraphx::gpu::problem_cache c;
+    c.set_device_key(make_key());
+    c.load(std::vector<std::string>{}, std::vector<std::string>{});
+
+    // mark() records a null sentinel for the problem.
+    c.mark("gemm", make_problem(0));
+    EXPECT(c.has("gemm", make_problem(0)));
+    // get() reports the null sentinel as a miss, not a solution.
+    EXPECT(not bool(c.get("gemm", make_problem(0))));
+
+    // A real solution inserted afterwards replaces the sentinel and is returned.
+    c.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kReal"}});
+    auto s = c.get("gemm", make_problem(0));
+    EXPECT(bool(s));
+    EXPECT((*s).at("kernel").to<std::string>() == "kReal");
+}
+
+// --------------------------------------------------------------------------
+// A null sentinel in a higher-priority (writable) layer must not hide a real
+// solution in a lower-priority (read-only) layer: get() skips the null and
+// keeps searching, returning the real solution from the read-only cache.
+// --------------------------------------------------------------------------
+TEST_CASE(problem_cache_null_sentinel_does_not_hide_lower_layer)
+{
+    migraphx::tmp_dir td{"problem_cache_null_lower"};
+    auto ro = (td.path / "read_only.json").string();
+
+    // Read-only layer holds a real solution for problem 0.
+    {
+        migraphx::gpu::problem_cache w;
+        w.set_device_key(make_key());
+        w.load(std::vector<std::string>{}, std::vector<std::string>{ro});
+        w.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kReadOnly"}});
+        w.save();
+    }
+
+    migraphx::gpu::problem_cache c;
+    c.set_device_key(make_key());
+    c.load(std::vector<std::string>{ro}, std::vector<std::string>{});
+
+    // Mark problem 0 in the writable (in-memory) layer: a null sentinel that is
+    // searched before the read-only layer.
+    c.mark("gemm", make_problem(0));
+
+    // The writable null is skipped, so the real read-only solution still wins.
+    auto s = c.get("gemm", make_problem(0));
+    EXPECT(bool(s));
+    EXPECT((*s).at("kernel").to<std::string>() == "kReadOnly");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

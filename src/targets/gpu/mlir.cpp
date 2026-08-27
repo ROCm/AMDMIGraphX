@@ -1144,13 +1144,19 @@ static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
+    // Without a string tuning solution (e.g. a null cache sentinel or a
+    // malformed entry) there is nothing to hand to MLIR, so treat the module as
+    // fusible rather than dereferencing a null string.
+    const auto* tuning = solution.if_string();
+    if(tuning == nullptr)
+        return true;
     auto mm = m;
     prepare(mm);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(mm);
     mp.run_high_level_pipeline();
-    return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
+    return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*tuning));
 }
 
 void adjust_param_shapes(module& m, const std::vector<shape>& inputs)

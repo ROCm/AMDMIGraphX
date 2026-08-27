@@ -15,14 +15,23 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'ROCm/AMDMIGraphX' && github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Generate a token
-        id: generate-token
+      - name: Generate token for ROCm org
+        id: generate-token-rocm
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
+        with:
+          client-id: ${{ vars.GH_APP_MIGRAPHX_BOT_PR_WRITE_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_MIGRAPHX_BOT_PR_WRITE_PRIVATE_KEY }}
+          owner: ROCm
+          repositories: AMDMIGraphX
+
+      - name: Generate token for AMD-ROCm-Internal org
+        id: generate-token-internal
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
         with:
           client-id: ${{ vars.GH_APP_MIGRAPHX_BOT_PR_WRITE_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_MIGRAPHX_BOT_PR_WRITE_PRIVATE_KEY }}
           owner: AMD-ROCm-Internal
-          repositories: AMDMIGraphX,migraphx-reports,migraphx-benchmark-utils
+          repositories: migraphx-reports,migraphx-benchmark-utils
 
       - name: Download artifacts
         id: dl_art
@@ -31,7 +40,7 @@ jobs:
         with:
           name: performance-run-data
           path: test-results
-          github-token: ${{ steps.generate-token.outputs.token }}
+          github-token: ${{ steps.generate-token-rocm.outputs.token }}
           run-id: ${{ github.event.workflow_run.id }}
 
       - name: Extract context safely
@@ -60,7 +69,7 @@ jobs:
         with:
           repository: AMD-ROCm-Internal/${{ env.REPORTS_DIR }}
           path: ${{ env.REPORTS_DIR }}
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ steps.generate-token-internal.outputs.token }}
           fetch-depth: 0
 
       - name: Checkout utils repo
@@ -69,7 +78,7 @@ jobs:
         with:
           repository: AMD-ROCm-Internal/migraphx-benchmark-utils
           path: benchmark-utils
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ steps.generate-token-internal.outputs.token }}
 
       - name: Setup Python
         if: steps.dl_art.outcome == 'success'
@@ -122,10 +131,9 @@ jobs:
           && env.PR_NUMBER
           && env.GIT_SHA
         env:
-          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.generate-token-rocm.outputs.token }}
         run: |
           python3 benchmark-utils/scripts/perf_compare.py -f "$REPOFILEPATH/results.csv"
           if [ -n "$ACCURACY_DIR" ] && [ -f "$REPOFILEPATH/accuracy_logs/results.md" ]; then
             python3 benchmark-utils/scripts/accuracy_comment.py -f "$REPOFILEPATH/accuracy_logs/results.md" -p "$PR_NUMBER"
           fi
-

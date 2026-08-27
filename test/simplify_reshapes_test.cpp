@@ -5412,18 +5412,22 @@ TEST_CASE(slice_squeeze_binary_scalar)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), slice);
         auto mul     = m1.add_instruction(migraphx::make_op("mul"), squeeze, scalar);
-        m1.add_return({mul});
+        // Keep another use of the slice input so find_slice_shape_transforms cannot
+        // preempt the find_slice_squeeze matcher exercised by this test.
+        m1.add_return({mul, input});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto input   = m2.add_parameter("input", s);
-        auto scalar  = m2.add_literal(0.5f);
-        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), input);
-        auto slice   = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), squeeze);
-        auto mul = m2.add_instruction(migraphx::make_op("mul"), slice, scalar);
-        m2.add_return({mul});
+        auto input  = m2.add_parameter("input", s);
+        auto scalar = m2.add_literal(0.5f);
+        auto slice  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto scalar_broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", slice->get_shape().lens()}}), scalar);
+        auto mul     = m2.add_instruction(migraphx::make_op("mul"), slice, scalar_broadcast);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), mul);
+        m2.add_return({squeeze, input});
     }
     EXPECT(m1.sort() == m2.sort());
 }

@@ -62,7 +62,7 @@ def test_create_symbolic_dyn_shape():
     assert not s.dyn_dims()[1].is_symbolic()
 
 
-def _symbolic_program():
+def test_to_py_preserves_symbolic_expression():
     p = migraphx.program()
     m = p.get_main_module()
     s = migraphx.shape(type='float',
@@ -74,17 +74,14 @@ def _symbolic_program():
                        ])
     m.add_return(
         [m.add_instruction(migraphx.op("neg"), [m.add_parameter("x", s)])])
-    return p
 
+    code = p.to_py()
+    assert "migraphx.shape.from_json" in code
 
-def test_to_py_preserves_symbolic_expression():
-    p = _symbolic_program()
-    assert "migraphx.shape.from_json" in p.to_py()
-
-    # The generated code has to rebuild an equal program, expression included. Sorting first
-    # because to_py does not preserve the declaration order of parameters.
+    # The generated code has to rebuild an equal program, expression included. sort() normalizes
+    # instruction order, which to_py only perturbs once a module has more than one parameter.
     scope = {"migraphx": migraphx}
-    exec(p.to_py(), scope)
+    exec(code, scope)
     assert scope["p"].sort() == p.sort()
 
 

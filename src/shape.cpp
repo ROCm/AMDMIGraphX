@@ -27,7 +27,6 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/json.hpp>
-#include <migraphx/convert_to_json.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
 #include <numeric>
@@ -1497,10 +1496,7 @@ void migraphx_from_value(const value& v, shape& s)
     }
 }
 
-shape shape::from_json(const std::string& s)
-{
-    return from_value<shape>(from_json_string(convert_to_json(s)));
-}
+shape shape::from_json(const std::string& s) { return from_value<shape>(from_json_string(s)); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

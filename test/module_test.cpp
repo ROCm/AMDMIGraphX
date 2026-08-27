@@ -2309,8 +2309,7 @@ TEST_CASE(module_assign_clears_previous_foreign_outputs)
     EXPECT(x->outputs().empty());
 }
 
-// The printers spell a shape carrying a symbolic dimension as its json value form, so build the
-// expected call the same way the printers do and check it appears verbatim.
+// Builds the from_json call the printers are expected to emit for a shape with a symbolic dim.
 static std::string json_shape_call(const std::string& factory, const migraphx::shape& s)
 {
     auto json = migraphx::to_json_string(migraphx::to_value(s));
@@ -2343,7 +2342,8 @@ TEST_CASE(module_print_symbolic_shape_py)
     EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx.shape.from_json", s)));
 }
 
-// A symbol name that sym::parse would reject must not need any escaping beyond the json quoting.
+// A symbol name that sym::parse would reject still survives the printers, because the name travels
+// inside the json instead of as an expression to be reparsed.
 TEST_CASE(module_print_symbolic_shape_name_not_an_identifier)
 {
     migraphx::shape s{
@@ -2373,6 +2373,21 @@ TEST_CASE(module_print_dyn_range_shape_stays_readable)
     m.print_py(ss_py);
     EXPECT(migraphx::contains(ss_py.str(), "migraphx.shape.dynamic_dimension(1, 4)"));
     EXPECT(not migraphx::contains(ss_py.str(), "from_json"));
+}
+
+TEST_CASE(module_print_dyn_dim_optimals)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {2, 4}}, {3, 3}}};
+    migraphx::module m;
+    m.add_return({m.add_instruction(migraphx::make_op("neg"), m.add_parameter("x", s))});
+
+    std::stringstream ss_cpp;
+    m.print_cpp(ss_cpp);
+    EXPECT(migraphx::contains(ss_cpp.str(), "{1, 4, {2, 4}}"));
+
+    std::stringstream ss_py;
+    m.print_py(ss_py);
+    EXPECT(migraphx::contains(ss_py.str(), "migraphx.shape.dynamic_dimension(1, 4, {2, 4})"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

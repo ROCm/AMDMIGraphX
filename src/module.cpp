@@ -1629,20 +1629,25 @@ static void print_make_op(std::ostream& os, const operation& op)
     os << ")";
 }
 
-// A range-based dynamic dimension is fully described by its bounds, so it is printed as those
-// bounds.
+// A range-based dynamic dimension is printed from its bounds and optimals, which is everything a
+// constructor takes. A symbolic one is not: see print_json_shape.
 static std::string
 dyn_dims_string(const migraphx::shape& s, const std::string& open, const std::string& close)
 {
     std::vector<std::string> dims;
     std::transform(
         s.dyn_dims().begin(), s.dyn_dims().end(), std::back_inserter(dims), [&](const auto& d) {
-            auto i = d.get_interval();
-            return open + std::to_string(i.min) + ", " + std::to_string(i.max) + close;
+            auto i      = d.get_interval();
+            auto result = open + std::to_string(i.min) + ", " + std::to_string(i.max);
+            if(d.has_optimal())
+                result += ", {" + to_string_range(d.get_optimals()) + "}";
+            return result + close;
         });
     return join_strings(dims, ", ");
 }
 
+// Not shape::symbolic(), which requires every dimension to be symbolic: one symbolic dimension
+// among range ones is already enough to make the bounds spelling lossy.
 static bool has_symbolic_dim(const migraphx::shape& s)
 {
     return s.dynamic() and std::any_of(s.dyn_dims().begin(), s.dyn_dims().end(), [](const auto& d) {
@@ -1650,7 +1655,9 @@ static bool has_symbolic_dim(const migraphx::shape& s)
            });
 }
 
-// Use enclose_name to make sure symbolic variable name is preserved.
+// A symbolic dimension carries an expression that no constructor argument can spell, so the shape
+// is emitted as the json of its value representation for from_json to rebuild. enclose_name turns
+// that json into a valid string literal in the generated source.
 static void print_json_shape(std::ostream& os, const std::string& factory, const migraphx::shape& s)
 {
     os << factory << "(" << enclose_name(to_json_string(migraphx::to_value(s))) << ")";
@@ -1779,10 +1786,9 @@ module::print_py(std::ostream& os,
                 os << mname << ".add_instruction(";
                 print_py_op(os, ins->get_operator());
                 os << ", [" << join_strings(input_vars, ", ") << "]";
-                // A comment does not have to be constructible, so use the readable shape form
-                // rather than the json a symbolic shape would otherwise print as.
-                os << ") # " << ins->get_shape();
-                os << std::endl;
+                // The trailing shape is only a comment in the generated code, so it need not be
+                // constructible: print the readable form, not the json a symbolic shape would emit.
+                os << ") # " << ins->get_shape() << std::endl;
             }
         },
         names);

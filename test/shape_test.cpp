@@ -2554,7 +2554,8 @@ TEST_CASE(from_json_symbolic_compound_expr)
     EXPECT(json_shape_roundtrips({migraphx::shape::float_type, {dd{n * 3 + 1}, dd{m}}}));
 }
 
-// A mixed shape carries no dyn_strides, so it exercises the other branch of the codec.
+// A partly symbolic shape is not symbolic(), so it decodes with no dyn_strides while still
+// carrying a symbolic dimension.
 TEST_CASE(from_json_symbolic_mixed_with_range)
 {
     auto n = var("n", {1, 8});

@@ -273,10 +273,10 @@ def rocmtest = { Map conf = [:], Closure body ->
 
         stage("build ${variant}") {
             try {
+                sh "mkdir -p '${env.WORKSPACE}/../.cache/ccache' '${env.WORKSPACE}/../.cache/comgr_cache'"
                 withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
                     timeout(time: 4, unit: 'HOURS') {
                         sh """
-                            mkdir -p ${ccache} ${comgr_cache}
                             ls -l /workspaces/
                             ls -l /workspaces/.cache/
                         """

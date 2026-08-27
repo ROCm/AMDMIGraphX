@@ -27,7 +27,6 @@
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/bit_cast.hpp>
 #include <migraphx/kernels/buffer_load.hpp>
-#include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/vec.hpp>
@@ -39,18 +38,73 @@
 namespace migraphx {
 
 #if defined(__gfx1151__)
-__device__ inline vec<half, 16> pack_wmma_fragment_gfx1151(vec<half, 8> x)
+// Exchange one 32-bit word with the peer half-wave lane (lane ^ 16) using
+// v_permlanex16_b32 (1-cycle VALU) instead of ds_swizzle (LDS pipe + lgkmcnt
+// wait).
+__device__ inline uint32_t permlanex16_word_gfx1151(uint32_t w)
 {
-    auto peer = readlane_xor<16>(x);
-    return __builtin_shufflevector(
-        x, peer, 0, 1, 8, 9, 2, 3, 10, 11, 4, 5, 12, 13, 6, 7, 14, 15);
+    return __builtin_amdgcn_permlanex16(w, w, 0x76543210u, 0xfedcba98u, false, false);
 }
 
-__device__ inline vec<float, 8>
-wmma_gfx1151(vec<half, 8> a, vec<half, 8> b, vec<float, 8> c)
+__device__ inline vec<half, 8> permlanex16_swap_gfx1151(vec<half, 8> x)
+{
+    auto words = __builtin_bit_cast(vec<uint32_t, 4>, x);
+    repeat_c<4>(
+        [&](auto i) { words[index_int{i}] = permlanex16_word_gfx1151(words[index_int{i}]); });
+    return __builtin_bit_cast(vec<half, 8>, words);
+}
+
+// Build the gfx11 vec16 operand fragment from two 8-c halves, own-half chunk
+// first. The resulting pair-interleaved order is a per-half-wave permutation
+// of the contraction axis; applied identically to the A and B operands it
+// leaves the WMMA result unchanged. Register-naming only -- no VALU.
+__device__ inline vec<half, 16> interleave_wmma_fragment_gfx1151(vec<half, 8> own,
+                                                                 vec<half, 8> peer)
+{
+    return __builtin_shufflevector(own, peer, 0, 1, 8, 9, 2, 3, 10, 11, 4, 5, 12, 13, 6, 7, 14, 15);
+}
+
+__device__ inline vec<half, 16> pack_wmma_fragment_gfx1151(vec<half, 8> x)
+{
+    return interleave_wmma_fragment_gfx1151(x, permlanex16_swap_gfx1151(x));
+}
+
+__device__ inline vec<float, 8> wmma_gfx1151(vec<half, 8> a, vec<half, 8> b, vec<float, 8> c)
 {
     return __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(
         pack_wmma_fragment_gfx1151(a), pack_wmma_fragment_gfx1151(b), c);
+}
+
+// A operand already in the native vec16 layout (read pre-arranged from LDS);
+// only the B operand needs the cross-lane pack.
+__device__ inline vec<float, 8> wmma_gfx1151(vec<half, 16> a, vec<half, 8> b, vec<float, 8> c)
+{
+    return __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(a, pack_wmma_fragment_gfx1151(b), c);
+}
+
+// Regroup the gfx11 D fragment's k-interleave for the NHWC writeback: on input
+// lane l holds the 8 values at k = 2*i + l/16 of a 16-k block; on output it
+// holds the contiguous k = (l/16)*8 + i, so the store is one b128 instead of 8
+// scalar b16s. The lane pair (l, l^16) covers the same output pixel: each lane
+// sends the peer the half of its values that falls in the peer's contiguous
+// range, then interleaves even/odd k with v_perm.
+template <class T>
+__device__ inline vec<T, 8> regroup_wmma_k_rows_gfx1151(vec<T, 8> h, bool low)
+{
+    static_assert(sizeof(T) == 2, "regroup operates on 16-bit output types");
+    const auto hw     = __builtin_bit_cast(vec<uint32_t, 4>, h);
+    const uint32_t p0 = permlanex16_word_gfx1151(low ? hw[2] : hw[0]);
+    const uint32_t p1 = permlanex16_word_gfx1151(low ? hw[3] : hw[1]);
+    const uint32_t e0 = low ? hw[0] : p0;
+    const uint32_t e1 = low ? hw[1] : p1;
+    const uint32_t o0 = low ? p0 : hw[2];
+    const uint32_t o1 = low ? p1 : hw[3];
+    vec<uint32_t, 4> r;
+    r[0] = __builtin_amdgcn_perm(o0, e0, 0x05040100u);
+    r[1] = __builtin_amdgcn_perm(o0, e0, 0x07060302u);
+    r[2] = __builtin_amdgcn_perm(o1, e1, 0x05040100u);
+    r[3] = __builtin_amdgcn_perm(o1, e1, 0x07060302u);
+    return __builtin_bit_cast(vec<T, 8>, r);
 }
 #endif
 
@@ -60,14 +114,18 @@ wmma_gfx1151(vec<half, 8> a, vec<half, 8> b, vec<float, 8> c)
 // free to schedule the alpha-fold v_add_f32 ops *outside* this block, which
 // gives them a continuous block of VALU cycles to fill while the matrix pipe
 // processes the WMMAs.
+// On gfx1151 the A operand type is either vec<half, 8> (packed per call) or
+// the native vec<half, 16> fragment (pre-arranged, e.g. read from LDS); other
+// targets always instantiate A = vec<half, 8>.
 // NOLINTNEXTLINE(readability-function-size): fixed 4-way WMMA unroll, one asm block
-__device__ inline void wmma_quad_asm(vec<half, 8> a0,
+template <class A>
+__device__ inline void wmma_quad_asm(A a0,
                                      vec<half, 8> b0,
-                                     vec<half, 8> a1,
+                                     A a1,
                                      vec<half, 8> b1,
-                                     vec<half, 8> a2,
+                                     A a2,
                                      vec<half, 8> b2,
-                                     vec<half, 8> a3,
+                                     A a3,
                                      vec<half, 8> b3,
                                      vec<float, 8>& m0,
                                      vec<float, 8>& m1,
@@ -92,21 +150,22 @@ __device__ inline void wmma_quad_asm(vec<half, 8> a0,
 // Octet of WMMAs in a single inline-asm block. Costs 8 live fp32 vec<8>
 // accumulators (64 VGPRs) but gives the matrix pipe a continuous run.
 // NOLINTNEXTLINE(readability-function-size): fixed 8-way WMMA unroll, one asm block
-__device__ inline void wmma_octet_asm(vec<half, 8> a0,
+template <class A>
+__device__ inline void wmma_octet_asm(A a0,
                                       vec<half, 8> b0,
-                                      vec<half, 8> a1,
+                                      A a1,
                                       vec<half, 8> b1,
-                                      vec<half, 8> a2,
+                                      A a2,
                                       vec<half, 8> b2,
-                                      vec<half, 8> a3,
+                                      A a3,
                                       vec<half, 8> b3,
-                                      vec<half, 8> a4,
+                                      A a4,
                                       vec<half, 8> b4,
-                                      vec<half, 8> a5,
+                                      A a5,
                                       vec<half, 8> b5,
-                                      vec<half, 8> a6,
+                                      A a6,
                                       vec<half, 8> b6,
-                                      vec<half, 8> a7,
+                                      A a7,
                                       vec<half, 8> b7,
                                       vec<float, 8>& m0,
                                       vec<float, 8>& m1,
@@ -255,6 +314,7 @@ template <index_int NW,
           index_int CB,
           index_int KW,
           index_int SK,
+          bool FE,
           bool FT,
           bool NHWC,
           class PostInput,
@@ -269,6 +329,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     static_assert(CB % 16 == 0, "CB must be a multiple of WMMA K (16)");
     static_assert(KW >= 1, "KW must be >= 1");
     static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0, "SK must divide NW evenly");
+    // FE = fold-at-end: all 16 M_wp accumulators stay live across the cb loop
+    // (128 VGPRs), so the y budget for KW > 1 cannot also fit.
+    static_assert(not FE or KW == 1, "fold-at-end requires KW == 1");
     // SK = within-WG c-axis split factor. SK waves cooperate to reduce the
     // C contraction; NW/SK independent NT-groups exist per workgroup so
     // bt = bt_per_wave * (NW/SK). SK=1 is the original (no split) path.
@@ -357,6 +420,40 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // WMMA accumulator type) instead of array lets the output transform fold
     // run as packed vec adds rather than per-lane scalar extraction.
     array<array<vec<float, 8>, 4>, KW> y{};
+
+    // FE: the 16 M_wp accumulators (m_acc[wp_i*4 + wp_col]) stay live across
+    // the whole cb loop and the A^T M A fold runs once after it -- the fold is
+    // linear, so folding the summed M equals summing per-iteration folds.
+    // Sized to 1 element when FE is off so the allocation stays trivial.
+    array<vec<float, 8>, FE ? 16 : 1> m_acc{};
+
+    // Row-sum alpha fold: take 4 wp (one full wp_i row of M) and apply the
+    // A^T M A output transform via S0/S1 row sums into y[k_idx].
+    auto fold_row = [&](auto k_idx_val,
+                        auto wp_i_val,
+                        const vec<float, 8>& m0,
+                        const vec<float, 8>& m1,
+                        const vec<float, 8>& m2,
+                        const vec<float, 8>& m3) {
+        // M*A column transform for this row i (= wp_i): produce the two
+        // output-column partials as packed vec<float,8> over the 8 K rows.
+        const vec<float, 8> s0 = m0 + m1 + m2;
+        const vec<float, 8> s1 = m1 - m2 - m3;
+        // A^T left multiply, accumulated incrementally into y. The
+        // coefficients at[r][wp_i] are exactly 0 / +1 / -1, so the whole
+        // 8-row update is one packed vec add/sub. With coef_r a constexpr +-1.0, the
+        // `coef_r * s` multiply folds to an identity/negate at -O3, so
+        // this is bit-identical to the scalar form. y[r*2+0] takes
+        // output column c=0 (s0), y[r*2+1] takes column c=1 (s1).
+        repeat_c<2>([&](auto r) {
+            constexpr float coef_r = at[r][wp_i_val];
+            if constexpr(coef_r != 0.f)
+            {
+                y[k_idx_val][r * 2 + 0] = y[k_idx_val][r * 2 + 0] + coef_r * s0;
+                y[k_idx_val][r * 2 + 1] = y[k_idx_val][r * 2 + 1] + coef_r * s1;
+            }
+        });
+    };
 
     // Buffer descriptors for X (input) and U (weights). raw_buffer_load
     // returns 0 for OOB byte offsets so we don't need explicit bounds checks.
@@ -570,6 +667,13 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         {
             vec<half, 8> u0, u1, u2, u3;
         };
+#if defined(__gfx1151__)
+        // gfx11 A operand rows in the native vec16 fragment layout.
+        struct u_row16
+        {
+            vec<half, 16> u0, u1, u2, u3;
+        };
+#endif
         // One row of the row-transformed filter T = G*g: 3 columns.
         struct t_triple
         {
@@ -703,36 +807,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 __syncthreads();
         }
 
-        // ---- WMMA with fused incremental output transform ----
+        // ---- WMMA with fused (or FE-deferred) output transform ----
         constexpr index_int wmma_chunks = CB / 16;
 
-        // Row-sum alpha fold: compute 4 wp (one full wp_i row of M) and apply
-        // the A^T M A output transform via S0/S1 row sums into y[k_idx].
-        auto fold_row = [&](auto k_idx_val,
-                            auto wp_i_val,
-                            const vec<float, 8>& m0,
-                            const vec<float, 8>& m1,
-                            const vec<float, 8>& m2,
-                            const vec<float, 8>& m3) {
-            // M*A column transform for this row i (= wp_i): produce the two
-            // output-column partials as packed vec<float,8> over the 8 K rows.
-            const vec<float, 8> s0 = m0 + m1 + m2;
-            const vec<float, 8> s1 = m1 - m2 - m3;
-            // A^T left multiply, accumulated incrementally into y. The
-            // coefficients at[r][wp_i] are exactly 0 / +1 / -1, so the whole
-            // 8-row update is one packed vec add/sub. With coef_r a constexpr +-1.0, the
-            // `coef_r * s` multiply folds to an identity/negate at -O3, so
-            // this is bit-identical to the scalar form. y[r*2+0] takes
-            // output column c=0 (s0), y[r*2+1] takes column c=1 (s1).
-            repeat_c<2>([&](auto r) {
-                constexpr float coef_r = at[r][wp_i_val];
-                if constexpr(coef_r != 0.f)
-                {
-                    y[k_idx_val][r * 2 + 0] = y[k_idx_val][r * 2 + 0] + coef_r * s0;
-                    y[k_idx_val][r * 2 + 1] = y[k_idx_val][r * 2 + 1] + coef_r * s1;
-                }
-            });
-        };
         // Construct V[wp] for this lane from register-resident v_lane.
         // c_offset selects which c-chunk (0 for CB=16; 0 or 16 for CB=32).
         // The 8 fp16 values come from v_lane[vc][0..7][wp] where vc = c_offset/16.
@@ -754,6 +831,45 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         auto load_u_row = [&](index_int k_idx, index_int wp_i, index_int c_offset) {
             if constexpr(u_via_lds)
             {
+#if defined(__gfx1151__)
+                // gfx11 A operand built natively for KW == 1: read the lane's
+                // own-half 8-c chunk and the peer half's chunk straight from
+                // LDS (lanes l and l^16 read the same k row, so the peer chunk
+                // is just the other 8-c read -- no cross-lane exchange). The
+                // own-first interleave reproduces pack_wmma_fragment's
+                // per-half k order bit-for-bit, so it stays consistent with
+                // the B operand pack. For KW > 1 the unrolled loop makes the
+                // scheduler hoist all the vec16 LDS loads at once, which
+                // spills heavily -- those configs keep the vec8 + per-call
+                // pack path instead.
+                if constexpr(KW == 1)
+                {
+                    const index_int peer_off = 8 - c_off;
+                    auto rd                  = [&](index_int r_i, index_int co) {
+                        return *as_vec<8>(
+                            &u_smem[u_cache_idx(k_idx, wp_i * 4 + r_i, m_in_wave, c_offset + co)]);
+                    };
+                    u_row16 r;
+                    r.u0 = interleave_wmma_fragment_gfx1151(rd(0, c_off), rd(0, peer_off));
+                    r.u1 = interleave_wmma_fragment_gfx1151(rd(1, c_off), rd(1, peer_off));
+                    r.u2 = interleave_wmma_fragment_gfx1151(rd(2, c_off), rd(2, peer_off));
+                    r.u3 = interleave_wmma_fragment_gfx1151(rd(3, c_off), rd(3, peer_off));
+                    return r;
+                }
+                else
+                {
+                    u_row r;
+                    r.u0 = *as_vec<8>(
+                        &u_smem[u_cache_idx(k_idx, wp_i * 4 + 0, m_in_wave, c_offset + c_off)]);
+                    r.u1 = *as_vec<8>(
+                        &u_smem[u_cache_idx(k_idx, wp_i * 4 + 1, m_in_wave, c_offset + c_off)]);
+                    r.u2 = *as_vec<8>(
+                        &u_smem[u_cache_idx(k_idx, wp_i * 4 + 2, m_in_wave, c_offset + c_off)]);
+                    r.u3 = *as_vec<8>(
+                        &u_smem[u_cache_idx(k_idx, wp_i * 4 + 3, m_in_wave, c_offset + c_off)]);
+                    return r;
+                }
+#else
                 u_row r;
                 r.u0 = *as_vec<8>(
                     &u_smem[u_cache_idx(k_idx, wp_i * 4 + 0, m_in_wave, c_offset + c_off)]);
@@ -764,6 +880,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 r.u3 = *as_vec<8>(
                     &u_smem[u_cache_idx(k_idx, wp_i * 4 + 3, m_in_wave, c_offset + c_off)]);
                 return r;
+#endif
             }
             else
             {
@@ -819,6 +936,15 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 vec<float, 8> m1{};
                 vec<float, 8> m2{};
                 vec<float, 8> m3{};
+                // FE: continue the persistent accumulators (same registers
+                // after coalescing) instead of folding into y this iteration.
+                if constexpr(FE)
+                {
+                    m0 = m_acc[wp_i * 4 + 0];
+                    m1 = m_acc[wp_i * 4 + 1];
+                    m2 = m_acc[wp_i * 4 + 2];
+                    m3 = m_acc[wp_i * 4 + 3];
+                }
                 if constexpr(wmma_chunks == 2)
                 {
                     auto u_lo = get_ur(wp_i_val, 0);
@@ -877,7 +1003,17 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                         wmma_quad_asm(ur.u0, b0, ur.u1, b1, ur.u2, b2, ur.u3, b3, m0, m1, m2, m3);
                     }
                 }
-                fold_row(_c<k_idx>, _c<wp_i>, m0, m1, m2, m3);
+                if constexpr(FE)
+                {
+                    m_acc[wp_i * 4 + 0] = m0;
+                    m_acc[wp_i * 4 + 1] = m1;
+                    m_acc[wp_i * 4 + 2] = m2;
+                    m_acc[wp_i * 4 + 3] = m3;
+                }
+                else
+                {
+                    fold_row(_c<k_idx>, _c<wp_i>, m0, m1, m2, m3);
+                }
             });
         });
 
@@ -887,6 +1023,22 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // and doesn't touch the LDS slots, so neither needs the sync.
         if constexpr(u_via_lds and NW > 1)
             __syncthreads();
+    }
+
+    // FE: run the deferred output transform once, now that the full (or, for
+    // SK>1, this wave's partial) c contraction is summed in m_acc. It runs
+    // before the SK reduce -- the fold is linear, so folding partials and then
+    // reducing matches the per-iteration fold exactly.
+    if constexpr(FE)
+    {
+        repeat_c<4>([&](auto wp_i_val) {
+            fold_row(_c<0>,
+                     wp_i_val,
+                     m_acc[index_int{wp_i_val} * 4 + 0],
+                     m_acc[index_int{wp_i_val} * 4 + 1],
+                     m_acc[index_int{wp_i_val} * 4 + 2],
+                     m_acc[index_int{wp_i_val} * 4 + 3]);
+        });
     }
 
     // ---- Split-c cross-wave reduce (SK>1 only) ----
@@ -976,6 +1128,112 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // fall through to the packed NCHW store below.
         if(sk == 1)
         {
+#if defined(__gfx1151__)
+            // gfx11: the D fragment interleaves k by 2 across the lane pair
+            // (l, l^16), which shares the output pixel. Regroup via a pair
+            // exchange into 8 contiguous k per lane so the store is one b128.
+            // Needs out_c % 8 == 0 (store address alignment); otherwise fall
+            // back to per-k scalar masked stores.
+            // KW > 1 sits at the register cliff already; adding the regroup
+            // state to its epilogue spills ~100 VGPRs, so the pair path is
+            // KW == 1 only and KW > 1 keeps per-k scalar masked stores.
+            const bool k_pack = (KW == 1) and (sizeof(out_type) == 2) and (out_c % 8 == 0);
+            repeat_c<KW>([&](auto k_idx_val) {
+                constexpr int k_idx     = k_idx_val;
+                const index_int k_blk   = k_base + k_idx * bk;
+                const index_int k_first = k_blk + k_row_offset;
+                // The pair path's lanes must reach the exchange together, so
+                // exit only on the pair-uniform block bound; per-lane k bounds
+                // are enforced at the store. The scalar path keeps the
+                // per-lane exit.
+                if(k_blk >= out_c)
+                    return;
+                if(not k_pack and k_first >= out_c)
+                    return;
+                if constexpr(sizeof(out_type) == 2 and KW == 1)
+                {
+                    if(k_pack)
+                    {
+                        // The regroup exchange is a convergent cross-lane op:
+                        // run it for all 4 positions unconditionally (the y
+                        // values always exist; only right/bottom edge tiles do
+                        // throwaway work) and guard just the stores. Putting
+                        // the exchange inside the divergent h/w bounds forces
+                        // the compiler to if-convert the epilogue with every
+                        // position's state live, which spills.
+                        const index_int k_cont = k_blk + (lane / 16) * 8;
+                        const bool k_ok        = k_cont < out_c;
+                        repeat_c<2>([&](auto i_val) {
+                            constexpr int i       = i_val;
+                            const index_int h_out = 2 * th_idx + i;
+                            const index_int h_g   = (h_out < out_h) ? h_out : (out_h - 1);
+                            repeat_c<2>([&](auto j_val) {
+                                constexpr int j       = j_val;
+                                const index_int w_out = 2 * tw_idx + j;
+                                const index_int w_g   = (w_out < out_w) ? w_out : (out_w - 1);
+                                const index_int oidx  = i * 2 + j;
+                                vec<PostInput, 8> yv;
+                                repeat_c<8>([&](auto ki) {
+                                    yv[index_int{ki}] =
+                                        static_cast<PostInput>(y[k_idx][oidx][index_int{ki}]);
+                                });
+                                // Fused inputs are gathered at the lane's own
+                                // (still k-interleaved) positions so f runs on
+                                // matching elements; out-of-range k/h/w are
+                                // clamped to a valid read and the values they
+                                // produce are never stored.
+                                auto in_vec8 = [&](const auto& inp) {
+                                    vec<remove_reference_t<decltype(inp[array<index_int, 4>{}])>, 8>
+                                        iv;
+                                    repeat_c<8>([&](auto ki) {
+                                        index_int k = k_first + index_int{ki} * k_row_stride;
+                                        if(k >= out_c)
+                                            k = out_c - 1;
+                                        iv[index_int{ki}] =
+                                            inp[array<index_int, 4>{n_idx, k, h_g, w_g}];
+                                    });
+                                    return iv;
+                                };
+                                const vec<out_type, 8> packed = f(yv, in_vec8(inputs)...);
+                                const auto regrouped =
+                                    regroup_wmma_k_rows_gfx1151(packed, lane < 16);
+                                if(k_ok and h_out < out_h and w_out < out_w)
+                                {
+                                    const index_int off =
+                                        n_idx * sn + k_cont * sk + h_out * sh + w_out * sw;
+                                    *as_vec<8>(&out_data[off]) = regrouped;
+                                }
+                            });
+                        });
+                        return;
+                    }
+                }
+                repeat_c<2>([&](auto i_val) {
+                    constexpr int i       = i_val;
+                    const index_int h_out = 2 * th_idx + i;
+                    if(h_out >= out_h)
+                        return;
+                    repeat_c<2>([&](auto j_val) {
+                        constexpr int j       = j_val;
+                        const index_int w_out = 2 * tw_idx + j;
+                        if(w_out >= out_w)
+                            return;
+                        const index_int oidx = i * 2 + j;
+                        repeat_c<8>([&](auto ki) {
+                            const index_int k = k_first + index_int{ki} * k_row_stride;
+                            if(k < out_c)
+                            {
+                                const array<index_int, 4> oid{n_idx, k, h_out, w_out};
+                                output[oid] = static_cast<out_type>(
+                                    f(static_cast<PostInput>(y[k_idx][oidx][index_int{ki}]),
+                                      inputs[oid]...));
+                            }
+                        });
+                    });
+                });
+            });
+            return;
+#else
             const bool k_pack = (k_row_stride == 1) and (out_c % 8 == 0);
             repeat_c<KW>([&](auto k_idx_val) {
                 constexpr int k_idx     = k_idx_val;
@@ -1031,6 +1289,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 });
             });
             return;
+#endif
         }
     }
     constexpr bool packed_store_ok = sizeof(out_type) == 2;

@@ -62,6 +62,8 @@ time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::functi
     std::vector<double> times;
     // Warmup
     f();
+    gctx.finish();
+    const auto wall_start = std::chrono::steady_clock::now();
     for(auto i : range(nruns))
     {
         gctx.get_stream().record(events[i].first.get());
@@ -73,9 +75,20 @@ time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::functi
         gctx.get_stream().record(events[i].second.get());
     }
     gctx.finish();
+    const double wall_ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - wall_start)
+            .count();
     std::transform(events.begin(), events.end(), std::back_inserter(times), [&](const auto& p) {
         return context::get_elapsed_ms(p.first.get(), p.second.get()) / bundle;
     });
+    // On some platforms (e.g. certain APUs) hipEventElapsedTime reports ~0 for
+    // any span, which would make every candidate tie and the tuner always pick
+    // the first solution. If the event-measured total is implausibly small
+    // compared to the wall clock for the same loop, fall back to the
+    // wall-clock average.
+    const double event_total_ms = std::accumulate(times.begin(), times.end(), 0.0) * bundle;
+    if(event_total_ms < wall_ms * 0.01)
+        return wall_ms / (static_cast<double>(nruns) * bundle);
     std::sort(times.begin(), times.end());
 
     // compute common average by removing top and bottom 25% of values

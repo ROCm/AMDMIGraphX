@@ -9,11 +9,14 @@ KV-cache language models use the same exported ONNX graph in two materially diff
 * **Decode** processes one new token.
 * **Prefill** processes a prompt, padded to the configured maximum sequence length.
 
-Treating the sequence length as one ordinary dynamic dimension is not sufficient for these
-models. Several operators specialize behavior or attributes from their input lengths while they
-are parsed, and some parsers (notably GroupQueryAttention) cannot accept a symbolic sequence
-length. Compiling two independent programs works, but duplicates model state and requires the
-caller to load and manage two programs.
+Treating the sequence length as one ordinary dynamic dimension is not sufficient for every such
+model. Many operator parsers read concrete lengths while building IR: 50 of the 105
+``parse_*.cpp`` files call ``shape::lens()``, which throws on a dynamic input, and the quantized
+and fused-attention operators common in exported language models are the heaviest users.
+GroupQueryAttention does accept a symbolic sequence length, but not when ``local_window_size`` is
+set: sliding-window attention needs a different window bound for each phase, so it has to know
+while parsing which phase it is building. Compiling two independent programs works, but
+duplicates model state and requires the caller to load and manage two programs.
 
 This change makes one MIGraphX program contain both static specializations. The main module keeps
 the dynamic interface and dispatches to the matching specialization from the concrete runtime
@@ -105,8 +108,10 @@ ONNX graph has become MIGraphX IR, operator parsers may already have:
 * copied concrete dimensions into operation attributes.
 
 The first branch prototype used a standalone IR pass. It was removed when this constraint became
-clear; the final branch specializes during ONNX import. This explains why the feature is
-an ONNX option rather than a target pass and why no new pass remains in the final diff.
+clear; the final branch specializes during ONNX import. This is also why the feature is an ONNX
+option rather than a compile option: ``compile_options`` is consumed by ``program::compile``,
+after the ONNX graph has been discarded, so a mechanism that works by parsing that graph twice
+cannot be expressed there.
 
 ``parse_prefill_decode`` therefore performs these steps:
 
@@ -126,6 +131,45 @@ inside an individual operator parser remain local to that specialization.
 
 Both specializations must expose the same parameter names and number of outputs. Inputs are
 passed in sorted parameter-name order, matching the existing ``select_module`` convention.
+
+Relationship to ``split_single_dyn_dim``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+MIGraphX already specializes a dynamic dimension at compile time. ``split_single_dyn_dim`` runs in
+the GPU target's dynamic-shapes pipeline and builds one static submodule per requested size,
+driven by the ``split_sizes`` backend option::
+
+  MIGRAPHX_GPU_OPTIONS='{split_sizes:[1,1024]}' migraphx-driver compile model.onnx --gpu \
+      --enable-symbolic --dim-param "@sequence_length" "{min:1, max:1024}"
+
+The two mechanisms overlap wherever a model parses symbolically, and there they are
+interchangeable. Compiling SmolVLM2-500M both ways on gfx942 produced:
+
+* the same three modules, a dispatching main module and two specializations;
+* the same instruction counts per specialization, 989 for decode and 996 for prefill, with
+  identical instruction histograms once instruction ids are normalized;
+* the same 656 kernel launches over the same 19 distinct kernels, with no kernel unique to either
+  program; and
+* the same latency, 3.01 ms against 3.03 ms for decode and 6.32 ms against 6.35 ms for prefill.
+
+The residual differences are incidental rather than semantic: one extra two-element literal in the
+main module, different scratch offsets on four ``load`` instructions, and 32 per-layer
+``mlir_dot`` kernels that compile to slightly different code-object sizes. Parsing twice folds the
+sequence length before MLIR sees it; the pass folds it afterwards.
+
+The ONNX option earns its place on the models the compile-time path cannot reach at all. A
+GroupQueryAttention graph with ``local_window_size = 4`` and a symbolic sequence length fails
+during parsing, before any target pass runs::
+
+  GroupQueryAttention: local_window_size is not supported with a symbolic sequence length
+
+The same graph parsed with ``unify_prefill_decode`` yields the usual three modules, because each
+specialization is parsed with a concrete length.
+
+The choice is therefore about reach rather than about the compiled result. Prefer ``split_sizes``
+when the whole model parses symbolically; it needs no ONNX option and produces an equivalent
+program. Use ``unify_prefill_decode`` when the model does not, which today means sliding-window
+attention or any of the operators that require concrete lengths while parsing.
 
 Main-module output shapes
 -------------------------

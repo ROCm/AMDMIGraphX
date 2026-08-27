@@ -39,7 +39,7 @@ MIGRAPHX_EXPORT std::string unique_string(const std::string& prefix);
 struct MIGRAPHX_EXPORT tmp_dir
 {
     fs::path path;
-    tmp_dir(std::string_view prefix = "");
+    tmp_dir(std::string_view prefix = "", const fs::path& loc = fs::temp_directory_path());
     tmp_dir(tmp_dir&&) = default;
 
     void execute(std::string_view cmd, const std::vector<std::string>& args = {}) const;

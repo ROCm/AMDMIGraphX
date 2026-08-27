@@ -105,24 +105,16 @@ static fs::path entry_path(const fs::path& root, const context& ctx, const std::
     return root / version / device_dir(ctx) / (md5(key) + ".mxr");
 }
 
-/// Publish content by writing a temporary and renaming it into place, so a reader never sees a
-/// half-written file and concurrent writers cannot tear it. The temporary is removed on
-/// failure, since leaving it behind would accumulate in the cache directory.
+/// Publish content by writing it in a temporary directory beside the destination and renaming
+/// it into place, so a reader never sees a half-written file and concurrent writers cannot
+/// tear it. The temporary stays beside the destination because the rename is only atomic
+/// within one filesystem; the tmp_dir removes whatever a failed write leaves behind.
 static void write_atomically(const fs::path& dest, const std::vector<char>& content)
 {
-    auto tmp = dest;
-    tmp += "." + unique_string("tmp");
-    try
-    {
-        write_buffer(tmp, content);
-        fs::rename(tmp, dest);
-    }
-    catch(...)
-    {
-        std::error_code ec;
-        fs::remove(tmp, ec);
-        throw;
-    }
+    tmp_dir td{"cache", dest.parent_path()};
+    auto tmp = td.path / dest.filename();
+    write_buffer(tmp, content);
+    fs::rename(tmp, dest);
 }
 
 /// Record what this build is, so a directory full of hashes can be identified later.

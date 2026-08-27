@@ -97,6 +97,8 @@ jobs:
           if [[ "${{ github.event.action }}" == 'synchronize' ]]; then
             echo "::notice::New commits pushed. Removing ok-to-test label and skipping until re-approved. Please re-review new changes and add ok-to-test label again if approved for testing."
             gh pr edit ${{ github.event.pull_request.number }} --remove-label "ok-to-test" --repo ${{ github.repository }} || true
+            echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
           if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ok-to-test') }}" == "true" ]]; then

@@ -461,6 +461,9 @@ static sym_argument lift_sym_argument(const argument& value)
     return result;
 }
 
+// Symbolic analog of eval(). Computes each element as an expression over the shape's symbols, so
+// values depending on a symbolic dimension remain computable. Returns empty unless every element
+// resolves.
 sym_argument instruction::sym_eval() const
 {
 #if MIGRAPHX_HAS_PMR
@@ -494,8 +497,7 @@ sym_argument instruction::sym_eval() const
                 });
                 result = ins.normalized_operator().symbolic_compute(output_shape, args);
             }
-            if(not result.empty() and
-               (result.get_shape() != output_shape or not result.valid()))
+            if(not result.empty() and (result.get_shape() != output_shape or not result.valid()))
                 result = {};
         }
         cache.emplace(&ins, result);

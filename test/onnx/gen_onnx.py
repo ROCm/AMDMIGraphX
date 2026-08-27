@@ -6759,6 +6759,27 @@ def gru_f_1af_test():
 
 
 @onnx_test()
+def gru_clip_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 60, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('GRU',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['sigmoid', 'tanh'],
+                                 clip=0.5,
+                                 direction='forward',
+                                 hidden_size=20)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
 def gru_r_layout_test():
     seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
@@ -8885,7 +8906,7 @@ def lstm_bi_layout_cell_test():
         clip=0,
         direction='bidirectional',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [cellout])
@@ -8914,7 +8935,7 @@ def lstm_bi_layout_last_test():
         clip=0,
         direction='bidirectional',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs, output])
@@ -8943,7 +8964,7 @@ def lstm_f_layout_hs_test():
         clip=0,
         direction='forward',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs, output])
@@ -8971,7 +8992,7 @@ def lstm_f_layout_cell_test():
         clip=0,
         direction='forward',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [cellout])
@@ -8991,6 +9012,50 @@ def lstm_f_1af_test():
                                  inputs=['seq', 'w', 'r'],
                                  outputs=['hs', 'output'],
                                  activations=['sigmoid'],
+                                 clip=0,
+                                 direction='forward',
+                                 hidden_size=20,
+                                 input_forget=0)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
+def lstm_clip_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('LSTM',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['sigmoid', 'tanh', 'tanh'],
+                                 clip=0.5,
+                                 direction='forward',
+                                 hidden_size=20,
+                                 input_forget=0)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
+def lstm_input_forget_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('LSTM',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['sigmoid', 'tanh', 'tanh'],
                                  clip=0,
                                  direction='forward',
                                  hidden_size=20,
@@ -9020,7 +9085,7 @@ def lstm_r_layout_test():
         clip=0,
         direction='reverse',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs])
@@ -9050,7 +9115,7 @@ def lstm_r_layout_hs_cell_test():
         clip=0,
         direction='reverse',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [output, cellout])
@@ -15214,6 +15279,27 @@ def rnn_f_default_af_test():
 
 
 @onnx_test()
+def rnn_clip_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('RNN',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['tanh'],
+                                 clip=0.5,
+                                 direction='forward',
+                                 hidden_size=20)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
 def rnn_r_layout_test():
     seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
@@ -16021,6 +16107,40 @@ def symbolic_reshape_markers_test():
                          ['inferred_output']),
     ]
     return (nodes, [x], [zero_output, inferred_output])
+
+
+@onnx_test()
+def symbolic_reshape_zero_dim_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+
+    zero = helper.make_tensor('zero_value', TensorProto.INT64, [1], [0])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['width'], start=1, end=2),
+        helper.make_node('Constant', [], ['zero'], value=zero),
+        helper.make_node('Concat', ['zero', 'width'], ['target_shape'],
+                         axis=0),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_negative_one_dim_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+
+    neg_one = helper.make_tensor('neg_one_value', TensorProto.INT64, [1], [-1])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['batch_dim'], start=0, end=1),
+        helper.make_node('Constant', [], ['neg_one'], value=neg_one),
+        helper.make_node('Concat', ['batch_dim', 'neg_one'], ['target_shape'],
+                         axis=0),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
 
 
 @onnx_test()

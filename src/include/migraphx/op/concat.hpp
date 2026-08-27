@@ -37,6 +37,7 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/sym_argument.hpp>
 #include <cmath>
+#include <numeric>
 #include <utility>
 
 namespace migraphx {
@@ -122,11 +123,13 @@ struct concat
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const
     {
-        if(axis != 0 or args.empty() or any_of(args, [](const auto& arg) { return arg.empty(); }))
+        if(args.empty() or
+           any_of(args, [](const auto& arg) { return arg.empty() or arg.get_shape().ndim() != 1; }))
             return {};
-        std::size_t input_elements = 0;
-        for(const auto& arg : args)
-            input_elements += arg.get_shape().elements();
+        const auto input_elements = std::accumulate(
+            args.begin(), args.end(), std::size_t{0}, [](auto sum, const auto& arg) {
+                return sum + arg.get_shape().elements();
+            });
         if(input_elements != output_shape.elements())
             return {};
 

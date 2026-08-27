@@ -28,7 +28,8 @@
 #include <onnx_test.hpp>
 #include <onnx_verify_utils.hpp>
 
-static std::vector<float> eval_trilu(migraphx::program& p, const std::vector<std::size_t>& lens)
+static std::vector<float> eval_trilu(const migraphx::program& p,
+                                     const std::vector<std::size_t>& lens)
 {
     return gen_trilu_test({migraphx::shape::float_type, lens}, p);
 }

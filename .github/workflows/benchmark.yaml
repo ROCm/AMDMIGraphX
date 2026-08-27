@@ -3,6 +3,9 @@ name: MiGraphX Benchmark
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   benchmark:
     uses: ROCmSoftwarePlatform/actions/.github/workflows/benchmarks.yml@main

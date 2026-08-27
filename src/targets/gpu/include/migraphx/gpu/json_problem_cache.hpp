@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,35 +20,43 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_RNN_LAST_CELL_OUTPUT_HPP
-#define MIGRAPHX_GUARD_OPERATORS_RNN_LAST_CELL_OUTPUT_HPP
+#ifndef MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP
+#define MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP
 
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/gpu/export.h>
+#include <migraphx/gpu/cache_device_key.hpp>
+
+#include <string>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
+namespace gpu {
 
-struct rnn_last_cell_output
+// A problem_cache_backend that persists entries as JSON, using the same
+// on-disk format as problem_cache::save() (an array of [cache_device_key,
+// inner_map] pairs). Path resolution is the caller's job.
+struct MIGRAPHX_GPU_EXPORT json_problem_cache
 {
-    std::string name() const { return "rnn_last_cell_output"; }
+    // problem_cache_backend concept members:
+    void load(const std::string& path);
+    void save(const std::string& path) const;
+    void insert(const cache_device_key& dk, const value& key, const value& solution);
+    void mark(const cache_device_key& dk, const value& key);
+    optional<value> get(const cache_device_key& dk, const value& key) const;
+    bool has(const cache_device_key& dk, const value& key) const;
 
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        auto dims = inputs[0].lens();
-
-        // remove the first dimension, remaing are output shape
-        dims.erase(dims.begin());
-        return {inputs[0].type(), dims};
-    }
+    // Device bucket -> ({name, problem} -> solution).
+    std::unordered_map<cache_device_key, std::unordered_map<value, value>> cache;
 };
 
-} // namespace op
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP

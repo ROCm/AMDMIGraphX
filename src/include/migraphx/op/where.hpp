@@ -102,8 +102,7 @@ struct where
         auto output          = result.get();
         for(auto i : range(output_shape.elements()))
         {
-            const auto condition_value =
-                sym::fixed_value(condition[scalar_condition ? 0 : i]);
+            const auto condition_value = sym::fixed_value(condition[scalar_condition ? 0 : i]);
             if(not condition_value.has_value())
                 return {};
             output[i] = sym::to<int64_t>(*condition_value) != 0 ? x[i] : y[i];

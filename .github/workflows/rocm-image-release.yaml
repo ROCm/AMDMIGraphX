@@ -9,7 +9,7 @@ on:
       benchmark-utils_repo:
         description: Repository for benchmark utils
         required: true
-        default: 'ROCm/migraphx-benchmark-utils'
+        default: 'AMD-ROCm-Internal/migraphx-benchmark-utils'
       base_image:
         description: Base image for rocm Docker build
         required: true
@@ -31,12 +31,16 @@ on:
         description: Overwrite image if it already exists
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   release:
+    if: github.repository == 'ROCm/AMDMIGraphX'
     uses: ROCm/migraphx-benchmark/.github/workflows/rocm-release.yml@main
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || '7.2.3' }}
-      benchmark-utils_repo: ${{ github.event.inputs.benchmark-utils_repo || 'ROCm/migraphx-benchmark-utils' }}
+      benchmark-utils_repo: ${{ github.event.inputs['benchmark-utils_repo'] || 'AMD-ROCm-Internal/migraphx-benchmark-utils' }}
       base_image: ${{ github.event.inputs.base_image || 'rocm/dev-ubuntu-22.04' }}
       docker_image: ${{ github.event.inputs.docker_image || 'rocm-migraphx' }}
       branch_name: ${{ github.event.inputs.branch_name || 'develop' }}

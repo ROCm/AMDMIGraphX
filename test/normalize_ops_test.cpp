@@ -99,6 +99,35 @@ struct dim_like_bound_test_op
     }
 };
 
+struct sym_bound_test_op
+{
+    std::vector<int64_t> axes              = {};
+    std::vector<migraphx::sym::expr> bound = {};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.axes, "axes"), f(self.bound, "bound"));
+    }
+
+    migraphx::value attributes() const
+    {
+        migraphx::value normalize;
+        normalize["bound"] = migraphx::value::array{migraphx::op::normalize_attribute::clip_max,
+                                                    migraphx::op::normalize_attribute::clip_min,
+                                                    migraphx::op::normalize_attribute::include_max,
+                                                    migraphx::op::normalize_attribute::use_len,
+                                                    migraphx::op::normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
+    }
+
+    std::string name() const { return "normalize_ops_test::sym_bound_op"; }
+    migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        return inputs[0];
+    }
+};
+
 static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::normalize_ops{}, migraphx::dead_code_elimination{}});
@@ -239,6 +268,16 @@ static migraphx::value sym_bound(const migraphx::sym::expr& e)
     return migraphx::value::array{migraphx::to_value(e)};
 }
 
+static migraphx::module create_sym_bound_op(const migraphx::shape& data_shape,
+                                            const migraphx::sym::expr& bound)
+{
+    migraphx::module m;
+    auto data = m.add_parameter("data", data_shape);
+    auto r    = m.add_instruction(sym_bound_test_op{{1}, {bound}}, data);
+    m.add_return({r});
+    return m;
+}
+
 TEST_CASE(dyn_slice_sym_ends_clamped_test)
 {
     // n is not provably ordered against the axis length 5, so the bound clamps to min(n, 5).
@@ -274,6 +313,20 @@ TEST_CASE(dyn_slice_sym_ends_at_len_test)
 
     auto m1 = create_dyn_slice(s, {{"axes", {3}}, {"starts", {0}}, {"ends", sym_bound(n)}});
     auto m2 = create_dyn_slice(s, {{"axes", {3}}, {"starts", {0}}, {"ends", {5}}});
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(dyn_slice_sym_negative_end_resolved_test)
+{
+    // An always-negative bound is measured from the end before it is clamped.
+    auto n = var("n", {-4, -1});
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+
+    auto m1 = create_dyn_slice(s, {{"axes", {3}}, {"starts", {0}}, {"ends", sym_bound(n)}});
+    auto m2 =
+        create_dyn_slice(s, {{"axes", {3}}, {"starts", {0}}, {"ends", sym_bound(n + lit(5))}});
     run_pass(m1);
 
     EXPECT(m1 == m2);
@@ -332,6 +385,19 @@ TEST_CASE(dyn_slice_sym_symbolic_axis_len_test)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(sym_bound_fixed_dynamic_axis_len_test)
+{
+    // The bound is symbolic, but the selected range-based dynamic dimension has one fixed length.
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {3, 3}}};
+
+    auto m1 = create_sym_bound_op(s, n);
+    auto m2 = create_sym_bound_op(s, migraphx::sym::min(n, lit(3)));
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(dyn_slice_concrete_bounds_symbolic_axis_len_test)
 {
     // A concrete bound still normalizes symbolically when the axis it is clamped against is a
@@ -381,7 +447,7 @@ TEST_CASE(dyn_slice_sym_nonfixed_axis_throws)
 
     EXPECT(test::throws<migraphx::exception>(
         [&] { create_dyn_slice(s, {{"axes", {0}}, {"starts", {0}}, {"ends", sym_bound(n)}}); },
-        "cannot normalize against a non-fixed axis"));
+        "cannot normalize against a non-symbolic, non-fixed axis"));
 }
 
 TEST_CASE(non_expression_object_value_throws)

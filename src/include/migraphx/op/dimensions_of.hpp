@@ -66,8 +66,7 @@ struct dimensions_of
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const
     {
-        if(args.size() != 1 or
-           (args[0].get_shape().dynamic() and not args[0].get_shape().symbolic()))
+        if(args[0].get_shape().dynamic() and not args[0].get_shape().symbolic())
             return {};
         const auto expressions = args[0].get_shape().sym_dims();
         sym_argument result{{expressions.begin() + start, expressions.begin() + end}, output_shape};

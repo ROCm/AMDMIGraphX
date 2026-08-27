@@ -950,10 +950,10 @@ struct find_concat_reshape
         if(reshapes.empty())
             return;
         auto input_shape = reshapes.front()->inputs().front()->get_shape();
-        // All inputs should have the same dimensions
+        // All inputs should have the same rank
         if(not std::all_of(
                std::next(reshapes.begin()), reshapes.end(), [&](instruction_ref reshape) {
-                   return reshape->inputs().front()->get_shape().lens() == input_shape.lens();
+                   return reshape->inputs().front()->get_shape().ndim() == input_shape.ndim();
                }))
             return;
         // axis could be a negative value
@@ -1001,18 +1001,23 @@ struct find_concat_reshape
         });
         if(it == input_shape.lens().end())
             return;
-        op.axis       = it - input_shape.lens().begin();
-        auto ipredims = std::accumulate(input_shape.lens().begin(),
-                                        input_shape.lens().begin() + op.axis,
-                                        std::size_t{1},
-                                        std::multiplies<>{});
-        if(ipredims != predims)
-            return;
-        auto ipostdims = std::accumulate(input_shape.lens().begin() + op.axis + 1,
-                                         input_shape.lens().end(),
-                                         std::size_t{1},
-                                         std::multiplies<>{});
-        if(ipostdims != postdims)
+        op.axis = it - input_shape.lens().begin();
+        // Each input must decompose as predims x axis x postdims at the mapped
+        // axis, with the same non-axis dims so the inputs can be concatenated
+        if(not std::all_of(reshapes.begin(), reshapes.end(), [&](instruction_ref r) {
+               const auto& lens = r->inputs().front()->get_shape().lens();
+               auto ipredims    = std::accumulate(
+                   lens.begin(), lens.begin() + op.axis, std::size_t{1}, std::multiplies<>{});
+               auto ipostdims = std::accumulate(
+                   lens.begin() + op.axis + 1, lens.end(), std::size_t{1}, std::multiplies<>{});
+               if(ipredims != predims or ipostdims != postdims)
+                   return false;
+               return std::equal(
+                          lens.begin(), lens.begin() + op.axis, input_shape.lens().begin()) and
+                      std::equal(lens.begin() + op.axis + 1,
+                                 lens.end(),
+                                 input_shape.lens().begin() + op.axis + 1);
+           }))
             return;
 
         std::vector<instruction_ref> inputs;
@@ -2052,6 +2057,48 @@ struct find_flatten
     }
 };
 
+// Rewrite layout(multibroadcast|broadcast(x)) to broadcast(layout(x)), skipping
+// the inner layout when it would be a no-op, so only the unique data is
+// materialized instead of a full copy per broadcast output.
+struct find_layout_broadcast
+{
+    auto matcher() const
+    {
+        return match::name("layout")(
+            match::args(match::broadcast(match::nargs(1)).bind("broadcast")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto broadcast = r.instructions["broadcast"];
+        auto input     = broadcast->inputs().front();
+        auto permutation =
+            ins->get_operator().to_value().at("permutation").to_vector<std::size_t>();
+        auto ndim = input->get_shape().ndim();
+        // multibroadcast aligns the input to the trailing axes of the output;
+        // broadcast places it at the range starting at its axis attribute
+        const auto& bcast_op = broadcast->get_operator();
+        auto offset          = permutation.size() - ndim;
+        if(bcast_op.name() == "broadcast")
+            offset = bcast_op.to_value().at("axis").to<std::size_t>();
+        std::vector<std::size_t> inner_permutation;
+        transform_if(
+            permutation.begin(),
+            permutation.end(),
+            std::back_inserter(inner_permutation),
+            [&](auto axis) { return axis >= offset and axis < offset + ndim; },
+            [&](auto axis) { return axis - offset; });
+        assert(inner_permutation.size() == ndim);
+        auto data = input;
+        if(input->get_shape().transposed() or
+           not std::is_sorted(inner_permutation.begin(), inner_permutation.end()))
+            data = m.insert_instruction(
+                ins, make_op("layout", {{"permutation", inner_permutation}}), input);
+        m.replace_instruction(ins, bcast_op, data);
+    }
+};
+
 // Match slice->squeeze->pw/reduce where the squeeze and slice share the same
 // single axis, then rewrite to slice->pw/reduce->squeeze (unsqueezing the
 // other inputs).  find_op_shape_transform_op propagates the squeeze through
@@ -2118,6 +2165,7 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m,
                             find_nop_reshapes{},
                             find_flatten{},
+                            find_layout_broadcast{},
                             find_reshape_cont{},
                             find_slice_shape_transforms{},
                             find_nested_shape_transforms{},

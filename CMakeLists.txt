@@ -44,7 +44,6 @@ if(NOT MIGRAPHX_GENERATOR_IS_MULTI_CONFIG)
 endif()
 
 if(NOT WIN32)
-    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
     set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
 endif()
 
@@ -149,6 +148,20 @@ option(BUILD_DEV "Build for development purpose only" OFF)
 rocm_setup_version(VERSION 2.17.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
+
+set(MIGRAPHX_THEROCK_EXTRAS_VERSION "10" CACHE STRING
+    "ROCm Extras compatibility stream used for the default TheRock install prefix")
+
+if(NOT WIN32 AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+        set(_MGX_DEFAULT_INSTALL_PREFIX
+            "/opt/rocm/extras-${MIGRAPHX_THEROCK_EXTRAS_VERSION}")
+    else()
+        set(_MGX_DEFAULT_INSTALL_PREFIX "/opt/rocm")
+    endif()
+    set(CMAKE_INSTALL_PREFIX "${_MGX_DEFAULT_INSTALL_PREFIX}" CACHE PATH
+        "Install prefix for MIGraphX" FORCE)
+endif()
 
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag("--cuda-host-only -x hip" HAS_HIP)

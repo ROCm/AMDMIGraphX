@@ -153,13 +153,12 @@ struct pipeline_factory
         fuse_pointwise_reduce result;
         // A workgroup per reduction output fills the device once the batch
         // reaches the number of resident workgroups
-        auto max_batch = device.get_cu_count() * device.get_max_workitems_per_cu() /
-                         device.get_max_workitems_per_block();
+        auto max_batch = device.get_max_workgroups();
         if(max_batch > 0)
             result.lower_max_batch = max_batch;
         // With a large batch the fused kernel re-reads each row from the
         // last-level cache, so a split is only needed once the resident
-        // rows(sized for 2-byte types) no longer fit
+        // rows (sized for 2-byte types) no longer fit
         auto cache_elements = device.get_last_level_cache_size() / (2 * result.lower_max_batch);
         if(cache_elements > 0)
             result.upper_split_size = cache_elements;

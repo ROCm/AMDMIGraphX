@@ -139,7 +139,7 @@ TEST_CASE(multi_axis)
 TEST_CASE(many_outputs)
 {
     // With enough outputs the reduction already has enough parallelism, so
-    // a reduction below the split_size is not split at all
+    // a reduction below the upper_split_size is not split at all
     migraphx::shape s{migraphx::shape::float_type, {14400, 32, 20, 16}};
     migraphx::program p1;
     {
@@ -260,8 +260,8 @@ TEST_CASE(atomic_threshold_only)
 
 TEST_CASE(atomic_fallback)
 {
-    // 13117 = 13 * 1009 cant be split into groups, so the atomic-based
-    // split_fused_reduce is used instead
+    // 13117 = 13 * 1009 cant be split into groups (and the tensor is
+    // launch-bound), so the atomic-based split_fused_reduce is used instead
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 13117}};
     migraphx::program p1;
     {

@@ -80,8 +80,7 @@ struct hsa_gpu_info
     std::size_t last_level_cache_size = 0;
 };
 
-/// Query the info for all GPU devices and cache the results.
-/// This is called once and the results are stored in a static vector.
+/// Query the chiplet count and cache sizes for all GPU devices.
 std::vector<hsa_gpu_info> query_all_gpu_info()
 {
     std::vector<hsa_gpu_info> gpu_infos;

@@ -59,7 +59,7 @@ device_description device_description::from_device(std::size_t device)
     result.wavefront_size        = props.warpSize;
     result.last_level_cache_size = get_hsa_last_level_cache_size(device);
     if(result.last_level_cache_size == 0)
-        result.last_level_cache_size = props.l2CacheSize;
+        result.last_level_cache_size = std::max(props.l2CacheSize, 0);
     return result;
 }
 

@@ -31,7 +31,19 @@
 import re
 
 html_theme = "rocm_docs_theme"
-html_theme_options = {"flavor": "rocm-docs-home"}
+html_theme_options = {
+    "flavor": "generic",
+    "header_title": f"ROCm™ Software 7.2.4",
+    "header_link": "https://rocm.docs.amd.com/en/docs-7.2.4/",
+    "version_list_link": "https://rocm.docs.amd.com/en/latest/release/versions.html",
+    "nav_secondary_items": {
+        "GitHub": "https://github.com/ROCm/AMDMIGraphX",
+        "Community": "https://github.com/ROCm/ROCm/discussions",
+        "Blogs": "https://rocm.blogs.amd.com/",
+        "System and Infra Docs": "https://instinct.docs.amd.com/",
+        "Support": "https://github.com/ROCm/AMDMIGraphX/issues/new/choose",
+    },
+}
 
 templates_path = ["."]  # Use the current folder for templates
 

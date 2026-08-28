@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,6 +41,7 @@ namespace match = migraphx::match;
 
 static bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
 static bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
+static bool is_quant_dot(const migraphx::instruction& ins) { return ins.name() == "quant_dot"; }
 
 static void run_pass(migraphx::module& m)
 {
@@ -60,6 +61,19 @@ static migraphx::instruction_ref init_zero_point(migraphx::module& m,
     auto zp = m.add_literal(migraphx::literal{migraphx::shape{q_ins->get_shape().type()}, {0}});
     return m.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", q_ins->get_shape().lens()}}), zp);
+}
+
+static migraphx::instruction_ref add_uint8_rebias(migraphx::module& m, migraphx::instruction_ref x)
+{
+    auto x_i32 = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), x);
+    auto lit =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {128}});
+    auto lit_b = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lit);
+    auto diff = m.add_instruction(migraphx::make_op("sub"), x_i32, lit_b);
+    return m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), diff);
 }
 
 TEST_CASE(remove_qdq)
@@ -341,6 +355,62 @@ TEST_CASE(dot_transposed)
         auto d3        = add_quantize_op(m2, "dequantizelinear", dot, out_scale);
         m2.add_return({d3});
     }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(dot_uint8_input)
+{
+    // uint8 activation with int8 weight must still become a quant_dot (uint8 rebiased to int8),
+    // not have its Q/DQ stripped.
+    migraphx::shape sh1{migraphx::shape::float_type, {4, 8}};
+    migraphx::shape sh2{migraphx::shape::float_type, {8, 6}};
+
+    migraphx::module m1;
+    {
+        auto t1      = m1.add_parameter("t1", sh1);
+        auto t2      = m1.add_parameter("t2", sh2);
+        auto a_scale = m1.add_literal(0.5f);
+        auto a_zp    = m1.add_literal(std::uint8_t{128});
+        auto w_scale = m1.add_literal(0.25f);
+        auto w_zp    = m1.add_literal(std::int8_t{0});
+
+        auto q1  = add_quantize_op(m1, "quantizelinear", t1, a_scale, a_zp);
+        auto d1  = add_quantize_op(m1, "dequantizelinear", q1, a_scale, a_zp);
+        auto q2  = add_quantize_op(m1, "quantizelinear", t2, w_scale, w_zp);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", q2, w_scale, w_zp);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), d1, d2);
+        m1.add_return({dot});
+    }
+
+    run_pass(m1);
+    EXPECT(any_of(m1, &is_quant_dot));
+    EXPECT(none_of(m1, &is_dot));
+}
+
+TEST_CASE(qdq_reshape_unquantized_dot)
+{
+    // q -> reshape -> dq feeding an unquantized dot stays put: remove_qdq_pairs must not drop the
+    // reshape, which would leave the dot with mismatched ranks.
+    migraphx::shape xsh{migraphx::shape::float_type, {1, 1024, 1, 1}};
+    migraphx::shape wsh{migraphx::shape::float_type, {1024, 1000}};
+
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xsh);
+        auto w     = m1.add_parameter("w", wsh);
+        auto scale = m1.add_literal(0.5f);
+        auto zero  = m1.add_literal(std::int8_t{1});
+
+        auto q1  = add_quantize_op(m1, "quantizelinear", x, scale, zero);
+        auto rs  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1024}}}), q1);
+        auto d1  = add_quantize_op(m1, "dequantizelinear", rs, scale, zero);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), d1, w);
+        m1.add_return({dot});
+    }
+
+    migraphx::module m2 = m1;
 
     run_pass(m1);
     EXPECT(m1 == m2);
@@ -647,10 +717,38 @@ TEST_CASE(dot_uint8)
 
     migraphx::module m2;
     {
-        auto t1  = m2.add_parameter("t1", sh1);
-        auto t2  = m2.add_parameter("t2", sh2);
-        auto dot = m2.add_instruction(migraphx::make_op("dot"), t1, t2);
-        m2.add_return({dot});
+        auto t1    = m2.add_parameter("t1", sh1);
+        auto t2    = m2.add_parameter("t2", sh2);
+        auto scale = m2.add_literal(0.5f);
+        auto zero  = m2.add_literal(std::uint8_t{0});
+
+        auto q1 = add_quantize_op(m2, "quantizelinear", t1, scale, zero);
+        auto q2 = add_quantize_op(m2, "quantizelinear", t2, scale, zero);
+
+        // Both operands are uint8, so each is rebiased to int8 along with its zero point.
+        auto zp1 = add_uint8_rebias(m2, zero);
+        auto a1  = add_uint8_rebias(m2, q1);
+        auto zp2 = add_uint8_rebias(m2, zero);
+        auto a2  = add_uint8_rebias(m2, q2);
+
+        auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), a1, a2);
+
+        auto out_scale = add_scale_mul(m2, scale, scale, 1, 1, dot->get_shape().lens());
+
+        // Rebiasing shifts both zero points to -128, so none is symmetric and all three correction
+        // terms are emitted.
+        auto out_zp   = init_zero_point(m2, dot);
+        auto zp1_bc   = broadcast_shift(m2, zp1, sh1.lens());
+        auto zp2_bc   = broadcast_shift(m2, zp2, sh2.lens());
+        auto zp_term1 = m2.add_instruction(migraphx::make_op("quant_dot"), zp1_bc, a2);
+        out_zp        = m2.add_instruction(migraphx::make_op("add"), out_zp, zp_term1);
+        auto zp_term2 = m2.add_instruction(migraphx::make_op("quant_dot"), a1, zp2_bc);
+        out_zp        = m2.add_instruction(migraphx::make_op("add"), out_zp, zp_term2);
+        auto zp_term3 = m2.add_instruction(migraphx::make_op("quant_dot"), zp1_bc, zp2_bc);
+        out_zp        = m2.add_instruction(migraphx::make_op("sub"), out_zp, zp_term3);
+
+        auto d3 = add_quantize_op(m2, "dequantizelinear", dot, out_scale, out_zp);
+        m2.add_return({d3});
     }
 
     run_pass(m1);
@@ -871,6 +969,46 @@ TEST_CASE(conv_asymmetric_input)
 
     run_pass(m1);
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(conv_asymmetric_input_nonstandard_correction)
+{
+    // Spatial dims larger than the channel count leave the zero-point correction channels-last,
+    // unlike conv_asymmetric_input above. It must still reach dequantizelinear standard.
+    migraphx::shape sx{migraphx::shape::float_type, {1, 2, 4, 4}};
+    migraphx::shape sw{migraphx::shape::int8_type, {2, 2, 3, 3}};
+
+    migraphx::module m1;
+    {
+        auto input   = m1.add_parameter("input", sx);
+        auto weights = m1.add_parameter("weights", sw);
+        auto scale   = m1.add_literal(0.5f);
+        auto zp_in   = m1.add_literal(std::int8_t{1});
+        auto zp_w    = m1.add_literal(std::int8_t{0});
+
+        auto d1 = add_quantize_op(m1, "dequantizelinear", weights, scale, zp_w);
+        auto q1 = add_quantize_op(m1, "quantizelinear", input, scale, zp_in);
+        auto d5 = add_quantize_op(m1, "dequantizelinear", q1, scale, zp_in);
+        auto c1 = m1.add_instruction(migraphx::make_op("convolution",
+                                                       {{"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1},
+                                                        {"padding_mode", 0}}),
+                                     d5,
+                                     d1);
+        m1.add_return({c1});
+    }
+
+    run_pass(m1);
+
+    EXPECT(none_of(m1, &is_convolution));
+
+    auto dq = std::find_if(m1.begin(), m1.end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "dequantizelinear" and ins.inputs().size() == 3;
+    });
+    EXPECT(dq != m1.end());
+    EXPECT(dq->inputs().at(2)->get_shape().standard());
 }
 
 TEST_CASE(conv_multi_scale)

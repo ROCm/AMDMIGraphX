@@ -95,6 +95,7 @@ Full documentation for MIGraphX is available at
 * Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).
 * Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
+* Fixed mixed `uint8` and `int8` quantization (#5075).
 
 ### Optimized
 * Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).

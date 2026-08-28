@@ -35,7 +35,12 @@ struct module_pass_manager;
 
 struct MIGRAPHX_EXPORT fuse_pointwise_reduce
 {
+    /// Passed to split_reduce::split_size
     std::size_t split_size = 65280;
+    /// Passed to split_reduce::upper_split_size
+    std::size_t upper_split_size = 524288;
+    /// Passed to split_reduce::lower_max_batch
+    std::size_t lower_max_batch = 64;
     std::string name() const { return "fuse_pointwise_reduce"; }
     void apply(module_pass_manager& mpm) const;
 };

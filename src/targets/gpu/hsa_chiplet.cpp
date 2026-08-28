@@ -23,6 +23,9 @@
  */
 #include <migraphx/gpu/hsa_chiplet.hpp>
 #include <migraphx/errors.hpp>
+#include <algorithm>
+#include <array>
+#include <cstdint>
 #include <vector>
 #include <type_traits>
 
@@ -71,11 +74,17 @@ struct hsa_guard
     hsa_status_t status() const { return init_status; }
 };
 
-/// Query chiplet counts for all GPU devices and cache the results.
-/// This is called once and the results are stored in a static vector.
-std::vector<std::size_t> query_all_chiplet_counts()
+struct hsa_gpu_info
 {
-    std::vector<std::size_t> chiplet_counts;
+    std::size_t num_chiplets          = 1;
+    std::size_t last_level_cache_size = 0;
+};
+
+/// Query the info for all GPU devices and cache the results.
+/// This is called once and the results are stored in a static vector.
+std::vector<hsa_gpu_info> query_all_gpu_info()
+{
+    std::vector<hsa_gpu_info> gpu_infos;
 
     hsa_guard guard;
     if(not guard)
@@ -94,15 +103,28 @@ std::vector<std::size_t> query_all_chiplet_counts()
 
         if(device_type == HSA_DEVICE_TYPE_GPU)
         {
+            hsa_gpu_info info;
             uint32_t num_chiplets = 1;
             err                   = hsa_agent_get_info(
                 agent, static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_NUM_XCC), &num_chiplets);
             // If the query fails (e.g., older ROCm or unsupported GPU), use default of 1.
             // This is expected on older ROCm versions, so no warning needed.
-            if(err != HSA_STATUS_SUCCESS)
-                num_chiplets = 1;
+            if(err == HSA_STATUS_SUCCESS)
+                info.num_chiplets = num_chiplets;
 
-            chiplet_counts.push_back(static_cast<std::size_t>(num_chiplets));
+            // Data cache sizes in bytes for each level, 0 when the level
+            // does not exist
+            std::array<std::uint32_t, 4> cache_sizes{};
+            err = hsa_agent_get_info(agent, HSA_AGENT_INFO_CACHE_SIZE, cache_sizes.data());
+            if(err == HSA_STATUS_SUCCESS)
+            {
+                auto it = std::find_if(
+                    cache_sizes.rbegin(), cache_sizes.rend(), [](auto size) { return size != 0; });
+                if(it != cache_sizes.rend())
+                    info.last_level_cache_size = *it;
+            }
+
+            gpu_infos.push_back(info);
         }
 
         return HSA_STATUS_SUCCESS;
@@ -121,26 +143,36 @@ std::vector<std::size_t> query_all_chiplet_counts()
                        ". Unable to query GPU devices.");
     }
 
-    return chiplet_counts;
+    return gpu_infos;
 }
 
-/// Get cached chiplet counts. Thread-safe, queries HSA only once.
-const std::vector<std::size_t>& get_cached_chiplet_counts()
+/// Get cached GPU info. Thread-safe, queries HSA only once.
+const std::vector<hsa_gpu_info>& get_cached_gpu_info()
 {
-    static const std::vector<std::size_t> counts = query_all_chiplet_counts();
-    return counts;
+    static const std::vector<hsa_gpu_info> infos = query_all_gpu_info();
+    return infos;
 }
 
 } // namespace
 
 std::size_t get_hsa_chiplet_count(std::size_t device_id)
 {
-    const auto& counts = get_cached_chiplet_counts();
+    const auto& infos = get_cached_gpu_info();
 
-    if(device_id < counts.size())
-        return counts[device_id];
+    if(device_id < infos.size())
+        return infos[device_id].num_chiplets;
 
     // Device not found - HSA enumerated fewer GPUs than expected.
+    return 0;
+}
+
+std::size_t get_hsa_last_level_cache_size(std::size_t device_id)
+{
+    const auto& infos = get_cached_gpu_info();
+
+    if(device_id < infos.size())
+        return infos[device_id].last_level_cache_size;
+
     return 0;
 }
 
@@ -152,6 +184,12 @@ std::size_t get_hsa_chiplet_count(std::size_t /*device_id*/)
     // TODO: For future architectures with multiple chiplets,
     // need a way to query on Windows or hardcode based on gfx number.
     return 1;
+}
+
+std::size_t get_hsa_last_level_cache_size(std::size_t /*device_id*/)
+{
+    // HSA not available on Windows, so the cache size is unknown.
+    return 0;
 }
 
 #endif // _WIN32

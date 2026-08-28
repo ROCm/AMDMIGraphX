@@ -256,6 +256,8 @@ struct hip_device
 
     std::size_t get_wavefront_size() const { return desc.wavefront_size; }
 
+    std::size_t get_last_level_cache_size() const { return desc.last_level_cache_size; }
+
     private:
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;

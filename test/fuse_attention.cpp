@@ -42,6 +42,7 @@
 #include <pointwise.hpp>
 #include <reduce.hpp>
 #include <utility>
+#include <algorithm>
 #include <cstdlib>
 #include <numeric>
 
@@ -358,8 +359,7 @@ TEST_CASE(gemm_literal_capture_softmax_gemm)
     std::iota(iota_vec.begin(), iota_vec.end(), 0);
     // Steps of 0.5, so this is not an iota
     std::vector<float> bias_vec(s_bias.elements());
-    for(std::size_t i = 0; i < bias_vec.size(); i++)
-        bias_vec[i] = 0.5f * i;
+    std::generate(bias_vec.begin(), bias_vec.end(), [i = 0.0f]() mutable { return 0.5f * i++; });
 
     auto add_attention = [&](auto* m, const auto& inputs, auto bias) {
         auto iota    = m->add_literal(migraphx::literal{s_iota, iota_vec});

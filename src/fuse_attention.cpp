@@ -117,10 +117,13 @@ inline std::size_t calculate_groups(std::size_t groups,
 
 bool is_range_literal(const literal& l)
 {
+    const auto& s = l.get_shape();
+    if(s.elements() < 2 or not shape::is_computable(s.type()))
+        return false;
     bool result = false;
     l.visit([&](auto x) {
         result = std::adjacent_find(x.begin(), x.end(), [](auto cur, auto next) {
-                     return not float_equal(next - cur, 1);
+                     return next <= cur or not float_equal(next - cur, 1);
                  }) == x.end();
     });
     return result;

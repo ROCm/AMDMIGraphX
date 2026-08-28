@@ -119,6 +119,7 @@ struct miopen_apply
         add_neg_op();
         add_lrn_op();
         add_nms_op();
+        add_nonzero_op();
         add_convolution_backwards_op();
         add_select_module_op();
         add_concat_past_present_op();
@@ -466,15 +467,27 @@ struct miopen_apply
             const auto& boxes_s  = ins->inputs()[0]->get_shape();
             const auto& scores_s = ins->inputs()[1]->get_shape();
             if(boxes_s.dynamic() or scores_s.dynamic())
-                return lower_nms_to_ref(ins);
+                return lower_tuple_op_to_ref(ins);
             const auto num_boxes = boxes_s.lens().at(1);
             const auto num_bc    = boxes_s.lens().at(0) * scores_s.lens().at(1);
             // Route to ref (CPU) when:
             // - num_boxes < 2: Single box or no boxes, no sort or IoU comparison needed.
             // - num_bc > 8192: shared-memory limit on the compact kernel.
             if(num_boxes < 2 or num_bc > 8192)
-                return lower_nms_to_ref(ins);
+                return lower_tuple_op_to_ref(ins);
             return lower_nms_to_gpu_pipeline(ins);
+        });
+    }
+
+    // The nonzero kernel bakes the input lengths into its code object, so a dynamic input has to
+    // run on the host.
+    void add_nonzero_op()
+    {
+        apply_map.emplace("nonzero", [=](instruction_ref ins) {
+            if(ins->inputs().front()->get_shape().dynamic())
+                return lower_tuple_op_to_ref(ins);
+            // apply() takes this entry instead of its JIT branch, so wrap it here.
+            return insert_precompile_op(ins);
         });
     }
 
@@ -540,10 +553,11 @@ struct miopen_apply
         return mod->replace_instruction(ins, compact);
     }
 
-    // Dynamic-shape fallback: run the ref op on the host. The tuple has to be
-    // split host-side before copy_to_gpu (which is not tuple-aware), and the
-    // downstream get_tuple_elem consumers are rewritten in place.
-    instruction_ref lower_nms_to_ref(instruction_ref ins) const
+    // Fallback for a tuple-returning op the GPU kernels can't take, such as one with a dynamic
+    // input: run the ref op on the host. The tuple has to be split host-side before copy_to_gpu
+    // (which is not tuple-aware), and the downstream get_tuple_elem consumers are rewritten in
+    // place.
+    instruction_ref lower_tuple_op_to_ref(instruction_ref ins) const
     {
         auto inputs = ins->inputs();
         std::vector<instruction_ref> cpu_inputs;
@@ -573,9 +587,9 @@ struct miopen_apply
         for(auto consumer : consumers)
         {
             if(consumer->name() != "get_tuple_elem")
-                MIGRAPHX_THROW("gpu::add_nms_op: dynamic NMS fallback expects only "
-                               "get_tuple_elem consumers of nonmaxsuppression; got: " +
-                               consumer->name());
+                MIGRAPHX_THROW("gpu::lower_tuple_op_to_ref: the host fallback expects only "
+                               "get_tuple_elem consumers of " +
+                               ins->name() + "; got: " + consumer->name());
             auto idx = consumer->get_operator().to_value().at("index").to<std::size_t>();
             assert(idx < gpu_subs.size());
             mod->replace_instruction(consumer, gpu_subs[idx]);

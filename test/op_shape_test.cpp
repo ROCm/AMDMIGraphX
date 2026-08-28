@@ -3098,6 +3098,38 @@ TEST_CASE(nms_shape)
                  score_thres_s);
 }
 
+TEST_CASE(nonzero_shape)
+{
+    // The nonzero op always returns a tuple shape:
+    //   {indices [ndim, elements] int64, num_nonzero [1] int64}
+    migraphx::shape num_nonzero_s{migraphx::shape::int64_type, {1}};
+
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    expect_shape(
+        migraphx::shape({migraphx::shape{migraphx::shape::int64_type, {3, 12}}, num_nonzero_s}),
+        migraphx::make_op("nonzero"),
+        input);
+
+    // A non-standard input keeps the same output; only its lengths matter.
+    input = {migraphx::shape::float_type, {2, 3}, {1, 2}};
+    expect_shape(
+        migraphx::shape({migraphx::shape{migraphx::shape::int64_type, {2, 6}}, num_nonzero_s}),
+        migraphx::make_op("nonzero"),
+        input);
+}
+
+TEST_CASE(nonzero_dyn_shape)
+{
+    // A dynamic input still gets a fixed output, padded for the most elements it can hold.
+    migraphx::shape num_nonzero_s{migraphx::shape::int64_type, {1}};
+
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    expect_shape(
+        migraphx::shape({migraphx::shape{migraphx::shape::int64_type, {2, 12}}, num_nonzero_s}),
+        migraphx::make_op("nonzero"),
+        input);
+}
+
 TEST_CASE(onehot_static_2arg0)
 {
     migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};

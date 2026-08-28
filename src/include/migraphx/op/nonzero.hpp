@@ -34,6 +34,12 @@
 #include <cstdint>
 #include <utility>
 
+/**
+ *  nonzero(data);
+ *  Outputs tuple of {indices, num_nonzero}.
+ *  `indices` are padded out to the most elements the input shape allows.
+ *  `num_nonzero` tells how many of the columns hold a real index.
+ */
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
@@ -44,22 +50,25 @@ struct nonzero
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
-        auto elem_num                     = inputs[0].elements();
-        auto dim_num                      = inputs[0].lens().size();
-        std::vector<std::size_t> out_lens = {dim_num, elem_num};
-
-        return {shape::int64_type, out_lens};
+        check_shapes{inputs, *this, true}.has(1);
+        // Pad the indices for the largest input the shape allows, so a dynamic input still gets
+        // a fixed output buffer. num_nonzero says how many of the columns are real.
+        shape max_input{inputs[0].type(), inputs[0].max_lens()};
+        shape s_ind{shape::int64_type, {inputs[0].ndim(), max_input.elements()}};
+        shape s_num_nonzero{shape::int64_type, {1}};
+        return shape({s_ind, s_num_nonzero});
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        auto s = args.front().get_shape();
-        argument result{output_shape};
+        auto s             = args.front().get_shape();
+        const auto& vec_ss = output_shape.sub_shapes();
+        argument result{vec_ss.front()};
+        argument num_nonzero_result{vec_ss.back()};
         auto output = result.get<std::int64_t>();
         std::fill(output.begin(), output.end(), 0);
+        std::size_t nonzero_idx = 0;
         args.front().visit([&](auto v) {
-            std::size_t nonzero_idx = 0;
             shape_for_each(s, [&](const auto& idx_v) {
                 if(not float_equal(v[idx_v], 0))
                 {
@@ -68,8 +77,9 @@ struct nonzero
                 }
             });
         });
+        num_nonzero_result.visit([&](auto num_nonzero) { num_nonzero[0] = nonzero_idx; });
 
-        return result;
+        return {{result, num_nonzero_result}};
     }
 };
 

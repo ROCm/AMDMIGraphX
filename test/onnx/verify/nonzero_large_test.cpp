@@ -58,4 +58,7 @@ TEST_CASE(nonzero_large_test)
     }
 
     EXPECT(result_vector == gold);
+    // Every element is nonzero, so the parser's trim keeps all n columns. A wrapped count would
+    // slice the indices down to the wrapped value instead.
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {2, n}});
 }

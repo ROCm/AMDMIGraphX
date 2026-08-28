@@ -70,6 +70,7 @@ Full documentation for MIGraphX is available at
 * Changed `propagate_constant` to skip folding a `convert` to a wider type, since that would enlarge the literal and lose the smaller storage type (#5138).
 * Rejected symbolic input shapes in the multi-input `slice` calls, and pointed both symbolic `slice` errors at `dyn_slice` (#5112).
 * Updated `find_concat_reshape` matcher to fuse concats of reshapes whose inputs differ along the concat axis, as long as the non-axis dimensions match (#5181).
+* Changed the `nonzero` operator to return a tuple of its zero-padded indices and a new `num_nonzero` scalar holding how many of those indices are real, matching how `nonmaxsuppression` reports `num_selected`. The ONNX `NonZero` parser uses that count to trim the padding with a `dyn_slice`, so a parsed model now returns the ONNX specification's `[rank, num_nonzero]` output instead of a fixed padded size. `nonzero` also accepts a dynamic input shape now, padding its indices for the largest input the shape allows; on the GPU a dynamic input runs on the host, since the kernel bakes the input lengths into its code object.
 
 ### Resolved issues
 

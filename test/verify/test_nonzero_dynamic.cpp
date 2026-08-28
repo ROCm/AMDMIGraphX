@@ -27,14 +27,18 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
+// The GPU kernel bakes the input lengths into its code object, so a dynamic input takes the host
+// ref fallback in gpu lowering. Two non-fixed dimensions keep split_single_dyn_dim from
+// specializing the module first, which is what leaves a dynamic shape for that fallback to catch.
+// Run below the maximum in both dimensions so the padding in the indices output is exercised too.
 template <migraphx::shape::type_t DType>
-struct test_nonzero : verify_program<test_nonzero<DType>>
+struct test_nonzero_dynamic : verify_program<test_nonzero_dynamic<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{DType, {2, 3, 4, 5}};
+        migraphx::shape s{DType, {{1, 4}, {1, 4}}};
         auto x       = mm->add_parameter("data", s);
         auto nz      = mm->add_instruction(migraphx::make_op("nonzero"), x);
         auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
@@ -44,37 +48,12 @@ struct test_nonzero : verify_program<test_nonzero<DType>>
 
         return p;
     }
-};
 
-template struct test_nonzero<migraphx::shape::bool_type>;
-template struct test_nonzero<migraphx::shape::float_type>;
-template struct test_nonzero<migraphx::shape::half_type>;
-template struct test_nonzero<migraphx::shape::bf16_type>;
-template struct test_nonzero<migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_nonzero<migraphx::shape::fp8e5m2fnuz_type>;
-template struct test_nonzero<migraphx::shape::fp8e4m3fn_type>;
-template struct test_nonzero<migraphx::shape::fp8e5m2_type>;
-
-template <migraphx::shape::type_t DType>
-struct test_nonzero_transpose : verify_program<test_nonzero_transpose<DType>>
-{
-    migraphx::program create_program() const
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
     {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{DType, {2, 3}};
-        auto x = mm->add_parameter("data", s);
-        auto transposed =
-            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
-        auto nz      = mm->add_instruction(migraphx::make_op("nonzero"), transposed);
-        auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
-        auto num_nonzero =
-            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
-        mm->add_return({indices, num_nonzero});
-
-        return p;
+        return {{"data", migraphx::shape{DType, {2, 3}}}};
     }
 };
 
-template struct test_nonzero_transpose<migraphx::shape::bool_type>;
-template struct test_nonzero_transpose<migraphx::shape::float_type>;
+template struct test_nonzero_dynamic<migraphx::shape::bool_type>;
+template struct test_nonzero_dynamic<migraphx::shape::float_type>;

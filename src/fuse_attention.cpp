@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/split_factor.hpp>
 #include <optional>
 
@@ -112,6 +113,24 @@ inline std::size_t calculate_groups(std::size_t groups,
 
     // groups == 1 or invalid, no splitting
     return 0;
+}
+
+bool is_range_literal(const literal& l)
+{
+    bool result = false;
+    l.visit([&](auto x) {
+        result = std::adjacent_find(x.begin(), x.end(), [](auto cur, auto next) {
+                     return not float_equal(next - cur, 1);
+                 }) == x.end();
+    });
+    return result;
+}
+
+bool is_inlinable_constant(instruction_ref ins)
+{
+    if(ins->name() != "@literal")
+        return true;
+    return ins->get_shape().elements() == 1 or is_range_literal(ins->get_literal());
 }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
@@ -276,7 +295,8 @@ struct find_attention
         auto expand = fix([&](auto self, auto ins) {
             for(auto input : ins->inputs())
             {
-                if(not contains(attn_inss, input) and input->can_eval())
+                if(not contains(attn_inss, input) and input->can_eval() and
+                   is_inlinable_constant(input))
                 {
                     attn_inss.insert(input);
                     self(input);

@@ -952,29 +952,41 @@ TEST_CASE(conv_asymmetric_input)
                                      q1,
                                      weights);
         auto out_scale = add_scale_mul(m2, scale, scale, 1, 1, c1->get_shape().lens());
-        auto out_zp    = init_zero_point(m2, c1);
-        auto zp_in_bc  = broadcast_shift(m2, zp_in, input->get_shape().lens());
-        auto zp_term   = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                              {{"padding", {0, 0, 0, 0}},
-                                                               {"stride", {1, 1}},
-                                                               {"dilation", {1, 1}},
-                                                               {"group", 1},
-                                                               {"padding_mode", 0}}),
-                                          zp_in_bc,
-                                          weights);
-        out_zp         = m2.add_instruction(migraphx::make_op("add"), out_zp, zp_term);
-        auto d6        = add_quantize_op(m2, "dequantizelinear", c1, out_scale, out_zp);
+
+        auto w_i32 = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), weights);
+        auto w_sum =
+            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2, 3}}}), w_i32);
+        auto w_vec = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), w_sum);
+        auto zp_mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1280}}}), zp_in);
+        auto zp_i32 = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), zp_mb);
+        auto term   = m2.add_instruction(migraphx::make_op("mul"), zp_i32, w_vec);
+        auto out_zp = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", c1->get_shape().lens()}}),
+            term);
+
+        auto d6 = add_quantize_op(m2, "dequantizelinear", c1, out_scale, out_zp);
         m2.add_return({d6});
     }
 
     run_pass(m1);
     EXPECT(m1 == m2);
+
+    // One value per output channel: accumulating onto a zero literal would densify it to 1280x7x7.
+    auto dq = std::find_if(m1.begin(), m1.end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "dequantizelinear" and ins.inputs().size() == 3;
+    });
+    EXPECT(dq != m1.end());
+    EXPECT(dq->inputs().at(2)->get_shape().element_space() == 1280);
 }
 
 TEST_CASE(conv_asymmetric_input_nonstandard_correction)
 {
-    // Spatial dims larger than the channel count leave the zero-point correction channels-last,
-    // unlike conv_asymmetric_input above. It must still reach dequantizelinear standard.
+    // Padding keeps the correction a convolution, and spatial dims larger than the channel count
+    // then leave its layout channels-last. It must still reach dequantizelinear as a standard
+    // shape.
     migraphx::shape sx{migraphx::shape::float_type, {1, 2, 4, 4}};
     migraphx::shape sw{migraphx::shape::int8_type, {2, 2, 3, 3}};
 
@@ -990,7 +1002,7 @@ TEST_CASE(conv_asymmetric_input_nonstandard_correction)
         auto q1 = add_quantize_op(m1, "quantizelinear", input, scale, zp_in);
         auto d5 = add_quantize_op(m1, "dequantizelinear", q1, scale, zp_in);
         auto c1 = m1.add_instruction(migraphx::make_op("convolution",
-                                                       {{"padding", {0, 0, 0, 0}},
+                                                       {{"padding", {1, 1, 1, 1}},
                                                         {"stride", {1, 1}},
                                                         {"dilation", {1, 1}},
                                                         {"group", 1},

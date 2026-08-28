@@ -37,7 +37,11 @@
 #include <migraphx/op/concat.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/common.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/match/dq_helpers.hpp>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -100,6 +104,28 @@ rebias_uint8_to_int8(module& m, instruction_ref pos, instruction_ref qdata, inst
     };
     zp = subtract_128(zp);
     return subtract_128(qdata);
+}
+
+bool conv_has_no_padding(const value& conv_val)
+{
+    if(conv_val.at("padding_mode").to<op::padding_mode_t>() != op::padding_mode_t::default_)
+        return false;
+    return all_of(conv_val.at("padding"), [](const value& x) { return x.to<std::size_t>() == 0; });
+}
+
+// zp times the sum of each output channel's weights, as a 1-D per-channel vector for the caller to
+// broadcast. Summed in the convolution's own output type, since the sum overflows the weight type.
+instruction_ref insert_channelwise_zp_correction(
+    module& m, instruction_ref pos, instruction_ref zp, instruction_ref weights, shape::type_t type)
+{
+    auto w = m.insert_instruction(pos, make_op("convert", {{"target_type", type}}), weights);
+
+    std::vector<std::int64_t> axes(weights->get_shape().ndim() - 1);
+    std::iota(axes.begin(), axes.end(), 1);
+    auto w_sum = m.insert_instruction(pos, make_op("reduce_sum", {{"axes", axes}}), w);
+    auto w_vec = m.insert_instruction(pos, make_op("squeeze", {{"axes", axes}}), w_sum);
+
+    return insert_common_op(m, pos, make_op("mul"), {zp, w_vec});
 }
 
 struct match_find_quantizable_ops
@@ -219,34 +245,62 @@ struct match_find_quantizable_ops
 
             out_scale = m.insert_instruction(qop, migraphx::make_op("mul"), s1_bcast, s2_bcast);
 
-            // Compute the zero-point terms; initialize as 0 and add relevant terms
-            auto zero_lit = m.add_literal(literal{shape{dq->get_shape().type()}, {0}});
-            out_zp        = m.insert_instruction(
-                qop, make_op("multibroadcast", {{"out_lens", dq->get_shape().lens()}}), zero_lit);
+            const bool asymmetric_input   = not is_symmetric_zero_point(zp1);
+            const bool asymmetric_weights = not is_symmetric_zero_point(zp2);
 
-            auto inp_zp_bc = m.insert_instruction(qop, qparam_broadcast_op(zp1, arg1_lens, 1), zp1);
-            auto w_zp_bc   = m.insert_instruction(qop, qparam_broadcast_op(zp2, arg2_lens, 0), zp2);
+            auto w_zp_bc = m.insert_instruction(qop, qparam_broadcast_op(zp2, arg2_lens, 0), zp2);
 
-            if(not is_symmetric_zero_point(zp1))
+            // Seeding this with a zero literal would densify the result, since adding two
+            // broadcasts yields a standard shape. Accumulate from empty so a lone term stays a
+            // broadcast.
+            optional<instruction_ref> correction;
+            auto accumulate = [&](instruction_ref term) {
+                correction = correction.has_value()
+                                 ? m.insert_instruction(qop, make_op("add"), *correction, term)
+                                 : term;
+            };
+
+            // An unpadded convolution over a scalar zero point sums the same weight taps at every
+            // output position, so its correction varies only by output channel. Padding breaks
+            // that, as border windows sum a subset of the taps.
+            if(asymmetric_input and not asymmetric_weights and conv_has_no_padding(conv_val))
             {
-                auto out_zp_1 = m.insert_instruction(
-                    qop, migraphx::make_op("quant_convolution", conv_val), inp_zp_bc, qop_args[1]);
-                out_zp = m.insert_instruction(qop, migraphx::make_op("add"), out_zp, out_zp_1);
+                auto term = insert_channelwise_zp_correction(
+                    m, qop, zp1, qop_args[1], dq->get_shape().type());
+                accumulate(m.insert_instruction(
+                    qop, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), term));
+            }
+            else if(asymmetric_input)
+            {
+                auto inp_zp_bc =
+                    m.insert_instruction(qop, qparam_broadcast_op(zp1, arg1_lens, 1), zp1);
+                auto term = m.insert_instruction(
+                    qop, make_op("quant_convolution", conv_val), inp_zp_bc, qop_args[1]);
+                if(asymmetric_weights)
+                    term = m.insert_instruction(
+                        qop,
+                        make_op("sub"),
+                        term,
+                        m.insert_instruction(
+                            qop, make_op("quant_convolution", conv_val), inp_zp_bc, w_zp_bc));
+                accumulate(term);
             }
 
-            if(not is_symmetric_zero_point(zp2))
+            // This term convolves real input data, so it varies per output element regardless of
+            // padding.
+            if(asymmetric_weights)
             {
-                auto out_zp_2 = m.insert_instruction(
-                    qop, migraphx::make_op("quant_convolution", conv_val), qop_args[0], w_zp_bc);
-                out_zp = m.insert_instruction(qop, migraphx::make_op("add"), out_zp, out_zp_2);
+                accumulate(m.insert_instruction(
+                    qop, make_op("quant_convolution", conv_val), qop_args[0], w_zp_bc));
             }
 
-            if(not is_symmetric_zero_point(zp1) and not is_symmetric_zero_point(zp2))
+            if(not correction.has_value())
             {
-                auto out_zp_3 = m.insert_instruction(
-                    qop, migraphx::make_op("quant_convolution", conv_val), inp_zp_bc, w_zp_bc);
-                out_zp = m.insert_instruction(qop, migraphx::make_op("sub"), out_zp, out_zp_3);
+                auto zero_lit = m.add_literal(literal{shape{dq->get_shape().type()}, {0}});
+                correction    = m.insert_instruction(
+                    qop, make_op("multibroadcast", {{"out_lens", out_lens}}), zero_lit);
             }
+            out_zp = *correction;
         }
         else if(qop->name() == "dot")
         {

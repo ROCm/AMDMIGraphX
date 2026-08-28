@@ -150,7 +150,7 @@ TEST_CASE(many_outputs)
     }
     migraphx::program p2 = p1;
     run_fuse_pass(p2);
-    run_pass(p1, {.split_size = 1048576, .partial_split_size = 8192});
+    run_pass(p1, {.split_size = 1048576, .lower_split_size = 8192, .upper_split_size = 1048576});
     EXPECT(p1 == p2);
 }
 
@@ -217,8 +217,7 @@ TEST_CASE(partial_threshold_only)
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
         mm->add_return({rsum});
     }
-    run_pass(p1,
-             {.split_size = 1048576, .partial_split_size = 8192, .prefer_partial_reduce = false});
+    run_pass(p1, {.split_size = 1048576, .lower_split_size = 8192, .prefer_partial_reduce = false});
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();
@@ -247,7 +246,7 @@ TEST_CASE(atomic_threshold_only)
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
         mm->add_return({rsum});
     }
-    run_pass(p1, {.split_size = 8192, .partial_split_size = 1048576});
+    run_pass(p1, {.split_size = 8192, .lower_split_size = 1048576});
     migraphx::program p2;
     {
         auto* mm  = p2.get_main_module();

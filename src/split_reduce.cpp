@@ -249,7 +249,7 @@ static bool can_use_atomic_split(const std::vector<instruction_ref>& splits)
 static std::optional<partial_split> find_partial_split(const_module_ref rm,
                                                        const std::vector<instruction_ref>& splits,
                                                        const std::vector<std::int64_t>& axes,
-                                                       std::size_t partial_split_size)
+                                                       std::size_t lower_split_size)
 {
     // Every operator must be mappable onto the split dimensions
     if(not std::all_of(rm->begin(), rm->end(), [](const instruction& i) {
@@ -273,7 +273,7 @@ static std::optional<partial_split> find_partial_split(const_module_ref rm,
     // Pick the reduce axis that can be split into the most groups, preferring
     // the innermost axis on ties. The threshold is scaled by the reduction
     // size of the other axes so the remaining reduction is below the
-    // partial_split_size.
+    // lower_split_size.
     auto best = transform_accumulate(
         axes.begin(),
         axes.end(),
@@ -282,7 +282,7 @@ static std::optional<partial_split> find_partial_split(const_module_ref rm,
         [&](std::int64_t axis) -> partial_split {
             std::size_t r = lens[axis];
             auto min_size = std::max<std::size_t>(
-                partial_split_size / std::max<std::size_t>(relements / r, 1), 1);
+                lower_split_size / std::max<std::size_t>(relements / r, 1), 1);
             return {axis, split_dim(r, min_size)};
         });
     if(best.group < 2)
@@ -436,7 +436,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
             continue;
         auto* rm         = ins->module_inputs().front();
         auto reduce_size = get_reduce_size(rm);
-        if(reduce_size < split_size and reduce_size < partial_split_size)
+        if(reduce_size < split_size and reduce_size < lower_split_size)
             continue;
         splitter s{rm};
         auto splits = s.find_splits();
@@ -445,16 +445,17 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();
 
-        auto noutputs = splits.front()->get_shape().elements();
+        auto batch = splits.front()->get_shape().elements();
         std::optional<partial_split> ps;
-        // Below the split_size a single workgroup per output can handle the
-        // reduction well, so only split when there are too few outputs to
-        // fill the device. Beyond the split_size the reduction is too large
-        // for a single workgroup(the register limits force the block_large
-        // fallback), so a split is needed regardless of the outputs.
-        if(reduce_size >= partial_split_size and
-           (noutputs < partial_max_outputs or reduce_size >= split_size))
-            ps = find_partial_split(rm, splits, axes, partial_split_size);
+        // Below the upper_split_size a single workgroup per output can
+        // handle the reduction well, so only split when the batch is too
+        // small to fill the device. Beyond the upper_split_size the
+        // reduction is too large for a single workgroup(the register limits
+        // force the block_large fallback), so a split is needed regardless
+        // of the batch.
+        if(reduce_size >= lower_split_size and
+           (batch < partial_max_batch or reduce_size >= upper_split_size))
+            ps = find_partial_split(rm, splits, axes, lower_split_size);
         bool use_atomic = reduce_size >= split_size and can_use_atomic_split(splits);
         // When both thresholds are applicable, prefer_partial_reduce decides
         if(ps.has_value() and use_atomic and not prefer_partial_reduce)

@@ -36,8 +36,8 @@ struct module_pass_manager;
 /// This pass will split large fused_reduce operators so that the reduction
 /// will happen across multiple compute units gaining better occupancy for
 /// targets with many compute units. For reductions larger than the
-/// partial_split_size, the reduce axis is split into groups by reshaping the
-/// inputs(so {M, N} becomes {M, N/G, G}), a first fused_reduce computes a
+/// lower_split_size, the reduce axis is split into groups by reshaping the
+/// inputs(so {M, N} becomes {M, G, N/G}), a first fused_reduce computes a
 /// partial reduction for each group, and the trailing module completes it
 /// with another reduction over the groups. For reductions larger than the
 /// split_size, the atomic-based split_fused_reduce can be used instead,
@@ -49,15 +49,18 @@ struct MIGRAPHX_EXPORT split_reduce
     /// Threshold to use the atomic-based split_fused_reduce
     std::size_t split_size = 8192;
     /// Threshold to split into a partial reduction that is completed by a
-    /// second fused_reduce
-    std::size_t partial_split_size = 8192;
-    /// For reductions below the split_size, only use the partial reduction
-    /// when there are fewer outputs than this, since with one workgroup per
-    /// output a reduction with many outputs already has enough parallelism
-    /// and splitting it would only add another read of the input. Beyond
-    /// the split_size a split is needed regardless of the outputs since the
-    /// reduction is too large for a single workgroup.
-    std::size_t partial_max_outputs = 64;
+    /// second fused_reduce, when the batch is below partial_max_batch
+    std::size_t lower_split_size = 8192;
+    /// Threshold where the reduction is too large for a single workgroup
+    /// (the register limits force the block_large fallback), so the partial
+    /// reduction is used regardless of the batch
+    std::size_t upper_split_size = 65280;
+    /// For reductions below the upper_split_size, only use the partial
+    /// reduction when the batch(the number of reduction outputs) is below
+    /// this, since with one workgroup per output a large batch already has
+    /// enough parallelism and splitting it would only add another read of
+    /// the input
+    std::size_t partial_max_batch = 64;
     /// Use the partial reduction when both thresholds are applicable
     bool prefer_partial_reduce = true;
     std::string name() const { return "split_reduce"; }

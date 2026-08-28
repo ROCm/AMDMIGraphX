@@ -20,23 +20,43 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#include <migraphx/truncate_float.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/replace_data_type.hpp>
+#ifndef MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP
+#define MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/gpu/export.h>
+#include <migraphx/gpu/cache_device_key.hpp>
+
+#include <string>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-void truncate_float_pass::apply(module& m) const
+// A problem_cache_backend that persists entries as JSON, using the same
+// on-disk format as problem_cache::save() (an array of [cache_device_key,
+// inner_map] pairs). Path resolution is the caller's job.
+struct MIGRAPHX_GPU_EXPORT json_problem_cache
 {
-    replace_data_type(
-        m, {shape::float_type, shape::double_type}, float_type, [&](instruction_ref ins) {
-            return contains(ins_names, ins->name()) or contains(ins_names, "all");
-        });
-}
+    // problem_cache_backend concept members:
+    void load(const std::string& path);
+    void save(const std::string& path) const;
+    void insert(const cache_device_key& dk, const value& key, const value& solution);
+    void mark(const cache_device_key& dk, const value& key);
+    optional<value> get(const cache_device_key& dk, const value& key) const;
+    bool has(const cache_device_key& dk, const value& key) const;
 
+    // Device bucket -> ({name, problem} -> solution).
+    std::unordered_map<cache_device_key, std::unordered_map<value, value>> cache;
+};
+
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif // MIGRAPHX_GUARD_GPU_JSON_PROBLEM_CACHE_HPP

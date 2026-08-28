@@ -20,43 +20,42 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#include <migraphx/fuse_pointwise_reduce.hpp>
+#include <migraphx/promote_storage_type.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/eliminate_convert.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/fuse_pointwise.hpp>
-#include <migraphx/fuse_reduce.hpp>
-#include <migraphx/split_reduce.hpp>
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/env.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/replace_data_type.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SPLIT_REDUCE_SIZE);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION);
 
-static std::size_t get_split_size(std::size_t default_split)
+static bool is_computation(instruction_ref ins)
 {
-    std::string value = string_value_of(MIGRAPHX_SPLIT_REDUCE_SIZE{});
-    if(value.empty())
-        return default_split;
-    return std::stoul(value);
+    // convert and bit_cast are storage boundaries themselves, and layout and
+    // identity don't compute anything even though they all carry the pointwise
+    // attribute
+    if(contains({"convert", "bit_cast", "layout", "identity"}, ins->name()))
+        return false;
+    auto attrs = ins->get_operator().attributes();
+    return attrs.get("reduce", false) or attrs.get("pointwise", false);
 }
 
-void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
+void promote_storage_type::apply(module_pass_manager& mpm) const
 {
-    mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = false});
-    mpm.run_pass(optimize_module{});
-    mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = false});
-    mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = true});
-    mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = true});
-    mpm.run_pass(split_reduce{.split_size = get_split_size(split_size)});
-    mpm.run_pass(fuse_pointwise{.enable_rewrite_broadcasts = true});
-    mpm.run_pass(fuse_reduce{.enable_rewrite_broadcasts = true});
-    if(not enabled(MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION{}))
-    {
-        mpm.run_pass(fuse_pointwise{.enable_multi_output = true});
-    }
+    auto& m      = mpm.get_module();
+    auto promote = [&](instruction_ref ins) {
+        return contains(types, ins->get_shape().type()) and is_computation(ins);
+    };
+    if(none_of(iterator_for(m), promote))
+        return;
+    replace_data_type(m, types, shape::float_type, promote);
+    // Adjacent promoted instructions are connected by a convert to the
+    // storage type followed by a convert back to float, which cancel
+    mpm.run_pass(eliminate_convert{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

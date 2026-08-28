@@ -282,6 +282,79 @@ TEST_CASE(atomic_fallback)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(launch_bound_prefer_atomic)
+{
+    // Without enough total work for lower_max_batch workgroups of
+    // lower_split_size elements the tensor is launch-bound, so the
+    // single-kernel atomic split is used even though prefer_partial_reduce
+    // is true
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 16384}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = add_reduce(
+            p2, "main:reduce_sum0_split", {x}, {2}, "assign_add", single_reduce("reduce_sum"));
+        mm->add_return({rsum});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(launch_bound_no_split)
+{
+    // A launch-bound tensor that the atomic split cant handle is not split
+    // at all
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 16384}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), x);
+        mm->add_return({rmax});
+    }
+    migraphx::program p2 = p1;
+    run_fuse_pass(p2);
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(launch_bound_mandatory_split)
+{
+    // Beyond the upper_split_size the reduction is too large for a single
+    // workgroup, so the partial split is still used on a launch-bound tensor
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 327680}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), x);
+        mm->add_return({rmax});
+    }
+    run_pass(p1, {.split_size = 8192, .upper_split_size = 65280, .lower_max_batch = 1024});
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto xr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 64, 5120}}}), x);
+        auto partial =
+            add_reduce(p2, "main:reduce_max0_split", {xr}, {3}, single_reduce("reduce_max"));
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), partial);
+        auto rmax =
+            add_reduce(p2, "main:reduce_max0_final", {sq}, {2}, single_reduce("reduce_max"));
+        mm->add_return({rmax});
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(fused)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 327680}};
@@ -353,6 +426,43 @@ TEST_CASE(fused_trailing)
                 return add_pointwise(
                     p2, rm, "main:pointwise0", {inputs[1], rsumb}, single_pointwise("add"));
             });
+        mm->add_return({add});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(inline_trailing_scaled_outputs)
+{
+    // The fused-trailing cutoff scales with lower_max_batch, so on a
+    // larger device the same number of outputs has the trailing operators
+    // inserted into the parent module instead of being fused into the
+    // completion kernel
+    migraphx::shape s{migraphx::shape::float_type, {4, 4, 327680}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto add = mm->add_instruction(migraphx::make_op("add"), x, rsumb);
+        mm->add_return({add});
+    }
+    run_pass(p1, {.split_size = 8192, .lower_max_batch = 256});
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto xr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4, 64, 5120}}}), x);
+        auto partial = add_reduce(
+            p2, "main:reduce_sum0:main:pointwise0_split", {xr}, {3}, single_reduce("reduce_sum"));
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), partial);
+        auto rsum = add_reduce(
+            p2, "main:reduce_sum0:main:pointwise0_final", {sq}, {2}, single_reduce("reduce_sum"));
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto add = add_pointwise(p2, mm, "main:pointwise0", {x, rsumb}, single_pointwise("add"));
         mm->add_return({add});
     }
     EXPECT(p1 == p2);

@@ -303,7 +303,8 @@ static void apply_partial_split(module_pass_manager& mpm,
                                 const std::vector<instruction_ref>& splits,
                                 const std::vector<std::int64_t>& axes,
                                 const partial_split& ps,
-                                std::array<module::with_inputs, 2> mods)
+                                std::array<module::with_inputs, 2> mods,
+                                std::size_t min_fused_outputs)
 {
     auto& m  = mpm.get_module();
     auto* rm = ins->module_inputs().front();
@@ -356,11 +357,12 @@ static void apply_partial_split(module_pass_manager& mpm,
         return finalm->add_instruction(make_op(splits[i]->name(), {{"axes", axes}}), param);
     });
 
-    // The completion kernel runs one workgroup per reduction output, which
-    // is enough to stream a full-sized output when there are at least this
-    // many outputs
-    const std::size_t min_fused_outputs = 8;
-    auto noutputs                       = splits.front()->get_shape().elements();
+    // With the trailing operators fused in, the completion kernel writes
+    // the full-sized output with only one workgroup per reduction
+    // output(the full-sized trailing output keeps it on the block
+    // algorithm), so it needs at least min_fused_outputs outputs to
+    // stream it well
+    auto noutputs = splits.front()->get_shape().elements();
     if(ins->get_shape().elements() <= noutputs or noutputs >= min_fused_outputs)
     {
         // Fuse the trailing operators into the completion kernel to avoid
@@ -390,8 +392,10 @@ static void apply_partial_split(module_pass_manager& mpm,
     {
         // With so few workgroups the completion kernel would starve the
         // device writing the full-sized output. Complete the reduction
-        // alone and insert the trailing operators into the parent module so
-        // they can run as a fully parallel pointwise kernel.
+        // alone(the subwave algorithm packs multiple of these small
+        // reductions into each wavefront) and insert the trailing
+        // operators into the parent module so they can run as a fully
+        // parallel pointwise kernel.
         finalm->add_return(completed);
         auto completion = m.insert_instruction(
             ins, make_op("fused_reduce", {{"axes", axes}}), squeezed, {finalm});
@@ -452,13 +456,24 @@ void split_reduce::apply(module_pass_manager& mpm) const
         // reduction is too large for a single workgroup, so a split is
         // needed regardless of the batch.
         bool split_batch = batch < lower_max_batch or reduce_size >= upper_split_size;
+        // The partial split adds a kernel launch, so it also needs enough
+        // total work for lower_max_batch workgroups to each get a group of
+        // lower_split_size elements; smaller tensors are launch-bound and
+        // run faster with fewer kernels
+        bool enough_work = batch * reduce_size >= lower_max_batch * lower_split_size;
         std::optional<partial_split> ps;
         if(split_batch and reduce_size >= lower_split_size)
             ps = find_partial_split(rm, splits, axes, lower_split_size);
         bool use_atomic =
             split_batch and reduce_size >= split_size and can_use_atomic_split(splits);
-        // When both thresholds are applicable, prefer_partial_reduce decides
-        if(ps.has_value() and use_atomic and not prefer_partial_reduce)
+        // When both are applicable, prefer_partial_reduce decides, except on
+        // launch-bound tensors where the single-kernel atomic split is used
+        // instead. Without the atomic split, a launch-bound tensor is not
+        // split at all unless the reduction is too large for a single
+        // workgroup.
+        if(use_atomic and (not prefer_partial_reduce or not enough_work))
+            ps = std::nullopt;
+        else if(not enough_work and reduce_size < upper_split_size)
             ps = std::nullopt;
         if(not ps.has_value() and not use_atomic)
             continue;
@@ -480,7 +495,13 @@ void split_reduce::apply(module_pass_manager& mpm) const
         }
 
         if(ps.has_value())
-            apply_partial_split(mpm, ins, splits, axes, *ps, std::move(mods));
+        {
+            // Fusing the trailing operators needs enough outputs to stream
+            // the full-sized result, measured as an eighth of the resident
+            // workgroups on gfx1201
+            auto min_fused_outputs = std::max<std::size_t>(lower_max_batch / 8, 1);
+            apply_partial_split(mpm, ins, splits, axes, *ps, std::move(mods), min_fused_outputs);
+        }
         else
             apply_atomic_split(mpm, ins, splits, axes, std::move(mods));
     }

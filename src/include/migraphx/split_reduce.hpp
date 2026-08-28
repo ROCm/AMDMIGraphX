@@ -62,7 +62,11 @@ struct MIGRAPHX_EXPORT split_reduce
     /// workgroup per output a large batch already has enough parallelism
     /// and splitting it would only add another read of the input
     std::size_t lower_max_batch = 64;
-    /// Use the partial reduction when both thresholds are applicable
+    /// Use the partial reduction when both thresholds are applicable.
+    /// The partial reduction adds a kernel launch, so it is only preferred
+    /// when there is enough total work for lower_max_batch workgroups to
+    /// each get a group of lower_split_size elements; smaller tensors are
+    /// launch-bound and run faster with the single-kernel atomic split.
     bool prefer_partial_reduce = true;
     std::string name() const { return "split_reduce"; }
     void apply(module_pass_manager& mpm) const;

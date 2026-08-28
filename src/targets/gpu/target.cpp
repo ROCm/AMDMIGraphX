@@ -322,8 +322,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
-    auto backend_opts = get_backend_options(options);
-
     // Problem cache files arrive as GPU backend options. The writable caches
     // (problem_cache_files) save new tuning solutions back; the read-only caches
     // (read_only_problem_cache_files) are system-level and never written.

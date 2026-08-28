@@ -71,10 +71,10 @@ TEST_CASE(single)
         auto* mm = p2.get_main_module();
         auto x   = mm->add_parameter("x", s);
         auto xr =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 5120, 64}}}), x);
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 64, 5120}}}), x);
         auto partial =
-            add_reduce(p2, "main:reduce_sum0_split", {xr}, {2}, single_reduce("reduce_sum"));
-        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), partial);
+            add_reduce(p2, "main:reduce_sum0_split", {xr}, {3}, single_reduce("reduce_sum"));
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), partial);
         auto rsum =
             add_reduce(p2, "main:reduce_sum0_final", {sq}, {2}, single_reduce("reduce_sum"));
         mm->add_return({rsum});
@@ -98,10 +98,10 @@ TEST_CASE(single_reduce_max)
         auto* mm = p2.get_main_module();
         auto x   = mm->add_parameter("x", s);
         auto xr =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 5120, 64}}}), x);
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 64, 5120}}}), x);
         auto partial =
-            add_reduce(p2, "main:reduce_max0_split", {xr}, {2}, single_reduce("reduce_max"));
-        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), partial);
+            add_reduce(p2, "main:reduce_max0_split", {xr}, {3}, single_reduce("reduce_max"));
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), partial);
         auto rmax =
             add_reduce(p2, "main:reduce_max0_final", {sq}, {2}, single_reduce("reduce_max"));
         mm->add_return({rmax});
@@ -111,7 +111,7 @@ TEST_CASE(single_reduce_max)
 
 TEST_CASE(multi_axis)
 {
-    migraphx::shape s{migraphx::shape::float_type, {14400, 32, 20, 16}};
+    migraphx::shape s{migraphx::shape::float_type, {14400, 4, 20, 4}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -125,12 +125,36 @@ TEST_CASE(multi_axis)
         auto* mm = p2.get_main_module();
         auto x   = mm->add_parameter("x", s);
         auto xr =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {225, 64, 32, 20, 16}}}), x);
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {64, 225, 4, 20, 4}}}), x);
         auto partial =
-            add_reduce(p2, "main:reduce_sum0_split", {xr}, {0, 3}, single_reduce("reduce_sum"));
-        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), partial);
+            add_reduce(p2, "main:reduce_sum0_split", {xr}, {1, 3}, single_reduce("reduce_sum"));
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), partial);
         auto rsum =
             add_reduce(p2, "main:reduce_sum0_final", {sq}, {0, 2}, single_reduce("reduce_sum"));
+        mm->add_return({rsum});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(many_outputs)
+{
+    // With enough outputs the reduction already has enough parallelism, so
+    // the atomic-based split is used instead of the partial reduce
+    migraphx::shape s{migraphx::shape::float_type, {14400, 32, 20, 16}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), x);
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = add_reduce(
+            p2, "main:reduce_sum0_split", {x}, {0, 2}, "assign_add", single_reduce("reduce_sum"));
         mm->add_return({rsum});
     }
     EXPECT(p1 == p2);
@@ -177,10 +201,10 @@ TEST_CASE(partial_threshold_only)
         auto* mm = p2.get_main_module();
         auto x   = mm->add_parameter("x", s);
         auto xr =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 5120, 64}}}), x);
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 64, 5120}}}), x);
         auto partial =
-            add_reduce(p2, "main:reduce_sum0_split", {xr}, {2}, single_reduce("reduce_sum"));
-        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), partial);
+            add_reduce(p2, "main:reduce_sum0_split", {xr}, {3}, single_reduce("reduce_sum"));
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), partial);
         auto rsum =
             add_reduce(p2, "main:reduce_sum0_final", {sq}, {2}, single_reduce("reduce_sum"));
         mm->add_return({rsum});
@@ -255,10 +279,45 @@ TEST_CASE(fused)
         auto* mm = p2.get_main_module();
         auto x   = mm->add_parameter("x", s);
         auto xr =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 5120, 64}}}), x);
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 64, 5120}}}), x);
         auto partial = add_reduce(
-            p2, "main:reduce_sum0:main:pointwise0_split", {xr}, {2}, single_reduce("reduce_sum"));
-        auto sq  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), partial);
+            p2, "main:reduce_sum0:main:pointwise0_split", {xr}, {3}, single_reduce("reduce_sum"));
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), partial);
+        auto rsum = add_reduce(
+            p2, "main:reduce_sum0:main:pointwise0_final", {sq}, {2}, single_reduce("reduce_sum"));
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto add = add_pointwise(p2, mm, "main:pointwise0", {x, rsumb}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(fused_trailing)
+{
+    // With enough outputs the trailing operators are fused into the
+    // completion kernel instead of being inserted into the parent module
+    migraphx::shape s{migraphx::shape::float_type, {4, 4, 327680}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto add = mm->add_instruction(migraphx::make_op("add"), x, rsumb);
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto xr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4, 64, 5120}}}), x);
+        auto partial = add_reduce(
+            p2, "main:reduce_sum0:main:pointwise0_split", {xr}, {3}, single_reduce("reduce_sum"));
+        auto sq  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), partial);
         auto add = add_reduce(
             p2,
             "main:reduce_sum0:main:pointwise0_final",
@@ -318,26 +377,21 @@ TEST_CASE(split_pointwise)
         auto x    = mm->add_parameter("x", s);
         auto sqrt = add_pointwise(p2, mm, "main:pointwise0", {x}, single_pointwise("sqrt"));
         auto xr =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 5120, 64}}}), sqrt);
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 64, 5120}}}), sqrt);
         auto partial = add_reduce(p2,
                                   "main:pointwise0:main:reduce_sum0:main:pointwise1_split",
                                   {xr},
+                                  {3},
+                                  single_reduce("reduce_sum"));
+        auto sq      = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), partial);
+        auto rsum    = add_reduce(p2,
+                                  "main:pointwise0:main:reduce_sum0:main:pointwise1_final",
+                                  {sq},
                                   {2},
                                   single_reduce("reduce_sum"));
-        auto sq      = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), partial);
-        auto add     = add_reduce(
-            p2,
-            "main:pointwise0:main:reduce_sum0:main:pointwise1_final",
-            {sq, sqrt},
-            {2},
-            [&](auto* rm, const auto& inputs, const auto& axes) {
-                auto rsum  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                                 inputs[0]);
-                auto rsumb = rm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
-                return add_pointwise(
-                    p2, rm, "main:pointwise1", {inputs[1], rsumb}, single_pointwise("add"));
-            });
+        auto rsumb   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto add = add_pointwise(p2, mm, "main:pointwise1", {sqrt, rsumb}, single_pointwise("add"));
         mm->add_return({add});
     }
     EXPECT(p1 == p2);
@@ -386,12 +440,12 @@ TEST_CASE(parallel_reduce)
         auto* mm = p2.get_main_module();
         auto x   = mm->add_parameter("x", s);
         auto xr =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 5120, 64}}}), x);
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 64, 5120}}}), x);
         auto partials = add_reduce(
             p2,
             "main:reduce_sum0:main:pointwise1:main:pointwise0:main:reduce_sum1_split",
             {xr},
-            {2},
+            {3},
             [&](auto* rm,
                 const auto& inputs,
                 const auto& axes) -> std::vector<migraphx::instruction_ref> {
@@ -404,10 +458,10 @@ TEST_CASE(parallel_reduce)
             });
         auto rsum2 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), partials);
-        auto sq2 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), rsum2);
+        auto sq2 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), rsum2);
         auto rsum1 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), partials);
-        auto sq1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), rsum1);
+        auto sq1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), rsum1);
         auto mul = add_reduce(
             p2,
             "main:reduce_sum0:main:pointwise1:main:pointwise0:main:reduce_sum1_final",
@@ -459,12 +513,12 @@ TEST_CASE(double_split_live)
         auto* mm = p2.get_main_module();
         auto x   = mm->add_parameter("x", s);
         auto xr =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 5120, 64}}}), x);
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 64, 5120}}}), x);
         auto partials = add_reduce(
             p2,
             "fuse_reduce0_split",
             {xr},
-            {2},
+            {3},
             [&](auto* rm,
                 const auto& inputs,
                 const auto& axes) -> std::vector<migraphx::instruction_ref> {
@@ -477,32 +531,39 @@ TEST_CASE(double_split_live)
             });
         auto rsum1 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), partials);
-        auto sq1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), rsum1);
+        auto sq1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), rsum1);
         auto rsum2 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), partials);
-        auto sq2    = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), rsum2);
-        auto result = add_reduce(
-            p2,
-            "fuse_reduce0_final",
-            {sq1, sq2},
-            {2},
-            [&](auto* rm, const auto& inputs, const auto& axes) {
-                auto crsum2 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                                  inputs[1]);
-                auto crsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                                  inputs[0]);
-                auto sqrt =
-                    add_pointwise(p2, rm, "main:pointwise0", {crsum1}, single_pointwise("sqrt"));
-                auto add = add_pointwise(
-                    p2, rm, "main:pointwise2", {crsum2, sqrt}, single_pointwise("add"));
-                auto addb = rm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), add);
-                auto sqrtb = rm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sqrt);
-                return add_pointwise(
-                    p2, rm, "main:pointwise3", {addb, sqrtb}, single_pointwise("mul"));
+        auto sq2 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), rsum2);
+        auto completed =
+            add_reduce(p2,
+                       "fuse_reduce0_final",
+                       {sq1, sq2},
+                       {2},
+                       [&](auto* rm,
+                           const auto& inputs,
+                           const auto& axes) -> std::vector<migraphx::instruction_ref> {
+                           auto crsum1 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                           auto crsum2 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[1]);
+                           return {crsum1, crsum2};
+                       });
+        auto crsum1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), completed);
+        auto crsum1b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), crsum1);
+        auto crsum2 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), completed);
+        auto crsum2b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), crsum2);
+        auto sqrt_add_mul = add_pointwise(
+            p2, "main:pointwise0", {crsum1b, crsum2b}, [](auto* pm, const auto& inputs) {
+                auto sqrt = pm->add_instruction(migraphx::make_op("sqrt"), inputs[0]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), inputs[1], sqrt);
+                return pm->add_instruction(migraphx::make_op("mul"), add, sqrt);
             });
-        mm->add_return({result});
+        mm->add_return({sqrt_add_mul});
     }
     EXPECT(p1.sort() == p2.sort());
 }

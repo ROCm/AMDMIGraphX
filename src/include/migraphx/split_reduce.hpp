@@ -51,6 +51,11 @@ struct MIGRAPHX_EXPORT split_reduce
     /// Threshold to split into a partial reduction that is completed by a
     /// second fused_reduce
     std::size_t partial_split_size = 8192;
+    /// Only use the partial reduction when there are fewer outputs than
+    /// this, since with one workgroup per output a reduction with many
+    /// outputs already has enough parallelism and splitting it would only
+    /// add another read of the input
+    std::size_t partial_max_outputs = 64;
     /// Use the partial reduction when both thresholds are applicable
     bool prefer_partial_reduce = true;
     std::string name() const { return "split_reduce"; }

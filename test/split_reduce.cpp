@@ -139,7 +139,25 @@ TEST_CASE(multi_axis)
 TEST_CASE(many_outputs)
 {
     // With enough outputs the reduction already has enough parallelism, so
-    // the atomic-based split is used instead of the partial reduce
+    // a reduction below the split_size is not split at all
+    migraphx::shape s{migraphx::shape::float_type, {14400, 32, 20, 16}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), x);
+        mm->add_return({rsum});
+    }
+    migraphx::program p2 = p1;
+    run_fuse_pass(p2);
+    run_pass(p1, {.split_size = 1048576, .partial_split_size = 8192});
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(many_outputs_large)
+{
+    // Beyond the split_size the reduction is too large for a single
+    // workgroup, so it is split even with many outputs
     migraphx::shape s{migraphx::shape::float_type, {14400, 32, 20, 16}};
     migraphx::program p1;
     {
@@ -151,10 +169,15 @@ TEST_CASE(many_outputs)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto rsum = add_reduce(
-            p2, "main:reduce_sum0_split", {x}, {0, 2}, "assign_add", single_reduce("reduce_sum"));
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto xr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {64, 225, 32, 20, 16}}}), x);
+        auto partial =
+            add_reduce(p2, "main:reduce_sum0_split", {xr}, {1, 3}, single_reduce("reduce_sum"));
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), partial);
+        auto rsum =
+            add_reduce(p2, "main:reduce_sum0_final", {sq}, {0, 2}, single_reduce("reduce_sum"));
         mm->add_return({rsum});
     }
     EXPECT(p1 == p2);

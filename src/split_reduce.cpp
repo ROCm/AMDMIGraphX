@@ -445,9 +445,15 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();
 
+        auto noutputs = splits.front()->get_shape().elements();
         std::optional<partial_split> ps;
+        // Below the split_size a single workgroup per output can handle the
+        // reduction well, so only split when there are too few outputs to
+        // fill the device. Beyond the split_size the reduction is too large
+        // for a single workgroup(the register limits force the block_large
+        // fallback), so a split is needed regardless of the outputs.
         if(reduce_size >= partial_split_size and
-           splits.front()->get_shape().elements() < partial_max_outputs)
+           (noutputs < partial_max_outputs or reduce_size >= split_size))
             ps = find_partial_split(rm, splits, axes, partial_split_size);
         bool use_atomic = reduce_size >= split_size and can_use_atomic_split(splits);
         // When both thresholds are applicable, prefer_partial_reduce decides

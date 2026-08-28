@@ -769,13 +769,6 @@ Advanced settings
       | ``2``: Detailed trace 
       | ``3``: Compiled traces
 
-  * - | ``MIGRAPHX_PROBLEM_CACHE``
-      | Sets the JSON file that the problem cache will be saved to and loaded from. 
-      
-    - | Takes a fully qualified path to a valid JSON file. 
-      | For example: 
-      | ``MIGRAPHX_PROBLEM_CACHE="path/to/cache_file.json"``
-
   * - | ``MIGRAPHX_BENCHMARKING_BUNDLE``
       | Sets the number of configurations to run in a bundle during benchmarking. 
       

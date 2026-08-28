@@ -1,12 +1,8 @@
 name: MIGraphX Performance Tests
 
 on:
-  pull_request_target:
-    branches: [develop]
-    types: [opened, synchronize, closed, labeled]
   schedule:
     - cron: "0 7 * * 1-6"
-
   workflow_dispatch:
     inputs:
       rocm_release:
@@ -39,57 +35,15 @@ on:
         default: "linux-migraphx-mi250-1"
 
 concurrency:
-  group: "perftest-${{ github.head_ref || github.base_ref || 'schedule' }}"
+  group: perftest
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  security_gate:
-    if: github.repository == 'ROCm/AMDMIGraphX'
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    outputs:
-      is_ok_to_test: ${{ steps.gate.outputs.is_ok_to_test }}
-    steps:
-      - name: Security gate
-        id: gate
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [[ "${{ github.event_name }}" == 'schedule' || "${{ github.event_name }}" == 'workflow_dispatch' || "${{ github.event.action }}" == 'closed'
-              || "${{ github.event.pull_request.head.repo.full_name }}" == "${{ github.repository }}"
-              || "${{ github.event.pull_request.author_association }}" =~ ^(OWNER|COLLABORATOR|MEMBER)$ ]]; then
-            echo "Internal/trusted; APPROVED"
-            echo "is_ok_to_test=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          if [[ "${{ github.event.action }}" == 'opened' ]]; then
-            echo "::notice::New external PR opened. Adding external-contributor label."
-            gh pr edit ${{ github.event.pull_request.number }} --add-label "external-contributor" --repo ${{ github.repository }} || true
-            gh pr comment ${{ github.event.pull_request.number }} --body "Thank you for your contribution! Since this is an external pull request, a maintainer must review PR and add the \"ok-to-test\" label if it is approved for testing." --repo ${{ github.repository }} || true
-          fi
-
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ok-to-test') }}" != "true" ]]; then
-            echo "Missing 'ok-to-test' label; BLOCKED"
-            echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-          if [[ "${{ github.event.action }}" == 'synchronize' ]]; then
-            echo "::error::New commits pushed. Removing ok-to-test label and blocking until review. Please re-review new changes that were pushed and add ok-to-test label again if changes are approved for testing."
-            gh pr edit ${{ github.event.pull_request.number }} --remove-label "ok-to-test" --repo ${{ github.repository }} || true
-            echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-          echo "External PR approved for testing"
-          echo "is_ok_to_test=true" >> $GITHUB_OUTPUT
-
   call_reusable:
-    needs: security_gate
-    if: needs.security_gate.outputs.is_ok_to_test == 'true'
+    if: github.repository == 'ROCm/AMDMIGraphX'
     permissions:
       contents: read
       issues: read

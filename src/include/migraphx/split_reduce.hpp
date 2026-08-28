@@ -49,18 +49,19 @@ struct MIGRAPHX_EXPORT split_reduce
     /// Threshold to use the atomic-based split_fused_reduce
     std::size_t split_size = 8192;
     /// Threshold to split into a partial reduction that is completed by a
-    /// second fused_reduce, when the batch is below partial_max_batch
+    /// second fused_reduce, when the batch is below lower_max_batch
     std::size_t lower_split_size = 8192;
-    /// Threshold where the reduction is too large for a single workgroup
-    /// (the register limits force the block_large fallback), so the partial
+    /// Threshold where the reduction is too large for a single workgroup:
+    /// beyond this the resident rows overflow the last-level cache so the
+    /// fused kernel can no longer re-read its row from cache(and the
+    /// register limits force the block_large fallback), so the partial
     /// reduction is used regardless of the batch
-    std::size_t upper_split_size = 65280;
-    /// For reductions below the upper_split_size, only use the partial
-    /// reduction when the batch(the number of reduction outputs) is below
-    /// this, since with one workgroup per output a large batch already has
-    /// enough parallelism and splitting it would only add another read of
-    /// the input
-    std::size_t partial_max_batch = 64;
+    std::size_t upper_split_size = 524288;
+    /// For reductions below the upper_split_size, only split when the
+    /// batch(the number of reduction outputs) is below this, since with one
+    /// workgroup per output a large batch already has enough parallelism
+    /// and splitting it would only add another read of the input
+    std::size_t lower_max_batch = 64;
     /// Use the partial reduction when both thresholds are applicable
     bool prefer_partial_reduce = true;
     std::string name() const { return "split_reduce"; }

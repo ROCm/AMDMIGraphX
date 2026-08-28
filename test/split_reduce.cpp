@@ -156,8 +156,8 @@ TEST_CASE(many_outputs)
 
 TEST_CASE(many_outputs_large)
 {
-    // Beyond the split_size the reduction is too large for a single
-    // workgroup, so it is split even with many outputs
+    // Beyond the upper_split_size the reduction is too large for a single
+    // workgroup, so it is split even with a large batch
     migraphx::shape s{migraphx::shape::float_type, {14400, 32, 20, 16}};
     migraphx::program p1;
     {
@@ -166,7 +166,7 @@ TEST_CASE(many_outputs_large)
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), x);
         mm->add_return({rsum});
     }
-    run_pass(p1);
+    run_pass(p1, {.split_size = 8192, .upper_split_size = 65280});
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();

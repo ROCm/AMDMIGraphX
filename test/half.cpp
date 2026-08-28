@@ -1233,6 +1233,20 @@ TEST_CASE(test_subnormal_rounding)
                     migraphx::half(-0.0f)));
 }
 
+TEST_CASE(test_nan_payload_narrowing)
+{
+    // A float32 nan whose payload lives entirely in the dropped bits still has to convert to a
+    // nan; truncating the payload on its own would leave an infinity behind.
+    CHECK(bit_equal(migraphx::half(migraphx::bit_cast<float>(uint32_t{0x7f800001})),
+                    std::numeric_limits<migraphx::half>::quiet_NaN()));
+    CHECK(bit_equal(migraphx::half(migraphx::bit_cast<float>(uint32_t{0xff800001})),
+                    -std::numeric_limits<migraphx::half>::quiet_NaN()));
+    // A payload that survives the shift is carried over untouched, so a signaling nan stays
+    // signaling.
+    CHECK(bit_equal(migraphx::half(std::numeric_limits<float>::signaling_NaN()),
+                    std::numeric_limits<migraphx::half>::signaling_NaN()));
+}
+
 TEST_CASE(test_max_eq_lowest)
 {
     EXPECT(migraphx::float_equal(std::numeric_limits<migraphx::half>::lowest(),

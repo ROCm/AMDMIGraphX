@@ -69,6 +69,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed host conversion of a float32 NaN to `migraphx::half` or `migraphx::bf16` producing an infinity when the NaN payload did not survive the narrowing, such as `0x7f800001` (#5193).
 * Fixed the reference `nonzero` operator to handle non-standard input layouts such as transposed or broadcasted tensors.
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).

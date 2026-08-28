@@ -171,73 +171,48 @@ struct __attribute__((packed, may_alias)) generic_float
         return (significand + (1u << (drop - 1u)) - 1u + lsb) >> drop;
     }
 
-    // Round a value that stays normal in the target by biasing the whole float32 bit pattern.
-    // Because the exponent field sits directly above the mantissa, a significand carry ripples
-    // into the exponent (and on into infinity) for free.
-    static constexpr float32_parts round_normal(float32_parts f) noexcept
-    {
-        constexpr const int drop = int(float32_parts::mantissa_width() - MantissaSize);
-        if(drop <= 0)
-            return f;
-        auto bits      = migraphx::bit_cast<std::uint32_t>(f);
-        const auto lsb = (bits >> drop) & 1u;
-        bits += (1u << (drop - 1u)) - 1u + lsb;
-        return migraphx::bit_cast<float32_parts>(bits);
-    }
-
     constexpr void from_float(float32_parts f) noexcept
     {
         constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
         constexpr const int drop = int(float32_parts::mantissa_width() - MantissaSize);
 
-        if(f.exponent != 0 and f.exponent != float32_parts::max_exponent() and
-           int(f.exponent) - diff >= 1)
-            f = round_normal(f);
-
         sign = f.sign;
 
-        if(f.exponent == 0)
-        {
-            // float32 subnormal: no implicit leading one, and its significand sits `diff` binades
-            // below the target's, so a narrower exponent range (half) flushes to a signed zero
-            // while bf16 (`diff == 0`) reaches genuine subnormals.
-            auto m = rne_shift(f.mantissa, drop + diff);
-            // A carry out of the mantissa field promotes the result to the smallest normal.
-            exponent = m >> MantissaSize;
-            mantissa = m;
-        }
-        else if(f.exponent == float32_parts::max_exponent())
+        if(f.exponent == float32_parts::max_exponent())
         {
             exponent = all_ones<ExponentSize>();
-            mantissa = f.mantissa >> drop;
+            // Narrowing the payload must not turn a nan into an infinity.
+            std::uint32_t payload = f.mantissa >> drop;
+            if(f.mantissa != 0 and payload == 0)
+                payload = 1u << (MantissaSize - 1);
+            mantissa = payload;
+            return;
+        }
+
+        // A float32 subnormal has no implicit leading one, but it shares the exponent of the
+        // smallest float32 normal.
+        const bool subnormal = f.exponent == 0;
+        const int e          = int(subnormal ? 1u : f.exponent) - diff;
+        const std::uint32_t significand =
+            f.mantissa | (subnormal ? 0u : 1u << float32_parts::mantissa_width());
+
+        // Every exponent step below the target's minimum drops one more significand bit.
+        const auto m = rne_shift(significand, drop + std::max(0, 1 - e));
+        // The significand's leading one lands in the exponent field, so a rounding carry out of
+        // the significand bumps the exponent for free, and a result that is subnormal in the
+        // target just leaves the exponent field at zero.
+        const std::uint32_t bits = (std::uint32_t(std::max(e, 1) - 1) << MantissaSize) + m;
+
+        if((bits >> MantissaSize) >= all_ones<ExponentSize>())
+        {
+            exponent = all_ones<ExponentSize>();
+            mantissa = 0;
         }
         else
         {
-            auto e = int(f.exponent) - diff;
-
-            if(e >= static_cast<int>(all_ones<ExponentSize>()))
-            {
-                exponent = all_ones<ExponentSize>();
-                mantissa = 0;
-            }
-            else if(e < 1)
-            {
-                // Subnormal in the target: the implicit bit becomes explicit and every exponent
-                // step below the target's minimum drops one more significand bit. As above, a
-                // carry out of the mantissa field promotes the result to the smallest normal.
-                auto m =
-                    rne_shift(f.mantissa | (1u << float32_parts::mantissa_width()), drop + 1 - e);
-                exponent = m >> MantissaSize;
-                mantissa = m;
-            }
-            else
-            {
-                exponent = e;
-                mantissa = f.mantissa >> drop;
-            }
+            exponent = bits >> MantissaSize;
+            mantissa = bits & all_ones<MantissaSize>();
         }
-
-        exponent = std::min<type>(exponent, all_ones<ExponentSize>());
     }
 
     constexpr bool is_normal() const noexcept

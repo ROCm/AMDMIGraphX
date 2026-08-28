@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -100,6 +100,7 @@ MIGRAPHX_REGISTER_OP(wait_event)
 MIGRAPHX_REGISTER_OP(set_stream)
 
 std::size_t schedule_model::concurrency() const { return streams; }
+std::size_t schedule_model::split_threshold() const { return 4; }
 void schedule_model::sched(module& m, instruction_ref ins, std::size_t n) const
 {
     auto last_stream = std::find_if(std::make_reverse_iterator(ins),

@@ -55,6 +55,7 @@ void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
     if(not enabled(MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION{}))
     {
         mpm.run_pass(fuse_pointwise{.enable_multi_output = true});
+        mpm.run_pass(fuse_reduce{.enable_multi_output = true});
     }
 }
 

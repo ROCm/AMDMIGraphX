@@ -180,6 +180,11 @@ struct MIGRAPHX_EXPORT program
     // the MXR file. This does not apply to changes made to operators.
     static constexpr int program_file_version = 8;
 };
+
+/// Lets a program be a member of a reflected type, using the same conversion as saving one.
+inline void migraphx_to_value(value& v, const program& p) { v = p.to_value(); }
+inline void migraphx_from_value(const value& v, program& p) { p.from_value(v); }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

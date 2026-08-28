@@ -31,6 +31,7 @@
 #include <cassert>
 #include <iostream>
 #include <deque>
+#include <string_view>
 
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
@@ -57,6 +58,29 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
+
+std::vector<std::string> compile_hip_options(const std::vector<std::string>& params,
+                                             const std::string& arch)
+{
+    auto options = params;
+    if(enabled(MIGRAPHX_GPU_DEBUG{}))
+        options.push_back("-DMIGRAPHX_DEBUG");
+    if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
+           return starts_with(s, "--std=") or starts_with(s, "-std=");
+       }))
+        options.push_back("-std=c++17");
+    if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
+        options.emplace_back("-g");
+    options.push_back("-fno-gpu-rdc");
+    options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
+    options.push_back("-Wno-cuda-compat");
+    options.push_back("--offload-arch=" + arch);
+    std::vector<std::string> extra_flags =
+        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
+    options.insert(options.end(), extra_flags.begin(), extra_flags.end());
+
+    return options;
+}
 
 #ifdef MIGRAPHX_USE_HIPRTC
 
@@ -206,21 +230,8 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
                                                            bool quiet)
 {
     hiprtc_program prog(std::move(srcs));
-    auto options = params;
+    auto options = compile_hip_options(params, arch);
     options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
-    if(enabled(MIGRAPHX_GPU_DEBUG{}))
-        options.push_back("-DMIGRAPHX_DEBUG");
-    if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
-           return starts_with(s, "--std=") or starts_with(s, "-std=");
-       }))
-        options.push_back("-std=c++17");
-    options.push_back("-fno-gpu-rdc");
-    options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
-    options.push_back("-Wno-cuda-compat");
-    options.push_back("--offload-arch=" + arch);
-    std::vector<std::string> extra_flags =
-        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
-    options.insert(options.end(), extra_flags.begin(), extra_flags.end());
 
     prog.compile(options, quiet);
 
@@ -320,34 +331,17 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         MIGRAPHX_THROW("Unknown hip compiler: " MIGRAPHX_HIP_COMPILER);
 
     src_compiler compiler;
-    compiler.flags    = params;
+    compiler.flags    = compile_hip_options(params, arch);
     compiler.compiler = MIGRAPHX_HIP_COMPILER;
 #ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
     if(has_compiler_launcher())
         compiler.launcher = MIGRAPHX_HIP_COMPILER_LAUNCHER;
 #endif
 
-    if(std::none_of(params.begin(), params.end(), [](const std::string& s) {
-           return starts_with(s, "--std=") or starts_with(s, "-std=");
-       }))
-        compiler.flags.emplace_back("--std=c++17");
-    compiler.flags.emplace_back(" -fno-gpu-rdc");
-    if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
-        compiler.flags.emplace_back("-g");
     compiler.flags.emplace_back("-c");
-    compiler.flags.emplace_back("--offload-arch=" + arch);
     compiler.flags.emplace_back("--cuda-device-only");
-    compiler.flags.emplace_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ");
-
-    if(enabled(MIGRAPHX_GPU_DEBUG{}))
-        compiler.flags.emplace_back("-DMIGRAPHX_DEBUG");
-
     compiler.flags.emplace_back("-Wno-unused-command-line-argument");
-    compiler.flags.emplace_back("-Wno-cuda-compat");
     compiler.flags.emplace_back(MIGRAPHX_HIP_COMPILER_FLAGS);
-    std::vector<std::string> extra_flags =
-        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
-    compiler.flags.insert(compiler.flags.end(), extra_flags.begin(), extra_flags.end());
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {
@@ -369,6 +363,85 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 }
 
 #endif // MIGRAPHX_USE_HIPRTC
+
+// Markers around the version string, chosen so it can be found in the compiled output without
+// having to understand the object format.
+static constexpr std::string_view version_prefix = "<<<migraphx-compiler-version:";
+static constexpr std::string_view version_suffix = ">>>";
+
+// The probe is compiled but never run, so the architecture only has to be one the compiler
+// accepts. Keeping it fixed means the answer does not depend on the device present.
+static const char* const version_probe_arch = "gfx950";
+
+// Probe that makes the device compiler embed its own version string in the object. It need not
+// be the compiler this library was built with, so its version is only known at runtime.
+static const char* const version_probe = R"__migraphx__(
+#define MIGRAPHX_STRINGIZE_(x) #x
+#define MIGRAPHX_STRINGIZE(x) MIGRAPHX_STRINGIZE_(x)
+
+#ifdef __clang_major__
+#define MIGRAPHX_COMPILER_MAJOR MIGRAPHX_STRINGIZE(__clang_major__)
+#define MIGRAPHX_COMPILER_MINOR MIGRAPHX_STRINGIZE(__clang_minor__)
+#define MIGRAPHX_COMPILER_VERSION __clang_version__
+#else
+#define MIGRAPHX_COMPILER_MAJOR "0"
+#define MIGRAPHX_COMPILER_MINOR "0"
+#define MIGRAPHX_COMPILER_VERSION __VERSION__
+#endif
+
+extern "C" __attribute__((used)) __device__ const char migraphx_compiler_version[] =
+    "${prefix}" MIGRAPHX_COMPILER_MAJOR "|" MIGRAPHX_COMPILER_MINOR "|"
+    MIGRAPHX_COMPILER_VERSION "${suffix}";
+
+extern "C" __global__ void migraphx_version_probe(char* p)
+{
+    p[0] = migraphx_compiler_version[0];
+}
+)__migraphx__";
+
+static hip_compiler_info parse_version(const std::vector<char>& obj)
+{
+    auto begin = std::search(obj.begin(), obj.end(), version_prefix.begin(), version_prefix.end());
+    if(begin == obj.end())
+        return {};
+    begin += version_prefix.size();
+    auto end = std::search(begin, obj.end(), version_suffix.begin(), version_suffix.end());
+    if(end == obj.end())
+        return {};
+
+    auto fields = split_string(std::string{begin, end}, '|');
+    if(fields.size() != 3)
+        return {};
+    return {.major = fields[0], .minor = fields[1], .version = fields[2]};
+}
+
+const hip_compiler_info& hip_compiler_version()
+{
+    static const hip_compiler_info info = [] {
+        try
+        {
+            // Interpolated so the markers parse_version searches for cannot drift from the ones
+            // the probe embeds.
+            auto probe = interpolate_string(
+                version_probe,
+                {{"prefix", std::string{version_prefix}}, {"suffix", std::string{version_suffix}}});
+            auto cos = compile_hip_src({src_file{"main.cpp", probe}},
+                                       {"-std=c++17"},
+                                       version_probe_arch,
+                                       /* quiet */ true);
+            if(not cos.empty())
+                return parse_version(cos.front());
+        }
+        catch(const std::exception& e)
+        {
+            // Callers treat an empty version as "cannot tell compilers apart" and stop sharing
+            // results between runs, which is slower but never wrong.
+            log::warn() << "Cannot identify the hip compiler: " << e.what();
+        }
+        return hip_compiler_info{};
+    }();
+    return info;
+}
 
 bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags)
 {

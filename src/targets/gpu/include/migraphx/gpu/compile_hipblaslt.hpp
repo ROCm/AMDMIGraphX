@@ -64,7 +64,7 @@ struct hipblaslt_op
 
 struct compile_hipblaslt
 {
-    context* ctx = nullptr;
+    migraphx::context* ctx = nullptr;
     std::string name() const { return "gpu::compile_hipblaslt"; }
     void apply(module& m) const;
 };

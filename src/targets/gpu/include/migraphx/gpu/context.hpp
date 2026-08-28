@@ -52,6 +52,11 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
 
+struct binary_cache;
+
+/// Lets a context own a cache without seeing its definition.
+MIGRAPHX_GPU_EXPORT std::shared_ptr<binary_cache> make_binary_cache();
+
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
 struct hip_device
@@ -480,6 +485,16 @@ struct context
         pc->load(read_only_paths, writable_paths);
     }
 
+    /// Compiled kernels shared across every module compiled with this context.
+    binary_cache& get_binary_cache()
+    {
+        assert(bc != nullptr);
+        return *bc;
+    }
+
+    /// Replace the default cache with one built from the compile options.
+    void set_binary_cache(std::shared_ptr<binary_cache> bcache) { bc = std::move(bcache); }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -493,6 +508,7 @@ struct context
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = std::make_shared<auto_save_problem_cache>();
+    std::shared_ptr<binary_cache> bc            = make_binary_cache();
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

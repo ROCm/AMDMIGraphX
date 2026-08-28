@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -64,7 +64,7 @@ struct pad_compiler : compiler<pad_compiler>
 {
     std::vector<std::string> names() const { return {"pad"}; }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    hip_src make_src(const context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto padding    = v.at("pads").to_vector<int64_t>();
         auto input_lens = inputs.front().lens();
@@ -118,12 +118,23 @@ struct pad_compiler : compiler<pad_compiler>
                                       {{"pad_val", to_string(pad_val_string)},
                                        {"offsets", to_string_range(roffsets)},
                                        {"pad_mode", pad_mode_string}});
-        return compile_hip_code_object(ctx, src, options);
+        return {src, options};
+    }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        return compile_hip_code_object(ctx, make_src(ctx, inputs, v));
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+    }
+
+    std::string
+    compile_key(const context& ctx, instruction_ref ins, const operation& op, const value&) const
+    {
+        return hip_compile_key(ctx, make_src(ctx, to_shapes(ins->inputs()), op.to_value()));
     }
 };
 } // namespace gpu

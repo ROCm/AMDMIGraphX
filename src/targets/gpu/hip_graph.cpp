@@ -67,8 +67,7 @@ static void check_hip(hipError_t status, const char* what)
         MIGRAPHX_THROW("hip::graph: " + std::string(what) + " failed: " + hip_error(status));
 }
 
-// A captured submodule with a single output yields that output directly; with
-// multiple outputs it yields a tuple, matching compute_shape().
+// A single output is returned directly, multiple as a tuple, matching compute_shape().
 static argument pack_outputs(const std::vector<argument>& outputs)
 {
     if(outputs.size() == 1)
@@ -76,7 +75,7 @@ static argument pack_outputs(const std::vector<argument>& outputs)
     return {outputs};
 }
 
-// The data pointer of each leaf argument (the buffers the kernels read/write).
+// The data pointer of each leaf argument.
 static std::vector<const void*> leaf_ptrs(const std::vector<argument>& leaves)
 {
     std::vector<const void*> ptrs;
@@ -101,8 +100,7 @@ static std::vector<address_range> leaf_bounds(const std::vector<argument>& leave
     return bounds;
 }
 
-// The leaf whose byte range contains `p`, as (leaf index, byte offset within
-// the leaf); nullopt when the address is not in any leaf.
+// The leaf containing `p`, as (leaf index, byte offset); nullopt when not in any leaf.
 static optional<std::pair<std::size_t, std::size_t>>
 locate_leaf(const char* p, const std::vector<address_range>& bounds)
 {
@@ -116,16 +114,14 @@ locate_leaf(const char* p, const std::vector<address_range>& bounds)
                           static_cast<std::size_t>(addr - it->first));
 }
 
-// True when `consumer` passes the buffer of its input `input` straight through
-// (a view op such as reshape/slice/load) to its own outputs.
+// True when `consumer` passes its input's buffer through to its own outputs (a view op).
 static bool aliases_input(instruction_ref consumer, instruction_ref input)
 {
     return contains(instruction::get_output_alias(consumer, true), input);
 }
 
-// The submodule's parameter names in input-binding order. Sorted by name
-// because get_parameter_names() order is not serialized (it would not survive
-// save/load), while sorted names match find_inputs' name-ordered inputs.
+// Sorted by name to match find_inputs' name-ordered inputs;
+// get_parameter_names() order is not serialized.
 static std::vector<std::string> input_param_names(const_module_ref sub)
 {
     auto param_names = sub->get_parameter_names();
@@ -133,7 +129,7 @@ static std::vector<std::string> input_param_names(const_module_ref sub)
     return param_names;
 }
 
-// Bind the submodule's parameters (in input order) to the op's input arguments.
+// Bind the submodule's parameters to the op's input arguments.
 static std::unordered_map<std::string, argument> create_params(const_module_ref sub,
                                                                const std::vector<argument>& args)
 {
@@ -147,9 +143,7 @@ static std::unordered_map<std::string, argument> create_params(const_module_ref 
     return params;
 }
 
-// Thin RAII wrapper over the HIP graph C API: capture a stream into a graph,
-// enumerate/patch its nodes, instantiate an executable graph, and launch/update
-// it. Graph and exec handles are shared so value-semantic copies share one graph.
+// RAII wrapper over the HIP graph C API; handles are shared so copies share one graph.
 struct hip_graph
 {
     template <class F>
@@ -217,8 +211,7 @@ struct hip_graph
         {
             check_hip(hipGraphLaunch(ptr.get(), stream), "hipGraphLaunch");
         }
-        // Re-sync the executable graph after `g`'s nodes changed; returns false if
-        // the exec cannot be updated in place and must be re-instantiated.
+        // False if the exec cannot be updated in place and must be re-instantiated.
         bool update(hip_graph& g)
         {
             hipGraphNode_t error_node       = nullptr;
@@ -238,9 +231,8 @@ struct hip_graph
     shared<hip_graph_ptr> ptr = nullptr;
 };
 
-// One pointer word in a kernel node's packed argument buffer: where it sits,
-// which flattened movable-input leaf it points into, and where within that
-// leaf (nonzero for a viewed/sliced input). A rebind rewrites exactly these.
+// A pointer slot in a kernel node's argument buffer: its offset, the movable
+// leaf it points into, and the offset within that leaf.
 struct graph_slot_patch
 {
     std::size_t offset;
@@ -248,24 +240,21 @@ struct graph_slot_patch
     std::size_t ptr_offset;
 };
 
-// A captured kernel node and the buffer slots holding a movable-parameter pointer
-// to rewrite when that parameter moves.
+// A captured kernel node and the pointer slots to rewrite when a movable
+// parameter moves.
 struct graph_node_patch
 {
     hip_graph::node node{};
     std::vector<graph_slot_patch> slots{};
-    // Launch params and argument buffer fetched once at plan build; a rebind
-    // rewrites only the buffer's pointer slots. Kept alive here because HIP does
-    // not document copying `extra` at SetParams time.
+    // Kept alive here because HIP does not document copying `extra` at SetParams time.
     hipKernelNodeParams params{};
     std::vector<char> buffer{};
     std::size_t buffer_size = 0;
     std::array<void*, 5> config{};
 };
 
-// Records the work of a submodule into a HIP graph the first time it is run and
-// replays the instantiated graph on every subsequent run, amortizing the
-// per-launch CPU overhead of issuing many kernels/library calls.
+// Captures the submodule into a HIP graph on first run and replays it on later
+// runs, amortizing the per-launch CPU overhead.
 struct hip_graph_op
 {
     struct graph_state
@@ -274,20 +263,16 @@ struct hip_graph_op
         hip_graph::exec exec{};
         bool captured = false;
         std::vector<argument> outputs{};
-        // The packed return value (single output or a tuple), cached so the replay
-        // path does not rebuild it each eval. Refreshed whenever `outputs` is.
+        // Packed return value cached for the replay path; refreshed with `outputs`.
         argument result{};
-        // Addresses of the movable leaves currently bound in the captured
-        // graph, used to detect when a parameter buffer has moved.
+        // Movable-leaf addresses currently bound, to detect when a buffer moved.
         std::vector<const void*> applied_ptrs{};
-        // True when every movable parameter is consumed only by code-object
-        // kernels we can patch; `patches` then lists, per such node, the slots to
-        // rewrite. False (a parameter reaches a library kernel) -> re-record.
+        // True when every movable parameter reaches only patchable code-object
+        // kernels; false (a library kernel consumer) forces a re-record.
         bool patchable = false;
         std::vector<graph_node_patch> patches{};
-        // A captured output whose data lies inside a movable leaf. Patching
-        // rewrites only kernel arguments, so when a leaf moves the cached
-        // outputs/result must be rebased onto the new address too.
+        // A captured output inside a movable leaf; rebased when that leaf moves
+        // since patching rewrites only kernel arguments.
         struct output_rebind
         {
             std::size_t output;
@@ -295,13 +280,11 @@ struct hip_graph_op
             std::size_t offset;
         };
         std::vector<output_rebind> output_rebinds{};
-        // Serializes evals: the state is mutated on capture/rebind and may be
-        // shared by copies of a compiled program (see hip_graph_op::state).
+        // Serializes evals; the state may be shared by compiled-program copies.
         std::mutex mutex{};
 
-        // Capture `f`'s device work into a fresh graph and cache the packed result.
-        // `f` returns the submodule outputs; capturing only records the launches,
-        // so the buffers are filled when the instantiated graph is later launched.
+        // Capture `f`'s launches into a fresh graph; the buffers are only filled
+        // when the instantiated graph is later launched.
         template <class F>
         void record(hipStream_t stream, F f)
         {
@@ -309,8 +292,8 @@ struct hip_graph_op
             result = pack_outputs(outputs);
         }
 
-        // Rebase the cached outputs (and the packed result) onto the current
-        // movable-leaf buffers after the kernel nodes were patched to use them.
+        // Rebase the cached outputs (and packed result) onto the current
+        // movable-leaf buffers.
         void rebind_outputs(const std::vector<argument>& leaves)
         {
             for(const auto& r : output_rebinds)
@@ -327,21 +310,15 @@ struct hip_graph_op
         }
     };
 
-    // Created in finalize(), which runs once per instruction, so each gets its
-    // own state (a construction-time state would be shared by every copy-on-write
-    // copy of the operator made during compilation). Copies of an already-compiled
-    // program do not re-run finalize and so share this state; graph_state's mutex
-    // keeps that sharing safe.
+    // Created in finalize() so each instruction gets its own state; copies of a
+    // compiled program do not re-run finalize and share it (guarded by the mutex).
     std::shared_ptr<graph_state> state{};
 
-    // Indices of the inputs the captured outputs are written into (and so
-    // alias); these passed-in buffers have global lifetime, so the outputs can
-    // be returned safely.
+    // Indices of the inputs the captured outputs are written into (and so alias).
     std::vector<std::size_t> aliases{};
 
     // Indices of the inputs whose buffer can move between runs (the program
-    // parameters); every other input is a fixed allocation/constant. When empty
-    // the graph is bound to stable addresses and replayed without inspection.
+    // parameters); every other input keeps a stable address.
     std::vector<std::size_t> replace_inputs{};
 
     template <class Self, class F>
@@ -370,8 +347,7 @@ struct hip_graph_op
         state = std::make_shared<graph_state>();
     }
 
-    // The movable inputs flattened to their leaf arguments, in replace_inputs
-    // order (a tuple has no single data pointer, so rebinding tracks its leaves).
+    // The movable inputs flattened to their leaf arguments, in replace_inputs order.
     std::vector<argument> movable_leaves(const std::vector<argument>& args) const
     {
         std::vector<argument> selected;
@@ -386,10 +362,9 @@ struct hip_graph_op
         return flatten(selected);
     }
 
-    // Walk forward from a movable parameter through alias (view) ops, adding
-    // each code-object kernel that consumes it to `out`, keyed by function
-    // handle. Returns false if the parameter reaches a consumer whose argument
-    // buffer we cannot interpret (a library gemm/conv), forcing a re-record.
+    // Collect the code-object kernels reachable from `param` through alias ops,
+    // keyed by function handle. False if the parameter reaches a consumer whose
+    // argument buffer we cannot interpret (a library gemm/conv).
     static bool collect_param_code_objects(
         instruction_ref param,
         std::unordered_map<void*, const std::map<std::size_t, kernel_argument_value>*>& out)
@@ -405,8 +380,8 @@ struct hip_graph_op
                 {
                     const auto& cop = any_cast<code_object_op>(consumer->get_operator());
                     out.emplace(cop.k.get_function(), &cop.kernel_args);
-                    // An in-place kernel (output aliases the input) passes the
-                    // buffer to its readers; follow so they are patched too.
+                    // An in-place kernel passes the buffer to its readers;
+                    // follow so they are patched too.
                     if(aliases_input(consumer, ins))
                         self(consumer);
                 }
@@ -417,8 +392,7 @@ struct hip_graph_op
                 }
                 else if(not starts_with(consumer->name(), "@"))
                 {
-                    // A non-code-object, non-view consumer (a library kernel) we
-                    // cannot interpret; a builtin (e.g. @return) is skipped.
+                    // A library kernel we cannot interpret; builtins (@return) are skipped.
                     patchable = false;
                 }
             }
@@ -426,15 +400,13 @@ struct hip_graph_op
         return patchable;
     }
 
-    // Build the per-node patch plan: match captured kernel nodes to the
-    // code-object kernels consuming a movable parameter (by function handle) and
-    // record their pointer slots, using the kernel_args layout to skip inlined
-    // scalars. Returns false when the graph must be re-recorded instead.
+    // Match captured kernel nodes to the code-object kernels consuming a movable
+    // parameter (by function handle) and record their pointer slots. False when
+    // the graph must be re-recorded instead.
     bool build_patch_plan(const std::vector<address_range>& bounds, const_module_ref sub) const
     {
-        // Address-range lookup (locate_leaf) is only unambiguous when the leaf
-        // ranges are disjoint; overlapping buffers would attribute one leaf's
-        // slots to another and later patch them with the wrong address.
+        // locate_leaf is only unambiguous when the leaf ranges are disjoint;
+        // overlap would patch slots with the wrong address.
         auto sorted_bounds = bounds;
         std::sort(sorted_bounds.begin(), sorted_bounds.end());
         if(std::adjacent_find(
@@ -443,8 +415,7 @@ struct hip_graph_op
                }) != sorted_bounds.end())
             return false;
 
-        // The code-object kernels consuming a movable parameter, keyed by their
-        // function handle so a captured node can be matched back to one.
+        // Code-object kernels consuming a movable parameter, keyed by function handle.
         std::unordered_map<void*, const std::map<std::size_t, kernel_argument_value>*>
             code_object_args;
         auto param_names = input_param_names(sub);
@@ -458,15 +429,14 @@ struct hip_graph_op
         std::vector<graph_node_patch> patches;
         for(const auto& node : state->graph.nodes())
         {
-            // Only kernel nodes carry packed arguments; others hold no parameter.
+            // Only kernel nodes carry packed arguments.
             if(node.type() != hipGraphNodeTypeKernel)
                 continue;
             auto params = node.get_kernel_node_params();
             auto cobj   = code_object_args.find(params.func);
             if(cobj == code_object_args.end())
                 continue; // does not consume a movable parameter
-            // A buffer that cannot be parsed back cannot be patched; re-record
-            // rather than leave it bound to the captured addresses.
+            // An unparsable buffer cannot be patched; re-record instead.
             auto buffer = unpack_kernel_config(params.extra);
             if(buffer.empty())
                 return false;
@@ -489,8 +459,8 @@ struct hip_graph_op
         return true;
     }
 
-    // Overwrite the recorded pointer slots with the current leaf addresses and
-    // hand the buffers back to the nodes; the caller re-syncs the executable graph.
+    // Write the current leaf addresses into the recorded pointer slots; the
+    // caller re-syncs the executable graph.
     void patch_kernel_nodes(const std::vector<argument>& leaves) const
     {
         for(auto& np : state->patches)
@@ -498,15 +468,13 @@ struct hip_graph_op
             for(const auto& slot : np.slots)
             {
                 assert(slot.leaf < leaves.size());
-                // The re-bound leaf is assumed to keep the captured shape, so the
-                // captured within-leaf offset still lands inside its buffer.
+                // A re-bound leaf is assumed to keep the captured shape.
                 assert(slot.ptr_offset < leaves[slot.leaf].get_shape().bytes());
                 assert(slot.offset + sizeof(char*) <= np.buffer.size());
                 const char* p = leaves[slot.leaf].data() + slot.ptr_offset;
                 write_pointer(np.buffer.data() + slot.offset, p);
             }
-            // The buffer, size, and config array are stored on the patch (not
-            // locals) so they outlive this call; see graph_node_patch.
+            // Stored on the patch (not locals) so they outlive this call.
             np.buffer_size      = np.buffer.size();
             np.config           = pack_kernel_config(np.buffer.data(), &np.buffer_size);
             auto params         = np.params;
@@ -552,22 +520,19 @@ struct hip_graph_op
         auto run_sub   = [&] { return run(sub, create_params(sub, args)); };
 
         hipStream_t stream = ctx.get_stream().get();
-        // Neither the legacy/null stream nor tracing (which reads results
-        // mid-run) can be combined with capture; fall back to a normal run. A
-        // trace supplied via execution_environment cannot be detected here.
+        // The null stream and tracing (reads results mid-run) cannot be
+        // captured; fall back to a normal run.
         if(stream == nullptr or value_of(MIGRAPHX_TRACE_EVAL{}) > 0)
             return pack_outputs(run_sub());
 
         std::lock_guard<std::mutex> lock(state->mutex);
 
-        // See record(): capture only records the launches; the launch below
-        // fills the buffers.
+        // Capture only records the launches; the launch below fills the buffers.
         if(not state->captured)
         {
             state->record(stream, run_sub);
             state->exec = state->graph.instantiate();
-            // Only inspect the captured nodes when a parameter can actually move;
-            // with no movable inputs the graph stays bound to stable buffers.
+            // With no movable inputs the graph stays bound to stable buffers.
             if(not replace_inputs.empty())
             {
                 auto leaves           = movable_leaves(args);
@@ -585,13 +550,12 @@ struct hip_graph_op
             auto current_ptrs = leaf_ptrs(leaves);
             if(current_ptrs != state->applied_ptrs)
             {
-                // Patch the kernel nodes in place, or re-record a non-patchable
-                // graph; either way re-sync the executable graph.
+                // Patch in place, or re-record a non-patchable graph; either way
+                // re-sync the executable graph.
                 if(state->patchable)
                 {
                     patch_kernel_nodes(leaves);
-                    // Kernels now write into the moved buffers; the cached
-                    // outputs viewing those buffers must move with them.
+                    // Cached outputs viewing the moved buffers must move with them.
                     state->rebind_outputs(leaves);
                 }
                 else

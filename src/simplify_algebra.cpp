@@ -923,8 +923,9 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        auto fusable_input = match::any_of(
-            match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4"));
+        auto fusable_input =
+            match::any_of(match::pointwise(),
+                          match::name("broadcast", "multibroadcast", "unpack_int4", "unsqueeze"));
         return match::name("concat")(match::any_of[match::inputs()](fusable_input));
     }
 
@@ -944,7 +945,7 @@ struct find_concat_op
 
     static bool is_valid_op(const operation& op)
     {
-        return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
+        return contains({"broadcast", "multibroadcast", "unpack_int4", "unsqueeze"}, op.name()) or
                (op.attributes().contains("pointwise") and op.name() != "quantizelinear");
     }
 
@@ -1023,6 +1024,18 @@ struct find_concat_op
             auto delta = bshape.lens().size() - input->get_shape().lens().size();
             iaxis -= delta;
         }
+        else if(op.name() == "unsqueeze")
+        {
+            value v   = op.to_value();
+            auto axes = v["axes"].to_vector<std::int64_t>();
+            // Cant concat along an inserted unit axis, and steps split dims;
+            // unsqueeze ignores axes for scalar inputs, so the axis remap doesnt apply
+            if(not v["steps"].empty() or contains(axes, iaxis) or
+               any_of(axes, [](auto a) { return a < 0; }) or
+               x->inputs().front()->get_shape().scalar())
+                return {start, last};
+            iaxis -= std::count_if(axes.begin(), axes.end(), [&](auto a) { return a < iaxis; });
+        }
         if(not concat_const_foldable(start, last, iaxis))
             return {start, last};
 
@@ -1095,11 +1108,9 @@ struct find_concat_op
     }
 };
 
-// Collapse `concat(x, x, ..., x)` (N copies of the same instruction) into a
-// single `multibroadcast` when the concat axis has length 1 in the source
-// tensor. This is the common shape that shows up in MoE / KV-cache / RoPE
-// expansion code where a tensor is replicated N times along an axis. The
-// rewrite turns an O(output_size) memcpy into a strided view.
+// Rewrite `concat(x, x, ..., x)` (N copies of the same instruction) as a
+// broadcast-based tiling of x. This pattern shows up in MoE / KV-cache /
+// RoPE expansion code where a tensor is replicated N times along an axis.
 struct find_concat_same_input
 {
     auto matcher() const { return match::name("concat")(match::same_inputs()); }
@@ -1119,18 +1130,25 @@ struct find_concat_same_input
         if(axis < 0 or axis >= lens.size())
             return;
 
-        // Safe (no data movement) case: the concat axis is size 1 in the
-        // source, so it can be broadcast to N. The general lens[axis] > 1
-        // case requires unsqueeze + multGibroadcast + reshape and is left
-        // to a follow-up matcher.
-        if(lens[axis] != 1)
+        const auto& out_lens = ins->get_shape().lens();
+
+        // The concat axis is size 1 in the source, so replicating it is a
+        // strided view with no data movement.
+        if(lens[axis] == 1)
+        {
+            m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), x);
             return;
+        }
 
-        auto out_lens  = lens;
-        out_lens[axis] = inputs.size();
-        assert(out_lens == ins->get_shape().lens());
-
-        m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), x);
+        // General case: tile the axis by unsqueezing a unit dim before it,
+        // broadcasting that dim to N, then folding it back into the axis.
+        auto unsqueezed = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {axis}}}), x);
+        auto bcast_lens = unsqueezed->get_shape().lens();
+        assert(bcast_lens[axis] == 1);
+        bcast_lens[axis] = inputs.size();
+        auto bcast       = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", bcast_lens}}), unsqueezed);
+        m.replace_instruction(ins, make_op("reshape", {{"dims", out_lens}}), bcast);
     }
 };
 
@@ -1182,6 +1200,20 @@ struct find_concat_conv
         m.replace_instruction(ins, conv, x, w);
     }
 };
+
+static bool
+axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
+{
+    return x.size() == y.size() and x.size() > axis and
+           std::equal(x.begin(), x.begin() + axis, y.begin()) and
+           std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
+}
+
+static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
+{
+    // TODO: Check strides
+    return axis_equal(x.lens(), y.lens(), axis);
+}
 
 // Horizontal fusion for convolutions through concat decomposition.
 // When conv_b operates on concat(A, extra) and conv_a operates on A,
@@ -1283,6 +1315,14 @@ struct find_conv_concat_split_fuse
         auto total_chans  = concat_ins->get_shape().lens()[1];
 
         if(prefix_chans >= total_chans)
+            return;
+
+        if(not std::all_of(concat_inputs.begin(), concat_inputs.end(), [&](auto inp) {
+               return axis_shape_equal(input_a->get_shape(), inp->get_shape(), concat_axis);
+           }))
+            return;
+
+        if(not axis_shape_equal(weight_a->get_shape(), weight_b->get_shape(), 1))
             return;
 
         auto out_a = weight_a->get_shape().lens()[0];
@@ -1892,20 +1932,6 @@ struct find_split_concat
     }
 };
 
-static bool
-axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
-{
-    return x.size() == y.size() and x.size() > axis and
-           std::equal(x.begin(), x.begin() + axis, y.begin()) and
-           std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
-}
-
-static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
-{
-    // TODO: Check strides
-    return axis_equal(x.lens(), y.lens(), axis);
-}
-
 struct find_add_convs
 {
     auto matcher() const
@@ -1977,6 +2003,9 @@ struct find_add_convs
             else
                 return;
         }
+
+        if(not axis_shape_equal(a_input->get_shape(), b_input->get_shape(), 1))
+            return;
 
         auto concat_input =
             m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), a_input, b_input);

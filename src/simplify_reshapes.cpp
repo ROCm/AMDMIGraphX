@@ -818,7 +818,7 @@ struct find_concat_multibroadcasts
 
 // Offsets of each concat input along the concat axis, from 0 up to the total
 // length of the axis
-static std::vector<std::size_t> concat_offsets(const std::vector<instruction_ref>& inputs,
+std::vector<std::size_t> concat_offsets(const std::vector<instruction_ref>& inputs,
                                                std::size_t axis)
 {
     std::vector<std::size_t> result = {0};

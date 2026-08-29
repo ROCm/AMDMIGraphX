@@ -35,8 +35,10 @@ MIGRAPHX_EP = "MIGraphXExecutionProvider"
 # PCI vendor id ONNX Runtime uses to identify AMD GPU allocators/data-transfers,
 # needed to bind IO to the MIGraphX EP's device explicitly (see
 # bind_migraphx_output() below).
-MIGRAPHX_VENDOR_ID = onnxruntime.OrtDeviceVendorId.AMD
-
+try:
+    MIGRAPHX_VENDOR_ID = onnxruntime.OrtDeviceVendorId.AMD
+except AttributeError:
+    MIGRAPHX_VENDOR_ID = 0x1002  # AMD PCI vendor ID fallback
 
 def _find_migraphx_plugin_lib():
     """Locate the MIGraphX plugin EP shared library.

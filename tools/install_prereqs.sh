@@ -233,7 +233,7 @@ fi
 # Install pipx from pip rather than the distro package. The distro pipx depends
 # on python3-packaging, and a dpkg-owned copy of packaging cannot be uninstalled
 # by pip when requirements-py.txt pins a different version.
-pip3 install setuptools wheel pipx
+pip3 install setuptools wheel pipx pybind11
 
 # Install apps to the global location so any user can run them. On SLES pipx
 # runs under python 3.6 where pipx 0.16 has no --global flag; there the global

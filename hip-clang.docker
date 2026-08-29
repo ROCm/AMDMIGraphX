@@ -2,7 +2,7 @@ FROM ubuntu:24.04
 
 ARG PREFIX=/usr/local
 # ROCm release version (used in versioned package names, e.g. amdrocm-developer-tools7.13)
-ARG ROCM_VERSION="7.14"
+ARG ROCM_VERSION="10.0"
 # GPU architecture family (e.g. gfx942, gfx120x); leave empty for arch-independent packages
 ARG GPU_ARCH=""
 # Install location for the prebuilt MIGraphX dependencies.

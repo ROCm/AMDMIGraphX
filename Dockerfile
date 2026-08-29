@@ -26,7 +26,7 @@ FROM ubuntu:24.04
 
 ARG PREFIX=/usr/local
 # ROCm release version (used in versioned package names, e.g. amdrocm-developer-tools7.13)
-ARG ROCM_VERSION="7.14"
+ARG ROCM_VERSION="10.0"
 # GPU architecture family (e.g. gfx942, gfx120x); leave empty for arch-independent packages
 ARG GPU_ARCH=""
 # Install location for the prebuilt MIGraphX dependencies.
@@ -36,7 +36,7 @@ ARG PREFIX=/usr/local
 # of system packages (passes --whl to the prereqs script).
 ARG USE_WHL=""
 # pip index URL for the wheel-based ROCm install (only used when USE_WHL is set).
-ARG INDEX_URL="https://repo.amd.com/rocm/whl-multi-arch/"
+ARG INDEX_URL="https://stable.repo.amd.com/rocm/whl-next/"
 
 # Support multiarch
 RUN dpkg --add-architecture i386
@@ -44,10 +44,11 @@ RUN dpkg --add-architecture i386
 # Install rocm key
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
     mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://repo.amd.com/rocm/packages/gpg/rocm.gpg | gpg --dearmor -o /etc/apt/keyrings/amdrocm.gpg
+    curl -fsSL https://stable.repo.amd.com/rocm/gpg/packages.gpg | gpg --dearmor -o /etc/apt/keyrings/amdrocm.gpg
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://repo.amd.com/rocm/packages-multi-arch/ubuntu2404 stable main > /etc/apt/sources.list.d/rocm.list'
+
+RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://stable.repo.amd.com/rocm/core/packages/ubuntu2404 stable main > /etc/apt/sources.list.d/rocm.list'
 
 # Add LLVM repository for Clang 17 (ROCm 7.x ships with Clang 20 which has ODR false positives in ASAN)
 RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \

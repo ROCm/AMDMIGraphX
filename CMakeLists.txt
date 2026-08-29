@@ -289,6 +289,7 @@ rocm_enable_clang_tidy(
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
+	-lifetime-safety-invalidation
         -misc-const-correctness
         -misc-include-cleaner
         -misc-macro-parentheses

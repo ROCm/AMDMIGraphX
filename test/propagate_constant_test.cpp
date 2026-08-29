@@ -592,4 +592,43 @@ TEST_CASE(skip_propagate_multi_alias)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(skip_widening_convert_of_broadcast)
+{
+    // Folding the convert would materialize the broadcast as a full float
+    // tensor, losing the smaller storage type
+    migraphx::module m1;
+    {
+        auto lit = m1.add_literal(
+            migraphx::literal{{migraphx::shape::bf16_type, {4}}, {1.0f, 2.0f, 3.0f, 4.0f}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), lit);
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mb);
+        m1.add_instruction(non_const_pass_op{}, conv);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(propagate_narrowing_convert)
+{
+    migraphx::module m1;
+    {
+        auto lit = m1.add_literal(
+            migraphx::literal{{migraphx::shape::float_type, {4}}, {1.0f, 2.0f, 3.0f, 4.0f}});
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), lit);
+        m1.add_instruction(non_const_pass_op{}, conv);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto lit = m2.add_literal(
+            migraphx::literal{{migraphx::shape::bf16_type, {4}}, {1.0f, 2.0f, 3.0f, 4.0f}});
+        m2.add_instruction(non_const_pass_op{}, lit);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

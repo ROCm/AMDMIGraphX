@@ -106,8 +106,9 @@ static_assert(sizeof(launch_param) == 2 * sizeof(void*),
               "the extra config array is viewed as an array of launch_param pairs");
 
 // The value of the entry with `tag` in [first, last), or nullptr when absent.
-void* find_launch_param(const launch_param* first, const launch_param* last, void* tag)
+void* find_launch_param(const launch_param* first, const launch_param* last, const void* tag)
 {
+    // NOLINTNEXTLINE(readability-qualified-auto)
     auto it = std::find_if(first, last, [&](const launch_param& p) { return p.first == tag; });
     return it == last ? nullptr : it->second;
 }

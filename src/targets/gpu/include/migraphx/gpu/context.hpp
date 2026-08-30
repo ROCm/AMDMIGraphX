@@ -37,6 +37,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/logger.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/device_description.hpp>
@@ -282,14 +283,25 @@ struct context
     {
         auto_save_problem_cache() : problem_cache{} {}
 
-        bool auto_save = false;
-
         auto_save_problem_cache(const auto_save_problem_cache&)            = delete;
         auto_save_problem_cache& operator=(const auto_save_problem_cache&) = delete;
         virtual ~auto_save_problem_cache()
         {
-            if(auto_save)
+            // The destructor is implicitly noexcept, so a save() failure (disk
+            // full, permissions) must be swallowed here or it would terminate.
+            // save() is a no-op when no writable file paths are configured.
+            try
+            {
                 this->save();
+            }
+            catch(const std::exception& e)
+            {
+                log::warn() << "auto_save_problem_cache: save failed: " << e.what();
+            }
+            catch(...)
+            {
+                log::warn() << "auto_save_problem_cache: save failed: unknown error";
+            }
         }
     };
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
@@ -465,11 +477,16 @@ struct context
         return result;
     }
 
+    /// Access the problem cache directly to look up, insert, mark, and save
+    /// tuning solutions (see problem_cache for the layered priority search).
     problem_cache& get_problem_cache() { return *pc; }
-    void load_problem_cache()
+
+    /// Configure the problem cache from the read-only caches (system-level,
+    /// never written) and the read/write developer caches (solutions save back).
+    void load_problem_caches(const std::vector<std::string>& read_only_paths,
+                             const std::vector<std::string>& writable_paths)
     {
-        pc->load();
-        pc->auto_save = true;
+        pc->load(read_only_paths, writable_paths);
     }
 
     private:

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,6 +54,7 @@ void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
                               .upper_split_size = upper_split_size,
                               .lower_max_batch  = lower_max_batch});
     mpm.run_pass(fuse_pointwise{.enable_rewrite_broadcasts = true});
+    mpm.run_pass(fuse_reduce{.enable_rewrite_broadcasts = true});
     if(not enabled(MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION{}))
     {
         mpm.run_pass(fuse_pointwise{.enable_multi_output = true});

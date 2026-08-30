@@ -29,6 +29,8 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/ranges.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,6 +50,14 @@ namespace op {
  */
 struct broadcast_with_dims
 {
+    std::vector<shape::dynamic_dimension> output_dyn_dims = {};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.output_dyn_dims, "out_dyn_dims"));
+    }
+
     std::string name() const { return "broadcast_with_dims"; }
 
     shape compute_shape(const std::vector<shape>& inputs) const
@@ -60,6 +70,19 @@ struct broadcast_with_dims
         const auto& dims_shape         = inputs.at(1);
         size_t out_ndim     = std::max(input_tensor_shape.ndim(), dims_shape.lens().at(0));
         std::size_t max_int = std::numeric_limits<std::size_t>::max();
+        if(not output_dyn_dims.empty())
+        {
+            if(output_dyn_dims.size() != out_ndim or
+               not all_of(output_dyn_dims, [](const auto& dim) { return dim.is_symbolic(); }))
+                MIGRAPHX_THROW(
+                    "BROADCAST_WITH_DIMS: out_dyn_dims must be a fully symbolic output shape");
+            const auto broadcasted = compute_broadcasted_dyn_dims(
+                input_tensor_shape.to_symbolic().dyn_dims(), output_dyn_dims);
+            if(broadcasted != output_dyn_dims)
+                MIGRAPHX_THROW(
+                    "BROADCAST_WITH_DIMS: input shape does not broadcast to out_dyn_dims");
+            return {input_tensor_shape.type(), output_dyn_dims};
+        }
         // A broadcast output dimension is always >= 1 (ONNX Expand only ever grows a size-1 axis),
         // so use a lower bound of 1.
         std::vector<shape::dynamic_dimension> dyn_dims(out_ndim,

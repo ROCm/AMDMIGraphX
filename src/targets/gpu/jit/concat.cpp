@@ -128,13 +128,15 @@ struct concat_compiler : compiler<concat_compiler>
         auto ninputs             = concat_params.size();
         auto max_elements_per_op = max_size(options.virtual_inputs, ninputs, concat_axis);
         auto avg_elements_per_op = output.lens()[concat_axis] / op_names.size();
+        std::size_t group        = 1;
+        if(concat_axis > 0)
+            group = tile::compute_factor(output.lens()[concat_axis - 1], 16);
+        // block_tile stores a group * nops * max_size tile of the output in LDS
+        auto tile_bytes = group * op_names.size() * max_elements_per_op * output.type_size();
         std::string algo;
         if(concat_axis == axis and max_elements_per_op < 64 and
-           max_elements_per_op == avg_elements_per_op)
+           max_elements_per_op == avg_elements_per_op and tile_bytes <= 65536)
         {
-            std::size_t group = 1;
-            if(concat_axis > 0)
-                group = tile::compute_factor(output.lens()[concat_axis - 1], 16);
             auto nslices = output.elements() / output.lens()[concat_axis];
             // compute_factor returns a divisor of lens()[concat_axis - 1], so group divides nslices
             assert(nslices % group == 0);

@@ -22,24 +22,21 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#ifdef _WIN32
 
-TEST_CASE(softplus_nd_test)
+#include <windows.h>
+
+#include <google/protobuf/message_lite.h>
+
+BOOL WINAPI DllMain(HINSTANCE /*instance*/, DWORD reason, LPVOID reserved)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    std::vector<std::size_t> input_lens{3, 4, 5};
-    auto input_type = migraphx::shape::half_type;
-
-    auto x = mm->add_parameter("x", migraphx::shape{input_type, input_lens});
-    auto ones = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
-    auto exp  = mm->add_instruction(migraphx::make_op("exp"), x);
-    auto mb_ones =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), ones);
-    auto add = mm->add_instruction(migraphx::make_op("add"), exp, mb_ones);
-    mm->add_instruction(migraphx::make_op("log"), add);
-
-    auto prog = optimize_onnx("softplus_nd_test.onnx");
-    EXPECT(p == prog);
+    // Release this DLL's private static protobuf state only for a real
+    // FreeLibrary unload. The OS reclaims it during process termination.
+    if(reason == DLL_PROCESS_DETACH and reserved == nullptr)
+    {
+        google::protobuf::ShutdownProtobufLibrary();
+    }
+    return TRUE;
 }
+
+#endif // _WIN32

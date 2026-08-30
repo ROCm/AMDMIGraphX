@@ -4,14 +4,19 @@ on:
   schedule:
    - cron: '0 15 * * sun'
   workflow_dispatch:
- 
+
+permissions:
+  contents: read
+
 jobs:
   SyncAndMerge:
     name: Sync master and merge develop
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
  
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with: 
           ref: develop
           fetch-depth: '0'

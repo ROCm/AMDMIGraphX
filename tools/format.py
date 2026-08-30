@@ -90,7 +90,8 @@ def main():
     parser.add_argument('--yapf-path',
                         default='yapf',
                         help='Path to the yapf executable')
-    parser.add_argument('--exit-zero', action='store_true',
+    parser.add_argument('--exit-zero',
+                        action='store_true',
                         help='Exit 0 even when formatting differs')
     args = parser.parse_args()
     try:

@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_REDUCE_HPP
 #define MIGRAPHX_GUARD_KERNELS_REDUCE_HPP
 
+#include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
@@ -45,30 +46,34 @@ namespace migraphx {
 template <index_int N, class Op, class T, class Size, class F>
 __device__ auto block_batch_accumulate(index idx, Op op, T init, Size n, F f)
 {
+    static_assert(Size{} % N == 0, "Batch size must evenly divide the reduction size");
     constexpr auto relements = Size{} / _c<N>;
     using elem               = decltype(index::invoke_loop(f, 0, _c<0>));
     using type               = vec<elem, N>;
     auto x                   = type(elem(init));
 #ifdef MIGRAPHX_HAS_CONST_LOCAL
-    constexpr auto nlocal = decltype(index{}.max_nlocal()){};
+    constexpr auto nlocal = decltype(idx.max_nlocal()){};
     if constexpr(relements % nlocal == 0)
     {
         constexpr auto niterations = relements / nlocal;
+        // Visits the same (j, d) pairs as local_stride(n, f) does, just with
+        // the segments innermost
         repeat_c<niterations>([&](auto b) {
             repeat_c<N>([&](auto t) {
-                // Visits the same (j, d) pairs as local_stride(n, f) does,
-                // just with the segments innermost
-                constexpr index_int d = decltype(t){} * niterations + decltype(b){};
-                auto j                = idx.local + d * nlocal;
-                x[index_int{t}]       = op(x[index_int{t}], index::invoke_loop(f, j, _c<d>));
+                auto d = t * niterations + b;
+                auto j = idx.local + d * nlocal;
+                MIGRAPHX_ASSERT(j < n);
+                x[index_int{t}] = op(x[index_int{t}], index::invoke_loop(f, j, d));
             });
         });
         return x;
     }
 #endif
+    // The workgroup size is not constant or does not divide relements, so
+    // each element looks up its segment
+    constexpr auto segments = make_shape(index_ints<N, relements>{});
     idx.local_stride(n, [&](auto j, auto d) {
-        // The division folds to a constant when the workgroup size divides relements
-        auto t = j / relements;
+        auto t = segments.multi(j)[0];
         x[t]   = op(x[t], index::invoke_loop(f, j, d));
     });
     return x;
@@ -229,6 +234,28 @@ __device__ auto wave_reduce(index idx, Op op, T init, Index n, F f)
     return subwave_reduce<MIGRAPHX_WAVEFRONTSIZE>(idx, op, init, n, f);
 }
 
+/// Combines the per-lane accumulated values x across the workgroup
+template <class Op, class T, class Buffer>
+__device__ T block_combine(index idx, Op op, T init, T x, Buffer& buffer)
+{
+    constexpr index_int lanes_per_thread = MIGRAPHX_WAVEFRONTSIZE;
+    dpp_reduce(x, op);
+
+    const auto ldsidx = idx.local / lanes_per_thread;
+    if((idx.local % lanes_per_thread) == lanes_per_thread - 1)
+    {
+        buffer[ldsidx] = x;
+    }
+    __syncthreads();
+
+    T y = init;
+    for(index_int i = 0; i < idx.nlocal() / lanes_per_thread; i++)
+    {
+        y = op(y, buffer[i]);
+    }
+    return y;
+}
+
 template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
@@ -237,26 +264,12 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     if constexpr(decltype(idx.nlocal()){} == MIGRAPHX_WAVEFRONTSIZE)
         return wave_reduce(idx, op, init, n, f);
 #endif
-    constexpr index_int lanes_per_thread = MIGRAPHX_WAVEFRONTSIZE;
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
-    __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){} / lanes_per_thread> buffer;
+    __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){} / MIGRAPHX_WAVEFRONTSIZE>
+        buffer;
     auto x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
-    dpp_reduce(x, op);
-
-    const auto ldsidx = idx.local / lanes_per_thread;
-    if((idx.local % lanes_per_thread) == lanes_per_thread - 1)
-    {
-        buffer[ldsidx] = x;
-    }
-    __syncthreads();
-
-    type y = type(init);
-    for(index_int i = 0; i < idx.nlocal() / lanes_per_thread; i++)
-    {
-        y = op(y, buffer[i]);
-    }
-    return y;
+    return block_combine(idx, op, type(init), x, buffer);
 }
 
 /// Like block_reduce but computes N independent reductions in one pass. The
@@ -266,28 +279,32 @@ template <index_int N, class Op, class T, class Size, class F>
 __device__ auto block_batch_reduce(index idx, Op op, T init, Size n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
-    constexpr index_int lanes_per_thread = MIGRAPHX_WAVEFRONTSIZE;
-    using elem                           = decltype(index::invoke_loop(f, 0, _c<0>));
-    using type                           = vec<elem, N>;
-    __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){} / lanes_per_thread> buffer;
-    auto x = block_batch_accumulate<N>(idx, op, init, n, f);
-    dpp_reduce(x, op);
-
-    const auto ldsidx = idx.local / lanes_per_thread;
-    if((idx.local % lanes_per_thread) == lanes_per_thread - 1)
-    {
-        buffer[ldsidx] = x;
-    }
-    __syncthreads();
-
-    auto y = type(elem(init));
-    for(index_int i = 0; i < idx.nlocal() / lanes_per_thread; i++)
-    {
-        y = op(y, buffer[i]);
-    }
-    return y;
+    auto x     = block_batch_accumulate<N>(idx, op, init, n, f);
+    using type = decltype(x);
+    __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){} / MIGRAPHX_WAVEFRONTSIZE>
+        buffer;
+    return block_combine(idx, op, type(vec_type<type>(init)), x, buffer);
 }
 #else
+/// Combines the per-lane accumulated values x across the workgroup
+template <class Op, class T, class Buffer>
+__device__ T block_combine(index idx, Op op, T, T x, Buffer& buffer)
+{
+    buffer[idx.local] = x;
+    __syncthreads();
+
+    for(index_int s = 1; s < idx.nlocal(); s *= 2)
+    {
+        const index_int index = 2 * s * idx.local;
+        if(index + s < idx.nlocal())
+        {
+            buffer[index] = op(buffer[index], buffer[index + s]);
+        }
+        __syncthreads();
+    }
+    return buffer[0];
+}
+
 template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
@@ -296,19 +313,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){}> buffer;
     auto x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
-    buffer[idx.local] = x;
-    __syncthreads();
-
-    for(index_int s = 1; s < idx.nlocal(); s *= 2)
-    {
-        const index_int index = 2 * s * idx.local;
-        if(index + s < idx.nlocal())
-        {
-            buffer[index] = op(buffer[index], buffer[index + s]);
-        }
-        __syncthreads();
-    }
-    return buffer[0];
+    return block_combine(idx, op, type(init), x, buffer);
 }
 
 /// Like block_reduce but computes N independent reductions in one pass. The
@@ -318,41 +323,39 @@ template <index_int N, class Op, class T, class Size, class F>
 __device__ auto block_batch_reduce(index idx, Op op, T init, Size n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
-    using elem = decltype(index::invoke_loop(f, 0, _c<0>));
-    using type = vec<elem, N>;
+    auto x     = block_batch_accumulate<N>(idx, op, init, n, f);
+    using type = decltype(x);
     __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){}> buffer;
-    auto x            = block_batch_accumulate<N>(idx, op, init, n, f);
-    buffer[idx.local] = x;
-    __syncthreads();
-
-    for(index_int s = 1; s < idx.nlocal(); s *= 2)
-    {
-        const index_int index = 2 * s * idx.local;
-        if(index + s < idx.nlocal())
-        {
-            buffer[index] = op(buffer[index], buffer[index + s]);
-        }
-        __syncthreads();
-    }
-    return buffer[0];
+    return block_combine(idx, op, type(vec_type<type>(init)), x, buffer);
 }
 #endif
+
+/// Lengths of the slice of Input that reduces to a single output
+template <class Output, class Input>
+constexpr auto reduce_slice_lens()
+{
+    return transform(get_shape_c<Input>{}.lens,
+                     get_shape_c<Output>{}.lens,
+                     [](index_int x, index_int y) -> index_int {
+                         if(x == y)
+                             return 1;
+                         return x;
+                     });
+}
+
+template <class Input, class T, class Shape>
+constexpr auto make_slice_view(Input input, T i, Shape s)
+{
+    MIGRAPHX_ASSERT((input.get_shape().index(i) + s.element_space()) <=
+                    input.get_shape().element_space());
+    return make_tensor_view(&input[i], s);
+}
 
 template <class Output, class Input, class T>
 constexpr auto reduce_slice(Input input, T i)
 {
-    constexpr auto lens = transform(get_shape_c<Input>{}.lens,
-                                    get_shape_c<Output>{}.lens,
-                                    [](index_int x, index_int y) -> index_int {
-                                        if(x == y)
-                                            return 1;
-                                        return x;
-                                    });
-    ;
-    constexpr auto s = make_shape(lens, get_shape_c<Input>{}.strides);
-    MIGRAPHX_ASSERT((input.get_shape().index(i) + s.element_space()) <=
-                    input.get_shape().element_space());
-    return make_tensor_view(&input[i], s);
+    constexpr auto s = make_shape(reduce_slice_lens<Output, Input>(), get_shape_c<Input>{}.strides);
+    return make_slice_view(input, i, s);
 }
 
 namespace reduce {
@@ -455,6 +458,15 @@ using with_axis = decltype(compute_reduce_axis<Input, Axis>());
 template <class Derived>
 struct reducer_base
 {
+    /// Assigns the scalar reduction result to the output at out_idx
+    template <class Assign, class Output, class OutIdx, class T>
+    __device__ void
+    assign_outer(Assign assign, Output output, OutIdx out_idx, const T& result) const
+    {
+        auto&& derived = static_cast<const Derived&>(*this);
+        derived.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
+    }
+
     template <class T>
     __device__ decltype(auto) make_inner_slice(T&& x) const
     {
@@ -582,67 +594,72 @@ struct reducer_base
     }
 };
 
+/// Shared members of the reducers that compute one reduction per workgroup
+template <class Derived, class Slicer>
+struct block_reducer_base : reducer_base<Derived>
+{
+    index idx;
+    Slicer slice;
+
+    template <class T, index_int N, class Size>
+    struct inner_storage : inner_storage_tag
+    {
+        using type = T;
+        array<T, N> arr;
+        constexpr Size rsize() const { return {}; }
+        template <class U, class V>
+        constexpr auto& operator()(U, V d) const
+        {
+            return arr[d];
+        }
+        template <class U, class V>
+        constexpr auto& operator()(U, V d)
+        {
+            return arr[d];
+        }
+    };
+
+    template <class F>
+    __device__ void outer(F f) const
+    {
+        if(idx.local == 0)
+            f();
+    }
+
+    template <class F, class N, class... Ts>
+    __device__ void inner_void_impl(F f, N n, Ts&&... xs) const
+    {
+        idx.local_stride(n, [&](auto j, auto d) { f(xs(j, d)...); });
+    }
+
+    template <class R, class F, class N, class... Ts>
+    __device__ auto inner_impl(F f, N n, Ts&&... xs) const
+    {
+        using max_iterations = decltype(idx.max_local_stride_iterations(n));
+        inner_storage<R, max_iterations{}, N> storage;
+        idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
+        return storage;
+    }
+};
+
 struct block
 {
     template <class Slicer>
-    struct reducer : reducer_base<reducer<Slicer>>
+    struct reducer : block_reducer_base<reducer<Slicer>, Slicer>
     {
-        index idx;
-        Slicer slice;
-
-        template <class T, index_int N, class Size>
-        struct inner_storage : inner_storage_tag
-        {
-            using type = T;
-            array<T, N> arr;
-            constexpr Size rsize() const { return {}; }
-            template <class U, class V>
-            constexpr auto& operator()(U, V d) const
-            {
-                return arr[d];
-            }
-            template <class U, class V>
-            constexpr auto& operator()(U, V d)
-            {
-                return arr[d];
-            }
-        };
-
         template <class Op, class T, class Read, class N, class... Ts>
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
-            return block_reduce(idx, op, init, n, [&](auto j, auto d) {
+            return block_reduce(this->idx, op, init, n, [&](auto j, auto d) {
                 return final_reduce(read(xs(j, d)...), op);
             });
-        }
-
-        template <class F>
-        __device__ void outer(F f) const
-        {
-            if(idx.local == 0)
-                f();
-        }
-
-        template <class F, class N, class... Ts>
-        __device__ void inner_void_impl(F f, N n, Ts&&... xs) const
-        {
-            idx.local_stride(n, [&](auto j, auto d) { f(xs(j, d)...); });
-        }
-
-        template <class R, class F, class N, class... Ts>
-        __device__ auto inner_impl(F f, N n, Ts&&... xs) const
-        {
-            using max_iterations = decltype(idx.max_local_stride_iterations(n));
-            inner_storage<R, max_iterations{}, N> storage;
-            idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
-            return storage;
         }
     };
 
     template <class Slicer>
     static __device__ auto make(index idx, Slicer slicer)
     {
-        return reducer<Slicer>{{}, idx, slicer};
+        return reducer<Slicer>{{{}, idx, slicer}};
     }
 
     template <class Output, class F>
@@ -738,15 +755,24 @@ struct block_tile
         return make_shape(lens, s.strides);
     }
 
+    /// Calls f with the first output index of each tile of the workgroup
     template <class Output, class F>
-    static __device__ void run(F f)
+    static __device__ void for_each_tile(index idx, F f)
     {
-        auto idx                   = make_index();
         constexpr auto tiled_shape = get_tiled_shape<Output>();
         constexpr auto nelements   = tiled_shape.elements();
         idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
             auto out_idx = tiled_shape.multi(i / idx.nlocal());
             out_idx[Axis] *= N;
+            f(out_idx);
+        });
+    }
+
+    template <class Output, class F>
+    static __device__ void run(F f)
+    {
+        auto idx = make_index();
+        for_each_tile<Output>(idx, [&](auto out_idx) {
             for(index_int n = 0; n < N; n++)
             {
                 // The lds buffer in block_reduce is reused on each iteration,
@@ -765,9 +791,9 @@ struct block_tile
 /// block_tile, but in a single fused pass: each lane keeps one accumulator per
 /// output in a vector, so the inputs that are broadcast along the tiled axis
 /// are loaded once and reused from registers for every output instead of
-/// being re-read once per output. The compiler only selects this algorithm
-/// for modules with a single reduction whose scalar results are not read back
-/// elementwise.
+/// being re-read once per output. Only valid when can_batch_reduce
+/// (jit/reduce.cpp) accepts the module: a single reduction whose result is
+/// not mixed back into per-element or per-output reads.
 template <index_int Axis, index_int N>
 struct block_batch
 {
@@ -776,12 +802,10 @@ struct block_batch
     template <class T, T... Xs>
     static constexpr auto move_axis_front(integral_const_array<T, Xs...>)
     {
+        static_assert(Axis < sizeof...(Xs), "Tile axis is out of bounds");
         return return_array_c([] {
-            constexpr integral_const_array<T, Xs...> arr{};
-            auto result = arr.base();
-            result[0]   = arr.base()[Axis];
-            for(index_int i = 0; i < Axis; i++)
-                result[i + 1] = arr.base()[i];
+            auto result = integral_const_array<T, Xs...>{}.base();
+            rotate(result.begin(), result.begin() + Axis, result.begin() + Axis + 1);
             return result;
         });
     }
@@ -793,91 +817,57 @@ struct block_batch
     template <class Output, class Input, class T>
     static __device__ auto batch_slice(Input input, T i)
     {
-        constexpr auto lens =
-            transform_i(get_shape_c<Input>{}.lens, [](index_int x, index_int j) -> index_int {
-                if(j == Axis)
-                    return N;
-                if(x == get_shape_c<Output>{}.lens[j])
-                    return 1;
-                return x;
-            });
+        static_assert(get_shape_c<Input>{}.lens[Axis] == get_shape_c<Output>{}.lens[Axis],
+                      "Tile axis must not be a reduced axis");
+        constexpr auto lens = transform_i(reduce_slice_lens<Output, Input>(),
+                                          [](index_int x, index_int j) -> index_int {
+                                              if(j == Axis)
+                                                  return N;
+                                              return x;
+                                          });
         constexpr auto s =
             make_shape(move_axis_front(lens), move_axis_front(get_shape_c<Input>{}.strides));
-        MIGRAPHX_ASSERT((input.get_shape().index(i) + s.element_space()) <=
-                        input.get_shape().element_space());
-        return make_tensor_view(&input[i], s);
+        return make_slice_view(input, i, s);
     }
 
     template <class Slicer>
-    struct reducer : reducer_base<reducer<Slicer>>
+    struct reducer : block_reducer_base<reducer<Slicer>, Slicer>
     {
-        index idx;
-        Slicer slice;
-
-        template <class T, index_int M, class Size>
-        struct inner_storage : inner_storage_tag
-        {
-            using type = T;
-            array<T, M> arr;
-            constexpr Size rsize() const { return {}; }
-            template <class U, class V>
-            constexpr auto& operator()(U, V d) const
-            {
-                return arr[d];
-            }
-            template <class U, class V>
-            constexpr auto& operator()(U, V d)
-            {
-                return arr[d];
-            }
-        };
-
         template <class Op, class T, class Read, class Size, class... Ts>
         __device__ auto reduce_impl(Op op, T init, Read read, Size n, Ts&&... xs) const
         {
-            return block_batch_reduce<N>(idx, op, init, n, [&](auto j, auto d) {
+            return block_batch_reduce<N>(this->idx, op, init, n, [&](auto j, auto d) {
                 return final_reduce(read(xs(j, d)...), op);
             });
         }
 
-        template <class F>
-        __device__ void outer(F f) const
+        /// The result holds one value per output of the tile, so each slot is
+        /// written to its own output index along the tiled axis
+        template <class Assign, class Output, class OutIdx, class T>
+        __device__ void
+        assign_outer(Assign assign, Output output, OutIdx out_idx, const T& result) const
         {
-            if(idx.local == 0)
-                f();
-        }
-
-        template <class F, class Size, class... Ts>
-        __device__ void inner_void_impl(F f, Size n, Ts&&... xs) const
-        {
-            idx.local_stride(n, [&](auto j, auto d) { f(xs(j, d)...); });
-        }
-
-        template <class R, class F, class Size, class... Ts>
-        __device__ auto inner_impl(F f, Size n, Ts&&... xs) const
-        {
-            using max_iterations = decltype(idx.max_local_stride_iterations(n));
-            inner_storage<R, max_iterations{}, Size> storage;
-            idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
-            return storage;
+            this->outer([&] {
+                repeat_c<N>([&](auto t) {
+                    auto oidx = out_idx;
+                    oidx[Axis] += t;
+                    assign(output[oidx], implicit_conversion(vec_at(result, index_int{t})));
+                });
+            });
         }
     };
 
     template <class Slicer>
     static __device__ auto make(index idx, Slicer slicer)
     {
-        return reducer<Slicer>{{}, idx, slicer};
+        return reducer<Slicer>{{{}, idx, slicer}};
     }
 
     template <class Output, class F>
     static __device__ void run(F f)
     {
-        auto idx                   = make_index();
-        constexpr auto tiled_shape = block_tile<Axis, N>::template get_tiled_shape<Output>();
-        constexpr auto nelements   = tiled_shape.elements();
-        idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
-            auto out_idx = tiled_shape.multi(i / idx.nlocal());
-            out_idx[Axis] *= N;
+        auto idx = make_index();
+        block_tile<Axis, N>::template for_each_tile<Output>(idx, [&](auto out_idx) {
             f(out_idx, make(idx, [&](auto input) { return batch_slice<Output>(input, out_idx); }));
         });
     }
@@ -1183,37 +1173,6 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
     });
 }
 
-/// Writes a scalar reduction result to the output. For the batched algorithm
-/// the result is a vector holding one value per output of the tile, so each
-/// slot is written to its own output index along the tiled axis.
-template <class Algo>
-struct fused_reduce_assign
-{
-    template <class R, class Assign, class Output, class OutIdx, class T>
-    static __device__ void
-    apply(R& r, Assign assign, Output output, OutIdx out_idx, const T& result)
-    {
-        r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
-    }
-};
-
-template <index_int Axis, index_int N>
-struct fused_reduce_assign<reduce::block_batch<Axis, N>>
-{
-    template <class R, class Assign, class Output, class OutIdx, class T>
-    static __device__ void
-    apply(R& r, Assign assign, Output output, OutIdx out_idx, const T& result)
-    {
-        r.outer([&] {
-            repeat_c<N>([&](auto t) {
-                auto oidx = out_idx;
-                oidx[Axis] += t;
-                assign(output[oidx], implicit_conversion(vec_at(result, index_int{t})));
-            });
-        });
-    }
-};
-
 template <class Algo, class Reduced, class Output, class Assign, class F>
 __device__ void fused_reduce(Output output_pack, Assign assign, F f)
 {
@@ -1227,7 +1186,7 @@ __device__ void fused_reduce(Output output_pack, Assign assign, F f)
                 }
                 else
                 {
-                    fused_reduce_assign<Algo>::apply(r, assign, output, out_idx, result);
+                    r.assign_outer(assign, output, out_idx, result);
                 }
             },
             output_pack,

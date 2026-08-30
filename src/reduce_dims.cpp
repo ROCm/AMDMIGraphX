@@ -126,6 +126,15 @@ static shape mask_shape(const shape& s, const std::vector<std::size_t>& lens)
             return base.strides()[i];
         return 0;
     });
+    // Adjacent stride-0 axes are allowed to merge, which is only valid when both
+    // are broadcasts; a mask cant keep an adjacent incompatible axis unmerged, so
+    // give up on masking
+    auto pairs = range(lens.size() - 1);
+    if(std::any_of(pairs.begin(), pairs.end(), [&](auto i) {
+           return rstrides[i] == 0 and rstrides[i + 1] == 0 and
+                  (s.lens()[i] != 1 or s.lens()[i + 1] != 1);
+       }))
+        return {};
     return shape{s.type(), lens, rstrides};
 }
 

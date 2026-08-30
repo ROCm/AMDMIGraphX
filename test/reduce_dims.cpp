@@ -228,6 +228,42 @@ TEST_CASE(different_first_axis)
     EXPECT(eshapes == rshapes);
 }
 
+TEST_CASE(different_adjacent_incompatible)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({5, 224, 224}), make_shape({5, 229, 229})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(ishapes == rshapes);
+}
+
+TEST_CASE(different_incompatible_broadcast_adjacent)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({4, 2, 1}), make_shape({4, 7, 5})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(ishapes == rshapes);
+}
+
+TEST_CASE(different_adjacent_incompatible_leading_unmerged)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({1, 3, 224, 224}),
+                                            make_shape({1, 3, 229, 229})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    // TODO: The matched leading dimensions should still merge even though the
+    // adjacent incompatible axes cant be masked:
+    // eshapes = {make_shape({3, 224, 224}), make_shape({3, 229, 229})}
+    EXPECT(ishapes == rshapes);
+}
+
+TEST_CASE(different_adjacent_incompatible_trailing_unmerged)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({224, 224, 2, 3}),
+                                            make_shape({229, 229, 2, 3})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    // TODO: The matched trailing dimensions should still merge even though the
+    // adjacent incompatible axes cant be masked:
+    // eshapes = {make_shape({224, 224, 6}), make_shape({229, 229, 6})}
+    EXPECT(ishapes == rshapes);
+}
+
 TEST_CASE(empty)
 {
     auto rshapes = migraphx::reduce_dims({});

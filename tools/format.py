@@ -27,7 +27,7 @@ import argparse
 import subprocess
 from git_tools import get_all_files, get_changed_files, get_merge_base, get_top, run
 
-DEFAULT_CLANG_FORMAT = '/opt/rocm/llvm/bin/clang-format'
+DEFAULT_CLANG_FORMAT = 'clang-format'
 
 EXCLUDE_FILES = ['requirements.in', 'onnx.proto']
 

@@ -233,24 +233,6 @@ constexpr auto min(const T& a, const T& b, Compare compare)
     return where(compare(a, b), a, b);
 }
 
-template <class T,
-          class U,
-          class... Compare,
-          MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
-constexpr auto max(const T& a, const U& b, Compare... compare)
-{
-    return max<common_type_t<T, U>>(a, b, compare...);
-}
-
-template <class T,
-          class U,
-          class... Compare,
-          MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
-constexpr auto min(const T& a, const U& b, Compare... compare)
-{
-    return min<common_type_t<T, U>>(a, b, compare...);
-}
-
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr T mod(const T& a, const T& b)
 {
@@ -380,6 +362,26 @@ template <class T, class U>
 constexpr auto ceil_div(T x, U y)
 {
     return (x + y - _c<1>) / y;
+}
+
+template <class T,
+          class U,
+          class... Compare,
+          MIGRAPHX_REQUIRES(not is_same<T, U>{})>
+constexpr auto max(const T& a, const U& b, Compare... compare)
+{
+    using type = common_vec_t<T, U>;
+    return max(type{a}, type{b}, compare...);
+}
+
+template <class T,
+          class U,
+          class... Compare,
+          MIGRAPHX_REQUIRES(not is_same<T, U>{})>
+constexpr auto min(const T& a, const U& b, Compare... compare)
+{
+    using type = common_vec_t<T, U>;
+    return min(type{a}, type{b}, compare...);
 }
 
 } // namespace migraphx

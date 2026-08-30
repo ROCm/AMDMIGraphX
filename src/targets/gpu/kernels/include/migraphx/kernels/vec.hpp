@@ -98,6 +98,17 @@ constexpr auto common_vec_size(Ts...)
     return common_vec_size<Ts...>();
 }
 
+template <class... Ts>
+struct common_vec
+{
+    static constexpr auto size = common_vec_size<Ts...>();
+    using raw_type = common_type_t<vec_type<Ts>...>;
+    using type = conditional_t<size == 0, raw_type, vec<raw_type, size>>;
+};
+
+template<class... Ts>
+using common_vec_t = typename common_vec<Ts...>::type;
+
 // Bools can not be used as a vector type so convert it to uint8
 template <class T>
 __device__ __host__ T* remove_bool(T* x)

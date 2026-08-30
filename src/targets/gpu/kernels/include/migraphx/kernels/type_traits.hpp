@@ -220,7 +220,7 @@ struct common_type<T>
 template <class T, class U>
 struct common_type<T, U>
 {
-    using type = decltype(true ? declval<T>() : declval<U>());
+    using type = remove_cv_t<remove_reference_t<decltype(true ? declval<T>() : declval<U>())>>;
 };
 
 template <class T, class U, class... Us>

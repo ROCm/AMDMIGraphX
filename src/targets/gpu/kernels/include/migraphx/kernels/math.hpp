@@ -205,7 +205,7 @@ constexpr auto abs(const T& a)
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr auto max(const T& a, const T& b)
 {
-    if constexpr (is_floating_point<T>{})
+    if constexpr(is_floating_point<T>{})
         return __builtin_elementwise_maximum(a, b);
     else
         return where(a < b, b, a);
@@ -214,11 +214,10 @@ constexpr auto max(const T& a, const T& b)
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr auto min(const T& a, const T& b)
 {
-    if constexpr (is_floating_point<T>{})
+    if constexpr(is_floating_point<T>{})
         return __builtin_elementwise_minimum(a, b);
     else
         return where(a < b, a, b);
-
 }
 
 template <class T, class Compare, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
@@ -282,18 +281,18 @@ MIGRAPHX_DEVICE_MATH_VEC(where)
 template <class T, MIGRAPHX_REQUIRES(is_any_vec<T>())>
 constexpr auto min(const T& a, const T& b)
 {
-    if constexpr (is_integral<vec_type<T>>{})
+    if constexpr(is_integral<vec_type<T>>{})
         return __builtin_elementwise_min(a, b);
-    else    
+    else
         return __builtin_elementwise_minimum(a, b);
 }
 
 template <class T, MIGRAPHX_REQUIRES(is_any_vec<T>())>
 constexpr auto max(const T& a, const T& b)
 {
-    if constexpr (is_integral<vec_type<T>>{})
+    if constexpr(is_integral<vec_type<T>>{})
         return __builtin_elementwise_max(a, b);
-    else   
+    else
         return __builtin_elementwise_maximum(a, b);
 }
 
@@ -364,24 +363,24 @@ constexpr auto ceil_div(T x, U y)
     return (x + y - _c<1>) / y;
 }
 
-template <class T,
-          class U,
-          class... Compare,
-          MIGRAPHX_REQUIRES(not is_same<T, U>{})>
+template <class T, class U, class... Compare, MIGRAPHX_REQUIRES(not is_same<T, U>{})>
 constexpr auto max(const T& a, const U& b, Compare... compare)
 {
+    // Use implicit_conversion so scalars are splatted across all vector lanes
     using type = common_vec_t<T, U>;
-    return max(type{a}, type{b}, compare...);
+    type x     = implicit_conversion(a);
+    type y     = implicit_conversion(b);
+    return max(x, y, compare...);
 }
 
-template <class T,
-          class U,
-          class... Compare,
-          MIGRAPHX_REQUIRES(not is_same<T, U>{})>
+template <class T, class U, class... Compare, MIGRAPHX_REQUIRES(not is_same<T, U>{})>
 constexpr auto min(const T& a, const U& b, Compare... compare)
 {
+    // Use implicit_conversion so scalars are splatted across all vector lanes
     using type = common_vec_t<T, U>;
-    return min(type{a}, type{b}, compare...);
+    type x     = implicit_conversion(a);
+    type y     = implicit_conversion(b);
+    return min(x, y, compare...);
 }
 
 } // namespace migraphx

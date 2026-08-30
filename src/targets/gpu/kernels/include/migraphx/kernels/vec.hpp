@@ -98,15 +98,30 @@ constexpr auto common_vec_size(Ts...)
     return common_vec_size<Ts...>();
 }
 
+namespace vec_detail {
+// Avoid instantiating vec<T, 0> when all types are scalar
+template <class T, index_int N>
+struct vec_or_scalar
+{
+    using type = vec<T, N>;
+};
+
+template <class T>
+struct vec_or_scalar<T, 0>
+{
+    using type = T;
+};
+} // namespace vec_detail
+
 template <class... Ts>
 struct common_vec
 {
     static constexpr auto size = common_vec_size<Ts...>();
-    using raw_type = common_type_t<vec_type<Ts>...>;
-    using type = conditional_t<size == 0, raw_type, vec<raw_type, size>>;
+    using raw_type             = common_type_t<vec_type<Ts>...>;
+    using type                 = typename vec_detail::vec_or_scalar<raw_type, size>::type;
 };
 
-template<class... Ts>
+template <class... Ts>
 using common_vec_t = typename common_vec<Ts...>::type;
 
 // Bools can not be used as a vector type so convert it to uint8

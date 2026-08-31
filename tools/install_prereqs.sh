@@ -233,7 +233,7 @@ fi
 # Install pipx from pip rather than the distro package. The distro pipx depends
 # on python3-packaging, and a dpkg-owned copy of packaging cannot be uninstalled
 # by pip when requirements-py.txt pins a different version.
-pip3 install setuptools wheel pipx pybind11
+pip3 install setuptools wheel pipx
 
 # Install apps to the global location so any user can run them. On SLES pipx
 # runs under python 3.6 where pipx 0.16 has no --global flag; there the global
@@ -245,12 +245,11 @@ fi
 
 pipx install ${PIPX_GLOBAL_FLAG} https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz --include-deps
 
-echo "Dependencies are installed at $PREFIX"
-
-# Install deps with rbuild
-rbuild prepare -d $PREFIX -s develop
-
 if [[ ("${ID}" != "sles") ]]; then
     export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
     pip3 install -r $REQ_FILE_DIR/requirements-py.txt
 fi
+
+# Install deps with rbuild
+echo "Dependencies are installed at $PREFIX"
+rbuild prepare -d $PREFIX -s develop

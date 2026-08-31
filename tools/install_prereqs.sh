@@ -245,11 +245,12 @@ fi
 
 pipx install ${PIPX_GLOBAL_FLAG} https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz --include-deps
 
+echo "Dependencies are installed at $PREFIX"
+
+# Install deps with rbuild
+rbuild prepare -d $PREFIX -s develop
+
 if [[ ("${ID}" != "sles") ]]; then
     export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
     pip3 install -r $REQ_FILE_DIR/requirements-py.txt
 fi
-
-# Install deps with rbuild
-echo "Dependencies are installed at $PREFIX"
-rbuild prepare -d $PREFIX -s develop

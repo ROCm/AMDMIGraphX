@@ -59,12 +59,6 @@
 #include <optional>
 
 #ifdef _WIN32
-#define MIGRAPHX_CONDITIONAL_FIX_FOR_WIN 1
-#else
-#define MIGRAPHX_CONDITIONAL_FIX_FOR_WIN 0
-#endif
-
-#if MIGRAPHX_CONDITIONAL_FIX_FOR_WIN
 #include <migraphx/reshape_dims.hpp>
 #endif
 
@@ -1629,7 +1623,7 @@ struct find_reshape_cont
         if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
             return;
 
-        #if MIGRAPHX_CONDITIONAL_FIX_FOR_WIN
+        #ifdef _WIN32
         auto rdims_sz = std::vector<std::size_t>(dims.begin(), dims.end());
         if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto in) {
                 return in == in_ins or

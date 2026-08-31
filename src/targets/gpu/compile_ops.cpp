@@ -610,9 +610,8 @@ struct compile_manager
             }
             else
             {
-                log::info()
-                    << "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR is set to " << mxr_path
-                    << ", but no benchmark files were dumped.";
+                log::info() << "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR is set to " << mxr_path
+                            << ", but no benchmark files were dumped.";
             }
             std::exit(0);
         }

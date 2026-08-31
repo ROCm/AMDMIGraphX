@@ -436,6 +436,7 @@ TEST_CASE(my_feature) {
 #include <migraphx/make_op.hpp>
 #include "test.hpp"
 
+// The only helper a test file should define - see "Keep tests self-contained" below
 static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::my_pass{}, migraphx::dead_code_elimination{}});
@@ -459,6 +460,46 @@ TEST_CASE(test_my_pass)
     }
 
     EXPECT(m1 == m2);
+}
+```
+
+**Keep tests self-contained:**
+
+A unit test should be readable top to bottom without jumping to another function. Prefer duplication inside tests over indirection between them.
+
+- Build graphs inline - call `add_instruction`/`insert_instruction` directly in the `TEST_CASE` (or in the braced block for each module) so the test reads as the literal IR under test
+- No helpers for instruction creation, shape construction, parameter setup, or expected-module construction - write `{migraphx::shape::float_type, {3, 3}}` at the use site rather than behind a `make_shape()` style factory
+- Bar for adding any test-local helper, both conditions must hold: it removes more than 5 instructions/lines of setup, **and** it is reused by at least two test cases. Anything cheaper than that gets inlined
+- One sanctioned exception: a single file-level `run_pass(migraphx::module&)` (or `run_pass(migraphx::program&)`) that only forwards to `migraphx::run_passes`, as shown above. Do not layer further helpers on top of it and do not add per-test variants; if a test needs a different pass list, call `migraphx::run_passes` inline
+- Shared utilities already in `test/include/` (`test.hpp`, `basic_ops.hpp`, `pointwise.hpp`, `reduce.hpp`, `verify_rms_range`) remain fine to use; this rule governs helpers you would write inside a test file
+
+```cpp
+// Good: the graph and its shapes are visible in the test
+TEST_CASE(test_relu)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {3, 3}});
+    auto y = m.add_instruction(migraphx::make_op("relu"), x);
+    m.add_return({y});
+    run_pass(m);
+    // ...
+}
+
+// Avoid: wrappers hide the graph and the shapes from the reader
+static migraphx::shape make_shape() { return {migraphx::shape::float_type, {3, 3}}; }
+
+static migraphx::instruction_ref add_relu(migraphx::module& m, migraphx::instruction_ref x)
+{
+    return m.add_instruction(migraphx::make_op("relu"), x);
+}
+
+TEST_CASE(test_relu)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", make_shape());
+    m.add_return({add_relu(m, x)});
+    run_pass(m);
+    // ...
 }
 ```
 

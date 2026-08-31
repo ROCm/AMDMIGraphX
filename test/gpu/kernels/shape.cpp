@@ -528,14 +528,14 @@ TEST_CASE(find_permutation_2d_standard)
 
 TEST_CASE(find_permutation_2d_transpose)
 {
-    auto s                = migraphx::make_shape(migraphx::index_ints<2, 3>{}, migraphx::index_ints<1, 2>{});
+    auto s = migraphx::make_shape(migraphx::index_ints<2, 3>{}, migraphx::index_ints<1, 2>{});
     auto permutation = migraphx::index_ints<1, 0>{};
     EXPECT(migraphx::find_permutation(s) == permutation);
 }
 
 TEST_CASE(find_permutation_3d)
 {
-    auto s                = migraphx::make_shape(migraphx::index_ints<2, 3, 4>{}, migraphx::index_ints<1, 8, 2>{});
+    auto s = migraphx::make_shape(migraphx::index_ints<2, 3, 4>{}, migraphx::index_ints<1, 8, 2>{});
     auto permutation = migraphx::index_ints<1, 2, 0>{};
     EXPECT(migraphx::find_permutation(s) == permutation);
 }
@@ -547,38 +547,35 @@ TEST_CASE(find_permutation_4d)
     // perm = 3, 2, 0, 1
     // inv_perm = 2, 3, 1, 0
     // out_strides = 5, 1, 20, 60
-    auto s                = migraphx::make_shape(migraphx::index_ints<5, 4, 2, 3>{}, migraphx::index_ints<5, 1, 20, 60>{});
+    auto s           = migraphx::make_shape(migraphx::index_ints<5, 4, 2, 3>{},
+                                            migraphx::index_ints<5, 1, 20, 60>{});
     auto permutation = migraphx::index_ints<3, 2, 0, 1>{};
     EXPECT(migraphx::find_permutation(s) == permutation);
 }
 
 TEST_CASE(from_2d_permutation)
 {
-    auto out_lens = migraphx::index_ints<2, 3>{};
+    auto out_lens    = migraphx::index_ints<2, 3>{};
     auto permutation = migraphx::index_ints<1, 0>{};
-    auto out_shape =
-        migraphx::make_shape_from_permutation(out_lens, permutation);
+    auto out_shape   = migraphx::make_shape_from_permutation(out_lens, permutation);
     EXPECT(out_shape.lens == out_lens);
     EXPECT(migraphx::find_permutation(out_shape) == permutation);
 }
 
 TEST_CASE(from_3d_permutation)
 {
-    auto out_lens = migraphx::index_ints<2, 3, 4>{};
+    auto out_lens    = migraphx::index_ints<2, 3, 4>{};
     auto permutation = migraphx::index_ints<1, 2, 0>{};
-    auto out_shape =
-        migraphx::make_shape_from_permutation(out_lens, permutation);
+    auto out_shape   = migraphx::make_shape_from_permutation(out_lens, permutation);
     EXPECT(out_shape.lens == out_lens);
     EXPECT(migraphx::find_permutation(out_shape) == permutation);
 }
 
 TEST_CASE(from_4d_permutation)
 {
-    auto out_lens = migraphx::index_ints<5, 4, 2, 3>{};
+    auto out_lens    = migraphx::index_ints<5, 4, 2, 3>{};
     auto permutation = migraphx::index_ints<3, 2, 0, 1>{};
-    auto out_shape =
-        migraphx::make_shape_from_permutation(out_lens, permutation);
+    auto out_shape   = migraphx::make_shape_from_permutation(out_lens, permutation);
     EXPECT(out_shape.lens == out_lens);
     EXPECT(migraphx::find_permutation(out_shape) == permutation);
 }
-

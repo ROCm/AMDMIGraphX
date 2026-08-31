@@ -192,7 +192,8 @@ TEST_CASE(different_one_axis)
 {
     std::vector<migraphx::shape> ishapes = {make_shape({64, 16, 160, 160}),
                                             make_shape({64, 48, 160, 160})};
-    std::vector<migraphx::shape> eshapes = {make_shape({64, 16, 25600}), make_shape({64, 48, 25600})};
+    std::vector<migraphx::shape> eshapes = {make_shape({64, 16, 25600}),
+                                            make_shape({64, 48, 25600})};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
     EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
@@ -202,7 +203,8 @@ TEST_CASE(different_two_axes)
 {
     std::vector<migraphx::shape> ishapes = {make_shape({64, 8, 2, 160, 160}),
                                             make_shape({64, 4, 12, 160, 160})};
-    std::vector<migraphx::shape> eshapes = {make_shape({64, 8, 2, 25600}), make_shape({64, 4, 12, 25600})};
+    std::vector<migraphx::shape> eshapes = {make_shape({64, 8, 2, 25600}),
+                                            make_shape({64, 4, 12, 25600})};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
     EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);

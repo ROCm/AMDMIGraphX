@@ -74,6 +74,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python3-pip \
     python3-full \
     libpython3.8 \
+    unzip \
     wget \
     libnuma-dev \
     libomp-17-dev \
@@ -112,6 +113,19 @@ RUN ldconfig
 
 # Manually remove rocm-cmake, since it shouldnt be installed in the first place
 RUN rm -rf /opt/rocm/share/rocmcmakebuildtools
+
+# Workaround broken rocm packages that are missing clangd, so install the
+# upstream LLVM snapshot built from the same clang 23 base as the ROCm 7.14
+# compiler, may still be a mismatch
+ARG CLANGD_SNAPSHOT="20260621"
+RUN curl -fsSL -o /tmp/clangd.zip \
+        "https://github.com/clangd/clangd/releases/download/snapshot_${CLANGD_SNAPSHOT}/clangd-linux-snapshot_${CLANGD_SNAPSHOT}.zip" && \
+    unzip -q /tmp/clangd.zip -d /opt && \
+    mv "/opt/clangd_snapshot_${CLANGD_SNAPSHOT}" /opt/clangd && \
+    chmod -R a+rX /opt/clangd && \
+    ln -s /opt/clangd/bin/clangd /opt/rocm/llvm/bin/clangd && \
+    ln -s /opt/clangd/bin/clangd /usr/local/bin/clangd && \
+    rm /tmp/clangd.zip
 
 # Install pytorch
 RUN pip3 install --index-url "${INDEX_URL}" \

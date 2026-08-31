@@ -14,13 +14,17 @@ env:
   DOCKER_IMAGE_UBUNTU: "rocm/migraphx-ci-ubuntu"
   DOCKER_IMAGE_SLES: "rocm/migraphx-ci-sles"
 
+permissions:
+  contents: read
 
 jobs:
   cancel:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
     steps:
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.12.1
+        uses: styfle/cancel-workflow-action@85880fa0301c86cca9da44039ee3bb12d3bedbfa  # 0.12.1
         with:
           access_token: ${{ github.token }}
 
@@ -35,7 +39,7 @@ jobs:
 
     steps: 
       - name: Checkout Code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Create Image Tag
         id: image_hash
@@ -73,7 +77,7 @@ jobs:
     needs: check_image
     if: ${{ needs.check_image.outputs.imageexists != 'true' }}
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
     - name: Build and publish 
       env:            
@@ -95,7 +99,7 @@ jobs:
     needs: check_image
     if: ${{ needs.check_image.outputs.imageexists_sles != 'true' }}
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
     - name: Build and publish SLES
       env:            
         DOCKER_TAG_SLES: ${{ needs.check_image.outputs.imagetag_sles }}
@@ -114,15 +118,18 @@ jobs:
   tidy:
     runs-on: ROCM-Ubuntu
     needs: [ build_image, check_image ]
+    permissions:
+      contents: read
+      actions: write
     env:
       DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
 
     if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps: 
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
     - name: Restore cache files for tidy
-      uses: actions/cache/restore@v4.2.0
+      uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       id: tidy_restore
       with:
         path: tidy-cache
@@ -158,7 +165,7 @@ jobs:
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for tidy
-      uses: actions/cache/save@v4.2.0
+      uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       if: always()
       with:
         path: tidy-cache
@@ -168,16 +175,19 @@ jobs:
   cppcheck:
     runs-on: ROCM-Ubuntu
     needs: [ build_image, check_image ]
+    permissions:
+      contents: read
+      actions: write
     env:
       DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
 
     if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
     - name: Restore cache files for cppcheck
       id: cppcheck_restore
-      uses: actions/cache/restore@v4.2.0
+      uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       with:
         path: cppcheck-cache
         key: cppcheck-cache-1-${{ hashFiles('tools/cppcheck/rules.xml', 'tools/cppcheck/migraphx.py', 'CMakeLists.txt') }}-${{ github.ref }}
@@ -208,7 +218,7 @@ jobs:
         gh actions-cache delete ${{ steps.cppcheck_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for cppcheck
-      uses: actions/cache/save@v4.2.0
+      uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       if: always()
       with:
         path: cppcheck-cache
@@ -226,12 +236,12 @@ jobs:
 
     if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       with:
         fetch-depth: 0
 
     - name: Free space
-      uses: jlumbroso/free-disk-space@main
+      uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be  # v1.3.1
       continue-on-error: true
       with:
         tool-cache: true
@@ -257,7 +267,7 @@ jobs:
       if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
       run: sudo chown -R $(id -u):$(id -g) .
 
-    - uses: reviewdog/action-suggester@v1
+    - uses: reviewdog/action-suggester@2558ba17e65a9039e73764a73009fc05fef28a46  # v1
       if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
       with:
         tool_name: format.py
@@ -266,17 +276,20 @@ jobs:
   sles:
     runs-on: ROCM-Ubuntu
     needs: [ build_SLES_image, check_image ]
+    permissions:
+      contents: read
+      actions: write
     env:
       DOCKER_TAG_SLES: ${{ needs.check_image.outputs.imagetag_sles }}
     
     if: ${{ !cancelled() && (needs.build_SLES_image.result == 'success' || needs.build_SLES_image.result == 'skipped') }}      
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       with:
         fetch-depth: 0
 
     - name: Restore cache files for ccache
-      uses: actions/cache/restore@v4.2.0
+      uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       id: ccache_restore
       with:
         path: ${{ github.workspace }}/ccache
@@ -315,7 +328,7 @@ jobs:
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache
-      uses: actions/cache/save@v4.2.0
+      uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       if: always()
       with:
         path: ${{ github.workspace }}/ccache
@@ -326,7 +339,7 @@ jobs:
 
     steps:
     - name: Free space
-      uses: jlumbroso/free-disk-space@main
+      uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be  # v1.3.1
       continue-on-error: true
       with:
         tool-cache: true
@@ -337,9 +350,9 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4
       with:
         python-version: 3.12
     - name: Install pyflakes
@@ -357,7 +370,7 @@ jobs:
 
     steps:
     - name: Free space
-      uses: jlumbroso/free-disk-space@main
+      uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be  # v1.3.1
       continue-on-error: true
       with:
         tool-cache: true
@@ -368,11 +381,11 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       with:
         fetch-depth: 0 # Fetch the entire repository history and all branches
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4
       with:
         python-version: 3.12
     - name: Run License Check
@@ -381,6 +394,10 @@ jobs:
   linux:
 
     runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
+      actions: write
 
     env:
       CCACHE_COMPRESSLEVEL: 10
@@ -400,7 +417,7 @@ jobs:
 
     steps:
     - name: Free space
-      uses: jlumbroso/free-disk-space@main
+      uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be  # v1.3.1
       continue-on-error: true
       with:
         tool-cache: true
@@ -412,11 +429,11 @@ jobs:
         docker-images: true
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4
       with:
         python-version: 3.12
     - name: Setup cmake
-      uses: jwlawson/actions-setup-cmake@v1.9
+      uses: jwlawson/actions-setup-cmake@710e05536f2b819d5918f51a5de5b392e99bba3c  # v1.9
       with:
         cmake-version: 3.20.0
     - name : Install rbuild and lld
@@ -426,11 +443,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
-      uses: actions/cache@v4.2.0
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       id: deps_cache
       with:
         # This path is specific to Ubuntu
@@ -443,7 +460,7 @@ jobs:
       run: rbuild prepare -d cget -s gh
 
     - name: Restore cache files for ccache
-      uses: actions/cache/restore@v4.2.0
+      uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       id: ccache_restore
       with:
         path: ${{ github.workspace }}/ccache
@@ -482,7 +499,7 @@ jobs:
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache
-      uses: actions/cache/save@v4.2.0
+      uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       if: always()
       with:
         path: ${{ github.workspace }}/ccache
@@ -508,6 +525,10 @@ jobs:
     continue-on-error: true
     runs-on: ${{ matrix.os }}
 
+    permissions:
+      contents: read
+      actions: write
+
     env:
       CCACHE_COMPRESSLEVEL: 10
       CCACHE_DIR: ${{github.workspace}}/ccache
@@ -526,7 +547,7 @@ jobs:
 
     steps:
     - name: Free space
-      uses: jlumbroso/free-disk-space@main
+      uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be  # v1.3.1
       continue-on-error: true
       with:
         tool-cache: true
@@ -537,16 +558,16 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4
       with:
         python-version: 3.12
 
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
-      uses: actions/cache@v4.2.0
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       with:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
@@ -564,7 +585,7 @@ jobs:
 
     - name: Restore cache files for ccache
       id: ccache_restore_fpga
-      uses: actions/cache/restore@v4.2.0
+      uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       with:
         path: ${{ github.workspace }}/ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
@@ -603,7 +624,7 @@ jobs:
         gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache
-      uses: actions/cache/save@v4.2.0
+      uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       if: always()
       with:
         path: ${{ github.workspace }}/ccache
@@ -626,11 +647,14 @@ jobs:
   misspell:
     name: misspell
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      checks: write
     steps:
       - name: Check out code.
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: misspell
-        uses: reviewdog/action-misspell@v1
+        uses: reviewdog/action-misspell@d6429416b12b09b4e2768307d53bef58d172e962  # v1
         with:
           locale: "US"
           reporter: github-pr-check

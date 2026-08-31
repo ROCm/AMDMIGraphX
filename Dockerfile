@@ -117,7 +117,7 @@ RUN rm -rf /opt/rocm/share/rocmcmakebuildtools
 # Workaround broken rocm packages that are missing clangd, so install the
 # upstream LLVM snapshot built from the same clang 23 base as the ROCm 7.14
 # compiler, may still be a mismatch
-ARG CLANGD_SNAPSHOT="20260621"
+ARG CLANGD_SNAPSHOT="20260712"
 RUN curl -fsSL -o /tmp/clangd.zip \
         "https://github.com/clangd/clangd/releases/download/snapshot_${CLANGD_SNAPSHOT}/clangd-linux-snapshot_${CLANGD_SNAPSHOT}.zip" && \
     unzip -q /tmp/clangd.zip -d /opt && \

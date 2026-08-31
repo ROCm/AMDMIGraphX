@@ -125,6 +125,7 @@ add_library(migraphx
     register_op.cpp
     register_target.cpp
     replace_allocate.cpp
+    rewrite_broadcasts.cpp
     rewrite_convolution.cpp
     rewrite_reduce.cpp
     rewrite_resize.cpp

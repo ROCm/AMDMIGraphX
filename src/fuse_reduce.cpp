@@ -34,6 +34,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
+#include <migraphx/rewrite_broadcasts.hpp>
 #include <migraphx/param_utils.hpp>
 #include <iterator>
 #include <map>
@@ -177,7 +178,7 @@ template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
     return match::skip(match::name("contiguous"))(
-               match::name("multibroadcast")(
+               match::name("multibroadcast", "broadcast")(
                    match::arg(0)(ms...), match::used_once(), input_output_ndim_match())
                    .bind("broadcast"))
         .bind("final_broadcast");
@@ -247,7 +248,102 @@ static void finalize_reduce_module(module_ref m)
     dead_code_elimination{}.apply(*m);
 }
 
+static std::vector<std::size_t> expand_dims(std::vector<std::size_t> lens,
+                                            const std::vector<std::size_t>& axes,
+                                            const std::vector<std::size_t>& dims)
+{
+    for(auto axis : axes)
+        lens[axis] = dims[axis];
+    return lens;
+}
+
 namespace {
+// Hoist a broadcast above a fused_reduce when it expands axes that were
+// already size 1 on the reduce inputs rather than reduced axes. The leftover
+// broadcast then only expands the reduced axes, which the fusion matchers
+// can handle.
+struct find_reduce_broadcast
+{
+    auto matcher() const
+    {
+        auto reduce           = match::name("fused_reduce")(match::used_once()).bind("reduce");
+        auto broadcast_reduce = match::name("multibroadcast")(match::args(reduce),
+                                                              match::nargs(1),
+                                                              match::used_once(),
+                                                              input_output_ndim_match())
+                                    .bind("broadcast");
+        return match::name("fused_reduce",
+                           "pointwise")(match::any_of[match::inputs()](broadcast_reduce));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto broadcast = r.instructions["broadcast"];
+        auto reduce    = r.instructions["reduce"];
+
+        // The leftover broadcast can only fuse into a reduce over the same axes
+        if(ins->name() == "fused_reduce" and ins->get_operator() != reduce->get_operator())
+            return;
+
+        auto axes         = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        const auto& blens = broadcast->get_shape().lens();
+        const auto& rlens = reduce->get_shape().lens();
+        // Axes expanded by the broadcast which the reduce did not reduce
+        std::vector<std::size_t> unreduced_axes;
+        copy_if(range(blens.size()), std::back_inserter(unreduced_axes), [&](auto axis) {
+            return blens[axis] != rlens[axis] and not contains(axes, axis);
+        });
+        if(unreduced_axes.empty())
+            return;
+
+        auto& m = mpm.get_module();
+        std::vector<instruction_ref> new_inputs;
+        std::transform(
+            reduce->inputs().begin(),
+            reduce->inputs().end(),
+            std::back_inserter(new_inputs),
+            [&](auto input) {
+                auto out_lens = expand_dims(input->get_shape().lens(), unreduced_axes, blens);
+                return m.insert_instruction(
+                    broadcast, make_op("multibroadcast", {{"out_lens", out_lens}}), input);
+            });
+
+        // Rebuild the reduce module at the expanded shapes
+        const auto* old_rm = reduce->module_inputs().front();
+        auto* rm           = mpm.create_module(old_rm->name() + "_broadcast");
+        rm->set_bypass();
+        auto outs =
+            rm->fuse(*old_rm,
+                     new_inputs,
+                     nullptr,
+                     [&](module& rmm,
+                         instruction_ref pos,
+                         const operation& op,
+                         const std::vector<instruction_ref>& inputs,
+                         const std::vector<module_ref>& mod_args) {
+                         if(contains({"multibroadcast", "broadcast"}, op.name()))
+                         {
+                             auto out_lens =
+                                 expand_dims(op.to_value().at("out_lens").to_vector<std::size_t>(),
+                                             unreduced_axes,
+                                             blens);
+                             return rmm.insert_instruction(
+                                 pos, make_op("multibroadcast", {{"out_lens", out_lens}}), inputs);
+                         }
+                         return rmm.insert_instruction(pos, op, inputs, mod_args);
+                     });
+        rm->add_return(outs);
+
+        auto new_reduce = m.insert_instruction(broadcast, reduce->get_operator(), new_inputs, {rm});
+        if(new_reduce->get_shape().lens() == blens)
+            m.replace_instruction(broadcast, new_reduce);
+        else
+            m.replace_instruction(
+                broadcast, make_op("multibroadcast", {{"out_lens", blens}}), new_reduce);
+    }
+};
+
 struct find_pointwise_reduce
 {
     auto matcher() const
@@ -420,7 +516,7 @@ struct reduce_reshape : rewrite_reshapes_base
                 v["axis"] = axes.front();
                 return make_op(sop.name(), v);
             }
-            if(sop.name() == "multibroadcast")
+            if(contains({"multibroadcast", "broadcast"}, sop.name()))
                 return make_op("multibroadcast", {{"out_lens", dims}});
             assert(sop.name() == "pointwise");
             return sop;
@@ -455,6 +551,11 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
     {
         if(enable_rewrite_reshapes)
             mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
+        if(enable_rewrite_broadcasts)
+        {
+            match::find_matches(mpm, find_reduce_broadcast{});
+            rewrite_broadcasts(mpm, "fused_reduce");
+        }
         match::find_matches(
             mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});

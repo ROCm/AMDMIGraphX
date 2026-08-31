@@ -272,12 +272,11 @@ struct find_reduce_broadcast
 {
     auto matcher() const
     {
-        auto reduce           = match::name("fused_reduce")(match::used_once()).bind("reduce");
-        auto broadcast_reduce = match::name("multibroadcast")(match::args(reduce),
-                                                              match::nargs(1),
-                                                              match::used_once(),
-                                                              input_output_ndim_match())
-                                    .bind("broadcast");
+        auto reduce = match::name("fused_reduce")(match::used_once()).bind("reduce");
+        auto broadcast_reduce =
+            match::name("multibroadcast")(
+                match::args(reduce), match::nargs(1), match::used_once(), input_output_ndim_match())
+                .bind("broadcast");
         return match::name("fused_reduce",
                            "pointwise")(match::any_of[match::inputs()](broadcast_reduce));
     }

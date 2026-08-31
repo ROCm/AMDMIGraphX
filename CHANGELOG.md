@@ -3,7 +3,13 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
-## Develop
+## MIGraphX 2.16.1 for ROCm 7.14.1
+
+### Fixed
+
+* Fixed an issue where non-standard-strided literals would cause invalid rocMLIR kernels (#5223).
+
+## MIGraphX 2.16 for ROCm 7.14
 
 ### Added
 
@@ -32,7 +38,7 @@ Full documentation for MIGraphX is available at
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
 * Added documentation for using debug symbols (#4945).
-# Added gather_slice_concat_matcher for slice/concats on data axis of gather ops (#4725)
+* Added gather_slice_concat_matcher for slice/concats on data axis of gather ops (#4725)
 * Added `--log-stdout` flag to migraphx-driver to log to stdout instead of stderr (#4959).
 * Added logging of debug symbols on exception thrown (#4978).
 * Added slice squeeze matcher to propogate squeeze downstream and allow for parallel branches to merge together (#5004)
@@ -76,7 +82,9 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
+
 ### Optimized
+
 * Reduced tuning time by scaling the per-candidate benchmark bundle to the candidate's op count (#4989).
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).
 * Replaced Hillis-Steele scan algorithm with a wave-based hierarchical scan, reducing work complexity from O(N log N) to O(N) and synchronization from O(log N) to 2 `__syncthreads()` calls (#4720).
@@ -93,6 +101,7 @@ Full documentation for MIGraphX is available at
 * Added a pass `rewrite_convolution` to rewrite `convolution_backwards` to match the v4r1 algorithm used in MIOpen for performance (#4929)
 
 ### Removed
+
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).
 * Removed `onnx_options::use_dyn_output` after redesign of `NonMaxSuppression` operator (#4893).
 
@@ -149,10 +158,6 @@ Full documentation for MIGraphX is available at
 * Streamlined the `find_matches` function.
 * Reduce the number of splits used for `split_reduce`.
 * Improve layout propagation in poinwise fusion when using broadcasted inputs.
-
-
-### Removed
-
 
 
 ## MIGraphX 2.14 for ROCm 7.1.0

@@ -128,16 +128,19 @@ struct concat_optimizer
         });
         try
         {
-            auto s = std::accumulate(
-                result.begin(), result.end(), slice_shape, [](const shape& acc, const operation& op) {
-                    std::vector<shape> inputs = {acc};
-                    if(op.output_alias(inputs).empty())
-                        MIGRAPHX_THROW("Not a view operator: " + op.name());
-                    auto next = op.compute_shape(inputs);
-                    if(next.elements() != acc.elements())
-                        MIGRAPHX_THROW("Not an element-preserving view: " + op.name());
-                    return next;
-                });
+            auto s = std::accumulate(result.begin(),
+                                     result.end(),
+                                     slice_shape,
+                                     [](const shape& acc, const operation& op) {
+                                         std::vector<shape> inputs = {acc};
+                                         if(op.output_alias(inputs).empty())
+                                             MIGRAPHX_THROW("Not a view operator: " + op.name());
+                                         auto next = op.compute_shape(inputs);
+                                         if(next.elements() != acc.elements())
+                                             MIGRAPHX_THROW("Not an element-preserving view: " +
+                                                            op.name());
+                                         return next;
+                                     });
             if(s.lens() != producer_shape.lens())
                 return std::nullopt;
         }

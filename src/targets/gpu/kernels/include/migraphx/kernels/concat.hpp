@@ -72,7 +72,7 @@ constexpr auto concat_max(InputPacks... input_packs)
     })(_c<0>, input_packs...);
 }
 
-template<class T, class U>
+template <class T, class U>
 struct concat_pair
 {
     T offset;
@@ -89,21 +89,21 @@ struct info
 };
 MIGRAPHX_AUTO_DEDUCE(info);
 
-template<class R>
+template <class R>
 struct basic_algo
 {
     R r;
 
-    template<class... Ts>
+    template <class... Ts>
     constexpr auto run(Ts... xs)
     {
         return r(xs...);
     }
 
-    template<class... Ts>
+    template <class... Ts>
     constexpr void finish(Ts...) const
-    {}
-
+    {
+    }
 };
 MIGRAPHX_AUTO_DEDUCE(basic_algo);
 
@@ -115,7 +115,7 @@ struct simple
         return basic_algo{[=](auto, auto g, auto x, auto... xs) {
             return [=](auto z, auto f, auto... ys) {
                 idx.global_stride(x.get_shape().elements(),
-                                [&](auto i) { z[i] = f(g(x[i], xs[i]...), ys[i]...); });
+                                  [&](auto i) { z[i] = f(g(x[i], xs[i]...), ys[i]...); });
             };
         }};
     }
@@ -129,8 +129,7 @@ struct block_tile
     {
         constexpr auto slice() const
         {
-            return slice_schedule<per_block>(
-                idx, slice_axes<-1>(), slice_group<NGroups>());
+            return slice_schedule<per_block>(idx, slice_axes<-1>(), slice_group<NGroups>());
         }
 
         static __device__ auto output_data()

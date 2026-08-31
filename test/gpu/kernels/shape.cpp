@@ -25,7 +25,6 @@
 #include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/test.hpp>
 
-
 TEST_CASE(test_shape_assign)
 {
     auto s1 = migraphx::make_shape(migraphx::index_ints<100, 32, 8, 8>{});
@@ -67,7 +66,8 @@ TEST_CASE(test_shape_standard_stray_singleton_dim)
 {
     // A shape can be transposed (nonzero strides out of order) but still be considered
     // standard if the only out-of-order strides are on axes with a length of 1.
-    auto s = migraphx::make_shape(migraphx::index_ints<5, 1, 1, 8>{}, migraphx::index_ints<8, 3, 4, 1>{});
+    auto s = migraphx::make_shape(migraphx::index_ints<5, 1, 1, 8>{},
+                                  migraphx::index_ints<8, 3, 4, 1>{});
     EXPECT(s.standard());
     EXPECT(s.packed());
     EXPECT(s.transposed());
@@ -85,7 +85,8 @@ TEST_CASE(test_shape_packed)
 
 TEST_CASE(test_shape_non_packed_single_dim)
 {
-    auto s = migraphx::make_shape(migraphx::index_ints<1, 64, 35, 35>{}, migraphx::index_ints<156800, 1225, 35, 1>{});
+    auto s = migraphx::make_shape(migraphx::index_ints<1, 64, 35, 35>{},
+                                  migraphx::index_ints<156800, 1225, 35, 1>{});
     EXPECT(s.standard());
     EXPECT(s.packed());
     EXPECT(not s.transposed());
@@ -103,7 +104,8 @@ TEST_CASE(test_shape_transposed1)
 
 TEST_CASE(test_shape_transposed2)
 {
-    auto s = migraphx::make_shape(migraphx::index_ints<1, 1, 1, 1, 2>{}, migraphx::index_ints<2, 2, 2, 2, 1>{});
+    auto s = migraphx::make_shape(migraphx::index_ints<1, 1, 1, 1, 2>{},
+                                  migraphx::index_ints<2, 2, 2, 2, 1>{});
     EXPECT(s.standard());
     EXPECT(s.packed());
     EXPECT(not s.transposed());
@@ -148,7 +150,8 @@ TEST_CASE(test_shape_scalar2)
 
 TEST_CASE(test_shape_scalar_broadcast)
 {
-    auto s = migraphx::make_shape(migraphx::index_ints<1, 2, 3, 3>{}, migraphx::index_ints<0, 0, 0, 0>{});
+    auto s = migraphx::make_shape(migraphx::index_ints<1, 2, 3, 3>{},
+                                  migraphx::index_ints<0, 0, 0, 0>{});
     EXPECT(not s.standard());
     EXPECT(not s.packed());
     EXPECT(not s.transposed());
@@ -242,7 +245,8 @@ TEST_CASE(test_shape4)
 
 TEST_CASE(test_shape42)
 {
-    auto s = migraphx::make_shape(migraphx::index_ints<100, 32, 8, 8>{}, migraphx::index_ints<2048, 64, 8, 1>{});
+    auto s = migraphx::make_shape(migraphx::index_ints<100, 32, 8, 8>{},
+                                  migraphx::index_ints<2048, 64, 8, 1>{});
     EXPECT(s.standard());
     EXPECT(s.packed());
     EXPECT(not s.transposed());
@@ -273,7 +277,8 @@ TEST_CASE(test_shape42)
 
 TEST_CASE(test_shape4_transposed)
 {
-    auto s = migraphx::make_shape(migraphx::index_ints<32, 100, 8, 8>{}, migraphx::index_ints<64, 2048, 8, 1>{});
+    auto s = migraphx::make_shape(migraphx::index_ints<32, 100, 8, 8>{},
+                                  migraphx::index_ints<64, 2048, 8, 1>{});
     EXPECT(s.transposed());
     EXPECT(s.packed());
     EXPECT(not s.standard());
@@ -304,10 +309,10 @@ TEST_CASE(test_shape4_transposed)
 
 TEST_CASE(test_shape4_nonpacked)
 {
-    auto lens = migraphx::index_ints<100, 32, 8, 8>{};
-    auto offsets = migraphx::index_ints<5, 10, 0, 6>{};
+    auto lens     = migraphx::index_ints<100, 32, 8, 8>{};
+    auto offsets  = migraphx::index_ints<5, 10, 0, 6>{};
     auto adj_lens = migraphx::transform(lens, offsets, [](auto l, auto o) { return l + o; });
-    auto strides = migraphx::make_shape(adj_lens).strides;
+    auto strides  = migraphx::make_shape(adj_lens).strides;
 
     auto s = migraphx::make_shape(lens, strides);
     EXPECT(not s.standard());
@@ -334,7 +339,7 @@ TEST_CASE(test_shape4_nonpacked)
     EXPECT(s.index(s.elements() - 1) == 469273);
 }
 
-template<class Shape, class NewLens>
+template <class Shape, class NewLens>
 static constexpr auto with_lens(Shape s, NewLens newlens)
 {
     auto perm = migraphx::find_permutation(s);
@@ -370,11 +375,12 @@ TEST_CASE(test_with_lens_ambigous1)
 
 TEST_CASE(test_with_lens_ambigous2)
 {
-    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 1>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 1>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     auto s2 = with_lens(s1, migraphx::index_ints<64, 3, 24, 24>{});
     EXPECT(s2.transposed());
-    auto s3 =
-        migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s3 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     EXPECT(s2 == s3);
 }
 
@@ -389,11 +395,12 @@ TEST_CASE(test_with_lens_ambigous3)
 
 TEST_CASE(test_with_lens_ambigous4)
 {
-    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 1, 1, 3>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 1, 1, 3>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     auto s2 = with_lens(s1, migraphx::index_ints<64, 3, 24, 24>{});
     EXPECT(s2.transposed());
-    auto s3 =
-        migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s3 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     EXPECT(s2 == s3);
 }
 
@@ -408,21 +415,23 @@ TEST_CASE(test_with_lens_ambigous5)
 
 TEST_CASE(test_with_lens_ambigous6)
 {
-    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<1, 24, 24, 5>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<1, 24, 24, 5>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     auto s2 = with_lens(s1, migraphx::index_ints<64, 3, 24, 24>{});
     EXPECT(s2.transposed());
-    auto s3 =
-        migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s3 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     EXPECT(s2 == s3);
 }
 
 TEST_CASE(test_with_lens_ambigous7)
 {
-    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<1, 1, 1, 3>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<1, 1, 1, 3>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     auto s2 = with_lens(s1, migraphx::index_ints<64, 3, 24, 24>{});
     EXPECT(s2.transposed());
-    auto s3 =
-        migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s3 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     EXPECT(s2 == s3);
 }
 
@@ -437,11 +446,12 @@ TEST_CASE(test_with_lens_ambigous8)
 
 TEST_CASE(test_with_lens_ambigous9)
 {
-    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<1, 24, 24, 1>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<1, 24, 24, 1>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     auto s2 = with_lens(s1, migraphx::index_ints<64, 3, 24, 24>{});
     EXPECT(s2.transposed());
-    auto s3 =
-        migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s3 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     EXPECT(s2 == s3);
 }
 
@@ -476,11 +486,12 @@ TEST_CASE(test_with_lens_ambigous12)
 
 TEST_CASE(test_with_lens_ambigous13)
 {
-    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<1, 1, 1, 3>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s1 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<1, 1, 1, 3>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     auto s2 = with_lens(s1, migraphx::index_ints<64, 3, 24, 24>{});
     EXPECT(s2.transposed());
-    auto s3 =
-        migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}), migraphx::index_ints<0, 3, 1, 2>{});
+    auto s3 = migraphx::reorder_shape(migraphx::make_shape(migraphx::index_ints<64, 24, 24, 3>{}),
+                                      migraphx::index_ints<0, 3, 1, 2>{});
     EXPECT(s2 == s3);
 }
 
@@ -510,7 +521,7 @@ TEST_CASE(test_single_index)
 
 TEST_CASE(find_permutation_2d_standard)
 {
-    auto s                = migraphx::make_shape(migraphx::index_ints<2, 3>{});
+    auto s           = migraphx::make_shape(migraphx::index_ints<2, 3>{});
     auto permutation = migraphx::index_ints<0, 1>{};
     EXPECT(migraphx::find_permutation(s) == permutation);
 }

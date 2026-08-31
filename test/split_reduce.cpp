@@ -388,10 +388,11 @@ TEST_CASE(fused)
     EXPECT(p1 == p2);
 }
 
-TEST_CASE(fused_trailing)
+TEST_CASE(inline_trailing)
 {
-    // With enough outputs the trailing operators are fused into the
-    // completion kernel instead of being inserted into the parent module
+    // The trailing operators are always inserted into the parent module;
+    // the later fuse_reduce pass fuses them into the completion kernel
+    // when its min_fused_outputs gate says it is profitable
     migraphx::shape s{migraphx::shape::float_type, {4, 4, 327680}};
     migraphx::program p1;
     {
@@ -404,51 +405,6 @@ TEST_CASE(fused_trailing)
         mm->add_return({add});
     }
     run_pass(p1);
-    migraphx::program p2;
-    {
-        auto* mm = p2.get_main_module();
-        auto x   = mm->add_parameter("x", s);
-        auto xr =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4, 64, 5120}}}), x);
-        auto partial = add_reduce(
-            p2, "main:reduce_sum0:main:pointwise0_split", {xr}, {3}, single_reduce("reduce_sum"));
-        auto sq  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), partial);
-        auto add = add_reduce(
-            p2,
-            "main:reduce_sum0:main:pointwise0_final",
-            {sq, x},
-            {2},
-            [&](auto* rm, const auto& inputs, const auto& axes) {
-                auto rsum  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                                 inputs[0]);
-                auto rsumb = rm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
-                return add_pointwise(
-                    p2, rm, "main:pointwise0", {inputs[1], rsumb}, single_pointwise("add"));
-            });
-        mm->add_return({add});
-    }
-    EXPECT(p1 == p2);
-}
-
-TEST_CASE(inline_trailing_scaled_outputs)
-{
-    // The fused-trailing cutoff scales with lower_max_batch, so on a
-    // larger device the same number of outputs has the trailing operators
-    // inserted into the parent module instead of being fused into the
-    // completion kernel
-    migraphx::shape s{migraphx::shape::float_type, {4, 4, 327680}};
-    migraphx::program p1;
-    {
-        auto* mm   = p1.get_main_module();
-        auto x     = mm->add_parameter("x", s);
-        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
-        auto rsumb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
-        auto add = mm->add_instruction(migraphx::make_op("add"), x, rsumb);
-        mm->add_return({add});
-    }
-    run_pass(p1, {.split_size = 8192, .lower_max_batch = 256});
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();
@@ -594,19 +550,26 @@ TEST_CASE(parallel_reduce)
         auto rsum1 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), partials);
         auto sq1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), rsum1);
-        auto mul = add_reduce(
-            p2,
-            "main:reduce_sum0:main:pointwise1:main:pointwise0:main:reduce_sum1_final",
-            {sq2, sq1},
-            {2},
-            [&](auto* rm, const auto& inputs, const auto& axes) {
-                auto crsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                                  inputs[1]);
-                auto crsum2 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                                  inputs[0]);
-                return add_pointwise(
-                    p2, rm, "main:pointwise1", {crsum1, crsum2}, single_pointwise("mul"));
-            });
+        auto completed =
+            add_reduce(p2,
+                       "main:reduce_sum0:main:pointwise1:main:pointwise0:main:reduce_sum1_final",
+                       {sq2, sq1},
+                       {2},
+                       [&](auto* rm,
+                           const auto& inputs,
+                           const auto& axes) -> std::vector<migraphx::instruction_ref> {
+                           auto crsum2 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                           auto crsum1 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[1]);
+                           return {crsum2, crsum1};
+                       });
+        auto crsum1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), completed);
+        auto crsum2 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), completed);
+        auto mul =
+            add_pointwise(p2, mm, "main:pointwise1", {crsum1, crsum2}, single_pointwise("mul"));
         mm->add_return({mul});
     }
     EXPECT(p1.sort() == p2.sort());

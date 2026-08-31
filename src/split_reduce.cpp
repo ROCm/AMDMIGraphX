@@ -328,8 +328,7 @@ static void apply_partial_split(module_pass_manager& mpm,
                                 const std::vector<instruction_ref>& splits,
                                 const std::vector<std::int64_t>& axes,
                                 const partial_split& ps,
-                                std::array<module::with_inputs, 2> mods,
-                                std::size_t min_fused_outputs)
+                                std::array<module::with_inputs, 2> mods)
 {
     // The pipeline runs this pass before multi-output fusion, so the
     // fused_reduce still has a single non-tuple output
@@ -385,49 +384,16 @@ static void apply_partial_split(module_pass_manager& mpm,
         return finalm->add_instruction(make_op(splits[i]->name(), {{"axes", axes}}), param);
     });
 
-    // Fusing the trailing operators makes the completion kernel write the
-    // full-sized output with one workgroup per reduction output (the block
-    // algorithm), so it needs min_fused_outputs outputs to stream it well;
-    // an output no larger than the reduction outputs is always fused
-    auto noutputs = splits.front()->get_shape().elements();
-    if(ins->get_shape().elements() <= noutputs or noutputs >= min_fused_outputs)
-    {
-        // Fuse the trailing operators into the completion kernel to avoid
-        // another kernel launch. The partials have a different shape than
-        // the splits they replace, so with_inputs::replace cant be used.
-        std::transform(mods[1].inputs.begin(),
-                       mods[1].inputs.end(),
-                       mods[1].inputs.begin(),
-                       [&](instruction_ref input) {
-                           auto it = std::find(splits.begin(), splits.end(), input);
-                           if(it == splits.end())
-                               return input;
-                           return squeezed[it - splits.begin()];
-                       });
-        std::unordered_map<instruction_ref, instruction_ref> map_ins;
-        std::transform(squeezed.begin(),
-                       squeezed.end(),
-                       completed.begin(),
-                       std::inserter(map_ins, map_ins.end()),
-                       [](instruction_ref sq, instruction_ref c) { return std::make_pair(sq, c); });
-        finalm->add_return(finalm->fuse(mods[1].mod, mods[1].inputs, &map_ins));
-        auto replaced = m.insert_instruction(
-            ins, make_op("fused_reduce", {{"axes", axes}}), mods[1].inputs, {finalm});
-        m.replace_instruction(ins, replaced);
-    }
-    else
-    {
-        // With so few workgroups the completion kernel would starve the
-        // device writing the full-sized output. Complete the reduction
-        // alone (the subwave algorithm packs multiple of these small
-        // reductions into each wavefront) and insert the trailing
-        // operators into the parent module so they can run as a fully
-        // parallel pointwise kernel.
-        finalm->add_return(completed);
-        auto completion = m.insert_instruction(
-            ins, make_op("fused_reduce", {{"axes", axes}}), squeezed, {finalm});
-        inline_trailing_module(m, ins, mods[1], splits, completion);
-    }
+    finalm->add_return(completed);
+
+    // Complete the reduction alone (the subwave algorithm packs multiple of
+    // these small reductions into each wavefront) and insert the trailing
+    // operators into the parent module; the later fuse_reduce pass fuses
+    // them into the completion kernel when its min_fused_outputs gate says
+    // it is profitable
+    auto completion =
+        m.insert_instruction(ins, make_op("fused_reduce", {{"axes", axes}}), squeezed, {finalm});
+    inline_trailing_module(m, ins, mods[1], splits, completion);
 }
 
 static void apply_atomic_split(module_pass_manager& mpm,
@@ -513,13 +479,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
         }
 
         if(ps.has_value())
-        {
-            // Fusing the trailing operators needs enough outputs to stream
-            // the full-sized result: an eighth of lower_max_batch (the
-            // resident workgroups), tuned on gfx1201
-            auto min_fused_outputs = std::max<std::size_t>(lower_max_batch / 8, 1);
-            apply_partial_split(mpm, ins, splits, axes, *ps, std::move(mods), min_fused_outputs);
-        }
+            apply_partial_split(mpm, ins, splits, axes, *ps, std::move(mods));
         else
             apply_atomic_split(mpm, ins, splits, axes, std::move(mods));
     }

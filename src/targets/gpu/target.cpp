@@ -165,6 +165,10 @@ struct pipeline_factory
         auto max_batch = device.get_max_workgroups();
         if(max_batch > 0)
             result.lower_max_batch = max_batch;
+        // Fusing trailing operators into the small completion reduce of a
+        // split needs enough outputs to stream the full-sized result: an
+        // eighth of the resident workgroups, tuned on gfx1201
+        result.min_fused_outputs = std::max<std::size_t>(result.lower_max_batch / 8, 1);
         // With a large batch the fused kernel re-reads each row from the
         // last-level cache, so a split is only needed once the resident
         // rows (sized for 2-byte types) no longer fit

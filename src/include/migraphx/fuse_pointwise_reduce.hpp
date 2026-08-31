@@ -41,6 +41,8 @@ struct MIGRAPHX_EXPORT fuse_pointwise_reduce
     std::size_t upper_split_size = 524288;
     /// Passed to split_reduce::lower_max_batch
     std::size_t lower_max_batch = 64;
+    /// Passed to fuse_reduce::min_fused_outputs after the split
+    std::size_t min_fused_outputs = 8;
     std::string name() const { return "fuse_pointwise_reduce"; }
     void apply(module_pass_manager& mpm) const;
 };

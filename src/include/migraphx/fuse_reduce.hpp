@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
 
 #include <migraphx/config.hpp>
+#include <cstddef>
 #include <string>
 
 namespace migraphx {
@@ -39,6 +40,11 @@ struct MIGRAPHX_EXPORT fuse_reduce
 
     bool enable_rewrite_reshapes   = true;
     bool enable_rewrite_broadcasts = false;
+    /// Fusing a trailing pointwise whose output is larger than what the
+    /// reduction reads makes the kernel write that output with one workgroup
+    /// per reduction output, so it is only fused when there are at least
+    /// this many reduction outputs to stream it well
+    std::size_t min_fused_outputs = 1;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

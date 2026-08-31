@@ -1628,14 +1628,14 @@ struct find_reshape_cont
         if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
             return;
 
-        #ifdef _WIN32
+#ifdef _WIN32
         auto rdims_sz = std::vector<std::size_t>(dims.begin(), dims.end());
         if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto in) {
                 return in == in_ins or
                     reshape_dims(in->get_shape(), rdims_sz, {.lazy = true}).has_value();
             }))
             return;
-        #endif
+#endif
 
         auto out_lens = ins->get_shape().lens();
         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());

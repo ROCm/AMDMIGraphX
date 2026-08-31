@@ -902,7 +902,7 @@ struct find_kv_cache_attention
         auto gemm1 =
             match::opaque(match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose)));
         auto gemm1_maybe_cvt = match::opaque(match::skip(match::name("convert"))(gemm1));
-        auto scale = match::opaque(match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt)));
+        auto scale    = match::opaque(match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt)));
         auto constant = match::opaque(match::is_constant());
         auto broadcasted_const =
             match::opaque(match::name("multibroadcast")(match::arg(0)(constant)));
@@ -928,7 +928,7 @@ struct find_kv_cache_attention
         auto mask_cvt = match::opaque(match::skip(match::name("convert"))(mask));
         auto attn_probabilities =
             match::opaque(match::skip(match::name("convert"))(match::softmax_input(mask_cvt)));
-        auto values             = match::opaque(
+        auto values = match::opaque(
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v"));
         auto gemm2 = match::opaque(
             match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values)));

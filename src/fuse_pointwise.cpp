@@ -109,7 +109,8 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             if(contains(param_map, input))
                 continue;
             auto scalar = get_scalar(input);
-            if(scalar.empty())
+            // Have dynamic shapes always get put into a pointwise module even if scalar input
+            if(scalar.empty() or input->get_shape().dynamic())
             {
                 pointwise_inputs.push_back(input);
                 param_map[input] =
@@ -260,6 +261,11 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
                      return true;
                  });
     if(outputs.size() < 2)
+        return result;
+    // Dont merge pointwise ops that only share a constant: there is no
+    // recomputation to save, and the merged multi-output pointwise blocks
+    // input fusion into its consumers (eg dequantizelinear into a gemm).
+    if(ins->can_eval())
         return result;
     std::sort(outputs.begin(), outputs.end(), by(std::less<>{}, [&](auto x) {
                   return std::distance(ins, x);

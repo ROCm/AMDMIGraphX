@@ -22,8 +22,10 @@
  * THE SOFTWARE.
  */
 
+#include <algorithm>
 #include <iterator>
 #include <migraphx/builtin.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -41,6 +43,18 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP_TO_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP);
+
+void validate_pointwise_module(const module& m)
+{
+    auto invalid_ins = std::find_if(m.begin(), m.end(), [](const auto& ins) {
+        const auto& name = ins.name();
+        return not contains({"@literal", "@param", "@return"}, name) and
+               not ins.get_operator().attributes().get("pointwise", false);
+    });
+    if(invalid_ins != m.end())
+        MIGRAPHX_THROW("Pointwise module contains non-pointwise instruction: " +
+                       invalid_ins->name());
+}
 
 static module create_pointwise_module(module_ref in_mod)
 {
@@ -73,6 +87,8 @@ static module create_pointwise_module(module_ref in_mod)
 static code_object_op
 compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_ref mod)
 {
+    // Validate before create_pointwise_module removes aliasing shape operations.
+    validate_pointwise_module(*mod);
     operation cop;
     auto pw_mod = create_pointwise_module(mod);
     if(any_of(mod->get_parameters(), [&](instruction_ref param) {
@@ -226,15 +242,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
             auto pw_shapes        = to_shapes(mod_splits[1].inputs);
-            if(mod_splits[1].mod.get_output_shapes().size() == 1)
-            {
-                pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
-            }
-            else
-            {
-                pw_shapes.push_back(shape{mod_splits[1].mod.get_output_shapes()});
-            }
-            assert(pw_shapes.back() == ins->get_shape());
+            pw_shapes.push_back(ins->get_shape());
             auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
             std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
             return insert(cops, mod_splits, ins, split_ins);

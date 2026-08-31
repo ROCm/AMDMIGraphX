@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/fuse_pointwise.hpp>
+#include <migraphx/simplify_algebra.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/instruction.hpp>
@@ -92,6 +93,34 @@ TEST_CASE(single_dyn)
         auto pass = mm->add_instruction(pass_op{}, add1);
         auto add2 = add_pointwise(p2, "main:pointwise1", {pass, z}, single_pointwise("add"));
         mm->add_return({add2});
+    }
+    EXPECT(p1 == p2);
+}
+
+// A scalar literal broadcast to a dynamic shape must become a pointwise-module
+// parameter instead of being folded into a literal inside the submodule.
+TEST_CASE(scalar_broadcast_dyn)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {3, 3}}};
+    migraphx::shape lit_shape{migraphx::shape::float_type, {1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto one  = mm->add_literal(migraphx::literal{lit_shape, {1.0f}});
+        auto mb   = mm->add_instruction(migraphx::make_op("multibroadcast"), one, x);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, mb);
+        mm->add_return({add1});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto one  = mm->add_literal(migraphx::literal{lit_shape, {1.0f}});
+        auto mb   = mm->add_instruction(migraphx::make_op("multibroadcast"), one, x);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, mb}, single_pointwise("add"));
+        mm->add_return({add1});
     }
     EXPECT(p1 == p2);
 }
@@ -521,6 +550,33 @@ TEST_CASE(horizontal_mutli_out_fused3)
         auto add2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fadd);
         auto add3 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fadd);
         mm->add_return({add2, add3});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(horizontal_mutli_out_shared_literal_not_fused)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto lit  = mm->add_literal(migraphx::literal{s, {1, 2, 3, 4, 5, 6}});
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, lit);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), y, lit);
+        mm->add_return({add1, add2});
+    }
+    run_pass(p1, {.enable_multi_output = true});
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto lit  = mm->add_literal(migraphx::literal{s, {1, 2, 3, 4, 5, 6}});
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, lit}, single_pointwise("add"));
+        auto add2 = add_pointwise(p2, "main:pointwise1", {y, lit}, single_pointwise("add"));
+        mm->add_return({add1, add2});
     }
     EXPECT(p1.sort() == p2.sort());
 }
@@ -1765,6 +1821,56 @@ TEST_CASE(debug_symbols_pw_used_twice_fused)
         mm->add_return({fadd});
     }
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(hoist_silu_above_slices)
+{
+    // A SiLU (mul(x, sigmoid(x))) replicated across sibling slices that only
+    // partially tile their tensor.  The raw sigmoid/mul diamond blocks the split
+    // fusion, but once fuse_pointwise collapses each SiLU into a single pointwise
+    // op, find_splits (simplify_algebra) hoists it above the slices: the SiLU is
+    // computed once on the bounding slice and each consumer re-slices its
+    // sub-range.
+    auto s = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto input = mm->add_parameter("x", s);
+        auto s0    = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto s1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sig0 = mm->add_instruction(migraphx::make_op("sigmoid"), s0);
+        auto mul0 = mm->add_instruction(migraphx::make_op("mul"), s0, sig0);
+        auto sig1 = mm->add_instruction(migraphx::make_op("sigmoid"), s1);
+        auto mul1 = mm->add_instruction(migraphx::make_op("mul"), s1, sig1);
+        mm->add_return({mul0, mul1});
+    }
+    migraphx::run_passes(p1,
+                         {migraphx::simplify_algebra{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::fuse_pointwise{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::simplify_algebra{},
+                          migraphx::dead_code_elimination{}});
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto input = mm->add_parameter("x", s);
+        auto big   = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), input);
+        auto silu = add_pointwise(p2, "main:pointwise0", {big}, [=](auto* pm, const auto& inputs) {
+            auto sig = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[0]);
+            return pm->add_instruction(migraphx::make_op("mul"), inputs[0], sig);
+        });
+        auto sub0 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), silu);
+        auto sub1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), silu);
+        mm->add_return({sub0, sub1});
+    }
+    EXPECT(p1 == p2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

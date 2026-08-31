@@ -21,13 +21,14 @@ Model performance tunable variables change the compilation behavior of a model. 
   * - Environment variable
     - Values
 
-  * - | ``MIGRAPHX_ENABLE_NHWC``
-      | Forces the model to use the NHWC layout.
-      
-    - | ``1``: Forces the use of the NHWC layout.
-      | ``0``: Returns to default behavior.
+  * - | ``MIGRAPHX_GPU_OPTIONS``
+      | Overrides the backend options the gpu target is compiled with.
 
-      | Default: The use of the NHWC layout isn't forced.
+    - | A JSON object of backend options, such as ``{convolution_layout:channels_last}``.
+      | Quotes around the keys and values are optional. Options the target doesn't
+      | recognize are ignored.
+
+      | Default: The backend options passed to compile are used unchanged.
 
   * - | ``MIGRAPHX_DISABLE_MLIR``
       | When set, the rocMLIR library won't be used.
@@ -36,6 +37,36 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``0``: Returns to default behavior.
 
       | Default: The rocMLIR library is used.
+
+  * - | ``MIGRAPHX_ENABLE_WINOGRAD``
+      | Forces the F(2,3) winograd convolution kernel on every eligible
+      | 3x3/stride-1/pad-1 fp16 convolution, bypassing the perf heuristic.
+      | gfx12 only.
+
+    - | ``1``: Use winograd on all eligible convolutions.
+      | ``0``: Returns to default behavior.
+
+      | Default: A per-shape heuristic decides between winograd and the
+      | default lowering.
+
+  * - | ``MIGRAPHX_DISABLE_WINOGRAD``
+      | When set, the winograd convolution kernel won't be used.
+
+    - | ``1``: The winograd kernel won't be used.
+      | ``0``: Returns to default behavior.
+
+      | Default: A per-shape heuristic decides between winograd and the
+      | default lowering.
+
+  * - | ``MIGRAPHX_WINOGRAD_FULL_TRANSFORM``
+      | Forces the winograd kernel to store the raw filter and do the full
+      | weight transform in-kernel, instead of the per-shape store heuristic.
+      | For benchmarking the two weight stores.
+
+    - | ``1``: Always use the in-kernel (raw-filter) weight transform.
+      | ``0``: Returns to default behavior.
+
+      | Default: A per-shape heuristic picks the weight store.
 
   * - | ``MIGRAPHX_ENABLE_CK``
       | When set, the Composable Kernel library is used.
@@ -737,13 +768,6 @@ Advanced settings
     - | ``1``: Basic trace 
       | ``2``: Detailed trace 
       | ``3``: Compiled traces
-
-  * - | ``MIGRAPHX_PROBLEM_CACHE``
-      | Sets the JSON file that the problem cache will be saved to and loaded from. 
-      
-    - | Takes a fully qualified path to a valid JSON file. 
-      | For example: 
-      | ``MIGRAPHX_PROBLEM_CACHE="path/to/cache_file.json"``
 
   * - | ``MIGRAPHX_BENCHMARKING_BUNDLE``
       | Sets the number of configurations to run in a bundle during benchmarking. 

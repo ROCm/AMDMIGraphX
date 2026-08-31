@@ -32,19 +32,23 @@ on:
         type: string
         description: Repository where benchmark utils are stored
         required: true
-        default: 'ROCm/migraphx-benchmark-utils'
+        default: 'AMD-ROCm-Internal/migraphx-benchmark-utils'
       performance_reports_repo:
         description: Repository where performance reports are stored
         required: true
-        default: 'ROCm/migraphx-reports'
+        default: 'AMD-ROCm-Internal/migraphx-reports'
       organization:
         type: string
         description: Organization based on which location of files will be different
         required: true
         default: 'AMD'
-      
+
+permissions:
+  contents: read
+
 jobs:
   get_config:
+    if: github.repository == 'ROCm/AMDMIGraphX'
     runs-on: ubuntu-latest
     outputs:
       rocm_version: ${{ steps.read_config.outputs.rocm_version }}
@@ -56,7 +60,7 @@ jobs:
       repo_org: ${{ steps.read_config.outputs.repo_org }}
     steps:
       - name: checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       - name: read_config
         id: read_config
         run: |
@@ -77,6 +81,9 @@ jobs:
            
   call_reusable:
     needs: get_config
+    permissions:
+      contents: write
+      pull-requests: write
     uses: ROCm/migraphx-benchmark/.github/workflows/rocMLIR_sync.yml@main
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || needs.get_config.outputs.rocm_version }}

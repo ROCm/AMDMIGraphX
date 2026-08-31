@@ -598,7 +598,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 
     /// About 4 elements per lane per output keeps enough loads in flight without
     /// exhausting the registers of the tiled passes
-    static std::size_t tile_block_size(const context& ctx, std::size_t relements, std::size_t max_block)
+    static std::size_t
+    tile_block_size(const context& ctx, std::size_t relements, std::size_t max_block)
     {
         return compute_block_size(ctx, std::max<std::size_t>(relements / 4, 1), max_block);
     }

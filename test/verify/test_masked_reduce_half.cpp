@@ -47,10 +47,10 @@ struct test_masked_reduce_half : verify_program<test_masked_reduce_half>
         for(std::size_t i = 0; i < branches; i++)
         {
             auto logits = mm->add_parameter("logits" + std::to_string(i), branch_shape);
-            auto slice  = mm->add_instruction(migraphx::make_op("slice",
-                                                                {{"axes", {1}},
-                                                                 {"starts", {i * branch_size}},
-                                                                 {"ends", {(i + 1) * branch_size}}}),
+            auto slice = mm->add_instruction(migraphx::make_op("slice",
+                                                               {{"axes", {1}},
+                                                                {"starts", {i * branch_size}},
+                                                                {"ends", {(i + 1) * branch_size}}}),
                                              mask);
             // The literal is broadcast per branch so that each branch starts from a distinct
             // instruction, matching what the onnx parser produces.

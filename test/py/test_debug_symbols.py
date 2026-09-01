@@ -168,7 +168,8 @@ def test_insert_macro_with_debug_symbols():
     gemm_mac = migraphx.macro("gemm")
     gemm_result = mm.add_macro(gemm_mac, [a, b])
     einsum_mac = migraphx.macro("einsum", equation="ij,jk->ik")
-    einsum_result = mm.insert_macro(gemm_result[0], einsum_mac, [a, b],
+    einsum_result = mm.insert_macro(gemm_result[0],
+                                    einsum_mac, [a, b],
                                     debug_symbols=["macro:einsum"])
 
     for ins in einsum_result:
@@ -211,8 +212,10 @@ def test_iterate_only_symbolized_instructions():
                                   debug_symbols=["onnx:relu"])
     mm.add_return([relu_ins])
 
-    symbolized = {ins.name(): ins.get_debug_symbols()
-                  for ins in mm if ins.get_debug_symbols()}
+    symbolized = {
+        ins.name(): ins.get_debug_symbols()
+        for ins in mm if ins.get_debug_symbols()
+    }
     assert len(symbolized) == 1
     assert symbolized["relu"] == {"onnx:relu"}
 

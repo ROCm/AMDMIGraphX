@@ -170,6 +170,13 @@ struct concat_test_optimization
     {
         return ins->name() != "pass_standard";
     }
+    // The test ops derive their output shape from the buffer input, so any
+    // shape is reported once the buffer is replaced and pinning is a no-op
+    bool supports_output_shape(migraphx::instruction_ref, const migraphx::shape&) const
+    {
+        return true;
+    }
+    void set_output_shape(migraphx::instruction_ref, const migraphx::shape&) const {}
 
     test_allocation_model allocation() const { return test_allocation_model{}; }
 };

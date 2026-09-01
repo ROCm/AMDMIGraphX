@@ -104,9 +104,9 @@ struct concat_optimizer
 
     // Build the view ops that turn a slice of the super buffer (shaped like
     // the concat input) into the producer's output shape by inverting the
-    // view chain. Returns nullopt when the inverse does not exist or would
-    // require a data movement.
-    static std::optional<std::vector<operation>> invert_view_chain(
+    // view chain. Returns the ops and the resulting view shape; nullopt when
+    // the inverse does not exist or would require a data movement.
+    static std::optional<std::pair<std::vector<operation>, shape>> invert_view_chain(
         const std::vector<operation>& chain, const shape& producer_shape, const shape& slice_shape)
     {
         std::vector<operation> fwd;
@@ -143,18 +143,19 @@ struct concat_optimizer
                                      });
             if(s.lens() != producer_shape.lens())
                 return std::nullopt;
+            return std::make_pair(std::move(result), s);
         }
         catch(const migraphx::exception&)
         {
             return std::nullopt;
         }
-        return result;
     }
 
     struct plan
     {
         instruction_ref producer;
         std::vector<operation> view_ops = {};
+        shape view_shape                = {};
     };
 
     // Decide if the producer of this concat input can write directly into a
@@ -170,13 +171,29 @@ struct concat_optimizer
         // other users just read the strided view; the caller checks that
         // they support non-packed inputs
         if(chain.empty())
-            return plan{producer};
+        {
+            if(not producer_reports_shape(producer, slice_shape))
+                return std::nullopt;
+            return plan{producer, {}, slice_shape};
+        }
         if(producer->outputs().size() != 1)
             return std::nullopt;
         auto inverse = invert_view_chain(chain, producer->get_shape(), slice_shape);
         if(not inverse.has_value())
             return std::nullopt;
-        return plan{producer, *inverse};
+        if(not producer_reports_shape(producer, inverse->second))
+            return std::nullopt;
+        return plan{producer, inverse->first, inverse->second};
+    }
+
+    // The producer must report the view's shape as its output so the reported
+    // and actual layouts stay in sync; when the layouts already match nothing
+    // needs to change, otherwise the target must be able to pin the shape
+    bool producer_reports_shape(instruction_ref producer, const shape& view_shape) const
+    {
+        if(producer->get_shape() == view_shape)
+            return true;
+        return opt->supports_output_shape(producer, view_shape);
     }
 
     instruction_ref insert_copy(const operation& op,
@@ -187,6 +204,10 @@ struct concat_optimizer
         auto slice = m->insert_instruction(std::next(super), op, super);
         if(auto p = plan_copy_elision(input, slice->get_shape(), axis))
         {
+            // Pin the layout before the allocation is replaced so the
+            // producer never reports a shape out of sync with its buffer
+            if(p->producer->get_shape() != p->view_shape)
+                opt->set_output_shape(p->producer, p->view_shape);
             auto view = slice;
             for(const auto& vop : p->view_ops)
                 view = m->insert_instruction(std::next(view), vop, view);

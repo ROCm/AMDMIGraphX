@@ -89,23 +89,13 @@ struct precompile_op
 
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
-        auto output_buffer = inputs.back();
         // Pop off additional args
         inputs.resize(inputs.size() - additional_args);
-        auto s = [&] {
-            if(output_shape.has_value())
-                return output_shape.value();
-            if(ignore_modules)
-                return op.compute_shape(inputs);
-            return op.compute_shape(inputs, mods);
-        }();
-        // eliminate_concat can alias the output into a view of a larger
-        // buffer; report the buffer's layout so downstream shapes match the
-        // kernel that is compiled to write into it
-        if(s != output_buffer and not s.dynamic() and not output_buffer.dynamic() and
-           s.type() == output_buffer.type() and s.lens() == output_buffer.lens())
-            return output_buffer;
-        return s;
+        if(output_shape.has_value())
+            return output_shape.value();
+        if(ignore_modules)
+            return op.compute_shape(inputs);
+        return op.compute_shape(inputs, mods);
     }
 
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const

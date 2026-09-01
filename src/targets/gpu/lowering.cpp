@@ -39,9 +39,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/if_op.hpp>
-#include <migraphx/op/reshape.hpp>
 #include <migraphx/op/quant_dot.hpp>
-#include <migraphx/op/reshape_lazy.hpp>
 
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -84,6 +82,16 @@ struct miopen_apply
         (void)i;
     }
 
+    static bool only_used_as_slice_metadata(instruction_ref ins)
+    {
+        const auto& outputs = ins->outputs();
+        return not outputs.empty() and
+               std::all_of(outputs.begin(), outputs.end(), [&](auto output) {
+                   return contains({"slice", "dyn_slice"}, output->name()) and
+                          output->inputs().front() != ins;
+               });
+    }
+
     void init()
     {
         assert(mod != nullptr);
@@ -113,12 +121,12 @@ struct miopen_apply
         add_nms_op();
         add_convolution_backwards_op();
         add_select_module_op();
-        add_reshape_lazy_op();
         add_concat_past_present_op();
         add_scan_slice_op();
         add_fill_op();
         add_dyn_slice_op();
         add_dimensions_of_op();
+        add_eval_expr_from_shape_op();
     }
 
     void copy_params() const
@@ -632,32 +640,6 @@ struct miopen_apply
         });
     }
 
-    /**
-     *  Adds reshape lazy to reshape ops that can be aliased instead of copied.
-     *  `gpu::contiguous` are added before and after the reshape; these contiguous
-     *  instructions can be removed by the eliminate_contiguous pass.
-     */
-    void add_reshape_lazy_op()
-    {
-        apply_map.emplace("reshape", [=](instruction_ref ins) {
-            std::vector<instruction_ref> before_contiguous_args = ins->inputs();
-            auto before_alloc = insert_allocation(ins, std::prev(ins)->get_shape());
-            before_contiguous_args.push_back(before_alloc);
-            auto before_contig =
-                mod->insert_instruction(ins, make_op("gpu::contiguous"), {before_contiguous_args});
-
-            auto new_reshape_lazy = mod->insert_instruction(
-                ins,
-                make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
-                before_contig);
-
-            std::vector<instruction_ref> after_contiguous_args = {new_reshape_lazy};
-            auto after_alloc = insert_allocation(new_reshape_lazy, new_reshape_lazy->get_shape());
-            after_contiguous_args.push_back(after_alloc);
-            return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
-        });
-    }
-
     void add_concat_past_present_op()
     {
         apply_map.emplace("concat_past_present", [=](instruction_ref ins) {
@@ -693,29 +675,34 @@ struct miopen_apply
 
     void add_dyn_slice_op()
     {
-        apply_map.emplace("slice", [=](instruction_ref ins) {
+        auto lower_runtime_bounds = [=](instruction_ref ins) {
             auto inputs = ins->inputs();
             if(inputs.size() > 1)
             {
-                std::vector<instruction_ref> cpu_inputs;
-                // Copy only the small runtime metadata inputs (starts/ends/axes) to CPU.
-                // inputs[0] (data) stays on GPU since slice creates an aliased view into it.
+                std::vector<instruction_ref> copied_inputs;
+                std::vector<std::size_t> copied_indices;
+                // The data input stays on GPU since slice creates an aliased view into it.
+                // Copy only runtime metadata that was not already produced on the host.
                 for(std::size_t i = 1; i < inputs.size(); ++i)
                 {
-                    cpu_inputs.push_back(
-                        mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[i]));
+                    if(inputs[i]->name() == "eval_expr_from_shape")
+                        continue;
+                    inputs[i] =
+                        mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[i]);
+                    copied_inputs.push_back(inputs[i]);
+                    copied_indices.push_back(i);
                 }
-                cpu_inputs.front() =
-                    mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-                for(std::size_t i = 1; i < inputs.size(); ++i)
-                {
-                    inputs[i] = cpu_inputs[i - 1];
-                }
+                if(copied_inputs.empty())
+                    return ins;
+                inputs[copied_indices.front()] =
+                    mod->insert_instruction(ins, make_op("hip::sync_stream"), copied_inputs);
                 return mod->replace_instruction(
                     ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
             }
             return ins;
-        });
+        };
+        apply_map.emplace("slice", lower_runtime_bounds);
+        apply_map.emplace("dyn_slice", lower_runtime_bounds);
     }
 
     // Get the argument's shape dimensions on host and then copy to gpu
@@ -726,6 +713,19 @@ struct miopen_apply
             auto sync_input =
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), ins->inputs().front());
             auto host_out = mod->insert_instruction(ins, ins->get_operator(), sync_input);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
+            return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
+    void add_eval_expr_from_shape_op()
+    {
+        apply_map.emplace("eval_expr_from_shape", [=](instruction_ref ins) {
+            if(only_used_as_slice_metadata(ins))
+                return ins;
+            auto output   = insert_allocation(ins, ins->get_shape());
+            auto host_out = mod->insert_instruction(ins, ins->get_operator(), ins->inputs());
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
             return mod->replace_instruction(ins, gpu_out);

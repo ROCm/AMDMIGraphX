@@ -57,6 +57,7 @@ add_library(migraphx
     color.cpp
     common.cpp
     common_dims.cpp
+    compile_modes.cpp
     compile_src.cpp
     convert_to_json.cpp
     convolution.cpp
@@ -116,6 +117,7 @@ add_library(migraphx
     propagate_constant.cpp
     propagate_precision.cpp
     promote_literals.cpp
+    promote_storage_type.cpp
     quantization.cpp
     quantize_int4.cpp
     quantize_8bits.cpp
@@ -123,6 +125,7 @@ add_library(migraphx
     register_op.cpp
     register_target.cpp
     replace_allocate.cpp
+    rewrite_broadcasts.cpp
     rewrite_convolution.cpp
     rewrite_reduce.cpp
     rewrite_resize.cpp
@@ -134,7 +137,6 @@ add_library(migraphx
     rewrite_low_precision.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
-    rewrite_rnn.cpp
     reshape_dims.cpp
     rewrite_topk.cpp
     schedule.cpp
@@ -146,6 +148,7 @@ add_library(migraphx
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
     sym.cpp
+    sym_argument.cpp
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp
@@ -158,10 +161,7 @@ enable_static_init(migraphx)
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp op/builder/torch/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 
-if(WIN32)
-    # Due to compilation crashing, we need to use type-erased matchers on Windows.
-    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
-endif()
+configure_file(config.h.in include/migraphx/config.h)
 
 configure_file(version.h.in include/migraphx/version.h)
 add_library(migraphx_version INTERFACE)
@@ -215,9 +215,11 @@ register_migraphx_ops(
     dimensions_of
     div
     dot
+    dyn_slice
     elu
     equal
     erf
+    eval_expr_from_shape
     exp
     fill
     fixed_pad
@@ -229,7 +231,6 @@ register_migraphx_ops(
     get_tuple_elem
     greater
     group
-    gru
     identity
     if_op
     im2col
@@ -247,7 +248,6 @@ register_migraphx_ops(
     logsoftmax
     loop
     lrn
-    lstm
     max
     min
     mod
@@ -287,9 +287,6 @@ register_migraphx_ops(
     reshape_lazy
     resize
     reverse
-    rnn
-    rnn_last_cell_output
-    rnn_last_hs_output
     rnn_var_sl_last_output
     roialign
     rsqrt
@@ -402,12 +399,21 @@ target_link_libraries(migraphx PRIVATE msgpack-cxx)
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpack-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
+add_library(migraphx_all_frontends INTERFACE)
+# migraphx_c links this privately, and a static build records even private
+# dependencies in the interface, so it has to be exported alongside migraphx_c.
+rocm_install_targets(TARGETS migraphx_all_frontends)
 
 add_subdirectory(api)
 add_subdirectory(driver)
+if(MIGRAPHX_ENABLE_ONNX)
 add_subdirectory(onnx)
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_onnx)
+endif()
+if(MIGRAPHX_ENABLE_TENSORFLOW)
 add_subdirectory(tf)
-
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_tf)
+endif()
 if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
 endif()
@@ -457,5 +463,3 @@ rocm_export_targets(
     Threads
     ${MIGRAPHX_CONFIG_DEPENDS}
 )
-
-

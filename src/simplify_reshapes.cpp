@@ -1628,9 +1628,6 @@ struct find_reshape_cont
         if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
             return;
 
-        if(not in_ins->get_shape().standard())
-            return;
-
 #ifdef _WIN32
         auto rdims_sz = std::vector<std::size_t>(dims.begin(), dims.end());
         if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto in) {

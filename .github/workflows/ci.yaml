@@ -490,11 +490,12 @@ jobs:
     - name: Verify binary hardening
       if: matrix.configuration == 'release'
       run: |
-        sudo apt-get update
-        if ! sudo apt-get install -y checksec; then
-          sudo wget -qO /usr/local/bin/checksec https://raw.githubusercontent.com/slimm609/checksec.sh/master/checksec
-          sudo chmod +x /usr/local/bin/checksec
-        fi
+        CHECKSEC_VERSION=3.2.0
+        CHECKSEC_DEB="checksec_${CHECKSEC_VERSION}_amd64.deb"
+        CHECKSEC_SHA512="d15dfa4adb906f9c396cfb30574c91fcb43ee07bfe94108dca073924172469c4be559a9f781afeefbf37655aec399bf010b2669f16cdc01d3eefb1ab4fa32f0c"
+        wget -q "https://github.com/slimm609/checksec/releases/download/${CHECKSEC_VERSION}/${CHECKSEC_DEB}"
+        echo "${CHECKSEC_SHA512}  ${CHECKSEC_DEB}" | sha512sum -c -
+        sudo dpkg -i "${CHECKSEC_DEB}"
         chmod +x tools/checksec.sh
         CHECKSEC_REQUIRED=1 ./tools/checksec.sh
 

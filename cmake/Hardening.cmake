@@ -27,13 +27,26 @@ include(CheckCXXCompilerFlag)
 
 if(NOT WIN32 AND NOT APPLE AND MIGRAPHX_ENABLE_HARDENING)
     message(STATUS "Linux build hardening enabled")
-    add_compile_options(
-        -fstack-protector-strong
-        -Wformat-security
-        -fstack-clash-protection
-    )
+
+    check_cxx_compiler_flag("-fstack-protector-strong" MIGRAPHX_HAS_STACK_PROTECTOR_STRONG)
+    if(MIGRAPHX_HAS_STACK_PROTECTOR_STRONG)
+        add_compile_options(-fstack-protector-strong)
+    endif()
+
+    check_cxx_compiler_flag("-Wformat-security" MIGRAPHX_HAS_FORMAT_SECURITY)
+    if(MIGRAPHX_HAS_FORMAT_SECURITY)
+        add_compile_options(-Wformat-security)
+    endif()
+
+    check_cxx_compiler_flag("-fstack-clash-protection" MIGRAPHX_HAS_STACK_CLASH_PROTECTION)
+    if(MIGRAPHX_HAS_STACK_CLASH_PROTECTION)
+        add_compile_options(-fstack-clash-protection)
+    endif()
+
     add_compile_definitions(_FORTIFY_SOURCE=2)
-    add_link_options(-Wl,-z,relro -Wl,-z,now -pie)
+
+    add_link_options(-Wl,-z,relro -Wl,-z,now)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
 
     check_cxx_compiler_flag("-fcf-protection=full" MIGRAPHX_HAS_FCF_PROTECTION)
     if(MIGRAPHX_HAS_FCF_PROTECTION)

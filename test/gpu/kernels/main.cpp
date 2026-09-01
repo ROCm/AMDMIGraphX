@@ -40,8 +40,8 @@
 
 std::vector<std::string> parse_cases(const std::string_view& content)
 {
-    // The name may be a template-id, so it can contain spaces and commas
-    // (`TEST_CASE_REGISTER(foo<unsigned long, int>)`); trim what that lets in trailing.
+    // A template-id may contain spaces and commas; trim trailing whitespace accepted
+    // by the regex (`TEST_CASE_REGISTER(foo<unsigned long, int>)`).
     std::regex case_re(R"((TEST_CASE_REGISTER|TEST_CASE)\s*\(\s*([A-Za-z_][A-Za-z0-9_<>:, ]*)\))");
     std::match_results<std::string_view::const_iterator> m;
     std::vector<std::string> test_names;

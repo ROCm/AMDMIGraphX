@@ -308,5 +308,6 @@ def main():
         print(str(error_num) + " cases failed!")
         sys.exit(1)
 
+
 if __name__ == "__main__":
     main()

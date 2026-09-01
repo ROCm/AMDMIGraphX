@@ -92,7 +92,8 @@ def _register_migraphx_plugin(registration_name):
             "MIGraphX plugin EP library not found; set MIGRAPHX_EP_LIB to its path"
         )
 
-    onnxruntime.register_execution_provider_library(registration_name, lib_path)
+    onnxruntime.register_execution_provider_library(registration_name,
+                                                    lib_path)
 
     ep_device = _find_migraphx_ep_device(registration_name)
     if ep_device is None:
@@ -141,7 +142,8 @@ def ensure_migraphx_ep(session_options,
     ep_device = _register_migraphx_plugin(registration_name)
 
     # Plugin EP: attach the discovered OrtEpDevice directly to session_options.
-    session_options.add_provider_for_devices([ep_device], provider_options or {})
+    session_options.add_provider_for_devices([ep_device], provider_options
+                                             or {})
     return None
 
 

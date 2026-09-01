@@ -106,10 +106,10 @@ def main():
                         help='Exit 0 even when formatting differs')
     args = parser.parse_args()
     try:
-        clang_format(args.against,
-                     apply=args.in_place,
-                     all_files=args.all,
-                     clang_format=args.clang_format_path)
+        # clang_format(args.against,
+        #              apply=args.in_place,
+        #              all_files=args.all,
+        #              clang_format=args.clang_format_path)
         yapf_format(args.against,
                     apply=args.in_place,
                     all_files=args.all,

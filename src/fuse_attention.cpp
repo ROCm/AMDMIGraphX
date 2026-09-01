@@ -896,8 +896,8 @@ struct find_kv_cache_attention
 
         auto keys = match::opaque(
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k"));
-        auto keys_transpose = match::opaque(match::name("transpose")(match::arg(0)(keys)));
-        auto k_transpose    = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
+        auto keys_transpose  = match::opaque(match::name("transpose")(match::arg(0)(keys)));
+        auto k_transpose     = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
         auto gemm1           = match::opaque(match::name("dot")(match::arg(1)(k_transpose)));
         auto gemm1_maybe_cvt = match::opaque(match::skip(match::name("convert"))(gemm1));
         auto scale    = match::opaque(match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt)));

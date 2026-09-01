@@ -392,8 +392,8 @@ TEST_CASE(nhwc_conv_concat_conv)
         auto x = add_layout_nhwc(
             m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
         auto w1    = add_layout_nhwc(m2,
-                                  m2.add_literal(migraphx::generate_literal(
-                                      {migraphx::shape::float_type, {15, 8, 3, 3}})));
+                                     m2.add_literal(migraphx::generate_literal(
+                                         {migraphx::shape::float_type, {15, 8, 3, 3}})));
         auto conv1 = m2.add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w1);
         auto c = m2.add_literal(
@@ -402,8 +402,8 @@ TEST_CASE(nhwc_conv_concat_conv)
         // output stays channels-last and needs no relayout before conv2.
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), conv1, c);
         auto w2     = add_layout_nhwc(m2,
-                                  m2.add_literal(migraphx::generate_literal(
-                                      {migraphx::shape::float_type, {4, 16, 3, 3}})));
+                                      m2.add_literal(migraphx::generate_literal(
+                                          {migraphx::shape::float_type, {4, 16, 3, 3}})));
         auto conv2  = m2.add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), concat, w2);
         auto conv2_layout = m2.add_instruction(layout(), conv2);

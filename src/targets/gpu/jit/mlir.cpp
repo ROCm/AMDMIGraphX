@@ -134,13 +134,12 @@ instruction_ref find_final_split(instruction_ref split_ins)
 {
     auto output_path_range = get_output_path(split_ins);
     std::vector<instruction_ref> output_path(output_path_range.begin(), output_path_range.end());
+    if(output_path.empty())
+        MIGRAPHX_THROW("find_final_split: empty output path for instruction: " +
+                       split_ins->name());
+    instruction_ref result = split_ins;
     if(output_path.size() < 2)
-    {
-        if(output_path.empty())
-            MIGRAPHX_THROW("find_final_split: empty output path for instruction: " +
-                           split_ins->name());
-        return output_path.front();
-    }
+        return result;
     auto it = std::adjacent_find(
         output_path.begin(), output_path.end(), [&](instruction_ref input, instruction_ref output) {
             if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
@@ -157,9 +156,8 @@ instruction_ref find_final_split(instruction_ref split_ins)
             }
             return true;
         });
-    if(it == output_path.end())
-        return output_path.back();
-    return *it;
+    result = (it == output_path.end()) ? output_path.back() : *it;
+    return result;
 }
 
 struct mlir_compiler : compiler<mlir_compiler>

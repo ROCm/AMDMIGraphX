@@ -1144,12 +1144,11 @@ static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
-    // Without a string tuning solution (e.g. a null cache sentinel or a
-    // malformed entry) there is nothing to hand to MLIR, so treat the module as
-    // fusible rather than dereferencing a null string.
+    // A string tuning solution is required here; a null one has no config and the
+    // MLIR backend pipeline rejects it downstream, so fail fast with a clear error.
     const auto* tuning = solution.if_string();
     if(tuning == nullptr)
-        return true;
+        MIGRAPHX_THROW("is_module_fusible requires a string tuning solution");
     auto mm = m;
     prepare(mm);
     mlir_program mp;

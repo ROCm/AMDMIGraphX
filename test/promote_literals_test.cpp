@@ -92,32 +92,28 @@ TEST_CASE(promote_only)
     {
         auto* mm1 = p1.get_main_module();
         migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-        auto literal_ins3 = mm1->add_literal(migraphx::literal{lit_s, {6}});
-        auto literal_ins2 = mm1->add_literal(migraphx::literal{lit_s, {6}});
-        auto literal_ins1 = mm1->add_literal(migraphx::literal{lit_s, {6}});
-        auto literal_ins0 = mm1->add_literal(migraphx::literal{lit_s, {6}});
+        // The submodules all held the same value, so promoting them shares one literal.
+        auto literal_ins = mm1->add_literal(migraphx::literal{lit_s, {6}});
 
         // create batch submodules
-        auto create_submodule = [&](std::size_t batch_size,
-                                    migraphx::instruction_ref lit,
-                                    const std::string& module_name) {
+        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
             auto* submod = p1.create_module(module_name);
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             auto broadcast_lit =
-                submod->add_instruction(migraphx::make_op("multibroadcast"), lit, sm_input);
+                submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
             auto add_ins =
                 submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
             submod->add_return({add_ins});
             return submod;
         };
-        auto* dim1 = create_submodule(1, literal_ins0, "dim_1");
-        auto* dim2 = create_submodule(2, literal_ins1, "dim_2");
-        auto* dim3 = create_submodule(3, literal_ins2, "dim_3");
-        auto* dim4 = create_submodule(4, literal_ins3, "dim_4");
+        auto* dim1 = create_submodule(1, "dim_1");
+        auto* dim2 = create_submodule(2, "dim_2");
+        auto* dim3 = create_submodule(3, "dim_3");
+        auto* dim4 = create_submodule(4, "dim_4");
 
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
-        auto input0 = mm1->insert_parameter(std::next(literal_ins3), "data", s);
+        auto input0 = mm1->insert_parameter(std::next(literal_ins), "data", s);
         std::vector<migraphx::shape> sub_shapes = {};
         sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
@@ -132,6 +128,127 @@ TEST_CASE(promote_only)
     }
 
     EXPECT(p0 == p1);
+}
+
+TEST_CASE(promote_distinct_literals)
+{
+    const migraphx::shape lit_s{migraphx::shape::float_type, {1}};
+    const migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+    const std::vector<float> values = {6, 7, 8, 9};
+
+    migraphx::program p0;
+    {
+        auto* mm0 = p0.get_main_module();
+
+        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
+            auto* submod = p0.create_module(module_name);
+            migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
+            auto sm_input = submod->add_parameter("data", sm_shape);
+            auto literal_ins =
+                submod->add_literal(migraphx::literal{lit_s, {values.at(batch_size - 1)}});
+            auto broadcast_lit =
+                submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
+            auto add_ins =
+                submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
+            submod->add_return({add_ins});
+            return submod;
+        };
+        auto* dim1 = create_submodule(1, "dim_1");
+        auto* dim2 = create_submodule(2, "dim_2");
+        auto* dim3 = create_submodule(3, "dim_3");
+        auto* dim4 = create_submodule(4, "dim_4");
+
+        auto input0                             = mm0->add_parameter("data", s);
+        std::vector<migraphx::shape> sub_shapes = {s};
+        migraphx::shape out_attr                = migraphx::shape{sub_shapes};
+        auto sm_ins                             = mm0->add_instruction(
+            migraphx::make_op("select_module",
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+            {input0},
+            {dim1, dim2, dim3, dim4});
+        auto ret =
+            mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
+        mm0->add_return({ret});
+    }
+    run_promote(p0);
+
+    migraphx::program p1;
+    {
+        auto* mm1 = p1.get_main_module();
+        // The values differ, so each submodule contributes its own literal. Promotion inserts at
+        // the front and visits the submodules in reverse, leaving main holding them in submodule
+        // order.
+        std::vector<migraphx::instruction_ref> literals(values.size());
+        std::transform(values.rbegin(), values.rend(), literals.rbegin(), [&](float v) {
+            return mm1->add_literal(migraphx::literal{lit_s, {v}});
+        });
+
+        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
+            auto* submod = p1.create_module(module_name);
+            migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
+            auto sm_input      = submod->add_parameter("data", sm_shape);
+            auto broadcast_lit = submod->add_instruction(
+                migraphx::make_op("multibroadcast"), literals.at(batch_size - 1), sm_input);
+            auto add_ins =
+                submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
+            submod->add_return({add_ins});
+            return submod;
+        };
+        auto* dim1 = create_submodule(1, "dim_1");
+        auto* dim2 = create_submodule(2, "dim_2");
+        auto* dim3 = create_submodule(3, "dim_3");
+        auto* dim4 = create_submodule(4, "dim_4");
+
+        auto input0 = mm1->insert_parameter(std::next(literals.back()), "data", s);
+        std::vector<migraphx::shape> sub_shapes = {s};
+        migraphx::shape out_attr                = migraphx::shape{sub_shapes};
+        auto sm_ins                             = mm1->add_instruction(
+            migraphx::make_op("select_module",
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+            {input0},
+            {dim1, dim2, dim3, dim4});
+        auto ret =
+            mm1->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
+        mm1->add_return({ret});
+    }
+
+    EXPECT(p0 == p1);
+}
+
+TEST_CASE(promote_if_branches_not_shared)
+{
+    const migraphx::shape sd{migraphx::shape::float_type, {2, 3}};
+    const migraphx::shape cond_s{migraphx::shape::bool_type, {1}};
+    const std::vector<float> ones(sd.elements(), 1);
+
+    migraphx::program p;
+    {
+        auto* mm  = p.get_main_module();
+        auto x    = mm->add_parameter("x", sd);
+        auto cond = mm->add_parameter("cond", cond_s);
+
+        auto* then_smod = p.create_module("then_smod");
+        auto l1         = then_smod->add_literal(migraphx::literal{sd, ones});
+        auto r1         = then_smod->add_instruction(migraphx::make_op("add"), x, l1);
+        then_smod->add_return({r1});
+
+        auto* else_smod = p.create_module("else_smod");
+        auto l2         = else_smod->add_literal(migraphx::literal{sd, ones});
+        auto r2         = else_smod->add_instruction(migraphx::make_op("mul"), x, l2);
+        else_smod->add_return({r2});
+
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_smod, else_smod});
+        mm->add_return({ret});
+    }
+    run_promote(p);
+
+    // The branches of an `if` are alternatives rather than specializations of one graph, so equal
+    // literals in them are promoted separately.
+    auto* mm         = p.get_main_module();
+    auto num_literal = std::count_if(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "@literal";
+    });
+    EXPECT(num_literal == 2);
 }
 
 TEST_CASE(promote_and_ecs0)

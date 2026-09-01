@@ -13293,6 +13293,30 @@ def matmulnbits_bmm_test():
     return ([node], [a, b, scales], [c])
 
 
+@onnx_test()
+def matmulnbits_bmm_dyn_test():
+    # matmulnbits_bmm_test with a named row count, so the quantized weights have to be broadcast
+    # against a batch dimension while the row count is only known at specialization time.
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, "sequence_length", 8])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [2, 1, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [2])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT,
+                                           [2, "sequence_length", 2])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=8,
+                                 N=2,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales], [c])
+
+
 def matmulnbits_negative_test(bits=4,
                               block_size=16,
                               a_dims=[2, 16],

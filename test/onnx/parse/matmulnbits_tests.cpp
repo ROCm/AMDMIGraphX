@@ -174,3 +174,67 @@ TEST_CASE(matmulnbits_bmm_test)
     prog.sort();
     EXPECT(p == prog);
 }
+
+// Emits the weight decode chain shared by the dynamic and symbolic broadcast tests below, which
+// reuse matmulnbits_bmm_test.onnx with a non-fixed row count. The weights stay static in both, so
+// only the final dot differs.
+static migraphx::instruction_ref
+add_bmm_dequantized_b(migraphx::module& m, migraphx::instruction_ref b, migraphx::instruction_ref s)
+{
+    b = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, -1}}}), b);
+    b = m.add_instruction(migraphx::make_op("unpack_int4"), b);
+    b = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {8}}}), b);
+
+    s = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, -1}}}), s);
+    s = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), s);
+    s = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 16}}}), s);
+    s = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, -1}}}), s);
+    s = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {8}}}), s);
+
+    auto zp =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::uint8_type, {1}}, {8}});
+    zp = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8}}}), zp);
+
+    b = m.add_instruction(migraphx::make_op("dequantizelinear"), b, s, zp);
+    return m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), b);
+}
+
+TEST_CASE(matmulnbits_dyn_broadcast_test)
+{
+    EXPECT(check_parse(
+        "matmulnbits_bmm_test.onnx",
+        {{"a", {migraphx::shape::float_type, {{2, 2}, {1, 3}, {8, 8}}}},
+         {"b", {migraphx::shape::uint8_type, {2, 1, 8}}},
+         {"scales", {migraphx::shape::float_type, {2}}}},
+        [](migraphx::module& m, const auto& args) {
+            auto b  = add_bmm_dequantized_b(m, args[1], args[2]);
+            auto b0 = m.add_instruction(migraphx::make_op("broadcast_for_dot"), args[0], b);
+            auto b1 = m.add_instruction(migraphx::make_op("broadcast_for_dot"), b, args[0]);
+            m.add_return({m.add_instruction(migraphx::make_op("dot"), b0, b1)});
+        }));
+}
+
+TEST_CASE(matmulnbits_sym_broadcast_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    EXPECT(check_parse(
+        "matmulnbits_bmm_test.onnx",
+        {{"a", {migraphx::shape::float_type, sym_dims({lit(2), var("m", {1, 3}), lit(8)})}},
+         {"b", {migraphx::shape::uint8_type, {2, 1, 8}}},
+         {"scales", {migraphx::shape::float_type, {2}}}},
+        [](migraphx::module& m, const auto& args) {
+            using migraphx::sym::lit;
+            auto b = add_bmm_dequantized_b(m, args[1], args[2]);
+            // Only the weights are broadcast: the symbolic row count sits in the dot's contracted
+            // dimensions and is carried through untouched.
+            b = m.add_instruction(
+                migraphx::make_op(
+                    "multibroadcast",
+                    {{"out_dyn_dims", migraphx::to_value(sym_dims({lit(2), lit(8), lit(2)}))}}),
+                b);
+            m.add_return({m.add_instruction(migraphx::make_op("dot"), args[0], b)});
+        }));
+}

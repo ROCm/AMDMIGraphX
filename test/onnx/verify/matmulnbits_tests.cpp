@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <migraphx/float8.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
@@ -184,4 +185,61 @@ TEST_CASE(matmulnbits_bmm_test)
 
     EXPECT(result.get_shape().lens() == std::vector<size_t>{2, 3, 2});
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+// A symbolic row count leaves the quantized weights static, so the weight broadcast the parser
+// builds for the dot has to be expressed against the symbol rather than a fixed row count.
+// Specializing is what makes a symbolic program runnable, so the reference is the same model
+// parsed at a fixed row count.
+TEST_CASE(matmulnbits_bmm_sym_test)
+{
+    const std::string model = "matmulnbits_bmm_dyn_test.onnx";
+    const std::size_t max_sequence_length = 3;
+
+    migraphx::onnx_options sym_options;
+    sym_options.use_symbolic_shapes           = true;
+    sym_options.dim_params["sequence_length"] = {1, max_sequence_length};
+    auto p                                    = read_onnx(model, sym_options);
+    EXPECT(p.get_parameter_shapes().at("a").symbolic());
+
+    migraphx::run_passes(
+        p,
+        {migraphx::split_single_dyn_dim{"sequence_length", {1, max_sequence_length}},
+         migraphx::dead_code_elimination{}});
+    p.compile(migraphx::make_target("ref"));
+
+    // Same quantized weights as matmulnbits_bmm_test.
+    auto b_shape = migraphx::shape{migraphx::shape::uint8_type, {2, 1, 8}};
+    std::vector<uint8_t> b{
+        0xed, 0xf8, 0xa0, 0xac, 0x0, 0x0, 0x0, 0x0, 0x34, 0xf7, 0x42, 0x1f, 0x0, 0x0, 0x0, 0x0};
+    auto scales_shape = migraphx::shape{migraphx::shape::float_type, {2}};
+    std::vector<float> scales{1.43507, 1.28074};
+
+    // Both specializations have to hold, which is what rules out a broadcast frozen to whichever
+    // row count the shape happened to carry while parsing.
+    for(std::size_t sequence_length : {std::size_t{1}, max_sequence_length})
+    {
+        migraphx::onnx_options static_options;
+        static_options.dim_params["sequence_length"] = {sequence_length, sequence_length};
+        auto reference                               = read_onnx(model, static_options);
+        reference.compile(migraphx::make_target("ref"));
+
+        migraphx::shape a_shape{migraphx::shape::float_type, {2, sequence_length, 8}};
+        migraphx::argument a{a_shape};
+        a.visit([](auto view) { std::iota(view.begin(), view.end(), 1.0f); });
+
+        migraphx::parameter_map pm;
+        pm["a"]      = a;
+        pm["b"]      = migraphx::argument(b_shape, b.data());
+        pm["scales"] = migraphx::argument(scales_shape, scales.data());
+
+        auto result   = p.eval(pm).back();
+        auto expected = reference.eval(pm).back();
+
+        EXPECT(result.get_shape() == expected.get_shape());
+        EXPECT(result.get_shape().lens() ==
+               std::vector<size_t>{2, sequence_length, 2});
+        EXPECT(migraphx::verify::verify_rms_range(result.to_vector<float>(),
+                                                  expected.to_vector<float>()));
+    }
 }

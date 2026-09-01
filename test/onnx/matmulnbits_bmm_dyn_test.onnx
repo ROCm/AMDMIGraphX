@@ -1,0 +1,29 @@
+matmulnbits_bmm_dyn_test:ü
+a
+a
+b
+scalesc"MatMulNBits*
+K *
+N *
+bits *
+
+block_size :com.microsoftmatmulnbits_bmm_dyn_testZ&
+a!
+
+
+sequence_length
+Z
+b
+
+
+
+Z
+scales
+
+
+b&
+c!
+
+
+sequence_length
+B

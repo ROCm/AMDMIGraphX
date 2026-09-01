@@ -30,6 +30,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/op/common.hpp>
@@ -42,6 +43,7 @@
 #include <migraphx/zip_view.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -57,7 +59,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
-#include <variant>
 #include <vector>
 
 namespace migraphx {
@@ -65,36 +66,22 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-// How a symbolic axis is consumed by an operator.
-enum class axis_kind
-{
-    parallel,   // elements independent (batch); padded rows sliced back off
-    windowed,   // sliding window reads the axis (conv/pool spatial)
-    normalized, // values interact along the axis (softmax)
-    contracted, // axis reduced away (reduce, gemm K, conv channels)
-    merged,     // reshape merge/split; hard coalescing boundary
-    unknown     // no registered semantics -> forces a pass boundary
-};
-
-// Sentinel the padded region must hold so a sensitive op's result is unchanged.
 enum class fill_kind
 {
-    none,    // op is insensitive on this axis (parallel); fill is a don't-care
-    zero,    // sum/mean identity, gemm/conv contraction, conv zero-pad, lpnorm
-    lowest,  // max identity (maxpool)
-    neg_inf, // exact softmax mask
-    highest, // min identity
-    one      // product identity
+    dont_care,
+    zero,
+    lowest,
+    neg_inf,
+    highest,
+    one
 };
 
-// One operand (by index) or the output of an operator.
 struct io_ref
 {
     bool is_output    = false;
-    std::size_t index = 0; // operand index when not is_output
+    std::size_t index = 0;
 };
 
-// A symbolic axis that varies (an actual variable), not a constant sym::lit.
 bool is_variable_axis(const shape::dynamic_dimension& d)
 {
     return d.is_symbolic() and not d.is_fixed();
@@ -120,8 +107,7 @@ bool is_pooling(const operation& op) { return op.name() == "pooling"; }
 bool is_softmax(const operation& op) { return op.name() == "softmax"; }
 bool is_shape_transform(const operation& op)
 {
-    return contains({"contiguous", "flatten", "reshape", "squeeze", "transpose", "unsqueeze"},
-                    op.name());
+    return contains({"contiguous", "flatten", "reshape", "transpose"}, op.name());
 }
 
 std::optional<fill_kind> reduce_identity(const std::string& name)
@@ -137,7 +123,6 @@ std::optional<fill_kind> reduce_identity(const std::string& name)
     return std::nullopt;
 }
 
-// Reduce axes attribute normalized against the operand rank.
 std::vector<int64_t> reduce_axes(const operation& op, std::size_t ndim)
 {
     auto attributes = op.to_value();
@@ -151,8 +136,6 @@ std::vector<int64_t> reduce_axes(const operation& op, std::size_t ndim)
     return axes;
 }
 
-// Windowed axis is coalesce-safe only with zero padding (default mode, no ceil):
-// the last window then never reaches the padded tail at any (symbolic) size.
 bool windowed_zero_pad(const std::vector<std::size_t>& padding,
                        std::size_t spatial_dimensions,
                        std::size_t axis)
@@ -170,142 +153,203 @@ bool windowed_zero_pad(const std::vector<std::size_t>& padding,
     return false;
 }
 
-struct axis_padding
+enum class mask_role
 {
-    fill_kind fill     = fill_kind::none;
-    bool coalesce_safe = false;
-    bool supported     = false;
+    normalized,
+    contracted
 };
 
-struct axis_masking
+enum class axis_handling
 {
-    fill_kind fill;
+    unsupported,
+    pad,
+    mask
 };
 
-// Resolved padding and masking policies for one operator axis.
 struct axis_desc
 {
-    axis_kind kind = axis_kind::unknown;
-    axis_padding padding;
-    std::optional<axis_masking> masking;
+    axis_handling handling = axis_handling::unsupported;
+    fill_kind fill         = fill_kind::dont_care;
+    bool coalesce_safe     = false;
+    mask_role role         = mask_role::contracted;
 };
 
-axis_desc parallel_axis() { return {axis_kind::parallel, {fill_kind::none, true, true}, {}}; }
-
-axis_desc contracted_axis(fill_kind fill)
+axis_desc padded_axis(fill_kind fill, bool coalesce_safe)
 {
-    return {axis_kind::contracted, {fill, false, true}, {}};
+    return {axis_handling::pad, fill, coalesce_safe};
 }
 
-// Coalesce-safe only because specialize installs the mask the pad fill cannot express.
-axis_desc masked_axis(axis_kind kind, fill_kind fill)
+axis_desc parallel_axis() { return padded_axis(fill_kind::dont_care, true); }
+
+axis_desc contracted_axis(fill_kind fill) { return padded_axis(fill, false); }
+
+axis_desc masked_axis(mask_role role, fill_kind fill)
 {
-    return {kind, {fill_kind::none, true, true}, axis_masking{fill}};
+    return {axis_handling::mask, fill, true, role};
 }
 
-using axis_policy = std::function<axis_desc(io_ref, std::size_t)>;
-
-axis_policy unsupported_policy()
+struct axis_mask
 {
-    return [](io_ref, std::size_t) { return axis_desc{}; };
-}
-
-using optimal_map             = std::unordered_map<sym::expr, sym::expr>;
-using freeze_map              = std::unordered_map<sym::expr, std::size_t>;
-using optimal_op_rewriter     = std::function<operation(const operation&, const optimal_map&)>;
-using static_op_freezer       = std::function<operation(const operation&, const freeze_map&)>;
-using static_subgraph_emitter = std::function<instruction_ref(
-    module&, const operation&, const std::vector<instruction_ref>&, const freeze_map&)>;
-
-struct symbolic_target_policy
-{
-    optimal_op_rewriter retarget_to_optimal;
-    static_op_freezer freeze_op;
-    std::optional<std::vector<std::size_t>> selected_inputs;
-    std::optional<static_subgraph_emitter> emit_static_subgraph;
+    std::size_t axis;
+    sym::expr extent;
+    fill_kind fill;
+    mask_role role;
 };
 
-bool retains_input(const std::optional<symbolic_target_policy>& target, std::size_t index)
+struct operand_plan
 {
-    return not target.has_value() or not target->selected_inputs.has_value() or
-           contains(*target->selected_inputs, index);
-}
+    std::optional<float> pad_value;
+    std::vector<std::size_t> retained_slice_axes;
+    std::vector<axis_mask> masks;
+};
 
-std::vector<instruction_ref> select_inputs(const std::vector<instruction_ref>& inputs,
-                                           const std::optional<std::vector<std::size_t>>& selected)
+using optimal_map = std::unordered_map<sym::expr, sym::expr>;
+using freeze_map  = std::unordered_map<sym::expr, std::size_t>;
+using op_freezer  = std::function<instruction_ref(
+    module&, instruction_ref, const std::vector<instruction_ref>&, const freeze_map&)>;
+
+struct symbolic_op_info
 {
-    if(not selected.has_value())
-        return inputs;
+    instruction_ref ins;
+    shape output_shape;
+    std::vector<shape> input_shapes;
+    std::vector<std::size_t> output_symbolic_axes;
+    std::vector<operand_plan> operands;
+    op_freezer freezer;
+    std::vector<std::size_t> shape_input_indices;
+    bool supported = false;
+};
+
+std::vector<instruction_ref> select_data_inputs(const std::vector<instruction_ref>& inputs,
+                                                const std::vector<std::size_t>& shape_input_indices)
+{
+    assert(all_of(shape_input_indices, [&](auto index) { return index < inputs.size(); }));
     std::vector<instruction_ref> result;
-    std::transform(selected->begin(), selected->end(), std::back_inserter(result), [&](auto index) {
-        return inputs.at(index);
-    });
+    for(std::size_t index = 0; index < inputs.size(); ++index)
+        if(not contains(shape_input_indices, index))
+            result.push_back(inputs.at(index));
     return result;
 }
 
-struct op_semantics
+bool supports_mask(shape::type_t type, fill_kind fill)
 {
-    axis_policy axes = unsupported_policy();
-    std::optional<symbolic_target_policy> symbolic_target;
-};
+    if(fill != fill_kind::neg_inf)
+        return true;
+    return contains({shape::half_type, shape::float_type, shape::double_type, shape::bf16_type},
+                    type);
+}
 
-op_semantics axis_semantics(axis_policy axes) { return {std::move(axes), {}}; }
-
-struct pointwise_family
+float fill_value(fill_kind fill)
 {
-    bool matches(const operation& op) const { return is_pointwise(op); }
-
-    op_semantics describe(const operation&, const std::vector<shape>&) const
+    switch(fill)
     {
-        return axis_semantics([](io_ref, std::size_t) { return parallel_axis(); });
+    case fill_kind::dont_care:
+    case fill_kind::zero: return 0.0f;
+    case fill_kind::lowest: return std::numeric_limits<float>::lowest();
+    case fill_kind::neg_inf: return -std::numeric_limits<float>::infinity();
+    case fill_kind::highest: return std::numeric_limits<float>::max();
+    case fill_kind::one: return 1.0f;
     }
-};
+    MIGRAPHX_THROW("SPLIT_SYM_DIM: unsupported fill kind");
+}
 
-struct reduce_family
+template <class Rule>
+void analyze_axes(symbolic_op_info& info, const Rule& rule)
 {
-    bool matches(const operation& op) const { return is_reduce(op); }
-
-    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
+    info.supported = true;
+    for(std::size_t axis = 0; axis < info.output_shape.ndim(); ++axis)
     {
-        std::vector<std::vector<int64_t>> raxes(inputs.size());
-        std::transform(inputs.begin(), inputs.end(), raxes.begin(), [&](const shape& input) {
-            return reduce_axes(op, input.ndim());
-        });
-        auto identity = reduce_identity(op.name());
-        return axis_semantics([raxes = std::move(raxes), identity](io_ref io, std::size_t axis) {
-            if(io.is_output)
-                return parallel_axis();
-            const auto& axes = raxes.at(io.index);
-            if(axes.empty())
-                return axis_desc{};
-            if(not contains(axes, axis))
-                return parallel_axis();
-            return identity.has_value() ? contracted_axis(*identity) : axis_desc{};
-        });
+        const auto& dimension = info.output_shape.dyn_dims().at(axis);
+        if(not is_variable_axis(dimension))
+            continue;
+        info.output_symbolic_axes.push_back(axis);
+        if(rule(io_ref{true, 0}, axis).handling != axis_handling::pad)
+            info.supported = false;
     }
-};
 
-struct dot_family
+    assert(all_of(info.shape_input_indices,
+                  [&](auto index) { return index < info.input_shapes.size(); }));
+    info.operands.resize(info.input_shapes.size());
+    for(std::size_t index = 0; index < info.input_shapes.size(); ++index)
+    {
+        if(contains(info.shape_input_indices, index))
+            continue;
+        const auto& input = info.input_shapes.at(index);
+        if(not has_variable_axis(input))
+            continue;
+        auto& operand  = info.operands.at(index);
+        fill_kind fill = fill_kind::dont_care;
+        for(std::size_t axis = 0; axis < input.ndim(); ++axis)
+        {
+            const auto& dimension = input.dyn_dims().at(axis);
+            if(not is_variable_axis(dimension))
+                continue;
+            operand.pad_value = fill_value(fill);
+            auto desc         = rule(io_ref{false, index}, axis);
+            if(desc.handling == axis_handling::unsupported)
+            {
+                info.supported = false;
+                operand.retained_slice_axes.push_back(axis);
+                continue;
+            }
+            if(desc.handling == axis_handling::mask)
+            {
+                if(not supports_mask(input.type(), desc.fill))
+                    info.supported = false;
+                operand.masks.push_back({axis, dimension.sym_expr, desc.fill, desc.role});
+                continue;
+            }
+            if(not desc.coalesce_safe)
+                operand.retained_slice_axes.push_back(axis);
+            if(desc.fill == fill_kind::dont_care)
+                continue;
+            if(fill != fill_kind::dont_care and fill != desc.fill)
+                MIGRAPHX_THROW("SPLIT_SYM_DIM: conflicting padding fills on one operand");
+            fill = desc.fill;
+        }
+        if(operand.pad_value.has_value())
+            operand.pad_value = fill_value(fill);
+    }
+}
+
+void analyze_pointwise(symbolic_op_info& info)
 {
-    bool matches(const operation& op) const { return is_dot(op); }
+    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+}
 
-    op_semantics describe(const operation&, const std::vector<shape>& inputs) const
-    {
-        std::vector<std::size_t> ranks(inputs.size());
-        std::transform(
-            inputs.begin(), inputs.end(), ranks.begin(), [](const shape& s) { return s.ndim(); });
-        // A[..., M, K] contracts its last axis; B[..., K, N] its second-to-last.
-        return axis_semantics([ranks = std::move(ranks)](io_ref io, std::size_t axis) {
-            if(io.is_output)
-                return parallel_axis(); // M, N
-            std::size_t rank = ranks.at(io.index);
-            assert(rank >= 2);
-            std::size_t contraction_axis = (io.index == 0) ? rank - 1 : rank - 2;
-            return axis == contraction_axis ? masked_axis(axis_kind::contracted, fill_kind::zero)
-                                            : parallel_axis();
-        });
-    }
-};
+void analyze_reduce(symbolic_op_info& info)
+{
+    const auto& op     = info.ins->get_operator();
+    const auto& inputs = info.input_shapes;
+    std::vector<std::vector<int64_t>> reduction_axes(inputs.size());
+    std::transform(inputs.begin(), inputs.end(), reduction_axes.begin(), [&](const shape& input) {
+        return reduce_axes(op, input.ndim());
+    });
+    auto identity = reduce_identity(op.name());
+    analyze_axes(info, [&](io_ref io, std::size_t axis) {
+        if(io.is_output)
+            return parallel_axis();
+        const auto& axes = reduction_axes.at(io.index);
+        if(axes.empty())
+            return axis_desc{};
+        if(not contains(axes, axis))
+            return parallel_axis();
+        return identity.has_value() ? contracted_axis(*identity) : axis_desc{};
+    });
+}
+
+void analyze_dot(symbolic_op_info& info)
+{
+    analyze_axes(info, [&](io_ref io, std::size_t axis) {
+        if(io.is_output)
+            return parallel_axis();
+        std::size_t rank = info.input_shapes.at(io.index).ndim();
+        assert(rank >= 2);
+        std::size_t contraction_axis = (io.index == 0) ? rank - 1 : rank - 2;
+        return axis == contraction_axis ? masked_axis(mask_role::contracted, fill_kind::zero)
+                                        : parallel_axis();
+    });
+}
 
 std::vector<shape::dynamic_dimension> symbolic_broadcast_dims(const operation& op)
 {
@@ -314,28 +358,13 @@ std::vector<shape::dynamic_dimension> symbolic_broadcast_dims(const operation& o
     return from_value<std::vector<shape::dynamic_dimension>>(op.to_value().at("out_dyn_dims"));
 }
 
-operation retarget_broadcast_to_optimal(const operation& op,
-                                        const std::vector<shape::dynamic_dimension>& output_dims,
-                                        const optimal_map& substitutions)
+instruction_ref freeze_broadcast(module& m,
+                                 instruction_ref source,
+                                 const std::vector<instruction_ref>& args,
+                                 const freeze_map& freeze)
 {
-    std::vector<shape::dynamic_dimension> dims(output_dims.size());
-    std::transform(output_dims.begin(), output_dims.end(), dims.begin(), [&](const auto& d) {
-        return shape::dynamic_dimension{d.sym_expr.subs(substitutions)};
-    });
-    if(op.name() == "broadcast")
-    {
-        auto axis = op.to_value().at("axis").to<std::size_t>();
-        return make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", to_value(dims)}});
-    }
-    if(not contains({"multibroadcast", "broadcast_with_dims"}, op.name()))
-        MIGRAPHX_THROW("SPLIT_SYM_DIM: unsupported symbolic broadcast " + op.name());
-    return make_op("multibroadcast", {{"out_dyn_dims", to_value(dims)}});
-}
-
-operation freeze_broadcast(const operation& op,
-                           const std::vector<shape::dynamic_dimension>& output_dims,
-                           const freeze_map& freeze)
-{
+    const auto& op   = source->get_operator();
+    auto output_dims = symbolic_broadcast_dims(op);
     std::vector<std::size_t> lens(output_dims.size());
     std::transform(output_dims.begin(), output_dims.end(), lens.begin(), [&](const auto& d) {
         return d.sym_expr.eval_uint(freeze);
@@ -343,11 +372,11 @@ operation freeze_broadcast(const operation& op,
     if(op.name() == "broadcast")
     {
         auto axis = op.to_value().at("axis").to<std::size_t>();
-        return make_op("broadcast", {{"axis", axis}, {"out_lens", lens}});
+        return m.add_instruction(make_op("broadcast", {{"axis", axis}, {"out_lens", lens}}), args);
     }
     if(not contains({"multibroadcast", "broadcast_with_dims"}, op.name()))
         MIGRAPHX_THROW("SPLIT_SYM_DIM: unsupported symbolic broadcast " + op.name());
-    return make_op("multibroadcast", {{"out_lens", lens}});
+    return m.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args);
 }
 
 std::optional<shape> symbolic_allocate_shape(const operation& op)
@@ -364,27 +393,12 @@ std::optional<shape> symbolic_allocate_shape(const operation& op)
     return s;
 }
 
-operation retarget_allocate_to_optimal(const operation& op, const optimal_map& substitutions)
+instruction_ref freeze_allocate(module& m,
+                                instruction_ref source_ins,
+                                const std::vector<instruction_ref>& args,
+                                const freeze_map& freeze)
 {
-    auto source = symbolic_allocate_shape(op);
-    assert(source.has_value());
-    std::vector<shape::dynamic_dimension> dims(source->ndim());
-    std::transform(
-        source->dyn_dims().begin(), source->dyn_dims().end(), dims.begin(), [&](const auto& d) {
-            return shape::dynamic_dimension{d.sym_expr.subs(substitutions)};
-        });
-    std::vector<sym::expr> strides(source->ndim());
-    std::transform(source->dyn_strides().begin(),
-                   source->dyn_strides().end(),
-                   strides.begin(),
-                   [&](const auto& stride) { return stride.subs(substitutions); });
-    shape target{source->type(), dims, strides};
-    return make_op("allocate", {{"shape", to_value(target)}});
-}
-
-operation freeze_allocate(const operation& op, const freeze_map& freeze)
-{
-    auto source = symbolic_allocate_shape(op);
+    auto source = symbolic_allocate_shape(source_ins->get_operator());
     assert(source.has_value());
     std::vector<std::size_t> lens(source->ndim());
     std::transform(source->dyn_dims().begin(),
@@ -397,10 +411,10 @@ operation freeze_allocate(const operation& op, const freeze_map& freeze)
                    strides.begin(),
                    [&](const auto& stride) { return stride.eval_uint(freeze); });
     shape target{source->type(), lens, strides};
-    return make_op("allocate", {{"shape", to_value(target)}});
+    return m.add_instruction(make_op("allocate", {{"shape", to_value(target)}}), args);
 }
 
-operation retarget_reshape_to_optimal(const shape& target, const optimal_map& substitutions)
+operation reshape_from_shape(const shape& target, const optimal_map& substitutions)
 {
     std::vector<dim_like> dims(target.ndim());
     std::transform(
@@ -410,19 +424,20 @@ operation retarget_reshape_to_optimal(const shape& target, const optimal_map& su
     return make_op("reshape", {{"dims", to_value(dims)}});
 }
 
-operation freeze_reshape(const operation& op, const freeze_map& freeze)
+instruction_ref freeze_reshape(module& m,
+                               instruction_ref source,
+                               const std::vector<instruction_ref>& args,
+                               const freeze_map& freeze)
 {
-    auto source_dims = from_value<std::vector<dim_like>>(op.to_value().at("dims"));
-    std::vector<int64_t> dims;
-    dims.reserve(source_dims.size());
+    assert(source->inputs().size() == 2);
+    assert(args.size() == 1);
+    const auto& target = source->inputs().back()->get_shape();
+    std::vector<int64_t> dims(target.ndim());
     std::transform(
-        source_dims.begin(), source_dims.end(), std::back_inserter(dims), [&](const auto& d) {
-            if(std::holds_alternative<int64_t>(d))
-                return std::get<int64_t>(d);
-            return static_cast<int64_t>(
-                std::get<shape::dynamic_dimension>(d).sym_expr.eval_uint(freeze));
+        target.dyn_dims().begin(), target.dyn_dims().end(), dims.begin(), [&](const auto& d) {
+            return static_cast<int64_t>(d.sym_expr.eval_uint(freeze));
         });
-    return make_op("reshape", {{"dims", dims}});
+    return m.add_instruction(make_op("reshape", {{"dims", dims}}), args);
 }
 
 bool is_symbolic_broadcast(const operation& op, std::size_t ninputs)
@@ -434,198 +449,165 @@ bool is_symbolic_broadcast(const operation& op, std::size_t ninputs)
     return ninputs == 2;
 }
 
-struct broadcast_family
+bool matches_broadcast(const operation& op)
 {
-    bool matches(const operation& op) const
-    {
-        return contains({"broadcast", "multibroadcast", "broadcast_with_dims"}, op.name());
-    }
-
-    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
-    {
-        if(not is_symbolic_broadcast(op, inputs.size()))
-            return {};
-        auto output_dims = symbolic_broadcast_dims(op);
-        return {[](io_ref, std::size_t) { return parallel_axis(); },
-                symbolic_target_policy{
-                    [output_dims](const operation& source, const optimal_map& substitutions) {
-                        return retarget_broadcast_to_optimal(source, output_dims, substitutions);
-                    },
-                    [output_dims](const operation& source, const freeze_map& freeze) {
-                        return freeze_broadcast(source, output_dims, freeze);
-                    },
-                    std::vector<std::size_t>{0},
-                    std::nullopt}};
-    }
-};
-
-struct allocate_family
-{
-    bool matches(const operation& op) const { return op.name() == "allocate"; }
-
-    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
-    {
-        if(inputs.size() != 1 or not symbolic_allocate_shape(op).has_value())
-            return {};
-        return {[](io_ref, std::size_t) { return parallel_axis(); },
-                symbolic_target_policy{retarget_allocate_to_optimal,
-                                       freeze_allocate,
-                                       std::vector<std::size_t>{},
-                                       std::nullopt}};
-    }
-};
-
-struct shape_transform_family
-{
-    bool matches(const operation& op) const { return is_shape_transform(op); }
-
-    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
-    {
-        auto optimal_op    = op;
-        auto descriptor_op = op;
-        std::optional<symbolic_target_policy> symbolic_target;
-        auto output = op.compute_shape(inputs);
-        if(op.name() == "reshape" and inputs.size() == 1)
-        {
-            auto nonunit_dims = [](const shape& s) {
-                std::vector<sym::expr> result;
-                std::transform(s.dyn_dims().begin(),
-                               s.dyn_dims().end(),
-                               std::back_inserter(result),
-                               [](const auto& d) { return d.sym_expr; });
-                result.erase(std::remove(result.begin(), result.end(), sym::lit(1)), result.end());
-                return result;
-            };
-            if(nonunit_dims(inputs.front()) == nonunit_dims(output))
-                return axis_semantics([](io_ref, std::size_t) { return parallel_axis(); });
-        }
-        if(op.name() == "reshape" and inputs.size() == 2 and inputs.back().symbolic())
-        {
-            optimal_op    = retarget_reshape_to_optimal(inputs.back(), {});
-            descriptor_op = make_op("reshape", {{"dims", to_value(inputs.back().max_lens())}});
-            auto input_elements  = inputs.front().sym_elements();
-            auto output_elements = output.sym_elements();
-            if(sym::strict_less(input_elements, output_elements).value_or(false) or
-               sym::strict_less(output_elements, input_elements).value_or(false))
-                return {};
-            auto optimal_output = optimal_op.compute_shape({inputs.front()});
-            if(optimal_output != output)
-                return {};
-            auto target     = inputs.back();
-            symbolic_target = symbolic_target_policy{
-                [target](const operation&, const optimal_map& substitutions) {
-                    return retarget_reshape_to_optimal(target, substitutions);
-                },
-                freeze_reshape,
-                std::vector<std::size_t>{0},
-                std::nullopt};
-        }
-        else if(inputs.size() != 1)
-            return {};
-        auto desc = shape_transform_descriptor::create(inputs.front().max_lens(), {descriptor_op});
-        if(desc.empty())
-            return {};
-        auto source_dims = inputs.front().to_symbolic().dyn_dims();
-        auto output_dims = output.to_symbolic().dyn_dims();
-        auto axes        = [desc        = std::move(desc),
-                     source_dims = std::move(source_dims),
-                     output_dims = std::move(output_dims)](io_ref io, std::size_t axis) {
-            if(not io.is_output)
-            {
-                auto dst_axes = desc.get_dst_axes_from_src(axis);
-                if(dst_axes.size() != 1)
-                    return axis_desc{};
-                auto dst_axis = dst_axes.front();
-                return source_dims.at(axis).sym_expr == output_dims.at(dst_axis).sym_expr
-                                  ? parallel_axis()
-                                  : axis_desc{};
-            }
-
-            auto source_axes = range(source_dims.size());
-            auto count =
-                std::count_if(source_axes.begin(), source_axes.end(), [&](auto source_axis) {
-                    auto dst_axes = desc.get_dst_axes_from_src(source_axis);
-                    return dst_axes.size() == 1 and dst_axes.front() == axis and
-                           source_dims.at(source_axis).sym_expr == output_dims.at(axis).sym_expr;
-                });
-            return count == 1 ? parallel_axis() : axis_desc{};
-        };
-        return {std::move(axes), std::move(symbolic_target)};
-    }
-};
-
-int64_t normalize_axis(int64_t axis, std::size_t rank)
-{
-    if(axis < 0)
-        axis += rank;
-    return axis;
+    return contains({"broadcast", "multibroadcast", "broadcast_with_dims"}, op.name());
 }
 
-struct gather_family
+void analyze_broadcast(symbolic_op_info& info)
 {
-    bool matches(const operation& op) const { return op.name() == "gather"; }
+    if(not is_symbolic_broadcast(info.ins->get_operator(), info.input_shapes.size()))
+        return;
+    info.freezer = freeze_broadcast;
+    info.shape_input_indices.resize(info.input_shapes.size() - 1);
+    std::iota(info.shape_input_indices.begin(), info.shape_input_indices.end(), std::size_t{1});
+    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+}
 
-    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
+bool matches_allocate(const operation& op) { return op.name() == "allocate"; }
+
+void analyze_allocate(symbolic_op_info& info)
+{
+    if(info.input_shapes.size() != 1 or
+       not symbolic_allocate_shape(info.ins->get_operator()).has_value())
+        return;
+    info.freezer             = freeze_allocate;
+    info.shape_input_indices = {0};
+    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+}
+
+void analyze_shape_transform(symbolic_op_info& info)
+{
+    const auto& op     = info.ins->get_operator();
+    const auto& inputs = info.input_shapes;
+    auto descriptor_op = op;
+    const auto& output = info.output_shape;
+    if(op.name() == "reshape" and inputs.size() == 1)
     {
-        if(inputs.size() != 2)
-            return {};
-        auto axis = normalize_axis(op.to_value().at("axis").to<int64_t>(), inputs.front().ndim());
-        if(axis < 0 or axis >= inputs.front().ndim())
-            return {};
-        return axis_semantics([axis](io_ref io, std::size_t current_axis) {
-            if(io.is_output or io.index == 1)
-                return parallel_axis();
-            return current_axis == axis ? axis_desc{} : parallel_axis();
+        auto non_unit_dims = [](const shape& s) {
+            std::vector<sym::expr> result;
+            std::transform(s.dyn_dims().begin(),
+                           s.dyn_dims().end(),
+                           std::back_inserter(result),
+                           [](const auto& d) { return d.sym_expr; });
+            result.erase(std::remove(result.begin(), result.end(), sym::lit(1)), result.end());
+            return result;
+        };
+        if(non_unit_dims(inputs.front()) == non_unit_dims(output))
+        {
+            analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+            return;
+        }
+    }
+    if(op.name() == "reshape" and inputs.size() == 2 and inputs.back().symbolic())
+    {
+        auto target_reshape  = reshape_from_shape(inputs.back(), {});
+        descriptor_op        = make_op("reshape", {{"dims", to_value(inputs.back().max_lens())}});
+        auto input_elements  = inputs.front().sym_elements();
+        auto output_elements = output.sym_elements();
+        if(sym::strict_less(input_elements, output_elements).value_or(false) or
+           sym::strict_less(output_elements, input_elements).value_or(false))
+            return;
+        if(target_reshape.compute_shape({inputs.front()}) != output)
+            return;
+        info.freezer             = freeze_reshape;
+        info.shape_input_indices = {1};
+    }
+    else if(inputs.size() != 1)
+        return;
+    auto desc = shape_transform_descriptor::create(inputs.front().max_lens(), {descriptor_op});
+    if(desc.empty())
+        return;
+    auto source_dims = inputs.front().to_symbolic().dyn_dims();
+    auto output_dims = output.to_symbolic().dyn_dims();
+    analyze_axes(info, [&](io_ref io, std::size_t axis) {
+        if(not io.is_output)
+        {
+            auto dst_axes = desc.get_dst_axes_from_src(axis);
+            if(dst_axes.size() != 1)
+                return axis_desc{};
+            auto dst_axis = dst_axes.front();
+            return source_dims.at(axis).sym_expr == output_dims.at(dst_axis).sym_expr
+                       ? parallel_axis()
+                       : axis_desc{};
+        }
+
+        auto source_axes = range(source_dims.size());
+        auto count = std::count_if(source_axes.begin(), source_axes.end(), [&](auto source_axis) {
+            auto dst_axes = desc.get_dst_axes_from_src(source_axis);
+            return dst_axes.size() == 1 and dst_axes.front() == axis and
+                   source_dims.at(source_axis).sym_expr == output_dims.at(axis).sym_expr;
         });
-    }
-};
+        return count == 1 ? parallel_axis() : axis_desc{};
+    });
+}
 
-struct concat_family
+std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank)
 {
-    bool matches(const operation& op) const { return op.name() == "concat"; }
+    if(axis < 0)
+        axis += static_cast<int64_t>(rank);
+    if(axis < 0 or axis >= static_cast<int64_t>(rank))
+        return std::nullopt;
+    return static_cast<std::size_t>(axis);
+}
 
-    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
-    {
-        if(inputs.empty())
-            return {};
-        auto axis = normalize_axis(op.to_value().at("axis").to<int64_t>(), inputs.front().ndim());
-        if(axis < 0 or axis >= inputs.front().ndim())
-            return {};
-        if(any_of(inputs, [&](const auto& input) {
-               return input.ndim() != inputs.front().ndim() or
-                      is_variable_axis(input.dyn_dims().at(axis));
-           }))
-            return {};
-        return axis_semantics([](io_ref, std::size_t) { return parallel_axis(); });
-    }
-};
+bool matches_gather(const operation& op) { return op.name() == "gather"; }
 
-struct unit_axis_transform_family
+void analyze_gather(symbolic_op_info& info)
 {
-    bool matches(const operation& op) const
-    {
-        return op.name() == "squeeze" or op.name() == "unsqueeze";
-    }
+    const auto& inputs = info.input_shapes;
+    if(inputs.size() != 2)
+        return;
+    auto axis = normalize_axis(info.ins->get_operator().to_value().at("axis").to<int64_t>(),
+                               inputs.front().ndim());
+    if(not axis.has_value())
+        return;
+    analyze_axes(info, [axis = *axis](io_ref io, std::size_t current_axis) {
+        if(io.is_output or io.index == 1)
+            return parallel_axis();
+        return current_axis == axis ? axis_desc{} : parallel_axis();
+    });
+}
 
-    op_semantics describe(const operation&, const std::vector<shape>& inputs) const
-    {
-        if(inputs.size() != 1)
-            return {};
-        return axis_semantics([](io_ref, std::size_t) { return parallel_axis(); });
-    }
-};
+bool matches_concat(const operation& op) { return op.name() == "concat"; }
 
-struct fill_family
+void analyze_concat(symbolic_op_info& info)
 {
-    bool matches(const operation& op) const { return op.name() == "fill"; }
+    const auto& inputs = info.input_shapes;
+    if(inputs.empty())
+        return;
+    auto axis = normalize_axis(info.ins->get_operator().to_value().at("axis").to<int64_t>(),
+                               inputs.front().ndim());
+    if(not axis.has_value())
+        return;
+    if(any_of(inputs, [&](const auto& input) {
+           return input.ndim() != inputs.front().ndim() or
+                  is_variable_axis(input.dyn_dims().at(*axis));
+       }))
+        return;
+    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+}
 
-    op_semantics describe(const operation&, const std::vector<shape>& inputs) const
-    {
-        if(inputs.size() != 2)
-            return {};
-        return axis_semantics([](io_ref, std::size_t) { return parallel_axis(); });
-    }
-};
+bool matches_unit_axis_transform(const operation& op)
+{
+    return op.name() == "squeeze" or op.name() == "unsqueeze";
+}
+
+void analyze_unit_axis_transform(symbolic_op_info& info)
+{
+    if(info.input_shapes.size() != 1)
+        return;
+    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+}
+
+bool matches_fill(const operation& op) { return op.name() == "fill"; }
+
+void analyze_fill(symbolic_op_info& info)
+{
+    if(info.input_shapes.size() != 2)
+        return;
+    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+}
 
 std::optional<shape::dynamic_dimension> symbolic_range_dim(const operation& op)
 {
@@ -640,23 +622,13 @@ std::optional<shape::dynamic_dimension> symbolic_range_dim(const operation& op)
     return output_dim;
 }
 
-operation retarget_dynamic_range_to_optimal(const operation& op, const optimal_map& substitutions)
-{
-    auto output_dim = symbolic_range_dim(op);
-    assert(output_dim.has_value());
-    auto attributes = op.to_value();
-    auto target     = shape::dynamic_dimension{output_dim->sym_expr.subs(substitutions)};
-    return make_op("dynamic_range",
-                   {{"max_output", attributes.at("max_output")}, {"output_dim", to_value(target)}});
-}
-
-instruction_ref emit_static_dynamic_range(module& m,
-                                          const operation& op,
-                                          const std::vector<instruction_ref>& args,
-                                          const freeze_map& freeze)
+instruction_ref freeze_dynamic_range(module& m,
+                                     instruction_ref source,
+                                     const std::vector<instruction_ref>& args,
+                                     const freeze_map& freeze)
 {
     assert(args.size() == 3);
-    auto output_dim = symbolic_range_dim(op);
+    auto output_dim = symbolic_range_dim(source->get_operator());
     assert(output_dim.has_value());
     auto length = output_dim->sym_expr.eval_uint(freeze);
     std::vector<int64_t> indices(length);
@@ -670,50 +642,26 @@ instruction_ref emit_static_dynamic_range(module& m,
     return m.add_instruction(make_op("add"), start, scaled);
 }
 
-struct dynamic_range_family
-{
-    bool matches(const operation& op) const { return op.name() == "dynamic_range"; }
+bool matches_dynamic_range(const operation& op) { return op.name() == "dynamic_range"; }
 
-    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
-    {
-        if(inputs.size() != 3 or inputs.front().type() != shape::int64_type or
-           not symbolic_range_dim(op).has_value())
-            return {};
-        return {[](io_ref, std::size_t) { return parallel_axis(); },
-                symbolic_target_policy{
-                    retarget_dynamic_range_to_optimal,
-                    [](const operation& source, const freeze_map&) { return source; },
-                    std::nullopt,
-                    emit_static_dynamic_range}};
-    }
-};
-
-std::vector<sym::expr>
-substitute_expressions(const value& attributes, const std::string& key, const optimal_map& subs)
+void analyze_dynamic_range(symbolic_op_info& info)
 {
-    auto expressions = from_value<std::vector<sym::expr>>(attributes.at(key));
-    std::transform(expressions.begin(), expressions.end(), expressions.begin(), [&](const auto& e) {
-        return e.subs(subs);
-    });
-    return expressions;
+    const auto& op     = info.ins->get_operator();
+    const auto& inputs = info.input_shapes;
+    if(inputs.size() != 3 or inputs.front().type() != shape::int64_type or
+       not symbolic_range_dim(op).has_value())
+        return;
+    info.freezer = freeze_dynamic_range;
+    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
 }
 
-operation retarget_dyn_slice_to_optimal(const operation& op, const optimal_map& substitutions)
-{
-    auto attributes = op.to_value();
-    auto starts     = substitute_expressions(attributes, "starts", substitutions);
-    auto ends       = substitute_expressions(attributes, "ends", substitutions);
-    return make_op(
-        "dyn_slice",
-        {{"axes", attributes.at("axes")}, {"starts", to_value(starts)}, {"ends", to_value(ends)}});
-}
-
-instruction_ref emit_static_dyn_slice(module& m,
-                                      const operation& op,
-                                      const std::vector<instruction_ref>& args,
-                                      const freeze_map& freeze)
+instruction_ref freeze_dyn_slice(module& m,
+                                 instruction_ref source,
+                                 const std::vector<instruction_ref>& args,
+                                 const freeze_map& freeze)
 {
     assert(args.size() == 3);
+    const auto& op            = source->get_operator();
     auto attributes           = op.to_value();
     auto evaluate_expressions = [&](const std::string& key) {
         auto expressions = from_value<std::vector<sym::expr>>(attributes.at(key));
@@ -746,49 +694,43 @@ bool is_prefix_stable_dyn_slice(const operation& op, const shape& input)
     for(std::size_t i = 0; i < axes.size(); ++i)
     {
         auto axis = normalize_axis(axes.at(i), input.ndim());
-        if(axis < 0 or axis >= input.ndim() or not sym::find_variables(starts.at(i)).empty())
+        if(not axis.has_value() or not sym::find_variables(starts.at(i)).empty())
             return false;
         const auto& end = ends.at(i);
-        if(not sym::find_variables(end).empty() and not(end == input_dims.at(axis).sym_expr))
+        if(not sym::find_variables(end).empty() and not(end == input_dims.at(*axis).sym_expr))
             return false;
     }
     return true;
 }
 
-struct slice_family
+bool matches_slice(const operation& op) { return op.name() == "slice" or op.name() == "dyn_slice"; }
+
+void analyze_slice(symbolic_op_info& info)
 {
-    bool matches(const operation& op) const
+    const auto& op     = info.ins->get_operator();
+    const auto& inputs = info.input_shapes;
+    if(op.name() == "slice")
     {
-        return op.name() == "slice" or op.name() == "dyn_slice";
-    }
-
-    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
-    {
-        if(op.name() == "slice")
+        if(inputs.size() != 1)
+            return;
+        auto axes = op.to_value().at("axes").to_vector<int64_t>();
+        for(auto& axis : axes)
         {
-            if(inputs.size() != 1)
-                return {};
-            auto axes = op.to_value().at("axes").to_vector<int64_t>();
-            for(auto& axis : axes)
-            {
-                axis = normalize_axis(axis, inputs.front().ndim());
-                if(axis < 0 or axis >= inputs.front().ndim() or
-                   is_variable_axis(inputs.front().dyn_dims().at(axis)))
-                    return {};
-            }
-            return axis_semantics([](io_ref, std::size_t) { return parallel_axis(); });
+            auto normalized_axis = normalize_axis(axis, inputs.front().ndim());
+            if(not normalized_axis.has_value() or
+               is_variable_axis(inputs.front().dyn_dims().at(*normalized_axis)))
+                return;
+            axis = static_cast<int64_t>(*normalized_axis);
         }
-
-        if(inputs.size() != 3 or not is_prefix_stable_dyn_slice(op, inputs.front()))
-            return {};
-        return {[](io_ref, std::size_t) { return parallel_axis(); },
-                symbolic_target_policy{
-                    retarget_dyn_slice_to_optimal,
-                    [](const operation& source, const freeze_map&) { return source; },
-                    std::nullopt,
-                    emit_static_dyn_slice}};
+        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+        return;
     }
-};
+
+    if(inputs.size() != 3 or not is_prefix_stable_dyn_slice(op, inputs.front()))
+        return;
+    info.freezer = freeze_dyn_slice;
+    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+}
 
 using scatter_prefix_axis = std::pair<std::size_t, sym::expr>;
 
@@ -819,360 +761,245 @@ instruction_ref make_scatter_prefix_mask(module& m,
     return *valid;
 }
 
-instruction_ref emit_static_scatternd(module& m,
-                                      const operation& op,
-                                      const std::vector<instruction_ref>& args,
-                                      const std::vector<scatter_prefix_axis>& prefix_axes)
+instruction_ref freeze_scatternd(module& m,
+                                 instruction_ref source,
+                                 const std::vector<instruction_ref>& args,
+                                 const freeze_map&)
 {
     assert(args.size() == 3);
+    const auto& index_shape = source->inputs().at(1)->get_shape();
+    auto index_rank         = index_shape.ndim();
+    assert(index_rank > 0);
+    std::vector<scatter_prefix_axis> prefix_axes;
+    const auto& index_dims = index_shape.dyn_dims();
+    for(std::size_t axis = 0; axis + 1 < index_rank; ++axis)
+        if(is_variable_axis(index_dims.at(axis)))
+            prefix_axes.emplace_back(axis, index_dims.at(axis).sym_expr);
     assert(not prefix_axes.empty());
 
+    const auto& op  = source->get_operator();
     auto data       = args.front();
     auto indices    = args.at(1);
     auto updates    = args.back();
     auto index_lens = indices->get_shape().lens();
     assert(not index_lens.empty());
-    auto k = index_lens.back();
+    auto index_depth = index_lens.back();
     index_lens.pop_back();
 
-    auto valid       = make_scatter_prefix_mask(m, index_lens, prefix_axes);
-    auto effective_k = k;
-    if(k == 0)
+    auto valid                 = make_scatter_prefix_mask(m, index_lens, prefix_axes);
+    auto effective_index_depth = index_depth;
+    if(index_depth == 0)
     {
-        data        = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), data);
-        effective_k = 1;
+        data                  = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), data);
+        effective_index_depth = 1;
     }
 
     auto data_lens = data->get_shape().lens();
-    assert(effective_k <= data_lens.size());
+    assert(effective_index_depth <= data_lens.size());
     std::vector<int64_t> pads(data_lens.size() * 2, 0);
-    std::fill(
-        pads.begin() + data_lens.size(), pads.begin() + data_lens.size() + effective_k, int64_t{1});
+    std::fill(pads.begin() + data_lens.size(),
+              pads.begin() + data_lens.size() + effective_index_depth,
+              int64_t{1});
     auto padded_data = m.add_instruction(make_op("pad", {{"pads", pads}}), data);
 
     auto rewritten_index_lens = index_lens;
-    rewritten_index_lens.push_back(effective_k);
+    rewritten_index_lens.push_back(effective_index_depth);
     auto condition =
         m.add_instruction(make_op("unsqueeze", {{"axes", {index_lens.size()}}}), valid);
     condition = m.add_instruction(make_op("multibroadcast", {{"out_lens", rewritten_index_lens}}),
                                   condition);
 
-    std::vector<int64_t> sink_values(effective_k);
+    std::vector<int64_t> sink_values(effective_index_depth);
     std::transform(data_lens.begin(),
-                   data_lens.begin() + effective_k,
+                   data_lens.begin() + effective_index_depth,
                    sink_values.begin(),
                    [](auto x) { return static_cast<int64_t>(x); });
-    auto sink = m.add_literal(literal{shape{shape::int64_type, {effective_k}}, sink_values});
+    auto sink =
+        m.add_literal(literal{shape{shape::int64_type, {effective_index_depth}}, sink_values});
     sink = m.add_instruction(make_op("multibroadcast", {{"out_lens", rewritten_index_lens}}), sink);
 
-    if(k == 0)
+    if(index_depth == 0)
     {
-        std::vector<int64_t> zeros(effective_k, 0);
-        indices = m.add_literal(literal{shape{shape::int64_type, {effective_k}}, zeros});
+        std::vector<int64_t> zeros(effective_index_depth, 0);
+        indices = m.add_literal(literal{shape{shape::int64_type, {effective_index_depth}}, zeros});
         indices = m.add_instruction(make_op("multibroadcast", {{"out_lens", rewritten_index_lens}}),
                                     indices);
     }
     indices = m.add_instruction(make_op("where"), condition, indices, sink);
 
     auto scattered = m.add_instruction(op, padded_data, indices, updates);
-    std::vector<int64_t> axes(effective_k);
+    std::vector<int64_t> axes(effective_index_depth);
     std::iota(axes.begin(), axes.end(), int64_t{0});
-    std::vector<int64_t> starts(effective_k, 0);
-    std::vector<int64_t> ends(effective_k);
-    std::transform(data_lens.begin(), data_lens.begin() + effective_k, ends.begin(), [](auto x) {
-        return static_cast<int64_t>(x);
-    });
+    std::vector<int64_t> starts(effective_index_depth, 0);
+    std::vector<int64_t> ends(effective_index_depth);
+    std::transform(data_lens.begin(),
+                   data_lens.begin() + effective_index_depth,
+                   ends.begin(),
+                   [](auto x) { return static_cast<int64_t>(x); });
     auto result = m.add_instruction(
         make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), scattered);
-    if(k == 0)
+    if(index_depth == 0)
         result = m.add_instruction(make_op("squeeze", {{"axes", {0}}}), result);
     return m.add_instruction(make_op("contiguous"), result);
 }
 
-struct scatternd_family
+bool matches_scatternd(const operation& op) { return op.name() == "scatternd_none"; }
+
+void analyze_scatternd(symbolic_op_info& info)
 {
-    bool matches(const operation& op) const { return op.name() == "scatternd_none"; }
+    const auto& inputs = info.input_shapes;
+    if(inputs.size() != 3)
+        return;
+    const auto& indices = inputs.at(1);
+    auto index_rank     = indices.ndim();
+    assert(index_rank > 0);
+    const auto& index_dims = indices.dyn_dims();
+    bool has_prefix_axis   = false;
+    for(std::size_t axis = 0; axis + 1 < index_rank; ++axis)
+        has_prefix_axis = has_prefix_axis or is_variable_axis(index_dims.at(axis));
+    if(has_prefix_axis and (indices.type() != shape::int64_type or
+                            any_of(inputs, [](const auto& input) { return not input.standard(); })))
+        return;
+    if(has_prefix_axis)
+        info.freezer = freeze_scatternd;
+    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+}
 
-    op_semantics describe(const operation&, const std::vector<shape>& inputs) const
-    {
-        if(inputs.size() != 3)
-            return {};
-        const auto& indices = inputs.at(1);
-        auto q              = indices.ndim();
-        assert(q > 0);
-        std::vector<scatter_prefix_axis> prefix_axes;
-        const auto& index_dims = indices.dyn_dims();
-        for(std::size_t axis = 0; axis + 1 < q; ++axis)
-        {
-            if(is_variable_axis(index_dims.at(axis)))
-                prefix_axes.emplace_back(axis, index_dims.at(axis).sym_expr);
-        }
-        auto axes = [](io_ref, std::size_t) { return parallel_axis(); };
-        if(prefix_axes.empty())
-            return axis_semantics(std::move(axes));
-        if(indices.type() != shape::int64_type or
-           any_of(inputs, [](const auto& input) { return not input.standard(); }))
-            return {};
-        auto emitter = [prefix_axes = std::move(prefix_axes)](
-                           module& m, const operation& op, const auto& args, const freeze_map&) {
-            return emit_static_scatternd(m, op, args, prefix_axes);
-        };
-        return {std::move(axes),
-                symbolic_target_policy{
-                    [](const operation& source, const optimal_map&) { return source; },
-                    [](const operation& source, const freeze_map&) { return source; },
-                    std::nullopt,
-                    std::move(emitter)}};
-    }
-};
-
-struct softmax_family
+void analyze_softmax(symbolic_op_info& info)
 {
-    bool matches(const operation& op) const { return is_softmax(op); }
+    const auto& inputs = info.input_shapes;
+    if(inputs.size() != 1)
+        return;
+    auto axis = normalize_axis(info.ins->get_operator().to_value().at("axis").to<int64_t>(),
+                               inputs.front().ndim());
+    if(not axis.has_value())
+        return;
+    analyze_axes(info, [axis = *axis](io_ref io, std::size_t current_axis) {
+        if(io.is_output)
+            return parallel_axis();
+        return current_axis == axis ? masked_axis(mask_role::normalized, fill_kind::neg_inf)
+                                    : parallel_axis();
+    });
+}
 
-    op_semantics describe(const operation& op, const std::vector<shape>& inputs) const
-    {
-        if(inputs.size() != 1)
-            return {};
-        auto axis = normalize_axis(op.to_value().at("axis").to<int64_t>(), inputs.front().ndim());
-        if(axis < 0 or axis >= inputs.front().ndim())
-            return {};
-        return axis_semantics([axis](io_ref io, std::size_t current_axis) {
-            if(io.is_output)
-                return parallel_axis();
-            return current_axis == axis ? masked_axis(axis_kind::normalized, fill_kind::neg_inf)
-                                        : parallel_axis();
-        });
-    }
-};
-
-struct conv_family
+void analyze_conv(symbolic_op_info& info)
 {
-    bool matches(const operation& op) const { return is_conv(op); }
-
-    op_semantics describe(const operation& op, const std::vector<shape>&) const
-    {
-        bool default_padding = false;
-        std::size_t group    = 0;
-        std::vector<std::size_t> padding;
-        std::size_t spatial_dimensions = 0;
-        if(op.name() == "convolution" or op.name() == "quant_convolution")
-        {
-            auto attributes = op.to_value();
-            default_padding = attributes.at("padding_mode").to<op::padding_mode_t>() ==
-                              op::padding_mode_t::default_;
-            group              = attributes.at("group").to<std::size_t>();
-            padding            = attributes.at("padding").to_vector<std::size_t>();
-            spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
-        }
-        // data [N, C, spatial...]; weights [K, C, kernel...]; out [N, K, spatial...].
-        return axis_semantics(
-            [default_padding, group, padding = std::move(padding), spatial_dimensions](
-                io_ref io, std::size_t axis) {
-                auto spatial = [&](std::size_t spatial_axis) {
-                    if(not default_padding)
-                        return axis_desc{};
-                    return axis_desc{axis_kind::windowed,
-                                     {fill_kind::zero,
-                                      windowed_zero_pad(padding, spatial_dimensions, spatial_axis),
-                                      true},
-                                     {}};
-                };
-                if(io.is_output)
-                    return axis < 2 ? parallel_axis() : spatial(axis);
-                if(io.index == 0)
-                {
-                    if(axis == 0)
-                        return parallel_axis(); // batch
-                    if(axis == 1)
-                    {
-                        if(group != 1)
-                            return axis_desc{};
-                        return contracted_axis(fill_kind::zero); // input channels
-                    }
-                    return spatial(axis);
-                }
-                if(io.index != 1 or group != 1)
-                    return axis_desc{};
-                if(axis == 0)
-                    return parallel_axis(); // output channels
-                if(axis == 1)
-                    return contracted_axis(fill_kind::zero); // input channels
-                return axis_desc{};
-            });
-    }
-};
-
-struct pooling_family
-{
-    bool matches(const operation& op) const { return is_pooling(op); }
-
-    op_semantics describe(const operation& op, const std::vector<shape>&) const
+    const auto& op       = info.ins->get_operator();
+    bool default_padding = false;
+    std::size_t group    = 0;
+    std::vector<std::size_t> padding;
+    std::size_t spatial_dimensions = 0;
+    if(op.name() == "convolution" or op.name() == "quant_convolution")
     {
         auto attributes = op.to_value();
-        auto mode       = attributes.at("mode").to<op::pooling_mode>();
-        auto ceil_mode  = attributes.at("ceil_mode").to<bool>();
-        fill_kind fill  = fill_kind::zero; // lpnorm, average count_include_pad
-        if(mode == op::pooling_mode::max)
-            fill = fill_kind::lowest;
-        // Average pooling cannot absorb optimal padding when that padding would change
-        // the divisor: either padding is excluded or ceil mode creates partial tail windows.
-        else if(mode == op::pooling_mode::average and
-                (not attributes.at("count_include_pad").to<bool>() or ceil_mode))
-            fill = fill_kind::none;
-        if(attributes.at("dyn_global").to<bool>() and mode == op::pooling_mode::average)
-            fill = fill_kind::none;
-        auto default_padding =
+        default_padding =
             attributes.at("padding_mode").to<op::padding_mode_t>() == op::padding_mode_t::default_;
-        auto padding            = attributes.at("padding").to_vector<std::size_t>();
-        auto spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
-        return axis_semantics(
-            [fill, default_padding, ceil_mode, padding = std::move(padding), spatial_dimensions](
-                io_ref, std::size_t axis) {
-                if(axis < 2)
-                    return parallel_axis(); // N, C
-                if(not default_padding or fill == fill_kind::none)
+        group              = attributes.at("group").to<std::size_t>();
+        padding            = attributes.at("padding").to_vector<std::size_t>();
+        spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
+    }
+    analyze_axes(info, [&](io_ref io, std::size_t axis) {
+        auto spatial = [&](std::size_t spatial_axis) {
+            if(not default_padding)
+                return axis_desc{};
+            return padded_axis(fill_kind::zero,
+                               windowed_zero_pad(padding, spatial_dimensions, spatial_axis));
+        };
+        if(io.is_output)
+            return axis < 2 ? parallel_axis() : spatial(axis);
+        if(io.index == 0)
+        {
+            if(axis == 0)
+                return parallel_axis();
+            if(axis == 1)
+            {
+                if(group != 1)
                     return axis_desc{};
-                return axis_desc{
-                    axis_kind::windowed,
-                    {fill,
-                     not ceil_mode and windowed_zero_pad(padding, spatial_dimensions, axis),
-                     true},
-                    {}};
-            });
-    }
-};
-
-op_semantics describe_op(const operation& op, const std::vector<shape>& inputs)
-{
-    op_semantics semantics;
-    bool matched  = false;
-    auto classify = [&](auto family) {
-        if(not matched and family.matches(op))
-        {
-            semantics = family.describe(op, inputs);
-            matched   = true;
+                return contracted_axis(fill_kind::zero);
+            }
+            return spatial(axis);
         }
-    };
-    each_args(classify,
-              gather_family{},
-              concat_family{},
-              slice_family{},
-              unit_axis_transform_family{},
-              fill_family{},
-              dynamic_range_family{},
-              scatternd_family{},
-              pointwise_family{},
-              reduce_family{},
-              dot_family{},
-              broadcast_family{},
-              allocate_family{},
-              shape_transform_family{},
-              softmax_family{},
-              conv_family{},
-              pooling_family{});
-    return semantics;
+        if(io.index != 1 or group != 1)
+            return axis_desc{};
+        if(axis == 0)
+            return parallel_axis();
+        if(axis == 1)
+            return contracted_axis(fill_kind::zero);
+        return axis_desc{};
+    });
 }
 
-float fill_value(fill_kind f)
+void analyze_pooling(symbolic_op_info& info)
 {
-    switch(f)
+    auto attributes = info.ins->get_operator().to_value();
+    auto mode       = attributes.at("mode").to<op::pooling_mode>();
+    auto ceil_mode  = attributes.at("ceil_mode").to<bool>();
+    fill_kind fill  = fill_kind::zero;
+    if(mode == op::pooling_mode::max)
+        fill = fill_kind::lowest;
+    else if(mode == op::pooling_mode::average and
+            (not attributes.at("count_include_pad").to<bool>() or ceil_mode))
+        fill = fill_kind::dont_care;
+    if(attributes.at("dyn_global").to<bool>() and mode == op::pooling_mode::average)
+        fill = fill_kind::dont_care;
+    auto default_padding =
+        attributes.at("padding_mode").to<op::padding_mode_t>() == op::padding_mode_t::default_;
+    auto padding            = attributes.at("padding").to_vector<std::size_t>();
+    auto spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
+    analyze_axes(info, [&](io_ref, std::size_t axis) {
+        if(axis < 2)
+            return parallel_axis();
+        if(not default_padding or fill == fill_kind::dont_care)
+            return axis_desc{};
+        return padded_axis(fill,
+                           not ceil_mode and windowed_zero_pad(padding, spatial_dimensions, axis));
+    });
+}
+
+struct op_family
+{
+    bool (*matches)(const operation&);
+    void (*analyze)(symbolic_op_info&);
+};
+
+void analyze_op(symbolic_op_info& info)
+{
+    static const std::array<op_family, 16> families = {{
+        {matches_gather, analyze_gather},
+        {matches_concat, analyze_concat},
+        {matches_slice, analyze_slice},
+        {matches_unit_axis_transform, analyze_unit_axis_transform},
+        {matches_fill, analyze_fill},
+        {matches_dynamic_range, analyze_dynamic_range},
+        {matches_scatternd, analyze_scatternd},
+        {is_pointwise, analyze_pointwise},
+        {is_reduce, analyze_reduce},
+        {is_dot, analyze_dot},
+        {matches_broadcast, analyze_broadcast},
+        {matches_allocate, analyze_allocate},
+        {is_shape_transform, analyze_shape_transform},
+        {is_softmax, analyze_softmax},
+        {is_conv, analyze_conv},
+        {is_pooling, analyze_pooling},
+    }};
+    const auto& op                                  = info.ins->get_operator();
+    for(const auto& family : families)
     {
-    case fill_kind::none:
-    case fill_kind::zero: return 0.0f;
-    case fill_kind::lowest: return std::numeric_limits<float>::lowest();
-    case fill_kind::neg_inf: return -std::numeric_limits<float>::infinity();
-    case fill_kind::highest: return std::numeric_limits<float>::max();
-    case fill_kind::one: return 1.0f;
-    }
-    MIGRAPHX_THROW("SPLIT_SYM_DIM: unsupported fill kind");
-}
-
-struct padding_plan
-{
-    bool required      = false;
-    bool supported     = true;
-    float fill         = 0.0f;
-    bool coalesce_safe = true;
-    std::vector<std::size_t> unsafe_axes;
-};
-
-struct mask_region
-{
-    axis_kind kind;
-    std::size_t axis;
-    fill_kind fill;
-    sym::expr extent;
-};
-
-struct masking_plan
-{
-    bool required  = false;
-    bool supported = true;
-    std::vector<mask_region> regions;
-};
-
-struct operand_plan
-{
-    padding_plan padding;
-    masking_plan masking;
-};
-
-bool supports_mask(shape::type_t type, fill_kind fill)
-{
-    if(fill != fill_kind::neg_inf)
-        return true;
-    return contains({shape::half_type, shape::float_type, shape::double_type, shape::bf16_type},
-                    type);
-}
-
-operand_plan
-describe_operand(const shape& input, std::size_t index, const axis_policy& describe_axis)
-{
-    operand_plan result;
-    fill_kind fill         = fill_kind::none;
-    const auto& dimensions = input.dyn_dims();
-    std::size_t axis       = 0;
-    for(const auto& dimension : dimensions)
-    {
-        auto current_axis = axis++;
-        if(not is_variable_axis(dimension))
-            continue;
-        result.padding.required  = true;
-        auto desc                = describe_axis(io_ref{false, index}, current_axis);
-        result.padding.supported = result.padding.supported and desc.padding.supported;
-        if(desc.masking.has_value())
+        if(family.matches(op))
         {
-            result.masking.required = true;
-            result.masking.supported =
-                result.masking.supported and supports_mask(input.type(), desc.masking->fill);
-            result.masking.regions.push_back(
-                {desc.kind, current_axis, desc.masking->fill, dimension.sym_expr});
-            continue;
+            family.analyze(info);
+            return;
         }
-        result.padding.coalesce_safe = result.padding.coalesce_safe and desc.padding.coalesce_safe;
-        if(not desc.padding.coalesce_safe)
-            result.padding.unsafe_axes.push_back(current_axis);
-        if(desc.padding.fill == fill_kind::none)
-            continue;
-        if(fill != fill_kind::none and fill != desc.padding.fill)
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: conflicting padding fills on one operand");
-        fill = desc.padding.fill;
     }
-    result.padding.fill = fill_value(fill);
-    return result;
 }
-
-// Fully symbolic: every axis carries a sym::expr (constants as sym::lit).
-bool is_symbolic(const shape& s) { return s.symbolic(); }
 
 bool has_symbolic_param(const module& m)
 {
     auto param_shapes = m.get_parameter_shapes();
-    return any_of(param_shapes, [](const auto& p) { return is_symbolic(p.second); });
+    return any_of(param_shapes, [](const auto& p) { return p.second.symbolic(); });
 }
 
-std::unordered_map<sym::expr, instruction_ref> find_root_sources(module& m)
+std::unordered_map<sym::expr, instruction_ref> find_root_sources(const module& m)
 {
     std::unordered_map<sym::expr, instruction_ref> result;
     for(const auto& name : m.get_parameter_names())
@@ -1188,66 +1015,54 @@ std::unordered_map<sym::expr, instruction_ref> find_root_sources(module& m)
     return result;
 }
 
-void lower_symbolic_dimensions_of(module& m)
+struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
 {
-    auto root_sources = find_root_sources(m);
-    auto sources      = m.get_parameters();
-    std::vector<instruction_ref> instructions;
-    auto instruction_range = iterator_for(m);
-    std::copy(instruction_range.begin(), instruction_range.end(), std::back_inserter(instructions));
-    for(auto ins : instructions)
+    std::unordered_map<sym::expr, instruction_ref> root_sources;
+    std::vector<instruction_ref> sources;
+
+    auto matcher() const { return match::name("dimensions_of")(match::nargs(1)); }
+
+    void apply(module& m, const match::matcher_result& mr) const
     {
-        if(ins->name() != "dimensions_of" or ins->inputs().size() != 1)
-            continue;
+        auto ins                = mr.result;
         const auto& input_shape = ins->inputs().front()->get_shape();
         if(not input_shape.symbolic())
-            continue;
-        auto attributes = ins->get_operator().to_value();
-        auto start      = attributes.at("start").to<std::size_t>();
-        auto end        = attributes.at("end").to<std::size_t>();
-        if(end > input_shape.ndim())
-            continue;
-        std::vector<sym::expr> expressions;
-        std::transform(input_shape.dyn_dims().begin() + start,
-                       input_shape.dyn_dims().begin() + end,
-                       std::back_inserter(expressions),
-                       [](const auto& d) { return d.sym_expr; });
+            return;
+        const auto symbolic_value = ins->sym_eval();
+        if(symbolic_value.empty())
+            return;
+        const auto expressions = symbolic_value.get().to_vector();
         if(any_of(expressions, [&](const auto& expression) {
                auto variables = sym::find_variables(expression);
                return any_of(variables, [&](const auto& variable) {
                    return not contains(root_sources, variable);
                });
            }))
-            continue;
+            return;
         m.replace_instruction(
             ins,
             make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
             sources);
     }
-}
-
-// Collect the instructions whose output shape is symbolic, in module order.
-std::vector<instruction_ref> find_symbolic_instructions(module& m)
-{
-    return find_all(iterator_for(m),
-                    [](instruction_ref ins) { return is_symbolic(ins->get_shape()); });
-}
-
-// An operator with its unmutated shapes and symbolic output axes.
-struct symbolic_op_info
-{
-    instruction_ref ins;
-    shape output;
-    std::vector<shape> inputs;
-    std::vector<std::size_t> symbolic_axes;
-    std::vector<operand_plan> operands;
-    std::optional<symbolic_target_policy> symbolic_target;
-    bool paddable = true;
-    bool maskable = true;
 };
 
-// Snapshot each symbolic operator's shapes and derive its output-axis and operand
-// padding and masking requirements. Edge instructions are omitted.
+std::vector<instruction_ref> find_symbolic_instructions(const module& m)
+{
+    return find_all(iterator_for(m),
+                    [](instruction_ref ins) { return ins->get_shape().symbolic(); });
+}
+
+symbolic_op_info analyze_instruction(instruction_ref ins)
+{
+    auto input_shapes = to_shapes(ins->inputs());
+    symbolic_op_info info;
+    info.ins          = ins;
+    info.output_shape = ins->get_shape();
+    info.input_shapes = std::move(input_shapes);
+    analyze_op(info);
+    return info;
+}
+
 std::vector<symbolic_op_info>
 analyze_symbolic_instructions(const std::vector<instruction_ref>& instructions)
 {
@@ -1256,56 +1071,17 @@ analyze_symbolic_instructions(const std::vector<instruction_ref>& instructions)
     {
         if(starts_with(ins->name(), "@"))
             continue;
-        const auto& op = ins->get_operator();
-        auto inputs    = to_shapes(ins->inputs());
-        auto semantics = describe_op(op, inputs);
-        symbolic_op_info info{ins,
-                              ins->get_shape(),
-                              std::move(inputs),
-                              {},
-                              {},
-                              std::move(semantics.symbolic_target),
-                              true,
-                              true};
-        auto describe_axis     = std::move(semantics.axes);
-        const auto& dimensions = info.output.dyn_dims();
-        std::size_t axis       = 0;
-        for(const auto& dimension : dimensions)
-        {
-            auto current_axis = axis++;
-            if(not is_variable_axis(dimension))
-                continue;
-            auto desc = describe_axis(io_ref{true, 0}, current_axis);
-            info.symbolic_axes.push_back(current_axis);
-            info.paddable = info.paddable and desc.padding.supported;
-            info.maskable = info.maskable and not desc.masking.has_value();
-        }
-        info.operands.resize(info.inputs.size());
-        std::size_t operand_index = 0;
-        for(auto&& [input, operand] : views::zip(info.inputs, info.operands))
-        {
-            auto current_operand = operand_index++;
-            if(not retains_input(info.symbolic_target, current_operand))
-                continue;
-            if(not has_variable_axis(input))
-                continue;
-            operand       = describe_operand(input, current_operand, describe_axis);
-            info.paddable = info.paddable and operand.padding.supported;
-            info.maskable = info.maskable and operand.masking.supported;
-        }
-        infos.push_back(std::move(info));
+        infos.push_back(analyze_instruction(ins));
     }
     return infos;
 }
 
 void elide_masks_zeroed_by_softmax(std::vector<symbolic_op_info>& infos)
 {
-    // A -inf mask before softmax leaves exact zeros in the padded region, so a consumer
-    // contracting that region needs no zero mask. For dot, the zero factor also makes the
-    // corresponding mask on the other operand redundant and preserves gemm-softmax-gemm fusion.
-    auto zeroes_contracted_region = [](const mask_region& source, const mask_region& consumer) {
-        return source.kind == axis_kind::normalized and source.fill == fill_kind::neg_inf and
-               consumer.kind == axis_kind::contracted and consumer.fill == fill_kind::zero and
+    // Softmax -inf masking zeroes the padded tail consumed by matching contractions.
+    auto zeros_contracted_region = [](const axis_mask& source, const axis_mask& consumer) {
+        return source.role == mask_role::normalized and source.fill == fill_kind::neg_inf and
+               consumer.role == mask_role::contracted and consumer.fill == fill_kind::zero and
                source.axis == consumer.axis and sym::same_symbol(source.extent, consumer.extent);
     };
     std::unordered_map<instruction_ref, const symbolic_op_info*> info_map;
@@ -1322,41 +1098,37 @@ void elide_masks_zeroed_by_softmax(std::vector<symbolic_op_info>& infos)
             const auto* source = info_map.at(arg);
             if(not is_softmax(source->ins->get_operator()) or source->operands.empty())
                 continue;
-            const auto& source_masks = source->operands.front().masking.regions;
-            auto& masking            = operand.masking;
-            auto& masks              = masking.regions;
+            const auto& source_masks = source->operands.front().masks;
+            auto& masks              = operand.masks;
             masks.erase(
                 std::remove_if(masks.begin(),
                                masks.end(),
                                [&](const auto& mask) {
                                    if(not any_of(source_masks, [&](const auto& source_mask) {
-                                          return zeroes_contracted_region(source_mask, mask);
+                                          return zeros_contracted_region(source_mask, mask);
                                       }))
                                        return false;
                                    zeroed_contractions.push_back(mask.extent);
                                    return true;
                                }),
                 masks.end());
-            masking.required = not masks.empty();
         }
         if(zeroed_contractions.empty() or not is_dot(info.ins->get_operator()))
             continue;
         for(auto& operand : info.operands)
         {
-            auto& masking = operand.masking;
-            auto& masks   = masking.regions;
+            auto& masks = operand.masks;
             masks.erase(
                 std::remove_if(masks.begin(),
                                masks.end(),
                                [&](const auto& mask) {
-                                   return mask.kind == axis_kind::contracted and
+                                   return mask.role == mask_role::contracted and
                                           mask.fill == fill_kind::zero and
                                           any_of(zeroed_contractions, [&](const auto& extent) {
                                               return sym::same_symbol(mask.extent, extent);
                                           });
                                }),
                 masks.end());
-            masking.required = not masks.empty();
         }
     }
 }
@@ -1371,11 +1143,6 @@ struct root_spec
     std::vector<shape::dynamic_dimension::interval> subranges;
 };
 
-// Gather each distinct symbolic dimension used by the module parameters. For each dimension,
-// validate its bounds and any supplied optimal sizes, create a unique internal symbol for the
-// clone's target size, and divide the original range into subranges that select those targets at
-// runtime. The interval bounds are always clone targets, even when no optimal values were supplied.
-// Clone limits are checked later for each discovered block, not for the whole module.
 std::optional<std::vector<root_spec>> collect_roots(const module& m)
 {
     std::unordered_map<sym::expr, root_spec> root_specs;
@@ -1430,7 +1197,7 @@ std::optional<std::vector<root_spec>> collect_roots(const module& m)
         roots.push_back(std::move(entry.second));
     std::sort(
         roots.begin(), roots.end(), [](const auto& x, const auto& y) { return x.name < y.name; });
-    std::set<std::string> symbol_names;
+    std::unordered_set<std::string> symbol_names;
     for(const auto& root : roots)
         symbol_names.insert(root.name);
 
@@ -1452,59 +1219,22 @@ std::optional<std::vector<root_spec>> collect_roots(const module& m)
                                            {root.interval.min, root.interval.max},
                                            std::move(optimal_scalars));
 
-        root.subranges.resize(root.optimal_values.size());
         auto lower = root.interval.min;
-        std::transform(root.optimal_values.begin(),
-                       root.optimal_values.end(),
-                       root.subranges.begin(),
-                       [&](auto upper) {
-                           auto result = shape::dynamic_dimension::interval{lower, upper};
-                           lower       = upper + 1;
-                           return result;
-                       });
+        root.subranges.reserve(root.optimal_values.size());
+        for(auto upper : root.optimal_values)
+        {
+            root.subranges.push_back({lower, upper});
+            lower = upper + 1;
+        }
     }
     return roots;
 }
 
-struct clone_pad
-{
-    std::size_t operand;
-    float value;
-};
-
-struct consumer_mask
-{
-    std::size_t operand;
-    std::size_t axis;
-    fill_kind fill;   // sentinel for the invalid padded region
-    sym::expr extent; // runtime extent of the valid region
-};
-
 struct block_plan
 {
-    std::vector<const symbolic_op_info*> ops; // non-owning references into the analysis
-    std::vector<root_spec> roots;             // roots needed to route and freeze this block
-};
-
-struct optimal_rewrite_result
-{
-    // Padding is emitted only after clone parameters have been narrowed to their
-    // dispatch subrange, so fixed_pad can infer its target from input.max_lens().
-    std::unordered_map<instruction_ref, std::vector<clone_pad>> pad_plan;
-    // The transient main graph stays real-sized. Clone inputs separately record
-    // coalesced producer edges and omit shape-carrier inputs removed by target freezing.
-    std::unordered_map<instruction_ref, std::vector<instruction_ref>> clone_inputs;
-    std::unordered_map<instruction_ref, operation> clone_operations;
-    // Masks are delayed until static clone construction.
-    std::unordered_map<instruction_ref, std::vector<consumer_mask>> mask_plan;
-    std::unordered_map<instruction_ref, static_op_freezer> static_op_freezers;
-    std::unordered_map<instruction_ref, static_subgraph_emitter> static_subgraph_emitters;
-    // The transient rewrite retains real-size operations. These planned optimal
-    // shapes describe the values returned by select_module after specialization.
-    std::unordered_map<instruction_ref, shape> dispatch_output_shapes;
-    // Optimal-sized clone-body instructions owned by each planned block.
-    std::unordered_map<const block_plan*, std::unordered_set<instruction_ref>>
-        optimal_body_instructions;
+    std::vector<const symbolic_op_info*> ops;
+    std::vector<root_spec> roots;
+    std::size_t clone_count = 0;
 };
 
 struct slice_spec
@@ -1513,6 +1243,28 @@ struct slice_spec
     std::vector<sym::expr> starts;
     std::vector<sym::expr> ends;
 };
+
+struct clone_input
+{
+    instruction_ref source;
+    std::vector<std::size_t> slice_axes;
+};
+
+bool operator==(const clone_input& x, const clone_input& y)
+{
+    return x.source == y.source and x.slice_axes == y.slice_axes;
+}
+
+struct clone_recipe
+{
+    std::vector<clone_input> inputs;
+    std::vector<operand_plan> operands;
+    op_freezer freezer;
+    shape dispatch_output;
+    slice_spec output_slice;
+};
+
+using clone_recipe_map = std::unordered_map<instruction_ref, clone_recipe>;
 
 shape substitute_shape(const shape& s, const optimal_map& substitutions)
 {
@@ -1547,50 +1299,72 @@ void gather_shape_roots(const shape& s, std::unordered_set<sym::expr>& result)
     }
 }
 
-std::optional<std::vector<root_spec>> select_block_roots(const block_plan& block,
-                                                         const std::vector<root_spec>& roots,
-                                                         std::size_t max_clones)
+struct selected_block_roots
+{
+    std::vector<root_spec> roots;
+    std::size_t clone_count = 1;
+};
+
+std::optional<selected_block_roots> select_block_roots(const block_plan& block,
+                                                       const std::vector<root_spec>& roots,
+                                                       std::size_t max_clones)
 {
     std::unordered_set<sym::expr> required;
     for(const auto* op : block.ops)
     {
         const auto& info = *op;
-        gather_shape_roots(info.output, required);
-        for(const auto& input : info.inputs)
+        gather_shape_roots(info.output_shape, required);
+        for(const auto& input : info.input_shapes)
             gather_shape_roots(input, required);
         for(const auto& operand : info.operands)
-            for(const auto& mask : operand.masking.regions)
+            for(const auto& mask : operand.masks)
             {
                 auto variables = sym::find_variables(mask.extent);
                 required.insert(variables.begin(), variables.end());
             }
     }
 
-    std::vector<root_spec> selected;
-    std::size_t clone_count = 1;
+    selected_block_roots result;
     for(const auto& root : roots)
     {
         if(not contains(required, root.root))
             continue;
         required.erase(root.root);
-        if(root.optimal_values.size() > std::numeric_limits<std::size_t>::max() / clone_count)
+        if(root.optimal_values.size() >
+           std::numeric_limits<std::size_t>::max() / result.clone_count)
             return std::nullopt;
-        clone_count *= root.optimal_values.size();
-        if(max_clones != 0 and clone_count > max_clones)
+        result.clone_count *= root.optimal_values.size();
+        if(max_clones != 0 and result.clone_count > max_clones)
             return std::nullopt;
-        selected.push_back(root);
+        result.roots.push_back(root);
     }
-    if(not required.empty() or selected.empty())
+    if(not required.empty() or result.roots.empty())
         return std::nullopt;
-    return selected;
+    return result;
 }
 
 bool can_specialize(const symbolic_op_info& info)
 {
-    return not info.symbolic_axes.empty() and info.paddable and info.maskable and
+    return not info.output_symbolic_axes.empty() and info.supported and
            info.ins->module_inputs().empty() and
-           (info.symbolic_target.has_value() or
-            any_of(info.operands, [](const auto& operand) { return operand.padding.required; }));
+           (info.freezer or any_of(info.operands, [](const auto& operand) {
+                return operand.pad_value.has_value();
+            }));
+}
+
+bool absorbable_dependency(instruction_ref ins, const std::unordered_set<instruction_ref>& planned)
+{
+    if(contains(planned, ins))
+        return true;
+    if(starts_with(ins->name(), "@") or not ins->module_inputs().empty())
+        return false;
+    const auto& s = ins->get_shape();
+    if(not s.dynamic())
+        return true;
+    if(not s.symbolic())
+        return false;
+    return all_of(s.dyn_strides(),
+                  [](const auto& stride) { return sym::fixed_value(stride).has_value(); });
 }
 
 bool block_is_closed(const block_plan& block)
@@ -1601,24 +1375,22 @@ bool block_is_closed(const block_plan& block)
 
     for(const auto* op : block.ops)
     {
-        const auto& info          = *op;
-        const auto& args          = info.ins->inputs();
-        std::size_t operand_index = 0;
-        for(auto&& [source, operand] : views::zip(args, info.operands))
+        const auto& info = *op;
+        const auto& args = info.ins->inputs();
+        assert(args.size() == info.operands.size());
+        for(std::size_t index = 0; index < args.size(); ++index)
         {
-            auto current_operand = operand_index++;
-            if(not retains_input(info.symbolic_target, current_operand))
+            if(contains(info.shape_input_indices, index))
                 continue;
+            auto source         = args.at(index);
+            const auto& operand = info.operands.at(index);
             if(contains(included, source))
             {
-                if(operand.padding.required and not operand.padding.coalesce_safe)
+                if(operand.pad_value.has_value() and not operand.retained_slice_axes.empty())
                     return false;
                 continue;
             }
 
-            // A block invocation cannot consume a value from an excluded operation
-            // that itself depends on the block. That would leave and then re-enter
-            // the block along one dependency path.
             std::vector<instruction_ref> stack = {source};
             std::unordered_set<instruction_ref> visited;
             while(not stack.empty())
@@ -1628,8 +1400,26 @@ bool block_is_closed(const block_plan& block)
                 if(not visited.insert(current).second)
                     continue;
                 if(contains(included, current))
-                    return false;
-                stack.insert(stack.end(), current->inputs().begin(), current->inputs().end());
+                    continue;
+                if(absorbable_dependency(current, included))
+                {
+                    stack.insert(stack.end(), current->inputs().begin(), current->inputs().end());
+                    continue;
+                }
+
+                std::vector<instruction_ref> boundary = {current};
+                std::unordered_set<instruction_ref> boundary_visited;
+                while(not boundary.empty())
+                {
+                    auto dependency = boundary.back();
+                    boundary.pop_back();
+                    if(not boundary_visited.insert(dependency).second)
+                        continue;
+                    if(contains(included, dependency))
+                        return false;
+                    boundary.insert(
+                        boundary.end(), dependency->inputs().begin(), dependency->inputs().end());
+                }
             }
         }
     }
@@ -1668,8 +1458,9 @@ bool merge_block_into(block_plan& target,
     auto selected = select_block_roots(result, roots, max_clones);
     if(not selected.has_value())
         return false;
-    result.roots = std::move(*selected);
-    target       = std::move(result);
+    result.roots       = std::move(selected->roots);
+    result.clone_count = selected->clone_count;
+    target             = std::move(result);
     return true;
 }
 
@@ -1698,53 +1489,33 @@ std::vector<block_plan> discover_blocks(const std::vector<symbolic_op_info>& inf
                                         std::size_t max_clones)
 {
     std::vector<block_plan> blocks;
-    std::unordered_map<instruction_ref, const symbolic_op_info*> specializable;
+    std::unordered_set<instruction_ref> specializable;
     for(const auto& info : infos)
     {
         if(can_specialize(info))
-            specializable.emplace(info.ins, &info);
+            specializable.insert(info.ins);
     }
 
     for(const auto& info : infos)
     {
         if(not contains(specializable, info.ins))
             continue;
-        block_plan singleton{{&info}, {}};
+        block_plan singleton{{&info}, {}, {}};
         auto selected = select_block_roots(singleton, roots, max_clones);
         if(selected.has_value())
         {
-            singleton.roots = std::move(*selected);
+            singleton.roots       = std::move(selected->roots);
+            singleton.clone_count = selected->clone_count;
             blocks.push_back(std::move(singleton));
         }
     }
 
-    // Prefer merging along dataflow edges. Once no connected pair can grow, also
-    // merge independent regions when their union is valid; this makes the trivial
-    // all-supported graph one block even when it contains independent branches.
     fix([&](auto self) {
         if(merge_one_block_pair(blocks, roots, max_clones, true) or
            merge_one_block_pair(blocks, roots, max_clones, false))
             self();
     })();
     return blocks;
-}
-
-instruction_ref
-insert_dyn_slice(module& m, instruction_ref pos, instruction_ref input, const slice_spec& slice)
-{
-    auto sources = m.get_parameters();
-    auto starts  = m.insert_instruction(
-        pos, make_op("eval_expr_from_shape", {{"expressions", to_value(slice.starts)}}), sources);
-    auto ends = m.insert_instruction(
-        pos, make_op("eval_expr_from_shape", {{"expressions", to_value(slice.ends)}}), sources);
-    return m.insert_instruction(pos,
-                                make_op("dyn_slice",
-                                        {{"axes", slice.axes},
-                                         {"starts", to_value(slice.starts)},
-                                         {"ends", to_value(slice.ends)}}),
-                                input,
-                                starts,
-                                ends);
 }
 
 using pad_cache = std::unordered_map<instruction_ref, std::vector<instruction_ref>>;
@@ -1763,275 +1534,131 @@ add_or_reuse_pad(module& m, const operation& pad_op, instruction_ref input, pad_
     return result;
 }
 
-slice_spec retain_slice_axes(const value& attributes, const std::vector<std::size_t>& axes);
+using replacement_map       = std::unordered_map<instruction_ref, instruction_ref>;
+using instruction_block_map = std::unordered_map<instruction_ref, std::size_t>;
+using symbolic_info_map     = std::unordered_map<instruction_ref, const symbolic_op_info*>;
 
-// Build a transient real-size graph with the topology that each static clone will
-// use. Padding and target freezing are recorded in the plan and applied only while
-// constructing a clone, after its parameters have been narrowed to a dispatch range.
-optimal_rewrite_result rewrite_to_optimal(module& m,
-                                          const std::vector<symbolic_op_info>& infos,
-                                          const std::vector<block_plan>& blocks,
-                                          const std::vector<root_spec>& roots)
+bool needs_fixed_retarget(const shape& s, const optimal_map& substitutions)
 {
-    optimal_rewrite_result result;
+    if(not s.symbolic())
+        return false;
+    return any_of(s.dyn_dims(),
+                  [&](const auto& d) {
+                      return d.is_fixed() and d.sym_expr.subs(substitutions) != d.sym_expr;
+                  }) or
+           any_of(s.dyn_strides(),
+                  [&](const auto& stride) { return stride.subs(substitutions) != stride; });
+}
+
+bool block_contains(const block_plan& block, instruction_ref ins)
+{
+    return any_of(block.ops, [&](const symbolic_op_info* info) { return info->ins == ins; });
+}
+
+slice_spec make_output_slice(const symbolic_op_info& info)
+{
+    slice_spec result;
+    const auto& dimensions = info.output_shape.dyn_dims();
+    for(auto axis : info.output_symbolic_axes)
+    {
+        assert(axis < dimensions.size());
+        result.axes.push_back(axis);
+        result.starts.push_back(sym::lit(int64_t{0}));
+        result.ends.push_back(dimensions.at(axis).sym_expr);
+    }
+    return result;
+}
+
+clone_recipe make_clone_recipe(const symbolic_op_info& info,
+                               const block_plan& block,
+                               const instruction_block_map& block_for_instruction,
+                               const symbolic_info_map& info_for_instruction,
+                               const optimal_map& optimal_substitutions)
+{
+    const auto& args = info.ins->inputs();
+    clone_recipe result;
+    assert(info.input_shapes.size() == args.size());
+    assert(info.operands.size() == args.size());
+    for(std::size_t index = 0; index < args.size(); ++index)
+    {
+        if(contains(info.shape_input_indices, index))
+        {
+            if(not info.operands.at(index).masks.empty())
+                MIGRAPHX_THROW(
+                    "SPLIT_SYM_DIM: cannot remove an input that requires runtime masking");
+            continue;
+        }
+        auto operand = info.operands.at(index);
+        auto source  = args.at(index);
+        clone_input input{source, {}};
+        if(contains(block_for_instruction, source))
+            input.slice_axes = info_for_instruction.at(source)->output_symbolic_axes;
+
+        bool emit_pad = operand.pad_value.has_value() or
+                        needs_fixed_retarget(info.input_shapes.at(index), optimal_substitutions);
+        if(operand.pad_value.has_value() and contains(block_for_instruction, source) and
+           (block_contains(block, source) or not operand.retained_slice_axes.empty()))
+        {
+            std::vector<std::size_t> kept_axes;
+            std::copy_if(input.slice_axes.begin(),
+                         input.slice_axes.end(),
+                         std::back_inserter(kept_axes),
+                         [&](auto axis) { return contains(operand.retained_slice_axes, axis); });
+            if(kept_axes.empty())
+            {
+                input.slice_axes.clear();
+                emit_pad = false;
+            }
+            else if(kept_axes.size() != input.slice_axes.size())
+            {
+                input.slice_axes = std::move(kept_axes);
+            }
+        }
+        if(emit_pad)
+            operand.pad_value = operand.pad_value.value_or(0.0f);
+        else
+            operand.pad_value.reset();
+        result.inputs.push_back(std::move(input));
+        result.operands.push_back(std::move(operand));
+    }
+    result.freezer         = info.freezer;
+    result.dispatch_output = substitute_shape(info.output_shape, optimal_substitutions);
+    result.output_slice    = make_output_slice(info);
+    return result;
+}
+
+clone_recipe_map make_clone_recipes(const std::vector<block_plan>& blocks,
+                                    const std::vector<root_spec>& roots)
+{
     optimal_map optimal_substitutions;
     for(const auto& root : roots)
         optimal_substitutions.emplace(root.root, root.optimal_symbol);
 
-    std::unordered_map<instruction_ref, const block_plan*> block_for_instruction;
+    instruction_block_map block_for_instruction;
+    symbolic_info_map info_for_instruction;
+    for(std::size_t block_index = 0; block_index < blocks.size(); ++block_index)
+        for(const auto* info : blocks.at(block_index).ops)
+        {
+            block_for_instruction.emplace(info->ins, block_index);
+            info_for_instruction.emplace(info->ins, info);
+        }
+
+    clone_recipe_map result;
     for(const auto& block : blocks)
-        for(const auto* op : block.ops)
-            block_for_instruction.emplace(op->ins, &block);
-
-    std::vector<instruction_ref> original_instructions;
-    auto instruction_range = iterator_for(m);
-    std::copy(instruction_range.begin(),
-              instruction_range.end(),
-              std::back_inserter(original_instructions));
-    std::unordered_map<instruction_ref, instruction_ref> replacements;
-    auto clone_rewired = [&](instruction_ref ins) {
-        if(contains(replacements, ins))
-            return;
-        auto args    = ins->inputs();
-        bool changed = false;
-        for(auto& arg : args)
-        {
-            if(not contains(replacements, arg))
-                continue;
-            arg     = replacements.at(arg);
-            changed = true;
-        }
-        if(not changed)
-            return;
-
-        instruction_ref rewired;
-        try
-        {
-            rewired = m.insert_instruction(ins, ins->get_operator(), args, ins->module_inputs());
-        }
-        catch(const std::exception& e)
-        {
-            std::vector<shape> input_shapes;
-            std::transform(args.begin(),
-                           args.end(),
-                           std::back_inserter(input_shapes),
-                           [](auto arg) { return arg->get_shape(); });
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to rewire " + ins->name() + " with inputs " +
-                           to_string_range(input_shapes) + ": " + e.what());
-        }
-        if(not ins->get_debug_symbols().empty())
-            m.add_debug_symbols(rewired, ins->get_debug_symbols());
-        replacements.emplace(ins, rewired);
-    };
-    auto needs_fixed_retarget = [&](const shape& s) {
-        if(not s.symbolic())
-            return false;
-        return any_of(s.dyn_dims(),
-                      [&](const auto& d) {
-                          return d.is_fixed() and
-                                 d.sym_expr.subs(optimal_substitutions) != d.sym_expr;
-                      }) or
-               any_of(s.dyn_strides(), [&](const auto& stride) {
-                   return stride.subs(optimal_substitutions) != stride;
-               });
-    };
-    for(const auto& info : infos)
-    {
-        if(not contains(block_for_instruction, info.ins))
-        {
-            clone_rewired(info.ins);
-            continue;
-        }
-        const auto* block               = block_for_instruction.at(info.ins);
-        auto ins                        = info.ins;
-        const auto& op                  = ins->get_operator();
-        const auto& original_dimensions = info.output.dyn_dims();
-        const auto& inputs              = info.inputs;
-
-        auto args       = ins->inputs();
-        auto clone_args = args;
-        assert(inputs.size() == args.size());
-        std::vector<clone_pad> pads;
-        std::size_t operand_index = 0;
-        for(auto&& [arg, plan, input] : views::zip(args, info.operands, inputs))
-        {
-            auto current_operand = operand_index++;
-            if(not retains_input(info.symbolic_target, current_operand))
-                continue;
-            auto source = arg;
-            if(contains(replacements, source))
-                arg = replacements.at(source);
-            clone_args.at(current_operand) = arg;
-
-            bool retarget_fixed = needs_fixed_retarget(input);
-            if(not plan.padding.required and not retarget_fixed)
-                continue;
-            auto operand  = arg;
-            bool emit_pad = true;
-            if(plan.padding.required and operand->name() == "dyn_slice" and
-               contains(block_for_instruction, source) and
-               (block_for_instruction.at(source) == block or not plan.padding.unsafe_axes.empty()))
-            {
-                assert(not operand->inputs().empty());
-                auto producer   = operand->inputs().front();
-                auto attributes = operand->get_operator().to_value();
-                auto kept       = retain_slice_axes(attributes, plan.padding.unsafe_axes);
-                if(kept.axes.empty())
-                {
-                    clone_args.at(current_operand) = producer;
-                    emit_pad                       = false;
-                }
-                else if(kept.axes.size() != attributes.at("axes").size())
-                {
-                    arg                            = insert_dyn_slice(m, ins, producer, kept);
-                    clone_args.at(current_operand) = arg;
-                }
-            }
-            if(emit_pad)
-            {
-                auto retained_operand = current_operand;
-                if(info.symbolic_target.has_value() and
-                   info.symbolic_target->selected_inputs.has_value())
-                {
-                    const auto& indices = *info.symbolic_target->selected_inputs;
-                    auto found = std::find(indices.begin(), indices.end(), current_operand);
-                    assert(found != indices.end());
-                    retained_operand = std::distance(indices.begin(), found);
-                }
-                pads.push_back({retained_operand, plan.padding.fill});
-            }
-        }
-
-        bool has_pending_pads = not pads.empty();
-        std::optional<operation> clone_op;
-        if(info.symbolic_target.has_value())
-            clone_op = info.symbolic_target->retarget_to_optimal(op, optimal_substitutions);
-
-        instruction_ref optimal_ins;
-        try
-        {
-            optimal_ins = m.insert_instruction(ins, op, args, ins->module_inputs());
-        }
-        catch(const std::exception& e)
-        {
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to plan " + op.name() +
-                           " for specialization: " + e.what());
-        }
-        result.clone_inputs.emplace(
-            optimal_ins,
-            info.symbolic_target.has_value()
-                ? select_inputs(clone_args, info.symbolic_target->selected_inputs)
-                : std::move(clone_args));
-        if(has_pending_pads)
-            result.pad_plan.emplace(optimal_ins, std::move(pads));
-        if(info.symbolic_target.has_value())
-        {
-            result.clone_operations.emplace(optimal_ins, std::move(*clone_op));
-            if(info.symbolic_target->emit_static_subgraph.has_value())
-                result.static_subgraph_emitters.emplace(
-                    optimal_ins, *info.symbolic_target->emit_static_subgraph);
-            else
-                result.static_op_freezers.emplace(optimal_ins, info.symbolic_target->freeze_op);
-        }
-        result.dispatch_output_shapes.emplace(optimal_ins,
-                                              substitute_shape(info.output, optimal_substitutions));
-        result.optimal_body_instructions[block].insert(optimal_ins);
-        std::size_t operand = 0;
-        for(const auto& plan : info.operands)
-        {
-            auto current_operand = operand++;
-            const auto& masking  = plan.masking;
-            if(not masking.required)
-                continue;
-            assert(not masking.regions.empty());
-            auto retained_operand = current_operand;
-            if(info.symbolic_target.has_value() and
-               info.symbolic_target->selected_inputs.has_value())
-            {
-                const auto& indices = *info.symbolic_target->selected_inputs;
-                auto found          = std::find(indices.begin(), indices.end(), current_operand);
-                if(found == indices.end())
-                    MIGRAPHX_THROW(
-                        "SPLIT_SYM_DIM: cannot remove an input that requires runtime masking");
-                retained_operand = std::distance(indices.begin(), found);
-            }
-            for(const auto& mask : masking.regions)
-                result.mask_plan[optimal_ins].push_back(
-                    {retained_operand, mask.axis, mask.fill, mask.extent});
-        }
-
-        slice_spec slice;
-        for(auto axis : info.symbolic_axes)
-        {
-            assert(axis < original_dimensions.size());
-            slice.axes.push_back(axis);
-            slice.starts.push_back(sym::lit(int64_t{0}));
-            slice.ends.push_back(original_dimensions[axis].sym_expr);
-        }
-        auto sliced = insert_dyn_slice(m, ins, optimal_ins, slice);
-        replacements.emplace(ins, sliced);
-        if(not ins->get_debug_symbols().empty())
-        {
-            m.add_debug_symbols(optimal_ins, ins->get_debug_symbols());
-            m.add_debug_symbols(sliced, ins->get_debug_symbols());
-        }
-    }
-
-    // Values crossing out of a block use its real-size slice. Clone every original
-    // operation left in main that consumes a replacement, including unsupported
-    // symbolic operations and static consumers. Keeping the original chain intact
-    // avoids transiently recomputing its dead block consumers with mixed real/optimal
-    // shapes before dead-code elimination removes it.
-    for(auto ins : original_instructions)
-    {
-        if(starts_with(ins->name(), "@") or contains(block_for_instruction, ins))
-            continue;
-        clone_rewired(ins);
-    }
-
-    auto original_outputs = m.get_returns();
-    std::vector<instruction_ref> outputs;
-    std::transform(original_outputs.begin(),
-                   original_outputs.end(),
-                   std::back_inserter(outputs),
-                   [&](instruction_ref out) {
-                       return contains(replacements, out) ? replacements.at(out) : out;
-                   });
-    m.replace_return(outputs);
+        for(const auto* info : block.ops)
+            result.emplace(info->ins,
+                           make_clone_recipe(*info,
+                                             block,
+                                             block_for_instruction,
+                                             info_for_instruction,
+                                             optimal_substitutions));
     return result;
 }
 
-slice_spec retain_slice_axes(const value& attributes, const std::vector<std::size_t>& axes)
-{
-    auto slice_axes = attributes.at("axes").to_vector<int64_t>();
-    auto starts     = from_value<std::vector<sym::expr>>(attributes.at("starts"));
-    auto ends       = from_value<std::vector<sym::expr>>(attributes.at("ends"));
-    slice_spec result;
-    for(auto&& [axis, start, end] : views::zip(slice_axes, starts, ends))
-    {
-        if(axis < 0 or not contains(axes, static_cast<std::size_t>(axis)))
-            continue;
-        result.axes.push_back(axis);
-        result.starts.push_back(start);
-        result.ends.push_back(end);
-    }
-    return result;
-}
-
-// A back-slice left by the optimal rewrite at a module output: a `dyn_slice`
-// still producing a symbolic (real-size) shape. Its input is the optimal-sized
-// body output.
-bool is_back_slice(instruction_ref ins)
-{
-    return ins->name() == "dyn_slice" and is_symbolic(ins->get_shape());
-}
-
-// A clone's parameter shape: substitute each routed root with its dispatch
-// subrange. This also narrows compound dimensions such as min(s - 2, opt_s - 2),
-// allowing fixed_pad to infer the case target from input.max_lens().
 shape clone_parameter_shape(
     const shape& s,
-    const std::unordered_map<sym::expr, shape::dynamic_dimension::interval>& subranges)
+    const std::unordered_map<sym::expr, shape::dynamic_dimension::interval>& subranges,
+    const freeze_map& freeze)
 {
     if(not s.symbolic())
         return s;
@@ -2041,6 +1668,15 @@ shape clone_parameter_shape(
         substitutions.emplace(root, sym::var(root.to_string(), {interval.min, interval.max}));
     }
     auto result = substitute_shape(s, substitutions);
+    optimal_map frozen_symbols;
+    for(const auto& [symbol, value] : freeze)
+        if(not contains(subranges, symbol))
+            frozen_symbols.emplace(symbol, sym::lit(value));
+    auto dimensions = result.dyn_dims();
+    std::transform(dimensions.begin(), dimensions.end(), dimensions.begin(), [&](const auto& d) {
+        return shape::dynamic_dimension{d.sym_expr.subs(frozen_symbols)};
+    });
+    result = {result.type(), std::move(dimensions), result.dyn_strides()};
     if(s.is_fixed() and all_of(result.dyn_strides(), [](const auto& stride) {
            return sym::fixed_value(stride).has_value();
        }))
@@ -2048,7 +1684,11 @@ shape clone_parameter_shape(
     return result;
 }
 
-using clone_output_case = std::pair<freeze_map, std::vector<shape>>;
+struct clone_output_case
+{
+    freeze_map freeze;
+    std::vector<shape> outputs;
+};
 
 shape dispatch_shape_for_clones(const shape& planned,
                                 const std::vector<clone_output_case>& clone_outputs,
@@ -2058,9 +1698,8 @@ shape dispatch_shape_for_clones(const shape& planned,
     assert(not clone_outputs.empty());
     auto matches = [&](const shape& candidate) {
         return all_of(clone_outputs, [&](const auto& clone_output) {
-            const auto& [freeze, outputs] = clone_output;
-            const auto& output            = outputs.at(output_index);
-            auto expected                 = candidate.to_static(freeze);
+            const auto& output = clone_output.outputs.at(output_index);
+            auto expected      = candidate.to_static(clone_output.freeze);
             if(expected.type() != output.type() or expected.lens() != output.lens())
                 return false;
             if(expected.elements() == 0)
@@ -2079,7 +1718,7 @@ shape dispatch_shape_for_clones(const shape& planned,
     for(const auto& clone_output : clone_outputs)
     {
         auto actual_layout =
-            clone_output.second.at(output_index).with_lens(planned.type(), planned.dyn_dims());
+            clone_output.outputs.at(output_index).with_lens(planned.type(), planned.dyn_dims());
         if(matches(actual_layout))
             return actual_layout;
     }
@@ -2088,23 +1727,29 @@ shape dispatch_shape_for_clones(const shape& planned,
     std::transform(clone_outputs.begin(),
                    clone_outputs.end(),
                    std::back_inserter(outputs),
-                   [&](const auto& clone_output) { return clone_output.second.at(output_index); });
+                   [&](const auto& clone_output) { return clone_output.outputs.at(output_index); });
     MIGRAPHX_THROW("SPLIT_SYM_DIM: planned dispatch shape " +
                    to_string_range(std::vector<shape>{planned}) +
                    " does not represent clone outputs " + to_string_range(outputs));
 }
 
-std::vector<instruction_ref> clone_inputs_for(const optimal_rewrite_result& rewrite,
-                                              instruction_ref ins)
+std::vector<clone_input> clone_inputs_for(const clone_recipe_map& plan, instruction_ref ins)
 {
-    auto found = rewrite.clone_inputs.find(ins);
-    return found == rewrite.clone_inputs.end() ? ins->inputs() : found->second;
+    auto found = plan.find(ins);
+    if(found != plan.end())
+        return found->second.inputs;
+    std::vector<clone_input> result;
+    std::transform(ins->inputs().begin(),
+                   ins->inputs().end(),
+                   std::back_inserter(result),
+                   [](instruction_ref source) { return clone_input{source, {}}; });
+    return result;
 }
 
 struct runtime_cache
 {
     std::unordered_map<sym::expr, instruction_ref> extents;
-    std::map<std::size_t, instruction_ref> indices;
+    std::unordered_map<std::size_t, instruction_ref> indices;
     std::map<std::pair<shape::type_t, fill_kind>, instruction_ref> fills;
 };
 
@@ -2146,7 +1791,7 @@ instruction_ref fill_literal(module& m, shape::type_t type, fill_kind fill, runt
 
 instruction_ref add_runtime_mask(module& m,
                                  instruction_ref input,
-                                 const consumer_mask& mask,
+                                 const axis_mask& mask,
                                  const std::vector<instruction_ref>& sources,
                                  const optimal_map& fixed_substitutions,
                                  runtime_cache& cache)
@@ -2168,126 +1813,169 @@ instruction_ref add_runtime_mask(module& m,
     return m.add_instruction(make_op("where"), valid, input, fill);
 }
 
-// Clone each maximal block for its own Cartesian product of root optimal values. Values
-// crossing a block boundary remain in main: select_module chooses an optimal-sized
-// clone result, then the existing symbolic slice restores its runtime shape.
-void specialize_blocks(module_pass_manager& mpm,
-                       const std::vector<block_plan>& blocks,
-                       const optimal_rewrite_result& optimal_rewrite)
+struct block_input
 {
-    module& m = mpm.get_module();
-    std::unordered_map<instruction_ref, std::string> parameter_names;
-    for(const auto& name : m.get_parameter_names())
-        parameter_names[m.get_parameter(name)] = name;
-    auto root_sources = find_root_sources(m);
-    std::unordered_set<instruction_ref> live;
-    std::vector<instruction_ref> live_stack = m.get_returns();
-    while(not live_stack.empty())
+    clone_input logical;
+    instruction_ref value;
+};
+
+struct block_frame
+{
+    std::vector<instruction_ref> body;
+    std::vector<clone_input> outputs;
+    std::vector<block_input> inputs;
+    std::map<std::string, std::size_t> params;
+    std::vector<std::size_t> literals;
+    std::vector<std::size_t> extent_sources;
+};
+
+struct clone_body
+{
+    std::unordered_set<instruction_ref> instructions;
+    std::vector<instruction_ref> ordered;
+    std::vector<clone_input> outputs;
+};
+
+clone_input full_output_for(const clone_recipe_map& plan, instruction_ref source)
+{
+    clone_input result{source, {}};
+    const auto& axes = plan.at(source).output_slice.axes;
+    std::transform(axes.begin(), axes.end(), std::back_inserter(result.slice_axes), [](auto axis) {
+        return static_cast<std::size_t>(axis);
+    });
+    return result;
+}
+
+std::optional<clone_body>
+find_clone_body(const module& m, const block_plan& block, const clone_recipe_map& plan)
+{
+    std::vector<instruction_ref> stack;
+    std::unordered_set<instruction_ref> planned;
+    for(const auto* info : block.ops)
     {
-        auto ins = live_stack.back();
-        live_stack.pop_back();
-        if(not live.insert(ins).second)
-            continue;
-        live_stack.insert(live_stack.end(), ins->inputs().begin(), ins->inputs().end());
+        stack.push_back(info->ins);
+        planned.insert(info->ins);
     }
-    auto logical_outputs = m.get_returns();
-    std::unordered_set<instruction_ref> logical_inputs(logical_outputs.begin(),
-                                                       logical_outputs.end());
+
+    clone_body result;
+    while(not stack.empty())
+    {
+        auto ins = stack.back();
+        stack.pop_back();
+        if(not result.instructions.insert(ins).second)
+            continue;
+        for(auto input : clone_inputs_for(plan, ins))
+            if(absorbable_dependency(input.source, planned))
+                stack.push_back(input.source);
+    }
+    if(result.instructions.empty())
+        return std::nullopt;
+
+    std::vector<clone_input> outputs;
+    for(auto output : m.get_returns())
+        if(contains(planned, output))
+        {
+            auto full_output = full_output_for(plan, output);
+            if(not contains(outputs, full_output))
+                outputs.push_back(std::move(full_output));
+        }
     for(auto ins : iterator_for(m))
     {
-        if(not contains(live, ins))
-            continue;
-        const auto& inputs = clone_inputs_for(optimal_rewrite, ins);
-        logical_inputs.insert(inputs.begin(), inputs.end());
-    }
-
-    std::size_t next_block_number = 0;
-    for(const auto& block : blocks)
-    {
-        auto block_number        = next_block_number++;
-        const auto& optimal_body = optimal_rewrite.optimal_body_instructions.at(&block);
-        std::vector<instruction_ref> stack;
-        for(auto ins : iterator_for(m))
-            if(contains(live, ins) and contains(logical_inputs, ins) and is_back_slice(ins) and
-               not ins->inputs().empty() and contains(optimal_body, ins->inputs().front()))
-                stack.push_back(ins->inputs().front());
-
-        auto absorbable_dependency = [&](instruction_ref ins) {
-            if(contains(optimal_body, ins))
-                return true;
-            if(starts_with(ins->name(), "@") or not ins->module_inputs().empty())
-                return false;
-            const auto& s = ins->get_shape();
-            if(not s.dynamic())
-                return true;
-            if(not s.symbolic() or has_variable_axis(s))
-                return false;
-            return all_of(s.dyn_strides(),
-                          [](const auto& stride) { return sym::fixed_value(stride).has_value(); });
-        };
-        std::unordered_set<instruction_ref> clone_body;
-        while(not stack.empty())
+        if(contains(result.instructions, ins))
         {
-            auto ins = stack.back();
-            stack.pop_back();
-            if(not clone_body.insert(ins).second)
+            result.ordered.push_back(ins);
+            continue;
+        }
+        for(auto input : clone_inputs_for(plan, ins))
+        {
+            if(not contains(planned, input.source))
                 continue;
-            for(auto input : clone_inputs_for(optimal_rewrite, ins))
-                if(absorbable_dependency(input))
-                    stack.push_back(input);
+            if(input.slice_axes.empty())
+                input = full_output_for(plan, input.source);
+            if(not contains(outputs, input))
+                outputs.push_back(std::move(input));
         }
-        if(clone_body.empty())
-            continue;
+    }
+    for(auto ins : iterator_for(m))
+        for(const auto& output : outputs)
+            if(output.source == ins)
+                result.outputs.push_back(output);
+    if(result.outputs.empty())
+        return std::nullopt;
+    return result;
+}
 
-        std::vector<instruction_ref> clone_body_instructions;
-        std::vector<instruction_ref> boundary_outputs;
-        std::unordered_set<instruction_ref> boundary;
-        for(auto ins : iterator_for(m))
-        {
-            if(contains(clone_body, ins))
-            {
-                clone_body_instructions.push_back(ins);
-                for(auto input : clone_inputs_for(optimal_rewrite, ins))
-                    if(not contains(clone_body, input))
-                        boundary.insert(input);
-            }
-            if(contains(live, ins) and contains(logical_inputs, ins) and is_back_slice(ins) and
-               not ins->inputs().empty() and contains(clone_body, ins->inputs().front()))
-                boundary_outputs.push_back(ins);
-        }
-        if(boundary_outputs.empty())
-            continue;
+std::vector<clone_input> collect_block_boundary(const clone_body& body,
+                                                const clone_recipe_map& plan)
+{
+    std::vector<clone_input> result;
+    for(auto ins : body.ordered)
+        for(auto input : clone_inputs_for(plan, ins))
+            if((not contains(body.instructions, input.source) or not input.slice_axes.empty()) and
+               not contains(result, input))
+                result.push_back(std::move(input));
+    return result;
+}
 
-        std::vector<instruction_ref> runtime_extent_inputs;
-        for(const auto& root : block.roots)
-        {
-            if(not contains(root_sources, root.root))
-                MIGRAPHX_THROW("SPLIT_SYM_DIM: no parameter resolves block root " + root.name);
-            auto source = root_sources.at(root.root);
-            boundary.insert(source);
-            if(not contains(runtime_extent_inputs, source))
-                runtime_extent_inputs.push_back(source);
-        }
+std::size_t add_block_input(std::vector<clone_input>& inputs, clone_input input)
+{
+    auto found = std::find(inputs.begin(), inputs.end(), input);
+    if(found != inputs.end())
+        return static_cast<std::size_t>(std::distance(inputs.begin(), found));
+    inputs.push_back(std::move(input));
+    return inputs.size() - 1;
+}
 
-        std::set<std::string> used_names;
-        for(const auto& name : m.get_parameter_names())
-            used_names.insert(name);
-        std::map<std::string, instruction_ref> input_sources;
-        std::vector<instruction_ref> literal_sources;
-        const std::string input_prefix = "#split_sym_dim_input_";
-        std::size_t generated_suffix   = 0;
-        for(auto ins : iterator_for(m))
+std::optional<block_frame>
+find_block_frame(const module& m,
+                 const block_plan& block,
+                 const clone_recipe_map& plan,
+                 std::size_t block_number,
+                 const std::unordered_map<instruction_ref, std::string>& parameter_names,
+                 const std::unordered_map<sym::expr, instruction_ref>& root_sources)
+{
+    auto body = find_clone_body(m, block, plan);
+    if(not body.has_value())
+        return std::nullopt;
+
+    auto boundary = collect_block_boundary(*body, plan);
+    block_frame result;
+    result.body    = std::move(body->ordered);
+    result.outputs = std::move(body->outputs);
+
+    for(const auto& root : block.roots)
+    {
+        if(not contains(root_sources, root.root))
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: no parameter resolves block root " + root.name);
+        auto source      = root_sources.at(root.root);
+        auto input_index = add_block_input(boundary, {source, {}});
+        if(not contains(result.extent_sources, input_index))
+            result.extent_sources.push_back(input_index);
+    }
+    std::transform(boundary.begin(),
+                   boundary.end(),
+                   std::back_inserter(result.inputs),
+                   [](const clone_input& input) { return block_input{input, input.source}; });
+
+    std::unordered_set<std::string> used_names;
+    for(const auto& name : m.get_parameter_names())
+        used_names.insert(name);
+    const std::string input_prefix = "#split_sym_dim_input_";
+    std::size_t generated_suffix   = 0;
+    for(auto ins : iterator_for(m))
+    {
+        for(std::size_t input_index = 0; input_index < result.inputs.size(); ++input_index)
         {
-            if(not contains(boundary, ins))
+            if(result.inputs.at(input_index).logical.source != ins)
                 continue;
             if(contains(parameter_names, ins))
             {
-                input_sources.emplace(parameter_names.at(ins), ins);
+                result.params.emplace(parameter_names.at(ins), input_index);
                 continue;
             }
             if(ins->name() == "@literal")
             {
-                literal_sources.push_back(ins);
+                result.literals.push_back(input_index);
                 ++generated_suffix;
                 continue;
             }
@@ -2296,203 +1984,432 @@ void specialize_blocks(module_pass_manager& mpm,
             while(not used_names.insert(name).second)
                 name = input_prefix + std::to_string(block_number) + "_" +
                        std::to_string(generated_suffix++);
-            input_sources.emplace(std::move(name), ins);
+            result.params.emplace(std::move(name), input_index);
         }
-        if(input_sources.size() + literal_sources.size() != boundary.size())
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to collect every block input");
+    }
+    if(result.params.size() + result.literals.size() != boundary.size())
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to collect every block input");
+    return result;
+}
 
-        // Cartesian product of this block's root optimal values.
-        const auto& block_roots = block.roots;
+using cloned_input_values = std::vector<std::pair<clone_input, instruction_ref>>;
+
+instruction_ref
+find_cloned_input(const clone_input& input,
+                  const std::unordered_map<instruction_ref, instruction_ref>& clone_map,
+                  const cloned_input_values& input_values)
+{
+    if(input.slice_axes.empty())
+        return clone_map.at(input.source);
+    auto found = std::find_if(input_values.begin(), input_values.end(), [&](const auto& value) {
+        return value.first == input;
+    });
+    assert(found != input_values.end());
+    return found->second;
+}
+
+struct clone_context
+{
+    module& clone_module;
+    const clone_recipe_map& plan;
+    std::unordered_map<instruction_ref, instruction_ref>& clone_map;
+    const cloned_input_values& input_values;
+    const freeze_map& freeze;
+    const std::vector<instruction_ref>& runtime_extent_sources;
+    const optimal_map& fixed_substitutions;
+    runtime_cache cache;
+    pad_cache reusable_pads;
+
+    clone_context(module& mod,
+                  const clone_recipe_map& recipes,
+                  std::unordered_map<instruction_ref, instruction_ref>& clones,
+                  const cloned_input_values& inputs,
+                  const freeze_map& frozen_values,
+                  const std::vector<instruction_ref>& runtime_sources,
+                  const optimal_map& substitutions)
+        : clone_module(mod),
+          plan(recipes),
+          clone_map(clones),
+          input_values(inputs),
+          freeze(frozen_values),
+          runtime_extent_sources(runtime_sources),
+          fixed_substitutions(substitutions)
+    {
+    }
+
+    instruction_ref emit(instruction_ref source)
+    {
+        auto found         = plan.find(source);
+        auto source_inputs = clone_inputs_for(plan, source);
+        std::vector<instruction_ref> args;
+        std::transform(source_inputs.begin(),
+                       source_inputs.end(),
+                       std::back_inserter(args),
+                       [&](const clone_input& input) {
+                           return find_cloned_input(input, clone_map, input_values);
+                       });
+        if(found != plan.end())
+        {
+            const auto& operands = found->second.operands;
+            assert(operands.size() == args.size());
+            for(std::size_t index = 0; index < operands.size(); ++index)
+                if(operands.at(index).pad_value.has_value())
+                    args.at(index) = add_or_reuse_pad(
+                        clone_module,
+                        make_op("fixed_pad", {{"value", *operands.at(index).pad_value}}),
+                        args.at(index),
+                        reusable_pads);
+            for(std::size_t index = 0; index < operands.size(); ++index)
+                for(const auto& mask : operands.at(index).masks)
+                    args.at(index) = add_runtime_mask(clone_module,
+                                                      args.at(index),
+                                                      mask,
+                                                      runtime_extent_sources,
+                                                      fixed_substitutions,
+                                                      cache);
+        }
+
+        op_freezer freezer;
+        std::vector<std::size_t> shape_input_indices;
+        if(found != plan.end())
+            freezer = found->second.freezer;
+        else if(source->get_shape().dynamic())
+        {
+            auto info           = analyze_instruction(source);
+            freezer             = info.freezer;
+            shape_input_indices = std::move(info.shape_input_indices);
+        }
+
+        instruction_ref clone;
+        if(freezer)
+        {
+            auto data_args = select_data_inputs(args, shape_input_indices);
+            clone          = freezer(clone_module, source, data_args, freeze);
+        }
+        else
+        {
+            clone =
+                clone_module.add_instruction(source->get_operator(), args, source->module_inputs());
+        }
+
+        if(clone->get_shape().dynamic())
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: clone body is not fully static");
+        clone_map[source] = clone;
+        if(not source->get_debug_symbols().empty())
+            clone_module.add_debug_symbols(clone, source->get_debug_symbols());
+        return clone;
+    }
+};
+
+struct clone_build
+{
+    module clone;
+    clone_output_case output_case;
+};
+
+clone_build
+build_clone(const std::string& name,
+            const block_frame& frame,
+            const clone_recipe_map& plan,
+            const freeze_map& freeze,
+            const std::unordered_map<sym::expr, shape::dynamic_dimension::interval>& subranges,
+            const optimal_map& fixed_substitutions)
+{
+    module clone_module{name};
+    std::unordered_map<instruction_ref, instruction_ref> clone_map;
+    cloned_input_values input_values;
+    for(const auto& [parameter_name, input_index] : frame.params)
+    {
+        const auto& input = frame.inputs.at(input_index);
+        auto parameter    = clone_module.add_parameter(
+            parameter_name, clone_parameter_shape(input.value->get_shape(), subranges, freeze));
+        if(input.logical.slice_axes.empty())
+            clone_map[input.logical.source] = parameter;
+        else
+            input_values.emplace_back(input.logical, parameter);
+    }
+    for(auto input_index : frame.literals)
+    {
+        auto source       = frame.inputs.at(input_index).logical.source;
+        clone_map[source] = clone_module.add_literal(source->get_literal());
+    }
+
+    std::vector<instruction_ref> runtime_extent_sources;
+    std::transform(frame.extent_sources.begin(),
+                   frame.extent_sources.end(),
+                   std::back_inserter(runtime_extent_sources),
+                   [&](std::size_t input_index) {
+                       return find_cloned_input(
+                           frame.inputs.at(input_index).logical, clone_map, input_values);
+                   });
+    clone_context context{clone_module,
+                          plan,
+                          clone_map,
+                          input_values,
+                          freeze,
+                          runtime_extent_sources,
+                          fixed_substitutions};
+    for(auto source : frame.body)
+        context.emit(source);
+
+    std::vector<instruction_ref> clone_outputs;
+    std::transform(frame.outputs.begin(),
+                   frame.outputs.end(),
+                   std::back_inserter(clone_outputs),
+                   [&](const clone_input& output) { return clone_map.at(output.source); });
+    if(any_of(clone_outputs, [](instruction_ref output) { return output->get_shape().dynamic(); }))
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: clone output is not fully static");
+    std::vector<shape> output_shapes;
+    std::transform(clone_outputs.begin(),
+                   clone_outputs.end(),
+                   std::back_inserter(output_shapes),
+                   [](instruction_ref output) { return output->get_shape(); });
+    clone_module.add_return(clone_outputs);
+    return {std::move(clone_module), {freeze, std::move(output_shapes)}};
+}
+
+instruction_ref resolve_replacement(module& m,
+                                    instruction_ref source,
+                                    replacement_map& replacements,
+                                    const instruction_block_map& block_for_instruction)
+{
+    auto found = replacements.find(source);
+    if(found != replacements.end())
+        return found->second;
+    if(contains(block_for_instruction, source))
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: block dependency was not specialized before use");
+
+    auto args    = source->inputs();
+    bool changed = false;
+    for(auto& arg : args)
+    {
+        auto replacement = resolve_replacement(m, arg, replacements, block_for_instruction);
+        if(replacement == arg)
+            continue;
+        arg     = replacement;
+        changed = true;
+    }
+    if(not changed)
+        return source;
+
+    instruction_ref result;
+    try
+    {
+        result = m.add_instruction(source->get_operator(), args, source->module_inputs());
+    }
+    catch(const std::exception& e)
+    {
+        std::vector<shape> input_shapes;
+        std::transform(args.begin(), args.end(), std::back_inserter(input_shapes), [](auto arg) {
+            return arg->get_shape();
+        });
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to rewire " + source->name() + " with inputs " +
+                       to_string_range(input_shapes) + ": " + e.what());
+    }
+    if(not source->get_debug_symbols().empty())
+        m.add_debug_symbols(result, source->get_debug_symbols());
+    replacements.emplace(source, result);
+    return result;
+}
+
+using output_value_map = std::vector<std::pair<clone_input, instruction_ref>>;
+
+instruction_ref find_output_value(const clone_input& input, const output_value_map& output_values)
+{
+    auto found = std::find_if(output_values.begin(), output_values.end(), [&](const auto& value) {
+        return value.first == input;
+    });
+    if(found == output_values.end())
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: block output was not specialized before use");
+    return found->second;
+}
+
+void resolve_frame_inputs(module& m,
+                          block_frame& frame,
+                          replacement_map& replacements,
+                          const instruction_block_map& block_for_instruction,
+                          const output_value_map& output_values)
+{
+    for(std::size_t index = 0; index < frame.inputs.size(); ++index)
+    {
+        auto& input = frame.inputs.at(index);
+        input.value =
+            input.logical.slice_axes.empty()
+                ? resolve_replacement(m, input.logical.source, replacements, block_for_instruction)
+                : find_output_value(input.logical, output_values);
+    }
+}
+
+slice_spec select_slice_axes(const slice_spec& slice, const std::vector<std::size_t>& axes)
+{
+    slice_spec result;
+    for(std::size_t index = 0; index < slice.axes.size(); ++index)
+    {
+        auto axis = slice.axes.at(index);
+        if(axis < 0 or not contains(axes, static_cast<std::size_t>(axis)))
+            continue;
+        result.axes.push_back(axis);
+        result.starts.push_back(slice.starts.at(index));
+        result.ends.push_back(slice.ends.at(index));
+    }
+    return result;
+}
+
+instruction_ref add_output_slice(module& m,
+                                 const clone_input& output,
+                                 instruction_ref selected_output,
+                                 const clone_recipe& recipe)
+{
+    auto slice   = select_slice_axes(recipe.output_slice, output.slice_axes);
+    auto sources = m.get_parameters();
+    auto starts  = m.add_instruction(
+        make_op("eval_expr_from_shape", {{"expressions", to_value(slice.starts)}}), sources);
+    auto ends = m.add_instruction(
+        make_op("eval_expr_from_shape", {{"expressions", to_value(slice.ends)}}), sources);
+    auto result              = m.add_instruction(make_op("dyn_slice",
+                                                         {{"axes", slice.axes},
+                                                          {"starts", to_value(slice.starts)},
+                                                          {"ends", to_value(slice.ends)}}),
+                                    selected_output,
+                                    starts,
+                                    ends);
+    const auto& source_shape = output.source->get_shape();
+    auto dimensions          = source_shape.dyn_dims();
+    for(auto axis : recipe.output_slice.axes)
+        if(axis >= 0 and not contains(output.slice_axes, static_cast<std::size_t>(axis)))
+            dimensions.at(axis) = recipe.dispatch_output.dyn_dims().at(axis);
+    shape output_shape{source_shape.type(),
+                       std::move(dimensions),
+                       selected_output->get_shape().to_symbolic().dyn_strides()};
+    instruction::replace(result, result->get_operator(), output_shape, result->inputs());
+    result->set_normalized();
+    if(not output.source->get_debug_symbols().empty())
+        m.add_debug_symbols(result, output.source->get_debug_symbols());
+    return result;
+}
+
+void wire_select_module(module_pass_manager& mpm,
+                        const block_frame& frame,
+                        const clone_recipe_map& plan,
+                        std::vector<module> clones,
+                        const std::vector<clone_output_case>& clone_outputs,
+                        replacement_map& replacements,
+                        output_value_map& output_values)
+{
+    module& m = mpm.get_module();
+    std::vector<module_ref> submodules;
+    submodules.reserve(clones.size());
+    for(auto& clone : clones)
+    {
+        auto name = clone.name();
+        submodules.push_back(mpm.create_module(name, std::move(clone)));
+    }
+
+    std::vector<instruction_ref> selection_inputs;
+    std::transform(frame.params.begin(),
+                   frame.params.end(),
+                   std::back_inserter(selection_inputs),
+                   [&](const auto& input) { return frame.inputs.at(input.second).value; });
+    std::vector<shape> body_output_shapes;
+    for(std::size_t output_index = 0; output_index < frame.outputs.size(); ++output_index)
+    {
+        auto source = frame.outputs.at(output_index).source;
+        body_output_shapes.push_back(dispatch_shape_for_clones(
+            plan.at(source).dispatch_output, clone_outputs, output_index));
+    }
+    auto selection = m.add_instruction(
+        make_op("select_module", {{"output_dyn_shapes", to_value(shape{body_output_shapes})}}),
+        selection_inputs,
+        submodules);
+
+    for(std::size_t output_index = 0; output_index < frame.outputs.size(); ++output_index)
+    {
+        const auto& output = frame.outputs.at(output_index);
+        auto selected_output =
+            m.add_instruction(make_op("get_tuple_elem", {{"index", output_index}}), selection);
+        auto sliced = add_output_slice(m, output, selected_output, plan.at(output.source));
+        output_values.emplace_back(output, sliced);
+        if(output == full_output_for(plan, output.source))
+            replacements.emplace(output.source, sliced);
+    }
+}
+
+void specialize_blocks(module_pass_manager& mpm,
+                       const std::vector<block_plan>& blocks,
+                       const clone_recipe_map& plan)
+{
+    module& m = mpm.get_module();
+    std::unordered_map<instruction_ref, std::string> parameter_names;
+    for(const auto& name : m.get_parameter_names())
+        parameter_names[m.get_parameter(name)] = name;
+    auto root_sources = find_root_sources(m);
+    instruction_block_map block_for_instruction;
+    for(std::size_t block_index = 0; block_index < blocks.size(); ++block_index)
+        for(const auto* info : blocks.at(block_index).ops)
+            block_for_instruction.emplace(info->ins, block_index);
+    replacement_map replacements;
+    output_value_map output_values;
+    auto original_outputs = m.get_returns();
+
+    std::size_t block_number = 0;
+    for(const auto& block : blocks)
+    {
+        auto frame = find_block_frame(m, block, plan, block_number, parameter_names, root_sources);
+        if(not frame.has_value())
+        {
+            ++block_number;
+            continue;
+        }
+        resolve_frame_inputs(m, *frame, replacements, block_for_instruction, output_values);
+
         optimal_map fixed_substitutions;
-        for(const auto& root : block_roots)
+        for(const auto& root : block.roots)
             if(root.interval.min == root.interval.max)
                 fixed_substitutions.emplace(root.root, root.optimal_symbol);
-        std::vector<std::size_t> choices(block_roots.size(), 0);
+        assert(block.clone_count > 0);
         std::vector<module> clones;
-        std::vector<clone_output_case> clone_output_shapes;
-        std::size_t clone_index = 0;
-        for(bool more_combinations = true; more_combinations;)
+        std::vector<clone_output_case> clone_outputs;
+        clones.reserve(block.clone_count);
+        clone_outputs.reserve(block.clone_count);
+        for(std::size_t clone_index = 0; clone_index < block.clone_count; ++clone_index)
         {
+            std::vector<std::size_t> choices;
+            choices.reserve(block.roots.size());
+            auto remaining = clone_index;
+            for(const auto& root : block.roots)
+            {
+                choices.push_back(remaining % root.optimal_values.size());
+                remaining /= root.optimal_values.size();
+            }
+            assert(remaining == 0);
+
             freeze_map freeze;
             std::unordered_map<sym::expr, shape::dynamic_dimension::interval> subranges;
-            for(auto&& [root, choice] : views::zip(block_roots, choices))
+            for(auto&& [root, choice] : views::zip(block.roots, choices))
             {
                 auto target                 = root.optimal_values.at(choice);
                 freeze[root.root]           = target;
                 freeze[root.optimal_symbol] = target;
                 subranges[root.root]        = root.subranges.at(choice);
             }
-
-            module clone_module{m.name() + ":split_sym_dim_" + std::to_string(block_number) + "_" +
-                                std::to_string(clone_index++)};
-            std::unordered_map<instruction_ref, instruction_ref> clone_map;
-            for(const auto& input : input_sources)
-                clone_map[input.second] = clone_module.add_parameter(
-                    input.first, clone_parameter_shape(input.second->get_shape(), subranges));
-            for(auto literal_source : literal_sources)
-                clone_map[literal_source] = clone_module.add_literal(literal_source->get_literal());
-
-            auto record_clone = [&](instruction_ref source, instruction_ref clone) {
-                if(clone->get_shape().dynamic())
-                    MIGRAPHX_THROW("SPLIT_SYM_DIM: clone body is not fully static");
-                clone_map[source] = clone;
-                if(not source->get_debug_symbols().empty())
-                    clone_module.add_debug_symbols(clone, source->get_debug_symbols());
-            };
-
-            std::vector<instruction_ref> runtime_extent_sources;
-            std::transform(runtime_extent_inputs.begin(),
-                           runtime_extent_inputs.end(),
-                           std::back_inserter(runtime_extent_sources),
-                           [&](instruction_ref source) { return clone_map.at(source); });
-            runtime_cache cache;
-            pad_cache reusable_pads;
-            for(auto ins : clone_body_instructions)
-            {
-                std::vector<instruction_ref> args;
-                auto source_inputs = clone_inputs_for(optimal_rewrite, ins);
-                std::transform(source_inputs.begin(),
-                               source_inputs.end(),
-                               std::back_inserter(args),
-                               [&](instruction_ref in) { return clone_map.at(in); });
-                if(contains(optimal_rewrite.pad_plan, ins))
-                    for(const auto& pad : optimal_rewrite.pad_plan.at(ins))
-                        args.at(pad.operand) =
-                            add_or_reuse_pad(clone_module,
-                                             make_op("fixed_pad", {{"value", pad.value}}),
-                                             args.at(pad.operand),
-                                             reusable_pads);
-                if(contains(optimal_rewrite.mask_plan, ins))
-                    for(const auto& mask : optimal_rewrite.mask_plan.at(ins))
-                        args.at(mask.operand) = add_runtime_mask(clone_module,
-                                                                 args.at(mask.operand),
-                                                                 mask,
-                                                                 runtime_extent_sources,
-                                                                 fixed_substitutions,
-                                                                 cache);
-                if(contains(optimal_rewrite.static_subgraph_emitters, ins))
-                {
-                    const auto& source_op = contains(optimal_rewrite.clone_operations, ins)
-                                                ? optimal_rewrite.clone_operations.at(ins)
-                                                : ins->get_operator();
-                    record_clone(ins,
-                                 optimal_rewrite.static_subgraph_emitters.at(ins)(
-                                     clone_module, source_op, args, freeze));
-                    continue;
-                }
-                auto op          = contains(optimal_rewrite.clone_operations, ins)
-                                       ? optimal_rewrite.clone_operations.at(ins)
-                                       : ins->get_operator();
-                auto cloned_args = args;
-                if(contains(optimal_rewrite.static_op_freezers, ins))
-                    op = optimal_rewrite.static_op_freezers.at(ins)(op, freeze);
-                else if(ins->get_shape().dynamic() and not contains(optimal_body, ins))
-                {
-                    std::vector<shape> input_shapes;
-                    std::transform(ins->inputs().begin(),
-                                   ins->inputs().end(),
-                                   std::back_inserter(input_shapes),
-                                   [](instruction_ref arg) { return arg->get_shape(); });
-                    auto semantics = describe_op(op, input_shapes);
-                    if(semantics.symbolic_target.has_value())
-                    {
-                        const auto& target = *semantics.symbolic_target;
-                        cloned_args        = select_inputs(args, target.selected_inputs);
-                        if(target.emit_static_subgraph.has_value())
-                        {
-                            record_clone(ins,
-                                         (*target.emit_static_subgraph)(
-                                             clone_module, op, cloned_args, freeze));
-                            continue;
-                        }
-                        op = target.freeze_op(op, freeze);
-                    }
-                }
-                record_clone(ins,
-                             clone_module.add_instruction(op, cloned_args, ins->module_inputs()));
-            }
-
-            std::vector<instruction_ref> clone_outputs;
-            std::transform(
-                boundary_outputs.begin(),
-                boundary_outputs.end(),
-                std::back_inserter(clone_outputs),
-                [&](instruction_ref out) { return clone_map.at(out->inputs().front()); });
-            if(any_of(clone_outputs,
-                      [](instruction_ref out) { return out->get_shape().dynamic(); }))
-                MIGRAPHX_THROW("SPLIT_SYM_DIM: clone output is not fully static");
-            std::vector<shape> output_shapes;
-            std::transform(clone_outputs.begin(),
-                           clone_outputs.end(),
-                           std::back_inserter(output_shapes),
-                           [](instruction_ref out) { return out->get_shape(); });
-            clone_output_shapes.emplace_back(freeze, std::move(output_shapes));
-            clone_module.add_return(clone_outputs);
-            clones.push_back(std::move(clone_module));
-
-            more_combinations = false;
-            for(auto&& [root, choice] : views::zip(block_roots, choices))
-            {
-                if(++choice < root.optimal_values.size())
-                {
-                    more_combinations = true;
-                    break;
-                }
-                choice = 0;
-            }
+            auto name = m.name() + ":split_sym_dim_" + std::to_string(block_number) + "_" +
+                        std::to_string(clone_index);
+            auto built = build_clone(name, *frame, plan, freeze, subranges, fixed_substitutions);
+            clones.push_back(std::move(built.clone));
+            clone_outputs.push_back(std::move(built.output_case));
         }
-
-        std::vector<module_ref> submodules;
-        submodules.reserve(clones.size());
-        for(auto& clone : clones)
-        {
-            auto name = clone.name();
-            submodules.push_back(mpm.create_module(name, std::move(clone)));
-        }
-
-        std::vector<instruction_ref> selection_inputs;
-        std::transform(input_sources.begin(),
-                       input_sources.end(),
-                       std::back_inserter(selection_inputs),
-                       [](const auto& input) { return input.second; });
-        std::vector<shape> body_output_shapes;
-        for(std::size_t output_index = 0; output_index < boundary_outputs.size(); ++output_index)
-        {
-            auto source = boundary_outputs.at(output_index)->inputs().front();
-            body_output_shapes.push_back(
-                dispatch_shape_for_clones(optimal_rewrite.dispatch_output_shapes.at(source),
-                                          clone_output_shapes,
-                                          output_index));
-        }
-        auto selection = m.add_instruction(
-            make_op("select_module", {{"output_dyn_shapes", to_value(shape{body_output_shapes})}}),
-            selection_inputs,
-            submodules);
-
-        // Keep each boundary slice at its existing instruction_ref so downstream
-        // blocks and unsupported consumers remain wired. Sorting after all blocks
-        // moves the select/get_tuple_elem producers before these rewritten slices.
-        std::size_t output_number = 0;
-        for(auto output : boundary_outputs)
-        {
-            auto selected_output =
-                m.add_instruction(make_op("get_tuple_elem", {{"index", output_number}}), selection);
-            std::vector<instruction_ref> args = {selected_output};
-            std::copy(std::next(output->inputs().begin()),
-                      output->inputs().end(),
-                      std::back_inserter(args));
-            // The route guarantees the logical extent fits the selected buffer. Preserve those
-            // dimensions, but use the selected buffer's strides and do not normalize them again.
-            auto output_op                   = output->normalized_operator();
-            const auto& logical_output_shape = output->get_shape();
-            shape output_shape{logical_output_shape.type(),
-                               logical_output_shape.dyn_dims(),
-                               selected_output->get_shape().to_symbolic().dyn_strides()};
-            instruction::replace(output, std::move(output_op), output_shape, std::move(args));
-            output->set_normalized();
-            ++output_number;
-        }
+        wire_select_module(
+            mpm, *frame, plan, std::move(clones), clone_outputs, replacements, output_values);
+        ++block_number;
     }
+    std::vector<instruction_ref> outputs;
+    std::transform(original_outputs.begin(),
+                   original_outputs.end(),
+                   std::back_inserter(outputs),
+                   [&](instruction_ref output) {
+                       return resolve_replacement(m, output, replacements, block_for_instruction);
+                   });
+    m.replace_return(outputs);
     m.sort();
 }
 
@@ -2502,12 +2419,12 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
 {
     module& m = mpm.get_module();
 
-    // Nothing to specialize unless some parameter is symbolic.
     if(not has_symbolic_param(m))
         return;
 
-    lower_symbolic_dimensions_of(m);
-    // Shape queries no longer need their model-value producers.
+    match::find_matches(m,
+                        resolve_symbolic_dimensions_of_match{.root_sources = find_root_sources(m),
+                                                             .sources      = m.get_parameters()});
     dead_code_elimination{}.apply(m);
     auto symbolic_instructions = find_symbolic_instructions(m);
     if(symbolic_instructions.empty())
@@ -2523,8 +2440,8 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     if(blocks.empty())
         return;
 
-    auto optimal_rewrite = rewrite_to_optimal(m, infos, blocks, *roots);
-    specialize_blocks(mpm, blocks, optimal_rewrite);
+    auto clone_recipes = make_clone_recipes(blocks, *roots);
+    specialize_blocks(mpm, blocks, clone_recipes);
     run_passes(m, {dead_code_elimination{}});
 }
 

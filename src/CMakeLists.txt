@@ -117,6 +117,7 @@ add_library(migraphx
     propagate_constant.cpp
     propagate_precision.cpp
     promote_literals.cpp
+    promote_storage_type.cpp
     quantization.cpp
     quantize_int4.cpp
     quantize_8bits.cpp
@@ -124,6 +125,7 @@ add_library(migraphx
     register_op.cpp
     register_target.cpp
     replace_allocate.cpp
+    rewrite_broadcasts.cpp
     rewrite_convolution.cpp
     rewrite_reduce.cpp
     rewrite_resize.cpp

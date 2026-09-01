@@ -36,6 +36,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/ranges.hpp>
 #include <optional>
 
 namespace migraphx {

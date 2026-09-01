@@ -80,7 +80,6 @@
 #include <deque>
 #include <variant>
 #include <fstream>
-#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

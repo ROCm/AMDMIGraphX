@@ -31,6 +31,7 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
+#include <migraphx/ranges.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -920,6 +921,65 @@ struct find_flash_decoding
     }
 };
 
+// rocMLIR AttentionRewritePattern::isConstantRange(x, 1) asserts when the
+// peeled constant range has rank < 2 (TosaToRock.cpp:1804). KV-cache causal
+// masks compare against a 1-D iota; store that iota as {1, N} so the
+// prefix-causal matcher sees rank 2. Unsqueeze wrapping is not enough:
+// rocMLIR skips tensor.expand_shape when looking up the constant.
+static void promote_1d_int_ranges(module& m)
+{
+    std::vector<instruction_ref> lits;
+    for(auto ins : iterator_for(m))
+    {
+        const auto& s = ins->get_shape();
+        if(ins->name() != "@literal" or s.ndim() != 1 or not shape::is_integral(s.type()))
+            continue;
+        lits.push_back(ins);
+    }
+    std::vector<instruction_ref> bcs;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "broadcast" and ins->inputs().size() == 1)
+            bcs.push_back(ins);
+    }
+    for(auto ins : bcs)
+    {
+        m.replace_instruction(ins,
+                              make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}),
+                              ins->inputs());
+    }
+    for(auto ins : lits)
+    {
+        auto n       = ins->get_shape().lens().front();
+        auto new_lit = m.add_literal(
+            literal{shape{ins->get_shape().type(), {1, n}}, ins->eval().data()});
+        auto users = ins->outputs();
+        for(auto user : users)
+        {
+            if(user->name() == "broadcast" or user->name() == "multibroadcast")
+            {
+                m.replace_instruction(
+                    user, make_op("multibroadcast", {{"out_lens", user->get_shape().lens()}}), new_lit);
+                continue;
+            }
+            std::vector<instruction_ref> args;
+            std::transform(
+                user->inputs().begin(),
+                user->inputs().end(),
+                std::back_inserter(args),
+                [&](instruction_ref arg) -> instruction_ref {
+                    if(arg == ins)
+                        return new_lit;
+                    if(arg->get_shape().ndim() == 1 and shape::is_integral(arg->get_shape().type()))
+                        return m.insert_instruction(
+                            user, make_op("unsqueeze", {{"axes", {0}}}), arg);
+                    return arg;
+                });
+            m.replace_instruction(user, user->get_operator(), args, user->module_inputs());
+        }
+    }
+}
+
 struct find_kv_cache_attention
 {
     std::size_t* counter;
@@ -1057,8 +1117,8 @@ struct find_kv_cache_attention
                        strides.begin(), strides.end() - 1, [](auto s) { return s == 0; }) and
                    strides.back() == 1)
                 {
-                    auto new_lit = m_attn.add_literal(
-                        literal{shape{lit_s.type(), {lit_s.lens().back()}}, ins->eval().data()});
+                    auto new_lit = m_attn.add_literal(literal{
+                        shape{lit_s.type(), {1, lit_s.lens().back()}}, ins->eval().data()});
                     m_attn.replace_instruction(
                         ins, make_op("multibroadcast", {{"out_lens", lit_s.lens()}}), {new_lit});
                 }
@@ -1085,7 +1145,8 @@ struct find_kv_cache_attention
 
         // Define inputs to m_attn
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
-        auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
+        promote_1d_int_ranges(m_attn);
+        auto new_inputs = m_attn.get_inputs(map_mattn_to_mm);
 
         module_ref mpm_attn = mpm.create_module(
             submodule_name(mpm.get_module(), "attn" + get_count()), std::move(m_attn));

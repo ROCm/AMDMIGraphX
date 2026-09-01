@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -40,6 +40,7 @@ def test_conv_relu(format):
         assert s1 == s2
         assert p1.sort() == p2.sort()
 
+
 def test_save_load_buffer():
     p1 = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p1)
@@ -66,13 +67,15 @@ def create_buffer(t, data, shape):
         m = memoryview(a.tostring())
         return m
 
+
 def test_load_save_arg():
-    data = [1,2,3,4]
-    buffer1 = create_buffer('f', data, [2,2])
+    data = [1, 2, 3, 4]
+    buffer1 = create_buffer('f', data, [2, 2])
     arg1 = migraphx.argument(buffer1)
     migraphx.argument.save(arg1, 'load_save_arg.msgpack')
     arg2 = migraphx.argument.load('load_save_arg.msgpack')
     assert arg1 == arg2
+
 
 if __name__ == "__main__":
     test_load_save_arg()

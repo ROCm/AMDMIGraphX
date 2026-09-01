@@ -141,13 +141,14 @@ struct find_quant_attention
 {
     auto matcher() const
     {
-        auto gemm1 =
+        auto gemm1 = match::opaque(
             match::name("dequantizelinear")(match::arg(0)(match::name("quant_dot").bind("qgemm1")))
-                .bind("deq1");
-        auto softmax = match::softmax_input(match::skip(match::name("convert"))(gemm1));
-        auto probs   = match::name("quantizelinear")(
-            match::arg(0)(match::skip(match::name("convert"))(softmax)));
-        auto gemm2 = match::name("quant_dot")(match::arg(0)(probs)).bind("qgemm2");
+                .bind("deq1"));
+        auto softmax =
+            match::opaque(match::softmax_input(match::skip(match::name("convert"))(gemm1)));
+        auto softmax_cvt = match::opaque(match::skip(match::name("convert"))(softmax));
+        auto probs       = match::opaque(match::name("quantizelinear")(match::arg(0)(softmax_cvt)));
+        auto gemm2 = match::opaque(match::name("quant_dot")(match::arg(0)(probs)).bind("qgemm2"));
         return match::name("dequantizelinear")(match::arg(0)(gemm2)).bind("deq2");
     }
 
@@ -193,8 +194,10 @@ struct find_transposed_attention
 {
     auto matcher() const
     {
-        auto gemm1         = match::any_of[pointwise_inputs()](match::name("dot").bind("dot1"));
-        auto softmax       = match::skip(match::name("convert"))(match::softmax_input(gemm1));
+        auto gemm1 =
+            match::opaque(match::any_of[pointwise_inputs()](match::name("dot").bind("dot1")));
+        auto softmax =
+            match::opaque(match::skip(match::name("convert"))(match::softmax_input(gemm1)));
         auto swap_last_two = match::make_basic_pred_matcher([](instruction_ref ins) {
             auto perm = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
             if(perm.size() < 2)
@@ -204,8 +207,9 @@ struct find_transposed_attention
                    perm[perm.size() - 2] == static_cast<int64_t>(perm.size() - 1) and
                    perm[perm.size() - 1] == static_cast<int64_t>(perm.size() - 2);
         });
-        auto transposed_softmax = match::name("transpose")(swap_last_two, match::arg(0)(softmax))
-                                      .bind("transposed_softmax");
+        auto transposed_softmax =
+            match::opaque(match::name("transpose")(swap_last_two, match::arg(0)(softmax))
+                              .bind("transposed_softmax"));
         auto input_of_dot2 = match::any().bind("input_of_dot2");
         return match::name("dot")(match::arg(0)(input_of_dot2), match::arg(1)(transposed_softmax));
     }
@@ -248,8 +252,10 @@ struct find_attention
 
     auto matcher() const
     {
-        auto gemm1   = match::any_of[pointwise_inputs()](match::name("dot").bind("dot1"));
-        auto softmax = match::skip(match::name("convert"))(match::softmax_input(gemm1));
+        auto gemm1 =
+            match::opaque(match::any_of[pointwise_inputs()](match::name("dot").bind("dot1")));
+        auto softmax =
+            match::opaque(match::skip(match::name("convert"))(match::softmax_input(gemm1)));
         return match::name("dot")(match::arg(0)(softmax));
     }
 
@@ -888,35 +894,43 @@ struct find_kv_cache_attention
         static const std::unordered_set<std::string> skip_set = {
             "multibroadcast", "broadcast", "reshape", "unsqueeze", "squeeze"};
 
-        auto keys =
-            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
-        auto k_transpose =
-            match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
-        auto gemm1             = match::name("dot")(match::arg(1)(k_transpose));
-        auto gemm1_maybe_cvt   = match::skip(match::name("convert"))(gemm1);
-        auto scale             = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
-        auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
-        auto attn_scores       = match::any_of(scale, gemm1_maybe_cvt);
-        auto causal_mask =
-            match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores));
-        auto conv_grtr         = match::name("convert")(match::arg(0)(match::name("greater")));
-        auto local_window_comp = match::skip(match::name(skip_set))(conv_grtr);
-        auto local_window_mask =
-            match::name("where")(match::arg(0)(match::any_of(local_window_comp, broadcasted_const)),
-                                 match::arg(2)(match::any_of(causal_mask, scale, gemm1_maybe_cvt)));
-        auto greater = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
-        auto conv_greater =
-            match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
-        auto bc_greater = match::name("multibroadcast")(match::arg(0)(conv_greater));
-        auto mask       = match::name("where")(
-            match::arg(0)(bc_greater),
-            match::arg(2)(match::any_of(local_window_mask, causal_mask, scale, gemm1_maybe_cvt)));
-        auto attn_probabilities = match::skip(match::name("convert"))(
-            match::softmax_input(match::skip(match::name("convert"))(mask)));
-        auto values =
-            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v");
-        auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
-        auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
+        auto keys = match::opaque(
+            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k"));
+        auto keys_transpose = match::opaque(match::name("transpose")(match::arg(0)(keys)));
+        auto k_transpose    = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
+        auto gemm1           = match::opaque(match::name("dot")(match::arg(1)(k_transpose)));
+        auto gemm1_maybe_cvt = match::opaque(match::skip(match::name("convert"))(gemm1));
+        auto scale    = match::opaque(match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt)));
+        auto constant = match::opaque(match::is_constant());
+        auto broadcasted_const =
+            match::opaque(match::name("multibroadcast")(match::arg(0)(constant)));
+        auto attn_scores = match::opaque(match::any_of(scale, gemm1_maybe_cvt));
+        auto causal_mask = match::opaque(
+            match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores)));
+        auto grtr              = match::opaque(match::name("greater"));
+        auto conv_grtr         = match::opaque(match::name("convert")(match::arg(0)(grtr)));
+        auto local_window_comp = match::opaque(match::skip(match::name(skip_set))(conv_grtr));
+        auto local_window_cond = match::opaque(match::any_of(local_window_comp, broadcasted_const));
+        auto local_window_val  = match::opaque(match::any_of(causal_mask, scale, gemm1_maybe_cvt));
+        auto local_window_mask = match::opaque(match::name("where")(
+            match::arg(0)(local_window_cond), match::arg(2)(local_window_val)));
+        auto greater =
+            match::opaque(match::name("greater")(match::arg(1)(match::any().bind("total_sl"))));
+        auto greater_cvt  = match::opaque(match::name("convert")(match::arg(0)(greater)));
+        auto conv_greater = match::opaque(match::skip(match::name("unsqueeze"))(greater_cvt));
+        auto bc_greater = match::opaque(match::name("multibroadcast")(match::arg(0)(conv_greater)));
+        auto mask_val =
+            match::opaque(match::any_of(local_window_mask, causal_mask, scale, gemm1_maybe_cvt));
+        auto mask =
+            match::opaque(match::name("where")(match::arg(0)(bc_greater), match::arg(2)(mask_val)));
+        auto mask_cvt = match::opaque(match::skip(match::name("convert"))(mask));
+        auto attn_probabilities =
+            match::opaque(match::skip(match::name("convert"))(match::softmax_input(mask_cvt)));
+        auto values = match::opaque(
+            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v"));
+        auto gemm2 = match::opaque(
+            match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values)));
+        auto transpose_out = match::opaque(match::name("transpose")(match::arg(0)(gemm2)));
         return match::name("reshape")(match::arg(0)(transpose_out));
     }
 

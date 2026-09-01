@@ -95,4 +95,36 @@ TEST_CASE(test_compute_factor_can_exceed_max_size)
     EXPECT(compute_factor(6, 4) == 6);
 }
 
+static std::pair<std::vector<migraphx::shape>, std::size_t>
+reduce_dims_axis(std::vector<migraphx::shape> inputs, std::size_t axis)
+{
+    auto result = migraphx::gpu::gen::reduce_dims_axis(std::move(inputs), axis);
+    return {result, axis};
+}
+
+TEST_CASE(test_reduce_dims_axis_unpack)
+{
+    // An unpack halves the packed axis, so the two shapes have a different number
+    // of elements but the axis must still be tracked to the merged dim
+    std::vector<migraphx::shape> inputs = {
+        migraphx::shape{migraphx::shape::fp4x2_type, {1, 1024}},
+        migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1, 2048}}};
+    std::vector<migraphx::shape> expected = {
+        migraphx::shape{migraphx::shape::fp4x2_type, {1024}},
+        migraphx::shape{migraphx::shape::fp8e4m3fn_type, {2048}}};
+    EXPECT(reduce_dims_axis(inputs, 1) == std::make_pair(expected, std::size_t{0}));
+}
+
+TEST_CASE(test_reduce_dims_axis_not_merged)
+{
+    // The trailing dims merge, but the axis cant merge with them
+    std::vector<migraphx::shape> inputs = {
+        migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+        migraphx::shape{migraphx::shape::float_type, {2, 6, 4, 5}}};
+    std::vector<migraphx::shape> expected = {
+        migraphx::shape{migraphx::shape::float_type, {2, 3, 20}},
+        migraphx::shape{migraphx::shape::float_type, {2, 6, 20}}};
+    EXPECT(reduce_dims_axis(inputs, 1) == std::make_pair(expected, std::size_t{1}));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

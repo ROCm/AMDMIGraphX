@@ -83,6 +83,11 @@ struct tile
     std::string str() const;
 };
 
+// Reduce the dims of the inputs for a kernel that indexes a specific axis. Since
+// reduce_dims can merge and drop dims, axis is updated to where it moved to.
+MIGRAPHX_GPU_EXPORT std::vector<shape> reduce_dims_axis(std::vector<shape> inputs,
+                                                        std::size_t& axis);
+
 MIGRAPHX_GPU_EXPORT std::size_t find_fast_axis(const shape& input);
 MIGRAPHX_GPU_EXPORT std::size_t find_fast_axis(const std::vector<shape>& inputs);
 

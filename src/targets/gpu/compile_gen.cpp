@@ -25,6 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/prepare_reduce.hpp>
+#include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
@@ -273,6 +274,23 @@ std::string tile::str() const
                               {{"modes", join_strings(strs, ", ")},
                                {"inner", generate_index_ints(inner)},
                                {"outer", generate_index_ints(outer)}});
+}
+
+std::vector<shape> reduce_dims_axis(std::vector<shape> inputs, std::size_t& axis)
+{
+    // Append a marker shape that is only unit-strided along axis, so reduce_dims
+    // wont merge that axis with an adjacent one and the marker tracks where it lands
+    const auto& s = inputs.back();
+    std::vector<std::size_t> strides(s.ndim());
+    strides[axis] = 1;
+    inputs.push_back(shape{s.type(), s.lens(), strides});
+
+    auto result         = reduce_dims(normalize_permutation(inputs));
+    const auto& rstride = result.back().strides();
+    axis                = std::find(rstride.begin(), rstride.end(), 1) - rstride.begin();
+    assert(axis < result.back().ndim());
+    result.pop_back();
+    return result;
 }
 
 std::size_t find_fast_axis(const shape& input)

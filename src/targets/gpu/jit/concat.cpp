@@ -26,7 +26,6 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
 #include <cassert>
 
@@ -66,22 +65,6 @@ struct concat_compiler : compiler<concat_compiler>
 {
     std::vector<std::string> names() const { return {"fused_concat", "concat"}; }
 
-    static std::vector<shape> normalize(std::vector<shape> inputs, std::size_t& axis)
-    {
-        auto s = inputs.back();
-        std::vector<std::size_t> strides(s.lens().size());
-        strides[axis] = 1;
-
-        inputs.push_back(shape{s.type(), s.lens(), strides});
-
-        auto result   = reduce_dims(normalize_permutation(inputs));
-        auto rstrides = result.back().strides();
-        auto it = std::find_if(rstrides.begin(), rstrides.end(), [](auto x) { return x == 1; });
-        axis    = it - rstrides.begin();
-        result.pop_back();
-        return result;
-    }
-
     static std::size_t
     max_size(const std::vector<shape>& inputs, std::size_t ninputs, std::size_t axis)
     {
@@ -96,14 +79,14 @@ struct concat_compiler : compiler<concat_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs      = inputs;
-        options.output      = inputs.back();
+        options.inputs         = inputs;
+        options.output         = inputs.back();
         auto concat_axis       = v.at("axis").to<std::size_t>();
-        options.virtual_inputs = normalize(inputs, concat_axis);
-        options.kernel_name = v.get("kernel", "concat_kernel");
+        options.virtual_inputs = reduce_dims_axis(inputs, concat_axis);
+        options.kernel_name    = v.get("kernel", "concat_kernel");
         auto axis              = find_fast_axis(options.virtual_inputs);
-        auto op_names       = v.at("ops").to_vector<std::string>();
-        auto args           = v.at("args");
+        auto op_names          = v.at("ops").to_vector<std::string>();
+        auto args              = v.at("args");
         vectorize vec{};
         if(axis != concat_axis)
             vec = vectorize::elements(ctx, axis, options.virtual_inputs);

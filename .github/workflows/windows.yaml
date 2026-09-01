@@ -156,6 +156,9 @@ jobs:
         echo "${ROCM_ROOT}/bin" >> "$GITHUB_PATH"
         # find_package() locates hip / rocblas / hipblaslt / miopen via this prefix.
         echo "ROCM_CMAKE_PATH=$(rocm-sdk path --cmake)" >> "$GITHUB_ENV"
+        # rocmlirTriton's CMakeLists.txt resolves the toolchain via ROCM_PATH;
+        # without it the code falls back to the hardcoded C:/opt/rocm default.
+        echo "ROCM_PATH=${ROCM_ROOT}" >> "$GITHUB_ENV"
 
     - name: Cache dependencies
       continue-on-error: true

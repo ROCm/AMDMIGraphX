@@ -117,6 +117,7 @@ add_library(migraphx
     propagate_constant.cpp
     propagate_precision.cpp
     promote_literals.cpp
+    promote_storage_type.cpp
     quantization.cpp
     quantize_int4.cpp
     quantize_8bits.cpp
@@ -124,6 +125,7 @@ add_library(migraphx
     register_op.cpp
     register_target.cpp
     replace_allocate.cpp
+    rewrite_broadcasts.cpp
     rewrite_convolution.cpp
     rewrite_reduce.cpp
     rewrite_resize.cpp
@@ -159,11 +161,6 @@ enable_static_init(migraphx)
 
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp op/builder/torch/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
-
-if(WIN32)
-    # Due to compilation crashing, we need to use type-erased matchers on Windows.
-    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
-endif()
 
 configure_file(config.h.in include/migraphx/config.h)
 

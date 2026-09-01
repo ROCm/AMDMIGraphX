@@ -44,7 +44,7 @@ def onnx_test(external_data=False, opset_version=None):
             else:
                 graph_def = helper.make_graph(op_info[0], op_test.__name__,
                                               op_info[1], op_info[2])
-            
+
             # Create model with optional opset version
             if opset_version is not None:
                 opset_imports = [helper.make_opsetid("", opset_version)]
@@ -54,7 +54,7 @@ def onnx_test(external_data=False, opset_version=None):
             else:
                 model_def = helper.make_model(graph_def,
                                               producer_name=op_test.__name__)
-            
+
             onnx.save_model(model_def,
                             '{}.onnx'.format(op_test.__name__),
                             save_as_external_data=external_data,
@@ -332,31 +332,29 @@ def atanh_test():
     return ([node], [x], [y])
 
 
-def attention_test(
-        x_dims,
-        weight_dims=[],
-        bias_dims=[],
-        mask_dims=[],
-        past_dims=[],
-        attention_bias_dims=[],
-        past_sequence_length_dims=[],
-        num_heads=None,
-        qkv_hidden_sizes=None,
-        do_rotary=None,
-        mask_filter_value=None,
-        past_present_share_buffer=None,
-        scale=None,
-        unidirectional=None,
-        rotary_embedding_dim=None,
-        present_dims=[],
-        dtype=TensorProto.FLOAT,
-        test_type=TensorProto.INT32):
+def attention_test(x_dims,
+                   weight_dims=[],
+                   bias_dims=[],
+                   mask_dims=[],
+                   past_dims=[],
+                   attention_bias_dims=[],
+                   past_sequence_length_dims=[],
+                   num_heads=None,
+                   qkv_hidden_sizes=None,
+                   do_rotary=None,
+                   mask_filter_value=None,
+                   past_present_share_buffer=None,
+                   scale=None,
+                   unidirectional=None,
+                   rotary_embedding_dim=None,
+                   present_dims=[],
+                   dtype=TensorProto.FLOAT,
+                   test_type=TensorProto.INT32):
 
     # (Batch_size, sequence_lenth, input_hidden_size)
     x = helper.make_tensor_value_info('input', dtype, x_dims)
     input_list = [x]
     input_name_list = ['input']
-
 
     # Needed for output vector dims
     batch = x_dims[0]
@@ -392,8 +390,7 @@ def attention_test(
         # (batch_size, total_sequence_length)
         # (batch_size, sequence_length, total_sequence_length)
         # (batch_size) or (2*batch_size) or (3* batch_size + 2)
-        mask_index = helper.make_tensor_value_info('mask_index',
-                                                   test_type,
+        mask_index = helper.make_tensor_value_info('mask_index', test_type,
                                                    mask_dims)
         input_name_list.append('mask_index')
         input_list.append(mask_index)
@@ -414,170 +411,167 @@ def attention_test(
 
     if len(past_sequence_length_dims) > 0:
         # (batch_size, or 1, num_heads or 1, sequence_length, total_sequence_length)
-        past_sequence_length = helper.make_tensor_value_info('past_seqence_length', test_type,
-                                                       past_sequence_length_dims)
+        past_sequence_length = helper.make_tensor_value_info(
+            'past_seqence_length', test_type, past_sequence_length_dims)
         input_name_list.append('past_sequence_length')
         input_list.append(past_sequence_length)
- 
+
     # Additional output vector
     if present_dims:
         output_name_list.append('present')
         output_list.append('present')
 
-    node = onnx.helper.make_node(
-        'Attention',
-        inputs=input_name_list,
-        outputs=output_name_list,
-        domain="com.microsoft")
-    
+    node = onnx.helper.make_node('Attention',
+                                 inputs=input_name_list,
+                                 outputs=output_name_list,
+                                 domain="com.microsoft")
+
     # Append attributes based on input to this function. Parser should assume defaults
     # This is the only attribute that's required others are not
     if num_heads is not None:
-        node.attribute.append(onnx.helper.make_attribute("num_heads", num_heads))
+        node.attribute.append(
+            onnx.helper.make_attribute("num_heads", num_heads))
 
     if scale is not None:
         node.attribute.append(onnx.helper.make_attribute("scale", scale))
 
     if qkv_hidden_sizes is not None:
-        node.attribute.append(onnx.helper.make_attribute("qkv_hidden_sizes", qkv_hidden_sizes))
+        node.attribute.append(
+            onnx.helper.make_attribute("qkv_hidden_sizes", qkv_hidden_sizes))
 
     if unidirectional is not None:
-        node.attribute.append(onnx.helper.make_attribute("unidirectional", unidirectional))
+        node.attribute.append(
+            onnx.helper.make_attribute("unidirectional", unidirectional))
 
     if mask_filter_value is not None:
-        node.attribute.append(onnx.helper.make_attribute("mask_filter_value", mask_filter_value))
+        node.attribute.append(
+            onnx.helper.make_attribute("mask_filter_value", mask_filter_value))
 
     if do_rotary is not None:
-        node.attribute.append(onnx.helper.make_attribute("do_rotary", do_rotary))
+        node.attribute.append(
+            onnx.helper.make_attribute("do_rotary", do_rotary))
 
     if rotary_embedding_dim is not None:
-        node.attribute.append(onnx.helper.make_attribute("rotary_embedding_dim", rotary_embedding_dim))
+        node.attribute.append(
+            onnx.helper.make_attribute("rotary_embedding_dim",
+                                       rotary_embedding_dim))
 
     if past_present_share_buffer is not None:
-        node.attribute.append(onnx.helper.make_attribute("past_present_share_buffer", past_present_share_buffer))
+        node.attribute.append(
+            onnx.helper.make_attribute("past_present_share_buffer",
+                                       past_present_share_buffer))
 
     return ([node], input_list, output_list)
 
 
 @onnx_test()
 def attention_invalid_input_num():
-    return attention_test([2, 2, 4], 
-                          num_heads=1)
+    return attention_test([2, 2, 4], num_heads=1)
 
 
 @onnx_test()
 def attention_invalid_input_dimension():
-    return attention_test([2, 2, 4, 2], [4, 12], 
-                           bias_dims=[12],
-                           num_heads=1)
+    return attention_test([2, 2, 4, 2], [4, 12], bias_dims=[12], num_heads=1)
 
 
 @onnx_test()
 def attention_invalid_no_num_heads():
-    return attention_test([2, 2, 4], [4, 12], 
-                           bias_dims=[12])
+    return attention_test([2, 2, 4], [4, 12], bias_dims=[12])
 
 
 @onnx_test()
 def attention_invalid_weight_hidden_size():
-    return attention_test([2, 2, 5], [4, 12], 
-                           bias_dims=[12],
-                           num_heads=2)
+    return attention_test([2, 2, 5], [4, 12], bias_dims=[12], num_heads=2)
 
 
 @onnx_test()
 def attention_invalid_uneven_weight_no_qkv_hidden():
-    return attention_test([2, 2, 5], [4, 14], 
-                           bias_dims=[12],
-                           num_heads=2)
+    return attention_test([2, 2, 5], [4, 14], bias_dims=[12], num_heads=2)
 
 
 @onnx_test()
 def attention_invalid_bias_dims_size():
-    return attention_test([2, 2, 4], [4, 12], 
-                           bias_dims=[12, 2, 2],
-                           num_heads=2)
+    return attention_test([2, 2, 4], [4, 12],
+                          bias_dims=[12, 2, 2],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_invalid_bias_value_size():
-    return attention_test([2, 2, 4], [4, 12], 
-                           bias_dims=[11],
-                           num_heads=2)
+    return attention_test([2, 2, 4], [4, 12], bias_dims=[11], num_heads=2)
 
 
 @onnx_test()
 def attention_invalid_mask_type_test():
-    return attention_test([1, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[1, 2],
-                           num_heads=2,
-                           test_type=TensorProto.FLOAT)
+    return attention_test([1, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[1, 2],
+                          num_heads=2,
+                          test_type=TensorProto.FLOAT)
 
 
 @onnx_test()
 def attention_invalid_mask_2d_dims_test():
-    return attention_test([1, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[1, 9],
-                           num_heads=2)
+    return attention_test([1, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[1, 9],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_invalid_mask_3d_dims_test():
-    return attention_test([1, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 2, 4],
-                           num_heads=2)
+    return attention_test([1, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 2, 4],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_invalid_mask_4d_dims_test():
-    return attention_test([1, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[1, 9, 2, 2],
-                           num_heads=2)
+    return attention_test([1, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[1, 9, 2, 2],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_invalid_mask_4d_last_dims_test():
-    return attention_test([1, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[1, 9, 2, 3],
-                           num_heads=2)
+    return attention_test([1, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[1, 9, 2, 3],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_invalid_mask_5d_dims_test():
-    return attention_test([1, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[1, 9, 2, 2, 2],
-                           num_heads=2)
+    return attention_test([1, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[1, 9, 2, 2, 2],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_invalid_qkv_attr_test():
-    return attention_test([1, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           num_heads=2, 
-                           qkv_hidden_sizes=[1, 3])
+    return attention_test([1, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          num_heads=2,
+                          qkv_hidden_sizes=[1, 3])
 
 
 @onnx_test()
 def attention_invalid_qkv_attr_test2():
-    return attention_test([1, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           num_heads=2, 
-                           qkv_hidden_sizes=[1, 2, 3])
+    return attention_test([1, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          num_heads=2,
+                          qkv_hidden_sizes=[1, 2, 3])
 
 
 @onnx_test()
 def attention_invalid_qkv_attr_test3():
-    return attention_test([1, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           num_heads=2, 
-                           qkv_hidden_sizes=[2, 2, -3])
-
+    return attention_test([1, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          num_heads=2,
+                          qkv_hidden_sizes=[2, 2, -3])
 
 
 @onnx_test()
@@ -602,150 +596,154 @@ def attention_double_head_test():
 
 @onnx_test()
 def attention_double_head_bias_test():
-    return attention_test([2, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           num_heads=2)
+    return attention_test([2, 2, 4], [4, 12], bias_dims=[12], num_heads=2)
 
 
 @onnx_test()
 def attention_double_head_bias_mask_batch1_test():
-    return attention_test([1, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[1, 2],
-                           num_heads=2)
+    return attention_test([1, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[1, 2],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_double_head_bias_mask_test():
-    return attention_test([2, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 2],
-                           num_heads=2)
+    return attention_test([2, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 2],
+                          num_heads=2)
+
 
 @onnx_test()
 def attention_double_head_bias_asym_mask_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 3],
-                           num_heads=2)
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 3],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_double_head_bias_3d_mask_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 3, 3],
-                           num_heads=2)
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 3, 3],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_double_head_bias_4d_mask_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 1, 3, 3],
-                           num_heads=2)
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 1, 3, 3],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_double_head_bias_asym_left_pad_mask_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2],
-                           num_heads=2)
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_double_head_bias_asym_right_pad_mask_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[4],
-                           num_heads=2)
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[4],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_double_head_bias_asym_mask_unidirectional_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 3],
-                           num_heads=2, unidirectional=1)
-
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 3],
+                          num_heads=2,
+                          unidirectional=1)
 
 
 @onnx_test()
 def attention_double_head_bias_asym_mask_rotary_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 3],
-                           num_heads=2, do_rotary=1)
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 3],
+                          num_heads=2,
+                          do_rotary=1)
 
 
 @onnx_test()
 def attention_double_head_bias_asym_mask_rotary_embedding_dim_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 3],
-                           num_heads=2, rotary_embedding_dim=32)
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 3],
+                          num_heads=2,
+                          rotary_embedding_dim=32)
 
 
 @onnx_test()
 def attention_double_head_bias_asym_mask_bad_rotary_embedding_dim_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 3],
-                           num_heads=2, rotary_embedding_dim=48)
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 3],
+                          num_heads=2,
+                          rotary_embedding_dim=48)
 
 
 @onnx_test()
 def attention_double_head_bias_asym_mask_scale_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 3],
-                           num_heads=2, scale=float(0.1234))
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 3],
+                          num_heads=2,
+                          scale=float(0.1234))
 
 
 @onnx_test()
 def attention_double_head_bias_asym_mask_filter_val_test():
-    return attention_test([2, 3, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 3],
-                           num_heads=2, mask_filter_value=float(-5000.0))
+    return attention_test([2, 3, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 3],
+                          num_heads=2,
+                          mask_filter_value=float(-5000.0))
 
 
 @onnx_test()
 def attention_double_head_bias_mask_past_test():
-# Should error out because we only support shared buffer modes
-    return attention_test([2, 2, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 2],
-                           past_dims=[2, 4],
-                           num_heads=2)
+    # Should error out because we only support shared buffer modes
+    return attention_test([2, 2, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 2],
+                          past_dims=[2, 4],
+                          num_heads=2)
+
 
 @onnx_test()
 def attention_double_head_bias_mask_past_attn_bias_shared_test():
-    return attention_test([2, 4, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 4],
-                           past_dims=[2, 4],
-                           attention_bias_dims=[2, 2, 4],
-                           past_present_share_buffer=1,
-                           num_heads=2)
+    return attention_test([2, 4, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 4],
+                          past_dims=[2, 4],
+                          attention_bias_dims=[2, 2, 4],
+                          past_present_share_buffer=1,
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_double_head_bias_mask_past_attn_bias_shared_past_seq_len_test():
-    return attention_test([2, 4, 4], [4, 12], 
-                           bias_dims=[12],
-                           mask_dims=[2, 4],
-                           past_dims=[2, 4],
-                           attention_bias_dims=[2, 2, 4],
-                           past_sequence_length_dims=[1],
-                           num_heads=2)
+    return attention_test([2, 4, 4], [4, 12],
+                          bias_dims=[12],
+                          mask_dims=[2, 4],
+                          past_dims=[2, 4],
+                          attention_bias_dims=[2, 2, 4],
+                          past_sequence_length_dims=[1],
+                          num_heads=2)
 
 
 @onnx_test()
 def attention_multihead_test():
-    return attention_test([32, 512, 1024], [1024, 3072],
-                          num_heads=16)
+    return attention_test([32, 512, 1024], [1024, 3072], num_heads=16)
 
 
 @onnx_test()
@@ -1050,11 +1048,10 @@ def biasadd_test():
     skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT, [2, 3, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4])
 
-    node = onnx.helper.make_node(
-        'BiasAdd',
-        inputs=['x', 'bias', 'skip'],
-        outputs=['y'],
-        domain='com.microsoft')
+    node = onnx.helper.make_node('BiasAdd',
+                                 inputs=['x', 'bias', 'skip'],
+                                 outputs=['y'],
+                                 domain='com.microsoft')
 
     return ([node], [x, bias, skip], [y])
 
@@ -2016,6 +2013,7 @@ def conv_bn_relu_maxpool_unordered_nonvalue_optional_ios_test():
 
     return ([node0, node3, node1, node2], [x, y, z, m, n, k, l], [out])
 
+
 @onnx_test()
 def conv_bn_relu_maxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
@@ -2739,8 +2737,10 @@ def depthtospace_test():
 
 def depthtospace_dyn_test(mode):
 
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 16, 'x', 'y'])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 2, 'x_2', 'y_2'])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      ['batch', 16, 'x', 'y'])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      ['batch', 2, 'x_2', 'y_2'])
 
     node = onnx.helper.make_node('DepthToSpace',
                                  inputs=['x'],
@@ -2752,11 +2752,13 @@ def depthtospace_dyn_test(mode):
 
 
 @onnx_test()
-def depthtospace_dyn_dcr_test(): return depthtospace_dyn_test('DCR')
+def depthtospace_dyn_dcr_test():
+    return depthtospace_dyn_test('DCR')
 
 
 @onnx_test()
-def depthtospace_dyn_crd_test(): return depthtospace_dyn_test('CRD')
+def depthtospace_dyn_crd_test():
+    return depthtospace_dyn_test('CRD')
 
 
 @onnx_test()
@@ -5118,6 +5120,7 @@ def gridsample_test():
 
     return ([node], [x, grid], [y])
 
+
 @onnx_test()
 def gridsample_channel_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 4, 4])
@@ -5136,6 +5139,7 @@ def gridsample_channel_test():
 
     return ([node], [x, grid], [y])
 
+
 @onnx_test()
 def gridsample_512x512_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 512, 512])
@@ -5153,6 +5157,7 @@ def gridsample_512x512_test():
     )
 
     return ([node], [x, grid], [y])
+
 
 @onnx_test()
 def gridsample_half_test():
@@ -5742,10 +5747,15 @@ def group_norm_contrib_3d_channel_last_bf16_test():
                                    gamma_dtype=TensorProto.BFLOAT16,
                                    beta_dtype=TensorProto.BFLOAT16)
 
+
 @onnx_test()
 def group_norm_contrib_gamma_beta_float_xy_half_test():
-    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2], 2, 0, 0,
-                                    dtype=TensorProto.FLOAT16)
+    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2],
+                                   2,
+                                   0,
+                                   0,
+                                   dtype=TensorProto.FLOAT16)
+
 
 @onnx_test()
 def group_norm_contrib_silu_3d_test():
@@ -6192,15 +6202,15 @@ def group_query_attention_softcap_test():
 
 @onnx_test()
 def group_query_attention_decode_test():
-    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
-                                        [1, 1, 96])
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16, [1, 1, 96])
     key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
     value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
     past_key_values_key = helper.make_tensor_value_info(
         'past_key_values_key', TensorProto.FLOAT16, [1, 2, 10, 16])
     past_key_values_value = helper.make_tensor_value_info(
         'past_key_values_value', TensorProto.FLOAT16, [1, 2, 10, 16])
-    seqlens_k = helper.make_tensor_value_info('seqlens_k', TensorProto.INT32, [1, 1])
+    seqlens_k = helper.make_tensor_value_info('seqlens_k', TensorProto.INT32,
+                                              [1, 1])
     tsl_val = np.array([[10]])
     total_sequence_length = helper.make_tensor(name="total_sequence_length",
                                                data_type=TensorProto.INT32,
@@ -6240,23 +6250,23 @@ def group_query_attention_decode_test():
         scale=0.25,
         domain="com.microsoft")
 
-    return ([node
-             ], [qkv, key, value, past_key_values_key,
-                 past_key_values_value, seqlens_k], [output, present_key, present_value],
-            [total_sequence_length, cos_cache, sin_cache])
+    return ([node], [
+        qkv, key, value, past_key_values_key, past_key_values_value, seqlens_k
+    ], [output, present_key,
+        present_value], [total_sequence_length, cos_cache, sin_cache])
 
 
 @onnx_test()
 def group_query_attention_prefill_test():
-    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
-                                        [1, 8, 96])
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16, [1, 8, 96])
     key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
     value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
     past_key_values_key = helper.make_tensor_value_info(
         'past_key_values_key', TensorProto.FLOAT16, [1, 2, 10, 16])
     past_key_values_value = helper.make_tensor_value_info(
         'past_key_values_value', TensorProto.FLOAT16, [1, 2, 10, 16])
-    seqlens_k = helper.make_tensor_value_info('seqlens_k', TensorProto.INT32, [1, 1])
+    seqlens_k = helper.make_tensor_value_info('seqlens_k', TensorProto.INT32,
+                                              [1, 1])
     tsl_val = np.array([[10]])
     total_sequence_length = helper.make_tensor(name="total_sequence_length",
                                                data_type=TensorProto.INT32,
@@ -6296,10 +6306,10 @@ def group_query_attention_prefill_test():
         scale=0.25,
         domain="com.microsoft")
 
-    return ([node
-             ], [qkv, key, value, past_key_values_key,
-                 past_key_values_value, seqlens_k], [output, present_key, present_value],
-            [total_sequence_length, cos_cache, sin_cache])
+    return ([node], [
+        qkv, key, value, past_key_values_key, past_key_values_value, seqlens_k
+    ], [output, present_key,
+        present_value], [total_sequence_length, cos_cache, sin_cache])
 
 
 @onnx_test()
@@ -6364,15 +6374,15 @@ def group_query_attention_grouped_test():
 
 @onnx_test()
 def group_query_attention_decode_local_test():
-    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
-                                        [1, 1, 96])
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16, [1, 1, 96])
     key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
     value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
     past_key_values_key = helper.make_tensor_value_info(
         'past_key_values_key', TensorProto.FLOAT16, [1, 2, 10, 16])
     past_key_values_value = helper.make_tensor_value_info(
         'past_key_values_value', TensorProto.FLOAT16, [1, 2, 10, 16])
-    seqlens_k = helper.make_tensor_value_info('seqlens_k', TensorProto.INT32, [1, 1])
+    seqlens_k = helper.make_tensor_value_info('seqlens_k', TensorProto.INT32,
+                                              [1, 1])
     tsl_val = np.array([[10]])
     total_sequence_length = helper.make_tensor(name="total_sequence_length",
                                                data_type=TensorProto.INT32,
@@ -6412,23 +6422,23 @@ def group_query_attention_decode_local_test():
         scale=1.0,
         domain="com.microsoft")
 
-    return ([node
-             ], [qkv, key, value, past_key_values_key,
-                 past_key_values_value, seqlens_k], [output, present_key, present_value],
-            [total_sequence_length, cos_cache, sin_cache])
+    return ([node], [
+        qkv, key, value, past_key_values_key, past_key_values_value, seqlens_k
+    ], [output, present_key,
+        present_value], [total_sequence_length, cos_cache, sin_cache])
 
 
 @onnx_test()
 def group_query_attention_prefill_local_test():
-    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
-                                        [1, 8, 96])
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16, [1, 8, 96])
     key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
     value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
     past_key_values_key = helper.make_tensor_value_info(
         'past_key_values_key', TensorProto.FLOAT16, [1, 2, 10, 16])
     past_key_values_value = helper.make_tensor_value_info(
         'past_key_values_value', TensorProto.FLOAT16, [1, 2, 10, 16])
-    seqlens_k = helper.make_tensor_value_info('seqlens_k', TensorProto.INT32, [1, 1])
+    seqlens_k = helper.make_tensor_value_info('seqlens_k', TensorProto.INT32,
+                                              [1, 1])
     tsl_val = np.array([[10]])
     total_sequence_length = helper.make_tensor(name="total_sequence_length",
                                                data_type=TensorProto.INT32,
@@ -6468,10 +6478,10 @@ def group_query_attention_prefill_local_test():
         scale=1.0,
         domain="com.microsoft")
 
-    return ([node
-             ], [qkv, key, value, past_key_values_key,
-                 past_key_values_value, seqlens_k], [output, present_key, present_value],
-            [total_sequence_length, cos_cache, sin_cache])
+    return ([node], [
+        qkv, key, value, past_key_values_key, past_key_values_value, seqlens_k
+    ], [output, present_key,
+        present_value], [total_sequence_length, cos_cache, sin_cache])
 
 
 @onnx_test()
@@ -6818,6 +6828,7 @@ def if_else_test():
 
     return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
 
+
 @onnx_test()
 def if_else_diff_strides_test():
     x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [3, 2])
@@ -6844,8 +6855,8 @@ def if_else_diff_strides_test():
                                    vals=yb.flatten().astype(np.float32))
 
     then_id_node = onnx.helper.make_node('Identity',
-                                          inputs=['xt'],
-                                          outputs=['then_out'])
+                                         inputs=['xt'],
+                                         outputs=['then_out'])
 
     else_add_node = onnx.helper.make_node('Add',
                                           inputs=['y', 'yb'],
@@ -6869,6 +6880,7 @@ def if_else_diff_strides_test():
                                  else_branch=else_body)
 
     return ([xt, node], [x, y, cond_tensor], [res], [yb_tensor])
+
 
 @onnx_test()
 def if_else_test_inlined():
@@ -8195,7 +8207,8 @@ def make_layer_norm(shape,
     node.attribute.append(onnx.helper.make_attribute("axis", axis))
 
     if stash_type is not None:
-        node.attribute.append(onnx.helper.make_attribute("stash_type", stash_type))
+        node.attribute.append(
+            onnx.helper.make_attribute("stash_type", stash_type))
 
     if epsilon is not None:
         node.attribute.append(onnx.helper.make_attribute("epsilon", epsilon))
@@ -8234,6 +8247,7 @@ def layer_norm_3d_scale_bias_test():
                            scale_shape=[2, 1, 7],
                            bias_shape=[2, 1, 7])
 
+
 @onnx_test()
 def layer_norm_3d_invalid_int8_test():
     return make_layer_norm([1, 4, 2], -1, TensorProto.INT8)
@@ -8256,12 +8270,19 @@ def layer_norm_3d_half_test():
 
 @onnx_test()
 def layer_norm_3d_half_stash_off_test():
-    return make_layer_norm([1, 4, 2], -1, TensorProto.FLOAT16, stash_type=int(0))
+    return make_layer_norm([1, 4, 2],
+                           -1,
+                           TensorProto.FLOAT16,
+                           stash_type=int(0))
 
 
 @onnx_test()
 def layer_norm_3d_half_stash_off_epsilon_test():
-    return make_layer_norm([1, 4, 2], -1, TensorProto.FLOAT16, stash_type=int(0), epsilon=float(1e-4))
+    return make_layer_norm([1, 4, 2],
+                           -1,
+                           TensorProto.FLOAT16,
+                           stash_type=int(0),
+                           epsilon=float(1e-4))
 
 
 @onnx_test()
@@ -10375,7 +10396,8 @@ def mha_double_head_bias_mask_batch1_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
@@ -10393,7 +10415,8 @@ def mha_double_head_bias_mask_right_batch2_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [2, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [2, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [2, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
@@ -10411,7 +10434,8 @@ def mha_bias_asym_mask_2d_scale_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [2, 3, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [2, 3, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [2, 3])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [2, 3])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [2, 3, 4])
 
     node = helper.make_node('MultiHeadAttention',
@@ -10430,7 +10454,8 @@ def mha_bias_key_padding_mask_verify_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
@@ -10458,7 +10483,6 @@ def mha_cross_attention_test():
     return ([node], [query, key, value], [out])
 
 
-
 @onnx_test()
 def mha_kv_packed_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
@@ -10481,7 +10505,8 @@ def mha_kv_packed_bias_key_padding_mask_test():
     kv = helper.make_tensor_value_info("kv", TensorProto.FLOAT,
                                        [1, 2, 2, 2, 2])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
@@ -10731,7 +10756,8 @@ def mha_invalid_key_pad_dimensions_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_pad = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 1, 1, 1])
+    key_pad = helper.make_tensor_value_info("key_padding_mask",
+                                            TensorProto.INT32, [1, 1, 1, 1])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
@@ -10749,7 +10775,8 @@ def mha_invalid_key_pad_type_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_pad = helper.make_tensor_value_info("key_padding_mask", TensorProto.FLOAT, [1])
+    key_pad = helper.make_tensor_value_info("key_padding_mask",
+                                            TensorProto.FLOAT, [1])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
@@ -10767,7 +10794,8 @@ def mha_invalid_key_pad_shape_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_pad = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [9])
+    key_pad = helper.make_tensor_value_info("key_padding_mask",
+                                            TensorProto.INT32, [9])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
@@ -10785,7 +10813,8 @@ def mha_invalid_key_pad_shape2_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_pad = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [9, 1])
+    key_pad = helper.make_tensor_value_info("key_padding_mask",
+                                            TensorProto.INT32, [9, 1])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
@@ -10803,7 +10832,8 @@ def mha_invalid_key_pad_shape3_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_pad = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2, 9])
+    key_pad = helper.make_tensor_value_info("key_padding_mask",
+                                            TensorProto.INT32, [1, 2, 9])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
@@ -10821,17 +10851,22 @@ def mha_attention_bias_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 2, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1, 2])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 2, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
-    node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
-                            outputs=['out'],
-                            num_heads=2,
-                            domain='com.microsoft')
+    node = helper.make_node(
+        'MultiHeadAttention',
+        inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
+        outputs=['out'],
+        num_heads=2,
+        domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
+    return ([node],
+            [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10840,17 +10875,22 @@ def mha_bias_attention_bias_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 2, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1, 2])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 2, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
-    node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
-                            outputs=['out'],
-                            num_heads=2,
-                            domain='com.microsoft')
+    node = helper.make_node(
+        'MultiHeadAttention',
+        inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
+        outputs=['out'],
+        num_heads=2,
+        domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
+    return ([node],
+            [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10859,17 +10899,22 @@ def mha_attention_bias_batch2_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [2, 3, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [2, 3, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [2, 3])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [2, 2, 3, 3])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [2, 3])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [2, 2, 3, 3])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [2, 3, 4])
 
-    node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
-                            outputs=['out'],
-                            num_heads=2,
-                            domain='com.microsoft')
+    node = helper.make_node(
+        'MultiHeadAttention',
+        inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
+        outputs=['out'],
+        num_heads=2,
+        domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
+    return ([node],
+            [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10878,17 +10923,22 @@ def mha_invalid_attention_bias_not_4d_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [2, 2, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1, 2])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [2, 2, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
-    node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
-                            outputs=['out'],
-                            num_heads=2,
-                            domain='com.microsoft')
+    node = helper.make_node(
+        'MultiHeadAttention',
+        inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
+        outputs=['out'],
+        num_heads=2,
+        domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
+    return ([node],
+            [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10897,17 +10947,22 @@ def mha_invalid_attention_bias_batch_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [2, 2, 2, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1, 2])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [2, 2, 2, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
-    node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
-                            outputs=['out'],
-                            num_heads=2,
-                            domain='com.microsoft')
+    node = helper.make_node(
+        'MultiHeadAttention',
+        inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
+        outputs=['out'],
+        num_heads=2,
+        domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
+    return ([node],
+            [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10916,17 +10971,22 @@ def mha_invalid_attention_bias_num_heads_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 4, 2, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1, 2])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 4, 2, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
-    node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
-                            outputs=['out'],
-                            num_heads=2,
-                            domain='com.microsoft')
+    node = helper.make_node(
+        'MultiHeadAttention',
+        inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
+        outputs=['out'],
+        num_heads=2,
+        domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
+    return ([node],
+            [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10935,17 +10995,22 @@ def mha_invalid_attention_bias_seq_len_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 3, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1, 2])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 3, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
-    node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
-                            outputs=['out'],
-                            num_heads=2,
-                            domain='com.microsoft')
+    node = helper.make_node(
+        'MultiHeadAttention',
+        inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
+        outputs=['out'],
+        num_heads=2,
+        domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
+    return ([node],
+            [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10954,17 +11019,22 @@ def mha_invalid_attention_bias_kv_seq_len_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 2, 3])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1, 2])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 2, 3])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
-    node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
-                            outputs=['out'],
-                            num_heads=2,
-                            domain='com.microsoft')
+    node = helper.make_node(
+        'MultiHeadAttention',
+        inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
+        outputs=['out'],
+        num_heads=2,
+        domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
+    return ([node],
+            [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10990,18 +11060,27 @@ def mha_invalid_past_key_not_4d_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 2])  # 3D instead of 4D
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 2])  # 3D instead of 4D
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key'
+                            ],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key], [out])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key
+    ], [out])
 
 
 @onnx_test()
@@ -11010,18 +11089,27 @@ def mha_invalid_past_key_batch_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [2, 2, 3, 2])  # Wrong batch
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [2, 2, 3, 2])  # Wrong batch
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key'
+                            ],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key], [out])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key
+    ], [out])
 
 
 @onnx_test()
@@ -11030,18 +11118,27 @@ def mha_invalid_past_key_num_heads_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 4, 3, 2])  # Wrong num_heads
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 4, 3, 2])  # Wrong num_heads
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key'
+                            ],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key], [out])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key
+    ], [out])
 
 
 @onnx_test()
@@ -11050,18 +11147,27 @@ def mha_invalid_past_key_head_size_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 4])  # Wrong head_size
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 4])  # Wrong head_size
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key'
+                            ],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key], [out])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key
+    ], [out])
 
 
 @onnx_test()
@@ -11070,19 +11176,30 @@ def mha_invalid_past_value_not_4d_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT, [1, 2, 2])  # 3D instead of 4D
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 2])
+    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT,
+                                               [1, 2, 2])  # 3D instead of 4D
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key', 'past_value'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key', 'past_value'
+                            ],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value], [out])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key,
+        past_value
+    ], [out])
 
 
 @onnx_test()
@@ -11091,19 +11208,30 @@ def mha_invalid_past_value_batch_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT, [2, 2, 3, 2])  # Wrong batch
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 2])
+    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT,
+                                               [2, 2, 3, 2])  # Wrong batch
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key', 'past_value'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key', 'past_value'
+                            ],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value], [out])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key,
+        past_value
+    ], [out])
 
 
 @onnx_test()
@@ -11112,19 +11240,30 @@ def mha_invalid_past_value_num_heads_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT, [1, 4, 3, 2])  # Wrong num_heads
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 2])
+    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT,
+                                               [1, 4, 3, 2])  # Wrong num_heads
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key', 'past_value'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key', 'past_value'
+                            ],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value], [out])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key,
+        past_value
+    ], [out])
 
 
 @onnx_test()
@@ -11133,19 +11272,30 @@ def mha_invalid_past_value_head_size_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT, [1, 2, 3, 4])  # Wrong head_size_v
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 2])
+    past_value = helper.make_tensor_value_info(
+        "past_value", TensorProto.FLOAT, [1, 2, 3, 4])  # Wrong head_size_v
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key', 'past_value'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key', 'past_value'
+                            ],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value], [out])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key,
+        past_value
+    ], [out])
 
 
 @onnx_test()
@@ -11154,19 +11304,31 @@ def mha_invalid_past_seq_len_mismatch_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT, [1, 2, 5, 2])  # Different past_seq_len
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 2])
+    past_value = helper.make_tensor_value_info(
+        "past_value", TensorProto.FLOAT,
+        [1, 2, 5, 2])  # Different past_seq_len
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key', 'past_value'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key', 'past_value'
+                            ],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value], [out])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key,
+        past_value
+    ], [out])
 
 
 @onnx_test()
@@ -11175,20 +11337,33 @@ def mha_invalid_past_seq_len_type_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_sequence_length = helper.make_tensor_value_info("past_sequence_length", TensorProto.FLOAT, [1])  # Wrong type
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 2])
+    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT,
+                                               [1, 2, 3, 2])
+    past_sequence_length = helper.make_tensor_value_info(
+        "past_sequence_length", TensorProto.FLOAT, [1])  # Wrong type
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key', 'past_value', 'past_sequence_length'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key', 'past_value',
+                                'past_sequence_length'
+                            ],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value, past_sequence_length], [out])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key,
+        past_value, past_sequence_length
+    ], [out])
 
 
 @onnx_test()
@@ -11197,21 +11372,36 @@ def mha_past_key_value_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT, [1, 2, 3, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 2])
+    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT,
+                                               [1, 2, 3, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
-    present_key = helper.make_tensor_value_info("present_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    present_value = helper.make_tensor_value_info("present_value", TensorProto.FLOAT, [1, 2, 3, 2])
+    present_key = helper.make_tensor_value_info("present_key",
+                                                TensorProto.FLOAT,
+                                                [1, 2, 3, 2])
+    present_value = helper.make_tensor_value_info("present_value",
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 3, 2])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key', 'past_value'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key', 'past_value'
+                            ],
                             outputs=['out', 'present_key', 'present_value'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value], [out, present_key, present_value])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key,
+        past_value
+    ], [out, present_key, present_value])
 
 
 @onnx_test()
@@ -11220,22 +11410,39 @@ def mha_past_key_value_seq_len_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_sequence_length = helper.make_tensor_value_info("past_sequence_length", TensorProto.INT32, [1])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 2])
+    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT,
+                                               [1, 2, 3, 2])
+    past_sequence_length = helper.make_tensor_value_info(
+        "past_sequence_length", TensorProto.INT32, [1])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
-    present_key = helper.make_tensor_value_info("present_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    present_value = helper.make_tensor_value_info("present_value", TensorProto.FLOAT, [1, 2, 3, 2])
+    present_key = helper.make_tensor_value_info("present_key",
+                                                TensorProto.FLOAT,
+                                                [1, 2, 3, 2])
+    present_value = helper.make_tensor_value_info("present_value",
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 3, 2])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key', 'past_value', 'past_sequence_length'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key', 'past_value',
+                                'past_sequence_length'
+                            ],
                             outputs=['out', 'present_key', 'present_value'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value, past_sequence_length], [out, present_key, present_value])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key,
+        past_value, past_sequence_length
+    ], [out, present_key, present_value])
 
 
 @onnx_test()
@@ -11244,21 +11451,36 @@ def mha_past_key_value_bias_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT, [1, 2, 3, 2])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 2])
+    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT,
+                                               [1, 2, 3, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
-    present_key = helper.make_tensor_value_info("present_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    present_value = helper.make_tensor_value_info("present_value", TensorProto.FLOAT, [1, 2, 3, 2])
+    present_key = helper.make_tensor_value_info("present_key",
+                                                TensorProto.FLOAT,
+                                                [1, 2, 3, 2])
+    present_value = helper.make_tensor_value_info("present_value",
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 3, 2])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key', 'past_value'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key', 'past_value'
+                            ],
                             outputs=['out', 'present_key', 'present_value'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value], [out, present_key, present_value])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key,
+        past_value
+    ], [out, present_key, present_value])
 
 
 @onnx_test()
@@ -11267,22 +11489,39 @@ def mha_past_key_value_bias_seq_len_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
-    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1])
-    attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 1, 1])
-    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT, [1, 2, 3, 2])
-    past_sequence_length = helper.make_tensor_value_info("past_sequence_length", TensorProto.INT32, [1])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask",
+                                                     TensorProto.INT32, [1])
+    attention_bias = helper.make_tensor_value_info("attention_bias",
+                                                   TensorProto.FLOAT,
+                                                   [1, 2, 1, 1])
+    past_key = helper.make_tensor_value_info("past_key", TensorProto.FLOAT,
+                                             [1, 2, 3, 2])
+    past_value = helper.make_tensor_value_info("past_value", TensorProto.FLOAT,
+                                               [1, 2, 3, 2])
+    past_sequence_length = helper.make_tensor_value_info(
+        "past_sequence_length", TensorProto.INT32, [1])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 1, 4])
-    present_key = helper.make_tensor_value_info("present_key", TensorProto.FLOAT, [1, 2, 3, 2])
-    present_value = helper.make_tensor_value_info("present_value", TensorProto.FLOAT, [1, 2, 3, 2])
+    present_key = helper.make_tensor_value_info("present_key",
+                                                TensorProto.FLOAT,
+                                                [1, 2, 3, 2])
+    present_value = helper.make_tensor_value_info("present_value",
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 3, 2])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias', 'past_key', 'past_value', 'past_sequence_length'],
+                            inputs=[
+                                'q', 'k', 'v', 'bias', 'key_padding_mask',
+                                'attention_bias', 'past_key', 'past_value',
+                                'past_sequence_length'
+                            ],
                             outputs=['out', 'present_key', 'present_value'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value, past_sequence_length], [out, present_key, present_value])
+    return ([node], [
+        query, key, value, bias, key_padding_mask, attention_bias, past_key,
+        past_value, past_sequence_length
+    ], [out, present_key, present_value])
 
 
 @onnx_test()
@@ -11393,29 +11632,33 @@ def multinomial_int64_test():
 
 @onnx_test()
 def mxqdq_even_test():
-    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [3, 64, 4, 4])
-    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [3, 64, 4, 4])
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT,
+                                          [3, 64, 4, 4])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 64, 4, 4])
     node = onnx.helper.make_node('MXQuantizeDequantize',
-            inputs=['input'],
-            axis=1,
-            block_size=32,
-            element_dtype='fp4_e2m1',
-            rounding_mode=2,
-            outputs=['output'])
+                                 inputs=['input'],
+                                 axis=1,
+                                 block_size=32,
+                                 element_dtype='fp4_e2m1',
+                                 rounding_mode=2,
+                                 outputs=['output'])
     return ([node], [in_tv], [out_tv])
 
 
 @onnx_test()
 def mxqdq_odd_test():
-    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [71, 5, 5])
-    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [71, 5, 5])
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT,
+                                          [71, 5, 5])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [71, 5, 5])
     node = onnx.helper.make_node('MXQuantizeDequantize',
-            inputs=['input'],
-            axis=0,
-            block_size=32,
-            element_dtype='fp4_e2m1',
-            rounding_mode=2,
-            outputs=['output'])
+                                 inputs=['input'],
+                                 axis=0,
+                                 block_size=32,
+                                 element_dtype='fp4_e2m1',
+                                 rounding_mode=2,
+                                 outputs=['output'])
     return ([node], [in_tv], [out_tv])
 
 
@@ -11424,42 +11667,46 @@ def mxqdq_small_test():
     in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [4, 4])
     out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [4, 4])
     node = onnx.helper.make_node('MXQuantizeDequantize',
-            inputs=['input'],
-            axis=1,
-            block_size=32,
-            element_dtype='fp4_e2m1',
-            rounding_mode=2,
-            outputs=['output'])
+                                 inputs=['input'],
+                                 axis=1,
+                                 block_size=32,
+                                 element_dtype='fp4_e2m1',
+                                 rounding_mode=2,
+                                 outputs=['output'])
     return ([node], [in_tv], [out_tv])
 
 
 @onnx_test()
 def dynamicscale_even_test():
-    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [3, 64, 4, 4])
-    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [3, 64, 4, 4])
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT,
+                                          [3, 64, 4, 4])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 64, 4, 4])
     node = onnx.helper.make_node('DynamicScale',
-            inputs=['input'],
-            group_dim=1,
-            group_size=32,
-            output_dtype=23,
-            scale_selection_method='floor',
-            zero_point_selection_method='None',
-            outputs=['output'])
+                                 inputs=['input'],
+                                 group_dim=1,
+                                 group_size=32,
+                                 output_dtype=23,
+                                 scale_selection_method='floor',
+                                 zero_point_selection_method='None',
+                                 outputs=['output'])
     return ([node], [in_tv], [out_tv])
 
 
 @onnx_test()
 def dynamicscale_odd_test():
-    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [71, 5, 5])
-    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [71, 5, 5])
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT,
+                                          [71, 5, 5])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [71, 5, 5])
     node = onnx.helper.make_node('DynamicScale',
-            inputs=['input'],
-            group_dim=0,
-            group_size=32,
-            output_dtype=23,
-            scale_selection_method='floor',
-            zero_point_selection_method='None',
-            outputs=['output'])
+                                 inputs=['input'],
+                                 group_dim=0,
+                                 group_size=32,
+                                 output_dtype=23,
+                                 scale_selection_method='floor',
+                                 zero_point_selection_method='None',
+                                 outputs=['output'])
     return ([node], [in_tv], [out_tv])
 
 
@@ -11468,13 +11715,13 @@ def dynamicscale_small_test():
     in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [4, 4])
     out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [4, 4])
     node = onnx.helper.make_node('DynamicScale',
-            inputs=['input'],
-            group_dim=-1,
-            group_size=32,
-            output_dtype=23,
-            scale_selection_method='floor',
-            zero_point_selection_method='None',
-            outputs=['output'])
+                                 inputs=['input'],
+                                 group_dim=-1,
+                                 group_size=32,
+                                 output_dtype=23,
+                                 scale_selection_method='floor',
+                                 zero_point_selection_method='None',
+                                 outputs=['output'])
     return ([node], [in_tv], [out_tv])
 
 
@@ -11680,8 +11927,10 @@ def nonmaxsuppression_zero_boxes_test():
                                  ],
                                  outputs=['selected_indices'])
 
-    return ([arg_start, arg_end, arg_boxes_axis, arg_scores_axis,
-             slice_boxes, slice_scores, node], [b, s, mo, iou, st], [out])
+    return ([
+        arg_start, arg_end, arg_boxes_axis, arg_scores_axis, slice_boxes,
+        slice_scores, node
+    ], [b, s, mo, iou, st], [out])
 
 
 @onnx_test()
@@ -12080,7 +12329,7 @@ def pad_reflect_2l2r_test():
     h = 4
     w = 4
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [h, w])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [h, w+2+2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [h, w + 2 + 2])
 
     sizes = np.array([0, 2, 0, 2])
     pad_tensor = helper.make_tensor(name='pad_size',
@@ -12178,6 +12427,7 @@ def pad_reflect_multiaxis_test():
 
     return ([arg_pad, node], [x], [y])
 
+
 @onnx_test()
 def pad_edge_1d_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4])
@@ -12200,6 +12450,7 @@ def pad_edge_1d_test():
 
     return ([arg_pad, node], [x], [y])
 
+
 @onnx_test()
 def pad_edge_2d_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3])
@@ -12221,6 +12472,7 @@ def pad_edge_2d_test():
                                  outputs=['1'])
 
     return ([arg_pad, node], [x], [y])
+
 
 @onnx_test()
 def pad_edge_2d_with_axes_test():
@@ -12253,6 +12505,7 @@ def pad_edge_2d_with_axes_test():
                                  outputs=['1'])
 
     return ([arg_axes, arg_pad, node], [x], [y])
+
 
 @onnx_test()
 def pad_attr_dyn_test():
@@ -12860,28 +13113,36 @@ def qlinearconv_perchannel_weightbias_test():
 
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 3, 224, 224])
     sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.0186])
-    zero_pt_x = helper.make_tensor('X_zero_point', TensorProto.UINT8, [], [114])
+    zero_pt_x = helper.make_tensor('X_zero_point', TensorProto.UINT8, [],
+                                   [114])
 
     out_channels = 64
-    wt_data = np.random.randint(-128, 127, size=(out_channels, 3, 7, 7)).astype(np.int8)
+    wt_data = np.random.randint(-128, 127,
+                                size=(out_channels, 3, 7, 7)).astype(np.int8)
     wt = from_array(wt_data, 'W')
-    sc_wt_data = np.random.uniform(0.0001, 0.01, size=(out_channels,)).astype(np.float32)
+    sc_wt_data = np.random.uniform(0.0001, 0.01,
+                                   size=(out_channels, )).astype(np.float32)
     sc_wt = from_array(sc_wt_data, 'W_scale')
-    zero_pt_wt_data = np.zeros((out_channels,), dtype=np.int8)
+    zero_pt_wt_data = np.zeros((out_channels, ), dtype=np.int8)
     zero_pt_wt = from_array(zero_pt_wt_data, 'W_zero_point')
 
     sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.0312])
-    zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.UINT8, [], [128])
+    zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.UINT8, [],
+                                   [128])
 
-    bias_data = np.random.randint(-10000, 10000, size=(out_channels,)).astype(np.int32)
+    bias_data = np.random.randint(-10000, 10000,
+                                  size=(out_channels, )).astype(np.int32)
     bias = from_array(bias_data, 'B')
 
-    out = helper.make_tensor_value_info('Y', TensorProto.UINT8, [1, 64, 112, 112])
+    out = helper.make_tensor_value_info('Y', TensorProto.UINT8,
+                                        [1, 64, 112, 112])
 
     node = onnx.helper.make_node(
         'QLinearConv',
-        inputs=['X', 'X_scale', 'X_zero_point', 'W', 'W_scale', 'W_zero_point',
-                'Y_scale', 'Y_zero_point', 'B'],
+        inputs=[
+            'X', 'X_scale', 'X_zero_point', 'W', 'W_scale', 'W_zero_point',
+            'Y_scale', 'Y_zero_point', 'B'
+        ],
         outputs=['Y'],
         kernel_shape=[7, 7],
         pads=[3, 3, 3, 3],
@@ -12910,8 +13171,10 @@ def qlinearconv_pertensor_weightbias_test():
 
     node = onnx.helper.make_node(
         'QLinearConv',
-        inputs=['X', 'X_scale', 'X_zero_point', 'W', 'W_scale', 'W_zero_point',
-                'Y_scale', 'Y_zero_point', 'B'],
+        inputs=[
+            'X', 'X_scale', 'X_zero_point', 'W', 'W_scale', 'W_zero_point',
+            'Y_scale', 'Y_zero_point', 'B'
+        ],
         outputs=['Y'],
     )
     return ([node], [x], [out],
@@ -13339,36 +13602,38 @@ def quantizelinear_neg_axis_test():
 def quantizelinear_mxfp4_even_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 64, 4, 4])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 4, 4])
-    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT4E2M1, [3, 64, 4, 4])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT4E2M1,
+                                            [3, 64, 4, 4])
 
     node = onnx.helper.make_node(
         'QuantizeLinear',
-        inputs = ['0', '1'],
-        axis = 1,
-        block_size = 32,
-        output_dtype = 23,
-        outputs = ['out'],
+        inputs=['0', '1'],
+        axis=1,
+        block_size=32,
+        output_dtype=23,
+        outputs=['out'],
     )
 
     return ([node], [arg0, arg1], [arg_out])
+
 
 @onnx_test()
 def quantizelinear_mxfp4_odd_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 64, 4, 7])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 4, 7])
-    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT4E2M1, [3, 64, 4, 7])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT4E2M1,
+                                            [3, 64, 4, 7])
 
     node = onnx.helper.make_node(
         'QuantizeLinear',
-        inputs = ['0', '1'],
-        axis = 1,
-        block_size = 32,
-        output_dtype = 23,
-        outputs = ['out'],
+        inputs=['0', '1'],
+        axis=1,
+        block_size=32,
+        output_dtype=23,
+        outputs=['out'],
     )
 
     return ([node], [arg0, arg1], [arg_out])
-
 
 
 @onnx_test()
@@ -14359,6 +14624,7 @@ def resize_downsample_linear_test():
 
     return ([node], [X], [Y], [scale_tensor])
 
+
 @onnx_test()
 def resize_downsample_linear_half_invalid_scale_test():
     scales = np.array([1.0, 1.0, 0.6, 0.5], dtype=np.float16)
@@ -14376,6 +14642,7 @@ def resize_downsample_linear_half_invalid_scale_test():
                                  mode='linear')
 
     return ([node], [X], [Y], [scale_tensor])
+
 
 @onnx_test()
 def resize_downsample_linear_half_test():
@@ -14477,13 +14744,12 @@ def resize_outsize_nondivisible_test():
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 3, 3])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 5, 5])
 
-    node = onnx.helper.make_node(
-        'Resize',
-        inputs=['X', '', '', 'out_lens'],
-        outputs=['Y'],
-        coordinate_transformation_mode='asymmetric',
-        mode='nearest',
-        nearest_mode='floor')
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', '', 'out_lens'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 nearest_mode='floor')
 
     return ([node], [X], [Y], [out_lens_tensor])
 
@@ -14549,7 +14815,8 @@ def resize_upsample_cubic_test():
     scales_tensor = helper.make_tensor(name='scales',
                                        data_type=TensorProto.FLOAT,
                                        dims=scales.shape,
-                                       vals=scales.flatten().astype(np.float32))
+                                       vals=scales.flatten().astype(
+                                           np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 4])
@@ -14570,7 +14837,8 @@ def resize_downsample_cubic_test():
     scales_tensor = helper.make_tensor(name='scales',
                                        data_type=TensorProto.FLOAT,
                                        dims=scales.shape,
-                                       vals=scales.flatten().astype(np.float32))
+                                       vals=scales.flatten().astype(
+                                           np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 4, 4])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 2, 2])
@@ -14591,7 +14859,8 @@ def resize_upsample_cubic_asymmetric_test():
     scales_tensor = helper.make_tensor(name='scales',
                                        data_type=TensorProto.FLOAT,
                                        dims=scales.shape,
-                                       vals=scales.flatten().astype(np.float32))
+                                       vals=scales.flatten().astype(
+                                           np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 4])
@@ -14654,7 +14923,8 @@ def resize_upsample_cubic_coeff_half_test():
     scales_tensor = helper.make_tensor(name='scales',
                                        data_type=TensorProto.FLOAT,
                                        dims=scales.shape,
-                                       vals=scales.flatten().astype(np.float32))
+                                       vals=scales.flatten().astype(
+                                           np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 4])
@@ -14718,9 +14988,9 @@ def resize_aspect_ratio_err_test():
     # value that is still unsupported.
     sizes = np.array([1, 1, 3, 5], dtype=np.int64)
     size_tensor = helper.make_tensor(name='sizes',
-                                      data_type=TensorProto.INT64,
-                                      dims=sizes.shape,
-                                      vals=sizes.flatten().astype(np.int64))
+                                     data_type=TensorProto.INT64,
+                                     dims=sizes.shape,
+                                     vals=sizes.flatten().astype(np.int64))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 3, 5])
@@ -14767,7 +15037,8 @@ def resize_invalid_mode_test():
     scales_tensor = helper.make_tensor(name='scales',
                                        data_type=TensorProto.FLOAT,
                                        dims=scales.shape,
-                                       vals=scales.flatten().astype(np.float32))
+                                       vals=scales.flatten().astype(
+                                           np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 4])
@@ -14806,6 +15077,7 @@ def resize_roi_skip_test():
 
     return ([node], [X], [Y], [roi_tensor, scale_tensor])
 
+
 @onnx_test()
 def resize_with_same_inout_shapes_test():
     sizes = np.array([1, 3, 5], dtype=np.int64)
@@ -14830,7 +15102,7 @@ def resize_with_same_inout_shapes_test():
 @onnx_test()
 def resize_nhwc_test():
     # Test resize with NHWC layout (non-standard shape)
-    # Original NCHW shape: [1, 3, 2, 2] 
+    # Original NCHW shape: [1, 3, 2, 2]
     # Transposed to NHWC: [1, 2, 2, 3]
     scales = np.array([1.0, 2.0, 2.0, 1.0], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
@@ -15726,11 +15998,10 @@ def scatternd_dyn_test():
 @onnx_test(opset_version=14)
 def symbolic_shape_values_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 'sequence'])
-    output = helper.make_tensor_value_info(
-        'output', TensorProto.FLOAT, [1, 1, 'sequence', 'sequence'])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 1, 'sequence', 'sequence'])
     sliced_indices = helper.make_tensor_value_info(
-        'sliced_indices', TensorProto.INT64,
-        [1, 1, 'sequence', 'sequence', 2])
+        'sliced_indices', TensorProto.INT64, [1, 1, 'sequence', 'sequence', 2])
 
     def constant(name, value, dtype=TensorProto.INT64):
         array = np.array(value)
@@ -15747,8 +16018,7 @@ def symbolic_shape_values_test():
         helper.make_node('Shape', ['x'], ['x_shape']),
         constant('index_0', 0),
         constant('index_1', 1),
-        helper.make_node('Gather', ['x_shape', 'index_0'], ['batch'],
-                         axis=0),
+        helper.make_node('Gather', ['x_shape', 'index_0'], ['batch'], axis=0),
         helper.make_node('Gather', ['x_shape', 'index_1'], ['sequence'],
                          axis=0),
         constant('axis_0', [0]),
@@ -15758,23 +16028,23 @@ def symbolic_shape_values_test():
         helper.make_node('Concat', ['sequence_vec', 'sequence_vec'],
                          ['matrix_shape'],
                          axis=0),
-        helper.make_node(
-            'ConstantOfShape', ['matrix_shape'], ['matrix'],
-            value=helper.make_tensor('matrix_value', TensorProto.FLOAT, [1],
-                                     [0.0])),
+        helper.make_node('ConstantOfShape', ['matrix_shape'], ['matrix'],
+                         value=helper.make_tensor('matrix_value',
+                                                  TensorProto.FLOAT, [1],
+                                                  [0.0])),
         helper.make_node('Unsqueeze', ['matrix', 'axis_0'], ['matrix_3d']),
         helper.make_node('Unsqueeze', ['matrix_3d', 'axis_0'], ['matrix_4d']),
         constant('one_vec', [1]),
         constant('neg_one_vec', [-1]),
-        helper.make_node('Concat',
-                         ['batch_vec', 'one_vec', 'neg_one_vec',
-                          'neg_one_vec'], ['raw_expand_shape'],
-                         axis=0),
-        helper.make_node('Shape', ['raw_expand_shape'], ['shape_rank']),
         helper.make_node(
-            'ConstantOfShape', ['shape_rank'], ['ones'],
-            value=helper.make_tensor('one_value', TensorProto.INT64, [1],
-                                     [1])),
+            'Concat', ['batch_vec', 'one_vec', 'neg_one_vec', 'neg_one_vec'],
+            ['raw_expand_shape'],
+            axis=0),
+        helper.make_node('Shape', ['raw_expand_shape'], ['shape_rank']),
+        helper.make_node('ConstantOfShape', ['shape_rank'], ['ones'],
+                         value=helper.make_tensor('one_value',
+                                                  TensorProto.INT64, [1],
+                                                  [1])),
         constant('neg_one', -1),
         helper.make_node('Mul', ['ones', 'neg_one'], ['negative_ones']),
         helper.make_node('Equal', ['raw_expand_shape', 'negative_ones'],
@@ -15788,9 +16058,10 @@ def symbolic_shape_values_test():
         constant('slice_end', [4]),
         constant('slice_axis', [0]),
         constant('slice_step', [1]),
-        helper.make_node('Slice',
-                         ['data_shape', 'slice_start', 'slice_end',
-                          'slice_axis', 'slice_step'], ['shape_4d']),
+        helper.make_node('Slice', [
+            'data_shape', 'slice_start', 'slice_end', 'slice_axis',
+            'slice_step'
+        ], ['shape_4d']),
         constant('range_start', 0),
         constant('range_step', 1),
         helper.make_node('Range', ['range_start', 'sequence', 'range_step'],
@@ -15808,14 +16079,13 @@ def symbolic_shape_values_test():
         helper.make_node('Concat', ['shape_4d', 'index_depth'],
                          ['indices_shape'],
                          axis=0),
-        helper.make_node(
-            'ConstantOfShape', ['indices_shape'], ['indices'],
-            value=helper.make_tensor('indices_value', TensorProto.INT64, [1],
-                                     [0])),
+        helper.make_node('ConstantOfShape', ['indices_shape'], ['indices'],
+                         value=helper.make_tensor('indices_value',
+                                                  TensorProto.INT64, [1],
+                                                  [0])),
         helper.make_node('Shape', ['indices'], ['runtime_indices_shape']),
         constant('depth_axis', 4),
-        helper.make_node('Gather',
-                         ['runtime_indices_shape', 'depth_axis'],
+        helper.make_node('Gather', ['runtime_indices_shape', 'depth_axis'],
                          ['index_depth_scalar'],
                          axis=0),
         constant('depth_divisor', 2),
@@ -15824,10 +16094,10 @@ def symbolic_shape_values_test():
         helper.make_node('Unsqueeze', ['half_depth', 'axis_0'],
                          ['half_depth_vec']),
         constant('depth_axis_vec', [4]),
-        helper.make_node(
-            'Slice',
-            ['indices', 'slice_start', 'half_depth_vec', 'depth_axis_vec',
-             'slice_step'], ['sliced_indices']),
+        helper.make_node('Slice', [
+            'indices', 'slice_start', 'half_depth_vec', 'depth_axis_vec',
+            'slice_step'
+        ], ['sliced_indices']),
         helper.make_node('ScatterND', ['data', 'indices', 'updates'],
                          ['output'])
     ]
@@ -15853,12 +16123,12 @@ def symbolic_shape_arithmetic_test():
     index = helper.make_tensor('index_value', TensorProto.INT64, [], [1])
     one = helper.make_tensor('one_value', TensorProto.INT64, [], [1])
     axis = helper.make_tensor('axis_value', TensorProto.INT64, [1], [0])
-    column_dims = helper.make_tensor('column_dims_value',
-                                     TensorProto.INT64, [2], [2, 1])
-    row_dims = helper.make_tensor('row_dims_value',
-                                  TensorProto.INT64, [2], [1, 2])
-    flat_dims = helper.make_tensor('flat_dims_value',
-                                   TensorProto.INT64, [1], [4])
+    column_dims = helper.make_tensor('column_dims_value', TensorProto.INT64,
+                                     [2], [2, 1])
+    row_dims = helper.make_tensor('row_dims_value', TensorProto.INT64, [2],
+                                  [1, 2])
+    flat_dims = helper.make_tensor('flat_dims_value', TensorProto.INT64, [1],
+                                   [4])
     fill = helper.make_tensor('fill_value', TensorProto.FLOAT, [1], [0.0])
 
     nodes = [
@@ -15965,10 +16235,8 @@ def scatternd_nonpacked_indices_test():
     n = 16
 
     data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, n])
-    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
-                                            [n])
-    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
-                                           [1, n])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT, [n])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, n])
 
     raw_indices = np.zeros((2, n), dtype=np.int64)
     raw_indices[1, :] = np.arange(n - 1, -1, -1, dtype=np.int64)
@@ -15981,13 +16249,12 @@ def scatternd_nonpacked_indices_test():
                                            inputs=['raw_indices'],
                                            outputs=['indices'],
                                            perm=[1, 0])
-    scatter_node = onnx.helper.make_node(
-        'ScatterND',
-        inputs=['data', 'indices', 'updates'],
-        outputs=['output'])
+    scatter_node = onnx.helper.make_node('ScatterND',
+                                         inputs=['data', 'indices', 'updates'],
+                                         outputs=['output'])
 
-    return ([transpose_node, scatter_node], [data, updates], [output],
-            [raw_indices_init])
+    return ([transpose_node,
+             scatter_node], [data, updates], [output], [raw_indices_init])
 
 
 @onnx_test()
@@ -19820,15 +20087,13 @@ def matmulbnb4_fp4_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -19845,15 +20110,13 @@ def matmulbnb4_nf4_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [8])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [3, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -19871,15 +20134,13 @@ def matmulbnb4_block32_test():
                                            [N * K // block_size])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [3, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -19896,15 +20157,13 @@ def matmulbnb4_large_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [128])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [4, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -19921,15 +20180,13 @@ def matmulbnb4_fp4_non_aligned_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [3])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -19946,15 +20203,13 @@ def matmulbnb4_fp4_1d_input_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -19971,15 +20226,13 @@ def matmulbnb4_fp4_3d_input_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, 3, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -19996,15 +20249,13 @@ def matmulbnb4_invalid_quant_type_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -20021,15 +20272,13 @@ def matmulbnb4_invalid_block_size_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -20046,15 +20295,13 @@ def matmulbnb4_invalid_block_size_small_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -20070,15 +20317,13 @@ def matmulbnb4_wrong_input_count_test():
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B], [Y])
 
@@ -20095,15 +20340,13 @@ def matmulbnb4_wrong_a_dims_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -20120,15 +20363,13 @@ def matmulbnb4_wrong_a_inner_dim_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -20145,15 +20386,13 @@ def matmulbnb4_wrong_b_dims_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -20170,15 +20409,13 @@ def matmulbnb4_wrong_absmax_dims_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [5])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 N=N,
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -20194,14 +20431,12 @@ def matmulbnb4_missing_n_attr_test():
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, 4])
 
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
+    node = onnx.helper.make_node('MatMulBnb4',
+                                 inputs=['A', 'B', 'absmax'],
+                                 outputs=['Y'],
+                                 K=K,
+                                 block_size=block_size,
+                                 quant_type=quant_type)
 
     return ([node], [A, B, absmax], [Y])
 
@@ -20347,7 +20582,8 @@ def qlinearmatmul_N_D_perchannel_test():
     zero_pt_b = from_array(zp_b_data, 'B_zero_point')
 
     sc_c = helper.make_tensor('C_scale', TensorProto.FLOAT, [], [0.1])
-    zero_pt_c = helper.make_tensor('C_zero_point', TensorProto.UINT8, [], [128])
+    zero_pt_c = helper.make_tensor('C_zero_point', TensorProto.UINT8, [],
+                                   [128])
 
     c = helper.make_tensor_value_info('C', TensorProto.UINT8, [2, 3, 5])
 

@@ -47,12 +47,14 @@ if(NOT WIN32)
     set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
 endif()
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 cmake_policy(SET CMP0091 NEW)
 
 project(migraphx LANGUAGES C CXX)
+
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
+
 include(CTest)
 
 include(DetectPackageBackend)

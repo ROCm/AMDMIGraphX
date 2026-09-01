@@ -47,6 +47,7 @@ Full documentation for MIGraphX is available at
 * Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, whose symbolic `starts`/`ends` attributes describe the run-time bound inputs so a data-dependent slice keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5112).
 * Added symbolic normalization of operator attributes holding `sym::expr`, clamping each value against its axis length symbolically (#5148).
 * Added symbolic evaluation of tensor values to preserve ONNX shape-tensor expressions through arithmetic and dynamic shape consumers, including `Reshape`, `Range`, `Slice`, `Expand`, `ConstantOfShape`, and `Trilu` (#5148).
+* Added find_concat_same_broadcast matcher to convert concat of identical broadcasts into a single multibroadcast to reduce hipCopy() (#5179).
 
 ### Changed
 

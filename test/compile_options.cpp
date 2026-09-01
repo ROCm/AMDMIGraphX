@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/compile_options.hpp>
+#include <migraphx/errors.hpp>
 #include "test.hpp"
 
 TEST_CASE(set_backend_options_merges_object)
@@ -38,6 +39,23 @@ TEST_CASE(set_backend_options_merges_object)
     EXPECT(options.backend_options.at("int_option") == migraphx::value(42));
     EXPECT(options.backend_options.at("str_option") == migraphx::value("gfx942"));
     EXPECT(options.backend_options.at("ints") == migraphx::value({1, 2, 3}));
+}
+
+TEST_CASE(set_backend_options_distinguishes_problem_cache_tiers)
+{
+    // The writable and read-only problem-cache options must parse as two
+    // distinct backend-option entries (the GPU target routes each tier).
+    migraphx::value v;
+    v["problem_cache_files"]           = "dev.json";
+    v["read_only_problem_cache_files"] = "ship.json";
+
+    migraphx::compile_options options;
+    migraphx::set_backend_options(options, v);
+
+    EXPECT(options.backend_options.size() == 2);
+    EXPECT(options.backend_options.at("problem_cache_files") == migraphx::value("dev.json"));
+    EXPECT(options.backend_options.at("read_only_problem_cache_files") ==
+           migraphx::value("ship.json"));
 }
 
 TEST_CASE(set_backend_options_overwrites_existing)
@@ -59,6 +77,33 @@ TEST_CASE(set_backend_options_empty)
 {
     migraphx::compile_options options;
     migraphx::set_backend_options(options, migraphx::value::object{});
+    EXPECT(options.backend_options.empty());
+}
+
+TEST_CASE(set_backend_options_non_object_throws)
+{
+    migraphx::compile_options options;
+
+    // null
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::set_backend_options(options, migraphx::value{}); },
+        "expects an object value"));
+
+    // scalar
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::set_backend_options(options, migraphx::value(42)); },
+        "expects an object value"));
+
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::set_backend_options(options, migraphx::value("gfx942")); },
+        "expects an object value"));
+
+    // array
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::set_backend_options(options, migraphx::value({1, 2, 3})); },
+        "expects an object value"));
+
+    // nothing was merged on any of the failed calls
     EXPECT(options.backend_options.empty());
 }
 

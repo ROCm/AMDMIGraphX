@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -855,6 +856,18 @@ module {
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
     // Don't verify here. Tests with a verify test instead.
+}
+
+TEST_CASE(mlir_lds_usage_fits_arch)
+{
+    const auto device_name = migraphx::gpu::get_device_name();
+    const auto gfx_name    = migraphx::gpu::get_gfx_name(device_name);
+    EXPECT(
+        migraphx::gpu::mlir_lds_usage_fits_arch(64, gfx_name, migraphx::shape::type_t::half_type));
+    EXPECT(not migraphx::gpu::mlir_lds_usage_fits_arch(
+        8192, gfx_name, migraphx::shape::type_t::half_type));
+    EXPECT(migraphx::gpu::mlir_lds_usage_fits_arch(
+        64, device_name, migraphx::shape::type_t::half_type));
 }
 
 // prepare_mlir rewrites a non-standard-strided constant (as folded from a transposed literal) to

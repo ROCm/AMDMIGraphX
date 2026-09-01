@@ -36,13 +36,18 @@
 #include "marker_roctx.hpp"
 #include "verbose_terminate.hpp"
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 #include <migraphx/tf.hpp>
+#endif
+#ifdef MIGRAPHX_ENABLE_ONNX
 #include <migraphx/onnx.hpp>
-#include <migraphx/sym.hpp>
+#endif
 #ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
 #endif
+#include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
@@ -221,8 +226,12 @@ struct loader
            ap.help("Run a single GEMM to test MIGraphX"),
            ap.set_value(true),
            ap.group("input"));
+#ifdef MIGRAPHX_ENABLE_ONNX
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
+#endif
         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
         ap(batch,
@@ -440,6 +449,7 @@ struct loader
         return output_node_names;
     }
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
     tf_options get_tf_options() const
     {
         auto map_input_dims    = parse_param_dims(param_dims);
@@ -451,7 +461,9 @@ struct loader
         options.output_node_names = output_node_names;
         return options;
     }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
     onnx_options get_onnx_options() const
     {
         auto map_input_dims     = parse_param_dims(param_dims);
@@ -477,17 +489,24 @@ struct loader
         options.dim_params             = map_dim_params;
         return options;
     }
+#endif
 
     static std::string get_file_type(const std::string& file)
     {
-        if(ends_with(file, ".onnx"))
+        if(ends_with(file, ".json"))
+            return "json";
+#ifdef MIGRAPHX_ENABLE_ONNX
+        else if(ends_with(file, ".onnx"))
             return "onnx";
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
         else if(ends_with(file, ".pb"))
             return "tf";
-        else if(ends_with(file, ".json"))
-            return "json";
+#endif
+#ifdef MIGRAPHX_ENABLE_PYTHON
         else if(ends_with(file, ".py"))
             return "py";
+#endif
         else
             return "migraphx";
     }
@@ -506,20 +525,24 @@ struct loader
                 file_type = get_file_type(file);
             }
             log::info() << "Reading: " << file;
-            if(file_type == "onnx")
-            {
-                p = parse_onnx(file, get_onnx_options());
-            }
-            else if(file_type == "tf")
-            {
-                p = parse_tf(file, get_tf_options());
-            }
-            else if(file_type == "json")
+            if(file_type == "json")
             {
                 file_options options;
                 options.format = "json";
                 p              = migraphx::load(file, options);
             }
+#ifdef MIGRAPHX_ENABLE_ONNX
+            else if(file_type == "onnx")
+            {
+                p = parse_onnx(file, get_onnx_options());
+            }
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+            else if(file_type == "tf")
+            {
+                p = parse_tf(file, get_tf_options());
+            }
+#endif
 #ifdef MIGRAPHX_ENABLE_PYTHON
             else if(file_type == "py")
             {
@@ -820,6 +843,8 @@ struct compiler
     bool to_int8 = false;
     bool to_int4 = false;
 
+    std::string backend_options;
+
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
     void parse(argument_parser& ap)
@@ -827,6 +852,12 @@ struct compiler
         l.parse(ap);
         parameters.parse(ap);
         ct.parse(ap);
+        ap(backend_options,
+           {"--backend-options"},
+           ap.help("Target-specific compile options, as a JSON object (format: "
+                   "\"{convolution_layout:channels_last}\"). Options the target does not "
+                   "recognize are ignored."));
+        ap.post_action([this](auto&&) { this->apply_backend_options(); });
         ap(co.offload_copy,
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
@@ -839,11 +870,29 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+        ap(co.compile_mode,
+           {"--compile-mode"},
+           ap.help("Set compilation mode: eager, balanced, max, or an integer 0-100"),
+           ap.write_action([](auto&, auto& x, const auto& params) {
+               if(params.empty())
+                   throw std::runtime_error("Flag with no value.");
+               x = convert_to_compile_mode(params.back());
+           }));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
+    }
+
+    void apply_backend_options()
+    {
+        if(backend_options.empty())
+            return;
+        auto v = from_json_string(convert_to_json(backend_options));
+        if(not v.is_object())
+            MIGRAPHX_THROW("--backend-options must be a JSON object");
+        migraphx::set_backend_options(co, v);
     }
 
     auto params(const program& p)
@@ -1142,6 +1191,8 @@ struct op : command<op>
     }
 };
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 struct onnx : command<onnx>
 {
     bool show_ops = false;
@@ -1162,6 +1213,10 @@ struct onnx : command<onnx>
     }
 };
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 struct tf : command<tf>
 {
     bool show_ops = false;
@@ -1181,6 +1236,8 @@ struct tf : command<tf>
         }
     }
 };
+
+#endif
 
 struct main_command
 {

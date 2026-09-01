@@ -30,6 +30,11 @@ work_dir = Path().cwd()
 src_dir = (work_dir / '../src').absolute()
 migraphx_py_path = src_dir / 'api/migraphx.py'
 
+# Parts of the C API that a build can turn off. migraphx.py checks for these
+# names in its globals to decide whether to emit the corresponding handles and
+# functions.
+optional_components = ['enable_onnx', 'enable_tensorflow']
+
 
 def clang_format(buffer, **kwargs):
     return subprocess.run(f'{clang_format_path} -style=file',
@@ -56,8 +61,8 @@ def te_generate(input_path: Path, output_path: Path, do_format=True):
         f.write(maybe_format(te.run(input_path), do_format))
 
 
-def generate_api(output_dir: Path, do_format=True):
-    runpy.run_path(str(migraphx_py_path))
+def generate_api(output_dir: Path, defines=None, do_format=True):
+    runpy.run_path(str(migraphx_py_path), init_globals=defines)
     header_path = output_dir / 'include/migraphx/migraphx.h'
     source_path = output_dir / 'api.cpp'
     api_generate(work_dir / 'api/migraphx.h', header_path, do_format)
@@ -66,16 +71,24 @@ def generate_api(output_dir: Path, do_format=True):
     print(f'Finished generating source {source_path}')
 
 
-def generate_all(do_format=True):
-    files = Path('include').absolute().iterdir()
-    for f in [f for f in files if f.is_file()]:
+def generate_all(defines=None, do_format=True):
+    include_dir = Path('include').absolute()
+    for f in [f for f in include_dir.iterdir() if f.is_file()]:
         te_generate(f, src_dir / f'include/migraphx/{f.name}', do_format)
-    generate_api(src_dir / 'api', do_format)
+    # Backends under include/gpu/ generate into the gpu target tree.
+    gpu_include_dir = include_dir / 'gpu'
+    if gpu_include_dir.is_dir():
+        for f in [f for f in gpu_include_dir.iterdir() if f.is_file()]:
+            te_generate(
+                f, src_dir / f'targets/gpu/include/migraphx/gpu/{f.name}',
+                do_format)
+    generate_api(src_dir / 'api', defines, do_format)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--clang-format', type=Path)
+    api.add_define_argument(parser)
     parser.add_argument('--api-only',
                         action='store_true',
                         help='Only generate the C API files (migraphx.h and '
@@ -100,13 +113,17 @@ def main():
         if args.api_only:
             # These files are only consumed by the compiler, so skip
             # clang-format; only `make generate` formats them for review.
-            generate_api(args.api_output_dir, do_format=False)
+            generate_api(args.api_output_dir,
+                         api.parse_defines(args.define),
+                         do_format=False)
         else:
             if not clang_format_path.is_file():
                 print(f"{clang_format_path}: invalid path or not installed",
                       file=sys.stderr)
                 return
-            generate_all()
+            # The source-tree copy is the reviewable reference, so it always
+            # covers every optional component regardless of -D.
+            generate_all(dict.fromkeys(optional_components, ''))
     except subprocess.CalledProcessError as ex:
         if ex.stdout:
             print(ex.stdout.decode('utf-8'))

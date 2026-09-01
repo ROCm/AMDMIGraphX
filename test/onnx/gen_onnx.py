@@ -6597,6 +6597,27 @@ def gru_f_1af_test():
 
 
 @onnx_test()
+def gru_clip_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 60, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('GRU',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['sigmoid', 'tanh'],
+                                 clip=0.5,
+                                 direction='forward',
+                                 hidden_size=20)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
 def gru_r_layout_test():
     seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
@@ -8723,7 +8744,7 @@ def lstm_bi_layout_cell_test():
         clip=0,
         direction='bidirectional',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [cellout])
@@ -8752,7 +8773,7 @@ def lstm_bi_layout_last_test():
         clip=0,
         direction='bidirectional',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs, output])
@@ -8781,7 +8802,7 @@ def lstm_f_layout_hs_test():
         clip=0,
         direction='forward',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs, output])
@@ -8809,7 +8830,7 @@ def lstm_f_layout_cell_test():
         clip=0,
         direction='forward',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [cellout])
@@ -8829,6 +8850,50 @@ def lstm_f_1af_test():
                                  inputs=['seq', 'w', 'r'],
                                  outputs=['hs', 'output'],
                                  activations=['sigmoid'],
+                                 clip=0,
+                                 direction='forward',
+                                 hidden_size=20,
+                                 input_forget=0)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
+def lstm_clip_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('LSTM',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['sigmoid', 'tanh', 'tanh'],
+                                 clip=0.5,
+                                 direction='forward',
+                                 hidden_size=20,
+                                 input_forget=0)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
+def lstm_input_forget_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('LSTM',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['sigmoid', 'tanh', 'tanh'],
                                  clip=0,
                                  direction='forward',
                                  hidden_size=20,
@@ -8858,7 +8923,7 @@ def lstm_r_layout_test():
         clip=0,
         direction='reverse',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs])
@@ -8888,7 +8953,7 @@ def lstm_r_layout_hs_cell_test():
         clip=0,
         direction='reverse',
         hidden_size=20,
-        input_forget=1,
+        input_forget=0,
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [output, cellout])
@@ -15052,6 +15117,27 @@ def rnn_f_default_af_test():
 
 
 @onnx_test()
+def rnn_clip_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('RNN',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['tanh'],
+                                 clip=0.5,
+                                 direction='forward',
+                                 hidden_size=20)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
 def rnn_r_layout_test():
     seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
@@ -15635,6 +15721,225 @@ def scatternd_dyn_test():
                                  outputs=['output'])
 
     return ([node], [data, indices, updates], [output])
+
+
+@onnx_test(opset_version=14)
+def symbolic_shape_values_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 'sequence'])
+    output = helper.make_tensor_value_info(
+        'output', TensorProto.FLOAT, [1, 1, 'sequence', 'sequence'])
+    sliced_indices = helper.make_tensor_value_info(
+        'sliced_indices', TensorProto.INT64,
+        [1, 1, 'sequence', 'sequence', 2])
+
+    def constant(name, value, dtype=TensorProto.INT64):
+        array = np.array(value)
+        tensor = helper.make_tensor(name=f'{name}_value',
+                                    data_type=dtype,
+                                    dims=array.shape,
+                                    vals=array.flatten())
+        return helper.make_node('Constant',
+                                inputs=[],
+                                outputs=[name],
+                                value=tensor)
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['x_shape']),
+        constant('index_0', 0),
+        constant('index_1', 1),
+        helper.make_node('Gather', ['x_shape', 'index_0'], ['batch'],
+                         axis=0),
+        helper.make_node('Gather', ['x_shape', 'index_1'], ['sequence'],
+                         axis=0),
+        constant('axis_0', [0]),
+        helper.make_node('Unsqueeze', ['batch', 'axis_0'], ['batch_vec']),
+        helper.make_node('Unsqueeze', ['sequence', 'axis_0'],
+                         ['sequence_vec']),
+        helper.make_node('Concat', ['sequence_vec', 'sequence_vec'],
+                         ['matrix_shape'],
+                         axis=0),
+        helper.make_node(
+            'ConstantOfShape', ['matrix_shape'], ['matrix'],
+            value=helper.make_tensor('matrix_value', TensorProto.FLOAT, [1],
+                                     [0.0])),
+        helper.make_node('Unsqueeze', ['matrix', 'axis_0'], ['matrix_3d']),
+        helper.make_node('Unsqueeze', ['matrix_3d', 'axis_0'], ['matrix_4d']),
+        constant('one_vec', [1]),
+        constant('neg_one_vec', [-1]),
+        helper.make_node('Concat',
+                         ['batch_vec', 'one_vec', 'neg_one_vec',
+                          'neg_one_vec'], ['raw_expand_shape'],
+                         axis=0),
+        helper.make_node('Shape', ['raw_expand_shape'], ['shape_rank']),
+        helper.make_node(
+            'ConstantOfShape', ['shape_rank'], ['ones'],
+            value=helper.make_tensor('one_value', TensorProto.INT64, [1],
+                                     [1])),
+        constant('neg_one', -1),
+        helper.make_node('Mul', ['ones', 'neg_one'], ['negative_ones']),
+        helper.make_node('Equal', ['raw_expand_shape', 'negative_ones'],
+                         ['keep_input_dim']),
+        helper.make_node('Where',
+                         ['keep_input_dim', 'ones', 'raw_expand_shape'],
+                         ['expand_shape']),
+        helper.make_node('Expand', ['matrix_4d', 'expand_shape'], ['data']),
+        helper.make_node('Shape', ['data'], ['data_shape']),
+        constant('slice_start', [0]),
+        constant('slice_end', [4]),
+        constant('slice_axis', [0]),
+        constant('slice_step', [1]),
+        helper.make_node('Slice',
+                         ['data_shape', 'slice_start', 'slice_end',
+                          'slice_axis', 'slice_step'], ['shape_4d']),
+        constant('range_start', 0),
+        constant('range_step', 1),
+        helper.make_node('Range', ['range_start', 'sequence', 'range_step'],
+                         ['sequence_range']),
+        helper.make_node('Cast', ['sequence_range'], ['sequence_values'],
+                         to=TensorProto.FLOAT),
+        constant('range_shape', [1, 1, 1, -1]),
+        helper.make_node('Reshape', ['sequence_values', 'range_shape'],
+                         ['sequence_4d']),
+        helper.make_node('Expand', ['sequence_4d', 'shape_4d'],
+                         ['expanded_updates']),
+        helper.make_node('Reshape', ['expanded_updates', 'shape_4d'],
+                         ['updates']),
+        constant('index_depth', [4]),
+        helper.make_node('Concat', ['shape_4d', 'index_depth'],
+                         ['indices_shape'],
+                         axis=0),
+        helper.make_node(
+            'ConstantOfShape', ['indices_shape'], ['indices'],
+            value=helper.make_tensor('indices_value', TensorProto.INT64, [1],
+                                     [0])),
+        helper.make_node('Shape', ['indices'], ['runtime_indices_shape']),
+        constant('depth_axis', 4),
+        helper.make_node('Gather',
+                         ['runtime_indices_shape', 'depth_axis'],
+                         ['index_depth_scalar'],
+                         axis=0),
+        constant('depth_divisor', 2),
+        helper.make_node('Div', ['index_depth_scalar', 'depth_divisor'],
+                         ['half_depth']),
+        helper.make_node('Unsqueeze', ['half_depth', 'axis_0'],
+                         ['half_depth_vec']),
+        constant('depth_axis_vec', [4]),
+        helper.make_node(
+            'Slice',
+            ['indices', 'slice_start', 'half_depth_vec', 'depth_axis_vec',
+             'slice_step'], ['sliced_indices']),
+        helper.make_node('ScatterND', ['data', 'indices', 'updates'],
+                         ['output'])
+    ]
+    return (nodes, [x], [sliced_indices, output])
+
+
+@onnx_test()
+def symbolic_shape_arithmetic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 'sequence'])
+    added_output = helper.make_tensor_value_info('added_output',
+                                                 TensorProto.FLOAT,
+                                                 ['sequence_plus_one'])
+    restored_output = helper.make_tensor_value_info('restored_output',
+                                                    TensorProto.FLOAT,
+                                                    ['sequence'])
+    fallback_output = helper.make_tensor_value_info('fallback_output',
+                                                    TensorProto.FLOAT,
+                                                    ['d0', 'd1', 'd2', 'd3'])
+    narrow_cast_fallback_output = helper.make_tensor_value_info(
+        'narrow_cast_fallback_output', TensorProto.FLOAT,
+        ['narrow_cast_fallback'])
+
+    index = helper.make_tensor('index_value', TensorProto.INT64, [], [1])
+    one = helper.make_tensor('one_value', TensorProto.INT64, [], [1])
+    axis = helper.make_tensor('axis_value', TensorProto.INT64, [1], [0])
+    column_dims = helper.make_tensor('column_dims_value',
+                                     TensorProto.INT64, [2], [2, 1])
+    row_dims = helper.make_tensor('row_dims_value',
+                                  TensorProto.INT64, [2], [1, 2])
+    flat_dims = helper.make_tensor('flat_dims_value',
+                                   TensorProto.INT64, [1], [4])
+    fill = helper.make_tensor('fill_value', TensorProto.FLOAT, [1], [0.0])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['x_shape']),
+        helper.make_node('Constant', [], ['index'], value=index),
+        helper.make_node('Gather', ['x_shape', 'index'], ['sequence'], axis=0),
+        helper.make_node('Constant', [], ['one'], value=one),
+        helper.make_node('Add', ['sequence', 'one'], ['sequence_plus_one']),
+        helper.make_node('Sub', ['sequence_plus_one', 'one'],
+                         ['restored_sequence']),
+        helper.make_node('Constant', [], ['axis'], value=axis),
+        helper.make_node('Unsqueeze', ['sequence_plus_one', 'axis'],
+                         ['added_shape']),
+        helper.make_node('Unsqueeze', ['restored_sequence', 'axis'],
+                         ['restored_shape']),
+        helper.make_node('Cast', ['sequence'], ['sequence_i32'],
+                         to=TensorProto.INT32),
+        helper.make_node('Cast', ['sequence_i32'], ['restored_sequence_i64'],
+                         to=TensorProto.INT64),
+        helper.make_node('Unsqueeze', ['restored_sequence_i64', 'axis'],
+                         ['narrow_cast_fallback_shape']),
+        helper.make_node('Constant', [], ['column_dims'], value=column_dims),
+        helper.make_node('Constant', [], ['row_dims'], value=row_dims),
+        helper.make_node('Constant', [], ['flat_dims'], value=flat_dims),
+        helper.make_node('Reshape', ['x_shape', 'column_dims'],
+                         ['shape_column']),
+        helper.make_node('Reshape', ['x_shape', 'row_dims'], ['shape_row']),
+        helper.make_node('Add', ['shape_column', 'shape_row'],
+                         ['unsupported_broadcast']),
+        helper.make_node('Reshape', ['unsupported_broadcast', 'flat_dims'],
+                         ['fallback_shape']),
+        helper.make_node('ConstantOfShape', ['added_shape'], ['added_output'],
+                         value=fill),
+        helper.make_node('ConstantOfShape', ['restored_shape'],
+                         ['restored_output'],
+                         value=fill),
+        helper.make_node('ConstantOfShape', ['fallback_shape'],
+                         ['fallback_output'],
+                         value=fill),
+        helper.make_node('ConstantOfShape', ['narrow_cast_fallback_shape'],
+                         ['narrow_cast_fallback_output'],
+                         value=fill),
+    ]
+    return (nodes, [x], [
+        added_output, restored_output, fallback_output,
+        narrow_cast_fallback_output
+    ])
+
+
+@onnx_test()
+def symbolic_reshape_zero_dim_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+
+    zero = helper.make_tensor('zero_value', TensorProto.INT64, [1], [0])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['width'], start=1, end=2),
+        helper.make_node('Constant', [], ['zero'], value=zero),
+        helper.make_node('Concat', ['zero', 'width'], ['target_shape'],
+                         axis=0),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_negative_one_dim_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+
+    neg_one = helper.make_tensor('neg_one_value', TensorProto.INT64, [1], [-1])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['batch_dim'], start=0, end=1),
+        helper.make_node('Constant', [], ['neg_one'], value=neg_one),
+        helper.make_node('Concat', ['batch_dim', 'neg_one'], ['target_shape'],
+                         axis=0),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
 
 
 @onnx_test()

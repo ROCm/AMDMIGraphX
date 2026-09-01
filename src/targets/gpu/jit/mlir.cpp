@@ -135,8 +135,7 @@ instruction_ref find_final_split(instruction_ref split_ins)
     auto output_path_range = get_output_path(split_ins);
     std::vector<instruction_ref> output_path(output_path_range.begin(), output_path_range.end());
     if(output_path.empty())
-        MIGRAPHX_THROW("find_final_split: empty output path for instruction: " +
-                       split_ins->name());
+        MIGRAPHX_THROW("find_final_split: empty output path for instruction: " + split_ins->name());
     instruction_ref result = split_ins;
     if(output_path.size() < 2)
         return result;

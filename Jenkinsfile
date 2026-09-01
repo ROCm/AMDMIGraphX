@@ -2,7 +2,7 @@ DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 DOCKER_IMAGE_ORT = 'rocm/migraphx-ci-jenkins-ubuntu-ort'
 
 def getgputargets() {
-    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1201;gfx942"
+    targets="gfx908;gfx90a;gfx942;gfx950;gfx1030;gfx1100;gfx1101;gfx1201"
     return targets
 }
 
@@ -26,9 +26,11 @@ def rocmnodename(name) {
     } else if(name == "navi21") {
         node_name = "${rocmtest_name} && navi21";
     } else if(name == "mi100+") {
-        node_name = "${rocmtest_name} && (gfx908 || gfx90a) && !vm";
+        node_name = "${rocmtest_name} && (gfx908 || gfx90a || gfx942 || gfx950) && !vm";
     } else if(name == "mi200+") {
-        node_name = "${rocmtest_name} && (gfx90a || gfx942) && !vm";
+        node_name = "${rocmtest_name} && (gfx90a || gfx942 || gfx950) && !vm";
+    } else if(name == "mi300+") {
+        node_name = "${rocmtest_name} && (gfx942 || gfx950) && !vm";
     } else if(name == "cdna") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega20) && !vm";
     } else if(name == "navi32") {
@@ -81,7 +83,7 @@ def cmake_build = { bconf ->
         echo "leak:libtbb.so" >> suppressions.txt
         cat suppressions.txt
         export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
-        export ASAN_OPTIONS="detect_container_overflow=0"
+        export ASAN_OPTIONS="detect_container_overflow=0:detect_odr_violation=0"
         export MIGRAPHX_GPU_DEBUG=${gpu_debug}
         export CXX=${compiler}
         export CXXFLAGS='-Werror'
@@ -90,7 +92,10 @@ def cmake_build = { bconf ->
         rm -rf build
         mkdir build
         cd build
-        cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
+        # Pin the package's per-GPU dependency to the arch of the GPU in this node
+        # so the generated .deb is installable here (empty on nogpu -> device-all deps).
+        THEROCK_GPU_ARCH=\$(/opt/rocm/bin/rocminfo 2>/dev/null | grep -o -m1 'gfx[0-9a-z]*' || true)
+        cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON -DMIGRAPHX_THEROCK_GPU_ARCH="\${THEROCK_GPU_ARCH}" ${flags} ..
         git diff
         git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
         make -j\$(nproc) generate VERBOSE=1
@@ -267,11 +272,19 @@ def rocmtest = { Map conf = [:], Closure body ->
         }
 
         stage("build ${variant}") {
-            withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
-                timeout(time: 4, unit: 'HOURS') {
-                    sh "mkdir -p '${ccache}' '${comgr_cache}'"
-                    body()
+            try {
+                sh "mkdir -p '${env.WORKSPACE}/../.cache/ccache' '${env.WORKSPACE}/../.cache/comgr_cache'"
+                withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
+                    timeout(time: 4, unit: 'HOURS') {
+                        sh """
+                            ls -l /workspaces/
+                            ls -l /workspaces/.cache/
+                        """
+                        body()
+                    }
                 }
+            } finally {
+                sh 'rm -rf build'
             }
         }
     }
@@ -307,7 +320,7 @@ pipeline {
                             checkout scm
                             def calculateImageTagScript = """
                                 shopt -s globstar
-                                sha256sum Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
+                                sha256sum Dockerfile **/*requirements.txt tools/requirements-py.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
                             """
                             env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
                             env.IMAGE_EXISTS = sh(script: "docker manifest inspect ${DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
@@ -349,7 +362,7 @@ pipeline {
             parallel {
                 stage('All Targets Release') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {
@@ -369,7 +382,7 @@ pipeline {
                             rocmtest([:]) {
                                 def sanitizers = "undefined,address"
                                 def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
                             }
                         }
                     }
@@ -384,7 +397,7 @@ pipeline {
                             rocmtest([:]) {
                                 def sanitizers = "undefined"
                                 def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
-                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
                             }
                         }
                     }
@@ -392,7 +405,7 @@ pipeline {
 
                 stage('HIP Clang Release') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {
@@ -406,7 +419,7 @@ pipeline {
 
                 stage('HIP Clang Static') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {
@@ -445,17 +458,13 @@ pipeline {
 
                 stage('HIP RTC Debug') {
                     agent {
-                        label "(rocmtest || migraphx) && gfx90a && !vm"
-                    }
-                    environment {
-                        // Disable MLIR since it doesnt work with all ub sanitizers
-                        MIGRAPHX_DISABLE_MLIR = '1'
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {
                             rocmtest([:]) {
                                 def sanitizers = "undefined"
-                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+                                def debug_flags = "-g -O2 -Xarch_host -fsanitize=${sanitizers} -Xarch_host -fno-sanitize=vptr,function -Xarch_host -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", gpu_debug: '1')
                             }
                         }
@@ -464,7 +473,7 @@ pipeline {
 
                 stage('MLIR Debug') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
                     }
                     environment {
                         // Since the purpose of this run is to verify all things MLIR supports,
@@ -474,7 +483,7 @@ pipeline {
                         MIGRAPHX_ENABLE_MLIR_INPUT_FUSION = '1'
                         MIGRAPHX_MLIR_ENABLE_SPLITK = '1'
                         MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION = '1'
-                        MIGRAPHX_ENABLE_MLIR_GEG_FUSION = '1'
+                        MIGRAPHX_ENABLE_MLIR_CEG_FUSION = '1'
                         MIGRAPHX_ENABLE_SPLIT_REDUCE = '1'
                         MIGRAPHX_DISABLE_LAYERNORM_FUSION = '1'
                     }
@@ -483,7 +492,7 @@ pipeline {
                             rocmtest([:]) {
                                 // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
                                 def sanitizers = "undefined"
-                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+                                def debug_flags = "-g -O2 -Xarch_host -fsanitize=${sanitizers} -Xarch_host -fno-sanitize=vptr,function -Xarch_host -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
@@ -547,8 +556,6 @@ pipeline {
                             rocmtest(setup: setuppackage, docker_args: '-u root', image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
                                 sh '''
                                     apt-get update
-                                    apt-get install -y half
-                                    #ls -lR
                                     md5sum ./build/*.deb
                                     apt-get install -y --allow-unauthenticated ./build/*.deb
                                     env
@@ -559,6 +566,12 @@ pipeline {
                     }
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
         }
     }
 }

@@ -1,15 +1,17 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
+
+ARG ROCM_VERSION=10.0
+ARG GPU_ARCH=""
+
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
 # Install rocm key
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
-    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://stable.repo.amd.com/rocm/gpg/packages.gpg | gpg --dearmor -o /etc/apt/keyrings/amdrocm.gpg
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/7.2.3/ jammy main > /etc/apt/sources.list.d/rocm.list'
-
-# From docs.amd.com for installing rocm. Needed to install properly
-RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
-
+RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://stable.repo.amd.com/rocm/core/packages/ubuntu2404 stable main > /etc/apt/sources.list.d/rocm.list'
 
 ARG ONNXRUNTIME_REPO=https://github.com/microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main
@@ -19,18 +21,37 @@ WORKDIR /
 # Pin onnxruntime commit from AMDMIGraphX repo (used by Check ORT image tag)
 COPY test/onnx/.onnxrt-commit /.onnxrt-commit
 
-# Install half package and gdb required by the test stage
+# Install gdb required by the test stage
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     gdb \
     git \
-    half \
     libsqlite3-dev \
     locales \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-full \
     pip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+RUN pip3 install pipx
+
+RUN locale-gen en_US.UTF-8
+RUN update-locale LANG=en_US.UTF-8
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
+COPY ./tools/install_prereqs.sh /
+COPY ./tools/requirements-py.txt /requirements-py.txt
+RUN ./install_prereqs.sh \
+        --rocm-only \
+        --rocm-version ${ROCM_VERSION} \
+        ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
+        ${USE_WHL:+--whl}
+RUN rm /install_prereqs.sh && rm /*.txt
+
 # Workaround broken rocm packages
-RUN ln -s /opt/rocm-* /opt/rocm
 RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
 RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
 RUN ldconfig
@@ -40,15 +61,9 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
     cd onnxruntime && git checkout $(cat /.onnxrt-commit) && \
     /bin/sh /onnxruntime/dockerfiles/scripts/install_common_deps.sh
 
-RUN locale-gen en_US.UTF-8
-RUN update-locale LANG=en_US.UTF-8
-
-ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
-
 # Add AMDMIGraphX CI test scripts (layout expected by build_and_test_onnxrt.sh)
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 ADD tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh
 ADD tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
 
-RUN pip install cmake==4.3.1
+RUN pipx install --global cmake==4.3.1

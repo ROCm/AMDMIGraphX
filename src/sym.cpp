@@ -191,8 +191,23 @@ std::ostream& operator<<(std::ostream& os, const interval& i)
 
 static bool scalar_less(const scalar& a, const scalar& b)
 {
-    auto f = [](auto x, auto y) -> int64_t { return x < y ? 1 : 0; };
-    return std::get<int64_t>(scalar_invoke_common(f, a, b)) != 0;
+    return scalar_invoke_common<bool>([](auto x, auto y) { return std::less<>{}(x, y); }, a, b);
+}
+
+static bool scalar_equal(const scalar& a, const scalar& b)
+{
+    return scalar_invoke_common<bool>([](auto x, auto y) { return std::equal_to<>{}(x, y); }, a, b);
+}
+
+bool interval::contains(const scalar& value) const
+{
+    return scalar_invoke_common<bool>(
+        [](auto lower, auto x, auto upper) {
+            return std::less_equal<>{}(lower, x) and std::less_equal<>{}(x, upper);
+        },
+        min,
+        value,
+        max);
 }
 
 bool operator<(interval a, interval b) { return scalar_less(a.max, b.min); }
@@ -969,6 +984,12 @@ static const std::vector<rewrite_rule>& get_rewrite_rules()
             sqrt(_1 / _2) >> sqrt(_1) / sqrt(_2),
             log(exp(_1)) >> _1,
             exp(log(_1)) >> _1,
+            min(_1, _1) >> _1,
+            max(_1, _1) >> _1,
+            min(min(_1, _2), _2) >> min(_1, _2),
+            min(min(_2, _1), _2) >> min(_2, _1),
+            max(max(_1, _2), _2) >> max(_1, _2),
+            max(max(_2, _1), _2) >> max(_2, _1),
         };
     }();
     return rules;
@@ -1234,6 +1255,82 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
     }
 
     return std::nullopt;
+}
+
+std::optional<bool> provable_equal(const expr& a, const expr& b, interval default_bounds)
+{
+    if(a.empty() or b.empty())
+        return std::nullopt;
+    if(same_symbol(a, b))
+        return true;
+
+    const auto a_value = fixed_value(a);
+    const auto b_value = fixed_value(b);
+    if(a_value.has_value() and b_value.has_value())
+        return scalar_equal(*a_value, *b_value);
+
+    const auto safe_interval = [&](const expr& expression,
+                                   const std::optional<scalar>& value) -> std::optional<interval> {
+        if(value.has_value())
+            return interval{*value, *value};
+        if(expression.name() == "variable")
+            return expression.eval_interval_default(default_bounds);
+        return std::nullopt;
+    };
+    const auto a_interval = safe_interval(a, a_value);
+    const auto b_interval = safe_interval(b, b_value);
+    if(a_interval.has_value() and b_interval.has_value() and
+       (*a_interval < *b_interval or *b_interval < *a_interval))
+        return false;
+    return std::nullopt;
+}
+
+// Returns the value when every variable has a fixed value.
+std::optional<scalar> fixed_value(const expr& expression)
+{
+    if(expression.empty())
+        return std::nullopt;
+
+    std::unordered_map<expr, scalar> values;
+    bool all_variables_fixed = true;
+    fix([&](auto self, const expr& current) {
+        if(not all_variables_fixed)
+            return;
+        if(current.name() == "variable")
+        {
+            const auto bounds = current.eval_interval();
+            if(not scalar_equal(bounds.min, bounds.max))
+            {
+                all_variables_fixed = false;
+                return;
+            }
+            const auto [iter, inserted] = values.emplace(as_symbol(current), bounds.min);
+            if(not inserted and not scalar_equal(iter->second, bounds.min))
+                all_variables_fixed = false;
+            return;
+        }
+        for(const auto& child : current.children())
+            self(child);
+    })(expression);
+    if(not all_variables_fixed)
+        return std::nullopt;
+    return expression.eval(values);
+}
+
+expr resolve_min(const expr& a, const expr& b)
+{
+    auto lt = strict_less(a, b);
+    if(lt.has_value())
+        return *lt ? a : b;
+    return min(a, b);
+}
+
+expr resolve_max(const expr& a, const expr& b)
+{
+    auto lt = strict_less(a, b);
+    if(lt.has_value())
+        return *lt ? b : a;
+    return max(a, b);
 }
 
 bool operator==(const expr& a, const expr& b)
@@ -1621,6 +1718,24 @@ bool same_symbol(const expr& a, const expr& b)
            std::equal(ca.begin(), ca.end(), cb.begin(), [](const expr& x, const expr& y) {
                return same_symbol(x, y);
            });
+}
+
+std::unordered_set<expr> find_variables(const expr& e)
+{
+    std::unordered_set<expr> visited;
+    std::unordered_set<expr> result;
+    fix([&](auto self, const expr& x) {
+        if(x.empty() or not visited.insert(x).second)
+            return;
+        if(x.name() == "variable")
+        {
+            result.insert(as_symbol(x));
+            return;
+        }
+        for(const auto& c : x.children())
+            self(c);
+    })(e);
+    return result;
 }
 
 [[maybe_unused]] static bool has_float_literal(const expr& e)
@@ -2326,6 +2441,18 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
     if(v.is_null())
     {
         e = sym::expr{};
+        return;
+    }
+    // Allow a symbolic literal to be written as a bare number and a symbolic expression as a
+    // bare string, e.g. make_op("dyn_slice", {{"starts", {1}}, {"ends", {"n + 1"}}}).
+    if(const auto* s = v.if_string())
+    {
+        e = sym::parse(*s);
+        return;
+    }
+    if(not v.is_object())
+    {
+        e = sym::lit(value_to_sym_scalar(v));
         return;
     }
     auto type = v.at("type").get_string();

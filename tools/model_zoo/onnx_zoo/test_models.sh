@@ -28,8 +28,7 @@
 set -e
 
 WORK_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-SCRIPT_PATH=$(dirname $(dirname $(dirname $(readlink -f "$0"))))/test_runner.py
-TESTER_SCRIPT="${TESTER:-$SCRIPT_PATH}"
+TESTER_SCRIPT="${TESTER:-$WORK_DIR/zoo_check.py}"
 ATOL="${ATOL:-0.001}"
 RTOL="${RTOL:-0.001}"
 FP16_ATOL="${FP16_ATOL:-0.04}"
@@ -163,20 +162,32 @@ function run_logged() {
 
 function run_accuracy() {
     local file="$1" dtype="$2" model_file="$3"
+    local args_file="$WORK_DIR/tmp_model/driver-args-$dtype"
     local -a flag
     if [[ "$dtype" = "fp16" ]]; then
         flag=(--atol "$FP16_ATOL" --rtol "$FP16_RTOL" --target "$TARGET" --fp16)
     else
         flag=(--atol "$ATOL" --rtol "$RTOL" --target "$TARGET")
     fi
+    rm -f "$args_file"
     run_logged "$file" accuracy "$dtype" \
-        python3 "$TESTER_SCRIPT" "${flag[@]}" "$(dirname "$model_file")"
+        python3 "$TESTER_SCRIPT" "${flag[@]}" --emit-driver-args "$args_file" \
+            "$(dirname "$model_file")"
 }
 
 function run_perf() {
     local file="$1" dtype="$2" model_file="$3"
-    local -a flag=(--onnx "--$TARGET" -n "$PERF_ITERATIONS")
-    [[ "$dtype" = "fp16" ]] && flag+=(--fp16)
+    local args_file="$WORK_DIR/tmp_model/driver-args-$dtype"
+    local -a driver_args=()
+    local -a flag=(--onnx)
+    if [[ -s "$args_file" ]]; then
+        mapfile -t driver_args < "$args_file"
+        flag+=("${driver_args[@]}")
+    else
+        flag+=("--$TARGET")
+        [[ "$dtype" = "fp16" ]] && flag+=(--fp16)
+    fi
+    flag+=(-n "$PERF_ITERATIONS")
     run_logged "$file" perf "$dtype" \
         "$DRIVER" perf "$model_file" "${flag[@]}"
 }
@@ -192,6 +203,19 @@ for arg in "$@"; do
         exit 2
     fi
 done
+
+if [[ ! -f "$TESTER_SCRIPT" ]]; then
+    echo "ERROR: tester not found: $TESTER_SCRIPT" >&2
+    exit 2
+fi
+if ! python3 -c 'import migraphx' 2> /dev/null; then
+    echo "ERROR: cannot import migraphx; add the build lib directory to PYTHONPATH" >&2
+    exit 1
+fi
+if [[ " $KINDS " == *" perf "* ]] && ! command -v "$DRIVER" &> /dev/null; then
+    echo "ERROR: migraphx-driver not found: $DRIVER" >&2
+    exit 1
+fi
 
 mkdir -p "$WORK_DIR/tmp_model"
 for kind in $KINDS; do

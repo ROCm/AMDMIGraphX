@@ -1,11 +1,11 @@
-DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
-REPORTS_APP_CRED = 'migraphx_reports_github_app'
-REPORTS_REPO_CRED = 'migraphx_reports_repo'
-REPORTS_BRANCH = 'main'
-REPORTS_SUBDIR = 'onnx-models'
-REPORTS_CLONE = 'reports_clone'
-ZOO_DIR = 'tools/model_zoo/onnx_zoo'
-MODEL_ROOT = '/datasets/onnx-model-zoo'
+def DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
+def REPORTS_APP_CRED = 'migraphx_reports_github_app'
+def REPORTS_REPO_CRED = 'migraphx_reports_repo'
+def REPORTS_BRANCH = 'main'
+def REPORTS_SUBDIR = 'onnx-models'
+def REPORTS_CLONE = 'reports_clone'
+def ZOO_DIR = 'tools/model_zoo/onnx_zoo'
+def MODEL_ROOT = '/datasets/onnx-model-zoo'
 
 def dockeropts(String model_root) {
     def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
@@ -71,19 +71,26 @@ pipeline {
                     withDockerContainer(image: "${DOCKER_IMAGE}:${params.IMAGE_TAG}",
                                         args: dockeropts(MODEL_ROOT)) {
                         def cores = sh(returnStdout: true, script: 'nproc').trim()
-                        env.GPU_TARGET = sh(returnStdout: true,
-                                            script: "/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*'").trim()
+                        timeout(time: 1, unit: 'MINUTES') {
+                            env.GPU_TARGET = sh(
+                                returnStdout: true,
+                                script: "/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*'"
+                            ).trim()
+                        }
 
                         timeout(time: 2, unit: 'HOURS') {
                             sh """
                                 set -e
                                 mkdir -p '${env.CCACHE_DIR}' '${env.AMD_COMGR_CACHE_DIR}'
+                                rm -rf build
                                 cmake -S . -B build \
                                     -DCMAKE_BUILD_TYPE=release \
                                     -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+                                    -DCMAKE_CXX_FLAGS=-Werror \
                                     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                                     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
                                     -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON \
+                                    -DMIGRAPHX_ENABLE_MLIR=On \
                                     -DGPU_TARGETS='${env.GPU_TARGET}'
                                 make -C build -j${cores} migraphx_py driver
                             """
@@ -92,7 +99,7 @@ pipeline {
                         timeout(time: params.TIMEOUT_HOURS.toInteger(), unit: 'HOURS') {
                             sh """
                                 set -e
-                                export PYTHONPATH="\$PWD/build/src/py"
+                                export PYTHONPATH="\$PWD/build/lib"
                                 USE_LOCAL=1 TARGET=gpu \
                                 DRIVER="\$PWD/build/bin/migraphx-driver" \
                                     ./${ZOO_DIR}/test_models.sh '${MODEL_ROOT}'
@@ -150,7 +157,7 @@ pipeline {
             sh "rm -rf '${REPORTS_CLONE}'"
         }
         // Nothing reached the repo, so this is the only copy of the run.
-        failure {
+        unsuccessful {
             archiveArtifacts artifacts: "${ZOO_DIR}/logs/**/*.out,${ZOO_DIR}/logs/**/*.err",
                              allowEmptyArchive: true
         }

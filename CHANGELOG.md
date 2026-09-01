@@ -8,6 +8,59 @@ Full documentation for MIGraphX is available at
 ### Added
 
 * Added a layered problem-cache priority list (searched in order, first hit wins), delivered to the GPU target through the `problem_cache_files` backend option (#5117).
+* Added a `promote_storage_type` pass that treats the given types as storage-only, computing elementwise and reduction instructions of those types in float instead, and enabled it on the GPU target for `bf16` on architectures without native bf16 arithmetic instructions (#5138).
+* Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, whose symbolic `starts`/`ends` attributes describe the run-time bound inputs so a data-dependent slice keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5112).
+* Added symbolic normalization of operator attributes holding `sym::expr`, clamping each value against its axis length symbolically (#5148).
+* Added symbolic evaluation of tensor values to preserve ONNX shape-tensor expressions through arithmetic and dynamic shape consumers, including `Reshape`, `Range`, `Slice`, `Expand`, `ConstantOfShape`, and `Trilu` (#5148).
+
+### Changed
+
+* Changed `propagate_constant` to skip folding a `convert` to a wider type, since that would enlarge the literal and lose the smaller storage type (#5138).
+* The 1 arg `slice` operator accepts symbolic input shapes when every sliced axis has a fixed length. Slicing a non-fixed symbolic axis, or supplying the bounds as inputs, needs `dyn_slice` since the integer bounds cannot express a symbolic output extent (#5112).
+* Rejected symbolic input shapes in the multi-input `slice` calls, and pointed both symbolic `slice` errors at `dyn_slice` (#5112).
+* Updated `find_concat_reshape` matcher to fuse concats of reshapes whose inputs differ along the concat axis, as long as the non-axis dimensions match (#5181).
+
+### Resolved issues
+
+* Fixed a regression in `simplify_algebra` where `find_add_convs` and `find_conv_concat_split_fuse` could fuse parallel convolutions with mismatched spatial dimensions after `rewrite_convolution`, causing `CONCAT: all input dimensions should match` failures when compiling U-Net-style models (#5167).
+* Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).
+* Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
+* Fixed the ONNX and TensorFlow DLLs leaking protobuf state when unloaded with `FreeLibrary` on Windows (#5157).
+
+### Optimized
+
+* Fuse expert Silu Heads (MoE) into batched GEMM via fuse_horizontal (#5087).
+* Extended `find_concat_op` to treat `unsqueeze` as a fusable `concat` input so the concat can be folded through it (#5180).
+* Added `find_layout_broadcast` to `simplify_reshapes`, rewriting `layout(broadcast(x))` to `broadcast(layout(x))` so only the unique data is materialized instead of one full copy per broadcast output (#5141).
+
+## MIGraphX 2.17 for ROCm 10.0.0
+
+### Added
+
+* Added a verbose terminate handler for exceptions on Windows (#5084).
+* Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
+* Added a `lower_device_ops` pass that lowers `hip::fill`, `hip::copy`, and `gpu::contiguous` operators to code objects before `compile_ops` (#5030).
+
+### Changed
+
+* Allow for 1 arg slicing over a dynamic dimension (#5015).
+* Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
+* Updated `find_concat_same_input` to also rewrite `concat(x, ..., x)` when the concat axis is longer than 1, tiling the axis with `unsqueeze` + `multibroadcast` + `reshape` (#5142).
+
+### Resolved issues
+
+* Fixed the reference `nonzero` operator to handle non-standard input layouts such as transposed or broadcasted tensors (#5046).
+* Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions (#5144).
+
+### Optimized
+
+* Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).
+* Added tuning for maximum block size to JIT reductions. On some configs there is 2x-10x perf improvement (#5056).
+
+## MIGraphX 2.16 for ROCm 7.14.0
+
+### Added
+
 * Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added support for building against ROCm 7.13 and newer using TheRock (#4952).
 * Added YOLO26 object detection example notebook (#4639).
@@ -18,7 +71,7 @@ Full documentation for MIGraphX is available at
 * Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
 * Added GPU JIT `Resize` kernel (#4553).
 * Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
-* Added cross-compilation support for the GPU target, enabling compilation for a target architecture without a physical device present, with new API and `migraphx-driver` flag support, including a JSON object to specify device properties in the driver (#4795, #4981, #5065).
+* Added cross-compilation support for the GPU target, enabling compilation for a target architecture without a physical device present, with new API and `migraphx-driver` flag support, including a JSON object to specify device properties in the driver (#4795, #4981).
 * Added Cubic resize jit kernel (#4652).
 * Added JIT compiler for `fill` operation (#4666).
 * Added trace callback function to allow inspection of instruction output buffers; see `examples/migraphx/cpp_trace_callback` for an example (#4780).
@@ -39,14 +92,7 @@ Full documentation for MIGraphX is available at
 * Added logging of debug symbols on exception thrown (#4978).
 * Added slice squeeze matcher to propagate squeeze downstream and allow for parallel branches to merge together (#5004).
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
-* Added a `lower_device_ops` pass that lowers `hip::fill`, `hip::copy`, and `gpu::contiguous` operators to code objects before `compile_ops` (#5030).
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
-* Added a verbose terminate handler for exceptions on Windows (#5084).
-* Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
-* Added a `promote_storage_type` pass that treats the given types as storage-only, computing elementwise and reduction instructions of those types in float instead, and enabled it on the GPU target for `bf16` on architectures without native bf16 arithmetic instructions (#5138).
-* Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, whose symbolic `starts`/`ends` attributes describe the run-time bound inputs so a data-dependent slice keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5112).
-* Added symbolic normalization of operator attributes holding `sym::expr`, clamping each value against its axis length symbolically (#5148).
-* Added symbolic evaluation of tensor values to preserve ONNX shape-tensor expressions through arithmetic and dynamic shape consumers, including `Reshape`, `Range`, `Slice`, `Expand`, `ConstantOfShape`, and `Trilu` (#5148).
 
 ### Changed
 
@@ -64,23 +110,14 @@ Full documentation for MIGraphX is available at
 * Updated `QLinearConv` bias handling to dequantize bias using the product of input and weight scales before adding to the convolution output (#4521).
 * Updated netron output to create an ONNX-like protobuf. Now also includes debug symbols if enabled (#4701).
 * Updated python API to allow getting and adding debug symbols from instructions (#4803).
-* Allow for 1 arg slicing over a dynamic dimension (#5015).
-* Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
-* Changed `propagate_constant` to skip folding a `convert` to a wider type, since that would enlarge the literal and lose the smaller storage type (#5138).
-* The 1 arg `slice` operator accepts symbolic input shapes when every sliced axis has a fixed length. Slicing a non-fixed symbolic axis, or supplying the bounds as inputs, needs `dyn_slice` since the integer bounds cannot express a symbolic output extent (#5112).
-* Rejected symbolic input shapes in the multi-input `slice` calls, and pointed both symbolic `slice` errors at `dyn_slice` (#5112).
-* Updated `find_concat_reshape` matcher to fuse concats of reshapes whose inputs differ along the concat axis, as long as the non-axis dimensions match (#5181).
 * Refactored ONNX `RNN`, `GRU`, and `LSTM` parsing to use operator builders, expanding the recurrent ops at parse time instead of in the `rewrite_rnn` pass (#4606).
-* Updated `find_concat_same_input` to also rewrite `concat(x, ..., x)` when the concat axis is longer than 1, tiling the axis with `unsqueeze` + `multibroadcast` + `reshape` (#5142).
 * Changed the GPU `channelwise_conv` kernel to hold weights and accumulate in fp32 before casting to the output type, improving accuracy for fp16 inputs (#4809).
 
 ### Resolved issues
 
-* Fixed the reference `nonzero` operator to handle non-standard input layouts such as transposed or broadcasted tensors (#5046).
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
-* Fixed a regression in `simplify_algebra` where `find_add_convs` and `find_conv_concat_split_fuse` could fuse parallel convolutions with mismatched spatial dimensions after `rewrite_convolution`, causing `CONCAT: all input dimensions should match` failures when compiling U-Net-style models (#5167).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
 * Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518).
@@ -95,14 +132,9 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing (#4969).
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE` (#4991).
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions (#5038).
-* Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).
-* Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions (#5144).
-* Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
-* Fixed the ONNX and TensorFlow DLLs leaking protobuf state when unloaded with `FreeLibrary` on Windows (#5157).
 
 ### Optimized
 
-* Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).
 * Reduced tuning time by scaling the per-candidate benchmark bundle to the candidate's op count (#4989).
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).
 * Replaced Hillis-Steele scan algorithm with a wave-based hierarchical scan, reducing work complexity from O(N log N) to O(N) and synchronization from O(log N) to 2 `__syncthreads()` calls (#4720).
@@ -116,11 +148,6 @@ Full documentation for MIGraphX is available at
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681).
 * Add matcher to `fuse_attention` that removes Q/DQ pairs from attention blocks (#4900).
 * Added a pass `rewrite_convolution` to rewrite `convolution_backwards` to match the v4r1 algorithm used in MIOpen for performance (#4928).
-* Added tuning for maximum block size to JIT reductions. On some configs there is 2x-10x perf improvement (#5056).
-* Fuse expert Silu Heads (MoE) into batched GEMM via fuse_horizontal (#5087).
-* Extended `find_concat_op` to treat `unsqueeze` as a fusable `concat` input so the concat can be folded through it (#5180).
-* Added `find_layout_broadcast` to `simplify_reshapes`, rewriting `layout(broadcast(x))` to `broadcast(layout(x))` so only the unique data is materialized instead of one full copy per broadcast output (#5141).
-* Stopped `fuse_pointwise` from merging pointwise ops that share only a constant input, which saved no recomputation and blocked input fusion (such as `dequantizelinear` into a GEMM) in the consumers (#5178).
 
 ### Removed
 

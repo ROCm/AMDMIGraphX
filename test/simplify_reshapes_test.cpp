@@ -4214,7 +4214,6 @@ TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
         m1.add_return({r});
     }
     run_pass(m1);
- 
     migraphx::module m2;
     {
         migraphx::shape sx{migraphx::shape::float_type, {4}};

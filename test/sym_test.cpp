@@ -1054,7 +1054,8 @@ TEST_CASE(from_value_bare_number_array)
 {
     auto v = migraphx::value::array{1, 2, 3};
     auto r = migraphx::from_value<std::vector<se>>(v);
-    EXPECT(r == std::vector<se>{lit(1), lit(2), lit(3)});
+    const std::vector<se> expected{lit(1), lit(2), lit(3)};
+    EXPECT(r == expected);
 }
 
 TEST_CASE(from_value_bare_number_keeps_precision)

@@ -166,7 +166,11 @@ def checkoutWithRetry = { int maxAttempts = 3 ->
             checkout([
                 $class: 'GitSCM',
                 branches: scm.branches,
-                extensions: scm.extensions + [
+                // new ArrayList() ensures the extensions list is a serializable
+                // type; concatenating directly onto scm.extensions (a live SCM
+                // descriptor) can produce a non-serializable result that causes
+                // the workspace to appear empty after an apparently successful clone.
+                extensions: new ArrayList(scm.extensions) + [
                     [$class: 'CloneOption', timeout: 30, shallow: false, retryFetchCount: 3],
                     [$class: 'CheckoutOption', timeout: 30],
                 ],
@@ -174,15 +178,19 @@ def checkoutWithRetry = { int maxAttempts = 3 ->
             ])
             return
         } catch (Exception e) {
-            if (e instanceof InterruptedException || e.class.name == 'org.jenkinsci.plugins.workflow.steps.FlowInterruptedException') {
+            if (e instanceof InterruptedException ||
+                e.class.name == 'org.jenkinsci.plugins.workflow.steps.FlowInterruptedException' ||
+                e.class.name == 'hudson.AbortException') {
                 throw e
             }
             if (attempt == maxAttempts) {
-                sh 'git config --list | grep -v -i "token\\|password\\|auth\\|header\\|\\.url" || true'
+                // Exclude url keys to avoid leaking embedded credentials.
+                sh 'git config --list | grep -v -i "token\\|password\\|auth\\|header\\|url" || true'
                 sh 'ip route || true'
                 sh 'curl -sv https://github.com 2>&1 | tail -20 || true'
                 throw e
             }
+            // Linear backoff: 15 s, 30 s, 45 s, ...
             def delay = 15 * attempt
             echo "checkout scm failed (attempt ${attempt}/${maxAttempts}): ${e.message}. Retrying in ${delay}s..."
             sleep(time: delay, unit: 'SECONDS')

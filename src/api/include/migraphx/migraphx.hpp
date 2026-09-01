@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 
-#include "migraphx.h"
 #include <algorithm>
 #include <cstring>
 #include <initializer_list>
@@ -35,10 +34,11 @@
 #include <array>
 #include <utility>
 #include <vector>
+#include <string>
+#include <unordered_map>
 #include <cassert>
 #include <iostream>
 #include <sstream>
-#include <string>
 
 namespace migraphx {
 #ifndef DOXYGEN
@@ -93,13 +93,13 @@ std::string compute_type_name()
 
     name = __PRETTY_FUNCTION__;
 
-    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
-#if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
+    auto begin = name.find(parameter_name) + sizeof(parameter_name);
+#if (defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
     auto length = name.find_last_of(",") - begin;
 #else
     auto length = name.find_first_of("];", begin) - begin;
 #endif
-    name        = name.substr(begin, length);
+    name = name.substr(begin, length);
 #endif
     return name;
 }
@@ -624,10 +624,22 @@ struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
             &migraphx_dynamic_dimension_create_min_max_optimals, min, max, opts.get_handle_ptr());
     }
 
+    /// Build a symbolic dimension by parsing an expression string and binding each named
+    /// symbol to the bounds/optimals supplied as range dynamic_dimensions.
+    dynamic_dimension(const std::string& expression,
+                      const std::unordered_map<std::string, dynamic_dimension>& symbols);
+
     bool is_fixed() const
     {
         bool result = false;
         call(&migraphx_dynamic_dimension_is_fixed, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    bool is_symbolic() const
+    {
+        bool result = false;
+        call(&migraphx_dynamic_dimension_is_symbolic, &result, this->get_handle_ptr());
         return result;
     }
 
@@ -643,6 +655,33 @@ struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
         return not(x == y);
     }
 };
+
+/**
+ * Maps symbol names to the bounds/optimals used when building a symbolic dynamic_dimension.
+ */
+struct symbol_bounds : MIGRAPHX_HANDLE_BASE(symbol_bounds)
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(symbol_bounds)
+
+    symbol_bounds() { this->make_handle(&migraphx_symbol_bounds_create); }
+
+    void add(const std::string& name, const dynamic_dimension& dd)
+    {
+        call(
+            &migraphx_symbol_bounds_add, this->get_handle_ptr(), name.c_str(), dd.get_handle_ptr());
+    }
+};
+
+inline dynamic_dimension::dynamic_dimension(
+    const std::string& expression,
+    const std::unordered_map<std::string, dynamic_dimension>& symbols)
+{
+    symbol_bounds bounds;
+    for(const auto& [name, dd] : symbols)
+        bounds.add(name, dd);
+    this->make_handle(
+        &migraphx_dynamic_dimension_create_symbolic, expression.c_str(), bounds.get_handle_ptr());
+}
 
 /**
  * Container to hold dynamic_dimension objects.
@@ -1207,6 +1246,12 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
         call(&migraphx_compile_options_set_exhaustive_tune_flag, this->get_handle_ptr(), value);
     }
 
+    /// Set compilation mode (0-100). 0 = fast compile, low performance.
+    /// 100 = best compile with max optimizations, best performance.
+    void set_compile_mode(int8_t value = migraphx_compile_mode_balanced)
+    {
+        call(&migraphx_compile_options_set_compile_mode, this->get_handle_ptr(), value);
+    }
     /// Set backend-specific options that targets can read to configure
     /// compilation. `json_str` is a relaxed JSON object (bare identifiers are
     /// treated as strings) and accepts printf-style format specifiers followed
@@ -1422,6 +1467,8 @@ inline void save(const program& p, const char* filename)
     call(&migraphx_save, p.get_handle_ptr(), filename, migraphx::file_options{}.get_handle_ptr());
 }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 /// Options for parsing onnx options
 struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 {
@@ -1485,6 +1532,14 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     {
         call(&migraphx_onnx_options_set_use_debug_symbols, this->get_handle_ptr(), value);
     }
+
+    void set_dim_param(const std::string& name, const dynamic_dimension& dd)
+    {
+        call(&migraphx_onnx_options_set_dim_param,
+             this->get_handle_ptr(),
+             name.c_str(),
+             dd.get_handle_ptr());
+    }
 };
 
 /// Parse an onnx file into a migraphx program
@@ -1538,6 +1593,10 @@ inline program parse_onnx_buffer(const std::string& buffer)
             &migraphx_parse_onnx_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
         own{});
 }
+
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 
 /// Options for parsing tf options
 struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
@@ -1628,6 +1687,8 @@ inline program parse_tf_buffer(const std::string& buffer)
             &migraphx_parse_tf_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
         own{});
 }
+
+#endif
 
 struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
 {

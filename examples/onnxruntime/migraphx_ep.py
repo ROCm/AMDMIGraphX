@@ -40,6 +40,7 @@ try:
 except AttributeError:
     MIGRAPHX_VENDOR_ID = 0x1002  # AMD PCI vendor ID fallback
 
+
 def _find_migraphx_plugin_lib():
     """Locate the MIGraphX plugin EP shared library.
 

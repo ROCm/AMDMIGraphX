@@ -32,6 +32,8 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/sym_argument.hpp>
+#include <algorithm>
 #include <array>
 
 namespace migraphx {
@@ -282,6 +284,8 @@ struct slice
                return not input_shape.dyn_dims()[axis].is_fixed();
            }))
         {
+            // The extent would be a sym::expr derived from the bounds and the axis symbol, which
+            // the integer bounds here cannot express.
             if(input_shape.symbolic())
                 MIGRAPHX_THROW("SLICE 1_arg: slicing is not allowed on a non-fixed symbolic "
                                "input axis, use dyn_slice");
@@ -419,6 +423,48 @@ struct slice
             norm_ends = this->ends;
         }
         return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.empty() or args[0].get_shape().dynamic() or args[0].get_shape().ndim() != 1 or
+           args[0].empty())
+            return {};
+
+        const auto set_attributes = get_set_attributes();
+        std::size_t input_index   = 1;
+        std::array<std::optional<std::vector<int64_t>>, 3> supplied;
+        for(std::size_t i = 0; i < supplied.size(); ++i)
+        {
+            if(set_attributes[i])
+                continue;
+            if(input_index >= args.size() or args[input_index].empty())
+                return {};
+            supplied[i] = sym::fixed_values<int64_t>(args[input_index++].get());
+            if(not supplied[i].has_value())
+                return {};
+        }
+        if(input_index != args.size())
+            return {};
+
+        const auto normalized =
+            normalize_starts_ends_axes(args[0].get_shape(), supplied[0], supplied[1], supplied[2]);
+        const auto& norm_starts = normalized.at("norm_starts");
+        const auto& norm_ends   = normalized.at("norm_ends");
+        const auto& norm_axes   = normalized.at("norm_axes");
+        if(norm_starts.size() != 1 or norm_ends.size() != 1 or norm_axes.size() != 1 or
+           norm_axes.front() != 0)
+            return {};
+        if(output_shape.lens() !=
+           lens_calc(args[0].get_shape().lens(), norm_starts, norm_ends, norm_axes))
+            return {};
+
+        const auto data = args[0].get();
+        sym_argument result{output_shape};
+        auto output = result.get();
+        std::copy_n(data.begin() + norm_starts.front(), output_shape.elements(), output.begin());
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

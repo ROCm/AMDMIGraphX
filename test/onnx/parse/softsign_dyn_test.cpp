@@ -32,19 +32,17 @@ TEST_CASE(softsign_dyn_test)
     auto input_type = migraphx::shape::float_type;
     migraphx::shape s{input_type, {{1, 4}, {5, 5}}};
 
-    auto x    = mm->add_parameter("x", s);
-    auto ones = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
-    auto abs  = mm->add_instruction(migraphx::make_op("abs"), x);
+    auto x      = mm->add_parameter("x", s);
+    auto ones   = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
+    auto abs    = mm->add_instruction(migraphx::make_op("abs"), x);
     auto mb_abs = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(s.dyn_dims())}}),
-        abs,
-        ones);
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(s.dyn_dims())}}), abs, ones);
     auto mb_ones = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(s.dyn_dims())}}),
         ones,
         mb_abs);
     auto add = mm->add_instruction(migraphx::make_op("add"), mb_abs, mb_ones);
-    auto r       = mm->add_instruction(migraphx::make_op("div"), x, add);
+    auto r   = mm->add_instruction(migraphx::make_op("div"), x, add);
     mm->add_return({r});
 
     migraphx::onnx_options options;

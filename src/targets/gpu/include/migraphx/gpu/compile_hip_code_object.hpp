@@ -28,6 +28,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/compile_src.hpp>
 #include <migraphx/stringutils.hpp>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,6 +49,10 @@ struct hip_compile_options
     std::vector<shape> virtual_inputs          = {};
     std::vector<src_file> additional_src_files = {};
     std::int64_t output_arg                    = -1;
+    // Overrides the C++ type used in the generated make_tensor for an input,
+    // keyed by input index. Used for kernel-side-only types such as packed
+    // int4 which have no shape::type_t equivalent.
+    std::map<std::size_t, std::string> type_overrides = {};
 
     /**
      * @brief Set the launch parameters but allow v to override the values

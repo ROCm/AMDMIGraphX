@@ -1820,4 +1820,131 @@ TEST_CASE(argmax_reshape_pointwise)
     EXPECT(p1.sort() == p2.sort());
 }
 
+static auto convert_mul_pointwise()
+{
+    return [](auto* pm, const auto& inputs) {
+        auto cvt = pm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+            inputs[0]);
+        return pm->add_instruction(migraphx::make_op("mul"), cvt, inputs[1]);
+    };
+}
+
+TEST_CASE(unpack_int4_reduce)
+{
+    migraphx::shape ps{migraphx::shape::uint8_type, {2, 3, 4}};
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3, 8}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto packed = mm->add_parameter("wp", ps);
+        auto x      = mm->add_parameter("x", xs);
+        auto up     = mm->add_instruction(migraphx::make_op("unpack_int4"), packed);
+        auto mul    = add_pointwise(p1, "main:pointwise0", {up, x}, convert_mul_pointwise());
+        auto rsum   = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto packed = mm->add_parameter("wp", ps);
+        auto x      = mm->add_parameter("x", xs);
+        auto rsum   = add_reduce(
+            p2,
+            "main:pointwise0:main:reduce_sum0:unpack_int4",
+            {packed, x},
+            {2},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto up  = rm->add_instruction(migraphx::make_op("unpack_int4"), inputs[0]);
+                auto mul = add_pointwise(
+                    p2, rm, "main:pointwise0", {up, inputs[1]}, convert_mul_pointwise());
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+            });
+        mm->add_return({rsum});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(unpack_int4_reshape_reduce)
+{
+    migraphx::shape ps{migraphx::shape::uint8_type, {2, 12}};
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3, 8}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto packed = mm->add_parameter("wp", ps);
+        auto x      = mm->add_parameter("x", xs);
+        auto up     = mm->add_instruction(migraphx::make_op("unpack_int4"), packed);
+        auto up_reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 8}}}), up);
+        auto mul  = add_pointwise(p1, "main:pointwise0", {up_reshape, x}, convert_mul_pointwise());
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto packed = mm->add_parameter("wp", ps);
+        auto x      = mm->add_parameter("x", xs);
+        auto packed_reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 4}}}), packed);
+        auto rsum = add_reduce(
+            p2,
+            "main:pointwise0:main:reduce_sum0:unpack_int4",
+            {packed_reshape, x},
+            {2},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto up =
+                    rm->add_instruction(migraphx::make_op("unpack_int4", {{"axis", 2}}), inputs[0]);
+                auto mul = add_pointwise(
+                    p2, rm, "main:pointwise0", {up, inputs[1]}, convert_mul_pointwise());
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+            });
+        mm->add_return({rsum});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(unpack_int4_unreduced_axis)
+{
+    migraphx::shape ps{migraphx::shape::uint8_type, {2, 3, 4}};
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3, 8}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto packed = mm->add_parameter("wp", ps);
+        auto x      = mm->add_parameter("x", xs);
+        auto up     = mm->add_instruction(migraphx::make_op("unpack_int4"), packed);
+        auto mul    = add_pointwise(p1, "main:pointwise0", {up, x}, convert_mul_pointwise());
+        auto rsum   = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+
+    // The unpack axis is not reduced so the unpack stays outside
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto packed = mm->add_parameter("wp", ps);
+        auto x      = mm->add_parameter("x", xs);
+        auto up     = mm->add_instruction(migraphx::make_op("unpack_int4"), packed);
+        auto rsum   = add_reduce(
+            p2,
+            "main:pointwise0:main:reduce_sum0",
+            {up, x},
+            {1},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto mul = add_pointwise(
+                    p2, rm, "main:pointwise0", {inputs[0], inputs[1]}, convert_mul_pointwise());
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+            });
+        mm->add_return({rsum});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

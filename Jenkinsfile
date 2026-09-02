@@ -171,7 +171,7 @@ def checkoutWithRetry = { int maxAttempts = 3 ->
                 // descriptor) can produce a non-serializable result that causes
                 // the workspace to appear empty after an apparently successful clone.
                 extensions: new ArrayList(scm.extensions) + [
-                    [$class: 'CloneOption', timeout: 30, shallow: false, retryFetchCount: 3],
+                    [$class: 'CloneOption', timeout: 30, shallow: true, depth: 1, retryFetchCount: 3],
                     [$class: 'CheckoutOption', timeout: 30],
                 ],
                 userRemoteConfigs: scm.userRemoteConfigs,

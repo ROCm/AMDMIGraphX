@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/split_factor.hpp>
 #include <optional>
 
@@ -112,6 +113,27 @@ inline std::size_t calculate_groups(std::size_t groups,
 
     // groups == 1 or invalid, no splitting
     return 0;
+}
+
+bool is_range_literal(const literal& l)
+{
+    const auto& s = l.get_shape();
+    if(s.elements() < 2 or not shape::is_computable(s.type()))
+        return false;
+    bool result = false;
+    l.visit([&](auto x) {
+        result = std::adjacent_find(x.begin(), x.end(), [](auto cur, auto next) {
+                     return next <= cur or not float_equal(next - cur, 1);
+                 }) == x.end();
+    });
+    return result;
+}
+
+bool is_inlinable_constant(instruction_ref ins)
+{
+    if(ins->name() != "@literal")
+        return true;
+    return ins->get_shape().elements() == 1 or is_range_literal(ins->get_literal());
 }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
@@ -282,7 +304,8 @@ struct find_attention
         auto expand = fix([&](auto self, auto ins) {
             for(auto input : ins->inputs())
             {
-                if(not contains(attn_inss, input) and input->can_eval())
+                if(not contains(attn_inss, input) and input->can_eval() and
+                   is_inlinable_constant(input))
                 {
                     attn_inss.insert(input);
                     self(input);
@@ -896,11 +919,9 @@ struct find_kv_cache_attention
 
         auto keys = match::opaque(
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k"));
-        auto keys_transpose = match::opaque(match::name("transpose")(match::arg(0)(keys)));
-        auto k_transpose    = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
-        auto queries = match::name("slice");
-        auto gemm1 =
-            match::opaque(match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose)));
+        auto keys_transpose  = match::opaque(match::name("transpose")(match::arg(0)(keys)));
+        auto k_transpose     = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
+        auto gemm1           = match::opaque(match::name("dot")(match::arg(1)(k_transpose)));
         auto gemm1_maybe_cvt = match::opaque(match::skip(match::name("convert"))(gemm1));
         auto scale    = match::opaque(match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt)));
         auto constant = match::opaque(match::is_constant());

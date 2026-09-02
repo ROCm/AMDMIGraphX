@@ -486,7 +486,9 @@ struct miopen_apply
         apply_map.emplace("nonzero", [=](instruction_ref ins) {
             if(ins->inputs().front()->get_shape().dynamic())
                 return lower_tuple_op_to_ref(ins);
-            // apply() takes this entry instead of its JIT branch, so wrap it here.
+            // An apply_map entry shadows apply()'s has_compiler_for branch, so the precompile_op
+            // has to be inserted here. That branch also calls insert_dynamic_code_object_op,
+            // which is a no-op here since the output sub-shapes are always static.
             return insert_precompile_op(ins);
         });
     }
@@ -553,10 +555,9 @@ struct miopen_apply
         return mod->replace_instruction(ins, compact);
     }
 
-    // Fallback for a tuple-returning op the GPU kernels can't take, such as one with a dynamic
-    // input: run the ref op on the host. The tuple has to be split host-side before copy_to_gpu
-    // (which is not tuple-aware), and the downstream get_tuple_elem consumers are rewritten in
-    // place.
+    // Host fallback for a tuple-returning op the GPU kernels can't take. copy_to_gpu is not
+    // tuple-aware, so the tuple is split host-side and each get_tuple_elem consumer is repointed
+    // at the copied sub-buffer.
     instruction_ref lower_tuple_op_to_ref(instruction_ref ins) const
     {
         auto inputs = ins->inputs();

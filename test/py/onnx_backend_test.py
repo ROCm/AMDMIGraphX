@@ -83,8 +83,9 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_nonmaxsuppression_suppress_by_IOU_cpu')
     backend_test.exclude(r'test_nonmaxsuppression_two_batches_cpu')
     backend_test.exclude(r'test_nonmaxsuppression_two_classes_cpu')
-    # NonZero now matches the ONNX specification, but the harness builds a python repro string
-    # for every model and program::to_py() throws on the parser's data-dependent output shape.
+    # NonZero now matches the ONNX specification, but MIGraphXBackend.prepare() builds a repro
+    # string with program::to_py() for every model, and that throws on the parser's
+    # data-dependent output shape.
     backend_test.exclude(r'test_nonzero_example_cpu')
 
     # from OnnxBackendPyTorchConvertedModelTest

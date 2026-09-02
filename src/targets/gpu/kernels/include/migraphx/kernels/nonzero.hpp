@@ -33,8 +33,8 @@ namespace migraphx {
 
 // Use prefix sum to compute index in the output.
 // Only 1 block can be used since we have only one prefix sum.
-// `output` is padded out to the number of input elements; `num_nonzero` holds how many of its
-// columns were written.
+// `output` holds one column per input element; `num_nonzero` gets the number of leading columns
+// that hold a real index, and the rest stay zero.
 template <class Input, class Output, class NumNonzero>
 __device__ void nonzero(Input input, Output output, NumNonzero num_nonzero)
 {
@@ -49,9 +49,9 @@ __device__ void nonzero(Input input, Output output, NumNonzero num_nonzero)
     constexpr auto block_size = decltype(idx.max_nlocal()){};
     static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
                   "Block size must be a multiple of wavefront size");
-    // input (elem_num) uint32_t covers any input we realistically see;
-    // a narrower type uint8_t wraps once the prefix sum exceeds the
-    // type's range, producing negative out_loc values and OOB stores
+    // The scan accumulator is index_int: uint32_t covers any input we realistically see, while
+    // a narrower type such as uint8_t wraps once the prefix sum exceeds its range, giving bad
+    // out_loc values, OOB stores, and a num_nonzero that truncates the parser's slice.
     const auto count = block_scan(
         idx,
         op::sum{},

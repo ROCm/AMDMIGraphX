@@ -40,8 +40,7 @@ TEST_CASE(nonzero_test)
     std::vector<int64_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // The parser trims the operator's padded indices down to the 3 nonzero elements, so only the
-    // real indices come back.
+    // The parser trims the operator's padded indices down to the 3 nonzero elements.
     std::vector<int64_t> gold = {0, 0, 1, 0, 1, 0};
     EXPECT(result_vector == gold);
     // The trim is an aliased view into the padded buffer, so it keeps that buffer's row stride.

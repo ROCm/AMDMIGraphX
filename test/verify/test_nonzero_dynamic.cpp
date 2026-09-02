@@ -27,10 +27,9 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// The GPU kernel bakes the input lengths into its code object, so a dynamic input takes the host
-// ref fallback in gpu lowering. Two non-fixed dimensions keep split_single_dyn_dim from
-// specializing the module first, which is what leaves a dynamic shape for that fallback to catch.
-// Run below the maximum in both dimensions so the padding in the indices output is exercised too.
+// Two non-fixed dimensions stop split_single_dyn_dim from specializing the module, so the shape
+// stays dynamic and gpu lowering takes its host ref fallback. The test dims are below the maximum
+// so the padding in the indices output is exercised too.
 template <migraphx::shape::type_t DType>
 struct test_nonzero_dynamic : verify_program<test_nonzero_dynamic<DType>>
 {

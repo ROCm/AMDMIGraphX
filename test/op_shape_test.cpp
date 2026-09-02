@@ -3101,7 +3101,7 @@ TEST_CASE(nms_shape)
 TEST_CASE(nonzero_shape)
 {
     // The nonzero op always returns a tuple shape:
-    //   {indices [ndim, elements] int64, num_nonzero [1] int64}
+    //   {indices [ndim, max elements] int64, num_nonzero [1] int64}
     migraphx::shape num_nonzero_s{migraphx::shape::int64_type, {1}};
 
     migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};

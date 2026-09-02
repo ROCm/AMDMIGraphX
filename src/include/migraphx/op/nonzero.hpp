@@ -36,9 +36,10 @@
 
 /**
  *  nonzero(data);
- *  Outputs tuple of {indices, num_nonzero}.
- *  `indices` are padded out to the most elements the input shape allows.
- *  `num_nonzero` tells how many of the columns hold a real index.
+ *  Outputs tuple of {tensor with dims[rank of data, max elements of data]: indices,
+ *  scalar int64_t: num_nonzero}
+ *  Only the leading `num_nonzero` columns of `indices` hold an index; the rest are zero. Sizing
+ *  for the largest input the shape allows keeps the output static for a dynamic input.
  */
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,7 +53,7 @@ struct nonzero
     {
         check_shapes{inputs, *this, true}.has(1);
         // Pad the indices for the largest input the shape allows, so a dynamic input still gets
-        // a fixed output buffer. num_nonzero says how many of the columns are real.
+        // a fixed output buffer.
         shape max_input{inputs[0].type(), inputs[0].max_lens()};
         shape s_ind{shape::int64_type, {inputs[0].ndim(), max_input.elements()}};
         shape s_num_nonzero{shape::int64_type, {1}};

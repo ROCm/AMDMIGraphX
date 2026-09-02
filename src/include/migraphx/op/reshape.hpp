@@ -33,6 +33,7 @@
 #include <migraphx/sat_ops.hpp>
 #include <migraphx/reshape_dims.hpp>
 
+#include <migraphx/sym_argument.hpp>
 #include <algorithm>
 
 namespace migraphx {
@@ -193,6 +194,20 @@ struct reshape
             return dyn_1arg_compute_shape(s0);
         }
         return symbolic_compute_shape(s0);
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.empty() or args.size() > 2 or args[0].empty() or
+           args[0].get_shape().elements() != output_shape.elements())
+            return {};
+
+        sym_argument result{output_shape};
+        const auto input = args[0].get();
+        auto output      = result.get();
+        std::copy(input.begin(), input.end(), output.begin());
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

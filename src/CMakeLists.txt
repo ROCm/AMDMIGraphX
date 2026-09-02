@@ -457,7 +457,7 @@ if(BUILD_DEV)
 endif()
 
 target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
-add_dependencies(migraphx generate)
+add_dependencies(migraphx generate_api)
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c

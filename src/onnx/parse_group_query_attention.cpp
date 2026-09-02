@@ -60,24 +60,41 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
     }
 
+    // Repeat the kv heads of the static-shaped cache to match the grouped query heads
+    static void repeat_kv_heads(const onnx_parser::node_info& info,
+                                instruction_ref& k,
+                                instruction_ref& v,
+                                std::size_t num_heads,
+                                std::size_t kv_num_heads_factor)
+    {
+        if(kv_num_heads_factor == 1)
+            return;
+        auto kv_new_lens         = k->get_shape().lens();
+        kv_new_lens.at(1)        = num_heads;
+        k                        = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), k);
+        v                        = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), v);
+        auto kv_unsqueezed_lens  = k->get_shape().lens();
+        kv_unsqueezed_lens.at(2) = kv_num_heads_factor;
+        k = info.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), k);
+        v = info.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), v);
+        k = info.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), k);
+        v = info.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), v);
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
                                        const std::vector<instruction_ref>& args) const
     {
-        bool do_rotary           = false;
-        std::size_t kv_num_heads = 0;
-        int local_window_size    = -1;
-        std::size_t num_heads    = 0;
-        bool rotary_interleaved  = false;
-        float scale              = 0.0;
+        gqa_options opts;
         if(contains(info.attributes, "do_rotary"))
         {
-            do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();
+            opts.do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();
         }
         if(contains(info.attributes, "kv_num_heads"))
         {
-            kv_num_heads = parser.parse_value(info.attributes.at("kv_num_heads")).at<std::size_t>();
+            opts.kv_num_heads =
+                parser.parse_value(info.attributes.at("kv_num_heads")).at<std::size_t>();
         }
         else
         {
@@ -86,12 +103,12 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         if(contains(info.attributes, "local_window_size"))
         {
-            local_window_size =
+            opts.local_window_size =
                 parser.parse_value(info.attributes.at("local_window_size")).at<int>();
         }
         if(contains(info.attributes, "num_heads"))
         {
-            num_heads = parser.parse_value(info.attributes.at("num_heads")).at<std::size_t>();
+            opts.num_heads = parser.parse_value(info.attributes.at("num_heads")).at<std::size_t>();
         }
         else
         {
@@ -100,12 +117,12 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         if(contains(info.attributes, "rotary_interleaved"))
         {
-            rotary_interleaved =
+            opts.rotary_interleaved =
                 parser.parse_value(info.attributes.at("rotary_interleaved")).at<bool>();
         }
         if(contains(info.attributes, "scale"))
         {
-            scale = parser.parse_value(info.attributes.at("scale")).at<float>();
+            opts.scale = parser.parse_value(info.attributes.at("scale")).at<float>();
         }
         if(contains(info.attributes, "softcap"))
         {
@@ -114,10 +131,20 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                 MIGRAPHX_THROW("GroupQueryAttention: non-zero softcap is not yet supported.");
             }
         }
+        if(opts.kv_num_heads == 0 or opts.num_heads == 0 or opts.num_heads % opts.kv_num_heads != 0)
+        {
+            MIGRAPHX_THROW(
+                "GroupQueryAttention: num_heads must be a non-zero multiple of kv_num_heads");
+        }
 
         if(args.size() < 7 or args.size() > 11)
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
+        }
+        if(opts.do_rotary and args.size() < 9)
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: do_rotary requires the cos_cache and sin_cache "
+                           "inputs");
         }
 
         auto qkv = args.at(0);
@@ -129,13 +156,11 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         if(qkv->get_shape().symbolic())
         {
-            return parse_symbolic(
-                info,
-                args,
-                qkv,
-                {do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale});
+            return parse_symbolic(info, args, qkv, opts);
         }
 
+        const std::size_t num_heads       = opts.num_heads;
+        const std::size_t kv_num_heads    = opts.kv_num_heads;
         auto q_shape                      = qkv->get_shape();
         const auto& q_lens                = q_shape.lens();
         const std::size_t batch_size      = q_lens[0];
@@ -161,10 +186,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                                    {"ends", {num_heads + (2 * kv_num_heads)}}}),
                                           transposed_qkv);
 
-        if(do_rotary)
+        if(opts.do_rotary)
         {
             qk = insert_rotary(*info.mod,
-                               rotary_interleaved,
+                               opts.rotary_interleaved,
                                sequence_length,
                                {qk, args.at(5), args.at(7), args.at(8)});
         }
@@ -195,21 +220,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto past_sl             = info.add_instruction(
             make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
 
-        if(kv_num_heads_factor != 1)
-        {
-            auto kv_new_lens  = k->get_shape().lens();
-            kv_new_lens.at(1) = num_heads;
-            k                 = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), k);
-            v                 = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), v);
-            auto kv_unsqueezed_lens  = k->get_shape().lens();
-            kv_unsqueezed_lens.at(2) = kv_num_heads_factor;
-            k = info.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}),
-                                     k);
-            v = info.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}),
-                                     v);
-            k = info.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), k);
-            v = info.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), v);
-        }
+        repeat_kv_heads(info, k, v, num_heads, kv_num_heads_factor);
         auto kt    = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
         auto gemm1 = info.add_instruction(make_op("dot"), q, kt);
 
@@ -225,6 +236,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto ninf = info.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
         ninf      = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
 
+        auto scale = opts.scale;
         if(float_equal(scale, 0.0))
         {
             scale = 1.0f / std::sqrt(static_cast<float>(head_size));
@@ -255,13 +267,13 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
         auto mask_comp =
             info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
-        if(local_window_size > 0)
+        if(opts.local_window_size > 0)
         {
             bool is_prompt       = sequence_length > 1;
-            auto window_size_lit = info.add_literal(
-                migraphx::literal{migraphx::shape{past_sl->get_shape().type(), {1}},
-                                  {is_prompt ? -local_window_size : -(local_window_size + 1)}});
-            window_size_lit = info.add_instruction(
+            auto window_size_lit = info.add_literal(migraphx::literal{
+                migraphx::shape{past_sl->get_shape().type(), {1}},
+                {is_prompt ? -opts.local_window_size : -(opts.local_window_size + 1)}});
+            window_size_lit      = info.add_instruction(
                 migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
             auto window_comp = info.add_instruction(
                 migraphx::make_op("add"), is_prompt ? seq_range : mask_comp, window_size_lit);
@@ -286,35 +298,31 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         return {out, k_out, v_out};
     }
 
-    static std::size_t fixed_dim(const shape::dynamic_dimension& dd, const std::string& what)
-    {
-        if(not dd.is_fixed())
-            MIGRAPHX_THROW("GroupQueryAttention: " + what + " must be a fixed dimension");
-        return dd.get_interval().min;
-    }
-
-    // Symbolic path: batch and sequence dimensions are symbolic expressions, so every
-    // parse-time prompt/decode branch of the static path is replaced with the unified
-    // run-time form. Per-token key positions are seqlens_k + 1 - seq + i, which reduces
-    // to 0..seq-1 for a prompt (seqlens_k = seq - 1) and to seqlens_k for decode, so a
-    // single causal mask j > position covers both cases.
+    // Symbolic path: all dimensions are symbolic expressions (fixed dims are literal
+    // expressions), so every parse-time prompt/decode branch of the static path is
+    // replaced with the unified run-time form. Per-token positions of the current tokens
+    // are seqlens_k + 1 - seq + i, which reduces to 0..seq-1 for a prompt
+    // (seqlens_k = seq - 1) and to seqlens_k for decode, so a single causal mask
+    // j > position covers both cases.
     static std::vector<instruction_ref> parse_symbolic(const onnx_parser::node_info& info,
                                                        const std::vector<instruction_ref>& args,
                                                        instruction_ref qkv,
                                                        const gqa_options& opts)
     {
-        const auto qkv_shape = qkv->get_shape();
+        const auto& qkv_shape = qkv->get_shape();
         if(qkv_shape.ndim() != 3)
             MIGRAPHX_THROW("GroupQueryAttention: expected packed qkv of rank 3");
-        const auto& qkv_dims     = qkv_shape.dyn_dims();
-        const auto total_heads   = static_cast<int64_t>(opts.num_heads + 2 * opts.kv_num_heads);
-        const auto q_hidden_size = fixed_dim(qkv_dims[2], "hidden size");
+        const auto& qkv_dims          = qkv_shape.dyn_dims();
+        const std::size_t num_heads   = opts.num_heads;
+        const std::size_t kv_heads    = opts.kv_num_heads;
+        const std::size_t total_heads = num_heads + 2 * kv_heads;
+        if(not shape::is_fixed_dim(qkv_dims[2]))
+            MIGRAPHX_THROW("GroupQueryAttention: hidden size must be a fixed dimension");
+        const auto q_hidden_size = shape::static_dim_value(qkv_dims[2]);
         if(q_hidden_size % total_heads != 0)
             MIGRAPHX_THROW("GroupQueryAttention: hidden size is not divisible by the number of "
                            "heads");
-        const auto head_size = static_cast<int64_t>(q_hidden_size / total_heads);
-        const auto num_heads = static_cast<int64_t>(opts.num_heads);
-        const auto kv_heads  = static_cast<int64_t>(opts.kv_num_heads);
+        const std::size_t head_size = q_hidden_size / total_heads;
 
         auto transposed_qkv = info.add_instruction(
             make_op("reshape", {{"dims", {0, -1, total_heads, head_size}}}), qkv);
@@ -329,12 +337,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                     {{"axes", {1}}, {"starts", {num_heads + kv_heads}}, {"ends", {total_heads}}}),
             transposed_qkv);
 
-        // Per-token key positions {batch, seq, 1}: seqlens_k + 1 - seq + i
-        auto slk   = args.at(5);
-        auto slk64 = slk;
-        if(slk64->get_shape().type() != shape::int64_type)
-            slk64 = info.add_instruction(make_op("convert", {{"target_type", shape::int64_type}}),
-                                         slk64);
+        // Per-token positions of the current tokens {batch, seq, 1}: seqlens_k + 1 - seq + i
+        auto slk = args.at(5);
+        auto slk64 =
+            info.add_instruction(make_op("convert", {{"target_type", shape::int64_type}}), slk);
         if(slk64->get_shape().ndim() != 1)
             slk64 = info.add_instruction(make_op("reshape", {{"dims", {-1}}}), slk64);
         auto seq_rt =
@@ -378,33 +384,16 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         auto k_out = k;
         auto v_out = v;
-        if(k->get_shape().dynamic())
-            MIGRAPHX_THROW("GroupQueryAttention: past kv-cache must have a static shape");
 
-        // The cache is static, so repeating the kv heads for grouped queries stays on the
-        // static path.
-        const auto kv_num_heads_factor = opts.num_heads / opts.kv_num_heads;
-        const auto max_seq_len         = k->get_shape().lens()[2];
-        if(kv_num_heads_factor != 1)
-        {
-            auto kv_new_lens  = k->get_shape().lens();
-            kv_new_lens.at(1) = opts.num_heads;
-            k                 = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), k);
-            v                 = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), v);
-            auto kv_unsqueezed_lens  = k->get_shape().lens();
-            kv_unsqueezed_lens.at(2) = kv_num_heads_factor;
-            k = info.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}),
-                                     k);
-            v = info.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}),
-                                     v);
-            k = info.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), k);
-            v = info.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), v);
-        }
+        // The cache is static (enforced by concat_past_present), so repeating the kv
+        // heads for grouped queries stays on the static path.
+        const auto max_seq_len = k->get_shape().lens()[2];
+        repeat_kv_heads(info, k, v, num_heads, num_heads / kv_heads);
         auto kt = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
 
         // Reuse the dimension expressions of the symbolic operand so dot sees matching
         // symbols; the static kv operand broadcasts over the symbolic batch dimension.
-        auto q_dims        = q->get_shape().dyn_dims();
+        const auto& q_dims = q->get_shape().dyn_dims();
         auto bcast_for_dot = [&](instruction_ref static_ins) {
             auto dims = static_ins->get_shape().to_symbolic().dyn_dims();
             dims[0]   = q_dims[0];
@@ -420,7 +409,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto scale_lit   = info.add_literal(literal{shape{dtype, {1}}, {scale}});
         auto scaled      = info.add_common_op("mul", gemm1, scale_lit);
 
-        // Causal mask: key position j is masked when j > position of the query token.
+        // Causal mask: cache column j is masked when j > position of the query token.
         std::vector<int64_t> col_vec(max_seq_len);
         std::iota(col_vec.begin(), col_vec.end(), 0);
         auto col =
@@ -438,13 +427,11 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
 
-        auto out_dims = scaled->get_shape().dyn_dims();
-        mask          = info.add_instruction(
-            make_op("multibroadcast", {{"out_dyn_dims", to_value(out_dims)}}), mask);
+        const auto out_dims = to_value(scaled->get_shape().dyn_dims());
+        mask = info.add_instruction(make_op("multibroadcast", {{"out_dyn_dims", out_dims}}), mask);
         auto ninf =
             info.add_literal(literal{shape{dtype, {1}}, {-std::numeric_limits<float>::infinity()}});
-        ninf = info.add_instruction(
-            make_op("multibroadcast", {{"out_dyn_dims", to_value(out_dims)}}), ninf);
+        ninf = info.add_instruction(make_op("multibroadcast", {{"out_dyn_dims", out_dims}}), ninf);
         auto where   = info.add_instruction(make_op("where"), mask, ninf, scaled);
         auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
         auto scores  = info.add_instruction(make_op("dot"), softmax, bcast_for_dot(v));

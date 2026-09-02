@@ -28,9 +28,10 @@
 #include <migraphx/common.hpp>
 
 // GroupQueryAttention with a symbolic sequence length: every parse-time prompt/decode
-// branch of the static parse is replaced with the unified run-time form. Per-token key
-// positions are seqlens_k + 1 - seq + i and the causal mask is j > position, which
-// covers both the prompt (seqlens_k = seq - 1) and decode (seq = 1) cases.
+// branch of the static parse is replaced with the unified run-time form. Per-token
+// positions of the current tokens are seqlens_k + 1 - seq + i and the causal mask is
+// j > position, which covers both the prompt (seqlens_k = seq - 1) and decode (seq = 1)
+// cases.
 TEST_CASE(group_query_attention_symbolic_test)
 {
     using migraphx::sym::lit;
@@ -73,7 +74,7 @@ TEST_CASE(group_query_attention_symbolic_test)
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {8}}}),
         transposed_qkv);
 
-    // Per-token key positions {batch, seq, 1}: seqlens_k + 1 - seq + i
+    // Per-token positions of the current tokens {batch, seq, 1}: seqlens_k + 1 - seq + i
     auto slk64 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), slk);
     slk64 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {-1}}}), slk64);
@@ -127,7 +128,7 @@ TEST_CASE(group_query_attention_symbolic_test)
     auto kt =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
 
-    auto q_dims        = q->get_shape().dyn_dims();
+    const auto& q_dims = q->get_shape().dyn_dims();
     auto bcast_for_dot = [&](migraphx::instruction_ref static_ins) {
         auto dims = static_ins->get_shape().to_symbolic().dyn_dims();
         dims[0]   = q_dims[0];
@@ -141,7 +142,7 @@ TEST_CASE(group_query_attention_symbolic_test)
         migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}}, {0.25f}});
     auto scaled = migraphx::add_common_op(*mm, migraphx::make_op("mul"), {gemm1, scale_lit});
 
-    // Causal mask: key position j is masked when j > position of the query token
+    // Causal mask: cache column j is masked when j > position of the query token
     std::vector<int64_t> col_vec(10);
     std::iota(col_vec.begin(), col_vec.end(), 0);
     auto col = mm->add_literal(
@@ -152,15 +153,13 @@ TEST_CASE(group_query_attention_symbolic_test)
     mask      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), mask);
 
-    auto out_dims = scaled->get_shape().dyn_dims();
-    mask          = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out_dims)}}),
-        mask);
+    const auto out_dims = migraphx::to_value(scaled->get_shape().dyn_dims());
+    mask = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", out_dims}}),
+                               mask);
     auto ninf = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}},
                                                   {-std::numeric_limits<float>::infinity()}});
-    ninf      = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out_dims)}}),
-        ninf);
+    ninf = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", out_dims}}),
+                               ninf);
     auto where   = mm->add_instruction(migraphx::make_op("where"), mask, ninf, scaled);
     auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where);
     auto scores  = mm->add_instruction(migraphx::make_op("dot"), softmax, bcast_for_dot(v));

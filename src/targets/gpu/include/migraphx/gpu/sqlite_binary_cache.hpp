@@ -46,12 +46,12 @@ namespace gpu {
 // target: migraphx/sqlite.hpp forward-declares both impl types and never includes sqlite3.h.
 struct MIGRAPHX_GPU_EXPORT sqlite_binary_cache
 {
-    /// Open the database, create the schema and prepare the statements. Returns nullopt when
-    /// any of that fails, so an unusable database leaves the cache memory-only rather than
-    /// raising an error. Returns the wrapper so the caller can hand the result straight back.
-    static optional<binary_cache_backend> open(const std::string& path);
+    /// Open the database, create the schema and prepare the statements. `stamp` is the text
+    /// recorded in cache_info_v1 to describe the build. Returns nullopt when any of that fails,
+    /// so an unusable database leaves the cache memory-only rather than raising an error.
+    /// Returns the wrapper so the caller can hand the result straight back.
+    static optional<binary_cache_backend> open(const std::string& path, std::string stamp);
 
-    // binary_cache_backend concept members:
     optional<std::vector<char>>
     load(const std::string& version, const std::string& device, const std::string& key_hash);
     void store(const std::string& version,
@@ -69,6 +69,8 @@ struct MIGRAPHX_GPU_EXPORT sqlite_binary_cache
     sqlite_stmt get_stmt   = {};
     sqlite_stmt store_stmt = {};
     sqlite_stmt info_stmt  = {};
+    /// What to write into cache_info_v1; supplied by the caller.
+    std::string stamp = {};
     /// The last version stamped, so the stamp costs one statement per process rather than one
     /// per stored kernel.
     std::string info_written = {};

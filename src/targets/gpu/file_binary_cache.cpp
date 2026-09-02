@@ -23,7 +23,6 @@
  *
  */
 #include <migraphx/gpu/file_binary_cache.hpp>
-#include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/binary_cache_backend.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/logger.hpp>
@@ -58,13 +57,12 @@ static void write_atomically(const fs::path& dest, const std::vector<char>& cont
 }
 
 /// Record what this build is, so a directory full of hashes can be identified later.
-static void write_stamp(const fs::path& dir)
+static void write_stamp(const fs::path& dir, const std::string& stamp)
 {
-    auto stamp = dir / "cache.info";
-    if(fs::exists(stamp))
+    auto path = dir / "cache.info";
+    if(fs::exists(path))
         return;
-    const auto& s = binary_cache::version_stamp();
-    write_atomically(stamp, std::vector<char>(s.begin(), s.end()));
+    write_atomically(path, std::vector<char>(stamp.begin(), stamp.end()));
 }
 
 optional<std::vector<char>> file_binary_cache::load(const std::string& version,
@@ -98,7 +96,7 @@ void file_binary_cache::store(const std::string& version,
     try
     {
         fs::create_directories(path.parent_path());
-        write_stamp(root / version);
+        write_stamp(root / version, stamp);
         write_atomically(path, blob);
     }
     catch(const std::exception& ex)

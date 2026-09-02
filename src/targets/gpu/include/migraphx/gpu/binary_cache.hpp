@@ -104,8 +104,8 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     /// since entries from different compilers could not be told apart.
     static const std::string& version_dir();
 
-    /// A human-readable description of what version_dir() encodes, for backends that can store
-    /// a self-describing marker alongside their entries.
+    /// A human-readable description of what version_dir() encodes. Handed to a backend when one
+    /// is constructed, so it can store a self-describing marker alongside its entries.
     static const std::string& version_stamp();
 
     private:

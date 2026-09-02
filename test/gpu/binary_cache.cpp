@@ -125,13 +125,19 @@ static std::size_t row_count(const std::string& path, const std::string& table)
     return std::stoul(rows.front().at("n"));
 }
 
-/// How many entries a cache path holds, whichever backend wrote them.
+/// How many entries a cache path holds, whichever backend wrote them. The extensions must match
+/// the ones make_binary_cache_backend routes to the SQLite backend, or this silently counts
+/// files in a directory that does not exist and reports zero.
 static std::size_t stored_entry_count(const std::string& path)
 {
-    if(migraphx::ends_with(path, ".db"))
+    if(migraphx::ends_with(path, ".db") or migraphx::ends_with(path, ".sqlite"))
         return row_count(path, "cache_v1");
     return entry_files(path).size();
 }
+
+/// Backends constructed directly take the stamp as an argument; only the test that reads
+/// cache_info_v1 back cares what it says.
+static const std::string test_stamp = "test-stamp\n";
 
 TEST_CASE(lookup_records_a_miss)
 {
@@ -440,8 +446,8 @@ TEST_CASE(two_connections_share_a_database)
     migraphx::tmp_dir td{"binary-cache"};
     auto path = db_path(td);
 
-    auto a = migraphx::gpu::sqlite_binary_cache::open(path);
-    auto b = migraphx::gpu::sqlite_binary_cache::open(path);
+    auto a = migraphx::gpu::sqlite_binary_cache::open(path, test_stamp);
+    auto b = migraphx::gpu::sqlite_binary_cache::open(path, test_stamp);
     EXPECT(a.has_value());
     EXPECT(b.has_value());
 
@@ -488,7 +494,7 @@ TEST_CASE(sqlite_records_the_version_stamp)
 TEST_CASE(sqlite_scopes_entries_by_version_and_device)
 {
     migraphx::tmp_dir td{"binary-cache"};
-    auto backend = migraphx::gpu::sqlite_binary_cache::open(db_path(td));
+    auto backend = migraphx::gpu::sqlite_binary_cache::open(db_path(td), test_stamp);
     EXPECT(backend.has_value());
 
     const std::vector<char> blob{'p', 'a', 'y'};
@@ -506,7 +512,7 @@ TEST_CASE(sqlite_store_overwrites_in_place)
 {
     migraphx::tmp_dir td{"binary-cache"};
     auto path    = db_path(td);
-    auto backend = migraphx::gpu::sqlite_binary_cache::open(path);
+    auto backend = migraphx::gpu::sqlite_binary_cache::open(path, test_stamp);
     EXPECT(backend.has_value());
 
     const std::vector<char> replacement{'n', 'e', 'w'};
@@ -528,11 +534,11 @@ TEST_CASE(backends_round_trip_through_the_wrapper)
     const std::vector<char> blob{'\0', 'n', 'o', 't', '\0', 'm', 's', 'g', '\xff'};
     auto e = make_entry("opaque");
 
-    auto db = migraphx::gpu::sqlite_binary_cache::open((td.path / "cache.db").string());
+    auto db = migraphx::gpu::sqlite_binary_cache::open((td.path / "cache.db").string(), test_stamp);
     EXPECT(db.has_value());
 
     std::vector<migraphx::gpu::binary_cache_backend> backends;
-    backends.emplace_back(migraphx::gpu::file_binary_cache{td.path / "files"});
+    backends.emplace_back(migraphx::gpu::file_binary_cache{td.path / "files", test_stamp});
     backends.push_back(*db);
 
     for(auto& backend : backends)

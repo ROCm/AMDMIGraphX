@@ -110,8 +110,8 @@ const std::string& binary_cache::version_stamp()
 /// Turn a stored blob back into an entry. Any failure is just a miss, so a damaged entry costs
 /// a recompile and is written over. Shared by every backend, so they all tolerate corruption
 /// and survive a hash collision the same way.
-static optional<binary_cache::entry> decode_entry(const std::vector<char>& blob,
-                                                  const std::string& key)
+static optional<binary_cache::entry>
+decode_entry(const std::vector<char>& blob, const std::string& key, const std::string& key_hash)
 {
     binary_cache::entry e;
     try
@@ -120,28 +120,31 @@ static optional<binary_cache::entry> decode_entry(const std::vector<char>& blob,
     }
     catch(const std::exception& ex)
     {
-        log::warn() << "Ignoring unreadable binary cache entry " << md5(key) << ": " << ex.what();
+        log::warn() << "Ignoring unreadable binary cache entry " << key_hash << ": " << ex.what();
         return nullopt;
     }
     // Entries are addressed by a hash of the key, so the full key is checked here to make a
     // collision a miss rather than a wrong kernel.
     if(e.key != key)
     {
-        log::warn() << "Ignoring binary cache entry with mismatched key: " << md5(key);
+        log::warn() << "Ignoring binary cache entry with mismatched key: " << key_hash;
         return nullopt;
     }
     return e;
 }
 
-// Select the storage backend by file type, matching make_problem_cache_backend: a ".db"/".sqlite"
-// path is a SQLite database, anything else is a directory of entries.
+// Select the storage backend by file type, the same rule make_problem_cache_backend applies in
+// problem_cache.cpp: a ".db"/".sqlite" path is a SQLite database, anything else is a directory
+// of entries. The version stamp is handed to the backend here so the backends do not have to
+// reach back into the cache frontend for it.
 static optional<binary_cache_backend> make_binary_cache_backend(const std::string& path)
 {
     if(path.empty())
         return nullopt;
+    const auto& stamp = binary_cache::version_stamp();
     if(ends_with(path, ".db") or ends_with(path, ".sqlite"))
-        return sqlite_binary_cache::open(path); // nullopt when the database is unusable
-    return binary_cache_backend{file_binary_cache{path}};
+        return sqlite_binary_cache::open(path, stamp); // nullopt when the database is unusable
+    return binary_cache_backend{file_binary_cache{path, stamp}};
 }
 
 // Nothing can be persisted safely when the compiler cannot be identified, since entries from
@@ -165,10 +168,13 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
     }
     if(backend.has_value())
     {
-        auto blob = backend->load(version_dir(), device_dir(ctx), md5(key));
+        // Hashing the key is not free -- it is the whole compile source, which runs to
+        // kilobytes -- so it is done once and reused for the lookup and any diagnostics.
+        auto key_hash = md5(key);
+        auto blob     = backend->load(version_dir(), device_dir(ctx), key_hash);
         if(blob.has_value())
         {
-            auto e = decode_entry(*blob, key);
+            auto e = decode_entry(*blob, key, key_hash);
             if(e.has_value())
             {
                 counters.hits++;
@@ -187,16 +193,18 @@ void binary_cache::insert(const context& ctx, entry e)
     counters.compiled++;
     if(backend.has_value())
     {
+        auto key_hash = md5(e.key);
         try
         {
-            // Serializing inside the guard, rather than in the argument list, keeps a failure
-            // here a warning like any other storage failure instead of escaping insert().
+            // Serializing inside the try, rather than in the call's argument list, makes a
+            // failure here a warning like any other storage failure instead of escaping
+            // insert() and failing the compile.
             auto blob = to_msgpack(migraphx::to_value(e));
-            backend->store(version_dir(), device_dir(ctx), md5(e.key), e, blob);
+            backend->store(version_dir(), device_dir(ctx), key_hash, e, blob);
         }
         catch(const std::exception& ex)
         {
-            log::warn() << "Failed to store binary cache entry " << md5(e.key) << ": " << ex.what();
+            log::warn() << "Failed to store binary cache entry " << key_hash << ": " << ex.what();
         }
     }
     memo[std::move(e.key)] = std::move(e.code);

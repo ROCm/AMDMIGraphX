@@ -91,10 +91,14 @@ struct sqlite_stmt_impl
     std::string error_message() const { return db->error_message(); }
 
     // Holding the connection keeps it alive for as long as any statement prepared on it,
-    // since finalizing after the connection is closed is undefined.
+    // since finalizing after the connection is closed is undefined. Declaration order is
+    // load-bearing: members destruct in reverse, so ptr is finalized before db is released.
+    // Do not reorder.
     std::shared_ptr<sqlite_impl> db;
     sqlite3_stmt_ptr ptr;
 };
+
+constexpr int write_flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
 
 sqlite sqlite::read(const fs::path& p)
 {
@@ -108,8 +112,7 @@ sqlite sqlite::write(const fs::path& p)
 {
     sqlite r;
     r.impl = std::make_shared<sqlite_impl>();
-    // Using '+' instead of bitwise '|' to avoid compilation warning
-    r.impl->open(p, SQLITE_OPEN_READWRITE + SQLITE_OPEN_CREATE);
+    r.impl->open(p, write_flags);
     return r;
 }
 
@@ -117,8 +120,7 @@ optional<sqlite> sqlite::try_write(const fs::path& p)
 {
     sqlite r;
     r.impl = std::make_shared<sqlite_impl>();
-    // Using '+' instead of bitwise '|' to avoid compilation warning
-    if(not r.impl->try_open(p, SQLITE_OPEN_READWRITE + SQLITE_OPEN_CREATE))
+    if(not r.impl->try_open(p, write_flags))
         return nullopt;
     return r;
 }
@@ -143,10 +145,10 @@ std::vector<std::unordered_map<std::string, std::string>> sqlite::execute(const 
 sqlite_stmt sqlite::prepare(const std::string& s)
 {
     sqlite3_stmt* stmt_tmp = nullptr;
-    int rc = sqlite3_prepare_v2(impl->get(), s.c_str(), -1, &stmt_tmp, nullptr);
+    int rc                 = sqlite3_prepare_v2(impl->get(), s.c_str(), -1, &stmt_tmp, nullptr);
     sqlite_stmt result;
-    result.impl     = std::make_shared<sqlite_stmt_impl>();
-    result.impl->db = impl;
+    result.impl      = std::make_shared<sqlite_stmt_impl>();
+    result.impl->db  = impl;
     result.impl->ptr = sqlite3_stmt_ptr{stmt_tmp};
     if(rc != SQLITE_OK)
         MIGRAPHX_THROW("error preparing '" + s + "': " + impl->error_message());
@@ -157,11 +159,12 @@ void sqlite::set_busy_timeout(int ms) { sqlite3_busy_timeout(impl->get(), ms); }
 
 sqlite_stmt& sqlite_stmt::bind(int i, std::string_view s)
 {
-    // A null pointer binds SQL NULL rather than an empty string, and a default-constructed
-    // string_view has null data(), so empty input needs its own case.
-    int rc = s.empty() ? sqlite3_bind_text64(impl->get(), i, "", 0, SQLITE_STATIC, SQLITE_UTF8)
-                       : sqlite3_bind_text64(
-                             impl->get(), i, s.data(), s.size(), SQLITE_TRANSIENT, SQLITE_UTF8);
+    // A default-constructed string_view has null data(), and a null pointer binds SQL NULL
+    // rather than an empty string, so empty input substitutes a valid pointer. SQLITE_TRANSIENT
+    // makes sqlite take its own copy before returning, which is what lets callers bind
+    // temporaries.
+    const char* text = s.empty() ? "" : s.data();
+    int rc = sqlite3_bind_text64(impl->get(), i, text, s.size(), SQLITE_TRANSIENT, SQLITE_UTF8);
     if(rc != SQLITE_OK)
         MIGRAPHX_THROW(impl->error_message());
     return *this;
@@ -178,12 +181,12 @@ sqlite_stmt& sqlite_stmt::bind(int i, std::int64_t x)
 sqlite_stmt& sqlite_stmt::bind(int i, const std::vector<char>& blob)
 {
     // As with text, an empty vector's data() may be null, which would bind SQL NULL; a
-    // zero-length zeroblob is an empty BLOB instead. bind_blob64 is used because the
-    // non-64 form takes the size as an int.
+    // zero-length zeroblob is an empty BLOB instead. The 64-bit form is used because the
+    // plain one takes the size as an int, and SQLITE_TRANSIENT copies before returning so
+    // callers can bind temporaries.
     int rc = blob.empty()
                  ? sqlite3_bind_zeroblob(impl->get(), i, 0)
-                 : sqlite3_bind_blob64(
-                       impl->get(), i, blob.data(), blob.size(), SQLITE_TRANSIENT);
+                 : sqlite3_bind_blob64(impl->get(), i, blob.data(), blob.size(), SQLITE_TRANSIENT);
     if(rc != SQLITE_OK)
         MIGRAPHX_THROW(impl->error_message());
     return *this;

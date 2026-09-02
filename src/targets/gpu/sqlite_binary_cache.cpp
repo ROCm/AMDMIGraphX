@@ -23,7 +23,6 @@
  *
  */
 #include <migraphx/gpu/sqlite_binary_cache.hpp>
-#include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/logger.hpp>
@@ -42,8 +41,8 @@ static_assert(std::is_constructible<binary_cache_backend, sqlite_binary_cache>{}
 
 namespace {
 
-// How long to wait for a lock held by another process before giving up, matching rocFFT. This
-// is the entire cross-process strategy: whatever still fails degrades to a recompile.
+// How long to wait for a lock held by another process before giving up. This is the entire
+// cross-process strategy: whatever still fails degrades to a recompile.
 constexpr int busy_timeout_ms = 5000;
 
 // The table name carries the schema version, so an incompatible change is a new table that old
@@ -80,8 +79,9 @@ constexpr const char* get_sql =
 
 // INSERT OR REPLACE is the analogue of the file backend's publish-by-rename: the content is
 // decided entirely by the key, so two processes compiling the same kernel is benign and the
-// last writer wins with equivalent bytes. The timestamp is computed by the database so it is
-// consistent across writers.
+// last writer wins with equivalent bytes. The timestamp is computed by the database rather
+// than the process so that rows written by different machines stay comparable; nothing reads
+// it yet, it is there to make pruning an old cache by age possible.
 constexpr const char* store_sql =
     "INSERT OR REPLACE INTO cache_v1"
     " (version, device, key_hash, op_name, problem, solution, entry, timestamp)"
@@ -92,14 +92,14 @@ constexpr const char* info_sql =
 
 } // namespace
 
-optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path)
+optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path, std::string stamp)
 {
     sqlite_binary_cache r;
+    r.stamp = std::move(stamp);
     try
     {
-        // sqlite will not create missing directories, but the file backend does, so without
-        // this a fresh machine would silently get no cache from a path that would have worked
-        // had it named a directory instead of a database.
+        // sqlite will not create a missing parent directory, but the file backend does, so
+        // this keeps the two backends behaving the same on a fresh machine.
         auto parent = fs::path{path}.parent_path();
         if(not parent.empty())
             fs::create_directories(parent);
@@ -138,20 +138,20 @@ void sqlite_binary_cache::stamp_version(const std::string& version)
 {
     if(info_written == version or not info_stmt.valid())
         return;
+    // Recorded up front, and not again on success, so that a database which rejects the write
+    // is not retried once per stored kernel.
+    info_written = version;
     try
     {
         sqlite_stmt_reset guard{info_stmt};
-        info_stmt.bind(1, version).bind(2, binary_cache::version_stamp());
+        info_stmt.bind(1, version).bind(2, stamp);
         info_stmt.step();
-        info_written = version;
     }
     catch(const std::exception& ex)
     {
         // The stamp is provenance for a human reading the database later, so failing to write
-        // it must not stop entries being stored. Remember the version anyway so a database
-        // that rejects this never retries it once per kernel.
+        // it must not stop entries being stored.
         log::warn() << "Failed to stamp the binary cache: " << ex.what();
-        info_written = version;
     }
 }
 

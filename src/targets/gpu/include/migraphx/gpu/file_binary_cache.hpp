@@ -38,10 +38,10 @@ namespace gpu {
 
 // A binary_cache_backend that keeps entries as files under a root directory, laid out
 // <root>/<version>/<device>/<key_hash>.mxr, with a cache.info stamp beside each version
-// directory describing the build that produced it. Path resolution is the caller's job.
+// directory describing the build that produced it. Path resolution and the text of the stamp
+// are the caller's job.
 struct MIGRAPHX_GPU_EXPORT file_binary_cache
 {
-    // binary_cache_backend concept members:
     optional<std::vector<char>>
     load(const std::string& version, const std::string& device, const std::string& key_hash);
     void store(const std::string& version,
@@ -50,7 +50,8 @@ struct MIGRAPHX_GPU_EXPORT file_binary_cache
                const binary_cache_entry& e,
                const std::vector<char>& blob);
 
-    fs::path root = {};
+    fs::path root     = {};
+    std::string stamp = {};
 };
 
 } // namespace gpu

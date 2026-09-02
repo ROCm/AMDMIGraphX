@@ -1175,68 +1175,61 @@ inline auto literal_value_checker(F f)
     }));
 }
 
-/// Multiples of the literal type's epsilon, which has_value scales into a comparison window. One
-/// multiple is one rounding step, and a rounding step covers a different share of a binade in each
-/// type: float holds 8388608 representable values between consecutive powers of two, half holds
-/// 1024, bf16 holds 128 and fp8e4m3fn holds 8. So 10 and 10 is negligible slack in float but works
-/// out to a window of 2.5 around 1.0 in fp8, wide enough to reach the neighbouring constant.
 struct value_tolerance
 {
-    double atol_mult = 0;
-    double rtol_mult = 0;
-};
+    /// Multiples of the literal type's epsilon
+    optional<double> atol;
+    optional<double> rtol;
 
-/// The window has_value uses when the caller does not name one. Every enumerator is listed so that
-/// a type added to shape::type_t has to name its own window here rather than silently picking up a
-/// window sized for float.
-inline value_tolerance default_value_tolerance(shape::type_t t)
-{
-    switch(t)
+    /// The window has_value uses when the caller does not name one. Every enumerator is listed so
+    /// that a type added to shape::type_t has to name its own window here rather than silently
+    /// picking up a window sized for float.
+    static value_tolerance get_default_tols(shape::type_t t)
     {
-    // The historical window, and negligible slack at these widths.
-    case shape::float_type: [[fallthrough]];
-    case shape::double_type: return {10, 10};
-    // Seven rounding steps is a small slice of the values half holds per binade, and about five
-    // percent of a binade in bf16, which still leaves 1.0 and 1.125 apart.
-    case shape::half_type: [[fallthrough]];
-    case shape::bf16_type: return {3, 4};
-    // Under a single rounding step, so the window cannot reach the neighbouring constant in types
-    // holding only a handful of values per binade.
-    case shape::fp8e4m3fn_type: [[fallthrough]];
-    case shape::fp8e4m3fnuz_type: [[fallthrough]];
-    case shape::fp8e5m2_type: [[fallthrough]];
-    case shape::fp8e5m2fnuz_type: return {0.25, 0.5};
-    // Integral types compare exactly. literal::visit throws for tuple and fp4x2, so their window
-    // is never reached.
-    case shape::bool_type: [[fallthrough]];
-    case shape::uint8_type: [[fallthrough]];
-    case shape::int8_type: [[fallthrough]];
-    case shape::uint16_type: [[fallthrough]];
-    case shape::int16_type: [[fallthrough]];
-    case shape::uint32_type: [[fallthrough]];
-    case shape::int32_type: [[fallthrough]];
-    case shape::uint64_type: [[fallthrough]];
-    case shape::int64_type: [[fallthrough]];
-    case shape::tuple_type: [[fallthrough]];
-    case shape::fp4x2_type: return {0, 0};
+        switch(t)
+        {
+        // The historical window, and negligible slack at these widths.
+        case shape::float_type: [[fallthrough]];
+        case shape::double_type: return {10, 10};
+        // Seven rounding steps is a small slice of the values half holds per binade, and about five
+        // percent of a binade in bf16, which still leaves 1.0 and 1.125 apart.
+        case shape::half_type: [[fallthrough]];
+        case shape::bf16_type: return {3, 4};
+        // Under a single rounding step, so the window cannot reach the neighbouring constant in
+        // types holding only a handful of values per binade.
+        case shape::fp8e4m3fn_type: [[fallthrough]];
+        case shape::fp8e4m3fnuz_type: [[fallthrough]];
+        case shape::fp8e5m2_type: [[fallthrough]];
+        case shape::fp8e5m2fnuz_type: return {0.25, 0.5};
+        // Integral types compare exactly. literal::visit throws for tuple and fp4x2, so their
+        // window is never reached.
+        case shape::bool_type: [[fallthrough]];
+        case shape::uint8_type: [[fallthrough]];
+        case shape::int8_type: [[fallthrough]];
+        case shape::uint16_type: [[fallthrough]];
+        case shape::int16_type: [[fallthrough]];
+        case shape::uint32_type: [[fallthrough]];
+        case shape::int32_type: [[fallthrough]];
+        case shape::uint64_type: [[fallthrough]];
+        case shape::int64_type: [[fallthrough]];
+        case shape::tuple_type: [[fallthrough]];
+        case shape::fp4x2_type: return {0, 0};
+        }
+        MIGRAPHX_THROW("has_value: invalid literal type");
     }
-    MIGRAPHX_THROW("has_value: invalid literal type");
-}
+};
 
 namespace detail {
 /// Compares every element of `l` against `x` within eps * (atol + rtol * abs(x)), where eps is the
-/// literal type's epsilon and the multiples default to `default_value_tolerance` for that type.
-/// Integral types have an epsilon of zero, so they require an exact match, as does a window of
-/// zero.
+/// literal type's epsilon and the multiples default to `value_tolerance::get_default_tols` for that
+/// type. Integral types have an epsilon of zero, so they require an exact match, as does a window
+/// of zero.
 template <class T>
-inline bool literal_has_value(const migraphx::literal& l,
-                              T x,
-                              optional<double> atol_mult,
-                              optional<double> rtol_mult)
+inline bool literal_has_value(const migraphx::literal& l, T x, value_tolerance tols)
 {
-    auto defaults = default_value_tolerance(l.get_shape().type());
-    auto atol     = atol_mult.value_or(defaults.atol_mult);
-    auto rtol     = rtol_mult.value_or(defaults.rtol_mult);
+    auto defaults = value_tolerance::get_default_tols(l.get_shape().type());
+    auto atol     = tols.atol.value_or(defaults.atol.value());
+    auto rtol     = tols.rtol.value_or(defaults.rtol.value());
     auto target   = static_cast<double>(x);
     bool b        = false;
     l.visit([&](auto v) {
@@ -1271,15 +1264,15 @@ template <class T>
 inline auto has_value(T x)
 {
     return literal_value_checker(
-        [=](migraphx::literal l) { return detail::literal_has_value(l, x, nullopt, nullopt); });
+        [=](migraphx::literal l) { return detail::literal_has_value(l, x, value_tolerance{}); });
 }
 
 /// As above with the epsilon multiples given explicitly. Both zero requires an exact match.
 template <class T>
-inline auto has_value(T x, double atol_mult, double rtol_mult)
+inline auto has_value(T x, value_tolerance tols)
 {
     return literal_value_checker(
-        [=](migraphx::literal l) { return detail::literal_has_value(l, x, atol_mult, rtol_mult); });
+        [=](migraphx::literal l) { return detail::literal_has_value(l, x, tols); });
 }
 
 inline auto has_attribute(const std::string& name)

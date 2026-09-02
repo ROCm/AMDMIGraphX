@@ -912,7 +912,7 @@ TEST_CASE(match_has_value7)
     auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
     auto sum1 = mm.add_instruction(sum_op{}, one, zero);
     mm.add_instruction(pass_op{}, sum1);
-    auto m1 = match::has_value(0.0f, 0, 0);
+    auto m1 = match::has_value(0.0f, {.atol = 0, .rtol = 0});
     auto r1 = find_match(mm, m1);
     EXPECT(r1.result == mm.end());
     // increase tolerance
@@ -930,7 +930,7 @@ TEST_CASE(match_has_value8)
     auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
     auto sum1 = mm.add_instruction(sum_op{}, one, zero);
     mm.add_instruction(pass_op{}, sum1);
-    auto m1 = match::has_value(0.0f, 0, 0);
+    auto m1 = match::has_value(0.0f, {.atol = 0, .rtol = 0});
     auto r1 = find_match(mm, m1);
     EXPECT(r1.result == mm.end());
     // increase tolerance
@@ -953,11 +953,11 @@ TEST_CASE(match_has_value9)
     auto r2 = find_match(mm, m2);
     EXPECT(r2.result == n_five);
     // do exact match
-    auto m3 = match::has_value(-5.0f, 0, 0);
+    auto m3 = match::has_value(-5.0f, {.atol = 0, .rtol = 0});
     auto r3 = find_match(mm, m3);
     EXPECT(r3.result == n_five);
     // do exact match
-    auto m4 = match::has_value(5.0f, 0, 0);
+    auto m4 = match::has_value(5.0f, {.atol = 0, .rtol = 0});
     auto r4 = find_match(mm, m4);
     EXPECT(r4.result == mm.end());
 }
@@ -1028,7 +1028,7 @@ TEST_CASE(match_has_value_eps1)
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
     mm.add_return({sum1});
-    auto m = match::has_value(7.f, 1, 0);
+    auto m = match::has_value(7.f, {.atol = 1, .rtol = 0});
     auto r = find_match(mm, m);
     EXPECT(r.result == l0);
 }
@@ -1043,7 +1043,7 @@ TEST_CASE(match_has_value_eps2)
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
     mm.add_return({sum1});
-    auto m = match::has_value(3.f, 10, 10);
+    auto m = match::has_value(3.f, {.atol = 10, .rtol = 10});
     auto r = find_match(mm, m);
     EXPECT(r.result == l1);
 }
@@ -1059,7 +1059,7 @@ TEST_CASE(match_has_value_eps3)
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
     mm.add_return({sum1});
     auto eps = std::numeric_limits<float>::epsilon();
-    auto m   = match::has_value(7.0 + 100 * eps, 10, 10);
+    auto m   = match::has_value(7.0 + 100 * eps, {.atol = 10, .rtol = 10});
     auto r   = find_match(mm, m);
     EXPECT(r.result == mm.end());
 }

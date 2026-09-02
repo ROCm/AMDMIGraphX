@@ -54,8 +54,155 @@ struct rotary_embedding : op_builder<rotary_embedding>
         auto cos_cache = args[2];
         auto sin_cache = args[3];
 
+        if(in->get_shape().symbolic())
+            return insert_symbolic(m, ins, in, pos_ids, cos_cache, sin_cache);
+
         auto [cos, sin] = gather_cache(m, ins, in, pos_ids, cos_cache, sin_cache);
         return apply_rotation(m, ins, in, cos, sin);
+    }
+
+    static std::size_t fixed_last_dim(const shape& s)
+    {
+        if(not s.dynamic())
+            return s.lens().back();
+        const auto& dd = s.dyn_dims().back();
+        if(not dd.is_fixed())
+            MIGRAPHX_THROW("rotary_embedding: last dimension must be fixed");
+        return dd.get_interval().min;
+    }
+
+    // Symbolic path: the sequence (and possibly batch) dimensions are symbolic
+    // expressions. Positions must be per-token ids broadcastable to {batch, seq, 1};
+    // the caller computes them since the parse-time prompt/decode distinction of the
+    // static path does not exist for a symbolic sequence length.
+    std::vector<instruction_ref> insert_symbolic(module& m,
+                                                 instruction_ref ins,
+                                                 instruction_ref in,
+                                                 instruction_ref pos_ids,
+                                                 instruction_ref cos_cache,
+                                                 instruction_ref sin_cache) const
+    {
+        // Expect input layout: [batch, heads, seq, head_size]
+        if(in->get_shape().ndim() != 4)
+        {
+            MIGRAPHX_THROW("rotary_embedding: expected input of rank 4 with layout "
+                           "[batch, heads, seq, head_size] in 4-arg mode");
+        }
+        const auto head_size = fixed_last_dim(in->get_shape());
+        if(head_size % 2 != 0)
+        {
+            MIGRAPHX_THROW(
+                "rotary_embedding: head_size must be even so that head_size/2 can be used for "
+                "rotary embedding");
+        }
+        const auto half_head = head_size / 2;
+        auto check_cache     = [&](instruction_ref cache, const std::string& name) {
+            const auto& s = cache->get_shape();
+            if(s.ndim() == 0 or fixed_last_dim(s) != half_head)
+            {
+                MIGRAPHX_THROW("rotary_embedding: " + name +
+                               " last dimension must equal head_size/2 to be compatible with "
+                                   "input");
+            }
+        };
+        check_cache(cos_cache, "cos_cache");
+        check_cache(sin_cache, "sin_cache");
+
+        if(pos_ids->get_shape().ndim() < 2)
+        {
+            MIGRAPHX_THROW("rotary_embedding: a symbolic input requires per-token position ids "
+                           "of shape [batch, seq]");
+        }
+        // {batch, seq, 1} indices into the caches
+        auto indices =
+            m.insert_instruction(ins, make_op("reshape", {{"dims", {0, -1, 1}}}), pos_ids);
+
+        auto cos = gather_cache_symbolic(m, ins, cos_cache, indices, head_size);
+        auto sin = gather_cache_symbolic(m, ins, sin_cache, indices, head_size);
+        return apply_rotation_symbolic(m, ins, in, cos, sin, head_size);
+    }
+
+    // Gather per-token rows from a {max_positions, head_size/2} cache and lay them out
+    // as {batch, 1, seq, head_size}: duplicated halves when non-interleaved, each entry
+    // doubled in place when interleaved.
+    instruction_ref gather_cache_symbolic(module& m,
+                                          instruction_ref ins,
+                                          instruction_ref cache,
+                                          instruction_ref indices,
+                                          std::size_t head_size) const
+    {
+        // {batch, seq, head_size/2}
+        auto gathered =
+            m.insert_instruction(ins, make_op("gathernd", {{"batch_dims", 0}}), cache, indices);
+        instruction_ref doubled;
+        if(interleaved)
+        {
+            auto expanded =
+                m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {3}}}), gathered);
+            expanded =
+                m.insert_instruction(ins, make_op("concat", {{"axis", 3}}), expanded, expanded);
+            doubled = m.insert_instruction(
+                ins,
+                make_op("reshape", {{"dims", {0, 0, static_cast<int64_t>(head_size)}}}),
+                expanded);
+        }
+        else
+        {
+            doubled =
+                m.insert_instruction(ins, make_op("concat", {{"axis", 2}}), gathered, gathered);
+        }
+        return m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {1}}}), doubled);
+    }
+
+    std::vector<instruction_ref> apply_rotation_symbolic(module& m,
+                                                         instruction_ref ins,
+                                                         instruction_ref in,
+                                                         instruction_ref cos,
+                                                         instruction_ref sin,
+                                                         std::size_t head_size) const
+    {
+        const auto d      = static_cast<int64_t>(head_size);
+        const auto half_d = d / 2;
+        auto dtype        = in->get_shape().type();
+        auto signs = m.add_literal(migraphx::literal{migraphx::shape{dtype, {2}}, {-1.0f, 1.0f}});
+
+        instruction_ref rotated;
+        if(interleaved)
+        {
+            signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {1, 2}}}), signs);
+            signs = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", {half_d, 2}}}), signs);
+            signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {d}}}), signs);
+
+            auto rs_in =
+                m.insert_instruction(ins, make_op("reshape", {{"dims", {0, 0, 0, half_d, 2}}}), in);
+            auto evens = m.insert_instruction(
+                ins, make_op("slice", {{"axes", {4}}, {"starts", {0}}, {"ends", {1}}}), rs_in);
+            auto odds = m.insert_instruction(
+                ins, make_op("slice", {{"axes", {4}}, {"starts", {1}}, {"ends", {2}}}), rs_in);
+            auto swapped = m.insert_instruction(ins, make_op("concat", {{"axis", 4}}), odds, evens);
+            rotated =
+                m.insert_instruction(ins, make_op("reshape", {{"dims", {0, 0, 0, d}}}), swapped);
+        }
+        else
+        {
+            signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {2, 1}}}), signs);
+            signs = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", {2, half_d}}}), signs);
+            signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {d}}}), signs);
+
+            auto first_half = m.insert_instruction(
+                ins, make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {half_d}}}), in);
+            auto second_half = m.insert_instruction(
+                ins, make_op("slice", {{"axes", {3}}, {"starts", {half_d}}, {"ends", {d}}}), in);
+            rotated = m.insert_instruction(
+                ins, make_op("concat", {{"axis", 3}}), second_half, first_half);
+        }
+
+        auto mul_cos = insert_common_op(m, ins, make_op("mul"), {in, cos});
+        auto mul_sin = insert_common_op(m, ins, make_op("mul"), {signs, sin});
+        mul_sin      = insert_common_op(m, ins, make_op("mul"), {rotated, mul_sin});
+        return {insert_common_op(m, ins, make_op("add"), {mul_cos, mul_sin})};
     }
 
     std::pair<instruction_ref, instruction_ref> gather_cache(module& m,

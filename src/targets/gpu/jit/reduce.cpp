@@ -30,6 +30,8 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/bit.hpp>
+#include <migraphx/module.hpp>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -432,6 +434,7 @@ static const char* const fused_reduce_kernel = R"__migraphx__(
 #include <migraphx/kernels/reduce.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/vectorize.hpp>
+#include <migraphx/kernels/unpack_int4.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -453,6 +456,91 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 )__migraphx__";
 
 namespace {
+
+/// Inputs consumed by an unpack_int4 in the submodule hold two int4 values
+/// per byte. The plan is computed on the logical unpacked shapes and the
+/// packed shape is emitted at the end, with the kernel reading the input at
+/// half the vector size.
+value find_packed_args(const module& rm)
+{
+    value result = value::array{};
+    auto names   = rm.get_parameter_names();
+    std::sort(names.begin(), names.end());
+    auto is = range(names.size());
+    transform_if(
+        is.begin(),
+        is.end(),
+        std::back_inserter(result),
+        [&](std::size_t i) {
+            auto param = rm.get_parameter(names[i]);
+            return std::any_of(param->outputs().begin(), param->outputs().end(), [](auto out) {
+                return out->name() == "unpack_int4";
+            });
+        },
+        [&](std::size_t i) -> value {
+            auto param = rm.get_parameter(names[i]);
+            if(not std::all_of(param->outputs().begin(), param->outputs().end(), [](auto out) {
+                   return out->name() == "unpack_int4";
+               }))
+                MIGRAPHX_THROW("fused_reduce: packed input has non-unpack consumers");
+            auto unpack = param->outputs().front();
+            auto axis   = unpack->get_operator().to_value().at("axis").to<std::int64_t>();
+            if(axis < 0)
+                axis += param->get_shape().ndim();
+            return {{"index", i}, {"axis", axis}};
+        });
+    return result;
+}
+
+/// The logical shape of a packed input: elements stay adjacent along the
+/// unpack axis while every other stride covers twice as many elements
+shape unpack_shape(const shape& s, std::size_t axis)
+{
+    auto lens = s.lens();
+    lens[axis] *= 2;
+    auto strides = s.strides();
+    auto is      = range(strides.size());
+    std::transform(is.begin(), is.end(), strides.begin(), [&](auto i) -> std::size_t {
+        if(i == axis)
+            return s.strides()[i];
+        return s.strides()[i] * 2;
+    });
+    return {s.type(), lens, strides};
+}
+
+/// Convert the logical shape back to the packed shape along the given axis
+shape pack_shape(const shape& s, std::size_t axis)
+{
+    auto lens = s.lens();
+    if(lens[axis] % 2 != 0 or s.strides()[axis] != 1)
+        MIGRAPHX_THROW("fused_reduce: unsupported packed input layout");
+    lens[axis] /= 2;
+    auto strides = s.strides();
+    auto is      = range(strides.size());
+    std::transform(is.begin(), is.end(), strides.begin(), [&](auto i) -> std::size_t {
+        if(i == axis)
+            return s.strides()[i];
+        if(s.lens()[i] == 1)
+            return 0;
+        if(s.strides()[i] % 2 != 0)
+            MIGRAPHX_THROW("fused_reduce: unsupported packed input layout");
+        return s.strides()[i] / 2;
+    });
+    return {s.type(), lens, strides};
+}
+
+/// The unpack axis of a packed input after reduce_dims merges dimensions
+optional<std::size_t> find_unit_axis(const shape& s)
+{
+    auto is = range(s.ndim());
+    auto it = std::find_if(is.begin(), is.end(), [&](auto axis) {
+        return s.strides()[axis] == 1 and s.lens()[axis] > 1;
+    });
+    if(it == is.end())
+        return nullopt;
+    return *it;
+}
+
 struct fused_reduce_plan
 {
     std::vector<shape> finputs        = {};
@@ -463,6 +551,8 @@ struct fused_reduce_plan
     std::string algo                  = {};
     std::string assign                = {};
     std::size_t relements             = 0;
+    // Packed input index to its unpack axis on the original input shape
+    std::map<std::size_t, std::size_t> packed_args = {};
 };
 
 // Computes the virtual inputs, default reduction algorithm, vectorization, and vectorized
@@ -472,12 +562,22 @@ fused_reduce_plan
 compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const value& v)
 {
     fused_reduce_plan plan;
-    plan.assign         = v.get("assign", "assign_none");
-    auto axes           = v.at("axes").to_vector<std::size_t>();
-    plan.finputs        = flatten_tuple_shapes(inputs);
+    plan.assign  = v.get("assign", "assign_none");
+    auto axes    = v.at("axes").to_vector<std::size_t>();
+    plan.finputs = flatten_tuple_shapes(inputs);
+    if(v.contains("packed_args"))
+    {
+        for(const auto& pa : v.at("packed_args"))
+            plan.packed_args[pa.at("index").to<std::size_t>()] = pa.at("axis").to<std::size_t>();
+    }
+    // Plan on the logical unpacked shapes so the packed inputs share the
+    // same dimensions as the other inputs
     plan.virtual_inputs = plan.finputs;
-    plan.virtual_inputs.push_back(get_reduced_shape(get_input_shape(plan.finputs), axes));
-    plan.virtual_inputs.push_back(get_output_shape(get_input_shape(plan.finputs), axes));
+    for(const auto& [index, axis] : plan.packed_args)
+        plan.virtual_inputs[index] = unpack_shape(plan.virtual_inputs[index], axis);
+    auto input_shape = get_input_shape(plan.virtual_inputs);
+    plan.virtual_inputs.push_back(get_reduced_shape(input_shape, axes));
+    plan.virtual_inputs.push_back(get_output_shape(input_shape, axes));
     plan.virtual_inputs = reduce_dims(normalize_permutation(plan.virtual_inputs));
     if(plan.assign != "assign_none")
         plan.virtual_inputs = split_reduce(plan.virtual_inputs);
@@ -487,12 +587,25 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     plan.virtual_inputs.pop_back();
 
     auto faxis = find_fast_axis({plan.virtual_inputs.front()});
+    if(not plan.packed_args.empty())
+    {
+        // The vectorization axis must be the unpack axis so the packed
+        // input lines up when read at half the vector size
+        auto uaxis = find_unit_axis(plan.virtual_inputs[plan.packed_args.begin()->first]);
+        if(not uaxis.has_value())
+            MIGRAPHX_THROW("fused_reduce: unsupported packed input layout");
+        faxis = *uaxis;
+    }
     plan.algo =
         v.get("algo", get_reduce_algo(ctx, plan.virtual_inputs, plan.reduction_shape.lens()));
-    bool no_vectorize = v.get("no_vectorize", false);
+    bool no_vectorize = v.get("no_vectorize", false) and plan.packed_args.empty();
     if((plan.algo == "block" or plan.algo == "block_tile" or plan.algo == "wave") and
        plan.reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
         plan.vec = vectorize::elements(ctx, faxis, plan.virtual_inputs);
+    if(not plan.packed_args.empty() and plan.vec.size < 2)
+        plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {2});
+    if(not plan.packed_args.empty() and plan.vec.size < 2)
+        MIGRAPHX_THROW("fused_reduce: packed inputs require vectorization");
     plan.relements = plan.reduction_shape.elements() / plan.vec.size;
     return plan;
 }
@@ -535,6 +648,19 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         options.inputs         = plan.finputs;
         options.output         = inputs.back();
         options.virtual_inputs = plan.virtual_inputs;
+        // Emit the packed inputs at their packed shape with a packed element
+        // type so the vectorizer reads them at half the vector size
+        for(const auto& [index, axis] : plan.packed_args)
+        {
+            (void)axis;
+            auto uaxis = find_unit_axis(plan.virtual_inputs[index]);
+            if(not uaxis.has_value() or *uaxis != plan.vec.axis)
+                MIGRAPHX_THROW("fused_reduce: unsupported packed input layout");
+            options.virtual_inputs[index] = pack_shape(plan.virtual_inputs[index], *uaxis);
+            options.type_overrides[index] = plan.finputs[index].type() == shape::int8_type
+                                                ? "migraphx::int4x2_t"
+                                                : "migraphx::uint4x2_t";
+        }
         if(algo == "block" or algo == "block_tile")
         {
             auto n_per_block = v.get("n_per_block", std::size_t{1});
@@ -606,11 +732,14 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
     compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
         assert(not ins->module_inputs().empty());
-        auto v        = op.to_value();
+        auto v = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
-        auto* rm      = ins->module_inputs().front();
-        auto shapes   = to_shapes(ins->inputs());
+        auto* rm         = ins->module_inputs().front();
+        auto shapes      = to_shapes(ins->inputs());
+        auto packed_args = find_packed_args(*rm);
+        if(not packed_args.empty())
+            v["packed_args"] = packed_args;
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
@@ -643,9 +772,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(not contains({"fused_reduce", "split_fused_reduce"}, op.name()))
             return nullopt;
         tuning_config tc;
-        auto shapes   = to_shapes(ins->inputs());
-        tc.problem    = to_value(shapes);
-        auto plan     = compute_fused_reduce_plan(ctx, shapes, op.to_value());
+        auto shapes      = to_shapes(ins->inputs());
+        tc.problem       = to_value(shapes);
+        auto v           = op.to_value();
+        auto packed_args = find_packed_args(*ins->module_inputs().front());
+        if(not packed_args.empty())
+            v["packed_args"] = packed_args;
+        auto plan     = compute_fused_reduce_plan(ctx, shapes, v);
         auto noutputs = plan.finputs.size() - shapes.size() + 1;
         auto tile     = find_reduce_tile(
             plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());

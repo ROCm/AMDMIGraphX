@@ -235,13 +235,25 @@ inline __device__ __host__ auto auto_vectorize()
 template <index_int N, index_int Axis, class T>
 __device__ __host__ auto vectorize_tensor(T x)
 {
-    constexpr auto shape = get_shape_c<T>{};
-    if constexpr(shape.lens[Axis] == 1)
-        return x;
-    else if constexpr(shape.strides[Axis] == 0)
-        return tensor_step<N>(x, _c<Axis>);
+    using type = typename T::type;
+    if constexpr(pack_factor<type>{} > 1)
+    {
+        // A packed element holds pack_factor values, so vectorizing by
+        // N/pack_factor keeps the same lens as the unpacked tensors
+        static_assert(N % pack_factor<type>{} == 0, "Vector size must cover the pack factor");
+        auto y = make_tensor_view(remove_packed(x.data()), x.get_shape());
+        return vectorize_tensor<N / pack_factor<type>{}, Axis>(y);
+    }
     else
-        return as_vec<N>(x, _c<Axis>);
+    {
+        constexpr auto shape = get_shape_c<T>{};
+        if constexpr(shape.lens[Axis] == 1)
+            return x;
+        else if constexpr(shape.strides[Axis] == 0)
+            return tensor_step<N>(x, _c<Axis>);
+        else
+            return as_vec<N>(x, _c<Axis>);
+    }
 }
 
 template <index_int N, index_int Axis>

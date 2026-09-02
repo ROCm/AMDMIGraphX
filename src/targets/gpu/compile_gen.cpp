@@ -547,6 +547,13 @@ std::string generate_reduce(module m, const std::string& name)
         {
             return names.at(ins->inputs().front());
         }
+        if(ins->name() == "unpack_int4")
+        {
+            // The packed input is vectorized by half of the vector size so
+            // each element unpacks into a full vector along the reduction
+            return "r.lazy_inner(MIGRAPHX_LIFT(migraphx::unpack_int4))(" +
+                   names.at(ins->inputs().front()) + ")";
+        }
         if(ins->name() == "get_tuple_elem")
         {
             const auto& x = names.at(ins->inputs().front());

@@ -56,6 +56,8 @@ struct rewrite_reshapes_base
         return true;
     }
 
+    static bool matches(instruction_ref) { return true; }
+
     static std::vector<std::size_t> base_dims(instruction_ref ins)
     {
         return ins->get_shape().lens();
@@ -135,6 +137,10 @@ struct rewrite_reshapes
             auto ins         = r.result;
             auto x_ins       = r.instructions["x"];
             auto input_ins   = r.instructions["input"];
+
+            // cppcheck-suppress knownConditionTrueFalse
+            if(not T::matches(ins) or not T::matches(x_ins))
+                return;
 
             // If its just a broadcast then skip
             if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {

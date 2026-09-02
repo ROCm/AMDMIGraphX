@@ -81,6 +81,20 @@ using half  = _Float16;
 using half2 = migraphx::vec<half, 2>;
 using bf16  = __bf16;
 
+// Element type that packs N sub-byte values into one T. The tensor lens
+// count packed elements; the vectorizer unwraps this to T and divides the
+// vector size by N.
+template <class T, index_int N>
+struct packed
+{
+    using value_type                = T;
+    static constexpr index_int size = N;
+    T data;
+};
+
+using uint4x2_t = packed<uint8_t, 2>;
+using int4x2_t  = packed<int8_t, 2>;
+
 } // namespace migraphx
 
 #endif

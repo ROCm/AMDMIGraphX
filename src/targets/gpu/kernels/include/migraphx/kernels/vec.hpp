@@ -133,6 +133,29 @@ __device__ __host__ T* remove_bool(T* x)
 
 inline __device__ __host__ uint8_t* remove_bool(bool* x) { return reinterpret_cast<uint8_t*>(x); }
 
+template <class T>
+struct pack_factor : integral_constant<index_int, 1>
+{
+};
+
+template <class T, index_int N>
+struct pack_factor<packed<T, N>> : integral_constant<index_int, N>
+{
+};
+
+// Packed types can not be used as a vector type so unwrap the underlying type
+template <class T>
+__device__ __host__ T* remove_packed(T* x)
+{
+    return x;
+}
+
+template <class T, index_int N>
+__device__ __host__ T* remove_packed(packed<T, N>* x)
+{
+    return reinterpret_cast<T*>(x);
+}
+
 template <index_int N, class T>
 __device__ __host__ auto as_vec(T* x)
 {

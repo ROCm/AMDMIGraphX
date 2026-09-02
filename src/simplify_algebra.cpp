@@ -48,23 +48,23 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static auto lit_broadcast()
 {
-    return match::any_of(match::is_constant(), match::name("broadcast"));
+    return match::opaque(match::any_of(match::is_constant(), match::name("broadcast")));
 }
 static auto not_lit_broadcast()
 {
-    return match::none_of(match::is_constant(), match::name("broadcast"));
+    return match::opaque(match::none_of(match::is_constant(), match::name("broadcast")));
 }
 static auto op_lit_broadcast(std::string op, std::string x, std::string y)
 {
-    return match::name(std::move(op))(match::either_arg(0, 1)(
-        lit_broadcast().bind(std::move(x)), not_lit_broadcast().bind(std::move(y))));
+    return match::opaque(match::name(std::move(op))(match::either_arg(0, 1)(
+        lit_broadcast().bind(std::move(x)), not_lit_broadcast().bind(std::move(y)))));
 }
 
 static auto conv_const_weights()
 {
-    return match::name("convolution")(
+    return match::opaque(match::name("convolution")(
         match::used_once(),
-        match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
+        match::args(match::none_of(match::is_constant()), match::is_constant().bind("w"))));
 }
 
 static auto from_int4()
@@ -83,7 +83,7 @@ static auto from_int4()
     });
 }
 
-static auto not_from_int4() { return match::none_of(from_int4()); }
+static auto not_from_int4() { return match::opaque(match::none_of(from_int4())); }
 
 static auto reduction() { return match::name_contains("reduce"); }
 
@@ -166,16 +166,17 @@ struct find_mul_slice_conv
 {
     static auto conv()
     {
-        return match::name("convolution")(
-            match::all_of[match::outputs()](match::name("slice")),
-            match::args(match::any(), match::is_constant().bind("w")));
+        return match::opaque(
+            match::name("convolution")(match::all_of[match::outputs()](match::name("slice")),
+                                       match::args(match::any(), match::is_constant().bind("w"))));
     }
     auto matcher() const
     {
-        return match::name("mul")(match::either_arg(0, 1)(
+        auto slice = match::opaque(
             match::name("slice")(match::used_once(), match::arg(0)(conv().bind("conv")))
-                .bind("slice"),
-            match::name("broadcast")(match::is_constant()).bind("a")));
+                .bind("slice"));
+        auto a = match::opaque(match::name("broadcast")(match::is_constant()).bind("a"));
+        return match::name("mul")(match::either_arg(0, 1)(slice, a));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -258,11 +259,12 @@ struct find_mul_dot
 {
     auto matcher() const
     {
-        auto constant = match::is_constant(not_from_int4());
-        auto is_dot_const_inputs =
-            match::name("dot")(match::any_of[match::inputs()](constant), match::used_once());
-        return match::name("mul")(match::either_arg(0, 1)(
-            is_dot_const_inputs.bind("dot"), match::name("broadcast", "multibroadcast").bind("c")));
+        auto constant            = match::opaque(match::is_constant(not_from_int4()));
+        auto is_dot_const_inputs = match::opaque(
+            match::name("dot")(match::any_of[match::inputs()](constant), match::used_once())
+                .bind("dot"));
+        auto c = match::opaque(match::name("broadcast", "multibroadcast").bind("c"));
+        return match::name("mul")(match::either_arg(0, 1)(is_dot_const_inputs, c));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -326,8 +328,9 @@ struct find_dot_slice
 {
     auto matcher() const
     {
-        return match::name("slice")(
-            match::args(match::name("dot", "quant_dot")(match::used_once()).bind("dot_ins")));
+        auto dot_ins =
+            match::opaque(match::name("dot", "quant_dot")(match::used_once()).bind("dot_ins"));
+        return match::name("slice")(match::args(dot_ins));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -404,13 +407,14 @@ struct find_dot_mul
 {
     auto matcher() const
     {
-        auto const_broadcast = match::name("broadcast", "multibroadcast")(match::is_constant());
-        auto mul             = match::name("mul")(
+        auto const_broadcast =
+            match::opaque(match::name("broadcast", "multibroadcast")(match::is_constant()));
+        auto mul = match::opaque(match::name("mul")(
             match::used_once(),
             match::either_arg(0, 1)(const_broadcast.bind("d"),
-                                    match::none_of(match::is_constant()).bind("z")));
-        return match::name("dot")(
-            match::either_arg(0, 1)(mul, match::is_constant(not_from_int4()).bind("c")));
+                                    match::none_of(match::is_constant()).bind("z"))));
+        auto c   = match::opaque(match::is_constant(not_from_int4()).bind("c"));
+        return match::name("dot")(match::either_arg(0, 1)(mul, c));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -474,14 +478,13 @@ struct find_mul_add
 {
     auto matcher() const
     {
-        return match::name("mul")(match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(
-                    match::any().bind("x"),
-                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()),
-            match::is_constant().bind("a")));
+        auto b = match::opaque(match::any_of(conv_const_weights(), match::is_constant()).bind("b"));
+        auto add = match::opaque(match::name("add")(
+            match::either_arg(0, 1)(match::any().bind("x"), b),
+            match::none_of(match::args(match::is_constant(), match::is_constant())),
+            match::used_once()));
+        auto a   = match::opaque(match::is_constant().bind("a"));
+        return match::name("mul")(match::either_arg(0, 1)(add, a));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -502,13 +505,13 @@ struct find_dot_add
 {
     auto matcher() const
     {
-        return match::name("dot")(match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(match::any().bind("x"),
-                                        match::any_of(match::is_constant()).bind("b")),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()),
-            match::is_constant().bind("a")));
+        auto b   = match::opaque(match::any_of(match::is_constant()).bind("b"));
+        auto add = match::opaque(match::name("add")(
+            match::either_arg(0, 1)(match::any().bind("x"), b),
+            match::none_of(match::args(match::is_constant(), match::is_constant())),
+            match::used_once()));
+        auto a   = match::opaque(match::is_constant().bind("a"));
+        return match::name("dot")(match::either_arg(0, 1)(add, a));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1149,6 +1152,53 @@ struct find_concat_same_input
         auto bcast       = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", bcast_lens}}), unsqueezed);
         m.replace_instruction(ins, make_op("reshape", {{"dims", out_lens}}), bcast);
+    }
+};
+
+// Matches `concat` of multibroadcasts along a broadcasted (stride-0) axis
+// where all inputs broadcast the same value. All conditions live in the
+// matcher so declining does not shadow later concat matchers.
+MIGRAPHX_PRED_MATCHER(concat_of_same_broadcast, instruction_ref ins)
+{
+    if(ins->name() != "concat")
+        return false;
+    if(ins->get_shape().dynamic())
+        return false;
+    const auto& inputs = ins->inputs();
+    if(inputs.empty())
+        return false;
+    if(not all_of(inputs, [](instruction_ref i) {
+           return i->name() == "multibroadcast" and i->inputs().size() == 1;
+       }))
+        return false;
+    auto axis        = any_cast<op::concat>(ins->normalized_operator()).axis;
+    const auto& lens = inputs.front()->get_shape().lens();
+    if(not all_of(inputs, [&](instruction_ref i) { return i->get_shape().strides()[axis] == 0; }))
+        return false;
+    auto x = inputs.front()->inputs().front();
+    // The concat axis must not map to a non-unit dimension of x
+    auto offset = lens.size() - x->get_shape().ndim();
+    if(axis >= offset and x->get_shape().lens()[axis - offset] != 1)
+        return false;
+    return all_of(inputs, [&](instruction_ref i) {
+        auto y = i->inputs().front();
+        return y == x or *y == *x;
+    });
+}
+
+// Replace `concat` of multibroadcasts along a broadcasted (stride-0) axis with
+// a single multibroadcast when all inputs broadcast the same value. This avoids
+// materializing a large literal when the concat gets constant folded.
+struct find_concat_same_broadcast
+{
+    auto matcher() const { return concat_of_same_broadcast(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto x   = ins->inputs().front()->inputs().front();
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
     }
 };
 
@@ -2869,6 +2919,7 @@ void simplify_algebra::apply(module& m) const
                             find_concat_conv{},
                             find_conv_concat_split_fuse{},
                             find_concat_same_input{},
+                            find_concat_same_broadcast{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

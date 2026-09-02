@@ -43,7 +43,6 @@
 #include <migraphx/zip_view.hpp>
 
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -92,23 +91,11 @@ bool has_variable_axis(const shape& s)
     return s.symbolic() and any_of(s.dyn_dims(), is_variable_axis);
 }
 
-bool is_pointwise(const operation& op) { return op.attributes().contains("pointwise"); }
-bool is_reduce(const operation& op) { return op.attributes().contains("reduce"); }
 bool is_dot(const operation& op)
 {
     return op.name() == "dot" or op.attributes().get("general_data_type", std::string{}) == "dot";
 }
-bool is_conv(const operation& op)
-{
-    return op.name() == "convolution" or
-           op.attributes().get("general_data_type", std::string{}) == "convolution";
-}
-bool is_pooling(const operation& op) { return op.name() == "pooling"; }
 bool is_softmax(const operation& op) { return op.name() == "softmax"; }
-bool is_shape_transform(const operation& op)
-{
-    return contains({"contiguous", "flatten", "reshape", "transpose"}, op.name());
-}
 
 std::optional<fill_kind> reduce_identity(const std::string& name)
 {
@@ -312,44 +299,60 @@ void analyze_axes(symbolic_op_info& info, const Rule& rule)
     }
 }
 
-void analyze_pointwise(symbolic_op_info& info)
+struct analyze_pointwise
 {
-    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-}
+    bool matches(const operation& op) const { return op.attributes().contains("pointwise"); }
 
-void analyze_reduce(symbolic_op_info& info)
-{
-    const auto& op     = info.ins->get_operator();
-    const auto& inputs = info.input_shapes;
-    std::vector<std::vector<int64_t>> reduction_axes(inputs.size());
-    std::transform(inputs.begin(), inputs.end(), reduction_axes.begin(), [&](const shape& input) {
-        return reduce_axes(op, input.ndim());
-    });
-    auto identity = reduce_identity(op.name());
-    analyze_axes(info, [&](io_ref io, std::size_t axis) {
-        if(io.is_output)
-            return parallel_axis();
-        const auto& axes = reduction_axes.at(io.index);
-        if(axes.empty())
-            return axis_desc{};
-        if(not contains(axes, axis))
-            return parallel_axis();
-        return identity.has_value() ? contracted_axis(*identity) : axis_desc{};
-    });
-}
+    void analyze(symbolic_op_info& info) const
+    {
+        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+    }
+};
 
-void analyze_dot(symbolic_op_info& info)
+struct analyze_reduce
 {
-    analyze_axes(info, [&](io_ref io, std::size_t axis) {
-        if(io.is_output)
-            return parallel_axis();
-        std::size_t rank = info.input_shapes.at(io.index).ndim();
-        assert(rank >= 2);
-        std::size_t contraction_axis = (io.index == 0) ? rank - 1 : rank - 2;
-        return axis == contraction_axis ? masked_axis(mask_role::contracted, fill_kind::zero)
-                                        : parallel_axis();
-    });
-}
+    bool matches(const operation& op) const { return op.attributes().contains("reduce"); }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& op     = info.ins->get_operator();
+        const auto& inputs = info.input_shapes;
+        std::vector<std::vector<int64_t>> reduction_axes(inputs.size());
+        std::transform(inputs.begin(),
+                       inputs.end(),
+                       reduction_axes.begin(),
+                       [&](const shape& input) { return reduce_axes(op, input.ndim()); });
+        auto identity = reduce_identity(op.name());
+        analyze_axes(info, [&](io_ref io, std::size_t axis) {
+            if(io.is_output)
+                return parallel_axis();
+            const auto& axes = reduction_axes.at(io.index);
+            if(axes.empty())
+                return axis_desc{};
+            if(not contains(axes, axis))
+                return parallel_axis();
+            return identity.has_value() ? contracted_axis(*identity) : axis_desc{};
+        });
+    }
+};
+
+struct analyze_dot
+{
+    bool matches(const operation& op) const { return is_dot(op); }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        analyze_axes(info, [&](io_ref io, std::size_t axis) {
+            if(io.is_output)
+                return parallel_axis();
+            std::size_t rank = info.input_shapes.at(io.index).ndim();
+            assert(rank >= 2);
+            std::size_t contraction_axis = (io.index == 0) ? rank - 1 : rank - 2;
+            return axis == contraction_axis ? masked_axis(mask_role::contracted, fill_kind::zero)
+                                            : parallel_axis();
+        });
+    }
+};
 
 std::vector<shape::dynamic_dimension> symbolic_broadcast_dims(const operation& op)
 {
@@ -449,98 +452,113 @@ bool is_symbolic_broadcast(const operation& op, std::size_t ninputs)
     return ninputs == 2;
 }
 
-bool matches_broadcast(const operation& op)
+struct analyze_broadcast
 {
-    return contains({"broadcast", "multibroadcast", "broadcast_with_dims"}, op.name());
-}
-
-void analyze_broadcast(symbolic_op_info& info)
-{
-    if(not is_symbolic_broadcast(info.ins->get_operator(), info.input_shapes.size()))
-        return;
-    info.freezer = freeze_broadcast;
-    info.shape_input_indices.resize(info.input_shapes.size() - 1);
-    std::iota(info.shape_input_indices.begin(), info.shape_input_indices.end(), std::size_t{1});
-    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-}
-
-bool matches_allocate(const operation& op) { return op.name() == "allocate"; }
-
-void analyze_allocate(symbolic_op_info& info)
-{
-    if(info.input_shapes.size() != 1 or
-       not symbolic_allocate_shape(info.ins->get_operator()).has_value())
-        return;
-    info.freezer             = freeze_allocate;
-    info.shape_input_indices = {0};
-    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-}
-
-void analyze_shape_transform(symbolic_op_info& info)
-{
-    const auto& op     = info.ins->get_operator();
-    const auto& inputs = info.input_shapes;
-    auto descriptor_op = op;
-    const auto& output = info.output_shape;
-    if(op.name() == "reshape" and inputs.size() == 1)
+    bool matches(const operation& op) const
     {
-        auto non_unit_dims = [](const shape& s) {
-            std::vector<sym::expr> result;
-            std::transform(s.dyn_dims().begin(),
-                           s.dyn_dims().end(),
-                           std::back_inserter(result),
-                           [](const auto& d) { return d.sym_expr; });
-            result.erase(std::remove(result.begin(), result.end(), sym::lit(1)), result.end());
-            return result;
-        };
-        if(non_unit_dims(inputs.front()) == non_unit_dims(output))
-        {
-            analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-            return;
-        }
+        return contains({"broadcast", "multibroadcast", "broadcast_with_dims"}, op.name());
     }
-    if(op.name() == "reshape" and inputs.size() == 2 and inputs.back().symbolic())
-    {
-        auto target_reshape  = reshape_from_shape(inputs.back(), {});
-        descriptor_op        = make_op("reshape", {{"dims", to_value(inputs.back().max_lens())}});
-        auto input_elements  = inputs.front().sym_elements();
-        auto output_elements = output.sym_elements();
-        if(sym::strict_less(input_elements, output_elements).value_or(false) or
-           sym::strict_less(output_elements, input_elements).value_or(false))
-            return;
-        if(target_reshape.compute_shape({inputs.front()}) != output)
-            return;
-        info.freezer             = freeze_reshape;
-        info.shape_input_indices = {1};
-    }
-    else if(inputs.size() != 1)
-        return;
-    auto desc = shape_transform_descriptor::create(inputs.front().max_lens(), {descriptor_op});
-    if(desc.empty())
-        return;
-    auto source_dims = inputs.front().to_symbolic().dyn_dims();
-    auto output_dims = output.to_symbolic().dyn_dims();
-    analyze_axes(info, [&](io_ref io, std::size_t axis) {
-        if(not io.is_output)
-        {
-            auto dst_axes = desc.get_dst_axes_from_src(axis);
-            if(dst_axes.size() != 1)
-                return axis_desc{};
-            auto dst_axis = dst_axes.front();
-            return source_dims.at(axis).sym_expr == output_dims.at(dst_axis).sym_expr
-                       ? parallel_axis()
-                       : axis_desc{};
-        }
 
-        auto source_axes = range(source_dims.size());
-        auto count = std::count_if(source_axes.begin(), source_axes.end(), [&](auto source_axis) {
-            auto dst_axes = desc.get_dst_axes_from_src(source_axis);
-            return dst_axes.size() == 1 and dst_axes.front() == axis and
-                   source_dims.at(source_axis).sym_expr == output_dims.at(axis).sym_expr;
+    void analyze(symbolic_op_info& info) const
+    {
+        if(not is_symbolic_broadcast(info.ins->get_operator(), info.input_shapes.size()))
+            return;
+        info.freezer = freeze_broadcast;
+        info.shape_input_indices.resize(info.input_shapes.size() - 1);
+        std::iota(info.shape_input_indices.begin(), info.shape_input_indices.end(), std::size_t{1});
+        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+    }
+};
+
+struct analyze_allocate
+{
+    bool matches(const operation& op) const { return op.name() == "allocate"; }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        if(info.input_shapes.size() != 1 or
+           not symbolic_allocate_shape(info.ins->get_operator()).has_value())
+            return;
+        info.freezer             = freeze_allocate;
+        info.shape_input_indices = {0};
+        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+    }
+};
+
+struct analyze_shape_transform
+{
+    bool matches(const operation& op) const
+    {
+        return contains({"contiguous", "flatten", "reshape", "transpose"}, op.name());
+    }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& op     = info.ins->get_operator();
+        const auto& inputs = info.input_shapes;
+        auto descriptor_op = op;
+        const auto& output = info.output_shape;
+        if(op.name() == "reshape" and inputs.size() == 1)
+        {
+            auto non_unit_dims = [](const shape& s) {
+                std::vector<sym::expr> result;
+                std::transform(s.dyn_dims().begin(),
+                               s.dyn_dims().end(),
+                               std::back_inserter(result),
+                               [](const auto& d) { return d.sym_expr; });
+                result.erase(std::remove(result.begin(), result.end(), sym::lit(1)), result.end());
+                return result;
+            };
+            if(non_unit_dims(inputs.front()) == non_unit_dims(output))
+            {
+                analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+                return;
+            }
+        }
+        if(op.name() == "reshape" and inputs.size() == 2 and inputs.back().symbolic())
+        {
+            auto target_reshape = reshape_from_shape(inputs.back(), {});
+            descriptor_op = make_op("reshape", {{"dims", to_value(inputs.back().max_lens())}});
+            auto input_elements  = inputs.front().sym_elements();
+            auto output_elements = output.sym_elements();
+            if(sym::strict_less(input_elements, output_elements).value_or(false) or
+               sym::strict_less(output_elements, input_elements).value_or(false))
+                return;
+            if(target_reshape.compute_shape({inputs.front()}) != output)
+                return;
+            info.freezer             = freeze_reshape;
+            info.shape_input_indices = {1};
+        }
+        else if(inputs.size() != 1)
+            return;
+        auto desc = shape_transform_descriptor::create(inputs.front().max_lens(), {descriptor_op});
+        if(desc.empty())
+            return;
+        auto source_dims = inputs.front().to_symbolic().dyn_dims();
+        auto output_dims = output.to_symbolic().dyn_dims();
+        analyze_axes(info, [&](io_ref io, std::size_t axis) {
+            if(not io.is_output)
+            {
+                auto dst_axes = desc.get_dst_axes_from_src(axis);
+                if(dst_axes.size() != 1)
+                    return axis_desc{};
+                auto dst_axis = dst_axes.front();
+                return source_dims.at(axis).sym_expr == output_dims.at(dst_axis).sym_expr
+                           ? parallel_axis()
+                           : axis_desc{};
+            }
+
+            auto source_axes = range(source_dims.size());
+            auto count =
+                std::count_if(source_axes.begin(), source_axes.end(), [&](auto source_axis) {
+                    auto dst_axes = desc.get_dst_axes_from_src(source_axis);
+                    return dst_axes.size() == 1 and dst_axes.front() == axis and
+                           source_dims.at(source_axis).sym_expr == output_dims.at(axis).sym_expr;
+                });
+            return count == 1 ? parallel_axis() : axis_desc{};
         });
-        return count == 1 ? parallel_axis() : axis_desc{};
-    });
-}
+    }
+};
 
 std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank)
 {
@@ -551,63 +569,75 @@ std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank)
     return static_cast<std::size_t>(axis);
 }
 
-bool matches_gather(const operation& op) { return op.name() == "gather"; }
-
-void analyze_gather(symbolic_op_info& info)
+struct analyze_gather
 {
-    const auto& inputs = info.input_shapes;
-    if(inputs.size() != 2)
-        return;
-    auto axis = normalize_axis(info.ins->get_operator().to_value().at("axis").to<int64_t>(),
-                               inputs.front().ndim());
-    if(not axis.has_value())
-        return;
-    analyze_axes(info, [axis = *axis](io_ref io, std::size_t current_axis) {
-        if(io.is_output or io.index == 1)
-            return parallel_axis();
-        return current_axis == axis ? axis_desc{} : parallel_axis();
-    });
-}
+    bool matches(const operation& op) const { return op.name() == "gather"; }
 
-bool matches_concat(const operation& op) { return op.name() == "concat"; }
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& inputs = info.input_shapes;
+        if(inputs.size() != 2)
+            return;
+        auto axis = normalize_axis(info.ins->get_operator().to_value().at("axis").to<int64_t>(),
+                                   inputs.front().ndim());
+        if(not axis.has_value())
+            return;
+        analyze_axes(info, [axis = *axis](io_ref io, std::size_t current_axis) {
+            if(io.is_output or io.index == 1)
+                return parallel_axis();
+            return current_axis == axis ? axis_desc{} : parallel_axis();
+        });
+    }
+};
 
-void analyze_concat(symbolic_op_info& info)
+struct analyze_concat
 {
-    const auto& inputs = info.input_shapes;
-    if(inputs.empty())
-        return;
-    auto axis = normalize_axis(info.ins->get_operator().to_value().at("axis").to<int64_t>(),
-                               inputs.front().ndim());
-    if(not axis.has_value())
-        return;
-    if(any_of(inputs, [&](const auto& input) {
-           return input.ndim() != inputs.front().ndim() or
-                  is_variable_axis(input.dyn_dims().at(*axis));
-       }))
-        return;
-    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-}
+    bool matches(const operation& op) const { return op.name() == "concat"; }
 
-bool matches_unit_axis_transform(const operation& op)
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& inputs = info.input_shapes;
+        if(inputs.empty())
+            return;
+        auto axis = normalize_axis(info.ins->get_operator().to_value().at("axis").to<int64_t>(),
+                                   inputs.front().ndim());
+        if(not axis.has_value())
+            return;
+        if(any_of(inputs, [&](const auto& input) {
+               return input.ndim() != inputs.front().ndim() or
+                      is_variable_axis(input.dyn_dims().at(*axis));
+           }))
+            return;
+        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+    }
+};
+
+struct analyze_unit_axis_transform
 {
-    return op.name() == "squeeze" or op.name() == "unsqueeze";
-}
+    bool matches(const operation& op) const
+    {
+        return op.name() == "squeeze" or op.name() == "unsqueeze";
+    }
 
-void analyze_unit_axis_transform(symbolic_op_info& info)
+    void analyze(symbolic_op_info& info) const
+    {
+        if(info.input_shapes.size() != 1)
+            return;
+        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+    }
+};
+
+struct analyze_fill
 {
-    if(info.input_shapes.size() != 1)
-        return;
-    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-}
+    bool matches(const operation& op) const { return op.name() == "fill"; }
 
-bool matches_fill(const operation& op) { return op.name() == "fill"; }
-
-void analyze_fill(symbolic_op_info& info)
-{
-    if(info.input_shapes.size() != 2)
-        return;
-    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-}
+    void analyze(symbolic_op_info& info) const
+    {
+        if(info.input_shapes.size() != 2)
+            return;
+        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+    }
+};
 
 std::optional<shape::dynamic_dimension> symbolic_range_dim(const operation& op)
 {
@@ -642,18 +672,21 @@ instruction_ref freeze_dynamic_range(module& m,
     return m.add_instruction(make_op("add"), start, scaled);
 }
 
-bool matches_dynamic_range(const operation& op) { return op.name() == "dynamic_range"; }
-
-void analyze_dynamic_range(symbolic_op_info& info)
+struct analyze_dynamic_range
 {
-    const auto& op     = info.ins->get_operator();
-    const auto& inputs = info.input_shapes;
-    if(inputs.size() != 3 or inputs.front().type() != shape::int64_type or
-       not symbolic_range_dim(op).has_value())
-        return;
-    info.freezer = freeze_dynamic_range;
-    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-}
+    bool matches(const operation& op) const { return op.name() == "dynamic_range"; }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& op     = info.ins->get_operator();
+        const auto& inputs = info.input_shapes;
+        if(inputs.size() != 3 or inputs.front().type() != shape::int64_type or
+           not symbolic_range_dim(op).has_value())
+            return;
+        info.freezer = freeze_dynamic_range;
+        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+    }
+};
 
 instruction_ref freeze_dyn_slice(module& m,
                                  instruction_ref source,
@@ -703,34 +736,40 @@ bool is_prefix_stable_dyn_slice(const operation& op, const shape& input)
     return true;
 }
 
-bool matches_slice(const operation& op) { return op.name() == "slice" or op.name() == "dyn_slice"; }
-
-void analyze_slice(symbolic_op_info& info)
+struct analyze_slice
 {
-    const auto& op     = info.ins->get_operator();
-    const auto& inputs = info.input_shapes;
-    if(op.name() == "slice")
+    bool matches(const operation& op) const
     {
-        if(inputs.size() != 1)
-            return;
-        auto axes = op.to_value().at("axes").to_vector<int64_t>();
-        for(auto& axis : axes)
-        {
-            auto normalized_axis = normalize_axis(axis, inputs.front().ndim());
-            if(not normalized_axis.has_value() or
-               is_variable_axis(inputs.front().dyn_dims().at(*normalized_axis)))
-                return;
-            axis = static_cast<int64_t>(*normalized_axis);
-        }
-        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-        return;
+        return op.name() == "slice" or op.name() == "dyn_slice";
     }
 
-    if(inputs.size() != 3 or not is_prefix_stable_dyn_slice(op, inputs.front()))
-        return;
-    info.freezer = freeze_dyn_slice;
-    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-}
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& op     = info.ins->get_operator();
+        const auto& inputs = info.input_shapes;
+        if(op.name() == "slice")
+        {
+            if(inputs.size() != 1)
+                return;
+            auto axes = op.to_value().at("axes").to_vector<int64_t>();
+            for(auto& axis : axes)
+            {
+                auto normalized_axis = normalize_axis(axis, inputs.front().ndim());
+                if(not normalized_axis.has_value() or
+                   is_variable_axis(inputs.front().dyn_dims().at(*normalized_axis)))
+                    return;
+                axis = static_cast<int64_t>(*normalized_axis);
+            }
+            analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+            return;
+        }
+
+        if(inputs.size() != 3 or not is_prefix_stable_dyn_slice(op, inputs.front()))
+            return;
+        info.freezer = freeze_dyn_slice;
+        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+    }
+};
 
 using scatter_prefix_axis = std::pair<std::size_t, sym::expr>;
 
@@ -843,154 +882,156 @@ instruction_ref freeze_scatternd(module& m,
     return m.add_instruction(make_op("contiguous"), result);
 }
 
-bool matches_scatternd(const operation& op) { return op.name() == "scatternd_none"; }
-
-void analyze_scatternd(symbolic_op_info& info)
+struct analyze_scatternd
 {
-    const auto& inputs = info.input_shapes;
-    if(inputs.size() != 3)
-        return;
-    const auto& indices = inputs.at(1);
-    auto index_rank     = indices.ndim();
-    assert(index_rank > 0);
-    const auto& index_dims = indices.dyn_dims();
-    bool has_prefix_axis   = false;
-    for(std::size_t axis = 0; axis + 1 < index_rank; ++axis)
-        has_prefix_axis = has_prefix_axis or is_variable_axis(index_dims.at(axis));
-    if(has_prefix_axis and (indices.type() != shape::int64_type or
-                            any_of(inputs, [](const auto& input) { return not input.standard(); })))
-        return;
-    if(has_prefix_axis)
-        info.freezer = freeze_scatternd;
-    analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-}
+    bool matches(const operation& op) const { return op.name() == "scatternd_none"; }
 
-void analyze_softmax(symbolic_op_info& info)
-{
-    const auto& inputs = info.input_shapes;
-    if(inputs.size() != 1)
-        return;
-    auto axis = normalize_axis(info.ins->get_operator().to_value().at("axis").to<int64_t>(),
-                               inputs.front().ndim());
-    if(not axis.has_value())
-        return;
-    analyze_axes(info, [axis = *axis](io_ref io, std::size_t current_axis) {
-        if(io.is_output)
-            return parallel_axis();
-        return current_axis == axis ? masked_axis(mask_role::normalized, fill_kind::neg_inf)
-                                    : parallel_axis();
-    });
-}
-
-void analyze_conv(symbolic_op_info& info)
-{
-    const auto& op       = info.ins->get_operator();
-    bool default_padding = false;
-    std::size_t group    = 0;
-    std::vector<std::size_t> padding;
-    std::size_t spatial_dimensions = 0;
-    if(op.name() == "convolution" or op.name() == "quant_convolution")
+    void analyze(symbolic_op_info& info) const
     {
-        auto attributes = op.to_value();
-        default_padding =
-            attributes.at("padding_mode").to<op::padding_mode_t>() == op::padding_mode_t::default_;
-        group              = attributes.at("group").to<std::size_t>();
-        padding            = attributes.at("padding").to_vector<std::size_t>();
-        spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
+        const auto& inputs = info.input_shapes;
+        if(inputs.size() != 3)
+            return;
+        const auto& indices = inputs.at(1);
+        auto index_rank     = indices.ndim();
+        assert(index_rank > 0);
+        const auto& index_dims = indices.dyn_dims();
+        bool has_prefix_axis   = false;
+        for(std::size_t axis = 0; axis + 1 < index_rank; ++axis)
+            has_prefix_axis = has_prefix_axis or is_variable_axis(index_dims.at(axis));
+        if(has_prefix_axis and
+           (indices.type() != shape::int64_type or
+            any_of(inputs, [](const auto& input) { return not input.standard(); })))
+            return;
+        if(has_prefix_axis)
+            info.freezer = freeze_scatternd;
+        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
     }
-    analyze_axes(info, [&](io_ref io, std::size_t axis) {
-        auto spatial = [&](std::size_t spatial_axis) {
-            if(not default_padding)
-                return axis_desc{};
-            return padded_axis(fill_kind::zero,
-                               windowed_zero_pad(padding, spatial_dimensions, spatial_axis));
-        };
-        if(io.is_output)
-            return axis < 2 ? parallel_axis() : spatial(axis);
-        if(io.index == 0)
+};
+
+struct analyze_softmax
+{
+    bool matches(const operation& op) const { return op.name() == "softmax"; }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& inputs = info.input_shapes;
+        if(inputs.size() != 1)
+            return;
+        auto axis = normalize_axis(info.ins->get_operator().to_value().at("axis").to<int64_t>(),
+                                   inputs.front().ndim());
+        if(not axis.has_value())
+            return;
+        analyze_axes(info, [axis = *axis](io_ref io, std::size_t current_axis) {
+            if(io.is_output)
+                return parallel_axis();
+            return current_axis == axis ? masked_axis(mask_role::normalized, fill_kind::neg_inf)
+                                        : parallel_axis();
+        });
+    }
+};
+
+struct analyze_conv
+{
+    bool matches(const operation& op) const
+    {
+        return op.name() == "convolution" or
+               op.attributes().get("general_data_type", std::string{}) == "convolution";
+    }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& op       = info.ins->get_operator();
+        bool default_padding = false;
+        std::size_t group    = 0;
+        std::vector<std::size_t> padding;
+        std::size_t spatial_dimensions = 0;
+        if(op.name() == "convolution" or op.name() == "quant_convolution")
         {
+            auto attributes = op.to_value();
+            default_padding = attributes.at("padding_mode").to<op::padding_mode_t>() ==
+                              op::padding_mode_t::default_;
+            group              = attributes.at("group").to<std::size_t>();
+            padding            = attributes.at("padding").to_vector<std::size_t>();
+            spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
+        }
+        analyze_axes(info, [&](io_ref io, std::size_t axis) {
+            auto spatial = [&](std::size_t spatial_axis) {
+                if(not default_padding)
+                    return axis_desc{};
+                return padded_axis(fill_kind::zero,
+                                   windowed_zero_pad(padding, spatial_dimensions, spatial_axis));
+            };
+            if(io.is_output)
+                return axis < 2 ? parallel_axis() : spatial(axis);
+            if(io.index == 0)
+            {
+                if(axis == 0)
+                    return parallel_axis();
+                if(axis == 1)
+                {
+                    if(group != 1)
+                        return axis_desc{};
+                    return contracted_axis(fill_kind::zero);
+                }
+                return spatial(axis);
+            }
+            if(io.index != 1 or group != 1)
+                return axis_desc{};
             if(axis == 0)
                 return parallel_axis();
             if(axis == 1)
-            {
-                if(group != 1)
-                    return axis_desc{};
                 return contracted_axis(fill_kind::zero);
-            }
-            return spatial(axis);
-        }
-        if(io.index != 1 or group != 1)
             return axis_desc{};
-        if(axis == 0)
-            return parallel_axis();
-        if(axis == 1)
-            return contracted_axis(fill_kind::zero);
-        return axis_desc{};
-    });
-}
-
-void analyze_pooling(symbolic_op_info& info)
-{
-    auto attributes = info.ins->get_operator().to_value();
-    auto mode       = attributes.at("mode").to<op::pooling_mode>();
-    auto ceil_mode  = attributes.at("ceil_mode").to<bool>();
-    fill_kind fill  = fill_kind::zero;
-    if(mode == op::pooling_mode::max)
-        fill = fill_kind::lowest;
-    else if(mode == op::pooling_mode::average and
-            (not attributes.at("count_include_pad").to<bool>() or ceil_mode))
-        fill = fill_kind::dont_care;
-    if(attributes.at("dyn_global").to<bool>() and mode == op::pooling_mode::average)
-        fill = fill_kind::dont_care;
-    auto default_padding =
-        attributes.at("padding_mode").to<op::padding_mode_t>() == op::padding_mode_t::default_;
-    auto padding            = attributes.at("padding").to_vector<std::size_t>();
-    auto spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
-    analyze_axes(info, [&](io_ref, std::size_t axis) {
-        if(axis < 2)
-            return parallel_axis();
-        if(not default_padding or fill == fill_kind::dont_care)
-            return axis_desc{};
-        return padded_axis(fill,
-                           not ceil_mode and windowed_zero_pad(padding, spatial_dimensions, axis));
-    });
-}
-
-struct op_family
-{
-    bool (*matches)(const operation&);
-    void (*analyze)(symbolic_op_info&);
+        });
+    }
 };
 
-void analyze_op(symbolic_op_info& info)
+struct analyze_pooling
 {
-    static const std::array<op_family, 16> families = {{
-        {matches_gather, analyze_gather},
-        {matches_concat, analyze_concat},
-        {matches_slice, analyze_slice},
-        {matches_unit_axis_transform, analyze_unit_axis_transform},
-        {matches_fill, analyze_fill},
-        {matches_dynamic_range, analyze_dynamic_range},
-        {matches_scatternd, analyze_scatternd},
-        {is_pointwise, analyze_pointwise},
-        {is_reduce, analyze_reduce},
-        {is_dot, analyze_dot},
-        {matches_broadcast, analyze_broadcast},
-        {matches_allocate, analyze_allocate},
-        {is_shape_transform, analyze_shape_transform},
-        {is_softmax, analyze_softmax},
-        {is_conv, analyze_conv},
-        {is_pooling, analyze_pooling},
-    }};
-    const auto& op                                  = info.ins->get_operator();
-    for(const auto& family : families)
+    bool matches(const operation& op) const { return op.name() == "pooling"; }
+
+    void analyze(symbolic_op_info& info) const
     {
-        if(family.matches(op))
-        {
-            family.analyze(info);
-            return;
-        }
+        auto attributes = info.ins->get_operator().to_value();
+        auto mode       = attributes.at("mode").to<op::pooling_mode>();
+        auto ceil_mode  = attributes.at("ceil_mode").to<bool>();
+        fill_kind fill  = fill_kind::zero;
+        if(mode == op::pooling_mode::max)
+            fill = fill_kind::lowest;
+        else if(mode == op::pooling_mode::average and
+                (not attributes.at("count_include_pad").to<bool>() or ceil_mode))
+            fill = fill_kind::dont_care;
+        if(attributes.at("dyn_global").to<bool>() and mode == op::pooling_mode::average)
+            fill = fill_kind::dont_care;
+        auto default_padding =
+            attributes.at("padding_mode").to<op::padding_mode_t>() == op::padding_mode_t::default_;
+        auto padding            = attributes.at("padding").to_vector<std::size_t>();
+        auto spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
+        analyze_axes(info, [&](io_ref, std::size_t axis) {
+            if(axis < 2)
+                return parallel_axis();
+            if(not default_padding or fill == fill_kind::dont_care)
+                return axis_desc{};
+            return padded_axis(
+                fill, not ceil_mode and windowed_zero_pad(padding, spatial_dimensions, axis));
+        });
     }
+};
+
+template <class... Analyzers>
+void analyze_first(symbolic_op_info& info, const Analyzers&... analyzers)
+{
+    const auto& op = info.ins->get_operator();
+    bool matched   = false;
+    each_args(
+        [&](const auto& analyzer) {
+            if(not matched and analyzer.matches(op))
+            {
+                analyzer.analyze(info);
+                matched = true;
+            }
+        },
+        analyzers...);
 }
 
 bool has_symbolic_param(const module& m)
@@ -1046,12 +1087,6 @@ struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
     }
 };
 
-std::vector<instruction_ref> find_symbolic_instructions(const module& m)
-{
-    return find_all(iterator_for(m),
-                    [](instruction_ref ins) { return ins->get_shape().symbolic(); });
-}
-
 symbolic_op_info analyze_instruction(instruction_ref ins)
 {
     auto input_shapes = to_shapes(ins->inputs());
@@ -1059,21 +1094,24 @@ symbolic_op_info analyze_instruction(instruction_ref ins)
     info.ins          = ins;
     info.output_shape = ins->get_shape();
     info.input_shapes = std::move(input_shapes);
-    analyze_op(info);
+    analyze_first(info,
+                  analyze_gather{},
+                  analyze_concat{},
+                  analyze_slice{},
+                  analyze_unit_axis_transform{},
+                  analyze_fill{},
+                  analyze_dynamic_range{},
+                  analyze_scatternd{},
+                  analyze_pointwise{},
+                  analyze_reduce{},
+                  analyze_dot{},
+                  analyze_broadcast{},
+                  analyze_allocate{},
+                  analyze_shape_transform{},
+                  analyze_softmax{},
+                  analyze_conv{},
+                  analyze_pooling{});
     return info;
-}
-
-std::vector<symbolic_op_info>
-analyze_symbolic_instructions(const std::vector<instruction_ref>& instructions)
-{
-    std::vector<symbolic_op_info> infos;
-    for(auto ins : instructions)
-    {
-        if(starts_with(ins->name(), "@"))
-            continue;
-        infos.push_back(analyze_instruction(ins));
-    }
-    return infos;
 }
 
 void elide_masks_zeroed_by_softmax(std::vector<symbolic_op_info>& infos)
@@ -2020,14 +2058,14 @@ struct clone_context
     runtime_cache cache;
     pad_cache reusable_pads;
 
-    clone_context(module& mod,
+    clone_context(module& clone,
                   const clone_recipe_map& recipes,
                   std::unordered_map<instruction_ref, instruction_ref>& clones,
                   const cloned_input_values& inputs,
                   const freeze_map& frozen_values,
                   const std::vector<instruction_ref>& runtime_sources,
                   const optimal_map& substitutions)
-        : clone_module(mod),
+        : clone_module(clone),
           plan(recipes),
           clone_map(clones),
           input_values(inputs),
@@ -2425,12 +2463,20 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     match::find_matches(m,
                         resolve_symbolic_dimensions_of_match{.root_sources = find_root_sources(m),
                                                              .sources      = m.get_parameters()});
-    dead_code_elimination{}.apply(m);
-    auto symbolic_instructions = find_symbolic_instructions(m);
+    run_passes(m, {dead_code_elimination{}});
+
+    auto symbolic_instructions =
+        find_all(iterator_for(m), [](instruction_ref ins) { return ins->get_shape().symbolic(); });
     if(symbolic_instructions.empty())
         return;
 
-    auto infos = analyze_symbolic_instructions(symbolic_instructions);
+    std::vector<symbolic_op_info> infos;
+    transform_if(
+        symbolic_instructions.begin(),
+        symbolic_instructions.end(),
+        std::back_inserter(infos),
+        [](instruction_ref ins) { return not starts_with(ins->name(), "@"); },
+        [](instruction_ref ins) { return analyze_instruction(ins); });
     elide_masks_zeroed_by_softmax(infos);
 
     auto roots = collect_roots(m);

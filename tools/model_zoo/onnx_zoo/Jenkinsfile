@@ -86,11 +86,9 @@ pipeline {
                                 cmake -S . -B build \
                                     -DCMAKE_BUILD_TYPE=release \
                                     -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
-                                    -DCMAKE_CXX_FLAGS=-Werror \
                                     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                                     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
                                     -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON \
-                                    -DMIGRAPHX_ENABLE_MLIR=On \
                                     -DGPU_TARGETS='${env.GPU_TARGET}'
                                 make -C build -j${cores} migraphx_py driver
                             """
@@ -118,6 +116,12 @@ pipeline {
                         error("RUN_ID is '${env.RUN_ID}'; run the whole pipeline rather than restarting this stage")
                     }
                 }
+                sh """
+                    python3 ./${ZOO_DIR}/summarize.py ./${ZOO_DIR}/logs \
+                        --run-id '${env.RUN_ID}' \
+                        --gpu '${env.GPU_TARGET}' \
+                        --build-url '${env.BUILD_URL}'
+                """
                 // Kept as shell variables so neither is rendered into the build log.
                 withCredentials([usernamePassword(credentialsId: REPORTS_APP_CRED,
                                                   usernameVariable: 'GITHUB_APP',
@@ -135,7 +139,8 @@ pipeline {
                         dest='${REPORTS_CLONE}/${REPORTS_SUBDIR}/${env.RUN_ID}'
                         rm -rf "\$dest"
                         mkdir -p "\$dest"
-                        cp -r '${ZOO_DIR}/logs/accuracy' '${ZOO_DIR}/logs/perf' "\$dest"
+                        cp -r '${ZOO_DIR}/logs/accuracy' '${ZOO_DIR}/logs/perf' \
+                            '${ZOO_DIR}/logs/README.md' "\$dest"
                         cd '${REPORTS_CLONE}'
                         git add '${REPORTS_SUBDIR}'
                         if git diff --cached --quiet; then

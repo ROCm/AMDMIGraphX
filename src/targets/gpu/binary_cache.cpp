@@ -22,16 +22,15 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/binary_cache.hpp>
+#include <migraphx/gpu/file_binary_cache.hpp>
+#include <migraphx/gpu/sqlite_binary_cache.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/file_buffer.hpp>
-#include <migraphx/filesystem.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/md5.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/tmp_dir.hpp>
 #include <migraphx_kernels.hpp>
 #include <sstream>
 
@@ -95,67 +94,63 @@ static std::string device_dir(const context& ctx)
            "_wf" + std::to_string(device.get_wavefront_size());
 }
 
-/// Where an entry lives, or an empty path when the toolchain cannot be identified and entries
-/// from different toolchains would be indistinguishable.
-static fs::path entry_path(const fs::path& root, const context& ctx, const std::string& key)
+const std::string& binary_cache::version_stamp()
 {
-    const auto& version = binary_cache::version_dir();
-    if(version.empty())
-        return {};
-    return root / version / device_dir(ctx) / (md5(key) + ".mxr");
+    static const std::string stamp = [] {
+        std::stringstream ss;
+        ss << "format: " << binary_cache_format << "\n";
+        ss << "hip: " << hip_compiler_version().version << "\n";
+        ss << "kernels: " << kernels_digest() << "\n";
+        ss << "rocmlir: " << rocmlir_id << "\n";
+        return ss.str();
+    }();
+    return stamp;
 }
 
-/// Publish by rename so a reader never sees a half-written file. The temporary stays beside
-/// the destination since the rename is only atomic within one filesystem.
-static void write_atomically(const fs::path& dest, const std::vector<char>& content)
+/// Turn a stored blob back into an entry. Any failure is just a miss, so a damaged entry costs
+/// a recompile and is written over. Shared by every backend, so they all tolerate corruption
+/// and survive a hash collision the same way.
+static optional<binary_cache::entry> decode_entry(const std::vector<char>& blob,
+                                                  const std::string& key)
 {
-    tmp_dir td{"cache", dest.parent_path()};
-    auto tmp = td.path / dest.filename();
-    write_buffer(tmp, content);
-    fs::rename(tmp, dest);
-}
-
-/// Record what this build is, so a directory full of hashes can be identified later.
-static void write_stamp(const fs::path& dir)
-{
-    auto stamp = dir / "cache.info";
-    if(fs::exists(stamp))
-        return;
-    std::stringstream ss;
-    ss << "format: " << binary_cache_format << "\n";
-    ss << "hip: " << hip_compiler_version().version << "\n";
-    ss << "kernels: " << kernels_digest() << "\n";
-    ss << "rocmlir: " << rocmlir_id << "\n";
-    auto s = ss.str();
-    write_atomically(stamp, std::vector<char>(s.begin(), s.end()));
-}
-
-/// Read the entry for a key off disk. Any failure is just a miss, so a damaged entry costs a
-/// recompile and is written over.
-static optional<binary_cache::entry>
-read_entry(const fs::path& root, const context& ctx, const std::string& key)
-{
-    if(root.empty())
-        return nullopt;
-    auto path = entry_path(root, ctx, key);
-    if(path.empty() or not fs::exists(path))
-        return nullopt;
     binary_cache::entry e;
     try
     {
-        migraphx::from_value(from_msgpack(read_buffer(path)), e);
+        migraphx::from_value(from_msgpack(blob), e);
     }
     catch(const std::exception& ex)
     {
-        log::warn() << "Ignoring unreadable binary cache entry " << path << ": " << ex.what();
+        log::warn() << "Ignoring unreadable binary cache entry " << md5(key) << ": " << ex.what();
         return nullopt;
     }
+    // Entries are addressed by a hash of the key, so the full key is checked here to make a
+    // collision a miss rather than a wrong kernel.
     if(e.key != key)
     {
-        log::warn() << "Ignoring binary cache entry with mismatched key: " << path;
+        log::warn() << "Ignoring binary cache entry with mismatched key: " << md5(key);
         return nullopt;
     }
     return e;
+}
+
+// Select the storage backend by file type, matching make_problem_cache_backend: a ".db"/".sqlite"
+// path is a SQLite database, anything else is a directory of entries.
+static optional<binary_cache_backend> make_binary_cache_backend(const std::string& path)
+{
+    if(path.empty())
+        return nullopt;
+    if(ends_with(path, ".db") or ends_with(path, ".sqlite"))
+        return sqlite_binary_cache::open(path); // nullopt when the database is unusable
+    return binary_cache_backend{file_binary_cache{path}};
+}
+
+// Nothing can be persisted safely when the compiler cannot be identified, since entries from
+// different toolchains would be indistinguishable. That is a property of the cache rather than
+// of the storage medium, so it is checked here instead of in each backend.
+binary_cache::binary_cache(binary_cache_settings s) : settings(std::move(s))
+{
+    if(not version_dir().empty())
+        backend = make_binary_cache_backend(settings.path);
 }
 
 optional<compiled_code> binary_cache::get(const context& ctx, const std::string& key)
@@ -168,14 +163,21 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
         counters.reused++;
         return it->second;
     }
-    auto e = read_entry(settings.path, ctx, key);
-    if(not e.has_value())
+    if(backend.has_value())
     {
-        counters.misses++;
-        return nullopt;
+        auto blob = backend->load(version_dir(), device_dir(ctx), md5(key));
+        if(blob.has_value())
+        {
+            auto e = decode_entry(*blob, key);
+            if(e.has_value())
+            {
+                counters.hits++;
+                return memo.emplace(key, std::move(e->code)).first->second;
+            }
+        }
     }
-    counters.hits++;
-    return memo.emplace(key, std::move(e->code)).first->second;
+    counters.misses++;
+    return nullopt;
 }
 
 void binary_cache::insert(const context& ctx, entry e)
@@ -183,21 +185,18 @@ void binary_cache::insert(const context& ctx, entry e)
     if(e.key.empty())
         return;
     counters.compiled++;
-    const auto& root = settings.path;
-    auto path        = root.empty() ? fs::path{} : entry_path(root, ctx, e.key);
-    if(not path.empty())
+    if(backend.has_value())
     {
-        // The content is decided entirely by the key, so a writer that loses the publish race
-        // replaces the file with the same bytes and no locking is needed.
         try
         {
-            fs::create_directories(path.parent_path());
-            write_stamp(fs::path(root) / version_dir());
-            write_atomically(path, to_msgpack(migraphx::to_value(e)));
+            // Serializing inside the guard, rather than in the argument list, keeps a failure
+            // here a warning like any other storage failure instead of escaping insert().
+            auto blob = to_msgpack(migraphx::to_value(e));
+            backend->store(version_dir(), device_dir(ctx), md5(e.key), e, blob);
         }
         catch(const std::exception& ex)
         {
-            log::warn() << "Failed to write binary cache entry " << path << ": " << ex.what();
+            log::warn() << "Failed to store binary cache entry " << md5(e.key) << ": " << ex.what();
         }
     }
     memo[std::move(e.key)] = std::move(e.code);

@@ -26,6 +26,8 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/compiled_code.hpp>
+#include <migraphx/gpu/binary_cache_entry.hpp>
+#include <migraphx/gpu/binary_cache_backend.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/reflect.hpp>
@@ -66,33 +68,16 @@ struct binary_cache_settings
  */
 struct MIGRAPHX_GPU_EXPORT binary_cache
 {
-    /// What gets written to disk for one compiled kernel. The op name, problem and solution are
-    /// stored for offline inspection; only the key is checked when an entry is loaded.
-    struct entry
-    {
-        std::string key     = {};
-        std::string op_name = {};
-        value problem       = {};
-        value solution      = {};
-        compiled_code code  = {};
-
-        template <class Self, class F>
-        static auto reflect(Self& self, F f)
-        {
-            return pack(f(self.key, "key"),
-                        f(self.op_name, "op_name"),
-                        f(self.problem, "problem"),
-                        f(self.solution, "solution"),
-                        f(self.code, "code"));
-        }
-    };
+    /// What gets stored for one compiled kernel. Defined in binary_cache_entry.hpp so the
+    /// storage backends can name it; the alias keeps binary_cache::entry working.
+    using entry = binary_cache_entry;
 
     /// Counts of what the cache did.
     struct stats
     {
         /// Served from memory, from an earlier compile or disk read in this process.
         std::size_t reused = 0;
-        /// Served from the cache directory.
+        /// Served from the storage backend.
         std::size_t hits = 0;
         /// Not found, so the caller had to compile.
         std::size_t misses = 0;
@@ -100,7 +85,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         std::size_t compiled = 0;
     };
 
-    explicit binary_cache(binary_cache_settings s = {}) : settings(std::move(s)) {}
+    explicit binary_cache(binary_cache_settings s = {});
 
     /// Look up a key, consulting memory first and then the cache directory.
     optional<compiled_code> get(const context& ctx, const std::string& key);
@@ -119,9 +104,15 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     /// since entries from different compilers could not be told apart.
     static const std::string& version_dir();
 
+    /// A human-readable description of what version_dir() encodes, for backends that can store
+    /// a self-describing marker alongside their entries.
+    static const std::string& version_stamp();
+
     private:
     std::unordered_map<std::string, compiled_code> memo;
     binary_cache_settings settings;
+    /// Where entries are persisted, or empty for a memory-only cache.
+    optional<binary_cache_backend> backend;
     stats counters;
 };
 

@@ -648,7 +648,11 @@ static void print_trace_buffer(const argument& buffer, int trace_level)
 
 static bool is_inspectable(const std::string& op)
 {
-    return not op.empty() and op.front() != '@' and op != "load";
+    if(op.empty())
+        return false;
+    if(op.front() == '@')
+        return op == "@param";
+    return op != "load";
 }
 
 std::vector<argument> program::eval(const parameter_map& params,

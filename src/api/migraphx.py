@@ -171,15 +171,14 @@ def argument(h):
 
 
 api.add_function('migraphx_argument_save',
-                 api.params(a='const migraphx::argument&', filename='const char*'),
-                 fname='migraphx::save_argument'
-                 )
+                 api.params(a='const migraphx::argument&',
+                            filename='const char*'),
+                 fname='migraphx::save_argument')
 
 api.add_function('migraphx_argument_load',
                  api.params(filename='const char*'),
                  fname='migraphx::load_argument',
-                 returns='migraphx::argument'
-                 )
+                 returns='migraphx::argument')
 
 api.add_function('migraphx_argument_generate',
                  api.params(s='const migraphx::shape&', seed='size_t'),
@@ -447,7 +446,6 @@ if 'enable_onnx' in globals():
                      fname='migraphx::parse_onnx',
                      returns='migraphx::program')
 
-
     api.add_function('migraphx_parse_onnx_buffer',
                      api.params(data='const void*',
                                 size='size_t',
@@ -476,6 +474,9 @@ def compile_options(h):
     h.method('set_exhaustive_tune_flag',
              api.params(value='bool'),
              invoke='migraphx::set_exhaustive_tune_flag($@)')
+    h.method('set_compile_mode',
+             api.params(value='int8_t'),
+             invoke='migraphx::set_compile_mode($@)')
     h.method('set_advance_backend_options',
              api.params(options_json='const char*', vlist='...'),
              invoke='migraphx::set_backend_options($@)')
@@ -506,13 +507,11 @@ if 'enable_tensorflow' in globals():
             invoke='migraphx::set_output_names($@)',
         )
 
-
     api.add_function('migraphx_parse_tf',
                      api.params(name='const char*',
                                 options='migraphx::tf_options'),
                      fname='migraphx::parse_tf',
                      returns='migraphx::program')
-
 
     api.add_function('migraphx_parse_tf_buffer',
                      api.params(data='const void*',
@@ -585,15 +584,15 @@ api.add_function('migraphx_quantize_fp8',
                             options='migraphx::quantize_fp8_options'),
                  fname='migraphx::quantize_fp8_wrap')
 
-api.add_function('migraphx_get_onnx_operator_name_at_index',
-                 api.params(index='size_t'),
-                 fname='migraphx::get_onnx_operator_name_at_index',
-                 returns='char *')
+if 'enable_onnx' in globals():
+    api.add_function('migraphx_get_onnx_operator_name_at_index',
+                     api.params(index='size_t'),
+                     fname='migraphx::get_onnx_operator_name_at_index',
+                     returns='char *')
 
-api.add_function('migraphx_get_onnx_operators_size',
-                 fname='migraphx::get_onnx_operators_size',
-                 returns='size_t')
-
+    api.add_function('migraphx_get_onnx_operators_size',
+                     fname='migraphx::get_onnx_operators_size',
+                     returns='size_t')
 
 
 @auto_handle(ref=True)

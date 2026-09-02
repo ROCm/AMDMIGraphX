@@ -42,11 +42,12 @@
 #ifdef MIGRAPHX_ENABLE_ONNX
 #include <migraphx/onnx.hpp>
 #endif
-#include <migraphx/sym.hpp>
 #ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
 #endif
+#include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
@@ -842,6 +843,8 @@ struct compiler
     bool to_int8 = false;
     bool to_int4 = false;
 
+    std::string backend_options;
+
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
     void parse(argument_parser& ap)
@@ -849,6 +852,12 @@ struct compiler
         l.parse(ap);
         parameters.parse(ap);
         ct.parse(ap);
+        ap(backend_options,
+           {"--backend-options"},
+           ap.help("Target-specific compile options, as a JSON object (format: "
+                   "\"{convolution_layout:channels_last}\"). Options the target does not "
+                   "recognize are ignored."));
+        ap.post_action([this](auto&&) { this->apply_backend_options(); });
         ap(co.offload_copy,
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
@@ -861,11 +870,29 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+        ap(co.compile_mode,
+           {"--compile-mode"},
+           ap.help("Set compilation mode: eager, balanced, max, or an integer 0-100"),
+           ap.write_action([](auto&, auto& x, const auto& params) {
+               if(params.empty())
+                   throw std::runtime_error("Flag with no value.");
+               x = convert_to_compile_mode(params.back());
+           }));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
+    }
+
+    void apply_backend_options()
+    {
+        if(backend_options.empty())
+            return;
+        auto v = from_json_string(convert_to_json(backend_options));
+        if(not v.is_object())
+            MIGRAPHX_THROW("--backend-options must be a JSON object");
+        migraphx::set_backend_options(co, v);
     }
 
     auto params(const program& p)

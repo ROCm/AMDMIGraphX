@@ -24,6 +24,8 @@
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
+#include <migraphx/convert_to_json.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_concat.hpp>
@@ -37,6 +39,7 @@
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
+#include <migraphx/json.hpp>
 #include <migraphx/layout_convolution.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
@@ -44,6 +47,7 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/promote_storage_type.hpp>
 #include <migraphx/propagate_precision.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/register_target.hpp>
@@ -56,7 +60,6 @@
 #include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/rewrite_resize.hpp>
 #include <migraphx/rewrite_quantization.hpp>
-#include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/rewrite_topk.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/serialize.hpp>
@@ -78,8 +81,8 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
+#include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/propagate_reshape_layout.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
@@ -91,7 +94,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIONS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
@@ -106,13 +109,41 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Read/write problem caches (the common case: a user tuning a model). New
+    // tuning solutions are saved back to these files.
+    std::vector<std::string> problem_cache_files = {};
+    // Read-only problem caches (system-level, e.g. shipped by gpuep or an ISV),
+    // searched after the writable caches and never written back.
+    std::vector<std::string> read_only_problem_cache_files = {};
+    // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
+    layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"));
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.problem_cache_files, "problem_cache_files"),
+                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
+                    f(self.convolution_layout, "convolution_layout"));
     }
 };
+
+// The backend options passed to compile, with any key set by MIGRAPHX_GPU_OPTIONS (a json-like
+// object such as "{convolution_layout:channels_last}") overriding it.
+backend_options get_backend_options(const compile_options& options)
+{
+    auto opts = options.backend_options;
+    auto env  = string_value_of(MIGRAPHX_GPU_OPTIONS{});
+    if(not env.empty())
+    {
+        auto v = from_json_string(convert_to_json(env));
+        if(not v.is_object())
+            MIGRAPHX_THROW("MIGRAPHX_GPU_OPTIONS must be a json object");
+        for(const auto& opt : v)
+            opts[opt.get_key()] = opt.without_key();
+    }
+    return from_value<backend_options>(value(opts));
+}
 
 struct pipeline_factory
 {
@@ -151,8 +182,6 @@ struct pipeline_factory
             simplify_qdq{.use_mx_quant = gpu::gfx_has_mx_intrinsics(*get_context())},
             enable_pass(not mlir_enabled(), rewrite_quantization{}),
             dead_code_elimination{},
-            rewrite_rnn{},
-            dead_code_elimination{},
             eliminate_data_type_for_gpu{.disable_64bit = options.fast_math, .ctx = get_context()},
             rewrite_resize{.affine_only = true},
             dead_code_elimination{},
@@ -172,14 +201,18 @@ struct pipeline_factory
 
     std::vector<pass> optimize_rewrite_pipeline() const
     {
+        auto gfx_name = get_context()->get_current_device().get_gfx_name();
+        const bool missing_fp32_mma =
+            starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
+        const bool bf16_missing_valu = not starts_with(gfx_name, "gfx125");
         return {
             rewrite_convolution{},
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
-            layout_convolution{.order = enabled(MIGRAPHX_ENABLE_NHWC{})
-                                            ? layout_convolution::channels_last
-                                            : layout_convolution::channels_auto},
+            layout_convolution{.order                          = backend_opts.convolution_layout,
+                               .output_channels_last_threshold = missing_fp32_mma ? 8u : 0u,
+                               .output_channels_last_types     = {shape::float_type}},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},
@@ -191,6 +224,8 @@ struct pipeline_factory
             rewrite_low_precision{},
             enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
             dead_code_elimination{},
+            enable_pass(bf16_missing_valu, promote_storage_type{{shape::bf16_type}}),
+            dead_code_elimination{},
             propagate_precision{},
             dead_code_elimination{},
             simplify_reshapes{.enable_op_shape_transform_op = true},
@@ -201,7 +236,7 @@ struct pipeline_factory
     std::vector<pass> fusion_pipeline() const
     {
         return {
-            enable_pass(mlir_enabled(),
+            enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
                         fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
@@ -230,7 +265,7 @@ struct pipeline_factory
             lowering{get_context(), options.offload_copy},
             eliminate_contiguous{"gpu::contiguous"},
             dead_code_elimination{},
-            propagate_reshape_layout{},
+            lower_reshape{},
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{.use_hip_allocate = false}},
             dead_code_elimination{},
@@ -251,7 +286,9 @@ struct pipeline_factory
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
             lower_device_ops{},
-            compile_ops{get_context(), options.exhaustive_tune},
+            compile_ops{get_context(),
+                        options.exhaustive_tune,
+                        options.compile_mode == compile_modes::eager},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -276,17 +313,46 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 {
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
-    ctx.load_problem_cache(); // TODO: update load_problem_cache to include gpu arch
 
-    pipeline_factory p{&gctx, options, from_value<backend_options>(value(options.backend_options))};
+    if(options.compile_mode == compile_modes::max)
+        ctx.set_exhaustive_tune_flag(true);
 
-    std::vector<std::vector<pass>> pipelines = {
-        p.dynamic_shapes_pipeline(),
-        p.required_pipeline(),
-        p.optimize_rewrite_pipeline(),
-        p.fusion_pipeline(),
-        p.backend_pipeline(),
-    };
+    auto backend_opts = get_backend_options(options);
+
+    // Problem cache files arrive as GPU backend options. The writable caches
+    // (problem_cache_files) save new tuning solutions back; the read-only caches
+    // (read_only_problem_cache_files) are system-level and never written.
+    ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
+                            backend_opts.problem_cache_files);
+
+    pipeline_factory p{&gctx, options, backend_opts};
+
+    std::vector<std::vector<pass>> pipelines;
+
+    if(options.compile_mode == compile_modes::eager)
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            {optimize_module{},
+             dead_code_elimination{},
+             rewrite_reduce{},
+             rewrite_topk{},
+             dead_code_elimination{}},
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
+    else
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            p.optimize_rewrite_pipeline(),
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
 
     std::vector<pass> passes;
     std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));

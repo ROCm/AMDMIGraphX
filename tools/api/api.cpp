@@ -195,6 +195,11 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+static void set_compile_mode(compile_options& options, int8_t value)
+{
+    options.compile_mode = convert_to_compile_mode(value);
+}
+
 // Parse the backend options from `options_json` and merge them into the
 // compile options. See migraphx::set_backend_options for the merge semantics.
 static void set_backend_options(compile_options& options, const char* options_json, va_list vlist)
@@ -215,6 +220,8 @@ static shape::dynamic_dimension make_symbolic_dynamic_dimension(
 {
     return shape::make_symbolic_dynamic_dimension(expression, symbols);
 }
+
+#ifdef MIGRAPHX_ENABLE_ONNX
 
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
@@ -379,12 +386,16 @@ static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_optio
     migraphx::quantize_fp8(prog, t, options.calibration);
 }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 static size_t get_onnx_operators_size() { return migraphx::get_onnx_operators().size(); }
 
 static char* get_onnx_operator_name_at_index(std::size_t index)
 {
     return const_cast<char*>(get_onnx_operators().at(index).c_str()); // NOLINT
 }
+
+#endif
 
 #ifdef __clang__
 #pragma clang diagnostic push

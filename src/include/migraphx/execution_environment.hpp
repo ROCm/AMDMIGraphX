@@ -34,8 +34,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct execution_environment
 {
-    any_ptr queue                                               = any_ptr{};
-    bool async                                                  = false;
+    any_ptr queue                                                                  = any_ptr{};
+    bool async                                                                     = false;
     std::function<void(instruction_ref, const argument&)> trace                    = nullptr;
     std::function<optional<argument>(instruction_ref, const argument&)> substitute = nullptr;
 };

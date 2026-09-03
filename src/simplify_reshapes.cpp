@@ -816,6 +816,98 @@ struct find_concat_multibroadcasts
     }
 };
 
+// Offsets of each concat input along the concat axis, from 0 up to the total
+// length of the axis
+std::vector<std::size_t> concat_offsets(const std::vector<instruction_ref>& inputs,
+                                        std::size_t axis)
+{
+    std::vector<std::size_t> result = {0};
+    transform_partial_sum(inputs.begin(),
+                          inputs.end(),
+                          std::back_inserter(result),
+                          std::plus<>{},
+                          [&](instruction_ref ins) { return ins->get_shape().lens()[axis]; });
+    return result;
+}
+
+// Forward a slice that reads exactly one segment of a concat through the view
+// ops in between, so the concat can be removed entirely. This shows up when a
+// model repacks tensors (such as qkv) that an op decomposition then re-slices.
+struct find_slice_reshaped_concat
+{
+    static const auto& view_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "reshape", "reshape_lazy", "squeeze", "unsqueeze", "flatten", "transpose"};
+        return names;
+    }
+
+    auto matcher() const
+    {
+        // Multi-input slices take runtime starts/ends and are not normalized
+        return match::name("slice")(match::nargs(1),
+                                    match::arg(0)(match::skip(match::name(view_ops()))(
+                                        match::name("concat").bind("concat"))));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto slice_ins  = mr.result;
+        auto concat_ins = mr.instructions["concat"];
+        if(concat_ins->get_shape().dynamic())
+            return;
+        std::vector<operation> ops;
+        auto x = slice_ins->inputs().front();
+        while(x != concat_ins)
+        {
+            if(not contains(view_ops(), x->name()))
+                return;
+            ops.push_back(x->get_operator());
+            x = x->inputs().front();
+        }
+        // A direct slice of a concat is handled by find_concat_slice
+        if(ops.empty())
+            return;
+        std::reverse(ops.begin(), ops.end());
+
+        const auto& clens = concat_ins->get_shape().lens();
+        std::size_t axis  = any_cast<op::concat>(concat_ins->normalized_operator()).axis;
+        assert(axis < clens.size());
+
+        // Track the element mapping of the view chain with a descriptor
+        auto desc = shape_transform_descriptor::create(clens, ops);
+        if(desc.empty())
+            return;
+
+        // Restrict the concat axis to the range of elements the slice selects
+        auto slice_val = slice_ins->normalized_operator().to_value();
+        auto selected  = desc.slice_axis(axis,
+                                         slice_val["axes"].to_vector<std::size_t>(),
+                                         slice_val["starts"].to_vector<std::size_t>(),
+                                         slice_val["ends"].to_vector<std::size_t>());
+        if(not selected.has_value())
+            return;
+        auto [lo, hi] = *selected;
+
+        // The selected range must be exactly one segment of the concat
+        const auto& inputs = concat_ins->inputs();
+        auto prefix        = concat_offsets(inputs, axis);
+        auto it            = std::find(prefix.begin(), std::prev(prefix.end()), lo);
+        if(it == std::prev(prefix.end()))
+            return;
+        auto idx = std::distance(prefix.begin(), it);
+        if(prefix[idx + 1] != hi)
+            return;
+        auto seg = inputs[idx];
+
+        if(desc.lens() != slice_ins->get_shape().lens())
+            return;
+        desc.simplify();
+        auto y = insert_ops(m, slice_ins, desc.generate(), seg);
+        m.replace_instruction(slice_ins, y);
+    }
+};
+
 struct find_concat_slice
 {
     auto matcher() const
@@ -852,11 +944,7 @@ struct find_concat_slice
         {
             return;
         }
-        std::vector<size_t> prefix_scan = {0};
-        std::transform(
-            inputs.begin(), inputs.end(), std::back_inserter(prefix_scan), [&](const auto& i) {
-                return prefix_scan.back() + i->get_shape().lens()[concat_axis];
-            });
+        auto prefix_scan = concat_offsets(inputs, concat_axis);
         for(const auto& sins : slice_candidates)
         {
             auto sop           = any_cast<op::slice>(sins->get_operator());
@@ -2167,6 +2255,7 @@ void simplify_reshapes::apply(module& m) const
     if(enable_gather_rewrite)
         match::find_matches(m, find_gather{});
     m.repeat_while_changes(depth, [&] {
+        match::find_matches(m, find_slice_reshaped_concat{});
         match::find_matches(m,
                             find_nop_reshapes{},
                             find_flatten{},

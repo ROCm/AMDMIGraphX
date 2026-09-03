@@ -6060,6 +6060,128 @@ TEST_CASE(simplify_concat_same_input_dynamic)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_concat_same_broadcast)
+{
+    migraphx::shape s{migraphx::shape::uint8_type, {1}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_literal(migraphx::literal{s, {8}});
+        auto b = m1.add_literal(migraphx::literal{s, {8}});
+        auto ab =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), a);
+        auto bb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ab, bb);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_literal(migraphx::literal{s, {8}});
+        auto bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 6}}}), a);
+        m2.add_return({bcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_broadcast_non_scalar)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto b = m1.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto ab =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), a);
+        auto bb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ab, bb);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 3}}}), a);
+        m2.add_return({bcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_broadcast_different_values)
+{
+    migraphx::shape s{migraphx::shape::uint8_type, {1}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_literal(migraphx::literal{s, {8}});
+        auto b = m1.add_literal(migraphx::literal{s, {7}});
+        auto ab =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), a);
+        auto bb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ab, bb);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_broadcast_nonzero_stride_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto b = m1.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto ab =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), a);
+        auto bb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), ab, bb);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    // The concat axis is not broadcasted, so find_concat_same_broadcast does
+    // not apply; find_concat_op moves the concat before the broadcast instead.
+    migraphx::module m2;
+    {
+        auto a      = m2.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto b      = m2.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), concat);
+        m2.add_return({bcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_broadcast_nonunit_axis_dim)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::module m1;
+    {
+        auto p = m1.add_parameter("p", s);
+        auto x = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), p);
+        auto xa =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), x);
+        auto xb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xa, xb);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_concat_unsqueeze)
 {
     migraphx::module m1;

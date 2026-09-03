@@ -81,6 +81,7 @@ Full documentation for MIGraphX is available at
 * Fixed the reference `nonzero` operator to handle non-standard input layouts such as transposed or broadcasted tensors (#5046).
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).
+* Fixed a compile-time crash in the `concat` operator when an input had a fully-unconstrained dynamic dimension (e.g. the output of `broadcast_with_dims` / ONNX `Expand`). Such dimensions are now treated as a wildcard during dynamic-shape inference (#4924).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
 * Fixed a regression in `simplify_algebra` where `find_add_convs` and `find_conv_concat_split_fuse` could fuse parallel convolutions with mismatched spatial dimensions after `rewrite_convolution`, causing `CONCAT: all input dimensions should match` failures when compiling U-Net-style models (#5167).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).

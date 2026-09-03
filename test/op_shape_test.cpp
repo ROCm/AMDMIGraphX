@@ -7364,6 +7364,51 @@ TEST_CASE(concat_sym_with_range)
     expect_shape(sout, migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
 }
 
+TEST_CASE(test_dyn_concat_unconstrained)
+{
+    const std::size_t max_int = std::numeric_limits<std::size_t>::max();
+
+    migraphx::shape expand_out{migraphx::shape::float_type, {dd{0, max_int}, dd{0, max_int}}};
+    migraphx::shape item{migraphx::shape::float_type, {dd{1, 1000}, dd{64, 64}}};
+
+    migraphx::shape sout1{migraphx::shape::float_type, {dd{1, 1000}, dd{64, max_int}}};
+    expect_shape(sout1, migraphx::make_op("concat", {{"axis", 1}}), expand_out, item);
+
+    migraphx::shape sout0{migraphx::shape::float_type, {dd{1, max_int}, dd{64, 64}}};
+    expect_shape(sout0, migraphx::make_op("concat", {{"axis", 0}}), expand_out, item);
+
+    // Two genuinely-different concrete dynamic dims on a non-axis still throw.
+    migraphx::shape a{migraphx::shape::float_type, {dd{1, 1000}, dd{32, 32}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{1, 1000}, dd{64, 64}}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+
+    // The wildcard is identified by an unbounded max, so a {1, SIZE_MAX}
+    // lower-bound-1 form (as broadcast_with_dims may emit) is also a wildcard.
+    migraphx::shape wild1{migraphx::shape::float_type, {dd{1, max_int}, dd{1, max_int}}};
+    migraphx::shape itm{migraphx::shape::float_type, {dd{1, 1000}, dd{64, 64}}};
+    migraphx::shape sout_wild{migraphx::shape::float_type, {dd{1, 1000}, dd{65, max_int}}};
+    expect_shape(sout_wild, migraphx::make_op("concat", {{"axis", 1}}), wild1, itm);
+}
+
+TEST_CASE(test_dyn_concat_mixed_static_dynamic)
+{
+    const std::size_t max_int = std::numeric_limits<std::size_t>::max();
+
+    migraphx::shape stat{migraphx::shape::float_type, {1024, 64}};
+    migraphx::shape wild{migraphx::shape::float_type, {dd{0, max_int}, dd{0, max_int}}};
+
+    // axis 1: non-axis (0) wildcard adopts the static 1024; the concat axis
+    // sums {64,64} + {0,SIZE_MAX} -> {64, SIZE_MAX}.
+    migraphx::shape sout{migraphx::shape::float_type, {dd{1024, 1024}, dd{64, max_int}}};
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 1}}), stat, wild);
+
+    // A static input mixed with a concrete (non-wildcard) dynamic dim that
+    // does not match on a non-concat axis still throws.
+    migraphx::shape stat2{migraphx::shape::float_type, {7, 64}};
+    migraphx::shape dyn2{migraphx::shape::float_type, {dd{1, 4}, dd{64, 64}}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 1}}), stat2, dyn2);
+}
+
 TEST_CASE(test_binary_nonpacked)
 {
     auto sx   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 8});

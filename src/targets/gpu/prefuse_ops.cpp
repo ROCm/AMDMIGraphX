@@ -607,8 +607,17 @@ bool winograd_f23_profitable(
     // large-channel regime for NHWC -- this is layout-specific; NCHW still wins
     // it and is unchanged. The override table below is NCHW-derived, so the NHWC
     // gate is applied first.
-    if(nhwc and min_ch >= 224)
-        return false;
+    if(nhwc)
+    {
+        if(min_ch >= 224)
+            return false;
+        if(min_ch >= 128 and spatial >= 48)
+            return false;
+        if(min_ch >= 64 and spatial >= 64)
+            return false;
+        if(max_ch >= 4 * min_ch and spatial >= 32)
+            return false;
+    }
 
     if(const auto* ovr = find_shape_override(winograd_f23_overrides, in_ch, out_ch, height, width))
         return ovr->use_winograd;
@@ -935,7 +944,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     // (after layout_convolution) means winograd inherits the layout that pass
     // chose and replaces the convolution in place via its layout-matching
     // compute_shape.
-    const bool is_gfx12 = starts_with(device_name, "gfx12");
+    const bool supports_winograd = device_name == "gfx1151" or starts_with(device_name, "gfx12");
     if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});
@@ -945,7 +954,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
     if(is_navi)
         match::find_matches(mpm.get_module(), find_channelwise_convolution{});
-    if(is_gfx12)
+    if(supports_winograd)
     {
         match::find_matches(mpm.get_module(), find_winograd_f23{});
         mpm.run_pass(dead_code_elimination{});

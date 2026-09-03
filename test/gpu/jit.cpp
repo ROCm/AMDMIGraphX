@@ -570,8 +570,8 @@ TEST_CASE(compile_code_object_disable_processes_backend_option)
     auto make_prog = [&] {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        mm->add_return({mm->add_instruction(migraphx::make_op("relu"),
-                                            mm->add_literal(input_literal))});
+        mm->add_return(
+            {mm->add_instruction(migraphx::make_op("relu"), mm->add_literal(input_literal))});
         return p;
     };
 

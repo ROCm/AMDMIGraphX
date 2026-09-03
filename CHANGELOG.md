@@ -7,7 +7,10 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
-* Added `migraphx::shape::from_json` and the matching `migraphx.shape.from_json` Python binding, which rebuild a shape from the json form of its value representation, preserving the symbolic dimension expressions, bounds, and optimals that no constructor argument can spell (#5205).
+* Added symbolic shapes to the Python API: dimensions as expression strings with a `symbols` table and optional `dyn_strides`, plus `shape.dyn_strides()`, `shape.symbolic()`, `shape.symbol_table()` and `dynamic_dimension.expression` (#5205).
+* Added `migraphx::shape::make_symbolic_shape` and `migraphx::shape::symbol_table` for building and reading symbolic shapes (#5205).
+* Added `migraphx_shape_create_symbolic` and the `migraphx_symbol_table` handle to the C API, with a matching `migraphx::shape` constructor in `migraphx.hpp` (#5205).
+* Added `migraphx::sym::find_variable_bounds` and an overload of `migraphx::sym::var` taking a list of intervals (#5205).
 * Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added support for building against ROCm 7.13 and newer using TheRock (#4952)
 * Added YOLO26 object detection example notebook.
@@ -49,6 +52,7 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
+* Symbol names in symbolic shapes must now be valid identifiers; names taken from an ONNX model are rewritten to fit, so an input named `0` yields `_0_d0` and a `dim_param` of `batch.size` yields `batch_size` (#5205).
 * Converted `nonzero` operator from device implementation to JIT compilation (#4720).
 * Converted `prefix_scan_sum` operator from device implementation to JIT compilation (#4720).
 * Converted `reverse` operator from device implementation to JIT compilation (#4645).
@@ -70,6 +74,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `migraphx::sym::expr::to_string` rounding double literals to six significant digits, so they could not be parsed back (#5205).
 * Fixed the reference `nonzero` operator to handle non-standard input layouts such as transposed or broadcasted tensors.
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).
@@ -92,7 +97,7 @@ Full documentation for MIGraphX is available at
 * Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).
 * Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
-* Fixed the `--py` and `--cpp` program printers throwing `SHAPE: lens() called on a dynamic shape` for any program holding a dynamic shape. A range-based dynamic dimension is now printed as its bounds, and a symbolic one is printed as the json form of its value representation via the new `migraphx::shape::from_json` and `migraphx.shape.from_json`, so the generated code rebuilds the symbolic expression, its bounds and optimals, and any symbolic strides exactly (#5205).
+* Fixed the `--py` and `--cpp` program printers throwing `SHAPE: lens() called on a dynamic shape` for any program holding a dynamic shape (#5205).
 
 ### Optimized
 * Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).

@@ -1670,7 +1670,7 @@ static std::string sym_dims_string(const migraphx::shape& s)
     return join_strings(dims, ", ");
 }
 
-// Strides are only carried by an all-symbolic shape, and make_symbolic recomputes packed
+// Strides are only carried by an all-symbolic shape, and make_symbolic_shape recomputes packed
 // standard ones when none are given, so they are needed only for another layout.
 static bool needs_dyn_strides(const migraphx::shape& s)
 {
@@ -1728,7 +1728,7 @@ static symbol_table symbols_for(const migraphx::sym::expr& e, const symbol_table
 
 // A range-based dynamic dimension is printed from its bounds and optimals, a symbolic one from
 // its expression and the symbols that expression needs. This is the mixed-shape spelling;
-// make_symbolic cannot express a range dimension, so those shapes go dimension by dimension.
+// make_symbolic_shape cannot express a range dimension, so those shapes go dimension by dimension.
 static std::string dyn_dims_string(const migraphx::shape& s, bool cpp)
 {
     auto table = s.symbol_table();

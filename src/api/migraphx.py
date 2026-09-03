@@ -171,15 +171,14 @@ def argument(h):
 
 
 api.add_function('migraphx_argument_save',
-                 api.params(a='const migraphx::argument&', filename='const char*'),
-                 fname='migraphx::save_argument'
-                 )
+                 api.params(a='const migraphx::argument&',
+                            filename='const char*'),
+                 fname='migraphx::save_argument')
 
 api.add_function('migraphx_argument_load',
                  api.params(filename='const char*'),
                  fname='migraphx::load_argument',
-                 returns='migraphx::argument'
-                 )
+                 returns='migraphx::argument')
 
 api.add_function('migraphx_argument_generate',
                  api.params(s='const migraphx::shape&', seed='size_t'),
@@ -390,6 +389,7 @@ api.add_function('migraphx_save',
                  fname='migraphx::save')
 
 if 'enable_onnx' in globals():
+
     @auto_handle()
     def onnx_options(h):
         h.constructor('create')
@@ -441,13 +441,11 @@ if 'enable_onnx' in globals():
             invoke='migraphx::set_dim_param($@)',
         )
 
-
     api.add_function('migraphx_parse_onnx',
                      api.params(name='const char*',
                                 options='migraphx::onnx_options'),
                      fname='migraphx::parse_onnx',
                      returns='migraphx::program')
-
 
     api.add_function('migraphx_parse_onnx_buffer',
                      api.params(data='const void*',
@@ -486,6 +484,7 @@ def compile_options(h):
 
 
 if 'enable_tensorflow' in globals():
+
     @auto_handle()
     def tf_options(h):
         h.constructor('create')
@@ -510,13 +509,11 @@ if 'enable_tensorflow' in globals():
             invoke='migraphx::set_output_names($@)',
         )
 
-
     api.add_function('migraphx_parse_tf',
                      api.params(name='const char*',
                                 options='migraphx::tf_options'),
                      fname='migraphx::parse_tf',
                      returns='migraphx::program')
-
 
     api.add_function('migraphx_parse_tf_buffer',
                      api.params(data='const void*',

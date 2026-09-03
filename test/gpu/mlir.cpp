@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -256,18 +257,14 @@ TEST_CASE(conv_add_leaky_relu)
 {
     std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_convolution_add_greater_mul_convert_where(%arg0: !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>, %arg1: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg2: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x2x2xf32, 8x4x2x1> attributes ${attrs} {
-    %0 = migraphx.literal(dense<0.000000e+00> : tensor<1xf32>) : <1xf32, 1>
-    %1 = migraphx.literal(dense<0.00999999977> : tensor<1xf32>) : <1xf32, 1>
-    %2 = migraphx.convolution %arg2, %arg1 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xf32, 128x16x4x1>, <2x8x3x3xf32, 72x9x3x1> -> <1x2x2x2xf32, 8x4x2x1>
-    %3 = migraphx.add %2, %arg0 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1> -> <1x2x2x2xf32, 8x4x2x1>
-    %4 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [1, 2, 2, 2]} : <1xf32, 1> -> <1x2x2x2xf32, 0x0x0x0>
-    %5 = migraphx.greater %3, %4 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 0x0x0x0> -> <1x2x2x2xf32, 8x4x2x1>
-    %6 = migraphx.multibroadcast %1 {out_dyn_dims = [], out_lens = [1, 2, 2, 2]} : <1xf32, 1> -> <1x2x2x2xf32, 0x0x0x0>
-    %7 = migraphx.mul %3, %6 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 0x0x0x0> -> <1x2x2x2xf32, 8x4x2x1>
-    %8 = migraphx.convert %5 {target_type = 0 : i64} : <1x2x2x2xf32, 8x4x2x1> to <1x2x2x2xsi8, 8x4x2x1>
-    %9 = migraphx.where %8, %3, %7 : <1x2x2x2xsi8, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1> -> <1x2x2x2xf32, 8x4x2x1>
-    return %9 : !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>  
+  func.func @mlir_convolution_add_mul_max(%arg0: !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>, %arg1: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg2: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x2x2xf32, 8x4x2x1> attributes ${attrs} {
+    %0 = migraphx.literal(dense<0.00999999977> : tensor<1xf32>) : <1xf32, 1>
+    %1 = migraphx.convolution %arg2, %arg1 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xf32, 128x16x4x1>, <2x8x3x3xf32, 72x9x3x1> -> <1x2x2x2xf32, 8x4x2x1>
+    %2 = migraphx.add %1, %arg0 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1> -> <1x2x2x2xf32, 8x4x2x1>
+    %3 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [1, 2, 2, 2]} : <1xf32, 1> -> <1x2x2x2xf32, 0x0x0x0>
+    %4 = migraphx.mul %2, %3 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 0x0x0x0> -> <1x2x2x2xf32, 8x4x2x1>
+    %5 = migraphx.max %2, %4 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1> -> <1x2x2x2xf32, 8x4x2x1>
+    return %5 : !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>
   }
 }
 )__migraphx__";
@@ -855,6 +852,18 @@ module {
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
     // Don't verify here. Tests with a verify test instead.
+}
+
+TEST_CASE(mlir_lds_usage_fits_arch)
+{
+    const auto device_name = migraphx::gpu::get_device_name();
+    const auto gfx_name    = migraphx::gpu::get_gfx_name(device_name);
+    EXPECT(
+        migraphx::gpu::mlir_lds_usage_fits_arch(64, gfx_name, migraphx::shape::type_t::half_type));
+    EXPECT(not migraphx::gpu::mlir_lds_usage_fits_arch(
+        8192, gfx_name, migraphx::shape::type_t::half_type));
+    EXPECT(migraphx::gpu::mlir_lds_usage_fits_arch(
+        64, device_name, migraphx::shape::type_t::half_type));
 }
 
 // prepare_mlir rewrites a non-standard-strided constant (as folded from a transposed literal) to

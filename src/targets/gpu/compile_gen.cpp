@@ -507,7 +507,8 @@ std::string generate_reduce(module m, const std::string& name)
                          std::back_inserter(tensors),
                          [&](auto input) {
                              return input->get_shape().lens() != rlens and
-                                    not input->get_shape().broadcasted();
+                                    not input->get_shape().broadcasted() and
+                                    not contains(tensors, input);
                          });
             auto inner_names = names;
             for(auto input : ins->inputs())

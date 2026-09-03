@@ -21,45 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/pack_args.hpp>
-#include <migraphx/requires.hpp>
+#ifndef MIGRAPHX_GUARD_GPU_HIPGRAPHIFY_HPP
+#define MIGRAPHX_GUARD_GPU_HIPGRAPHIFY_HPP
+
+#include <migraphx/gpu/config.hpp>
+#include <cstddef>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct module_pass_manager;
+
 namespace gpu {
 
-namespace {
-std::size_t get_size(const kernel_argument& k) { return k.size; }
-std::size_t get_size(const kernel_argument_value& k) { return k.data.size(); }
-
-const char* get_data(const kernel_argument& k) { return static_cast<const char*>(k.data); }
-const char* get_data(const kernel_argument_value& k) { return k.data.data(); }
-
-template <class PackArgs>
-std::vector<char> pack_args_impl(const PackArgs& args)
+// Partitions the root module into maximal runs of HIP-graph-capturable
+// instructions, wrapping each run of at least min_partition_size in a single
+// hip::graph op. Ops that synchronize with or run on the host cannot be
+// captured and act as partition boundaries.
+struct MIGRAPHX_GPU_EXPORT hipgraphify
 {
-    std::vector<char> kernargs;
-    for(auto&& arg : args)
-    {
-        std::size_t n = get_size(arg);
-        const auto* p = get_data(arg);
-        kernargs.insert(kernargs.end(), pack_padding(kernargs.size(), arg.align), 0);
-        kernargs.insert(kernargs.end(), p, p + n);
-    }
-    return kernargs;
-}
-} // namespace
-
-std::vector<char> pack_args(const std::vector<kernel_argument>& args)
-{
-    return pack_args_impl(args);
-}
-
-std::vector<char> pack_args(const std::vector<kernel_argument_value>& args)
-{
-    return pack_args_impl(args);
-}
+    // Minimum run length worth extracting into a hip::graph submodule.
+    std::size_t min_partition_size = 4;
+    std::string name() const { return "gpu::hipgraphify"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif // MIGRAPHX_GUARD_GPU_HIPGRAPHIFY_HPP

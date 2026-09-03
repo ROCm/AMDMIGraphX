@@ -4133,6 +4133,7 @@ TEST_CASE(reduce_unsqueeze_broadcast_transpose_pointwise2)
     EXPECT(m1.sort() == m2.sort());
 }
 
+#ifdef MIGRAPHX_WORKAROUND_RESHAPE_CONT_NONSTANDARD
 TEST_CASE(transpose_contiguous_reshape_binary_packed)
 {
     migraphx::module m1;
@@ -4164,6 +4165,7 @@ TEST_CASE(transpose_contiguous_reshape_binary_packed)
         m1.add_instruction(pass_op{}, add_ins);
     }
     run_pass(m1);
+
     migraphx::module m2;
     {
         auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {2, 128, 28, 28}});
@@ -4182,19 +4184,18 @@ TEST_CASE(transpose_contiguous_reshape_binary_packed)
             conv1,
             w2); // (2, 512, 14, 14)
 
-        auto conv2_rsp = m2.add_instruction(
+        auto conv2_rsp1 = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", {2, 2, 2, 128, 14, 14}}}), conv2);
         auto conv2_trans = m2.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), conv2_rsp);
-        auto x_rsp =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 128, 14, 2, 14, 2}}}), x);
-        auto add_ins = m2.add_instruction(migraphx::make_op("add"), conv2_trans, x_rsp);
-        auto add_rsp =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 128, 28, 28}}}), add_ins);
-        m2.add_instruction(pass_op{}, add_rsp);
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), conv2_rsp1);
+        auto conv2_rsp2 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {2, 128, 28, 28}}}), conv2_trans);
+        auto add_ins = m2.add_instruction(migraphx::make_op("add"), conv2_rsp2, x);
+        m2.add_instruction(pass_op{}, add_ins);
     }
     EXPECT(m1 == m2);
 }
+#endif
 
 TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
 {

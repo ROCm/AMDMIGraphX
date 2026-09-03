@@ -1384,7 +1384,7 @@ struct find_gather
             return;
 
         const std::size_t axis_index = tune_axis(dlens.size(), gather_op.axis, gather_op.name());
-        const auto axis_len = dlens.at(axis_index);
+        const auto axis_len          = dlens.at(axis_index);
         if(axis_len == 0)
             return;
 
@@ -1711,6 +1711,15 @@ struct find_reshape_cont
 
         if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
             return;
+
+#ifdef MIGRAPHX_WORKAROUND_RESHAPE_CONT_NONSTANDARD
+        auto rdims_sz = std::vector<std::size_t>(dims.begin(), dims.end());
+        if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto in) {
+               return in == in_ins or
+                      reshape_dims(in->get_shape(), rdims_sz, {.lazy = true}).has_value();
+           }))
+            return;
+#endif
 
         auto out_lens = ins->get_shape().lens();
         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());

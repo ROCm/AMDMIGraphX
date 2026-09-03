@@ -55,10 +55,9 @@ TEST_CASE(gemm_dyn_bias_sym_test)
                        [](migraphx::module& m, const auto& a) {
                            auto x0_t = m.add_instruction(
                                migraphx::make_op("transpose", {{"permutation", {1, 0}}}), a[0]);
-                           auto dot  = m.add_instruction(migraphx::make_op("dot"), x0_t, a[1]);
-                           auto dims = migraphx::to_value(dot->get_shape().dyn_dims());
-                           auto x2_b = m.add_instruction(
-                               migraphx::make_op("multibroadcast", {{"out_dyn_dims", dims}}), a[2]);
+                           auto dot = m.add_instruction(migraphx::make_op("dot"), x0_t, a[1]);
+                           auto x2_b =
+                               m.add_instruction(migraphx::make_op("multibroadcast"), a[2], dot);
                            auto ret = m.add_instruction(migraphx::make_op("add"), dot, x2_b);
                            m.add_return({ret});
                        }));

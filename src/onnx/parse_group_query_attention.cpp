@@ -406,16 +406,9 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         repeat_kv_heads(info, k, v, num_heads, num_heads / kv_heads);
         auto kt = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
 
-        // Reuse the dimension expressions of the symbolic operand so dot sees matching
-        // symbols; the static kv operand broadcasts over the symbolic batch dimension.
-        const auto& q_dims = q->get_shape().dyn_dims();
-        auto bcast_for_dot = [&](instruction_ref static_ins) {
-            auto dims = static_ins->get_shape().to_symbolic().dyn_dims();
-            dims[0]   = q_dims[0];
-            return info.add_instruction(
-                make_op("multibroadcast", {{"out_dyn_dims", to_value(dims)}}), static_ins);
-        };
-        auto gemm1 = info.add_instruction(make_op("dot"), q, bcast_for_dot(kt));
+        // The static kv operands broadcast over the symbolic batch dimension of the query
+        auto kt_b  = info.add_instruction(make_op("broadcast_for_dot"), kt, q);
+        auto gemm1 = info.add_instruction(make_op("dot"), q, kt_b);
 
         auto scale = opts.scale;
         if(float_equal(scale, 0.0))
@@ -442,14 +435,17 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
 
-        const auto out_dims = to_value(scaled->get_shape().dyn_dims());
-        mask = info.add_instruction(make_op("multibroadcast", {{"out_dyn_dims", out_dims}}), mask);
         auto ninf =
             info.add_literal(literal{shape{dtype, {1}}, {-std::numeric_limits<float>::infinity()}});
-        ninf = info.add_instruction(make_op("multibroadcast", {{"out_dyn_dims", out_dims}}), ninf);
-        auto where   = info.add_instruction(make_op("where"), mask, ninf, scaled);
-        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
-        auto scores  = info.add_instruction(make_op("dot"), softmax, bcast_for_dot(v));
+        // Every where operand broadcasts with the others as shape donors so all three
+        // keep one modality (see insert_common_args)
+        auto mask_b   = info.add_instruction(make_op("multibroadcast"), mask, ninf, scaled);
+        auto ninf_b   = info.add_instruction(make_op("multibroadcast"), ninf, mask, scaled);
+        auto scaled_b = info.add_instruction(make_op("multibroadcast"), scaled, mask, ninf);
+        auto where    = info.add_instruction(make_op("where"), mask_b, ninf_b, scaled_b);
+        auto softmax  = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+        auto v_b      = info.add_instruction(make_op("broadcast_for_dot"), v, softmax);
+        auto scores   = info.add_instruction(make_op("dot"), softmax, v_b);
         auto out =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
         out = info.add_instruction(make_op("reshape", {{"dims", {0, -1, num_heads * head_size}}}),

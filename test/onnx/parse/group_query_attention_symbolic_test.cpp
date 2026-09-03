@@ -134,15 +134,8 @@ TEST_CASE(group_query_attention_symbolic_test)
     auto kt =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
 
-    const auto& q_dims = q->get_shape().dyn_dims();
-    auto bcast_for_dot = [&](migraphx::instruction_ref static_ins) {
-        auto dims = static_ins->get_shape().to_symbolic().dyn_dims();
-        dims[0]   = q_dims[0];
-        return mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(dims)}}),
-            static_ins);
-    };
-    auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, bcast_for_dot(kt));
+    auto kt_b  = mm->add_instruction(migraphx::make_op("broadcast_for_dot"), kt, q);
+    auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, kt_b);
 
     auto scale_lit = mm->add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}}, {0.25f}});
@@ -159,16 +152,15 @@ TEST_CASE(group_query_attention_symbolic_test)
     mask      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), mask);
 
-    const auto out_dims = migraphx::to_value(scaled->get_shape().dyn_dims());
-    mask = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", out_dims}}),
-                               mask);
     auto ninf = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}},
                                                   {-std::numeric_limits<float>::infinity()}});
-    ninf = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", out_dims}}),
-                               ninf);
-    auto where   = mm->add_instruction(migraphx::make_op("where"), mask, ninf, scaled);
-    auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where);
-    auto scores  = mm->add_instruction(migraphx::make_op("dot"), softmax, bcast_for_dot(v));
+    auto mask_b   = mm->add_instruction(migraphx::make_op("multibroadcast"), mask, ninf, scaled);
+    auto ninf_b   = mm->add_instruction(migraphx::make_op("multibroadcast"), ninf, mask, scaled);
+    auto scaled_b = mm->add_instruction(migraphx::make_op("multibroadcast"), scaled, mask, ninf);
+    auto where    = mm->add_instruction(migraphx::make_op("where"), mask_b, ninf_b, scaled_b);
+    auto softmax  = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where);
+    auto v_b      = mm->add_instruction(migraphx::make_op("broadcast_for_dot"), v, softmax);
+    auto scores   = mm->add_instruction(migraphx::make_op("dot"), softmax, v_b);
     auto out = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                    scores);
     out      = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {0, -1, 64}}}), out);

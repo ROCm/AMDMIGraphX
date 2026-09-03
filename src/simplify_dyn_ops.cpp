@@ -132,9 +132,9 @@ struct find_static_2in_broadcasts : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
-        return match::broadcast(match::nargs(2),
-                                match::arg(0)(match::static_shape()),
-                                match::arg(1)(match::static_shape()));
+        // one static input plus any number of static shape donors
+        return match::broadcast(match::none_of(match::nargs(1)),
+                                match::all_of[match::inputs()](match::static_shape()));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -344,6 +344,47 @@ struct find_static_dimensions_of : match::supports_dynamic_shapes
         migraphx::shape output_shape{migraphx::shape::int64_type, {end - start}};
         auto lit_ins = m.add_literal(migraphx::literal{output_shape, vec_shape});
         m.replace_instruction(ins, lit_ins);
+    }
+};
+
+/**
+ * Simplify a dynamic_range with constant start, limit, and delta into a literal.
+ * From:
+ * dynamic_range(constant_start, constant_limit, constant_delta)
+ * To:
+ * literal(start, start + delta, ...)
+ */
+struct find_const_dynamic_range : match::supports_dynamic_shapes
+{
+    auto matcher() const
+    {
+        return match::name("dynamic_range")(match::all_of[match::inputs()](match::is_constant()));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
+        instruction_ref range_lit;
+        visit_all(inputs[0]->eval(), inputs[1]->eval(), inputs[2]->eval())(
+            [&](auto start, auto limit, auto delta) {
+                auto start_val = start.front();
+                auto delta_val = delta.front();
+                if(not(delta_val > 0 or delta_val < 0))
+                    MIGRAPHX_THROW("dynamic_range: delta must be non-zero");
+                auto num_elements_d =
+                    std::ceil((double(limit.front()) - double(start_val)) / double(delta_val));
+                std::size_t num_elements = num_elements_d > 0 ? num_elements_d : 0;
+                std::vector<decltype(start_val)> range_vals(num_elements);
+                std::generate(range_vals.begin(), range_vals.end(), [&] {
+                    auto result = start_val;
+                    start_val += delta_val;
+                    return result;
+                });
+                range_lit = m.add_literal(
+                    literal{shape{inputs[0]->get_shape().type(), {num_elements}}, range_vals});
+            });
+        m.replace_instruction(ins, range_lit);
     }
 };
 
@@ -674,6 +715,7 @@ void simplify_dyn_ops::apply(module& m) const
                         find_broadcast_with_dims_static{},
                         find_resize_static{},
                         find_static_dimensions_of{},
+                        find_const_dynamic_range{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},
                         find_const_2in_slice{},

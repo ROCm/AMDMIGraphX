@@ -47,7 +47,7 @@ TEST_CASE(conv_dynamic_bias_sym_test)
 {
     using migraphx::sym::lit;
     using migraphx::sym::var;
-    // Symbolic image: bias uses the single-input broadcast (axis + out_dyn_dims).
+    // Symbolic image: bias uses the same shape-donor broadcast as the range-dynamic case.
     EXPECT(check_parse(
         "conv_dynamic_bias_test.onnx",
         {{"0",
@@ -55,10 +55,8 @@ TEST_CASE(conv_dynamic_bias_sym_test)
          {"1", {migraphx::shape::float_type, {1, 3, 5, 5}}},
          {"2", {migraphx::shape::float_type, {1}}}},
         [](migraphx::module& m, const auto& a) {
-            auto x3   = m.add_instruction(migraphx::make_op("convolution"), a[0], a[1]);
-            auto dims = migraphx::to_value(x3->get_shape().dyn_dims());
-            auto x4   = m.add_instruction(
-                migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), a[2]);
+            auto x3 = m.add_instruction(migraphx::make_op("convolution"), a[0], a[1]);
+            auto x4 = m.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), a[2], x3);
             auto x5 = m.add_instruction(migraphx::make_op("add"), x3, x4);
             m.add_return({x5});
         }));

@@ -128,15 +128,7 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         instruction_ref scale_bcast;
         instruction_ref bias_bcast;
         const auto& xs = x->get_shape();
-        if(xs.symbolic())
-        {
-            auto dims   = to_value(xs.dyn_dims());
-            scale_bcast = info.add_instruction(
-                make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), scale);
-            bias_bcast = info.add_instruction(
-                make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), bias);
-        }
-        else if(xs.dynamic())
+        if(xs.dynamic())
         {
             scale_bcast = info.add_instruction(make_op("broadcast", {{"axis", 1}}), scale, x);
             bias_bcast  = info.add_instruction(make_op("broadcast", {{"axis", 1}}), bias, x);

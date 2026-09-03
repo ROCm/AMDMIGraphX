@@ -48,13 +48,12 @@ TEST_CASE(matmul_sym_broadcast_test)
         {{"1", {migraphx::shape::float_type, {7}}},
          {"2", {migraphx::shape::float_type, sym_dims({lit(5), lit(7), var("k", {4, 8})})}}},
         [](migraphx::module& m, const auto& a) {
-            auto u = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a[0]);
-            auto b = m.add_instruction(
-                migraphx::make_op(
-                    "multibroadcast",
-                    {{"out_dyn_dims", migraphx::to_value(sym_dims({lit(5), lit(1), lit(7)}))}}),
-                u);
-            auto d = m.add_instruction(migraphx::make_op("dot"), b, a[1]);
+            // Same shape-donor form as the range-dynamic case, so the broadcast resolves
+            // from its inputs once they are static
+            auto u  = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a[0]);
+            auto b0 = m.add_instruction(migraphx::make_op("broadcast_for_dot"), u, a[1]);
+            auto b1 = m.add_instruction(migraphx::make_op("broadcast_for_dot"), a[1], u);
+            auto d  = m.add_instruction(migraphx::make_op("dot"), b0, b1);
             m.add_return({m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), d)});
         }));
 }

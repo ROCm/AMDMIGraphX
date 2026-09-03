@@ -64,7 +64,7 @@ TEST_CASE(instance_norm_sym_batch_test)
 {
     using migraphx::sym::lit;
     using migraphx::sym::var;
-    // Symbolic batch: scale/bias use the single-input broadcast (axis + out_dyn_dims) form.
+    // Symbolic batch: scale/bias use the same shape-donor broadcast as the range-dynamic case.
     migraphx::shape s1{migraphx::shape::float_type,
                        sym_dims({var("n", {1, 2}), lit(2), lit(3), lit(3)})};
     migraphx::shape s2{migraphx::shape::float_type, {2}};
@@ -85,13 +85,12 @@ TEST_CASE(instance_norm_sym_batch_test)
                 migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
             auto l2 = add_common_op(m, migraphx::make_op("add"), {variance, epsilon_literal});
 
-            auto l3          = m.add_instruction(migraphx::make_op("rsqrt"), l2);
-            auto l4          = add_common_op(m, migraphx::make_op("mul"), {l1, l3});
-            auto dims        = migraphx::to_value(x->get_shape().dyn_dims());
-            auto scale_bcast = m.add_instruction(
-                migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), scale);
-            auto bias_bcast = m.add_instruction(
-                migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), bias);
+            auto l3 = m.add_instruction(migraphx::make_op("rsqrt"), l2);
+            auto l4 = add_common_op(m, migraphx::make_op("mul"), {l1, l3});
+            auto scale_bcast =
+                m.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), scale, x);
+            auto bias_bcast =
+                m.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), bias, x);
             auto l5  = m.add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
             auto ret = m.add_instruction(migraphx::make_op("add"), l5, bias_bcast);
             m.add_return({ret});

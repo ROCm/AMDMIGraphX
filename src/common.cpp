@@ -66,11 +66,26 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                    dds1.cbegin() + offset,
                    out_dims.begin() + offset,
                    [&](auto a, auto b) {
-                       if(a == b or b == 1)
+                       if(a == b)
                        {
                            return a;
                        }
-                       else if(a == 1)
+                       // A dimension fixed at 1 broadcasts to the other. When both are 1,
+                       // keep the one that still names a variable so the symbol survives.
+                       auto names_variable = [](const shape::dynamic_dimension& dd) {
+                           return dd.is_symbolic() and not sym::find_variables(dd.sym_expr).empty();
+                       };
+                       const bool a_is_one = a == 1;
+                       const bool b_is_one = b == 1;
+                       if(a_is_one and b_is_one)
+                       {
+                           return names_variable(a) ? a : b;
+                       }
+                       else if(b_is_one)
+                       {
+                           return a;
+                       }
+                       else if(a_is_one)
                        {
                            return b;
                        }
@@ -154,8 +169,11 @@ std::vector<instruction_ref> insert_common_args(module& m,
                                                 std::vector<instruction_ref> inputs,
                                                 common_options options)
 {
-    // Symbolic inputs (with no range-dynamic mixed in) use single-input broadcasts + converts,
-    // mirroring the static path.
+    // Symbolic inputs (with no range-dynamic mixed in) broadcast to the common symbolic
+    // dims with the other inputs as shape donors, so the broadcast resolves from its inputs
+    // alone once they are static (see simplify_dyn_ops). Every input is broadcast, as in the
+    // range-dynamic path, so the operands of the op keep one modality when some inputs
+    // become static before others.
     bool any_symbolic = std::any_of(
         inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().symbolic(); });
     bool any_range = std::any_of(inputs.cbegin(), inputs.cend(), [](auto input) {
@@ -166,14 +184,20 @@ std::vector<instruction_ref> insert_common_args(module& m,
         auto input_shapes = to_shapes(inputs);
         auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
         auto c_type       = compute_common_types(input_shapes);
+        const auto donors = inputs;
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-            auto s = input->get_shape();
-            if(options.common_lens and not(s.symbolic() and s.dyn_dims() == c_dyn_dims))
+            if(options.common_lens)
             {
+                // The other inputs are the shape donors; an input used twice (x * x)
+                // donates its own shape so the broadcast keeps the two-input form.
+                std::vector<instruction_ref> bcast_inputs{input};
+                auto other_inputs = donors;
+                other_inputs.erase(std::find(other_inputs.begin(), other_inputs.end(), input));
+                bcast_inputs.insert(bcast_inputs.end(), other_inputs.begin(), other_inputs.end());
                 input = m.insert_instruction(
                     ins,
                     make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                    input);
+                    bcast_inputs);
             }
             if(options.common_type and input->get_shape().type() != c_type)
             {

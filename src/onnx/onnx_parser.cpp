@@ -144,13 +144,7 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
     {
         instruction_ref bias_bcast;
         const auto& s = curr_ins->get_shape();
-        if(s.symbolic())
-        {
-            bias_bcast = add_instruction(
-                make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", to_value(s.dyn_dims())}}),
-                args[2]);
-        }
-        else if(s.dynamic())
+        if(s.dynamic())
         {
             bias_bcast = add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
         }

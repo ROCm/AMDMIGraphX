@@ -6145,4 +6145,46 @@ TEST_CASE(simplify_concat_unsqueeze_scalar)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_clamp_bounds)
+{
+    // min(max(x, 0), 0) never depends on x
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::int64_type, {1}};
+        auto x     = m1.add_parameter("x", s);
+        auto zero  = m1.add_literal(migraphx::literal{s, {0}});
+        auto lower = m1.add_instruction(migraphx::make_op("max"), x, zero);
+        auto upper = m1.add_instruction(migraphx::make_op("min"), lower, zero);
+        m1.add_return({upper});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::int64_type, {1}};
+        m2.add_parameter("x", s);
+        auto zero = m2.add_literal(migraphx::literal{s, {0}});
+        m2.add_return({zero});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_clamp_bounds_keep)
+{
+    // min(max(x, 0), 7) depends on x
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::int64_type, {1}};
+        auto x     = m1.add_parameter("x", s);
+        auto zero  = m1.add_literal(migraphx::literal{s, {0}});
+        auto seven = m1.add_literal(migraphx::literal{s, {7}});
+        auto lower = m1.add_instruction(migraphx::make_op("max"), x, zero);
+        auto upper = m1.add_instruction(migraphx::make_op("min"), lower, seven);
+        m1.add_return({upper});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -769,7 +769,7 @@ struct find_inner_broadcast
                                                    iaxes.end(),
                                                    [&](auto x) { return x >= shift; }) -
                                       iaxes.begin();
-                    result = m.insert_instruction(
+                    result          = m.insert_instruction(
                         broadcast,
                         make_op("broadcast", {{"axis", start_axis}, {"out_lens", idims}}),
                         result);
@@ -2093,12 +2093,12 @@ struct find_conv_dot_horiz_fusion
             // TODO: Check if axes match
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
-            auto fused     = m.insert_instruction(std::next(input), op, input, concat);
+            auto fused = m.insert_instruction(std::next(input), op, input, concat);
             std::vector<module::instruction_replacement> replacers;
             int64_t offset = 0;
             for(auto arg : range(start, last))
             {
-                int64_t len = arg->get_shape().lens()[axis];
+                int64_t len   = arg->get_shape().lens()[axis];
                 auto slice_op = make_op(
                     "slice", {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}});
                 replacers.push_back(module::instruction_replacement{arg, slice_op, {fused}, {}});
@@ -2231,6 +2231,47 @@ struct find_zero_ops
             zero_ins = m.insert_instruction(
                 ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), zero_ins);
         m.replace_instruction(ins, zero_ins);
+    }
+};
+
+// min(max(x, lower), upper) is upper whenever upper <= lower (and symmetrically for
+// max(min(x, upper), lower)), so the clamp never depends on x
+struct find_clamp_bounds
+{
+    auto matcher() const
+    {
+        auto clamp = [](const std::string& outer, const std::string& inner) {
+            return match::name(outer)(match::either_arg(0, 1)(
+                match::name(inner)(
+                    match::either_arg(0, 1)(match::any(), match::is_constant().bind("inner")))
+                    .bind("inner_op"),
+                match::is_constant().bind("outer")));
+        };
+        return match::any_of(clamp("min", "max"), clamp("max", "min"));
+    }
+
+    static bool clamps_to_outer(instruction_ref ins, instruction_ref inner, instruction_ref outer)
+    {
+        if(inner->get_shape().elements() != 1 or outer->get_shape().elements() != 1)
+            return false;
+        double inner_value = 0;
+        double outer_value = 0;
+        inner->eval().visit([&](auto data) { inner_value = data.front(); });
+        outer->eval().visit([&](auto data) { outer_value = data.front(); });
+        return ins->name() == "min" ? outer_value <= inner_value : outer_value >= inner_value;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto inner = r.instructions["inner"];
+        auto outer = r.instructions["outer"];
+        if(not clamps_to_outer(ins, inner, outer))
+            return;
+        if(outer->get_shape() != ins->get_shape())
+            outer = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), outer);
+        m.replace_instruction(ins, outer);
     }
 };
 
@@ -2865,6 +2906,7 @@ void simplify_algebra::apply(module& m) const
                             find_dot_add{},
                             find_conv_add{},
                             find_div_const{},
+                            find_clamp_bounds{},
                             find_sub_const{},
                             find_rsqrt{},
                             find_log_exp{},

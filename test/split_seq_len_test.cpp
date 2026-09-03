@@ -30,6 +30,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/verify.hpp>
 
@@ -68,7 +69,8 @@ static migraphx::program make_kv_cache_program()
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1}});
     auto oneb = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(x_s.dyn_dims())}}),
-        one);
+        one,
+        x);
     auto y   = mm->add_instruction(migraphx::make_op("add"), x, oneb);
     auto cur = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), y);
     auto k   = mm->add_instruction(
@@ -104,7 +106,10 @@ TEST_CASE(split_kv_cache_seq_len)
             auto sm_one = submod->add_literal(
                 migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1}});
             auto sm_oneb = submod->add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", {1, seq_len, 4}}}), sm_one);
+                migraphx::make_op("multibroadcast",
+                                  {{"out_dyn_dims", migraphx::to_value(x_s.dyn_dims())}}),
+                sm_one,
+                sm_x);
             auto sm_y = submod->add_instruction(migraphx::make_op("add"), sm_x, sm_oneb);
             auto sm_cur =
                 submod->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sm_y);
@@ -199,7 +204,12 @@ TEST_CASE(split_seq_len_ref_eval)
     for(const std::size_t seq_len : {std::size_t{1}, std::size_t{2}, std::size_t{4}})
     {
         auto p = make_kv_cache_program();
-        run_pass(p);
+        // The pipeline staticizes the cloned submodules with simplify_dyn_ops
+        migraphx::run_passes(p,
+                             {migraphx::split_seq_len{},
+                              migraphx::dead_code_elimination{},
+                              migraphx::simplify_dyn_ops{},
+                              migraphx::dead_code_elimination{}});
         p.compile(migraphx::make_target("ref"));
 
         std::vector<float> x_data(seq_len * 4);

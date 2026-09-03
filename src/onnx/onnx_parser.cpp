@@ -668,8 +668,9 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
 
         std::vector<instruction_ref> result;
-        std::size_t output_num   = node.output().size();
-        std::string node_name    = node.op_type() + "_" + std::to_string(mod->size());
+        std::size_t output_num = node.output().size();
+        std::string node_name =
+            mod->name() + "_" + node.op_type() + "_" + std::to_string(mod->size());
         std::string debug_symbol = make_node_debug_symbol(this->use_debug_symbols, node, node_name);
         auto guard =
             on_scope_fail([&]() noexcept { log_node_parse_exception(node, debug_symbol); });

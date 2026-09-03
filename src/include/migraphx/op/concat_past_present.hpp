@@ -61,7 +61,13 @@ struct concat_past_present
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
+        // The current k/v input may have a symbolic sequence dimension; the output is
+        // always the past cache buffer, whose shape must be static.
+        check_shapes{inputs, *this, true}.has(3);
+        if(inputs.back().dynamic())
+            MIGRAPHX_THROW("CONCAT_PAST_PRESENT: past kv-cache must have a static shape");
+        if(inputs.back().ndim() != 4)
+            MIGRAPHX_THROW("CONCAT_PAST_PRESENT: past kv-cache must be rank 4");
         return inputs.back();
     }
 

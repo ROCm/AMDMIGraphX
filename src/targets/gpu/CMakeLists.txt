@@ -94,7 +94,12 @@ configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
 
-option(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG "Workaround clang-cl HIP multi-arch /Fo bug on Windows" OFF)
+cmake_dependent_option(
+    MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG
+    "Workaround clang-cl HIP multi-arch /Fo bug on Windows"
+    ON
+    "WIN32"
+    OFF)
 message(STATUS "MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG = ${MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG}")
 
 if(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG AND

@@ -23,6 +23,10 @@
  */
 #ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
 #define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
+#ifdef _WIN32
+#define MIGRAPHX_WORKAROUND_RESHAPE_CONT_NONSTANDARD
+#include <migraphx/reshape_dims.hpp>
+#endif
 
 #include <string>
 #include <migraphx/instruction_ref.hpp>

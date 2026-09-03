@@ -57,10 +57,6 @@
 #include <memory>
 #include <optional>
 
-#ifdef _WIN32
-#include <migraphx/reshape_dims.hpp>
-#endif
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -1628,7 +1624,7 @@ struct find_reshape_cont
         if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
             return;
 
-#ifdef _WIN32
+#ifdef MIGRAPHX_WORKAROUND_RESHAPE_CONT_NONSTANDARD
         auto rdims_sz = std::vector<std::size_t>(dims.begin(), dims.end());
         if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto in) {
                return in == in_ins or

@@ -4133,6 +4133,7 @@ TEST_CASE(reduce_unsqueeze_broadcast_transpose_pointwise2)
     EXPECT(m1.sort() == m2.sort());
 }
 
+#ifdef MIGRAPHX_WORKAROUND_RESHAPE_CONT_NONSTANDARD
 TEST_CASE(transpose_contiguous_reshape_binary_packed)
 {
     migraphx::module m1;
@@ -4194,6 +4195,7 @@ TEST_CASE(transpose_contiguous_reshape_binary_packed)
     }
     EXPECT(m1 == m2);
 }
+#endif
 
 TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
 {

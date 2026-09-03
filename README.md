@@ -34,6 +34,10 @@ You have three options for building from source:
 * [Docker](#use-docker): Builds a Docker image with all prerequisites installed, then you can build the
   MIGraphX sources inside a Docker container.
 
+> [!NOTE]
+> For Windows build instructions using TheRock ROCm, see the
+> [Windows Build Guide](docs/install/windows-build.rst).
+
 ### Build prerequisites
 
 The following is a list of prerequisites for building MIGraphX.

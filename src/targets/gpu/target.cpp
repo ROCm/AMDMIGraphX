@@ -314,8 +314,8 @@ struct pipeline_factory
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto& ctx          = any_cast<context>(gctx);
-    auto backend_opts  = get_backend_options(options);
+    auto& ctx         = any_cast<context>(gctx);
+    auto backend_opts = get_backend_options(options);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
 

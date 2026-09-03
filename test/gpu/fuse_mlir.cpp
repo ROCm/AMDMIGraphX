@@ -1464,6 +1464,7 @@ TEST_CASE(fused_attention)
             });
         mm->add_return({fused});
     }
+    std::cout << p1 << std::endl;
     EXPECT(p1.sort() == p2.sort());
 }
 

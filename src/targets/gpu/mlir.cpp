@@ -959,7 +959,9 @@ struct mlir_program
         op.symbol_name = sym_name;
         op.code_object = get_binary();
         // TODO: update code_object_op to use cluster size
-        std::tie(std::ignore, op.global, op.local) = get_launch_params();
+        auto [cluster, grid, block] = get_launch_params();
+        op.global                   = launch_dims(grid);
+        op.local                    = launch_dims(block);
         return op;
     }
 

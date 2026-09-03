@@ -61,6 +61,48 @@ TEST_CASE(create_symbolic_dynamic_shape)
     EXPECT(not s.dyn_dims()[1].is_symbolic());
 }
 
+TEST_CASE(make_symbolic_shape)
+{
+    migraphx::symbol_table symbols;
+    symbols.add("n", migraphx::dynamic_dimension{1, 8, migraphx::optimals{2, 4}});
+    migraphx::shape s{migraphx_shape_float_type, {"n", "3"}, symbols};
+
+    EXPECT(s.dynamic());
+    EXPECT(s.dyn_dims()[0].is_symbolic());
+    EXPECT(s.dyn_dims()[1].is_symbolic());
+    EXPECT(s.standard());
+
+    // The same shape built one dimension at a time.
+    migraphx::dynamic_dimensions dyn_dims(
+        migraphx::dynamic_dimension{
+            "n", {{"n", migraphx::dynamic_dimension{1, 8, migraphx::optimals{2, 4}}}}},
+        migraphx::dynamic_dimension{"3", {}});
+    EXPECT(s == (migraphx::shape{migraphx_shape_float_type, dyn_dims}));
+}
+
+// Strides resolve through the same table, so they share the dimensions' symbols.
+TEST_CASE(make_symbolic_shape_with_strides)
+{
+    migraphx::symbol_table symbols;
+    symbols.add("n", migraphx::dynamic_dimension{1, 8});
+    migraphx::shape s{migraphx_shape_float_type, {"n", "3"}, {"1", "n"}, symbols};
+    EXPECT(s.dynamic());
+    EXPECT(not s.standard());
+}
+
+// Several bounds for one name assert several intervals, which is what merging two differently
+// bounded same-named variables produces.
+TEST_CASE(make_symbolic_shape_multiple_constraints)
+{
+    migraphx::symbol_table symbols;
+    symbols.add("n",
+                migraphx::dynamic_dimensions(migraphx::dynamic_dimension{1, 20},
+                                             migraphx::dynamic_dimension{2, 10}));
+    migraphx::shape s{migraphx_shape_float_type, {"n"}, symbols};
+    EXPECT(s.dynamic());
+    EXPECT(s.dyn_dims()[0].is_symbolic());
+}
+
 TEST_CASE(parse_onnx_symbolic_dyn_input)
 {
     migraphx::onnx_options options;

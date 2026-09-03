@@ -32,6 +32,7 @@
 #include <memory>
 #include <optional>
 #include <ostream>
+#include <map>
 #include <set>
 #include <string>
 #include <string_view>
@@ -246,6 +247,13 @@ class MIGRAPHX_EXPORT expr
 
 MIGRAPHX_EXPORT expr var(std::string name);
 MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
+// A variable can end up asserting more than one interval: adding two same-named
+// variables merges their metadata by unioning the constraint sets. This overload
+// is what spells that result, so every variable the library can produce is also
+// constructible.
+MIGRAPHX_EXPORT expr var(std::string name,
+                         std::vector<interval> constraints,
+                         std::set<scalar> optimals = {});
 
 // Project an expr onto its structural symbol form, stripping all variable
 // metadata (constraints, optimals). `same_symbol(a, b)` is true when a and b
@@ -257,6 +265,17 @@ MIGRAPHX_EXPORT bool same_symbol(const expr& a, const expr& b);
 
 // Find distinct variables as metadata-free symbols.
 MIGRAPHX_EXPORT std::unordered_set<expr> find_variables(const expr& e);
+
+// The bounds and optimals a variable asserts, which find_variables strips.
+struct variable_bounds
+{
+    std::vector<interval> constraints;
+    std::set<scalar> optimals;
+};
+
+// Find distinct variables keyed by name, keeping the metadata find_variables strips. Variables
+// sharing a name are merged as combining them into one expression would.
+MIGRAPHX_EXPORT std::map<std::string, variable_bounds> find_variable_bounds(const expr& e);
 // Whether dividend is evenly divisible by divisor (integral operands only).
 MIGRAPHX_EXPORT bool is_divisible(const expr& dividend, const expr& divisor);
 
@@ -304,6 +323,8 @@ auto call(std::string name, Eval eval)
 }
 
 MIGRAPHX_EXPORT std::string to_string(const expr& e);
+// The shortest spelling of a scalar that parses back to the same value.
+MIGRAPHX_EXPORT std::string to_string(const scalar& v);
 
 MIGRAPHX_EXPORT expr parse(const std::string& str);
 

@@ -41,7 +41,10 @@
 #include <migraphx/env.hpp>
 #include <migraphx/logger.hpp>
 #include <onnx.pb.h>
+#include <algorithm>
+#include <cctype>
 #include <iomanip>
+#include <iterator>
 #include <set>
 #include <sstream>
 
@@ -904,11 +907,47 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-static shape::dynamic_dimension make_symbol(const std::string& sym_name,
+// Rewrite an ONNX name into an identifier, which is what sym::var accepts and what lets a
+// symbolic shape be spelled as an expression string. Anything outside [A-Za-z0-9_] becomes an
+// underscore and a leading digit gains one, so "input.1" and "0" become "input_1" and "_0".
+static std::string sanitize_symbol_name(const std::string& name)
+{
+    std::string result;
+    result.reserve(name.size() + 1);
+    if(name.empty() or std::isdigit(static_cast<unsigned char>(name.front())) != 0)
+        result += '_';
+    std::transform(name.begin(), name.end(), std::back_inserter(result), [](unsigned char c) {
+        return std::isalnum(c) != 0 ? static_cast<char>(c) : '_';
+    });
+    return result;
+}
+
+// Sanitizing is many-to-one, so a name that lands on one already taken by a different original
+// gains a counter. The mapping is remembered so the same ONNX name always yields the same symbol.
+static const std::string& symbol_name_for(const onnx_parser& parser, const std::string& name)
+{
+    auto it = parser.symbol_names.find(name);
+    if(it != parser.symbol_names.end())
+        return it->second;
+    auto base      = sanitize_symbol_name(name);
+    auto candidate = base;
+    auto taken     = [&](const std::string& s) {
+        return std::any_of(parser.symbol_names.begin(),
+                           parser.symbol_names.end(),
+                           [&](const auto& kv) { return kv.second == s; });
+    };
+    for(std::size_t i = 2; taken(candidate); i++)
+        candidate = base + "_" + std::to_string(i);
+    return parser.symbol_names.emplace(name, std::move(candidate)).first->second;
+}
+
+static shape::dynamic_dimension make_symbol(const onnx_parser& parser,
+                                            const std::string& sym_name,
                                             const shape::dynamic_dimension& bounds)
 {
     auto iv = bounds.get_interval();
-    return shape::dynamic_dimension{sym::var(sym_name, {iv.min, iv.max}, sym_optimals(bounds))};
+    return shape::dynamic_dimension{
+        sym::var(symbol_name_for(parser, sym_name), {iv.min, iv.max}, sym_optimals(bounds))};
 }
 
 static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,
@@ -923,7 +962,7 @@ static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,
         return shape::dynamic_dimension{sym::lit(bounds.get_interval().min)};
     // A ranged bound becomes a per-axis symbol "<input>_d<axis>" (onnxruntime's scheme
     // for unnamed dims).
-    return make_symbol(name + "_d" + std::to_string(axis), bounds);
+    return make_symbol(parser, name + "_d" + std::to_string(axis), bounds);
 }
 
 static shape::dynamic_dimension
@@ -956,7 +995,8 @@ static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
     {
         const auto& dim_param = model_dim->dim_param();
         if(parser.use_symbolic_shapes)
-            return make_symbol(dim_param, dim_param_bounds(parser, dim_param, override_dim));
+            return make_symbol(
+                parser, dim_param, dim_param_bounds(parser, dim_param, override_dim));
         if(override_dim != nullptr)
             return *override_dim;
         if(contains(parser.dim_params, dim_param))

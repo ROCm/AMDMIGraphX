@@ -34,6 +34,9 @@
 #include <migraphx/sat_ops.hpp>
 
 #include <algorithm>
+#include <array>
+#include <cctype>
+#include <charconv>
 #include <cstdint>
 #include <iterator>
 #include <functional>
@@ -451,20 +454,45 @@ template std::shared_ptr<const expr::impl> expr::make_impl(op_node, std::vector<
 
 expr lit(scalar v) { return expr(literal_node{v}); }
 
-expr var(std::string name)
+static void normalize_constraints(std::vector<interval>& cs);
+
+// A symbolic shape is spelled in generated code as an expression string, so every symbol has to
+// survive a round trip through parse. That means a name must be an identifier by the same rule
+// parse_func_or_var accepts.
+static void check_var_name(const std::string& name)
 {
     if(name.empty())
         MIGRAPHX_THROW("Variable name must not be empty");
+    auto first = static_cast<unsigned char>(name.front());
+    if(std::isalpha(first) == 0 and first != '_')
+        MIGRAPHX_THROW("Variable name must start with a letter or an underscore: " + name);
+    if(not std::all_of(name.begin(), name.end(), [](unsigned char c) {
+           return std::isalnum(c) != 0 or c == '_';
+       }))
+        MIGRAPHX_THROW("Variable name must only contain letters, digits and underscores: " + name);
+}
+
+expr var(std::string name)
+{
+    check_var_name(name);
     return expr(variable_node{std::move(name), {}, {}});
 }
 
 expr var(std::string name, interval constraint, std::set<scalar> optimals)
 {
-    if(name.empty())
-        MIGRAPHX_THROW("Variable name must not be empty");
-    if(not constraint.valid())
+    return var(std::move(name), std::vector<interval>{constraint}, std::move(optimals));
+}
+
+expr var(std::string name, std::vector<interval> constraints, std::set<scalar> optimals)
+{
+    check_var_name(name);
+    if(std::any_of(
+           constraints.begin(), constraints.end(), [](const interval& c) { return not c.valid(); }))
         MIGRAPHX_THROW("Invalid interval");
-    return expr(variable_node{std::move(name), {constraint}, std::move(optimals)});
+    // Canonicalize here as well as on merge, so a variable built from a constraint
+    // set compares equal to the same one obtained by merging or deserializing.
+    normalize_constraints(constraints);
+    return expr(variable_node{std::move(name), std::move(constraints), std::move(optimals)});
 }
 
 expr arg(expr x) { return x; }
@@ -1665,6 +1693,30 @@ std::unordered_set<expr> find_variables(const expr& e)
     return result;
 }
 
+std::map<std::string, variable_bounds> find_variable_bounds(const expr& e)
+{
+    std::unordered_set<expr> visited;
+    std::map<std::string, variable_bounds> result;
+    fix([&](auto self, const expr& x) {
+        if(x.empty() or not visited.insert(x).second)
+            return;
+        if(const auto* v = std::get_if<variable_node>(&get_node(x)))
+        {
+            // Two nodes sharing a name but not their metadata are distinct exprs, so merge them
+            // the same way combining them into one expression would.
+            auto& bounds = result[v->name];
+            bounds.constraints.insert(
+                bounds.constraints.end(), v->constraints.begin(), v->constraints.end());
+            normalize_constraints(bounds.constraints);
+            bounds.optimals.insert(v->optimals.begin(), v->optimals.end());
+            return;
+        }
+        for(const auto& c : x.children())
+            self(c);
+    })(e);
+    return result;
+}
+
 [[maybe_unused]] static bool has_float_literal(const expr& e)
 {
     if(e.empty())
@@ -1955,13 +2007,25 @@ std::set<std::size_t> expr::eval_optimals_uint() const
     return result;
 }
 
-static std::string scalar_to_string(const scalar& v)
+// A scalar has to survive the round trip through to_string and parse, so a double gets the
+// shortest representation that reads back exactly. A stream would round to six significant
+// digits, which is lossy for any literal that is not a simple decimal.
+std::string to_string(const scalar& v)
 {
     return visit(
         [](auto x) -> std::string {
-            std::ostringstream ss;
-            ss << x;
-            return ss.str();
+            if constexpr(std::is_floating_point<decltype(x)>{})
+            {
+                std::array<char, 32> buffer{};
+                auto result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), x);
+                if(result.ec != std::errc{})
+                    MIGRAPHX_THROW("Failed to format scalar");
+                return std::string(buffer.data(), result.ptr);
+            }
+            else
+            {
+                return std::to_string(x);
+            }
         },
         v);
 }
@@ -1999,7 +2063,7 @@ std::string expr::to_string() const
                        return string_prec{};
                    return std::visit(
                        overloaded{[](const literal_node& n) -> std::optional<string_prec> {
-                                      return string_prec{scalar_to_string(n.val)};
+                                      return string_prec{sym::to_string(n.val)};
                                   },
                                   [](const variable_node& n) -> std::optional<string_prec> {
                                       return string_prec{n.name};
@@ -2186,11 +2250,26 @@ static expr parse_number(sym_parser& p)
 {
     if((std::isdigit(p.peek_char()) == 0) and p.peek_char() != '.')
         return {};
-    auto token    = p.parse_while([](unsigned char c) { return std::isdigit(c) or c == '.'; });
-    bool is_float = token.find('.') != std::string_view::npos;
-    if(is_float)
-        return lit(std::stod(std::string(token)));
-    return lit(std::stoll(std::string(token)));
+    std::string token{p.parse_while([](unsigned char c) { return std::isdigit(c) or c == '.'; })};
+    // An exponent only counts when digits actually follow it, so a variable beginning with e is
+    // not mistaken for one. to_string emits this form for very large and very small doubles, and
+    // without it those cannot be read back.
+    auto tail = p.peek();
+    if(not tail.empty() and (tail.front() == 'e' or tail.front() == 'E'))
+    {
+        std::size_t n = 1;
+        if(n < tail.size() and (tail[n] == '+' or tail[n] == '-'))
+            n++;
+        if(n < tail.size() and std::isdigit(static_cast<unsigned char>(tail[n])) != 0)
+        {
+            token += std::string{tail.substr(0, n)};
+            p.advance(n);
+            token += std::string{p.parse_while([](unsigned char c) { return std::isdigit(c); })};
+        }
+    }
+    if(token.find_first_of(".eE") != std::string::npos)
+        return lit(std::stod(token));
+    return lit(std::stoll(token));
 }
 
 static expr parse_func_or_var(sym_parser& p)

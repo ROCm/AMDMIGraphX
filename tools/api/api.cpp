@@ -220,6 +220,24 @@ static shape::dynamic_dimension make_symbolic_dynamic_dimension(
     return shape::make_symbolic_dynamic_dimension(expression, symbols);
 }
 
+// Build a symbolic shape from expression strings. The expressions arrive as C arrays rather than
+// through a handle, because std::vector<std::string> is already claimed by
+// migraphx_quantize_op_names and registering it twice would silently rebind that handle's
+// parameters.
+static shape
+create_symbolic_shape(shape::type_t t,
+                      const char* const* dims,
+                      std::size_t ndims,
+                      const char* const* strides,
+                      std::size_t nstrides,
+                      const std::map<std::string, std::vector<shape::dynamic_dimension>>& symbols)
+{
+    return shape::make_symbolic_shape(t,
+                                      std::vector<std::string>(dims, dims + ndims),
+                                      std::vector<std::string>(strides, strides + nstrides),
+                                      symbols);
+}
+
 #ifdef MIGRAPHX_ENABLE_ONNX
 
 static void set_default_dim_value(onnx_options& options, size_t value)
@@ -509,4 +527,6 @@ run_trace(program& p, const parameter_map& params, const std::function<void(trac
 
 } // namespace migraphx
 
-<% generate_c_api_body() %>
+<%
+    generate_c_api_body()
+%>

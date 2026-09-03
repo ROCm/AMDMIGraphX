@@ -101,15 +101,27 @@ shape
 
     :rtype: bool
 
-.. py:staticmethod:: from_json(s)
+.. py:method:: symbolic()
 
-    Rebuilds a shape from the json form of its value representation, which is the spelling
-    :py:meth:`program.to_py` emits for a shape carrying a symbolic dimension. Unlike the
-    constructor this preserves symbolic dimension expressions, their bounds and optimals, and
-    symbolic strides.
+    Returns true if every dimension of the shape is symbolic.
 
-    :param str s: The json form of a shape's value representation.
-    :rtype: shape
+    :rtype: bool
+
+.. py:method:: dyn_strides()
+
+    The symbolic strides of the shape, as expression strings. Empty unless
+    :py:meth:`shape.symbolic` is true.
+
+    :rtype: list[str]
+
+.. py:method:: symbol_table()
+
+    The bounds each symbol of the shape stands for, in the form the ``symbols`` argument takes,
+    so a symbolic shape can be rebuilt from what can be read of it. Empty for a range-based or
+    static shape. A symbol always maps to a list here, even where the constructor also accepts a
+    bare :py:class:`dynamic_dimension`.
+
+    :rtype: dict[str, list[dynamic_dimension]]
 
 dynamic_dimension
 -----------------
@@ -118,11 +130,83 @@ dynamic_dimension
 
     Constructs a `dynamic_dimension` from a minimum, a maximum, and optionally a set of optimals.
 
+.. py:class:: dynamic_dimension(expression, symbols)
+    :no-index:
+
+    Constructs a symbolic `dynamic_dimension` by parsing an expression string and binding each
+    named symbol to the bounds and optimals of a range `dynamic_dimension`.
+
+    :param str expression: The expression to parse, such as ``"n * 3 + 1"``.
+    :param dict[str, dynamic_dimension] symbols: The bounds to bind each name to.
+
 .. py:method:: is_fixed()
     
     Returns true if the `dynamic_dimension` is fixed.
 
     :rtype : int
+
+.. py:method:: is_symbolic()
+
+    Returns true if the `dynamic_dimension` carries a symbolic expression.
+
+    :rtype: bool
+
+.. py:attribute:: min
+
+    The smallest size the dimension can take.
+
+.. py:attribute:: max
+
+    The largest size the dimension can take.
+
+.. py:attribute:: optimals
+
+    The set of sizes to optimize the dimension for.
+
+.. py:attribute:: expression
+
+    The expression giving the size of the dimension, or ``None`` when the dimension is
+    range-based.
+
+symbolic shapes
+---------------
+
+A dynamic dimension can be a symbolic expression rather than a plain range. Expressions are
+written as strings and the symbols they name are given bounds through a ``symbols`` table, which
+is also the spelling :py:meth:`program.to_py` emits::
+
+    s = migraphx.shape(type="float_type",
+                       dyn_dims=["n", "3"],
+                       symbols={"n": migraphx.shape.dynamic_dimension(1, 8, {2, 4})})
+
+A symbol name has to be a valid identifier, that is a letter or an underscore followed by
+letters, digits or underscores, because the expression has to survive being parsed back. Names
+taken from an ONNX model are rewritten to fit, so an input named ``0`` yields the symbol
+``_0_d0`` and a ``dim_param`` of ``batch.size`` yields ``batch_size``.
+
+Give a list of bounds when a symbol asserts more than one interval, which is what adding two
+differently bounded uses of the same name produces::
+
+    symbols={"n": [migraphx.shape.dynamic_dimension(1, 20),
+                   migraphx.shape.dynamic_dimension(2, 10, {4})]}
+
+Pass ``dyn_strides`` for a transposed or broadcasted layout; without it an all-symbolic shape is
+given packed standard strides. Stride expressions resolve through the same ``symbols`` table, so
+they share the dimensions' symbols::
+
+    s = migraphx.shape(type="float_type",
+                       dyn_dims=["n", "3"],
+                       dyn_strides=["1", "n"],
+                       symbols={"n": migraphx.shape.dynamic_dimension(1, 8)})
+
+A shape that mixes symbolic and range-based dimensions is built dimension by dimension instead,
+with :py:class:`dynamic_dimension` taking the expression and its symbols directly.
+
+:py:meth:`shape.symbol_table` is the inverse of the ``symbols`` argument, so a symbolic shape
+round trips through its own API::
+
+    migraphx.shape(type="float_type", dyn_dims=["n", "3"], symbols=s.symbol_table()) == s
+
 
 argument
 --------

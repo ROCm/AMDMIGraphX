@@ -91,6 +91,9 @@ typedef const struct migraphx_optimals* const_migraphx_optimals_t;
 typedef struct migraphx_symbol_bounds* migraphx_symbol_bounds_t;
 typedef const struct migraphx_symbol_bounds* const_migraphx_symbol_bounds_t;
 
+typedef struct migraphx_symbol_table* migraphx_symbol_table_t;
+typedef const struct migraphx_symbol_table* const_migraphx_symbol_table_t;
+
 typedef struct migraphx_dynamic_dimension* migraphx_dynamic_dimension_t;
 typedef const struct migraphx_dynamic_dimension* const_migraphx_dynamic_dimension_t;
 
@@ -219,6 +222,20 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_symbol_bounds_add(migraphx_symbol_bou
                                                              const_migraphx_dynamic_dimension_t dd);
 
 MIGRAPHX_C_EXPORT migraphx_status
+migraphx_symbol_table_destroy(migraphx_symbol_table_t symbol_table);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_symbol_table_assign_to(
+    migraphx_symbol_table_t output, const_migraphx_symbol_table_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_symbol_table_create(migraphx_symbol_table_t* symbol_table);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_symbol_table_add(migraphx_symbol_table_t symbol_table,
+                          const char* name,
+                          const_migraphx_dynamic_dimensions_t bounds);
+
+MIGRAPHX_C_EXPORT migraphx_status
 migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_dynamic_dimension_assign_to(
@@ -291,6 +308,15 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_create_scalar(migraphx_shape_t*
 MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_create_dynamic(migraphx_shape_t* shape,
                                                                 migraphx_shape_datatype_t type,
                                                                 migraphx_dynamic_dimensions_t dims);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_shape_create_symbolic(migraphx_shape_t* shape,
+                               migraphx_shape_datatype_t type,
+                               const char* const* dims,
+                               size_t ndims,
+                               const char* const* strides,
+                               size_t nstrides,
+                               const_migraphx_symbol_table_t symbols);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_lengths(const size_t** out,
                                                          size_t* out_size,

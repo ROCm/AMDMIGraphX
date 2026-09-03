@@ -309,6 +309,37 @@ py::object to_py_object(const migraphx::value& val)
     return result;
 }
 
+// The `symbols` argument of a symbolic shape: a name maps either to one dynamic_dimension or,
+// for a symbol asserting several intervals, to a list of them.
+std::map<std::string, std::vector<migraphx::shape::dynamic_dimension>>
+to_symbol_table(const migraphx::value& v)
+{
+    std::map<std::string, std::vector<migraphx::shape::dynamic_dimension>> symbols;
+    if(not v.contains("symbols"))
+        return symbols;
+    const auto& entries = v.at("symbols");
+    std::transform(
+        entries.begin(), entries.end(), std::inserter(symbols, symbols.end()), [](const auto& e) {
+            using bounds_type = std::vector<migraphx::shape::dynamic_dimension>;
+            auto bounds       = e.without_key();
+            return std::pair<std::string, bounds_type>{
+                e.get_key(),
+                bounds.is_object()
+                    ? bounds_type{migraphx::from_value<migraphx::shape::dynamic_dimension>(bounds)}
+                    : migraphx::from_value<bounds_type>(bounds)};
+        });
+    return symbols;
+}
+
+std::vector<std::string> to_expression_strings(const std::vector<migraphx::sym::expr>& exprs)
+{
+    std::vector<std::string> strings;
+    std::transform(exprs.begin(), exprs.end(), std::back_inserter(strings), [](const auto& e) {
+        return e.to_string();
+    });
+    return strings;
+}
+
 migraphx::shape to_shape(const py::buffer_info& info)
 {
     migraphx::shape::type_t t;
@@ -373,10 +404,20 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             auto t = migraphx::shape::parse_type(v.get("type", "float"));
             if(v.contains("dyn_dims"))
             {
-                auto dyn_dims =
-                    migraphx::from_value<std::vector<migraphx::shape::dynamic_dimension>>(
-                        v.at("dyn_dims"));
-                return migraphx::shape(t, dyn_dims);
+                const auto& dims = v.at("dyn_dims");
+                // Expression strings name symbols that `symbols` supplies the bounds for; the
+                // dynamic_dimension form carries its own. Strides are only needed for a
+                // transposed or broadcasted layout, since make_symbolic_shape computes packed
+                // standard ones otherwise.
+                if(not dims.empty() and dims.front().if_string() != nullptr)
+                    return migraphx::shape::make_symbolic_shape(
+                        t,
+                        dims.to_vector<std::string>(),
+                        v.contains("dyn_strides") ? v.at("dyn_strides").to_vector<std::string>()
+                                                  : std::vector<std::string>{},
+                        to_symbol_table(v));
+                return migraphx::shape(
+                    t, migraphx::from_value<std::vector<migraphx::shape::dynamic_dimension>>(dims));
             }
             auto lens = v.get<std::size_t>("lens", {1});
             if(v.contains("strides"))
@@ -387,7 +428,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             else
                 return migraphx::shape(t, lens);
         }))
-        .def_static("from_json", &migraphx::shape::from_json, py::arg("s"))
         .def("type", &migraphx::shape::type)
         .def("lens", &migraphx::shape::lens)
         .def("strides", &migraphx::shape::strides)
@@ -397,6 +437,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("type_string", &migraphx::shape::type_string)
         .def("type_size", &migraphx::shape::type_size)
         .def("dyn_dims", &migraphx::shape::dyn_dims)
+        .def("dyn_strides",
+             [](const migraphx::shape& s) { return to_expression_strings(s.dyn_strides()); })
+        // The bounds each symbol stands for, in the form the symbols argument takes, so a
+        // symbolic shape can be rebuilt from what Python can read of it. A symbol always maps
+        // to a list here, even where the constructor also accepts a bare dynamic_dimension.
+        .def("symbol_table", &migraphx::shape::symbol_table)
         .def("sub_shapes", &migraphx::shape::sub_shapes)
         .def("packed", &migraphx::shape::packed)
         .def("transposed", &migraphx::shape::transposed)
@@ -404,6 +450,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("standard", &migraphx::shape::standard)
         .def("scalar", &migraphx::shape::scalar)
         .def("dynamic", &migraphx::shape::dynamic)
+        .def("symbolic", &migraphx::shape::symbolic)
         .def("__eq__", std::equal_to<migraphx::shape>{})
         .def("__ne__", std::not_equal_to<migraphx::shape>{})
         .def("__repr__", [](const migraphx::shape& s) { return migraphx::to_string(s); });
@@ -422,6 +469,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
              }),
              py::arg("expression"),
              py::arg("symbols"))
+        .def_property_readonly("expression",
+                               [](const migraphx::shape::dynamic_dimension& d) -> py::object {
+                                   if(not d.is_symbolic())
+                                       return py::none();
+                                   return py::cast(d.sym_expr.to_string());
+                               })
         .def_property_readonly(
             "min", [](const migraphx::shape::dynamic_dimension& d) { return d.get_interval().min; })
         .def_property_readonly(

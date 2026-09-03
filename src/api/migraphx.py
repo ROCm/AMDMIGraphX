@@ -71,6 +71,21 @@ def symbol_bounds(h):
              invoke='${symbol_bounds}[${name}] = ${dd}')
 
 
+@api.handle(
+    'migraphx_symbol_table',
+    'std::map<std::string, std::vector<migraphx::shape::dynamic_dimension>>')
+def symbol_table(h):
+    h.constructor('create')
+    # Several bounds assert several intervals, which is what a variable merged from
+    # differently bounded same-named ones carries.
+    h.method(
+        'add',
+        api.params(
+            name='const char*',
+            bounds='const std::vector<migraphx::shape::dynamic_dimension>&'),
+        invoke='${symbol_table}[${name}] = ${bounds}')
+
+
 @api.handle('migraphx_dynamic_dimension', 'migraphx::shape::dynamic_dimension')
 def dynamic_dimension(h):
     h.constructor('create_min_max', api.params(min='size_t', max='size_t'))
@@ -126,6 +141,17 @@ def shape(h):
         'create_dynamic',
         api.params(type='migraphx::shape::type_t',
                    dims='std::vector<migraphx::shape::dynamic_dimension>'))
+    h.constructor(
+        'create_symbolic',
+        api.params(
+            type='migraphx::shape::type_t',
+            dims='const char* const*',
+            ndims='size_t',
+            strides='const char* const*',
+            nstrides='size_t',
+            symbols=
+            'const std::map<std::string, std::vector<migraphx::shape::dynamic_dimension>>&'),
+        fname='migraphx::create_symbolic_shape')
     h.method('lengths',
              fname='lens',
              returns='const std::vector<size_t>&',

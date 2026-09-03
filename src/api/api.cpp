@@ -220,6 +220,24 @@ static shape::dynamic_dimension make_symbolic_dynamic_dimension(
     return shape::make_symbolic_dynamic_dimension(expression, symbols);
 }
 
+// Build a symbolic shape from expression strings. The expressions arrive as C arrays rather than
+// through a handle, because std::vector<std::string> is already claimed by
+// migraphx_quantize_op_names and registering it twice would silently rebind that handle's
+// parameters.
+static shape
+create_symbolic_shape(shape::type_t t,
+                      const char* const* dims,
+                      std::size_t ndims,
+                      const char* const* strides,
+                      std::size_t nstrides,
+                      const std::map<std::string, std::vector<shape::dynamic_dimension>>& symbols)
+{
+    return shape::make_symbolic_shape(t,
+                                      std::vector<std::string>(dims, dims + ndims),
+                                      std::vector<std::string>(strides, strides + nstrides),
+                                      symbols);
+}
+
 #ifdef MIGRAPHX_ENABLE_ONNX
 
 static void set_default_dim_value(onnx_options& options, size_t value)
@@ -609,6 +627,17 @@ struct migraphx_symbol_bounds
     {
     }
     std::unordered_map<std::string, migraphx::shape::dynamic_dimension> object;
+};
+
+extern "C" struct migraphx_symbol_table;
+struct migraphx_symbol_table
+{
+    template <class... Ts>
+    migraphx_symbol_table(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    std::map<std::string, std::vector<migraphx::shape::dynamic_dimension>> object;
 };
 
 extern "C" struct migraphx_dynamic_dimension;
@@ -1041,6 +1070,42 @@ extern "C" migraphx_status migraphx_symbol_bounds_add(migraphx_symbol_bounds_t s
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_symbol_table_destroy(migraphx_symbol_table_t symbol_table)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((symbol_table)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_symbol_table_assign_to(migraphx_symbol_table_t output,
+                                                           const_migraphx_symbol_table_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_symbol_table_create(migraphx_symbol_table_t* symbol_table)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *symbol_table = object_cast<migraphx_symbol_table_t>(
+            allocate<std::map<std::string, std::vector<migraphx::shape::dynamic_dimension>>>());
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_symbol_table_add(migraphx_symbol_table_t symbol_table,
+                                                     const char* name,
+                                                     const_migraphx_dynamic_dimensions_t bounds)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(symbol_table == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter symbol_table: Null pointer");
+        if(bounds == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter bounds: Null pointer");
+        (symbol_table->object)[(name)] = (bounds->object);
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension)
 {
@@ -1259,6 +1324,28 @@ extern "C" migraphx_status migraphx_shape_create_dynamic(migraphx_shape_t* shape
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
         *shape = object_cast<migraphx_shape_t>(
             allocate<migraphx::shape>((migraphx::to_shape_type(type)), (dims->object)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_create_symbolic(migraphx_shape_t* shape,
+                                                          migraphx_shape_datatype_t type,
+                                                          const char* const* dims,
+                                                          size_t ndims,
+                                                          const char* const* strides,
+                                                          size_t nstrides,
+                                                          const_migraphx_symbol_table_t symbols)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(symbols == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter symbols: Null pointer");
+        *shape = object_cast<migraphx_shape_t>(allocate<migraphx::shape>(
+            migraphx::create_symbolic_shape((migraphx::to_shape_type(type)),
+                                            (dims),
+                                            (ndims),
+                                            (strides),
+                                            (nstrides),
+                                            (symbols->object))));
     });
     return api_error_result;
 }

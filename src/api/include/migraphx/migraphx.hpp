@@ -712,6 +712,29 @@ struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
     }
 };
 
+/// The bounds each named symbol of a symbolic shape stands for. Several bounds for one name
+/// assert several intervals, which is what a variable merged from differently bounded
+/// same-named ones carries.
+struct symbol_table : MIGRAPHX_HANDLE_BASE(symbol_table)
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(symbol_table)
+
+    symbol_table() { this->make_handle(&migraphx_symbol_table_create); }
+
+    void add(const std::string& name, const dynamic_dimensions& bounds)
+    {
+        call(&migraphx_symbol_table_add,
+             this->get_handle_ptr(),
+             name.c_str(),
+             bounds.get_handle_ptr());
+    }
+
+    void add(const std::string& name, const dynamic_dimension& bound)
+    {
+        this->add(name, dynamic_dimensions{bound});
+    }
+};
+
 /**
  * @brief Describe shape of tensor
  * @details A shape consists of a data type, lengths of multi-dimension tensor, and strides
@@ -760,6 +783,41 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
     shape(migraphx_shape_datatype_t type, const dynamic_dimensions& dyn_dims)
     {
         this->make_handle(&migraphx_shape_create_dynamic, type, dyn_dims.get_handle_ptr());
+    }
+
+    /// Construct a symbolic shape from expression strings, binding each named symbol to the
+    /// bounds carried by its entry in the table. The strides are packed standard.
+    shape(migraphx_shape_datatype_t type,
+          const std::vector<std::string>& dims,
+          const symbol_table& symbols)
+        : shape(type, dims, {}, symbols)
+    {
+    }
+
+    /// As above, for a transposed or broadcasted layout. Strides resolve through the same table,
+    /// so they share the dimensions' symbols.
+    shape(migraphx_shape_datatype_t type,
+          const std::vector<std::string>& dims,
+          const std::vector<std::string>& strides,
+          const symbol_table& symbols)
+    {
+        auto to_c = [](const std::vector<std::string>& xs) {
+            std::vector<const char*> result;
+            std::transform(xs.begin(),
+                           xs.end(),
+                           std::back_inserter(result),
+                           [](const std::string& x) { return x.c_str(); });
+            return result;
+        };
+        auto cdims    = to_c(dims);
+        auto cstrides = to_c(strides);
+        this->make_handle(&migraphx_shape_create_symbolic,
+                          type,
+                          cdims.data(),
+                          cdims.size(),
+                          cstrides.data(),
+                          cstrides.size(),
+                          symbols.get_handle_ptr());
     }
 
     std::vector<size_t> lengths() const

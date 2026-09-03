@@ -27,6 +27,7 @@
 #include <array>
 #include <vector>
 #include <cassert>
+#include <map>
 #include <ostream>
 #include <numeric>
 #include <memory>
@@ -294,11 +295,6 @@ struct MIGRAPHX_EXPORT shape
                                   const std::vector<dynamic_dimension>& dds,
                                   const std::vector<int64_t>& perm);
 
-    /// Rebuild a shape from `to_json_string(migraphx::to_value(s))`. Unlike the constructors this
-    /// restores symbolic dimension expressions, their bounds and optimals, and symbolic strides
-    /// exactly, which is why the --cpp and --py printers emit this spelling.
-    static shape from_json(const std::string& s);
-
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
     const std::vector<std::size_t>& strides() const;
@@ -495,6 +491,28 @@ struct MIGRAPHX_EXPORT shape
     static dynamic_dimension make_symbolic_dynamic_dimension(
         const std::string& expression,
         const std::unordered_map<std::string, dynamic_dimension>& symbols);
+
+    /// Build a symbolic shape from expression strings. Each free symbol is bound to the bounds
+    /// and optimals of its entry in `symbols`; several entries assert several intervals, which
+    /// is what a variable merged from differently bounded ones carries. This is the spelling the
+    /// --cpp and --py printers emit.
+    static shape
+    make_symbolic_shape(type_t t,
+                        const std::vector<std::string>& dims,
+                        const std::map<std::string, std::vector<dynamic_dimension>>& symbols);
+
+    /// As above, for a transposed or broadcasted layout. Strides resolve through the same table,
+    /// so they share the dimensions' variables; without them the strides are packed standard.
+    static shape
+    make_symbolic_shape(type_t t,
+                        const std::vector<std::string>& dims,
+                        const std::vector<std::string>& strides,
+                        const std::map<std::string, std::vector<dynamic_dimension>>& symbols);
+
+    /// The symbols this shape's dimensions and strides use, in the form make_symbolic_shape
+    /// takes, so a symbolic shape round trips through its own API. Each interval a symbol
+    /// asserts becomes one dynamic_dimension, and its optimals ride on the first.
+    std::map<std::string, std::vector<dynamic_dimension>> symbol_table() const;
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);

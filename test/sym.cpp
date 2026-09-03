@@ -3147,6 +3147,89 @@ TEST_CASE(var_with_constraint_and_optimals)
     EXPECT(x.eval({{x, int64_t{3}}}) == scalar{int64_t{3}});
 }
 
+// A name has to round trip through parse, since that is how a symbolic shape is spelled in
+// generated code.
+TEST_CASE(var_name_must_be_an_identifier)
+{
+    EXPECT(test::throws([] { return var("input.1_d0"); }));
+    EXPECT(test::throws([] { return var("0_d0"); }));
+    EXPECT(test::throws([] { return var("has space"); }));
+    // The check applies to every overload, not just the bare one.
+    EXPECT(test::throws([] { return var("input.1", interval{int64_t{1}, int64_t{8}}); }));
+    EXPECT(test::throws(
+        [] { return var("input.1", std::vector<interval>{interval{int64_t{1}, int64_t{8}}}); }));
+    EXPECT(parse(to_string(var("_n0"))) == var("_n0"));
+}
+
+TEST_CASE(find_variable_bounds_keeps_metadata)
+{
+    auto n      = var("n", interval{int64_t{1}, int64_t{8}}, std::set<scalar>{int64_t{2}});
+    auto m      = var("m", interval{int64_t{2}, int64_t{16}});
+    auto bounds = migraphx::sym::find_variable_bounds(n * 3 + m);
+    EXPECT(bounds.size() == 2);
+    EXPECT(bounds.at("n").constraints == std::vector<interval>{{int64_t{1}, int64_t{8}}});
+    EXPECT(bounds.at("n").optimals == std::set<scalar>{int64_t{2}});
+    EXPECT(bounds.at("m").constraints == std::vector<interval>{{int64_t{2}, int64_t{16}}});
+    EXPECT(bounds.at("m").optimals.empty());
+    // A literal carries no variable.
+    EXPECT(migraphx::sym::find_variable_bounds(lit(3)).empty());
+}
+
+TEST_CASE(find_variable_bounds_merges_same_name)
+{
+    auto c1 = interval{int64_t{1}, int64_t{20}};
+    auto c2 = interval{int64_t{2}, int64_t{10}};
+    auto e  = var("x", c1) * var("y", {1, 2}) + var("x", c2);
+    auto x  = migraphx::sym::find_variable_bounds(e).at("x");
+    EXPECT(x.constraints == std::vector<interval>{c1, c2});
+}
+
+// A double has to read back as the same value, which the six significant digits a stream
+// defaults to cannot promise.
+TEST_CASE(scalar_to_string_round_trips)
+{
+    EXPECT(migraphx::sym::to_string(scalar{int64_t{42}}) == "42");
+    EXPECT(migraphx::sym::to_string(scalar{3.14}) == "3.14");
+    for(double d : {3.14, 0.1, 1.0 / 3.0, 1e-9, 1.7976931348623157e308})
+        EXPECT(parse(migraphx::sym::to_string(scalar{d})) == lit(d));
+}
+
+// Adding two same-named variables merges their metadata by unioning the constraint sets, so this
+// is the only spelling for the result.
+TEST_CASE(var_with_multiple_constraints_matches_merge)
+{
+    auto c1 = interval{int64_t{1}, int64_t{20}};
+    auto c2 = interval{int64_t{2}, int64_t{10}};
+    // x{1,20} + x{2,10} folds to 2*x, where x asserts both intervals.
+    auto merged = var("x", c1) + var("x", c2);
+    EXPECT(merged == lit(2) * var("x", std::vector<interval>{c1, c2}));
+}
+
+// The constraint set is canonicalized, so the order it is given in does not change the variable.
+TEST_CASE(var_with_multiple_constraints_normalized)
+{
+    auto c1 = interval{int64_t{1}, int64_t{20}};
+    auto c2 = interval{int64_t{2}, int64_t{10}};
+    EXPECT(var("x", std::vector<interval>{c2, c1}) == var("x", std::vector<interval>{c1, c2}));
+    // A repeated assertion is the same as stating it once.
+    EXPECT(var("x", std::vector<interval>{c1, c1}) == var("x", c1));
+}
+
+TEST_CASE(var_with_multiple_constraints_serializes)
+{
+    auto x = var(
+        "x",
+        std::vector<interval>{interval{int64_t{1}, int64_t{20}}, interval{int64_t{2}, int64_t{10}}},
+        std::set<scalar>{int64_t{4}});
+    EXPECT(migraphx::from_value<expr>(migraphx::to_value(x)) == x);
+}
+
+TEST_CASE(var_with_invalid_constraint_throws)
+{
+    EXPECT(test::throws(
+        [] { return var("x", std::vector<interval>{interval{int64_t{10}, int64_t{1}}}); }));
+}
+
 TEST_CASE(eval_optimals_literal)
 {
     auto e      = lit(42);

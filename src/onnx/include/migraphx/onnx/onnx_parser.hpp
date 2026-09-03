@@ -110,6 +110,11 @@ struct onnx_parser
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     int64_t opset_version        = 13;
 
+    // ONNX names are arbitrary strings but a symbol name has to be an identifier, so each one
+    // is rewritten once and remembered, which is what keeps two names that sanitize alike
+    // distinct. Mutable because the parse_type chain that reaches it is const.
+    mutable std::unordered_map<std::string, std::string> symbol_names;
+
     std::unordered_map<std::string, op_func> ops;
 
     onnx_parser();

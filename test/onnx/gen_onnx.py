@@ -3196,6 +3196,16 @@ def dim_param_test():
 
 
 @onnx_test()
+def dim_param_odd_names_test():
+    # A dim_param is an arbitrary string, but a symbol name has to be an identifier. The first
+    # two only differ where sanitizing rewrites them, so they also cover collision handling.
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      ["batch.size", "batch_size", "2d"])
+
+    return ([], [x], [x])
+
+
+@onnx_test()
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])

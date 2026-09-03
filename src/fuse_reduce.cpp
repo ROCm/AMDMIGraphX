@@ -36,6 +36,7 @@
 #include <migraphx/rewrite_reshapes.hpp>
 #include <migraphx/rewrite_broadcasts.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/functional.hpp>
 #include <iterator>
 #include <map>
 
@@ -59,8 +60,6 @@ struct fused_reduce
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         const auto* sm = mods.front();
-        if(sm->get_output_shapes().size() != 1)
-            MIGRAPHX_THROW("Only one output supported");
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
@@ -73,6 +72,13 @@ struct fused_reduce
                return shape::same_lens(input, s);
            }))
             MIGRAPHX_THROW("Input dimension does not match the submodule.");
+
+        if(sm->get_output_shapes().size() != 1)
+        {
+            auto result = sm->compute_shapes(
+                inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+            return shape{result};
+        }
 
         if(sm->get_output_shapes().front().dynamic())
             return sm->get_output_shapes().front();
@@ -383,8 +389,25 @@ struct find_pointwise_reduce
     }
 };
 
+// Fusing a pointwise whose output is larger than what the reduction reads
+// makes the kernel write that output with one workgroup per reduction
+// output, so it needs at least min_fused_outputs outputs to stream it well;
+// otherwise the pointwise is faster as a separate, fully parallel kernel
+static bool
+can_fuse_pointwise(instruction_ref reduce, instruction_ref pw, std::size_t min_fused_outputs)
+{
+    if(reduce->get_shape().elements() >= min_fused_outputs)
+        return true;
+    auto it = std::max_element(
+        reduce->inputs().begin(), reduce->inputs().end(), by(std::less<>{}, [](instruction_ref i) {
+            return i->get_shape().elements();
+        }));
+    return pw->get_shape().elements() <= (*it)->get_shape().elements();
+}
+
 struct find_reduce_pointwise
 {
+    std::size_t min_fused_outputs = 1;
 
     auto matcher() const
     {
@@ -396,6 +419,8 @@ struct find_reduce_pointwise
         auto pw     = r.result;
         auto reduce = r.instructions["reduce"];
         auto input  = r.instructions["input"];
+        if(not can_fuse_pointwise(reduce, pw, min_fused_outputs))
+            return;
 
         const auto* pm     = pw->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
@@ -555,8 +580,10 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
             match::find_matches(mpm, find_reduce_broadcast{});
             rewrite_broadcasts(mpm, "fused_reduce");
         }
-        match::find_matches(
-            mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
+        match::find_matches(mpm,
+                            find_reduce_pointwise{.min_fused_outputs = min_fused_outputs},
+                            find_pointwise_reduce{},
+                            find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});
     }
 }

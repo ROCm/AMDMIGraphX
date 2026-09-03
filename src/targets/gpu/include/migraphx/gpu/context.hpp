@@ -255,7 +255,16 @@ struct hip_device
 
     std::size_t get_max_workitems_per_block() const { return desc.max_threads_per_block; }
 
+    /// Number of resident workgroups when using the maximum block size
+    std::size_t get_max_workgroups() const
+    {
+        assert(desc.max_threads_per_block > 0);
+        return desc.num_cu * desc.max_threads_per_cu / desc.max_threads_per_block;
+    }
+
     std::size_t get_wavefront_size() const { return desc.wavefront_size; }
+
+    std::size_t get_last_level_cache_size() const { return desc.last_level_cache_size; }
 
     private:
     std::size_t device_id      = 0;

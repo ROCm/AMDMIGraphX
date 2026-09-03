@@ -230,6 +230,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
                                                const std::string& arch,
+                                               bool disable_processes,
                                                bool quiet)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
@@ -243,18 +244,16 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         }
     }
 
+    if(disable_processes)
+        return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
+
     auto fname  = make_executable_filename("migraphx-hiprtc-driver");
     auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
     auto driver = p.parent_path() / fname;
-
-    bool found = fs::exists(driver);
-    if(not found)
-    {
+    if(not fs::exists(driver))
         driver = p.parent_path().parent_path() / "bin" / fname;
-        found  = fs::exists(driver);
-    }
 
-    if(found)
+    if(fs::exists(driver))
     {
         value v;
         v["srcs"]   = to_value(hsrcs);
@@ -312,8 +311,10 @@ static src_compiler assemble(src_compiler compiler)
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
                                                const std::string& arch,
-                                               bool)
+                                               bool /*disable_processes*/,
+                                               bool /*quiet*/)
 {
+    // disable_processes has no effect on the clang path, there is no hiprtc subprocess to skip.
     assert(not srcs.empty());
 
     if(not is_hip_clang_compiler())
@@ -378,7 +379,7 @@ bool hip_can_compile(const std::string& src, const std::vector<std::string>& fla
     try
     {
         std::string arch = "gfx900";
-        compile_hip_src(srcs, flags, arch, true);
+        compile_hip_src(srcs, flags, arch, false, true);
         return true;
     }
     catch(...)

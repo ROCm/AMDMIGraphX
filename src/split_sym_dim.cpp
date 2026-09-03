@@ -75,20 +75,9 @@ enum class fill_kind
     one
 };
 
-struct io_ref
-{
-    bool is_output    = false;
-    std::size_t index = 0;
-};
-
 bool is_variable_axis(const shape::dynamic_dimension& d)
 {
     return d.is_symbolic() and not d.is_fixed();
-}
-
-bool has_variable_axis(const shape& s)
-{
-    return s.symbolic() and any_of(s.dyn_dims(), is_variable_axis);
 }
 
 bool is_dot(const operation& op)
@@ -240,39 +229,44 @@ float fill_value(fill_kind fill)
     MIGRAPHX_THROW("SPLIT_SYM_DIM: unsupported fill kind");
 }
 
-template <class Rule>
-void analyze_axes(symbolic_op_info& info, const Rule& rule)
+template <class OutputRule, class InputRule>
+void analyze_axes(symbolic_op_info& info,
+                  const OutputRule& output_rule,
+                  const InputRule& input_rule)
 {
-    info.supported = true;
-    for(std::size_t axis = 0; axis < info.output_shape.ndim(); ++axis)
-    {
-        const auto& dimension = info.output_shape.dyn_dims().at(axis);
-        if(not is_variable_axis(dimension))
-            continue;
-        info.output_symbolic_axes.push_back(axis);
-        if(rule(io_ref{true, 0}, axis).handling != axis_handling::pad)
-            info.supported = false;
-    }
+    info.supported   = true;
+    auto output_axes = range(info.output_shape.ndim());
+
+    std::copy_if(
+        output_axes.begin(),
+        output_axes.end(),
+        std::back_inserter(info.output_symbolic_axes),
+        [&](auto axis) { return is_variable_axis(info.output_shape.dyn_dims().at(axis)); });
+
+    info.supported = all_of(info.output_symbolic_axes, output_rule);
 
     assert(all_of(info.shape_input_indices,
                   [&](auto index) { return index < info.input_shapes.size(); }));
+
     info.operands.resize(info.input_shapes.size());
-    for(std::size_t index = 0; index < info.input_shapes.size(); ++index)
+    auto input_indices = range(info.input_shapes.size());
+    for(auto&& [index, input, operand] :
+        views::zip(input_indices, info.input_shapes, info.operands))
     {
         if(contains(info.shape_input_indices, index))
             continue;
-        const auto& input = info.input_shapes.at(index);
-        if(not has_variable_axis(input))
+        if(not input.symbolic())
             continue;
-        auto& operand  = info.operands.at(index);
+        const auto& input_dims = input.dyn_dims();
+        auto variable_axes     = find_all(
+            range(input.ndim()), [&](auto axis) { return is_variable_axis(input_dims.at(axis)); });
+        if(variable_axes.empty())
+            continue;
         fill_kind fill = fill_kind::dont_care;
-        for(std::size_t axis = 0; axis < input.ndim(); ++axis)
+        for(std::size_t axis : variable_axes)
         {
-            const auto& dimension = input.dyn_dims().at(axis);
-            if(not is_variable_axis(dimension))
-                continue;
-            operand.pad_value = fill_value(fill);
-            auto desc         = rule(io_ref{false, index}, axis);
+            const auto& dimension = input_dims.at(axis);
+            auto desc             = input_rule(index, axis);
             if(desc.handling == axis_handling::unsupported)
             {
                 info.supported = false;
@@ -294,19 +288,26 @@ void analyze_axes(symbolic_op_info& info, const Rule& rule)
                 MIGRAPHX_THROW("SPLIT_SYM_DIM: conflicting padding fills on one operand");
             fill = desc.fill;
         }
-        if(operand.pad_value.has_value())
-            operand.pad_value = fill_value(fill);
+        operand.pad_value = fill_value(fill);
     }
+}
+
+template <class InputRule>
+void analyze_axes(symbolic_op_info& info, const InputRule& input_rule)
+{
+    analyze_axes(info, [](std::size_t) { return true; }, input_rule);
+}
+
+void analyze_axes(symbolic_op_info& info)
+{
+    analyze_axes(info, [](std::size_t, std::size_t) { return parallel_axis(); });
 }
 
 struct analyze_pointwise
 {
     bool matches(const operation& op) const { return op.attributes().contains("pointwise"); }
 
-    void analyze(symbolic_op_info& info) const
-    {
-        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
-    }
+    void analyze(symbolic_op_info& info) const { analyze_axes(info); }
 };
 
 struct analyze_reduce
@@ -323,10 +324,8 @@ struct analyze_reduce
                        reduction_axes.begin(),
                        [&](const shape& input) { return reduce_axes(op, input.ndim()); });
         auto identity = reduce_identity(op.name());
-        analyze_axes(info, [&](io_ref io, std::size_t axis) {
-            if(io.is_output)
-                return parallel_axis();
-            const auto& axes = reduction_axes.at(io.index);
+        analyze_axes(info, [&](std::size_t input, std::size_t axis) {
+            const auto& axes = reduction_axes.at(input);
             if(axes.empty())
                 return axis_desc{};
             if(not contains(axes, axis))
@@ -342,12 +341,10 @@ struct analyze_dot
 
     void analyze(symbolic_op_info& info) const
     {
-        analyze_axes(info, [&](io_ref io, std::size_t axis) {
-            if(io.is_output)
-                return parallel_axis();
-            std::size_t rank = info.input_shapes.at(io.index).ndim();
+        analyze_axes(info, [&](std::size_t input, std::size_t axis) {
+            std::size_t rank = info.input_shapes.at(input).ndim();
             assert(rank >= 2);
-            std::size_t contraction_axis = (io.index == 0) ? rank - 1 : rank - 2;
+            std::size_t contraction_axis = (input == 0) ? rank - 1 : rank - 2;
             return axis == contraction_axis ? masked_axis(mask_role::contracted, fill_kind::zero)
                                             : parallel_axis();
         });
@@ -466,7 +463,7 @@ struct analyze_broadcast
         info.freezer = freeze_broadcast;
         info.shape_input_indices.resize(info.input_shapes.size() - 1);
         std::iota(info.shape_input_indices.begin(), info.shape_input_indices.end(), std::size_t{1});
-        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+        analyze_axes(info);
     }
 };
 
@@ -481,7 +478,7 @@ struct analyze_allocate
             return;
         info.freezer             = freeze_allocate;
         info.shape_input_indices = {0};
-        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+        analyze_axes(info);
     }
 };
 
@@ -511,7 +508,7 @@ struct analyze_shape_transform
             };
             if(non_unit_dims(inputs.front()) == non_unit_dims(output))
             {
-                analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+                analyze_axes(info);
                 return;
             }
         }
@@ -536,9 +533,20 @@ struct analyze_shape_transform
             return;
         auto source_dims = inputs.front().to_symbolic().dyn_dims();
         auto output_dims = output.to_symbolic().dyn_dims();
-        analyze_axes(info, [&](io_ref io, std::size_t axis) {
-            if(not io.is_output)
-            {
+        analyze_axes(
+            info,
+            [&](std::size_t axis) {
+                auto source_axes = range(source_dims.size());
+                auto count =
+                    std::count_if(source_axes.begin(), source_axes.end(), [&](auto source_axis) {
+                        auto dst_axes = desc.get_dst_axes_from_src(source_axis);
+                        return dst_axes.size() == 1 and dst_axes.front() == axis and
+                               source_dims.at(source_axis).sym_expr ==
+                                   output_dims.at(axis).sym_expr;
+                    });
+                return count == 1;
+            },
+            [&](std::size_t, std::size_t axis) {
                 auto dst_axes = desc.get_dst_axes_from_src(axis);
                 if(dst_axes.size() != 1)
                     return axis_desc{};
@@ -546,17 +554,7 @@ struct analyze_shape_transform
                 return source_dims.at(axis).sym_expr == output_dims.at(dst_axis).sym_expr
                            ? parallel_axis()
                            : axis_desc{};
-            }
-
-            auto source_axes = range(source_dims.size());
-            auto count =
-                std::count_if(source_axes.begin(), source_axes.end(), [&](auto source_axis) {
-                    auto dst_axes = desc.get_dst_axes_from_src(source_axis);
-                    return dst_axes.size() == 1 and dst_axes.front() == axis and
-                           source_dims.at(source_axis).sym_expr == output_dims.at(axis).sym_expr;
-                });
-            return count == 1 ? parallel_axis() : axis_desc{};
-        });
+            });
     }
 };
 
@@ -582,8 +580,9 @@ struct analyze_gather
                                    inputs.front().ndim());
         if(not axis.has_value())
             return;
-        analyze_axes(info, [axis = *axis](io_ref io, std::size_t current_axis) {
-            if(io.is_output or io.index == 1)
+        // Only the data gather axis is unsupported; all other input axes are parallel.
+        analyze_axes(info, [axis = *axis](std::size_t input, std::size_t current_axis) {
+            if(input == 1)
                 return parallel_axis();
             return current_axis == axis ? axis_desc{} : parallel_axis();
         });
@@ -608,7 +607,7 @@ struct analyze_concat
                       is_variable_axis(input.dyn_dims().at(*axis));
            }))
             return;
-        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+        analyze_axes(info);
     }
 };
 
@@ -623,7 +622,7 @@ struct analyze_unit_axis_transform
     {
         if(info.input_shapes.size() != 1)
             return;
-        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+        analyze_axes(info);
     }
 };
 
@@ -635,7 +634,7 @@ struct analyze_fill
     {
         if(info.input_shapes.size() != 2)
             return;
-        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+        analyze_axes(info);
     }
 };
 
@@ -684,7 +683,7 @@ struct analyze_dynamic_range
            not symbolic_range_dim(op).has_value())
             return;
         info.freezer = freeze_dynamic_range;
-        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+        analyze_axes(info);
     }
 };
 
@@ -758,16 +757,16 @@ struct analyze_slice
                 if(not normalized_axis.has_value() or
                    is_variable_axis(inputs.front().dyn_dims().at(*normalized_axis)))
                     return;
-                axis = static_cast<int64_t>(*normalized_axis);
+                axis = *normalized_axis;
             }
-            analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+            analyze_axes(info);
             return;
         }
 
         if(inputs.size() != 3 or not is_prefix_stable_dyn_slice(op, inputs.front()))
             return;
         info.freezer = freeze_dyn_slice;
-        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+        analyze_axes(info);
     }
 };
 
@@ -904,7 +903,7 @@ struct analyze_scatternd
             return;
         if(has_prefix_axis)
             info.freezer = freeze_scatternd;
-        analyze_axes(info, [](io_ref, std::size_t) { return parallel_axis(); });
+        analyze_axes(info);
     }
 };
 
@@ -921,9 +920,7 @@ struct analyze_softmax
                                    inputs.front().ndim());
         if(not axis.has_value())
             return;
-        analyze_axes(info, [axis = *axis](io_ref io, std::size_t current_axis) {
-            if(io.is_output)
-                return parallel_axis();
+        analyze_axes(info, [axis = *axis](std::size_t, std::size_t current_axis) {
             return current_axis == axis ? masked_axis(mask_role::normalized, fill_kind::neg_inf)
                                         : parallel_axis();
         });
@@ -954,35 +951,38 @@ struct analyze_conv
             padding            = attributes.at("padding").to_vector<std::size_t>();
             spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
         }
-        analyze_axes(info, [&](io_ref io, std::size_t axis) {
-            auto spatial = [&](std::size_t spatial_axis) {
-                if(not default_padding)
+        auto spatial = [&](std::size_t axis) {
+            if(not default_padding)
+                return axis_desc{};
+            return padded_axis(fill_kind::zero,
+                               windowed_zero_pad(padding, spatial_dimensions, axis));
+        };
+        analyze_axes(
+            info,
+            [&](std::size_t axis) {
+                return axis < 2 or spatial(axis).handling == axis_handling::pad;
+            },
+            [&](std::size_t input, std::size_t axis) {
+                if(input == 0)
+                {
+                    if(axis == 0)
+                        return parallel_axis();
+                    if(axis == 1)
+                    {
+                        if(group != 1)
+                            return axis_desc{};
+                        return contracted_axis(fill_kind::zero);
+                    }
+                    return spatial(axis);
+                }
+                if(input != 1 or group != 1)
                     return axis_desc{};
-                return padded_axis(fill_kind::zero,
-                                   windowed_zero_pad(padding, spatial_dimensions, spatial_axis));
-            };
-            if(io.is_output)
-                return axis < 2 ? parallel_axis() : spatial(axis);
-            if(io.index == 0)
-            {
                 if(axis == 0)
                     return parallel_axis();
                 if(axis == 1)
-                {
-                    if(group != 1)
-                        return axis_desc{};
                     return contracted_axis(fill_kind::zero);
-                }
-                return spatial(axis);
-            }
-            if(io.index != 1 or group != 1)
                 return axis_desc{};
-            if(axis == 0)
-                return parallel_axis();
-            if(axis == 1)
-                return contracted_axis(fill_kind::zero);
-            return axis_desc{};
-        });
+            });
     }
 };
 
@@ -1007,14 +1007,18 @@ struct analyze_pooling
             attributes.at("padding_mode").to<op::padding_mode_t>() == op::padding_mode_t::default_;
         auto padding            = attributes.at("padding").to_vector<std::size_t>();
         auto spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
-        analyze_axes(info, [&](io_ref, std::size_t axis) {
+        auto classify_axis      = [&](std::size_t axis) {
             if(axis < 2)
                 return parallel_axis();
             if(not default_padding or fill == fill_kind::dont_care)
                 return axis_desc{};
             return padded_axis(
                 fill, not ceil_mode and windowed_zero_pad(padding, spatial_dimensions, axis));
-        });
+        };
+        analyze_axes(
+            info,
+            [&](std::size_t axis) { return classify_axis(axis).handling == axis_handling::pad; },
+            [&](std::size_t, std::size_t axis) { return classify_axis(axis); });
     }
 };
 

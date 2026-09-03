@@ -540,7 +540,14 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto sm_ins           = mr.result;
+        auto sm_ins = mr.result;
+        // Symbolic declared output shapes are already tighter than the range union this
+        // computes, and demoting them would strand symbolic consumers such as dyn_slice.
+        const auto& output_sub_shapes = sm_ins->get_shape().sub_shapes();
+        if(std::any_of(output_sub_shapes.begin(), output_sub_shapes.end(), [](const auto& s) {
+               return s.symbolic();
+           }))
+            return;
         auto sm_module_inputs = sm_ins->module_inputs();
         std::vector<std::vector<shape>> all_output_shapes(sm_module_inputs.size());
         std::transform(sm_module_inputs.begin(),

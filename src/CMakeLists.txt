@@ -146,6 +146,7 @@ add_library(migraphx
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
+    split_seq_len.cpp
     split_single_dyn_dim.cpp
     sym.cpp
     sym_argument.cpp

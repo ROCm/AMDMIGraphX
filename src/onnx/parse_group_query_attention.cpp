@@ -301,9 +301,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
     // Symbolic path: all dimensions are symbolic expressions (fixed dims are literal
     // expressions), so every parse-time prompt/decode branch of the static path is
     // replaced with the unified run-time form. Per-token positions of the current tokens
-    // are seqlens_k + 1 - seq + i, which reduces to 0..seq-1 for a prompt
+    // are max(seqlens_k + 1 - seq, 0) + i, which reduces to 0..seq-1 for a prompt
     // (seqlens_k = seq - 1) and to seqlens_k for decode, so a single causal mask
-    // j > position covers both cases.
+    // j > position covers both cases. The clamp keeps prompt semantics when the prompt
+    // is zero-padded past its real length (seqlens_k + 1 < seq), as split_seq_len does.
     static std::vector<instruction_ref> parse_symbolic(const onnx_parser::node_info& info,
                                                        const std::vector<instruction_ref>& args,
                                                        instruction_ref qkv,
@@ -337,7 +338,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                     {{"axes", {1}}, {"starts", {num_heads + kv_heads}}, {"ends", {total_heads}}}),
             transposed_qkv);
 
-        // Per-token positions of the current tokens {batch, seq, 1}: seqlens_k + 1 - seq + i
+        // Per-token positions of the current tokens {batch, seq, 1}:
+        // max(seqlens_k + 1 - seq, 0) + i
         auto slk = args.at(5);
         auto slk64 =
             info.add_instruction(make_op("convert", {{"target_type", shape::int64_type}}), slk);
@@ -349,7 +351,20 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto one      = info.add_literal(literal{shape{shape::int64_type, {1}}, {1}});
         auto past_len = info.add_common_op("sub", slk64, seq_rt);
         past_len      = info.add_common_op("add", past_len, one);
-        auto iota     = info.add_instruction(
+        past_len      = info.add_common_op("max", past_len, zero);
+        // The cache holds the past plus the current tokens, so the past length is also
+        // bounded above by cache_len - seq. The bound makes the past provably zero when
+        // the current tokens fill the whole cache, as in the padded prefill submodule
+        // split_seq_len creates.
+        const auto& past_shape = args.at(3)->get_shape();
+        if(past_shape.ndim() == 4 and past_shape.is_fixed())
+        {
+            auto cache_len = info.add_literal(literal{
+                shape{shape::int64_type, {1}}, {static_cast<int64_t>(past_shape.max_lens()[2])}});
+            auto max_past  = info.add_common_op("sub", cache_len, seq_rt);
+            past_len       = info.add_common_op("min", past_len, max_past);
+        }
+        auto iota = info.add_instruction(
             make_op("dynamic_range", {{"output_dim", to_value(qkv_dims[1])}}), zero, seq_rt, one);
         auto past_len_b = info.add_instruction(make_op("unsqueeze", {{"axes", {1, 2}}}), past_len);
         auto iota_b     = info.add_instruction(make_op("unsqueeze", {{"axes", {0, 2}}}), iota);

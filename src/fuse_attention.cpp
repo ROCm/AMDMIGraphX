@@ -399,7 +399,8 @@ struct find_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        module_ref mpm_attn =
+            mpm.create_module(mpm.get_module().name() + ":attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(
@@ -898,7 +899,7 @@ struct find_kv_cache_attention
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k"));
         auto keys_transpose = match::opaque(match::name("transpose")(match::arg(0)(keys)));
         auto k_transpose    = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
-        auto queries = match::name("slice");
+        auto queries        = match::name("slice");
         auto gemm1 =
             match::opaque(match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose)));
         auto gemm1_maybe_cvt = match::opaque(match::skip(match::name("convert"))(gemm1));
@@ -1068,7 +1069,8 @@ struct find_kv_cache_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        module_ref mpm_attn =
+            mpm.create_module(mpm.get_module().name() + ":attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
         // Construct group op with the attention module

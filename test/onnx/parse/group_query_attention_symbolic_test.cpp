@@ -29,9 +29,9 @@
 
 // GroupQueryAttention with a symbolic sequence length: every parse-time prompt/decode
 // branch of the static parse is replaced with the unified run-time form. Per-token
-// positions of the current tokens are seqlens_k + 1 - seq + i and the causal mask is
-// j > position, which covers both the prompt (seqlens_k = seq - 1) and decode (seq = 1)
-// cases.
+// positions of the current tokens are max(seqlens_k + 1 - seq, 0) + i and the causal
+// mask is j > position, which covers both the prompt (seqlens_k = seq - 1) and decode
+// (seq = 1) cases.
 TEST_CASE(group_query_attention_symbolic_test)
 {
     using migraphx::sym::lit;
@@ -74,7 +74,8 @@ TEST_CASE(group_query_attention_symbolic_test)
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {8}}}),
         transposed_qkv);
 
-    // Per-token positions of the current tokens {batch, seq, 1}: seqlens_k + 1 - seq + i
+    // Per-token positions of the current tokens {batch, seq, 1}:
+    // max(seqlens_k + 1 - seq, 0) + i
     auto slk64 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), slk);
     slk64 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {-1}}}), slk64);
@@ -86,6 +87,11 @@ TEST_CASE(group_query_attention_symbolic_test)
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
     auto past_len = migraphx::add_common_op(*mm, migraphx::make_op("sub"), {slk64, seq_rt});
     past_len      = migraphx::add_common_op(*mm, migraphx::make_op("add"), {past_len, one});
+    past_len      = migraphx::add_common_op(*mm, migraphx::make_op("max"), {past_len, zero});
+    auto cache_len =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {10}});
+    auto max_past = migraphx::add_common_op(*mm, migraphx::make_op("sub"), {cache_len, seq_rt});
+    past_len      = migraphx::add_common_op(*mm, migraphx::make_op("min"), {past_len, max_past});
     auto iota     = mm->add_instruction(
         migraphx::make_op(
             "dynamic_range",

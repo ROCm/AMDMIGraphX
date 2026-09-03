@@ -23,6 +23,8 @@
  *
  */
 #include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/fp8_types.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/module.hpp>
@@ -245,6 +247,53 @@ struct find_reduce_mean_variance
     }
 };
 
+// Figure out if a wider accumulator type is needed based on `reduce`, `type` and number of reduced elements `n`.
+// All fp8 types need a wider accumulator.
+// fp16 reduce_prod needs wider accumulator because it has a smaller exponent range than fp32.
+// True for fp16 or bf16 reduce_sum if `n` > wide_reduce_elements_threshold
+bool needs_wide_accumulator(const std::string& reduce, shape::type_t type, std::size_t n)
+{
+    constexpr std::size_t wide_reduce_elements_threshold = 16384;
+    if(contains(fp8_types{}.get(), type))
+    {
+        return true;
+    }
+    if(reduce == "reduce_prod")
+    {
+        if(type == shape::half_type)
+            return true;
+    }
+    if(type == shape::half_type or type == shape::bf16_type)
+    {
+        return n > wide_reduce_elements_threshold;
+    }
+    return false;
+}
+
+// Change the accumulator type for reductions over low precision types when needed.
+struct find_low_precision_reduce
+{
+    auto matcher() const { return match::name("reduce_sum", "reduce_prod"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto input = ins->inputs().front();
+        auto type  = input->get_shape().type();
+        auto n     = input->get_shape().elements() / ins->get_shape().elements();
+        bool widen = needs_wide_accumulator(ins->name(), type, n);
+        if(not widen)
+            return;
+
+        auto wide = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::float_type}}), input);
+        auto reduce = m.insert_instruction(ins, ins->get_operator(), wide);
+        m.replace_instruction(
+            ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), reduce);
+    }
+};
+
+// Replace `reduce_mean` with `reduce_sum` and change the accumulator type when needed.
 struct find_reduce_mean
 {
     auto matcher() const { return match::name("reduce_mean"); }
@@ -267,8 +316,12 @@ struct find_reduce_mean
 
         auto n = input->get_shape().elements() / ins->get_shape().elements();
 
-        // Convert accumulator to float if <= 8bit type or if < 3 bytes and n >= max_n /4
-        if(size == 1 or (n >= max_n / 4 and size < 3))
+        // Integral types widen for an 8 bit type, or for a 16 bit one once the count is a large
+        // enough fraction of what the type can hold.
+        // A mean is a sum, so floating point follows needs_wide_accumulator.
+        bool widen = is_integral ? (size == 1 or (n >= max_n / 4 and size < 3))
+                                 : needs_wide_accumulator(ins->name(), input->get_shape().type(), n);
+        if(widen)
         {
             shape::type_t t = is_integral ? shape::int32_type : shape::float_type;
             input = m.insert_instruction(ins, make_op("convert", {{"target_type", t}}), input);
@@ -311,6 +364,7 @@ void rewrite_reduce::apply(module& m) const
                               migraphx::eliminate_common_subexpression{}});
     }
 
+    match::find_matches(m, find_low_precision_reduce{});
     match::find_matches(m, find_reduce_mean{});
     migraphx::run_passes(m, {simplify_reshapes{}});
 }

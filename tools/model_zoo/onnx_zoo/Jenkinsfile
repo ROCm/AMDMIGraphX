@@ -116,12 +116,6 @@ pipeline {
                         error("RUN_ID is '${env.RUN_ID}'; run the whole pipeline rather than restarting this stage")
                     }
                 }
-                sh """
-                    python3 ./${ZOO_DIR}/summarize.py ./${ZOO_DIR}/logs \
-                        --run-id '${env.RUN_ID}' \
-                        --gpu '${env.GPU_TARGET}' \
-                        --build-url '${env.BUILD_URL}'
-                """
                 // Kept as shell variables so neither is rendered into the build log.
                 withCredentials([usernamePassword(credentialsId: REPORTS_APP_CRED,
                                                   usernameVariable: 'GITHUB_APP',
@@ -136,6 +130,11 @@ pipeline {
                         # Clone persists the token in .git/config; the push passes it.
                         git -C '${REPORTS_CLONE}' remote set-url origin \
                             "https://github.com/\$REPO.git"
+                        python3 ./${ZOO_DIR}/summarize.py ./${ZOO_DIR}/logs \
+                            --run-id '${env.RUN_ID}' \
+                            --gpu '${env.GPU_TARGET}' \
+                            --build-url '${env.BUILD_URL}' \
+                            --baseline-root '${REPORTS_CLONE}/${REPORTS_SUBDIR}'
                         dest='${REPORTS_CLONE}/${REPORTS_SUBDIR}/${env.RUN_ID}'
                         rm -rf "\$dest"
                         mkdir -p "\$dest"

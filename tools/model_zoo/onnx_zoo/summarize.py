@@ -25,11 +25,13 @@
 
 import argparse
 import html
+import math
 import re
 from pathlib import Path
 from urllib.parse import quote
 
 DTYPES = ('fp32', 'fp16', 'int8')
+PERF_THRESHOLD = 5.0
 
 
 class RawMarkdown(str):
@@ -42,6 +44,7 @@ def parse_args():
     parser.add_argument('--run-id')
     parser.add_argument('--gpu')
     parser.add_argument('--build-url')
+    parser.add_argument('--baseline-root', type=Path)
     return parser.parse_args()
 
 
@@ -104,31 +107,30 @@ def perf_result(folder, stem):
     error = read(error_path)
     report = output + '\n' + error
     rate = re.search(r'^Rate:\s*(\S+)', report, re.MULTILINE)
-    median = re.search(r'Median:\s*([0-9.eE+-]+)ms', report)
-    compile_time = re.search(r'Compilation time:\s*([0-9.eE+-]+)ms', report)
+    total_time = re.search(r'^Total time:', report, re.MULTILINE)
+    batch = re.search(r'^Batch size:\s*(\d+)', report, re.MULTILINE)
     if re.search(r'^SKIPPED:', output, re.MULTILINE):
         status = 'skipped'
-    elif rate and median:
+    elif rate and total_time:
         status = 'complete'
     else:
         status = 'error' if attempted else 'missing'
     return {
         'status': status,
         'rate': rate.group(1) if rate else '',
-        'median': median.group(1) if median else '',
-        'compile': compile_time.group(1) if compile_time else '',
+        'batch': batch.group(1) if batch else '',
     }
 
 
-def markdown_link(status, folder, stem, label=None):
+def markdown_link(status, folder, stem, label=None, prefix=None):
     suffix = '.err' if status in ('error', 'missing') else '.out'
     path = folder / (stem + suffix)
     if not path.exists():
         path = folder / (stem + ('.out' if suffix == '.err' else '.err'))
     if not path.exists():
         return label or status
-    return RawMarkdown('[{}]({}/{})'.format(label or status, folder.name,
-                                            quote(path.name)))
+    return RawMarkdown('[{}]({}/{})'.format(label or status, prefix
+                                            or folder.name, quote(path.name)))
 
 
 def markdown_escape(value):
@@ -144,7 +146,6 @@ def markdown_escape(value):
 def status_icon(status):
     return {
         'pass': ':white_check_mark:',
-        'complete': ':white_check_mark:',
         'fail': ':red_circle:',
         'error': ':x:',
         'missing': ':x:',
@@ -172,17 +173,51 @@ def accuracy_cell(result, folder, stem):
         link, ': ' + ', '.join(details) if details else ''))
 
 
-def summary_line(label, successful, total):
-    failed = total - successful
-    if failed == 0:
-        return 'All {} results passed :white_check_mark:'.format(label)
-    noun = 'result' if failed == 1 else 'results'
-    return '{} {} {} need attention :red_circle:'.format(failed, label, noun)
+def find_baseline(root, run_id):
+    if root is None or not root.is_dir():
+        return None
+    candidates = [
+        path for path in root.iterdir()
+        if path.is_dir() and path.name != run_id and (path / 'perf').is_dir()
+    ]
+    return max(candidates, key=lambda path: path.name) if candidates else None
+
+
+def formatted_rate(result):
+    try:
+        rate = float(result['rate'])
+    except ValueError:
+        return result['rate']
+    return '{:,.2f}'.format(rate)
+
+
+def compare_perf(current, baseline):
+    if current['status'] != 'complete' or baseline['status'] != 'complete':
+        return 'error', '', ':x:'
+    if current['batch'] and baseline[
+            'batch'] and current['batch'] != baseline['batch']:
+        return 'error', '', ':x:'
+    try:
+        current_rate = float(current['rate'])
+        baseline_rate = float(baseline['rate'])
+    except ValueError:
+        return 'error', '', ':x:'
+    if not math.isfinite(current_rate) or not math.isfinite(
+            baseline_rate) or baseline_rate <= 0:
+        return 'error', '', ':x:'
+    diff = (current_rate - baseline_rate) * 100 / baseline_rate
+    if diff <= -PERF_THRESHOLD:
+        return 'regress', '{:.2f}%'.format(diff), ':red_circle:'
+    if diff >= PERF_THRESHOLD:
+        return 'pass', '{:.2f}%'.format(diff), ':high_brightness:'
+    return 'pass', '{:.2f}%'.format(diff), ':white_check_mark:'
 
 
 def generate(args):
     accuracy_dir = args.logs / 'accuracy'
     perf_dir = args.logs / 'perf'
+    baseline_dir = find_baseline(args.baseline_root, args.run_id)
+    baseline_perf_dir = baseline_dir / 'perf' if baseline_dir else None
 
     def sort_key(stem):
         model, dtype = variant(stem)
@@ -196,12 +231,24 @@ def generate(args):
     rows = []
     for stem in stems:
         model, dtype = variant(stem)
+        current_perf = perf_result(perf_dir, stem)
+        old_perf = perf_result(baseline_perf_dir,
+                               stem) if baseline_perf_dir else {
+                                   'status': 'missing',
+                                   'rate': '',
+                                   'batch': ''
+                               }
+        comparison, diff, perf_icon = compare_perf(current_perf, old_perf)
         rows.append({
             'model': model,
             'dtype': dtype,
             'stem': stem,
             'accuracy': accuracy_result(accuracy_dir, stem),
-            'perf': perf_result(perf_dir, stem),
+            'perf': current_perf,
+            'old_perf': old_perf,
+            'comparison': comparison,
+            'diff': diff,
+            'perf_icon': perf_icon,
         })
 
     lines = ['# ONNX Model Zoo results', '']
@@ -210,10 +257,36 @@ def generate(args):
         metadata.append('Run **{}**'.format(markdown_escape(args.run_id)))
     if args.gpu:
         metadata.append('GPU **{}**'.format(markdown_escape(args.gpu)))
+    if baseline_dir:
+        metadata.append('baseline **{}**'.format(
+            markdown_escape(baseline_dir.name)))
     if args.build_url:
         metadata.append('[Jenkins build]({})'.format(args.build_url))
     if metadata:
         lines += [' · '.join(metadata), '']
+
+    accuracy_pass = sum(row['accuracy']['status'] == 'pass' for row in rows)
+    accuracy_fail = sum(row['accuracy']['status'] == 'fail' for row in rows)
+    accuracy_error = len(rows) - accuracy_pass - accuracy_fail
+    perf_pass = sum(row['comparison'] == 'pass' for row in rows)
+    perf_regress = sum(row['comparison'] == 'regress' for row in rows)
+    perf_error = len(rows) - perf_pass - perf_regress
+
+    lines += [
+        '## Summary',
+        '',
+        '| Check | Pass | Fail | Regress | Error |',
+        '|:------|-----:|-----:|--------:|------:|',
+        '| Accuracy | {} | {} | — | {} |'.format(accuracy_pass, accuracy_fail,
+                                                 accuracy_error),
+        '| Performance | {} | — | {} | {} |'.format(perf_pass, perf_regress,
+                                                    perf_error),
+        '',
+        'Performance regressions are rate drops of at least {:.0f}%. '
+        'Rate gains of at least {:.0f}% are highlighted :high_brightness:.'.
+        format(PERF_THRESHOLD, PERF_THRESHOLD),
+        '',
+    ]
 
     lines += [
         '## Accuracy',
@@ -228,28 +301,35 @@ def generate(args):
             markdown_escape(test), status_icon(accuracy['status']),
             accuracy_cell(accuracy, accuracy_dir, row['stem'])))
 
-    accuracy_passed = sum(row['accuracy']['status'] == 'pass' for row in rows)
     lines += [
-        '',
-        summary_line('accuracy', accuracy_passed, len(rows)),
         '',
         '## Performance',
         '',
-        '| Test | Rate (inf/s) | Median (ms) | Compile (ms) | Status |',
-        '|:-----|-------------:|------------:|-------------:|:------:|',
+        '| Test | Batch | New Rate ({}) | Old Rate ({}) | Diff | Status |'.
+        format(
+            args.run_id.rsplit('-', 1)[-1] if args.run_id else 'new',
+            baseline_dir.name.rsplit('-', 1)[-1] if baseline_dir else 'none'),
+        '|:-----|------:|-------------:|-------------:|-----:|:------:|',
     ]
+    baseline_prefix = '../{}/perf'.format(quote(
+        baseline_dir.name)) if baseline_dir else None
     for row in rows:
         perf = row['perf']
+        old_perf = row['old_perf']
         test = '{} ({})'.format(row['model'], row['dtype'])
-        label = perf['rate'] if perf['status'] == 'complete' else perf[
-            'status'].upper()
+        label = formatted_rate(
+            perf) if perf['status'] == 'complete' else perf['status'].upper()
+        old_label = formatted_rate(
+            old_perf
+        ) if old_perf['status'] == 'complete' else old_perf['status'].upper()
         rate = markdown_link(perf['status'], perf_dir, row['stem'], label)
-        lines.append('| {} | {} | {} | {} | {} |'.format(
-            markdown_escape(test), rate, markdown_escape(perf['median']),
-            markdown_escape(perf['compile']), status_icon(perf['status'])))
-
-    perf_completed = sum(row['perf']['status'] == 'complete' for row in rows)
-    lines += ['', summary_line('performance', perf_completed, len(rows))]
+        old_rate = markdown_link(
+            old_perf['status'], baseline_perf_dir, row['stem'], old_label,
+            baseline_prefix) if baseline_perf_dir else 'N/A'
+        lines.append('| {} | {} | {} | {} | {} | {} |'.format(
+            markdown_escape(test),
+            markdown_escape(perf['batch'] or old_perf['batch']), rate,
+            old_rate, markdown_escape(row['diff']), row['perf_icon']))
 
     return '\n'.join(lines) + '\n'
 

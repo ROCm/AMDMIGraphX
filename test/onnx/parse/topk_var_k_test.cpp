@@ -40,7 +40,7 @@ TEST_CASE(topk_var_k_test)
         migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    auto ds = migraphx::make_op(
+    auto ds  = migraphx::make_op(
         "dyn_slice",
         {{"axes", {1}},
          {"starts", {0}},
@@ -71,7 +71,7 @@ TEST_CASE(topk_var_k_symbolic_test)
         migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    auto ds = migraphx::make_op(
+    auto ds  = migraphx::make_op(
         "dyn_slice",
         {{"axes", {1}},
          {"starts", {0}},

@@ -28,6 +28,9 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/bit.hpp>
 
@@ -267,6 +270,66 @@ static optional<reduce_tile> find_reduce_tile(const std::vector<shape>& inputs,
     return (*it)->second;
 }
 
+/// The batched algorithm holds the reduction results of a whole tile in one
+/// vector, so the module must be a single arithmetic reduction whose result
+/// only flows through pointwise ops that read nothing else. A second
+/// reduction, a pointwise that mixes the result with a sliced read, or a
+/// parameter read at a single output index (a per-output scalar or broadcast
+/// parameter) would mix the outputs of the tile.
+static bool can_batch_reduce(const module& rm)
+{
+    auto ins_is_reduce = [](const instruction& ins) {
+        return ins.get_operator().attributes().get("reduce", false);
+    };
+    auto reduce = std::find_if(rm.begin(), rm.end(), ins_is_reduce);
+    if(reduce == rm.end() or std::any_of(std::next(reduce), rm.end(), ins_is_reduce))
+        return false;
+    if(not contains({"reduce_sum", "reduce_prod", "reduce_max", "reduce_min", "reduce_mean"},
+                    reduce->name()))
+        return false;
+    const auto& rlens = reduce->get_shape().lens();
+    // The instructions computed from the reduction result
+    std::unordered_set<instruction_ref> chain = {reduce};
+    for(auto ins : iterator_for(rm))
+    {
+        if(ins == reduce)
+            continue;
+        bool uses_reduce =
+            any_of(ins->inputs(), [&](instruction_ref input) { return contains(chain, input); });
+        if(ins->name() == "@return")
+        {
+            if(ins->inputs().size() != 1 or not uses_reduce)
+                return false;
+            continue;
+        }
+        if(uses_reduce)
+        {
+            // The result may only flow through pointwise/identity ops that
+            // don't mix in other reads
+            if(not contains({"pointwise", "identity"}, ins->name()))
+                return false;
+            if(not all_of(ins->inputs(),
+                          [&](instruction_ref input) { return contains(chain, input); }))
+                return false;
+            chain.insert(ins);
+            continue;
+        }
+        if(contains({"@param", "@literal", "identity"}, ins->name()))
+            continue;
+        if(ins->name() != "pointwise")
+            return false;
+        // Per-output scalars and broadcast parameters are read at a single
+        // output index, which would only read the first output of the tile
+        if(any_of(ins->inputs(), [&](instruction_ref input) {
+               if(input->name() != "@param")
+                   return false;
+               return input->get_shape().lens() == rlens or input->get_shape().broadcasted();
+           }))
+            return false;
+    }
+    return true;
+}
+
 /// This will adjust the input shapes so a partial reduction is done per workgroup.
 /// This is done by splitting the reduction axis so each split group becomes
 /// part of the batch. So if we want to do a split redution of a tensor
@@ -498,7 +561,7 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     // reduction axis does not reduce the number of workgroups, only the lanes
     // reducing each output, so a full-width vector is always fewer load
     // instructions for the same parallelism across outputs.
-    if((plan.algo == "block" or plan.algo == "block_tile" or plan.algo == "wave") and
+    if(contains({"block", "block_tile", "block_batch", "wave"}, plan.algo) and
        plan.reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
         plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {8, 4, 2});
     plan.relements = plan.reduction_shape.elements() / plan.vec.size;
@@ -529,6 +592,31 @@ bool prefer_block_strided(context& ctx, const fused_reduce_plan& plan, std::size
 
 struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {
+    /// The batched pass fully unrolls its stride loop, which is limited to 256
+    /// iterations per lane; tuning only offers block_batch up to 128 iterations
+    /// so the accumulators stay register bound
+    static constexpr std::size_t max_batch_iterations   = 256;
+    static constexpr std::size_t tuned_batch_iterations = 128;
+
+    static std::size_t
+    batch_iterations(std::size_t n_per_block, std::size_t relements, std::size_t block_size)
+    {
+        return (n_per_block * relements) / block_size;
+    }
+
+    /// About 4 elements per lane per output keeps enough loads in flight without
+    /// exhausting the registers of the tiled passes
+    static std::size_t
+    tile_block_size(const context& ctx, std::size_t relements, std::size_t max_block)
+    {
+        return compute_block_size(ctx, std::max<std::size_t>(relements / 4, 1), max_block);
+    }
+
+    static std::string tiled_algo_name(const std::string& algo, std::size_t axis, std::size_t n)
+    {
+        return algo + "<" + std::to_string(axis) + ", " + std::to_string(n) + ">";
+    }
+
     std::vector<std::string> names() const { return {"fused_reduce", "split_fused_reduce"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
@@ -543,7 +631,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         options.inputs         = plan.finputs;
         options.output         = inputs.back();
         options.virtual_inputs = plan.virtual_inputs;
-        if(algo == "block" or algo == "block_tile")
+        if(contains({"block", "block_tile", "block_batch"}, algo))
         {
             auto n_per_block = v.get("n_per_block", std::size_t{1});
             auto block_size  = v.get("block_size", compute_block_size(ctx, relements, 1024));
@@ -554,14 +642,22 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             {
                 algo = "block_large";
             }
+            else if(algo == "block_batch")
+            {
+                auto tile_axis = v.at("tile_axis").to<std::size_t>();
+                block_size     = v.get("block_size", tile_block_size(ctx, relements, 256));
+                bool batch =
+                    batch_iterations(n_per_block, relements, block_size) <= max_batch_iterations;
+                algo =
+                    tiled_algo_name(batch ? "block_batch" : "block_tile", tile_axis, n_per_block);
+            }
             else if(algo == "block_tile")
             {
                 auto tile_axis = v.at("tile_axis").to<std::size_t>();
                 // Smaller workgroups keep the reused loads resident in cache
                 block_size = v.get(
                     "block_size", compute_block_size(ctx, relements, n_per_block == 2 ? 512 : 256));
-                algo = "block_tile<" + std::to_string(tile_axis) + ", " +
-                       std::to_string(n_per_block) + ">";
+                algo = tiled_algo_name("block_tile", tile_axis, n_per_block);
             }
             options.set_launch_params(
                 v, compute_global_for(ctx, nelements * block_size / n_per_block, 256), block_size);
@@ -614,11 +710,15 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
     compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
         assert(not ins->module_inputs().empty());
-        auto v        = op.to_value();
+        auto v = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
-        auto* rm      = ins->module_inputs().front();
-        auto shapes   = to_shapes(ins->inputs());
+        auto* rm    = ins->module_inputs().front();
+        auto shapes = to_shapes(ins->inputs());
+        // A cached solution can be for a different module with the same
+        // shapes, so recheck that the module supports the batched algorithm
+        if(v.get("algo", std::string{}) == "block_batch" and not can_batch_reduce(*rm))
+            v["algo"] = "block_tile";
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
@@ -657,16 +757,34 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto noutputs = plan.finputs.size() - shapes.size() + 1;
         auto tile     = find_reduce_tile(
             plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());
+        assert(not ins->module_inputs().empty());
+        // The vector result of the batched pass is only assigned to a single output
+        bool batchable =
+            tile.has_value() and noutputs == 1 and can_batch_reduce(*ins->module_inputs().front());
         if(not exhaustive)
         {
             // Without exhaustive tuning, offer the heuristic default algorithm plus a few
-            // alternatives so benchmarking can decide: block_tile when a tile is
-            // found, a larger block size (max 1024 instead of 256) for block, and
+            // alternatives so benchmarking can decide: block_batch/block_tile when a tile
+            // is found, a larger block size (max 1024 instead of 256) for block, and
             // block_strided when the lane heuristics prefer it.
             if(plan.algo == "block")
             {
                 if(tile.has_value() and plan.assign == "assign_none")
                 {
+                    // The batched pass loads the broadcast input once per tile
+                    // instead of once per output, so offer it first as the
+                    // default ahead of the cache-bound block_tile
+                    auto batch_block = tile_block_size(ctx, plan.relements, 256);
+                    if(batchable and batch_iterations(tile->size, plan.relements, batch_block) <=
+                                         tuned_batch_iterations)
+                    {
+                        add_block_size_solutions(
+                            tc,
+                            "block_batch",
+                            batch_block,
+                            compute_block_size(ctx, plan.relements, 256),
+                            {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
+                    }
                     // For the cache-bound tiled reduction a smaller workgroup
                     // that leaves about 4 elements per lane pipelines enough
                     // loads to often beat the default block size, so offer
@@ -675,8 +793,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                     add_block_size_solutions(
                         tc,
                         "block_tile",
-                        compute_block_size(
-                            ctx, std::max<std::size_t>(plan.relements / 4, 1), max_block),
+                        tile_block_size(ctx, plan.relements, max_block),
                         compute_block_size(ctx, plan.relements, max_block),
                         {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
                 }
@@ -731,10 +848,19 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(tile.has_value() and plan.assign == "assign_none")
         {
             for(auto block_size : {64, 128, 256, 512})
-                tc.solutions.push_back({{"algo", "block_tile"},
-                                        {"block_size", block_size},
-                                        {"tile_axis", tile->axis},
-                                        {"n_per_block", tile->size}});
+            {
+                value solution = {{"algo", "block_tile"},
+                                  {"block_size", block_size},
+                                  {"tile_axis", tile->axis},
+                                  {"n_per_block", tile->size}};
+                tc.solutions.push_back(solution);
+                if(batchable and batch_iterations(tile->size, plan.relements, block_size) <=
+                                     tuned_batch_iterations)
+                {
+                    solution["algo"] = "block_batch";
+                    tc.solutions.push_back(solution);
+                }
+            }
         }
         return tc;
     }

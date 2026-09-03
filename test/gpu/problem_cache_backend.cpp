@@ -75,7 +75,9 @@ TEST_CASE(json_problem_cache_round_trip)
 
     EXPECT(reader.has(dk1, key_a));
     EXPECT(reader.has(dk2, key_b));
-    EXPECT(reader.has(dk1, key_b)); // sentinel still "present"
+    // The null mark() sentinel is transient and never written by save(), so the
+    // real solutions round-trip but the sentinel does not.
+    EXPECT(not reader.has(dk1, key_b));
 
     auto got_a = reader.get(dk1, key_a);
     EXPECT(bool(got_a));
@@ -85,10 +87,8 @@ TEST_CASE(json_problem_cache_round_trip)
     EXPECT(bool(got_b));
     EXPECT(*got_b == sol_b);
 
-    // Sentinel: get() returns a present optional whose value is null.
-    auto sentinel = reader.get(dk1, key_b);
-    EXPECT(bool(sentinel));
-    EXPECT(sentinel->is_null());
+    // Sentinel dropped on save: it never reaches the file, so it is a miss.
+    EXPECT(not bool(reader.get(dk1, key_b)));
 
     // Miss across buckets: dk2's bucket has no key_a.
     EXPECT(not reader.has(dk2, key_a));

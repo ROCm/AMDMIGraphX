@@ -269,4 +269,74 @@ TEST_CASE(problem_cache_no_cache_config_is_noop)
     c.save(); // no writable cache -> no-op, must not throw
 }
 
+// --------------------------------------------------------------------------
+// A fresh mark() records a null sentinel in the writable cache so duplicate ops
+// dedup on it: get() returns that null (a "benchmark in progress" signal the
+// caller skips on), not a miss, and has() reports the key present. A real
+// solution inserted afterwards replaces the sentinel.
+// --------------------------------------------------------------------------
+TEST_CASE(problem_cache_writable_mark_is_sentinel)
+{
+    migraphx::gpu::problem_cache c;
+    c.set_device_key(make_key());
+    c.load(std::vector<std::string>{}, std::vector<std::string>{});
+
+    // mark() records a null sentinel for the problem.
+    c.mark("gemm", make_problem(0));
+    EXPECT(c.has("gemm", make_problem(0)));
+    // get() returns the writable sentinel (present, null) so duplicate ops skip
+    // and reuse the in-progress benchmark instead of tuning again.
+    auto sentinel = c.get("gemm", make_problem(0));
+    EXPECT(bool(sentinel));
+    EXPECT(sentinel->is_null());
+
+    // A real solution inserted afterwards replaces the sentinel and is returned.
+    c.insert("gemm", make_problem(0), migraphx::value{{"kernel", "kReal"}});
+    auto s = c.get("gemm", make_problem(0));
+    EXPECT(bool(s));
+    EXPECT(not s->is_null());
+    EXPECT((*s).at("kernel").to<std::string>() == "kReal");
+}
+
+// --------------------------------------------------------------------------
+// A null mark() sentinel is transient and must never survive a round trip
+// through a cache file: save() drops it so it is never written. A stale null is
+// therefore a miss (has() false, get() empty), so the problem is compiled and
+// tuned fresh instead of being skipped. Regression test for the shipped-null
+// crash; covers both the read-only (shipped) and writable load paths.
+// --------------------------------------------------------------------------
+TEST_CASE(problem_cache_save_drops_null_sentinels)
+{
+    migraphx::tmp_dir td{"problem_cache_null_save"};
+    auto f = (td.path / "cache.json").string();
+
+    // Save a cache whose only entry is a null mark() sentinel: save() drops it,
+    // so the file is written without it.
+    {
+        migraphx::gpu::problem_cache w;
+        w.set_device_key(make_key());
+        w.load(std::vector<std::string>{}, std::vector<std::string>{f});
+        w.mark("gemm", make_problem(0));
+        w.save();
+    }
+
+    // Reloaded as a read-only (shipped) layer: the sentinel was never written.
+    {
+        migraphx::gpu::problem_cache c;
+        c.set_device_key(make_key());
+        c.load(std::vector<std::string>{f}, std::vector<std::string>{});
+        EXPECT(not c.has("gemm", make_problem(0)));
+        EXPECT(not bool(c.get("gemm", make_problem(0))));
+    }
+
+    // Reloaded as a writable layer: same, a dropped sentinel never comes back.
+    {
+        migraphx::gpu::problem_cache c;
+        c.set_device_key(make_key());
+        c.load(std::vector<std::string>{}, std::vector<std::string>{f});
+        EXPECT(not c.has("gemm", make_problem(0)));
+        EXPECT(not bool(c.get("gemm", make_problem(0))));
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

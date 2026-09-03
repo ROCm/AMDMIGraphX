@@ -490,9 +490,9 @@ struct context
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool exhaustive_tune      = false;
-    bool disable_processes    = false;
-    bool measure_perf         = false;
+    bool exhaustive_tune   = false;
+    bool disable_processes = false;
+    bool measure_perf      = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;

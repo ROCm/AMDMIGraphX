@@ -62,6 +62,7 @@ struct preload
     bool is_preloading() const;
     std::string str() const;
 };
+
 struct tile
 {
     enum mode
@@ -76,10 +77,16 @@ struct tile
     std::size_t block_size = 0;
     std::vector<std::size_t> inner{};
     std::vector<std::size_t> outer{};
+    MIGRAPHX_GPU_EXPORT static std::size_t compute_factor(std::size_t r, std::size_t max_size = 64);
     static tile elements(const std::vector<shape>& inputs, std::size_t noutputs);
     // bool is_preloading() const;
     std::string str() const;
 };
+
+// Reduce the dims of the inputs for a kernel that indexes a specific axis. Since
+// reduce_dims can merge and drop dims, axis is updated to where it moved to.
+MIGRAPHX_GPU_EXPORT std::vector<shape> reduce_dims_axis(std::vector<shape> inputs,
+                                                        std::size_t& axis);
 
 MIGRAPHX_GPU_EXPORT std::size_t find_fast_axis(const shape& input);
 MIGRAPHX_GPU_EXPORT std::size_t find_fast_axis(const std::vector<shape>& inputs);

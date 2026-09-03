@@ -57,6 +57,16 @@ inline auto get_alias_path(instruction_ref ins)
     });
 }
 
+inline auto get_input_path(instruction_ref ins)
+{
+    return unfold(ins, [](instruction_ref x) -> std::optional<instruction_ref> {
+        // Follow only linear input chains; branches terminate the path.
+        if(x->inputs().size() != 1)
+            return std::nullopt;
+        return x->inputs().front();
+    });
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_INSTRUCTION_TRAVERSAL_HPP

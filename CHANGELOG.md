@@ -78,6 +78,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `simplify_qdq` Q/DQ removal to preserve intervening shape operations and avoid rewrites that change output shapes.
 * Fixed the reference `nonzero` operator to handle non-standard input layouts such as transposed or broadcasted tensors (#5046).
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).

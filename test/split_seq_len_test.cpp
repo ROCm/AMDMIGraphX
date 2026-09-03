@@ -90,12 +90,17 @@ TEST_CASE(split_kv_cache_seq_len)
         const migraphx::shape slk_s{migraphx::shape::int32_type, {1}};
         const migraphx::shape past_s{migraphx::shape::float_type, {1, 1, 4, 4}};
 
-        auto create_submodule = [&](std::size_t seq_len, const std::string& x_name) {
+        // Submodule parameters are named by select_module argument position: the shared
+        // past and slk, the padded copy of x, then x itself (decode only)
+        const migraphx::shape padded_s{migraphx::shape::float_type, {1, 4, 4}};
+        auto create_submodule = [&](std::size_t seq_len, bool padded) {
             auto* submod = p0.create_module("seq_len_" + std::to_string(seq_len));
-            auto sm_past = submod->add_parameter("past", past_s);
-            auto sm_slk  = submod->add_parameter("slk", slk_s);
-            auto sm_x    = submod->add_parameter(
-                x_name, migraphx::shape{migraphx::shape::float_type, {1, seq_len, 4}});
+            auto sm_past = submod->add_parameter("x0", past_s);
+            auto sm_slk  = submod->add_parameter("x1", slk_s);
+            auto sm_x    = submod->add_parameter("x2", padded_s);
+            if(not padded)
+                sm_x = submod->add_parameter(
+                    "x3", migraphx::shape{migraphx::shape::float_type, {1, seq_len, 4}});
             auto sm_one = submod->add_literal(
                 migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1}});
             auto sm_oneb = submod->add_instruction(
@@ -115,16 +120,14 @@ TEST_CASE(split_kv_cache_seq_len)
         auto x      = mm0->add_parameter("x", x_s);
         auto slk    = mm0->add_parameter("slk", slk_s);
         auto past   = mm0->add_parameter("past", past_s);
-        auto* mod1  = create_submodule(1, "x");
-        auto* mod4  = create_submodule(4, "x#padded");
+        auto* mod1  = create_submodule(1, false);
+        auto* mod4  = create_submodule(4, true);
         auto padded = mm0->add_instruction(migraphx::make_op("fixed_pad"), x);
         const migraphx::shape out_attr{{x_s, past_s}};
-        const std::vector<std::string> param_names{"past", "slk", "x", "x#padded"};
         auto sm_ins = mm0->add_instruction(
             migraphx::make_op("select_module",
-                              {{"output_dyn_shapes", migraphx::to_value(out_attr)},
-                               {"param_names", migraphx::to_value(param_names)}}),
-            {past, slk, x, padded},
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+            {past, slk, padded, x},
             {mod1, mod4});
         auto gte0 =
             mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);

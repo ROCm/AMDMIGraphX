@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/param_utils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/sym.hpp>
@@ -41,8 +42,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
-
-const std::string padded_suffix = "#padded";
 
 struct seq_split_info
 {
@@ -298,19 +297,51 @@ void split_seq_len::apply(module_pass_manager& mpm) const
         }
     }
 
-    // Build one static submodule per sequence length. The maximum-length submodule reads
-    // the zero-padded inputs, so it serves every length the decode submodule does not.
+    // select_module binds each submodule's parameters, sorted by name, to the leading
+    // arguments in order. The arguments are laid out as the shared parameters, then a
+    // zero-padded copy of each sequence-length parameter, then the sequence-length
+    // parameters themselves, and every submodule parameter is named by its argument
+    // position with param_name so the sorted names follow that layout. The decode
+    // submodule declares every argument and so matches only when the sequence-length
+    // arguments have exactly its length; the prefill submodule declares just the
+    // leading arguments and reads the padded copies, so it matches every other length.
+    std::vector<std::string> shared_params;
+    std::copy_if(param_names.begin(),
+                 param_names.end(),
+                 std::back_inserter(shared_params),
+                 [&](const auto& name) { return not contains(info->seq_params, name); });
+    const auto padded_index = [&](std::size_t j) { return shared_params.size() + j; };
+    const auto raw_index    = [&](std::size_t j) {
+        return shared_params.size() + info->seq_params.size() + j;
+    };
+    const std::unordered_map<sym::expr, std::size_t> max_symbol_map{{info->seq, info->max}};
+
     auto build_submodule = [&](std::size_t seq_len, bool padded) {
         auto* submod = mpm.create_module("seq_len_" + std::to_string(seq_len));
         std::unordered_map<sym::expr, std::size_t> symbol_map{{info->seq, seq_len}};
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
-        for(const auto& name : param_names)
+        for(auto i : range(shared_params.size()))
         {
-            auto param        = mm->get_parameter(name);
-            auto static_shape = param->get_shape().to_static(symbol_map);
-            auto param_name =
-                (padded and contains(info->seq_params, name)) ? name + padded_suffix : name;
-            map_ins[param] = submod->add_parameter(param_name, static_shape);
+            auto param = mm->get_parameter(shared_params[i]);
+            map_ins[param] =
+                submod->add_parameter(param_name(i), param->get_shape().to_static(symbol_map));
+        }
+        for(auto j : range(info->seq_params.size()))
+        {
+            auto param        = mm->get_parameter(info->seq_params[j]);
+            auto padded_param = submod->add_parameter(param_name(padded_index(j)),
+                                                      param->get_shape().to_static(max_symbol_map));
+            if(padded)
+                map_ins[param] = padded_param;
+        }
+        if(not padded)
+        {
+            for(auto j : range(info->seq_params.size()))
+            {
+                auto param     = mm->get_parameter(info->seq_params[j]);
+                map_ins[param] = submod->add_parameter(param_name(raw_index(j)),
+                                                       param->get_shape().to_static(symbol_map));
+            }
         }
         auto outputs = submod->add_instructions(mm, &map_ins, make_static_inserter(symbol_map));
         submod->add_return(outputs);
@@ -328,30 +359,27 @@ void split_seq_len::apply(module_pass_manager& mpm) const
     if(not all_static(decode_mod) or not all_static(prefill_mod))
         return;
 
-    // Pass every parameter plus a padded copy of each sequence-length parameter; the
-    // param_names attribute lets each submodule bind only the arguments it declares.
     std::vector<instruction_ref> sm_inputs;
-    std::vector<std::string> sm_param_names;
-    for(const auto& name : param_names)
-    {
-        sm_inputs.push_back(mm->get_parameter(name));
-        sm_param_names.push_back(name);
-    }
+    std::transform(shared_params.begin(),
+                   shared_params.end(),
+                   std::back_inserter(sm_inputs),
+                   [&](const auto& name) { return mm->get_parameter(name); });
     std::vector<instruction_ref> seq_param_ins;
-    for(const auto& name : info->seq_params)
-    {
-        auto param = mm->get_parameter(name);
-        seq_param_ins.push_back(param);
-        sm_inputs.push_back(mm->add_instruction(make_op("fixed_pad"), param));
-        sm_param_names.push_back(name + padded_suffix);
-    }
+    std::transform(info->seq_params.begin(),
+                   info->seq_params.end(),
+                   std::back_inserter(seq_param_ins),
+                   [&](const auto& name) { return mm->get_parameter(name); });
+    std::transform(seq_param_ins.begin(),
+                   seq_param_ins.end(),
+                   std::back_inserter(sm_inputs),
+                   [&](auto param) { return mm->add_instruction(make_op("fixed_pad"), param); });
+    sm_inputs.insert(sm_inputs.end(), seq_param_ins.begin(), seq_param_ins.end());
 
     shape out_attr{original_output_shapes};
-    auto sm_ins = mm->add_instruction(make_op("select_module",
-                                              {{"output_dyn_shapes", to_value(out_attr)},
-                                               {"param_names", to_value(sm_param_names)}}),
-                                      sm_inputs,
-                                      {decode_mod, prefill_mod});
+    auto sm_ins =
+        mm->add_instruction(make_op("select_module", {{"output_dyn_shapes", to_value(out_attr)}}),
+                            sm_inputs,
+                            {decode_mod, prefill_mod});
 
     std::vector<instruction_ref> outputs;
     for(auto i : range(original_output_shapes.size()))

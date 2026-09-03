@@ -211,8 +211,7 @@ static void set_backend_options(compile_options& options, const char* options_js
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
 
-#ifdef MIGRAPHX_ENABLE_ONNX
-
+// Parse an expression string and bind each provided symbol name to the bounds/optimals
 // carried by its range dynamic_dimension, producing a symbolic dynamic_dimension.
 static shape::dynamic_dimension make_symbolic_dynamic_dimension(
     const char* expression,

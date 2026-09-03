@@ -187,6 +187,8 @@ extern "C" {
 __global__ void kernel(${type}* p) 
 {
     auto x = *p;
+    auto y = migraphx::vec_at(x, 0);
+    (void)y;
     *p = migraphx::test_implicit_conversion(migraphx::${invoke});
     (void)(1.f + migraphx::vec_at(migraphx::${invoke}, 0));
 }
@@ -402,13 +404,23 @@ TEST_CASE(compile_math)
         "exp(x)",
         "floor(x)",
         "fmod(x, x)",
+        "fmod(x, y)",
+        "fmod(y, x)",
         "isnan(x)",
         "log(x)",
         "max(x, x)",
+        "max(x, y)",
+        "max(y, x)",
         "min(x, x)",
+        "min(x, y)",
+        "min(y, x)",
         "pow(x, 0)",
         "pow(x, x)",
+        "pow(x, y)",
+        "pow(y, x)",
         "remainder(x,x)",
+        "remainder(x,y)",
+        "remainder(y,x)",
         "round(x)",
         "rsqrt(x)",
         "sin(x)",
@@ -417,6 +429,8 @@ TEST_CASE(compile_math)
         "tan(x)",
         "tanh(x)",
         "where(true, x, x)",
+        "where(true, x, y)",
+        "where(true, y, x)",
         // clang-format on
     };
     std::vector<std::string> data_types;

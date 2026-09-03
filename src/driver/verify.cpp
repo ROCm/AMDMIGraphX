@@ -106,7 +106,7 @@ std::string source_name(instruction_ref ins, const std::string& label)
         return not starts_with(symbol, "@verify:");
     });
     if(names.empty())
-        return "#" + label.substr(label.find(':') + 1);
+        return "#" + remove_prefix(label, "@verify:");
     return join_strings(std::move(names), ", ");
 }
 
@@ -135,6 +135,8 @@ struct verify_callback
     ref_map ref_outputs                         = {};
     std::map<std::size_t, layer_result> results = {};
 
+    std::vector<instruction_ref> source_instructions = {};
+
     // Captures ref outputs for each instruction.
     trace_function capture()
     {
@@ -148,11 +150,10 @@ struct verify_callback
         };
     }
 
-    // Get the corresponding `ref_map` iterator to the highest `order` debug symbol in `ins` that is
-    // contained in `ref_map`. Used to handle instructions with multiple debug symbols.
+    // Returns the terminal reference output when compatible symbols form a chain.
     ref_map::const_iterator terminal(instruction_ref ins, const shape& s) const
     {
-        auto result = ref_outputs.end();
+        std::vector<ref_map::const_iterator> matches;
         for(const auto& symbol : ins->get_debug_symbols())
         {
             auto it = ref_outputs.find(symbol);
@@ -163,10 +164,22 @@ struct verify_callback
             if(not shape::same_lens(rs, s) or
                shape::is_integral(rs.type()) != shape::is_integral(s.type()))
                 continue;
-            if(result == ref_outputs.end() or it->second.order > result->second.order)
-                result = it;
+            matches.push_back(it);
         }
-        return result;
+        auto result = std::max_element(matches.begin(), matches.end(), [](auto x, auto y) {
+            return x->second.order < y->second.order;
+        });
+        if(result == matches.end())
+            return ref_outputs.end();
+        auto source = [&](auto x) {
+            return source_instructions.at(std::stoull(x->first.substr(x->first.find(':') + 1)));
+        };
+        if(any_of(matches, [&](auto other) {
+               return other->second.order != (*result)->second.order and
+                      not reaches(source(other), source(*result));
+           }))
+            return ref_outputs.end();
+        return *result;
     }
 
     // Scores the target output against the captured ref output, then returns the ref value so
@@ -174,7 +187,8 @@ struct verify_callback
     substitute_function compare()
     {
         return [this](instruction_ref ins, const argument& output) -> optional<argument> {
-            if(ins->can_eval())
+            if(ins->can_eval() or ends_with(ins->name(), "::literal") or
+               contains({"broadcast", "multibroadcast"}, ins->name()))
                 return nullopt;
             if(output.get_shape().type() == shape::tuple_type)
                 return nullopt;
@@ -214,17 +228,6 @@ struct verify_callback
             [](const auto& r) { return not r.second.passed; },
             [](const auto& r) { return r.second; });
         return result;
-    }
-
-    // Returns the layer with the greatest error.
-    optional<layer_result> divergence_source() const
-    {
-        auto failed = failures();
-        if(failed.empty())
-            return nullopt;
-        return *std::max_element(failed.begin(),
-                                 failed.end(),
-                                 by(std::less<>{}, [](const auto& lr) { return lr.rms_error; }));
     }
 };
 
@@ -313,6 +316,9 @@ static optional<verify_callback> run_layerwise_compare(const program& p,
 {
     auto labeled = label_instructions(p);
     verify_callback vcb{tols};
+    copy_if(iterator_for(*p.get_main_module()),
+            std::back_inserter(vcb.source_instructions),
+            [](auto ins) { return ins->name() != "@return"; });
     run_ref(labeled, options, vo, inputs, vcb.capture());
     run_target(std::move(labeled), t, options, vo, inputs, vcb.compare());
     if(vcb.results.empty())
@@ -554,9 +560,11 @@ void verify_layerwise_program(const program& p,
     }
     for(const auto& lr : failures)
         log::error() << "FAILED at " << lr.name << " (" << lr.op << ")";
-    if(auto source = vcb->divergence_source())
-        std::cout << "Failure introduced at: " << source->name << " (" << source->op << ")"
-                  << std::endl;
+    auto source = std::max_element(failures.begin(),
+                                   failures.end(),
+                                   by(std::less<>{}, [](const auto& lr) { return lr.rms_error; }));
+    std::cout << "Failure introduced at: " << source->name << " (" << source->op << ")"
+              << std::endl;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

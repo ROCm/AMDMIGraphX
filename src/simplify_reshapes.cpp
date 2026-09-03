@@ -2220,7 +2220,9 @@ struct find_slice_squeeze
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input == squeeze)
                 return slice_ins;
-            if(input->get_shape().scalar())
+            // Rank-0/1 scalars cannot be unsqueezed; broadcast to the slice shape instead.
+            if(input->get_shape().scalar() and input->get_shape().elements() == 1 and
+               input->get_shape().ndim() <= 1)
                 return m.insert_instruction(
                     op_ins,
                     make_op("multibroadcast", {{"out_lens", slice_ins->get_shape().lens()}}),
@@ -2228,7 +2230,7 @@ struct find_slice_squeeze
             return m.insert_instruction(op_ins, make_op("unsqueeze", {{"axes", {axis}}}), input);
         });
 
-        // Unsqueezing non-scalar inputs shifts every axis at or after `axis` up by one.
+        // Unsqueezing the inputs shifts every axis at or after `axis` up by one.
         // Build the source->common axes map and let find_op_shape_transform_op
         // handle reduce/argmin/layout axis remapping (pointwise ops are inserted
         // unchanged), instead of duplicating that logic here.

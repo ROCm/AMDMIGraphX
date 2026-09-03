@@ -5401,6 +5401,46 @@ TEST_CASE(slice_squeeze_binary_two_inputs)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(slice_squeeze_clip_broadcasted_scalar)
+{
+    // GridSample-style pattern: slice/squeeze on the last axis, then clip with literals
+    // already multibroadcast to the squeezed rank by add_common_op.
+    migraphx::shape grid_s{migraphx::shape::float_type, {1, 2, 4, 2}};
+    migraphx::shape squeezed_s{migraphx::shape::float_type, {1, 2, 4}};
+    migraphx::module m1;
+    {
+        auto grid  = m1.add_parameter("grid", grid_s);
+        auto zero  = m1.add_literal(0.0f);
+        auto max   = m1.add_literal(3.0f);
+        auto slice = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), grid);
+        auto squeeze    = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), slice);
+        auto zero_bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", squeezed_s.lens()}}), zero);
+        auto max_bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", squeezed_s.lens()}}), max);
+        auto clip = m1.add_instruction(migraphx::make_op("clip"), squeeze, zero_bcast, max_bcast);
+        m1.add_return({clip});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto grid  = m2.add_parameter("grid", grid_s);
+        auto zero  = m2.add_literal(0.0f);
+        auto max   = m2.add_literal(3.0f);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), grid);
+        auto zero_bcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", slice->get_shape().lens()}}), zero);
+        auto max_bcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", slice->get_shape().lens()}}), max);
+        auto clip    = m2.add_instruction(migraphx::make_op("clip"), slice, zero_bcast, max_bcast);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), clip);
+        m2.add_return({squeeze});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(slice_squeeze_binary_scalar)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 8}};

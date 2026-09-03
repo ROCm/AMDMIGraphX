@@ -28,10 +28,126 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/optional.hpp>
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+struct adaptive_time_options
+{
+    std::size_t target_ms        = 20;
+    std::size_t preferred_bundle = 1;
+    // Floor on the sample count, taken even when it overruns target_ms, so that a candidate slower
+    // than the budget is still measured enough times to reject an interfered run.
+    std::size_t min_samples     = 4;
+    std::size_t max_samples     = 20;
+    std::size_t max_executions  = 10000;
+    std::size_t warmup_ms       = 5;
+    std::size_t max_warmup_runs = 50;
+    std::size_t estimate_runs   = 1;
+    double estimated_ms         = 0.0;
+};
+
+struct timing_schedule
+{
+    std::size_t bundle      = 1;
+    std::size_t samples     = 1;
+    std::size_t executions  = 1;
+    std::size_t warmup_runs = 1;
+};
+
+struct adaptive_tuning_options
+{
+    adaptive_tuning_options()
+    {
+        coarse.target_ms = 10;
+        coarse.warmup_ms = 0;
+        // The coarse stage only has to rank candidates and it runs on every one of them, so it
+        // keeps a single sample for slow candidates instead of paying the min_samples floor.
+        coarse.min_samples    = 1;
+        precise.warmup_ms     = 0;
+        precise.estimate_runs = 1;
+    }
+
+    // Number of successful precise timings to collect. Zero precisely times every candidate.
+    std::size_t top_k = 10;
+    adaptive_time_options coarse{};
+    adaptive_time_options precise{};
+    // Delay after each candidate-stage timing to reduce thermal interference.
+    std::size_t sleep_us = 100;
+};
+
+enum class adaptive_time_stage
+{
+    coarse,
+    precise
+};
+
+using adaptive_time_callback =
+    std::function<optional<double>(std::size_t, const adaptive_time_options&)>;
+
+using adaptive_time_stage_callback =
+    std::function<optional<double>(std::size_t, adaptive_time_stage, const adaptive_time_options&)>;
+
+struct adaptive_time_budget
+{
+    // Maximum number of calls made by one adaptive_time_loop invocation, including lazy
+    // initialization, estimation, warmup, and measured executions. Zero leaves it unlimited.
+    std::size_t max_executions = 0;
+    bool skip_initialization   = false;
+};
+
+struct MIGRAPHX_GPU_EXPORT prepared_time_program
+{
+    program p;
+    std::vector<migraphx::context> contexts;
+    std::shared_ptr<parameter_map> params;
+    std::size_t executions = 0;
+
+    prepared_time_program(program input,
+                          std::vector<migraphx::context> input_contexts,
+                          std::shared_ptr<parameter_map> input_params);
+
+    migraphx::gpu::context& get_context();
+    void run();
+};
+
+// params is a hint for reusing input buffers across programs. It is adopted only when it covers
+// every parameter of p with a matching shape, and freshly generated buffers are used otherwise.
+MIGRAPHX_GPU_EXPORT prepared_time_program
+prepare_time_program(const context& ictx,
+                     program p,
+                     const std::unordered_map<std::string, double>& fill_map,
+                     std::shared_ptr<parameter_map> params = {});
+
+MIGRAPHX_GPU_EXPORT timing_schedule
+make_timing_schedule(double estimate_ms, const adaptive_time_options& input_options);
+
+MIGRAPHX_GPU_EXPORT double adaptive_time_loop(migraphx::gpu::context& gctx,
+                                              const adaptive_time_options& options,
+                                              const std::function<void()>& f);
+
+MIGRAPHX_GPU_EXPORT double adaptive_time_loop(migraphx::gpu::context& gctx,
+                                              const adaptive_time_options& input_options,
+                                              const adaptive_time_budget& budget,
+                                              const std::function<void()>& f);
+
+MIGRAPHX_GPU_EXPORT optional<std::size_t>
+adaptive_time_topk(std::size_t candidate_count,
+                   const adaptive_tuning_options& options,
+                   const adaptive_time_callback& benchmark);
+
+MIGRAPHX_GPU_EXPORT optional<std::size_t>
+adaptive_time_topk_staged(std::size_t candidate_count,
+                          const adaptive_tuning_options& options,
+                          const adaptive_time_stage_callback& benchmark);
 
 MIGRAPHX_GPU_EXPORT double time_op(const context& ictx,
                                    operation op,
@@ -44,6 +160,19 @@ MIGRAPHX_GPU_EXPORT double time_program(const context& ictx,
                                         const std::unordered_map<std::string, double>& fill_map,
                                         int bundle = 1,
                                         int nruns  = 100);
+
+MIGRAPHX_GPU_EXPORT double
+adaptive_time_program(const context& ictx,
+                      program p,
+                      const std::unordered_map<std::string, double>& fill_map,
+                      const adaptive_time_options& options);
+
+MIGRAPHX_GPU_EXPORT double adaptive_time_program(prepared_time_program& prepared,
+                                                 const adaptive_time_options& options);
+
+MIGRAPHX_GPU_EXPORT double adaptive_time_program(prepared_time_program& prepared,
+                                                 const adaptive_time_options& options,
+                                                 const adaptive_time_budget& input_budget);
 
 /* benchmark gpu::code_object with expected input shapes over n iterations */
 MIGRAPHX_GPU_EXPORT double

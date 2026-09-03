@@ -49,6 +49,8 @@ Full documentation for MIGraphX is available at
 * Added symbolic evaluation of tensor values to preserve ONNX shape-tensor expressions through arithmetic and dynamic shape consumers, including `Reshape`, `Range`, `Slice`, `Expand`, `ConstantOfShape`, and `Trilu` (#5148).
 * Added a `find_slice_reshaped_concat` matcher to `simplify_reshapes` that forwards a slice reading exactly one segment of a concat through intervening reshape/transpose view ops, removing the concat entirely (#5183).
 * Added find_concat_same_broadcast matcher to convert concat of identical broadcasts into a single multibroadcast to reduce hipCopy() (#5179).
+* Added adaptive GPU JIT tuning that briefly benchmarks each valid candidate, then remeasures the fastest candidates with a larger timing budget.
+
 
 ### Changed
 

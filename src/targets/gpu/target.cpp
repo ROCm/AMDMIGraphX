@@ -117,14 +117,16 @@ struct backend_options
     std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
+    compile_ops_tuning_overrides tuning{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
-                    f(self.problem_cache_files, "problem_cache_files"),
-                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
-                    f(self.convolution_layout, "convolution_layout"));
+        return pack_join(pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                              f(self.problem_cache_files, "problem_cache_files"),
+                              f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
+                              f(self.convolution_layout, "convolution_layout")),
+                         migraphx::reflect(self.tuning, f));
     }
 };
 
@@ -288,7 +290,8 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager},
+                        options.compile_mode == compile_modes::eager,
+                        backend_opts.tuning.resolve()},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},

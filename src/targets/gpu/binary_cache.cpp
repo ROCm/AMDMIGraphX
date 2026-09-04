@@ -115,21 +115,6 @@ static void write_atomically(const fs::path& dest, const std::vector<char>& cont
     fs::rename(tmp, dest);
 }
 
-/// Record what this build is, so a directory full of hashes can be identified later.
-static void write_stamp(const fs::path& dir)
-{
-    auto stamp = dir / "cache.info";
-    if(fs::exists(stamp))
-        return;
-    std::stringstream ss;
-    ss << "format: " << binary_cache_format << "\n";
-    ss << "hip: " << hip_compiler_version().version << "\n";
-    ss << "kernels: " << kernels_digest() << "\n";
-    ss << "rocmlir: " << rocmlir_id << "\n";
-    auto s = ss.str();
-    write_atomically(stamp, std::vector<char>(s.begin(), s.end()));
-}
-
 /// Read the entry for a key off disk. Any failure is just a miss, so a damaged entry costs a
 /// recompile and is written over.
 static optional<binary_cache::entry>
@@ -192,7 +177,6 @@ void binary_cache::insert(const context& ctx, entry e)
         try
         {
             fs::create_directories(path.parent_path());
-            write_stamp(fs::path(root) / version_dir());
             write_atomically(path, to_msgpack(migraphx::to_value(e)));
         }
         catch(const std::exception& ex)

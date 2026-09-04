@@ -113,11 +113,12 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
 
     const stats& get_stats() const { return counters; }
 
-    /// Names the directory holding entries that this build can use: the entry format, the
-    /// compiler, a digest of the embedded kernel headers, and the rocMLIR build. Empty when the
-    /// compiler cannot be identified, in which case nothing is read from or written to disk,
-    /// since entries from different compilers could not be told apart.
-    static const std::string& version_dir();
+    /// Identifies what this build can use: the entry format, the compiler, a digest of the
+    /// embedded kernel headers, and the rocMLIR build. Digests are truncated when a short id is
+    /// requested; the short id names the cache directory. Empty when the compiler cannot be
+    /// identified, in which case nothing is read from or written to disk, since entries from
+    /// different compilers could not be told apart.
+    static const std::string& version_id(bool use_short_digest);
 
     private:
     std::unordered_map<std::string, compiled_code> memo;

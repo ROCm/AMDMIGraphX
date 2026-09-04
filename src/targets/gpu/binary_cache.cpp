@@ -52,37 +52,48 @@ static constexpr const char* rocmlir_id = "nomlir";
 
 std::shared_ptr<binary_cache> make_binary_cache() { return std::make_shared<binary_cache>(); }
 
-static std::string short_digest(const std::string& s) { return md5(s).substr(0, 12); }
-
-/// A digest of the kernel headers compiled into this build. Taken from the embedded sources
-/// rather than the files on disk, so it tracks what is actually compiled even when the build
-/// system has not reconfigured.
-static const std::string& kernels_digest()
+/// An md5 digest, truncated for readability when a short one is requested.
+static std::string digest(const std::string& s, bool use_short_digest)
 {
-    static const std::string digest = [] {
+    auto d = md5(s);
+    if(use_short_digest)
+        d.resize(12);
+    return d;
+}
+
+/// The kernel headers compiled into this build. Taken from the embedded sources rather than
+/// the files on disk, so it tracks what is actually compiled even when the build system has
+/// not reconfigured.
+static const std::string& kernels_source()
+{
+    static const std::string src = [] {
         std::stringstream ss;
         for(const auto& [path, content] : ::migraphx_kernels())
         {
             ss << path << "\n" << content << "\n";
         }
-        return short_digest(ss.str());
+        return ss.str();
     }();
-    return digest;
+    return src;
 }
 
-const std::string& binary_cache::version_dir()
+static std::string make_version_id(bool use_short_digest)
 {
-    static const std::string dir = [] {
-        const auto& compiler = hip_compiler_version();
-        if(compiler.empty())
-            return std::string{};
-        // The version numbers make the directory readable; the hash of the full version string
-        // separates builds that share them, since it also covers the source revision.
-        return std::string{binary_cache_format} + "-hip" + compiler.major + "." + compiler.minor +
-               "." + short_digest(compiler.version) + "-kernels" + kernels_digest() + "-rocmlir" +
-               rocmlir_id;
-    }();
-    return dir;
+    const auto& compiler = hip_compiler_version();
+    if(compiler.empty())
+        return {};
+    // The version numbers make the id readable; the hash of the full version string
+    // separates builds that share them, since it also covers the source revision.
+    return std::string{binary_cache_format} + "-hip" + compiler.major + "." + compiler.minor +
+           "." + digest(compiler.version, use_short_digest) + "-kernels" +
+           digest(kernels_source(), use_short_digest) + "-rocmlir" + rocmlir_id;
+}
+
+const std::string& binary_cache::version_id(bool use_short_digest)
+{
+    static const std::string short_id = make_version_id(true);
+    static const std::string long_id  = make_version_id(false);
+    return use_short_digest ? short_id : long_id;
 }
 
 /// Entries are grouped by the device they were compiled for. This keeps the directory
@@ -99,7 +110,7 @@ static std::string device_dir(const context& ctx)
 /// from different toolchains would be indistinguishable.
 static fs::path entry_path(const fs::path& root, const context& ctx, const std::string& key)
 {
-    const auto& version = binary_cache::version_dir();
+    const auto& version = binary_cache::version_id(true);
     if(version.empty())
         return {};
     return root / version / device_dir(ctx) / (md5(key) + ".mxr");

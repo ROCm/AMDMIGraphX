@@ -334,11 +334,15 @@ TEST_CASE(key_covers_more_than_the_source)
     EXPECT(migraphx::gpu::hip_compile_key(ctx, changed_views) != base);
 }
 
-TEST_CASE(version_dir_is_stable)
+TEST_CASE(version_id_is_stable)
 {
-    EXPECT(migraphx::gpu::binary_cache::version_dir() ==
-           migraphx::gpu::binary_cache::version_dir());
-    EXPECT(not migraphx::gpu::binary_cache::version_dir().empty());
+    EXPECT(migraphx::gpu::binary_cache::version_id(true) ==
+           migraphx::gpu::binary_cache::version_id(true));
+    EXPECT(migraphx::gpu::binary_cache::version_id(false) ==
+           migraphx::gpu::binary_cache::version_id(false));
+    EXPECT(not migraphx::gpu::binary_cache::version_id(true).empty());
+    EXPECT(migraphx::gpu::binary_cache::version_id(true) !=
+           migraphx::gpu::binary_cache::version_id(false));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

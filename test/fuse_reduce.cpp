@@ -1947,4 +1947,56 @@ TEST_CASE(unpack_int4_unreduced_axis)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(pointwise_reshapes_reduce_shadowed_broadcast)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 2, 4}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", xs);
+        auto w   = mm->add_parameter("w", ws);
+        auto pw0 = add_pointwise(p1, "main:pointwise0", {x}, single_pointwise("sqrt"));
+        auto xu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), pw0);
+        auto xb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 8}}}), xu);
+        auto pw1  = add_pointwise(p1, "main:pointwise1", {w}, single_pointwise("exp"));
+        auto wu   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), pw1);
+        auto wr   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 8}}}), wu);
+        auto mul  = add_pointwise(p1, "main:pointwise2", {xb, wr}, single_pointwise("mul"));
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+
+    // The x chain broadcasts an unreduced axis so it cant be rewritten; it
+    // must not shadow the rewritable reshape chain on the w input
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", xs);
+        auto w   = mm->add_parameter("w", ws);
+        auto pw0 = add_pointwise(p2, "main:pointwise0", {x}, single_pointwise("sqrt"));
+        auto wu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w);
+        auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 2, 4}}}), pw0);
+        auto xb  = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 4}}}), xr);
+        auto rsum = add_reduce(
+            p2,
+            "main:pointwise1:main:pointwise2:main:reduce_sum0_reshape",
+            {wu, xb},
+            {2, 3},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto exp =
+                    add_pointwise(p2, rm, "main:pointwise1", {inputs[0]}, single_pointwise("exp"));
+                auto mul = add_pointwise(
+                    p2, rm, "main:pointwise2", {inputs[1], exp}, single_pointwise("mul"));
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+            });
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), rsum);
+        mm->add_return({sq});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

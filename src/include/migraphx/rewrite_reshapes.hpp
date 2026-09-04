@@ -34,6 +34,7 @@
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -86,8 +87,36 @@ struct rewrite_reshapes
             auto pointwise         = match::name(op1)(match::used_once());
             auto reshapes_pointwise =
                 reshapes(match::arg(0)(match::skip(reshapes())(pointwise.bind("x"))));
-            return match::name(op2)(
-                match::any_of[match::inputs()](reshapes_pointwise.bind("input")));
+            // A chain that matches but cant be rewritten (eg an
+            // element-expanding broadcast) would shadow a rewritable chain on
+            // another input, so scan the inputs for a viable chain instead
+            return match::name(op2)(match::make_basic_fun_matcher(
+                [=](match::matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+                    const auto& inputs = ins->inputs();
+                    auto it =
+                        std::find_if(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+                            if(not reshapes_pointwise.match(ctx, input).has_value())
+                                return false;
+                            return is_viable(ins, input, ctx.instructions.at("x"));
+                        });
+                    if(it == inputs.end())
+                        return nullopt;
+                    ctx.instructions["input"] = *it;
+                    return ins;
+                }));
+        }
+
+        static bool is_viable(instruction_ref ins, instruction_ref input_ins, instruction_ref x_ins)
+        {
+            // cppcheck-suppress knownConditionTrueFalse
+            if(not T::matches(x_ins))
+                return false;
+            // If its just a broadcast then skip
+            if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
+                   return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
+               }))
+                return false;
+            return elements(T::base_dims(ins)) == elements(T::base_dims(x_ins));
         }
 
         template <class F>
@@ -139,20 +168,10 @@ struct rewrite_reshapes
             auto input_ins   = r.instructions["input"];
 
             // cppcheck-suppress knownConditionTrueFalse
-            if(not T::matches(ins) or not T::matches(x_ins))
+            if(not T::matches(ins) or not is_viable(ins, input_ins, x_ins))
                 return;
 
-            // If its just a broadcast then skip
-            if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
-                   return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
-               }))
-                return;
-
-            auto dims1 = T::base_dims(ins);
             auto dims2 = T::base_dims(x_ins);
-
-            if(elements(dims1) != elements(dims2))
-                return;
 
             std::vector<operation> ops;
             auto next_ins = input_ins;

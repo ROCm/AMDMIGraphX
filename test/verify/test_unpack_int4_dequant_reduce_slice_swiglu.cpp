@@ -40,10 +40,10 @@ struct test_unpack_int4_dequant_reduce_slice_swiglu
                                                     migraphx::instruction_ref scales,
                                                     migraphx::instruction_ref zp)
     {
-        auto n      = packed->get_shape().lens().front();
-        auto k      = 2 * packed->get_shape().lens().back();
-        auto blocks = scales->get_shape().lens().at(1);
-        auto up     = mm.add_instruction(migraphx::make_op("unpack_int4"), packed);
+        auto n            = packed->get_shape().lens().front();
+        auto k            = 2 * packed->get_shape().lens().back();
+        auto blocks       = scales->get_shape().lens().at(1);
+        auto up           = mm.add_instruction(migraphx::make_op("unpack_int4"), packed);
         auto scales_bcast = mm.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {n, blocks, k / blocks}}}), scales);
         auto scales_flat =
@@ -64,10 +64,9 @@ struct test_unpack_int4_dequant_reduce_slice_swiglu
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x   = mm->add_parameter("x", {migraphx::shape::half_type, {1, 1, 32}});
-        auto packed1 =
-            mm->add_parameter("wp1", {migraphx::shape::uint8_type, {16, 16}});
+        auto* mm     = p.get_main_module();
+        auto x       = mm->add_parameter("x", {migraphx::shape::half_type, {1, 1, 32}});
+        auto packed1 = mm->add_parameter("wp1", {migraphx::shape::uint8_type, {16, 16}});
         auto scales1 = mm->add_parameter("scales1", {migraphx::shape::half_type, {16, 4, 1}});
         auto packed2 = mm->add_parameter("wp2", {migraphx::shape::uint8_type, {4, 4}});
         auto scales2 = mm->add_parameter("scales2", {migraphx::shape::half_type, {4, 1, 1}});

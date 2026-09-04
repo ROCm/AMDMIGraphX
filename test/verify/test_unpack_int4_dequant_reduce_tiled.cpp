@@ -30,8 +30,7 @@
 
 // An int4 dequantized matvec as a reduction with enough short rows that the
 // tuner is offered the block_tile algorithm computing two rows per workgroup
-struct test_unpack_int4_dequant_reduce_tiled
-    : verify_program<test_unpack_int4_dequant_reduce_tiled>
+struct test_unpack_int4_dequant_reduce_tiled : verify_program<test_unpack_int4_dequant_reduce_tiled>
 {
     migraphx::program create_program() const
     {

@@ -156,6 +156,28 @@ struct pipeline_factory
     // cppcheck-suppress CastIntegerToAddressAtReturn
     context* get_context() const { return any_cast<context>(gctx_ptr); }
 
+    fuse_pointwise_reduce get_fuse_pointwise_reduce() const
+    {
+        const auto& device = get_context()->get_current_device();
+        fuse_pointwise_reduce result;
+        // A workgroup per reduction output fills the device once the batch
+        // reaches the number of resident workgroups
+        auto max_batch = device.get_max_workgroups();
+        if(max_batch > 0)
+            result.lower_max_batch = max_batch;
+        // Fusing trailing operators into the small completion reduce of a
+        // split needs enough outputs to stream the full-sized result: an
+        // eighth of the resident workgroups, tuned on gfx1201
+        result.min_fused_outputs = std::max<std::size_t>(result.lower_max_batch / 8, 1);
+        // With a large batch the fused kernel re-reads each row from the
+        // last-level cache, so a split is only needed once the resident
+        // rows (sized for 2-byte types) no longer fit
+        auto cache_elements = device.get_last_level_cache_size() / (2 * result.lower_max_batch);
+        if(cache_elements > 0)
+            result.upper_split_size = cache_elements;
+        return result;
+    }
+
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
@@ -242,7 +264,7 @@ struct pipeline_factory
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
-            fuse_pointwise_reduce{},
+            get_fuse_pointwise_reduce(),
             dead_code_elimination{},
 #ifndef _WIN32
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),

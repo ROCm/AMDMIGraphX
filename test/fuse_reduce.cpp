@@ -245,6 +245,52 @@ TEST_CASE(pointwise_broadcast_reduce)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(pointwise_squeeze_broadcast_reduce)
+{
+    // Reshapes between the pointwise and the broadcast are replayed on the
+    // pointwise inputs so the pointwise can still fuse into the reduce.
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 1, 4}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 4, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s1);
+        auto add  = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2}}}), add);
+        auto badd = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", s2.lens()}}), sq);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), badd);
+        mm->add_return({rsum});
+    }
+    run_pass(p1, {.enable_rewrite_broadcasts = true});
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s1);
+        auto sx  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2}}}), x);
+        auto bx  = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", s2.lens()}}), sx);
+        auto sy = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2}}}), y);
+        auto by = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", s2.lens()}}), sy);
+        auto rsum = add_reduce(
+            p2,
+            "main:pointwise0:main:reduce_sum0",
+            {bx, by},
+            {2, 3},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto add =
+                    add_pointwise(p2, rm, "main:pointwise0", inputs, single_pointwise("add"));
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), add);
+            });
+        mm->add_return({rsum});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(reduce_broadcast_reduce_same_axes)
 {
     // The broadcast expands both the reduced axis and an axis that was already

@@ -900,6 +900,20 @@ struct mlir_program
     {
         mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddHighLevelPipeline(pm_front.get());
+        // At trace level 3, print the IR after a failing pass for debugging
+        if(value_of(MIGRAPHX_TRACE_MLIR{}) >= 3)
+        {
+            mlirContextEnableMultithreading(ctx.get(), false);
+            MlirOpPrintingFlags flags = mlirOpPrintingFlagsCreate();
+            mlirPassManagerEnableIRPrinting(pm_front.get(),
+                                            /*printBeforeAll=*/false,
+                                            /*printAfterAll=*/true,
+                                            /*printModuleScope=*/true,
+                                            /*printAfterOnlyOnChange=*/false,
+                                            /*printAfterOnlyOnFailure=*/true,
+                                            flags,
+                                            mlirStringRefCreate("", 0));
+        }
         logger.clear();
         if(mlirLogicalResultIsFailure(
                mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()))))

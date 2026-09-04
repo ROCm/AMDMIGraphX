@@ -76,4 +76,134 @@ TEST_CASE(standard_literal_unchanged)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// The kv-cache mask sequence length is broadcast over the leading batch and
+// heads dimensions in a separate step so rocMLIR can bind a {batch, heads}
+// tensor that matches the attention batch.
+TEST_CASE(kv_cache_mask_seq_len)
+{
+    const auto f = migraphx::shape::float_type;
+    const auto i = migraphx::shape::int32_type;
+    migraphx::shape ss{i, {1, 1}};
+    migraphx::shape scores_s{f, {1, 3, 1, 4}};
+
+    migraphx::module m1;
+    {
+        auto scores  = m1.add_parameter("scores", scores_s);
+        auto seq_len = m1.add_parameter("seq_len", ss);
+        auto iota    = m1.add_literal(migraphx::literal{migraphx::shape{i, {4}}, {0, 1, 2, 3}});
+        auto biota   = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1, 4}}}), iota);
+        auto rsl = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 1}}}), seq_len);
+        auto bsl = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {1, 1, 1, 4}}}), rsl);
+        auto gt  = m1.add_instruction(migraphx::make_op("greater"), biota, bsl);
+        auto cvt = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), gt);
+        auto bcond = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), cvt);
+        auto ninf = m1.add_literal(migraphx::literal{migraphx::shape{f, {1}}, {-1e9f}});
+        auto binf = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), ninf);
+        auto w = m1.add_instruction(migraphx::make_op("where"), bcond, binf, scores);
+        m1.add_return({w});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto scores  = m2.add_parameter("scores", scores_s);
+        auto seq_len = m2.add_parameter("seq_len", ss);
+        auto iota    = m2.add_literal(migraphx::literal{migraphx::shape{i, {4}}, {0, 1, 2, 3}});
+        auto biota   = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), iota);
+        auto flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1}}}), seq_len);
+        auto lead =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3}}}), flat);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), lead);
+        auto bsl  = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), unsq);
+        auto gt  = m2.add_instruction(migraphx::make_op("greater"), biota, bsl);
+        auto cvt = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), gt);
+        auto bcond = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), cvt);
+        auto ninf = m2.add_literal(migraphx::literal{migraphx::shape{f, {1}}, {-1e9f}});
+        auto binf = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), ninf);
+        auto w = m2.add_instruction(migraphx::make_op("where"), bcond, binf, scores);
+        m2.add_return({w});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Running the pass a second time makes no further changes
+TEST_CASE(kv_cache_mask_seq_len_idempotent)
+{
+    const auto f = migraphx::shape::float_type;
+    const auto i = migraphx::shape::int32_type;
+    migraphx::shape ss{i, {1, 1}};
+    migraphx::shape scores_s{f, {1, 3, 1, 4}};
+
+    migraphx::module m1;
+    {
+        auto scores  = m1.add_parameter("scores", scores_s);
+        auto seq_len = m1.add_parameter("seq_len", ss);
+        auto iota    = m1.add_literal(migraphx::literal{migraphx::shape{i, {4}}, {0, 1, 2, 3}});
+        auto biota   = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1, 4}}}), iota);
+        auto rsl = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 1}}}), seq_len);
+        auto bsl = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {1, 1, 1, 4}}}), rsl);
+        auto gt  = m1.add_instruction(migraphx::make_op("greater"), biota, bsl);
+        auto cvt = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), gt);
+        auto bcond = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), cvt);
+        auto ninf = m1.add_literal(migraphx::literal{migraphx::shape{f, {1}}, {-1e9f}});
+        auto binf = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), ninf);
+        auto w = m1.add_instruction(migraphx::make_op("where"), bcond, binf, scores);
+        m1.add_return({w});
+    }
+    run_pass(m1);
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A mask with no heads to broadcast over is left untouched
+TEST_CASE(kv_cache_mask_seq_len_no_heads)
+{
+    const auto f = migraphx::shape::float_type;
+    const auto i = migraphx::shape::int32_type;
+    migraphx::shape ss{i, {1, 1}};
+    migraphx::shape scores_s{f, {1, 1, 1, 4}};
+
+    migraphx::module m1;
+    {
+        auto scores  = m1.add_parameter("scores", scores_s);
+        auto seq_len = m1.add_parameter("seq_len", ss);
+        auto iota    = m1.add_literal(migraphx::literal{migraphx::shape{i, {4}}, {0, 1, 2, 3}});
+        auto biota   = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1, 4}}}), iota);
+        auto rsl = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 1}}}), seq_len);
+        auto bsl = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {1, 1, 1, 4}}}), rsl);
+        auto gt  = m1.add_instruction(migraphx::make_op("greater"), biota, bsl);
+        auto cvt = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), gt);
+        auto ninf = m1.add_literal(migraphx::literal{migraphx::shape{f, {1}}, {-1e9f}});
+        auto binf = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), ninf);
+        auto w = m1.add_instruction(migraphx::make_op("where"), cvt, binf, scores);
+        m1.add_return({w});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -84,11 +84,29 @@ static std::optional<instruction_ref> find_upstream_named(instruction_ref start,
     return *it;
 }
 
+// The projection dot that consumes the attention output through its
+// transpose/reshape epilogue. Rewriting it to a reduction lets
+// simplify_reshapes fold the epilogue into the reduction's view chain, which
+// destroys the transpose+reshape pattern fuse_attention anchors on.
+static std::optional<instruction_ref> find_projection_dot(instruction_ref v_dot)
+{
+    static const std::unordered_set<std::string> epilogue_ops = {
+        "transpose", "reshape", "unsqueeze", "squeeze", "multibroadcast", "broadcast", "convert"};
+    auto path = get_output_path(v_dot);
+    auto it   = std::find_if(std::next(path.begin()), path.end(), [&](instruction_ref ins) {
+        return not contains(epilogue_ops, ins->name());
+    });
+    if(it == path.end() or (*it)->name() != "dot")
+        return std::nullopt;
+    return *it;
+}
+
 // Scan the module for attention dots by matching the decomposed softmax
 // pattern (match::softmax matches the final div). A softmax whose input
 // reaches a dot upstream and whose output reaches another dot downstream
 // identifies the Q*K^T and softmax*V dots of attention; both are marked so
-// find_dot leaves them alone.
+// find_dot leaves them alone, along with the projection dot after the
+// attention epilogue.
 static std::unordered_set<instruction_ref> collect_attention_dots(module& m)
 {
     std::unordered_set<instruction_ref> result;
@@ -104,6 +122,9 @@ static std::unordered_set<instruction_ref> collect_attention_dots(module& m)
         {
             result.insert(*q_dot);
             result.insert(*v_dot);
+            auto proj_dot = find_projection_dot(*v_dot);
+            if(proj_dot.has_value())
+                result.insert(*proj_dot);
         }
     }
     return result;

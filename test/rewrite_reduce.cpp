@@ -328,6 +328,58 @@ TEST_CASE(dot_mul_softmax_return_rewrite)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// The skinny projection dot after the attention epilogue (transpose+reshape)
+// is skipped so fuse_attention can still match the epilogue; the attention
+// dots stay and only the softmax is decomposed.
+TEST_CASE(dot_softmax_dot_projection_no_rewrite)
+{
+    migraphx::shape q_shape{migraphx::shape::float_type, {1, 2, 2, 8}};
+    migraphx::shape k_shape{migraphx::shape::float_type, {1, 2, 8, 8}};
+    migraphx::shape v_shape{migraphx::shape::float_type, {1, 2, 8, 8}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {1, 16, 4}};
+    migraphx::module m1;
+    {
+        auto q       = m1.add_parameter("q", q_shape);
+        auto k       = m1.add_parameter("k", k_shape);
+        auto v       = m1.add_parameter("v", v_shape);
+        auto w       = m1.add_parameter("w", w_shape);
+        auto dot_qk  = m1.add_instruction(migraphx::make_op("dot"), q, k);
+        auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), dot_qk);
+        auto dot_v   = m1.add_instruction(migraphx::make_op("dot"), softmax, v);
+        auto trans   = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), dot_v);
+        auto rsp  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 16}}}), trans);
+        auto proj = m1.add_instruction(migraphx::make_op("dot"), rsp, w);
+        m1.add_return({proj});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto q       = m2.add_parameter("q", q_shape);
+        auto k       = m2.add_parameter("k", k_shape);
+        auto v       = m2.add_parameter("v", v_shape);
+        auto w       = m2.add_parameter("w", w_shape);
+        auto dot_qk  = m2.add_instruction(migraphx::make_op("dot"), q, k);
+        auto rmax    = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), dot_qk);
+        auto rmax_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 8}}}), rmax);
+        auto sub     = m2.add_instruction(migraphx::make_op("sub"), dot_qk, rmax_bc);
+        auto exp     = m2.add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum    = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto rsum_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 8}}}), rsum);
+        auto div   = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+        auto dot_v = m2.add_instruction(migraphx::make_op("dot"), div, v);
+        auto trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), dot_v);
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 16}}}), trans);
+        auto proj = m2.add_instruction(migraphx::make_op("dot"), rsp, w);
+        m2.add_return({proj});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(softmax_dot_scale_where_fp32_convert_after)
 {
     migraphx::shape dot_shape{migraphx::shape::half_type, {1, 12, 1, 128}};

@@ -27,6 +27,8 @@
 #include <thread>
 #include <cmath>
 #include <algorithm>
+#include <exception>
+#include <mutex>
 #include <vector>
 #include <cassert>
 
@@ -62,15 +64,37 @@ auto thread_invoke(std::size_t i, std::size_t, F f) -> decltype(f(i))
     f(i);
 }
 
+// Runs f over [start, last), capturing the first exception thrown
 template <class F>
-void simple_par_for_impl(std::size_t n, std::size_t threadsize, F f)
+void thread_invoke_range(std::size_t start,
+                         std::size_t last,
+                         std::size_t tid,
+                         F f,
+                         std::exception_ptr& eptr,
+                         std::mutex& eptr_mutex)
 {
-    if(threadsize <= 1)
+    try
     {
-        for(std::size_t i = 0; i < n; i++)
-            thread_invoke(i, 0, f);
+        for(std::size_t i = start; i < last; i++)
+        {
+            thread_invoke(i, tid, f);
+        }
     }
-    else
+    catch(...)
+    {
+        std::lock_guard<std::mutex> lock(eptr_mutex);
+        if(eptr == nullptr)
+            eptr = std::current_exception();
+    }
+}
+
+// Runs f over [0, n) on the given number of threads. An exception thrown on a
+// worker thread is captured and returned after all threads are joined.
+template <class F>
+std::exception_ptr simple_par_for_threads(std::size_t n, std::size_t threadsize, F f)
+{
+    std::exception_ptr eptr;
+    std::mutex eptr_mutex;
     {
         std::vector<joinable_thread> threads(threadsize);
 // Using const here causes gcc 5 to ICE
@@ -81,20 +105,32 @@ void simple_par_for_impl(std::size_t n, std::size_t threadsize, F f)
 
         std::size_t work = 0;
         std::size_t tid  = 0;
-        std::generate(threads.begin(), threads.end(), [=, &work, &tid] {
-            auto result = joinable_thread([=] {
-                std::size_t start = work;
-                std::size_t last  = std::min(n, work + grainsize);
-                for(std::size_t i = start; i < last; i++)
-                {
-                    thread_invoke(i, tid, f);
-                }
+        std::generate(threads.begin(), threads.end(), [=, &work, &tid, &eptr, &eptr_mutex] {
+            auto result = joinable_thread([=, &eptr, &eptr_mutex] {
+                thread_invoke_range(work, std::min(n, work + grainsize), tid, f, eptr, eptr_mutex);
             });
             work += grainsize;
             ++tid;
             return result;
         });
         assert(work >= n);
+    }
+    return eptr;
+}
+
+template <class F>
+void simple_par_for_impl(std::size_t n, std::size_t threadsize, F f)
+{
+    if(threadsize <= 1)
+    {
+        for(std::size_t i = 0; i < n; i++)
+            thread_invoke(i, 0, f);
+    }
+    else
+    {
+        auto eptr = simple_par_for_threads(n, threadsize, f);
+        if(eptr)
+            std::rethrow_exception(eptr);
     }
 }
 

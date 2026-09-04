@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,25 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_FIXED_PAD_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_FIXED_PAD_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_SPLIT_SYM_DIM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SPLIT_SYM_DIM_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include <cstddef>
+#include <string>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
 
-argument MIGRAPHX_DEVICE_EXPORT fixed_pad(hipStream_t stream,
-                                          const argument& result,
-                                          const argument& arg,
-                                          float value);
+/**
+ * Precompile a graph carrying symbolic (dynamic) dimensions into a small set of
+ * fully-static submodules, one per optimal size combination, referenced by a
+ * `select_module`. Each submodule pads its symbolic inputs up to a fixed
+ * optimal size and runs the ahead-of-time-compiled static body. Runtime
+ * symbolic extents drive clone-local masks and main-module output slices.
+ *
+ * Supports multiple simultaneous symbolic dimensions. `max_clones` limits the
+ * cartesian product; zero disables the limit.
+ */
+struct MIGRAPHX_EXPORT split_sym_dim
+{
+    std::size_t max_clones = 64;
 
-} // namespace device
-} // namespace gpu
+    std::string name() const { return "split_sym_dim"; }
+    void apply(module_pass_manager& mpm) const;
+};
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

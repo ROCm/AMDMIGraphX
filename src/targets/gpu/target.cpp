@@ -67,7 +67,7 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_reduce.hpp>
-#include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/split_sym_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
@@ -159,7 +159,7 @@ struct pipeline_factory
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
-            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+            split_sym_dim{},
             dead_code_elimination{},
             simplify_dyn_ops{},
             dead_code_elimination{},

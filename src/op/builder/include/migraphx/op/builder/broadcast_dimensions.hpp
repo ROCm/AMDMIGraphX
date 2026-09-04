@@ -27,6 +27,7 @@
 
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -110,16 +111,44 @@ void broadcast_dimensions_symbolic(Builder& bldr,
     l0_dds.insert(l0_dds.end(), l0_it, s0_dds.end());
     l1_dds = out_dds;
     l1_dds.insert(l1_dds.end(), l1_it, s1_dds.end());
+
+    auto add_broadcast = [&](const instruction_ref& input,
+                             const std::vector<shape::dynamic_dimension>& input_dds,
+                             const instruction_ref& other,
+                             const std::vector<shape::dynamic_dimension>& other_dds,
+                             const std::vector<shape::dynamic_dimension>& target_dds) {
+        std::vector<instruction_ref> runtime_dims;
+        for(std::size_t axis = 0; axis < target_dds.size(); ++axis)
+        {
+            auto add_matching_dim = [&](const instruction_ref& source,
+                                        const std::vector<shape::dynamic_dimension>& source_dds) {
+                if(source_dds.size() > target_dds.size())
+                    return false;
+                const auto offset = target_dds.size() - source_dds.size();
+                if(axis < offset)
+                    return false;
+                const auto source_axis = axis - offset;
+                if(source_dds[source_axis] != target_dds[axis])
+                    return false;
+                runtime_dims.push_back(bldr.add_instruction(
+                    make_op("dimensions_of", {{"start", source_axis}, {"end", source_axis + 1}}),
+                    source));
+                return true;
+            };
+            if(not add_matching_dim(input, input_dds) and not add_matching_dim(other, other_dds))
+                MIGRAPHX_THROW("BROADCAST_DIMENSIONS: target dimension has no runtime source");
+        }
+        auto dims = runtime_dims.front();
+        if(runtime_dims.size() > 1)
+            dims = bldr.add_instruction(make_op("concat", {{"axis", 0}}), runtime_dims);
+        return bldr.add_instruction(
+            make_op("broadcast_with_dims", {{"out_dyn_dims", to_value(target_dds)}}), input, dims);
+    };
+
     if(s0_dds != l0_dds)
-    {
-        ba0 = bldr.add_instruction(make_op("multibroadcast", {{"out_dyn_dims", to_value(l0_dds)}}),
-                                   a0);
-    }
+        ba0 = add_broadcast(a0, s0_dds, a1, s1_dds, l0_dds);
     if(s1_dds != l1_dds)
-    {
-        ba1 = bldr.add_instruction(make_op("multibroadcast", {{"out_dyn_dims", to_value(l1_dds)}}),
-                                   a1);
-    }
+        ba1 = add_broadcast(a1, s1_dds, a0, s0_dds, l1_dds);
 }
 
 } // namespace detail

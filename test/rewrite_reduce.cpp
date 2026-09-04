@@ -348,7 +348,7 @@ TEST_CASE(dot_softmax_dot_projection_no_rewrite)
         auto dot_v   = m1.add_instruction(migraphx::make_op("dot"), softmax, v);
         auto trans   = m1.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), dot_v);
-        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 16}}}), trans);
+        auto rsp  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 16}}}), trans);
         auto proj = m1.add_instruction(migraphx::make_op("dot"), rsp, w);
         m1.add_return({proj});
     }

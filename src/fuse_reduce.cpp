@@ -190,23 +190,6 @@ static auto any_input(Ms... ms)
     return match::any_of[match::inputs()](match::any(ms...).bind("input"));
 }
 
-static bool is_valid_broadcast(const instruction_ref b, std::vector<size_t> reduce_axes)
-{
-    const auto& blens    = b->get_shape().lens();
-    const auto& bstrides = b->get_shape().strides();
-    reduce_axes.erase(std::remove_if(reduce_axes.begin(),
-                                     reduce_axes.end(),
-                                     [&](size_t axis) { return blens.at(axis) == 1; }),
-                      reduce_axes.end());
-
-    std::vector<size_t> broadcast_axes;
-    copy_if(range(bstrides.size()), std::back_inserter(broadcast_axes), [&](size_t i) {
-        return bstrides.at(i) == 0 and blens.at(i) != 1;
-    });
-
-    return broadcast_axes == reduce_axes;
-}
-
 template <class M>
 static auto match_broadcast_axes(M m)
 {
@@ -227,7 +210,7 @@ static auto match_broadcast_axes(M m)
                 }
                 auto axes      = reduce->get_operator().to_value().at("axes").to_vector<size_t>();
                 auto broadcast = ctx.instructions["broadcast"];
-                if(not is_valid_broadcast(broadcast, axes))
+                if(not is_valid_broadcast(broadcast->get_shape(), axes))
                     return nullopt;
             }
             return result;
@@ -353,8 +336,16 @@ struct find_pointwise_reduce
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto reduce        = r.result;
-        auto input         = r.instructions["pointwise"];
+        auto reduce = r.result;
+        auto input  = r.instructions["pointwise"];
+        // Fusing the broadcast makes the reduction read purely broadcasted
+        // data unless another input spans the reduce axes
+        if(contains(r.instructions, "broadcast"))
+        {
+            auto axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+            if(not has_spanning_input(reduce->inputs(), r.instructions["final_broadcast"], axes))
+                return;
+        }
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
 

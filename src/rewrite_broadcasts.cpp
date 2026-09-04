@@ -25,6 +25,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
@@ -32,6 +33,57 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+bool is_valid_broadcast(const shape& s, std::vector<std::size_t> reduce_axes)
+{
+    const auto& blens    = s.lens();
+    const auto& bstrides = s.strides();
+    reduce_axes.erase(std::remove_if(reduce_axes.begin(),
+                                     reduce_axes.end(),
+                                     [&](std::size_t axis) { return blens.at(axis) == 1; }),
+                      reduce_axes.end());
+
+    std::vector<std::size_t> broadcast_axes;
+    copy_if(range(bstrides.size()), std::back_inserter(broadcast_axes), [&](std::size_t i) {
+        return bstrides.at(i) == 0 and blens.at(i) != 1;
+    });
+
+    return broadcast_axes == reduce_axes;
+}
+
+bool has_spanning_input(const std::vector<instruction_ref>& inputs,
+                        instruction_ref broadcast,
+                        const std::vector<std::size_t>& reduce_axes)
+{
+    const auto& blens = broadcast->get_shape().lens();
+    return any_of(inputs, [&](instruction_ref input) {
+        if(input == broadcast)
+            return false;
+        if(input->get_shape().dynamic())
+            return false;
+        const auto& lens = input->get_shape().lens();
+        if(lens.size() != blens.size())
+            return false;
+        return all_of(reduce_axes,
+                      [&](std::size_t axis) { return lens.at(axis) == blens.at(axis); });
+    });
+}
+
+static std::vector<std::size_t> get_reduce_axes(instruction_ref ins)
+{
+    auto v = ins->get_operator().to_value();
+    if(not v.contains("axes"))
+        return {};
+    return v.at("axes").to_vector<std::size_t>();
+}
+
+static instruction_ref
+insert_ops(module& m, instruction_ref pos, const std::vector<operation>& ops, instruction_ref input)
+{
+    return std::accumulate(ops.begin(), ops.end(), input, [&](auto start, const auto& op) {
+        return m.insert_instruction(pos, op, start);
+    });
+}
 
 namespace {
 struct pointwise_broadcast_op : match::supports_dynamic_shapes
@@ -78,15 +130,49 @@ struct pointwise_broadcast_op : match::supports_dynamic_shapes
         }
         std::reverse(reshape_ops.begin(), reshape_ops.end());
 
+        // When the consumer reduces over exactly the axes the broadcast expands,
+        // hoisting the pointwise past the broadcast would recompute it across the
+        // reduction. Keep it at the pre-broadcast shape instead and emit an
+        // ndim-matched multibroadcast which the reduce fusion can fuse directly.
+        if(not is_dyn_broadcast and not broadcast_ins->get_shape().dynamic())
+        {
+            auto reduce_axes = get_reduce_axes(r.result);
+            if(not reduce_axes.empty() and
+               is_valid_broadcast(broadcast_ins->get_shape(), reduce_axes) and
+               has_spanning_input(r.result->inputs(), broadcast_ins, reduce_axes))
+            {
+                const auto& bshape = broadcast_ins->get_shape();
+                std::vector<std::size_t> mlens;
+                std::transform(bshape.lens().begin(),
+                               bshape.lens().end(),
+                               bshape.strides().begin(),
+                               std::back_inserter(mlens),
+                               [](std::size_t len, std::size_t stride) {
+                                   return stride == 0 ? std::size_t{1} : len;
+                               });
+                // Already in a form the reduce fusion can fuse directly
+                if(reshape_ops.empty() and
+                   broadcast_ins->inputs().front()->get_shape().lens() == mlens)
+                    return;
+                auto x_inputs = x_ins->inputs();
+                std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
+                    input = insert_ops(m, broadcast_ins, reshape_ops, input);
+                    if(input->get_shape().lens() == mlens)
+                        return input;
+                    return m.insert_instruction(
+                        broadcast_ins, make_op("reshape", {{"dims", mlens}}), input);
+                });
+                auto pw = m.insert_instruction(
+                    broadcast_ins, x_ins->get_operator(), x_inputs, x_ins->module_inputs());
+                m.replace_instruction(
+                    broadcast_ins, make_op("multibroadcast", {{"out_lens", bshape.lens()}}), pw);
+                return;
+            }
+        }
+
         auto x_inputs = x_ins->inputs();
         std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
-            input =
-                std::accumulate(reshape_ops.begin(),
-                                reshape_ops.end(),
-                                input,
-                                [&](auto start, const auto& reshape_op) {
-                                    return m.insert_instruction(broadcast_ins, reshape_op, start);
-                                });
+            input = insert_ops(m, broadcast_ins, reshape_ops, input);
             if(is_dyn_broadcast)
             {
                 return m.insert_instruction(

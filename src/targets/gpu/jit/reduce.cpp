@@ -670,9 +670,14 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     // reduction axis does not reduce the number of workgroups, only the lanes
     // reducing each output, so a full-width vector is always fewer load
     // instructions for the same parallelism across outputs.
+    // A packed input holds two elements per byte, so a full 16-byte load
+    // needs a vector of 32 logical elements
+    std::vector<std::size_t> vec_sizes = {8, 4, 2};
+    if(not plan.packed_args.empty())
+        vec_sizes = {32, 16, 8, 4, 2};
     if(contains({"block", "block_tile", "block_batch", "wave"}, plan.algo) and
        plan.reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
-        plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {8, 4, 2});
+        plan.vec = vectorize::elements(faxis, plan.virtual_inputs, vec_sizes);
     if(not plan.packed_args.empty() and plan.vec.size < 2)
         plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {2});
     if(not plan.packed_args.empty() and plan.vec.size < 2)
@@ -723,6 +728,36 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
     tile_block_size(const context& ctx, std::size_t relements, std::size_t max_block)
     {
         return compute_block_size(ctx, std::max<std::size_t>(relements / 4, 1), max_block);
+    }
+
+    /// Two outputs per workgroup when a short reduction leaves each lane of a
+    /// full workgroup with only a few elements: the per-workgroup overhead is
+    /// amortized over two reductions and each lane keeps twice the loads in
+    /// flight. Only offered when the outputs fill the device at the tiled
+    /// block size, the tuner benchmarks it against the plain block algorithm.
+    static optional<reduce_tile> find_short_reduce_tile(const context& ctx,
+                                                        const shape& reduce_output_shape,
+                                                        const std::vector<std::size_t>& reduce_lens,
+                                                        std::size_t relements)
+    {
+        const std::size_t tile       = 2;
+        const std::size_t full_block = 256;
+        auto block_size              = tile_block_size(ctx, relements, full_block);
+        if(block_size >= full_block)
+            return nullopt;
+        const auto& device = ctx.get_current_device();
+        auto resident      = device.get_cu_count() * device.get_max_workitems_per_cu() / block_size;
+        if(reduce_output_shape.elements() < resident)
+            return nullopt;
+        // Tile the last non-reduced axis so the outputs of a tile are adjacent
+        auto is = reverse(range(reduce_output_shape.lens().size()));
+        auto it = std::find_if(is.begin(), is.end(), [&](auto axis) {
+            return reduce_lens[axis] == 1 and reduce_output_shape.lens()[axis] % tile == 0;
+        });
+        if(it == is.end())
+            return nullopt;
+        std::size_t axis = *it;
+        return reduce_tile{axis, tile};
     }
 
     static std::string tiled_algo_name(const std::string& algo, std::size_t axis, std::size_t n)
@@ -890,6 +925,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto noutputs = plan.finputs.size() - shapes.size() + 1;
         auto tile     = find_reduce_tile(
             plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());
+        if(not tile.has_value())
+            tile = find_short_reduce_tile(
+                ctx, plan.reduce_output_shape, plan.reduction_shape.lens(), plan.relements);
         assert(not ins->module_inputs().empty());
         // The vector result of the batched pass is only assigned to a single output
         bool batchable =

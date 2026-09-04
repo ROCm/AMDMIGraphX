@@ -28,6 +28,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
+#include <pointwise.hpp>
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/serialize.hpp>
@@ -3395,6 +3396,31 @@ TEST_CASE(pointwise_reshape_unary)
         m2.add_instruction(pass_op{}, reshape_ins);
     }
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(pointwise_module_reshape_unary)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsum);
+        auto relu = add_pointwise(p1, "main:pointwise0", {sq}, single_pointwise("relu"));
+        mm->add_return({relu});
+    }
+    run_pass(*p1.get_main_module());
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto relu = add_pointwise(p2, "main:pointwise0", {rsum}, single_pointwise("relu"));
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), relu);
+        mm->add_return({sq});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(pointwise_reshape_layout_convolution)

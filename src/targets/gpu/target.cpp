@@ -262,6 +262,12 @@ struct pipeline_factory
                         fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
+            // The projection dot after the attention is kept as a dot until
+            // the attention is fused so it can be rewritten to a reduction now
+            rewrite_reduce{},
+            dead_code_elimination{},
+            simplify_reshapes{.enable_op_shape_transform_op = true},
+            dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
             get_fuse_pointwise_reduce(),

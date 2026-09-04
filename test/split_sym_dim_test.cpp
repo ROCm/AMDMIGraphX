@@ -286,9 +286,9 @@ TEST_CASE(split_sym_dim_covers_full_interval)
 
     auto& expected_main = *expected.get_main_module();
     auto input          = expected_main.add_parameter("data", symbolic_shape({n, lit(4)}));
-    auto optimal_n      = var("#split_sym_dim_n_opt", {1, 8}, {1, 2, 4, 8});
+    auto target_n       = var("#split_sym_dim_n_target", {1, 8}, {1, 2, 4, 8});
     auto select =
-        add_select_module(expected_main, {input}, modules, {symbolic_shape({optimal_n, lit(4)})});
+        add_select_module(expected_main, {input}, modules, {symbolic_shape({target_n, lit(4)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {input}, {0}, {n});
@@ -325,9 +325,9 @@ TEST_CASE(split_sym_dim_supports_one_to_one_axis_transforms)
 
     auto& expected_main = *expected.get_main_module();
     auto input          = expected_main.add_parameter("data", symbolic_shape({lit(1), n, lit(4)}));
-    auto optimal_n      = var("#split_sym_dim_n_opt", {1, 8}, {1, 2, 4, 8});
+    auto target_n       = var("#split_sym_dim_n_target", {1, 8}, {1, 2, 4, 8});
     migraphx::shape output_shape{
-        migraphx::shape::float_type, {dd{lit(4)}, dd{optimal_n}}, {lit(1), lit(4)}};
+        migraphx::shape::float_type, {dd{lit(4)}, dd{target_n}}, {lit(1), lit(4)}};
     auto select = add_select_module(expected_main, {input}, modules, {output_shape});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -367,11 +367,11 @@ TEST_CASE(split_sym_dim_splits_at_nonparallel_symbolic_reshape)
     auto expected_target = expected_main.add_parameter("target", symbolic_shape({lit(4), n}));
     auto expected_reshape =
         expected_main.add_instruction(migraphx::make_op("reshape"), expected_data, expected_target);
-    auto optimal_n = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
-    auto select    = add_select_module(expected_main,
-                                       {expected_reshape, expected_data},
+    auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto select   = add_select_module(expected_main,
+                                      {expected_reshape, expected_data},
                                     modules,
-                                       {symbolic_shape({lit(4), optimal_n})});
+                                      {symbolic_shape({lit(4), target_n})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     expected_output =
@@ -412,11 +412,11 @@ TEST_CASE(split_sym_dim_materializes_symbolic_multibroadcast)
     auto expected_data  = expected_main.add_parameter("data", symbolic_shape({n, lit(3)}));
     auto expected_bias =
         expected_main.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
-    auto optimal_n = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
-    auto select    = add_select_module(expected_main,
-                                       {expected_bias, expected_data},
+    auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto select   = add_select_module(expected_main,
+                                      {expected_bias, expected_data},
                                     modules,
-                                       {symbolic_shape({optimal_n, lit(3)})});
+                                      {symbolic_shape({target_n, lit(3)})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     expected_output =
@@ -494,11 +494,11 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_multibroadcast)
         "weights", migraphx::shape{migraphx::shape::float_type, {4, 4}});
     auto expected_target =
         expected_main.add_parameter("target", symbolic_shape({fixed_batch, lit(4), lit(4)}));
-    auto optimal_sequence = var("#split_sym_dim_sequence_opt", {1, 4}, {1, 2, 4});
-    auto select           = add_select_module(expected_main,
-                                              {expected_data, expected_target, expected_weights},
+    auto target_sequence = var("#split_sym_dim_sequence_target", {1, 4}, {1, 2, 4});
+    auto select          = add_select_module(expected_main,
+                                             {expected_data, expected_target, expected_weights},
                                     modules,
-                                              {symbolic_shape({lit(1), optimal_sequence, lit(4)})});
+                                             {symbolic_shape({lit(1), target_sequence, lit(4)})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     expected_output = add_back_slice(expected_main,
@@ -552,11 +552,11 @@ TEST_CASE(split_sym_dim_materializes_symbolic_broadcast)
     auto expected_data  = expected_main.add_parameter("data", symbolic_shape({n, lit(3), lit(4)}));
     auto expected_bias =
         expected_main.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
-    auto optimal_n = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
-    auto select    = add_select_module(expected_main,
-                                       {expected_bias, expected_data},
+    auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto select   = add_select_module(expected_main,
+                                      {expected_bias, expected_data},
                                     modules,
-                                       {symbolic_shape({optimal_n, lit(3), lit(4)})});
+                                      {symbolic_shape({target_n, lit(3), lit(4)})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     expected_output =
@@ -600,11 +600,11 @@ TEST_CASE(split_sym_dim_materializes_symbolic_broadcast_with_dims)
         expected_main.add_parameter("data", symbolic_shape({lit(1), lit(1), n, n}));
     auto expected_dims = expected_main.add_parameter(
         "dims", migraphx::shape{migraphx::shape::int64_type, {std::size_t{4}}});
-    auto optimal_n = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
-    auto select    = add_select_module(expected_main,
-                                       {expected_data},
+    auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto select   = add_select_module(expected_main,
+                                      {expected_data},
                                     modules,
-                                       {symbolic_shape({lit(1), lit(1), optimal_n, optimal_n})});
+                                      {symbolic_shape({lit(1), lit(1), target_n, target_n})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     expected_output = add_back_slice(
@@ -645,9 +645,9 @@ TEST_CASE(split_sym_dim_coalesces_into_symbolic_broadcast_with_dims)
     auto expected_data  = expected_main.add_parameter("data", symbolic_shape({lit(1), n}));
     auto expected_dims  = expected_main.add_parameter(
         "dims", migraphx::shape{migraphx::shape::int64_type, {std::size_t{3}}});
-    auto optimal_n = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
+    auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     migraphx::shape output_shape{migraphx::shape::float_type,
-                                 {dd{lit(1)}, dd{optimal_n}, dd{optimal_n}},
+                                 {dd{lit(1)}, dd{target_n}, dd{target_n}},
                                  {lit(0), lit(0), lit(1)}};
     auto select = add_select_module(expected_main, {expected_data}, modules, {output_shape});
     auto expected_output =
@@ -753,11 +753,11 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_reshape)
         expected_main.add_parameter("weights", symbolic_shape({fixed_batch, lit(16)}));
     auto expected_target =
         expected_main.add_parameter("target", symbolic_shape({fixed_batch, lit(4), lit(4)}));
-    auto optimal_sequence = var("#split_sym_dim_sequence_opt", {1, 4}, {1, 2, 4});
-    auto select           = add_select_module(expected_main,
-                                              {expected_data, expected_target, expected_weights},
+    auto target_sequence = var("#split_sym_dim_sequence_target", {1, 4}, {1, 2, 4});
+    auto select          = add_select_module(expected_main,
+                                             {expected_data, expected_target, expected_weights},
                                     modules,
-                                              {symbolic_shape({lit(1), optimal_sequence, lit(4)})});
+                                             {symbolic_shape({lit(1), target_sequence, lit(4)})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     expected_output = add_back_slice(expected_main,
@@ -1146,9 +1146,9 @@ TEST_CASE(split_sym_dim_preserves_original_output_expr)
 
     auto& expected_main = *expected.get_main_module();
     auto input          = expected_main.add_parameter("data", symbolic_shape({n, lit(4)}));
-    auto optimal_n      = var("#split_sym_dim_n_opt", {1, 8}, {1, 2, 4, 8});
+    auto target_n       = var("#split_sym_dim_n_target", {1, 8}, {1, 2, 4, 8});
     auto select =
-        add_select_module(expected_main, {input}, modules, {symbolic_shape({optimal_n, lit(4)})});
+        add_select_module(expected_main, {input}, modules, {symbolic_shape({target_n, lit(4)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {input}, {0}, {n});
@@ -1175,9 +1175,9 @@ TEST_CASE(split_sym_dim_uses_interval_bounds_without_optimals)
 
     auto& expected_main = *expected.get_main_module();
     auto input          = expected_main.add_parameter("data", symbolic_shape({n, lit(4)}));
-    auto optimal_n      = var("#split_sym_dim_n_opt", {1, 8}, {1, 8});
+    auto target_n       = var("#split_sym_dim_n_target", {1, 8}, {1, 8});
     auto select =
-        add_select_module(expected_main, {input}, modules, {symbolic_shape({optimal_n, lit(4)})});
+        add_select_module(expected_main, {input}, modules, {symbolic_shape({target_n, lit(4)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {input}, {0}, {n});
@@ -1258,12 +1258,12 @@ TEST_CASE(split_sym_dim_reduce_all_uses_one)
     auto& expected_main = *expected.get_main_module();
     auto input =
         expected_main.add_parameter("data", symbolic_shape({b, s}, migraphx::shape::bool_type));
-    auto optimal_b = var("#split_sym_dim_b_opt", {1, 2}, {1, 2});
+    auto target_b = var("#split_sym_dim_b_target", {1, 2}, {1, 2});
     auto select =
         add_select_module(expected_main,
                           {input},
                           modules,
-                          {symbolic_shape({optimal_b, lit(1)}, migraphx::shape::bool_type)});
+                          {symbolic_shape({target_b, lit(1)}, migraphx::shape::bool_type)});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {input}, {0}, {b});
@@ -1352,8 +1352,8 @@ TEST_CASE(split_sym_dim_splits_windowed_boundary)
     auto& expected_main = *expected.get_main_module();
     auto expected_input =
         expected_main.add_parameter("data", symbolic_shape({lit(1), lit(1), s, s}));
-    auto optimal_s   = var("#split_sym_dim_s_opt", {8, 16}, {8, 12, 16});
-    auto conv_extent = optimal_s - 2;
+    auto target_s    = var("#split_sym_dim_s_target", {8, 16}, {8, 12, 16});
+    auto conv_extent = target_s - 2;
     auto conv_select =
         add_select_module(expected_main,
                           {expected_input},
@@ -1383,7 +1383,7 @@ TEST_CASE(split_sym_dim_splits_windowed_boundary)
         sm.add_return({output});
     });
 
-    auto pooled_extent = (optimal_s - 3) / 2 + 1;
+    auto pooled_extent = (target_s - 3) / 2 + 1;
     auto pool_select =
         add_select_module(expected_main,
                           {conv_output, expected_input},
@@ -1456,8 +1456,8 @@ TEST_CASE(split_sym_dim_merges_independent_supported_branches)
     auto& expected_main = *expected.get_main_module();
     auto expected_x0    = expected_main.add_parameter("x0", symbolic_shape({n, lit(4)}));
     auto expected_x1    = expected_main.add_parameter("x1", symbolic_shape({n, lit(4)}));
-    auto optimal_n      = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
-    auto output_shape   = symbolic_shape({optimal_n, lit(4)});
+    auto target_n       = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto output_shape   = symbolic_shape({target_n, lit(4)});
     auto select         = add_select_module(
         expected_main, {expected_x0, expected_x1}, modules, {output_shape, output_shape});
     auto output0 =
@@ -1500,9 +1500,9 @@ TEST_CASE(split_sym_dim_materializes_fixed_axis_slice)
 
     auto& expected_main = *expected.get_main_module();
     auto input          = expected_main.add_parameter("x", symbolic_shape({n, lit(4)}));
-    auto optimal_n      = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
+    auto target_n       = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select =
-        add_select_module(expected_main, {input}, modules, {symbolic_shape({optimal_n, lit(2)})});
+        add_select_module(expected_main, {input}, modules, {symbolic_shape({target_n, lit(2)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {input}, {0}, {n});
@@ -1896,16 +1896,16 @@ TEST_CASE(split_sym_dim_applies_clone_cap_per_block)
     auto expected_x1     = expected_main.add_parameter("x1", symbolic_shape({m_dim, lit(4)}));
     auto runtime_sources = std::vector<migraphx::instruction_ref>{expected_x1, expected_x0};
 
-    auto optimal_n = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
-    auto select_n  = add_select_module(
-        expected_main, {expected_x0}, n_modules, {symbolic_shape({optimal_n, lit(4)})});
+    auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto select_n = add_select_module(
+        expected_main, {expected_x0}, n_modules, {symbolic_shape({target_n, lit(4)})});
     auto output_n = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_n);
     output_n = add_back_slice(expected_main, output_n, runtime_sources, {0}, {n});
 
-    auto optimal_m = var("#split_sym_dim_m_opt", {1, 4}, {1, 2, 4});
-    auto select_m  = add_select_module(
-        expected_main, {expected_x1}, m_modules, {symbolic_shape({optimal_m, lit(4)})});
+    auto target_m = var("#split_sym_dim_m_target", {1, 4}, {1, 2, 4});
+    auto select_m = add_select_module(
+        expected_main, {expected_x1}, m_modules, {symbolic_shape({target_m, lit(4)})});
     auto output_m = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_m);
     output_m = add_back_slice(expected_main, output_m, runtime_sources, {0}, {m_dim});
@@ -1958,11 +1958,11 @@ TEST_CASE(split_sym_dim_keeps_literals_in_clones)
     auto& expected_main = *expected.get_main_module();
     auto expected_input =
         expected_main.add_parameter("data", symbolic_shape({n, lit(1), lit(5), lit(5)}));
-    auto optimal_n = var("#split_sym_dim_n_opt", {1, 4}, {1, 2, 4});
-    auto select    = add_select_module(expected_main,
-                                       {expected_input},
+    auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto select   = add_select_module(expected_main,
+                                      {expected_input},
                                     modules,
-                                       {symbolic_shape({optimal_n, lit(1), lit(3), lit(3)})});
+                                      {symbolic_shape({target_n, lit(1), lit(3), lit(3)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {expected_input}, {0}, {n});
@@ -2025,8 +2025,8 @@ TEST_CASE(split_sym_dim_coalesces_spatial_cnn)
     auto& expected_main = *expected.get_main_module();
     auto input =
         expected_main.add_parameter("image", symbolic_shape({lit(1), lit(3), spatial, spatial}));
-    auto optimal_spatial = var("#split_sym_dim_spatial_opt", {8, 16}, {8, 12, 16});
-    auto output_extent   = (optimal_spatial - 6) / 2 + 1;
+    auto target_spatial = var("#split_sym_dim_spatial_target", {8, 16}, {8, 12, 16});
+    auto output_extent  = (target_spatial - 6) / 2 + 1;
     auto select =
         add_select_module(expected_main,
                           {input},
@@ -2088,12 +2088,12 @@ TEST_CASE(split_sym_dim_preserves_compound_mask_extent)
     auto& expected_main = *expected.get_main_module();
     auto expected_input =
         expected_main.add_parameter("x", symbolic_shape({lit(1), lit(1), sequence}));
-    auto optimal_sequence = var("#split_sym_dim_sequence_opt", {4, 16}, {4, 8, 16});
-    auto optimal_extent   = optimal_sequence - 2;
-    auto select           = add_select_module(expected_main,
-                                              {expected_input},
+    auto target_sequence = var("#split_sym_dim_sequence_target", {4, 16}, {4, 8, 16});
+    auto target_extent   = target_sequence - 2;
+    auto select          = add_select_module(expected_main,
+                                             {expected_input},
                                     modules,
-                                              {symbolic_shape({lit(1), lit(1), optimal_extent})});
+                                             {symbolic_shape({lit(1), lit(1), target_extent})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     expected_output =
@@ -2186,11 +2186,11 @@ TEST_CASE(split_sym_dim_specializes_transformer_core)
     auto key =
         expected_main.add_parameter("key_transposed", symbolic_shape({lit(2), lit(8), sequence}));
     auto value = expected_main.add_parameter("value", symbolic_shape({lit(2), sequence, lit(8)}));
-    auto optimal_sequence = var("#split_sym_dim_sequence_opt", {4, 16}, {4, 8, 16});
-    auto select           = add_select_module(expected_main,
-                                              {key, query, value},
+    auto target_sequence = var("#split_sym_dim_sequence_target", {4, 16}, {4, 8, 16});
+    auto select          = add_select_module(expected_main,
+                                             {key, query, value},
                                     modules,
-                                              {symbolic_shape({lit(2), optimal_sequence, lit(8)})});
+                                             {symbolic_shape({lit(2), target_sequence, lit(8)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {value, key, query}, {1}, {sequence});
@@ -2240,9 +2240,9 @@ TEST_CASE(split_sym_dim_specializes_transformer)
 
     auto& expected_main = *expected.get_main_module();
     auto input = expected_main.add_parameter("x", symbolic_shape({lit(2), sequence, lit(8)}));
-    auto optimal_sequence = var("#split_sym_dim_sequence_opt", {4, 16}, {4, 8, 16});
-    auto select           = add_select_module(
-        expected_main, {input}, modules, {symbolic_shape({lit(2), optimal_sequence, lit(8)})});
+    auto target_sequence = var("#split_sym_dim_sequence_target", {4, 16}, {4, 8, 16});
+    auto select          = add_select_module(
+        expected_main, {input}, modules, {symbolic_shape({lit(2), target_sequence, lit(8)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {input}, {1}, {sequence});
@@ -2287,11 +2287,11 @@ TEST_CASE(split_sym_dim_keeps_softmax_mask_off_contract_axis)
     auto& expected_main = *expected.get_main_module();
     auto input = expected_main.add_parameter("x", symbolic_shape({lit(2), sequence, sequence}));
     auto value = expected_main.add_parameter("value", symbolic_shape({lit(2), sequence, lit(8)}));
-    auto optimal_sequence = var("#split_sym_dim_sequence_opt", {4, 16}, {4, 8, 16});
-    auto select           = add_select_module(expected_main,
-                                              {value, input},
+    auto target_sequence = var("#split_sym_dim_sequence_target", {4, 16}, {4, 8, 16});
+    auto select          = add_select_module(expected_main,
+                                             {value, input},
                                     modules,
-                                              {symbolic_shape({lit(2), optimal_sequence, lit(8)})});
+                                             {symbolic_shape({lit(2), target_sequence, lit(8)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     output = add_back_slice(expected_main, output, {value, input}, {1}, {sequence});

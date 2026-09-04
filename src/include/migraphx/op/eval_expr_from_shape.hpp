@@ -30,6 +30,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <migraphx/zip_view.hpp>
 #include <algorithm>
 #include <unordered_map>
@@ -77,6 +78,11 @@ struct eval_expr_from_shape
                            "' is not a direct input dimension");
 
         return shape{shape::int64_type, {expressions.size()}};
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape, const std::vector<sym_argument>&) const
+    {
+        return {expressions, output_shape};
     }
 
     void finalize(context&, const shape&, const std::vector<shape>& inputs)

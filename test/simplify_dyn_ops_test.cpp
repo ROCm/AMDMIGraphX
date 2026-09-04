@@ -825,8 +825,8 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
     using dd = migraphx::shape::dynamic_dimension;
     using se = migraphx::sym::expr;
 
-    auto n         = migraphx::sym::var("n", {1, 4});
-    auto optimal_n = migraphx::sym::var("#split_sym_dim_n_opt", {1, 4}, {1, 4});
+    auto n        = migraphx::sym::var("n", {1, 4});
+    auto target_n = migraphx::sym::var("#split_sym_dim_n_target", {1, 4}, {1, 4});
     migraphx::program p0;
     auto create_submodule0 = [&](const std::string& name, const dd::interval& subrange) {
         auto* submod         = p0.create_module(name);
@@ -844,7 +844,7 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
     std::vector<dd> input_dims0 = {{n}, {migraphx::sym::lit(4)}};
     auto input0 =
         main0->add_parameter("data", migraphx::shape{migraphx::shape::float_type, input_dims0});
-    std::vector<dd> output_dims0 = {{optimal_n}, {migraphx::sym::lit(4)}};
+    std::vector<dd> output_dims0 = {{target_n}, {migraphx::sym::lit(4)}};
     migraphx::shape output_shape0{
         std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type, output_dims0}}};
     auto select0 = main0->add_instruction(
@@ -891,7 +891,7 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
     std::vector<dd> input_dims1 = {{n}, {migraphx::sym::lit(4)}};
     auto input1 =
         main1->add_parameter("data", migraphx::shape{migraphx::shape::float_type, input_dims1});
-    std::vector<dd> output_dims1 = {{optimal_n}, {migraphx::sym::lit(4)}};
+    std::vector<dd> output_dims1 = {{target_n}, {migraphx::sym::lit(4)}};
     migraphx::shape output_shape1{
         std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type, output_dims1}}};
     auto select1 = main1->add_instruction(

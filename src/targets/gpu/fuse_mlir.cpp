@@ -1597,25 +1597,27 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
 
-    auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
-        if(specific_op<rejected>(option))
-            return mlir_mode::none;
-        if(specific_op<requested>(option))
-            return mlir_mode::all;
-        if(is_navi)
-            return mlir_mode::all;
+    auto get_mode =
+        [&](std::string_view option, bool mlir_op, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
+            if(specific_op<rejected>(option))
+                return mlir_mode::none;
+            if(specific_op<requested>(option))
+                return mlir_mode::all;
+            if(is_navi)
+                return mlir_mode::all;
 #if !MIGRAPHX_USE_MIOPEN
-        if(contains(option, "conv"))
-            return mlir_mode::all;
+            if(contains(option, "conv"))
+                return mlir_mode::all;
 #endif
 #if !MIGRAPHX_USE_ROCBLAS and !MIGRAPHX_USE_HIPBLASLT
-        if(contains(option, "dot") or contains(option, "fused_dot"))
-            return mlir_mode::all;
+            if(contains(option, "dot") or contains(option, "fused_dot"))
+                return mlir_mode::all;
 #endif
-        if(mlir_op)
-            return mlir_mode::all;
-        return std::max(m1, m2);
-    };
+            // if the op is not requested by env var, fall back to the mlir_ops default
+            if(mlir_op)
+                return mlir_mode::all;
+            return std::max(m1, m2);
+        };
 
     match::find_matches(mpm, find_channel_slice_convolution{});
     mpm.run_pass(dead_code_elimination{});

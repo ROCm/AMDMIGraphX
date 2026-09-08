@@ -237,9 +237,10 @@ struct pipeline_factory
     std::vector<pass> fusion_pipeline() const
     {
         return {
-            enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
-                        fuse_attention{.attn_enabled = mlir_attention_enabled(get_context(), mlir_ops),
-                                       .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+            enable_pass(
+                options.compile_mode != compile_modes::eager and mlir_enabled(),
+                fuse_attention{.attn_enabled = mlir_attention_enabled(get_context(), mlir_ops),
+                               .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},

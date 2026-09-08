@@ -286,7 +286,7 @@ static bool dedup_pointwise_inputs(module_pass_manager& mpm)
     {
         if(ins->name() != "pointwise")
             continue;
-        auto inputs = ins->inputs();
+        const auto& inputs = ins->inputs();
         std::unordered_set<instruction_ref> seen;
         std::vector<instruction_ref> deduped;
         std::copy_if(inputs.begin(), inputs.end(), std::back_inserter(deduped), [&](auto input) {
@@ -371,7 +371,7 @@ static bool split_pointwise_through_slices(module_pass_manager& mpm)
         // Split: replace each slice with a pointwise on sliced inputs
         auto* src_pm = ins->module_inputs().front();
         auto pm_name = src_pm->name();
-        auto inputs  = ins->inputs();
+        const auto& inputs = ins->inputs();
         for(const auto& slice_ins : outputs)
         {
             auto slice_op = slice_ins->get_operator();
@@ -473,7 +473,7 @@ struct pointwise_broadcast_pointwise : match::supports_dynamic_shapes
         });
 
         m.replace_instruction(
-            broadcast_ins, x_ins->get_operator(), x_inputs, x_ins->module_inputs());
+            broadcast_ins, x_ins->get_operator(), std::move(x_inputs), x_ins->module_inputs());
     }
 };
 

@@ -38,6 +38,7 @@
 #include <migraphx/time.hpp>
 
 #include <array>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -986,9 +987,9 @@ inline auto name_contains(const std::string& name)
 
 inline auto name(std::unordered_set<std::string> names)
 {
-    return make_basic_pred_matcher([=, m_names = std::move(names)](instruction_ref ins) {
-        return m_names.count(ins->name()) > 0;
-    });
+    return make_basic_pred_matcher(
+        [m_names = std::make_shared<std::unordered_set<std::string>>(std::move(names))](
+            instruction_ref ins) { return m_names->count(ins->name()) > 0; });
 }
 
 template <class... Ts>

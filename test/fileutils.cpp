@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -88,6 +88,30 @@ TEST_CASE(append_file_extension)
     auto name    = fs::path{baze_name}.replace_extension(txt);
     auto updated = migraphx::MIGRAPHX_INLINE_NS::append_extension(name, bz2);
     EXPECT(updated == std::string{baze_name}.append(txt).append(bz2));
+}
+
+TEST_CASE(sanitize_filename_replaces_invalid_chars)
+{
+    // Each Windows-invalid character maps to a single '_'.
+    EXPECT(migraphx::sanitize_filename("a:b") == "a_b");
+    EXPECT(migraphx::sanitize_filename("a*b") == "a_b");
+    EXPECT(migraphx::sanitize_filename("a?b") == "a_b");
+    EXPECT(migraphx::sanitize_filename("a\\b") == "a_b");
+    EXPECT(migraphx::sanitize_filename("a/b") == "a_b");
+    EXPECT(migraphx::sanitize_filename("a<b>c|d\"e") == "a_b_c_d_e");
+}
+
+TEST_CASE(sanitize_filename_double_colon)
+{
+    // "::" in op names (e.g. "gpu::mlir_op") becomes "__".
+    EXPECT(migraphx::sanitize_filename("gpu::mlir_op") == "gpu__mlir_op");
+}
+
+TEST_CASE(sanitize_filename_no_invalid_chars)
+{
+    // Valid names are returned unchanged.
+    EXPECT(migraphx::sanitize_filename("gpu_mlir_op_8_123.mxr") == "gpu_mlir_op_8_123.mxr");
+    EXPECT(migraphx::sanitize_filename("") == "");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -83,6 +83,42 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_remove_if_non_equivalence, int)
     EXPECT(v == Container{1, 1, 1, 4, 2, 4, 2, 5, 6});
 }
 
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_transform_basic, int)
+{
+    Container v = {1, 3, 6, 10, 15};
+    std::vector<int> result;
+    migraphx::adjacent_transform(
+        v.begin(), v.end(), std::back_inserter(result), [](int a, int b) { return b - a; });
+    EXPECT(result == std::vector<int>{2, 3, 4, 5});
+}
+
+// Unlike std::adjacent_difference the output can have a different type than the input
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_transform_different_type, int)
+{
+    Container v = {1, 2, 4, 4};
+    std::vector<bool> result;
+    migraphx::adjacent_transform(v.begin(), v.end(), std::back_inserter(result), std::less<>{});
+    EXPECT(result == std::vector<bool>{true, true, false});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_transform_single, int)
+{
+    Container v = {1};
+    std::vector<int> result;
+    migraphx::adjacent_transform(
+        v.begin(), v.end(), std::back_inserter(result), [](int a, int b) { return b - a; });
+    EXPECT(result.empty());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_transform_empty, int)
+{
+    Container v;
+    std::vector<int> result;
+    migraphx::adjacent_transform(
+        v.begin(), v.end(), std::back_inserter(result), [](int a, int b) { return b - a; });
+    EXPECT(result.empty());
+}
+
 MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_basic, int)
 {
     Container v  = {5, 3, 7, 1, 9, 2};

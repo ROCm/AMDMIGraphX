@@ -51,3 +51,24 @@ template struct test_nonzero<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_nonzero<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_nonzero<migraphx::shape::fp8e4m3fn_type>;
 template struct test_nonzero<migraphx::shape::fp8e5m2_type>;
+
+template <migraphx::shape::type_t DType>
+struct test_nonzero_transpose : verify_program<test_nonzero_transpose<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{DType, {2, 3}};
+        auto x = mm->add_parameter("data", s);
+        auto transposed =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto r = mm->add_instruction(migraphx::make_op("nonzero"), transposed);
+        mm->add_return({r});
+
+        return p;
+    }
+};
+
+template struct test_nonzero_transpose<migraphx::shape::bool_type>;
+template struct test_nonzero_transpose<migraphx::shape::float_type>;

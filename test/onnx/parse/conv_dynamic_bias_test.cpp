@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,4 +41,25 @@ TEST_CASE(conv_dynamic_bias_test)
     options.default_dyn_dim_value = {1, 6};
     auto prog                     = read_onnx("conv_dynamic_bias_test.onnx", options);
     EXPECT(p == prog);
+}
+
+TEST_CASE(conv_dynamic_bias_sym_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    // Symbolic image: bias uses the single-input broadcast (axis + out_dyn_dims).
+    EXPECT(check_parse(
+        "conv_dynamic_bias_test.onnx",
+        {{"0",
+          {migraphx::shape::float_type, sym_dims({var("n", {1, 6}), lit(3), lit(32), lit(32)})}},
+         {"1", {migraphx::shape::float_type, {1, 3, 5, 5}}},
+         {"2", {migraphx::shape::float_type, {1}}}},
+        [](migraphx::module& m, const auto& a) {
+            auto x3   = m.add_instruction(migraphx::make_op("convolution"), a[0], a[1]);
+            auto dims = migraphx::to_value(x3->get_shape().dyn_dims());
+            auto x4   = m.add_instruction(
+                migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), a[2]);
+            auto x5 = m.add_instruction(migraphx::make_op("add"), x3, x4);
+            m.add_return({x5});
+        }));
 }

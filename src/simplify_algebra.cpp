@@ -36,8 +36,11 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/unfold.hpp>
 
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <unordered_set>
 
 namespace migraphx {
@@ -45,23 +48,23 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static auto lit_broadcast()
 {
-    return match::any_of(match::is_constant(), match::name("broadcast"));
+    return match::opaque(match::any_of(match::is_constant(), match::name("broadcast")));
 }
 static auto not_lit_broadcast()
 {
-    return match::none_of(match::is_constant(), match::name("broadcast"));
+    return match::opaque(match::none_of(match::is_constant(), match::name("broadcast")));
 }
 static auto op_lit_broadcast(std::string op, std::string x, std::string y)
 {
-    return match::name(std::move(op))(match::either_arg(0, 1)(
-        lit_broadcast().bind(std::move(x)), not_lit_broadcast().bind(std::move(y))));
+    return match::opaque(match::name(std::move(op))(match::either_arg(0, 1)(
+        lit_broadcast().bind(std::move(x)), not_lit_broadcast().bind(std::move(y)))));
 }
 
 static auto conv_const_weights()
 {
-    return match::name("convolution")(
+    return match::opaque(match::name("convolution")(
         match::used_once(),
-        match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
+        match::args(match::none_of(match::is_constant()), match::is_constant().bind("w"))));
 }
 
 static auto from_int4()
@@ -80,7 +83,7 @@ static auto from_int4()
     });
 }
 
-static auto not_from_int4() { return match::none_of(from_int4()); }
+static auto not_from_int4() { return match::opaque(match::none_of(from_int4())); }
 
 static auto reduction() { return match::name_contains("reduce"); }
 
@@ -163,16 +166,17 @@ struct find_mul_slice_conv
 {
     static auto conv()
     {
-        return match::name("convolution")(
-            match::all_of[match::outputs()](match::name("slice")),
-            match::args(match::any(), match::is_constant().bind("w")));
+        return match::opaque(
+            match::name("convolution")(match::all_of[match::outputs()](match::name("slice")),
+                                       match::args(match::any(), match::is_constant().bind("w"))));
     }
     auto matcher() const
     {
-        return match::name("mul")(match::either_arg(0, 1)(
+        auto slice = match::opaque(
             match::name("slice")(match::used_once(), match::arg(0)(conv().bind("conv")))
-                .bind("slice"),
-            match::name("broadcast")(match::is_constant()).bind("a")));
+                .bind("slice"));
+        auto a = match::opaque(match::name("broadcast")(match::is_constant()).bind("a"));
+        return match::name("mul")(match::either_arg(0, 1)(slice, a));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -255,11 +259,12 @@ struct find_mul_dot
 {
     auto matcher() const
     {
-        auto constant = match::is_constant(not_from_int4());
-        auto is_dot_const_inputs =
-            match::name("dot")(match::any_of[match::inputs()](constant), match::used_once());
-        return match::name("mul")(match::either_arg(0, 1)(
-            is_dot_const_inputs.bind("dot"), match::name("broadcast", "multibroadcast").bind("c")));
+        auto constant            = match::opaque(match::is_constant(not_from_int4()));
+        auto is_dot_const_inputs = match::opaque(
+            match::name("dot")(match::any_of[match::inputs()](constant), match::used_once())
+                .bind("dot"));
+        auto c = match::opaque(match::name("broadcast", "multibroadcast").bind("c"));
+        return match::name("mul")(match::either_arg(0, 1)(is_dot_const_inputs, c));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -323,8 +328,9 @@ struct find_dot_slice
 {
     auto matcher() const
     {
-        return match::name("slice")(
-            match::args(match::name("dot", "quant_dot")(match::used_once()).bind("dot_ins")));
+        auto dot_ins =
+            match::opaque(match::name("dot", "quant_dot")(match::used_once()).bind("dot_ins"));
+        return match::name("slice")(match::args(dot_ins));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -401,13 +407,14 @@ struct find_dot_mul
 {
     auto matcher() const
     {
-        auto const_broadcast = match::name("broadcast", "multibroadcast")(match::is_constant());
-        auto mul             = match::name("mul")(
+        auto const_broadcast =
+            match::opaque(match::name("broadcast", "multibroadcast")(match::is_constant()));
+        auto mul = match::opaque(match::name("mul")(
             match::used_once(),
             match::either_arg(0, 1)(const_broadcast.bind("d"),
-                                    match::none_of(match::is_constant()).bind("z")));
-        return match::name("dot")(
-            match::either_arg(0, 1)(mul, match::is_constant(not_from_int4()).bind("c")));
+                                    match::none_of(match::is_constant()).bind("z"))));
+        auto c   = match::opaque(match::is_constant(not_from_int4()).bind("c"));
+        return match::name("dot")(match::either_arg(0, 1)(mul, c));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -471,14 +478,13 @@ struct find_mul_add
 {
     auto matcher() const
     {
-        return match::name("mul")(match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(
-                    match::any().bind("x"),
-                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()),
-            match::is_constant().bind("a")));
+        auto b = match::opaque(match::any_of(conv_const_weights(), match::is_constant()).bind("b"));
+        auto add = match::opaque(match::name("add")(
+            match::either_arg(0, 1)(match::any().bind("x"), b),
+            match::none_of(match::args(match::is_constant(), match::is_constant())),
+            match::used_once()));
+        auto a   = match::opaque(match::is_constant().bind("a"));
+        return match::name("mul")(match::either_arg(0, 1)(add, a));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -499,13 +505,13 @@ struct find_dot_add
 {
     auto matcher() const
     {
-        return match::name("dot")(match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(match::any().bind("x"),
-                                        match::any_of(match::is_constant()).bind("b")),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()),
-            match::is_constant().bind("a")));
+        auto b   = match::opaque(match::any_of(match::is_constant()).bind("b"));
+        auto add = match::opaque(match::name("add")(
+            match::either_arg(0, 1)(match::any().bind("x"), b),
+            match::none_of(match::args(match::is_constant(), match::is_constant())),
+            match::used_once()));
+        auto a   = match::opaque(match::is_constant().bind("a"));
+        return match::name("dot")(match::either_arg(0, 1)(add, a));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -920,10 +926,10 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        return match::name("concat")(match::any_of[match::inputs()](
+        auto fusable_input =
             match::any_of(match::pointwise(),
-                          match::name("broadcast", "multibroadcast", "unpack_int4")),
-            match::used_once()));
+                          match::name("broadcast", "multibroadcast", "unpack_int4", "unsqueeze"));
+        return match::name("concat")(match::any_of[match::inputs()](fusable_input));
     }
 
     template <class Iterator>
@@ -942,7 +948,7 @@ struct find_concat_op
 
     static bool is_valid_op(const operation& op)
     {
-        return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
+        return contains({"broadcast", "multibroadcast", "unpack_int4", "unsqueeze"}, op.name()) or
                (op.attributes().contains("pointwise") and op.name() != "quantizelinear");
     }
 
@@ -970,86 +976,144 @@ struct find_concat_op
         return nonconst > 2;
     }
 
+    // Fuse a group of equivalent concat inputs [start, last) into a single
+    // operation applied to concatenated arguments. Multi-use inputs are recorded
+    // in `replacements` so they can be rewired to slices of the fused result.
+    template <class Iterator>
+    static std::vector<instruction_ref>
+    fuse_group(module& m,
+               instruction_ref ins,
+               int64_t axis,
+               std::vector<std::pair<instruction_ref, instruction_ref>>& replacements,
+               Iterator start,
+               Iterator last)
+    {
+        if(std::distance(start, last) < 2)
+            return {start, last};
+        auto x = *start;
+        if(std::any_of(start, last, [](instruction_ref i) { return rejected_inputs(i->inputs()); }))
+            return {start, last};
+        // Skip if any multi-use input feeds into another group member,
+        // since the fused result would redundantly recompute the dominated
+        // input without being able to eliminate the original.
+        if(std::any_of(start, last, [&](instruction_ref orig) {
+               return orig->outputs().size() > 1 and
+                      std::any_of(start, last, [&](instruction_ref g) {
+                          return g != orig and reaches(orig, g);
+                      });
+           }))
+            return {start, last};
+        auto op = x->get_operator();
+        if(not is_valid_op(op))
+            return {start, last};
+        auto iaxis = axis;
+        // Adjust broadcast lens
+        if(op.name() == "broadcast")
+        {
+            auto b = any_cast<op::broadcast>(op);
+            if(b.axis != iaxis)
+                return {start, last};
+            b.broadcast_lens = get_output_lens(start, last, iaxis);
+            op               = b;
+            iaxis            = 0;
+        }
+        else if(op.name() == "multibroadcast")
+        {
+            shape bshape = (*start)->get_shape();
+            auto input   = (*start)->inputs()[0];
+            if(iaxis >= bshape.strides().size() or bshape.strides()[iaxis] == 0)
+                return {start, last};
+            op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
+            auto delta = bshape.lens().size() - input->get_shape().lens().size();
+            iaxis -= delta;
+        }
+        else if(op.name() == "unsqueeze")
+        {
+            value v   = op.to_value();
+            auto axes = v["axes"].to_vector<std::int64_t>();
+            // Cant concat along an inserted unit axis, and steps split dims;
+            // unsqueeze ignores axes for scalar inputs, so the axis remap doesnt apply
+            if(not v["steps"].empty() or contains(axes, iaxis) or
+               any_of(axes, [](auto a) { return a < 0; }) or
+               x->inputs().front()->get_shape().scalar())
+                return {start, last};
+            iaxis -= std::count_if(axes.begin(), axes.end(), [&](auto a) { return a < iaxis; });
+        }
+        if(not concat_const_foldable(start, last, iaxis))
+            return {start, last};
+
+        std::vector<instruction_ref> concats;
+        for(std::size_t i = 0; i < x->inputs().size(); i++)
+        {
+            std::vector<instruction_ref> inputs;
+            std::transform(
+                start, last, std::back_inserter(inputs), [&](auto j) { return j->inputs().at(i); });
+            if(not is_valid_concat(inputs, iaxis))
+                return {start, last};
+            auto concat = m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
+            concats.push_back(concat);
+        }
+        auto y = m.insert_instruction(ins, op, concats);
+
+        // Replace multi-use inputs with slices of the fused result
+        std::size_t offset = 0;
+        for(auto it = start; it != last; ++it)
+        {
+            auto orig = *it;
+            auto len  = orig->get_shape().lens()[axis];
+            if(orig->outputs().size() > 1)
+            {
+                auto slice_ins = m.insert_instruction(
+                    ins,
+                    make_op("slice",
+                            {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
+                    y);
+                replacements.emplace_back(orig, slice_ins);
+            }
+            offset += len;
+        }
+
+        return {y};
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
 
-        auto each = [&](auto start, auto last) -> std::vector<instruction_ref> {
-            if(std::distance(start, last) < 2)
-                return {start, last};
-            auto x = *start;
-            if(std::any_of(start, last, [](instruction_ref x) {
-                   return x->outputs().size() > 1 or rejected_inputs(x->inputs());
-               }))
-                return {start, last};
-            auto op = x->get_operator();
-            if(not is_valid_op(op))
-                return {start, last};
-            auto iaxis = axis;
-            // Adjust broadcast lens
-            if(op.name() == "broadcast")
-            {
-                auto b = any_cast<op::broadcast>(op);
-                if(b.axis != iaxis)
-                    return {start, last};
-                b.broadcast_lens = get_output_lens(start, last, iaxis);
-                op               = b;
-                iaxis            = 0;
-            }
-            else if(op.name() == "multibroadcast")
-            {
-                shape bshape = (*start)->get_shape();
-                auto input   = (*start)->inputs()[0];
-                if(iaxis >= bshape.strides().size() or bshape.strides()[iaxis] == 0)
-                    return {start, last};
-                op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
-                auto delta = bshape.lens().size() - input->get_shape().lens().size();
-                iaxis -= delta;
-            }
-            if(not concat_const_foldable(start, last, iaxis))
-                return {start, last};
-
-            std::vector<instruction_ref> concats;
-            for(std::size_t i = 0; i < x->inputs().size(); i++)
-            {
-                std::vector<instruction_ref> inputs;
-                std::transform(start, last, std::back_inserter(inputs), [&](auto j) {
-                    return j->inputs().at(i);
-                });
-                if(not is_valid_concat(inputs, iaxis))
-                    return {start, last};
-                auto concat =
-                    m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
-                concats.push_back(concat);
-            }
-            auto y = m.insert_instruction(ins, op, concats);
-            return {y};
-        };
+        std::vector<std::pair<instruction_ref, instruction_ref>> replacements;
 
         std::vector<instruction_ref> args;
         auto update_args = [&](auto start, auto last) {
-            auto x = each(start, last);
+            auto x = fuse_group(m, ins, axis, replacements, start, last);
             args.insert(args.end(), x.begin(), x.end());
         };
         auto pred = [](auto i, auto j) {
             return i->get_operator() == j->get_operator() and
-                   i->inputs().size() == j->inputs().size() and
-                   i->outputs().size() == j->outputs().size();
+                   i->inputs().size() == j->inputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
+
+        for(const auto& p : replacements)
+        {
+            m.move_output_instructions_after(p.first, ins);
+        }
+
         if(args.size() == 1)
             m.replace_instruction(ins, args.front());
         else
             m.replace_instruction(ins, make_op("concat", {{"axis", axis}}), args);
+
+        for(const auto& p : replacements)
+        {
+            m.replace_instruction(p.first, p.second);
+        }
     }
 };
 
-// Collapse `concat(x, x, ..., x)` (N copies of the same instruction) into a
-// single `multibroadcast` when the concat axis has length 1 in the source
-// tensor. This is the common shape that shows up in MoE / KV-cache / RoPE
-// expansion code where a tensor is replicated N times along an axis. The
-// rewrite turns an O(output_size) memcpy into a strided view.
+// Rewrite `concat(x, x, ..., x)` (N copies of the same instruction) as a
+// broadcast-based tiling of x. This pattern shows up in MoE / KV-cache /
+// RoPE expansion code where a tensor is replicated N times along an axis.
 struct find_concat_same_input
 {
     auto matcher() const { return match::name("concat")(match::same_inputs()); }
@@ -1069,18 +1133,72 @@ struct find_concat_same_input
         if(axis < 0 or axis >= lens.size())
             return;
 
-        // Safe (no data movement) case: the concat axis is size 1 in the
-        // source, so it can be broadcast to N. The general lens[axis] > 1
-        // case requires unsqueeze + multGibroadcast + reshape and is left
-        // to a follow-up matcher.
-        if(lens[axis] != 1)
+        const auto& out_lens = ins->get_shape().lens();
+
+        // The concat axis is size 1 in the source, so replicating it is a
+        // strided view with no data movement.
+        if(lens[axis] == 1)
+        {
+            m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), x);
             return;
+        }
 
-        auto out_lens  = lens;
-        out_lens[axis] = inputs.size();
-        assert(out_lens == ins->get_shape().lens());
+        // General case: tile the axis by unsqueezing a unit dim before it,
+        // broadcasting that dim to N, then folding it back into the axis.
+        auto unsqueezed = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {axis}}}), x);
+        auto bcast_lens = unsqueezed->get_shape().lens();
+        assert(bcast_lens[axis] == 1);
+        bcast_lens[axis] = inputs.size();
+        auto bcast       = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", bcast_lens}}), unsqueezed);
+        m.replace_instruction(ins, make_op("reshape", {{"dims", out_lens}}), bcast);
+    }
+};
 
-        m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), x);
+// Matches `concat` of multibroadcasts along a broadcasted (stride-0) axis
+// where all inputs broadcast the same value. All conditions live in the
+// matcher so declining does not shadow later concat matchers.
+MIGRAPHX_PRED_MATCHER(concat_of_same_broadcast, instruction_ref ins)
+{
+    if(ins->name() != "concat")
+        return false;
+    if(ins->get_shape().dynamic())
+        return false;
+    const auto& inputs = ins->inputs();
+    if(inputs.empty())
+        return false;
+    if(not all_of(inputs, [](instruction_ref i) {
+           return i->name() == "multibroadcast" and i->inputs().size() == 1;
+       }))
+        return false;
+    auto axis        = any_cast<op::concat>(ins->normalized_operator()).axis;
+    const auto& lens = inputs.front()->get_shape().lens();
+    if(not all_of(inputs, [&](instruction_ref i) { return i->get_shape().strides()[axis] == 0; }))
+        return false;
+    auto x = inputs.front()->inputs().front();
+    // The concat axis must not map to a non-unit dimension of x
+    auto offset = lens.size() - x->get_shape().ndim();
+    if(axis >= offset and x->get_shape().lens()[axis - offset] != 1)
+        return false;
+    return all_of(inputs, [&](instruction_ref i) {
+        auto y = i->inputs().front();
+        return y == x or *y == *x;
+    });
+}
+
+// Replace `concat` of multibroadcasts along a broadcasted (stride-0) axis with
+// a single multibroadcast when all inputs broadcast the same value. This avoids
+// materializing a large literal when the concat gets constant folded.
+struct find_concat_same_broadcast
+{
+    auto matcher() const { return concat_of_same_broadcast(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto x   = ins->inputs().front()->inputs().front();
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
     }
 };
 
@@ -1133,6 +1251,184 @@ struct find_concat_conv
     }
 };
 
+static bool
+axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
+{
+    return x.size() == y.size() and x.size() > axis and
+           std::equal(x.begin(), x.begin() + axis, y.begin()) and
+           std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
+}
+
+static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
+{
+    // TODO: Check strides
+    return axis_equal(x.lens(), y.lens(), axis);
+}
+
+// Horizontal fusion for convolutions through concat decomposition.
+// When conv_b operates on concat(A, extra) and conv_a operates on A,
+// we can decompose conv_b = conv(A, w_prefix) + conv(extra, w_suffix)
+// and fuse conv_a with the prefix part into a single convolution.
+struct find_conv_concat_split_fuse
+{
+    auto matcher() const
+    {
+        auto input_feeds_conv = match::any_of[match::inputs()](
+            match::any_of[match::outputs()](match::name("convolution")));
+        auto concat_input = match::arg(0)(match::name("concat")(input_feeds_conv));
+        return match::name("convolution")(concat_input, match::arg(1)(match::is_constant()));
+    }
+
+    static bool is_fusable_conv(instruction_ref output,
+                                instruction_ref prefix_input,
+                                instruction_ref conv_b,
+                                const value& conv_b_val)
+    {
+        if(output->name() != "convolution" or output == conv_b)
+            return false;
+        auto ca_val = output->get_operator().to_value();
+        if(ca_val["padding"] != conv_b_val.at("padding") or
+           ca_val["stride"] != conv_b_val.at("stride") or
+           ca_val["dilation"] != conv_b_val.at("dilation") or ca_val["group"].to<int>() != 1)
+            return false;
+        if(output->inputs()[0] != prefix_input)
+            return false;
+        // Only fuse with original convolutions (not derived from prior fusion)
+        if(not output->inputs()[1]->inputs().empty())
+            return false;
+        return reaches(output, conv_b);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto conv_b     = r.result;
+        auto concat_ins = conv_b->inputs()[0];
+        auto weight_b   = conv_b->inputs()[1];
+        auto conv_b_val = conv_b->get_operator().to_value();
+
+        if(conv_b_val.at("group").to<int>() != 1)
+            return;
+
+        auto concat_axis = concat_ins->get_operator().to_value()["axis"].to<std::size_t>();
+        if(concat_axis != 1)
+            return;
+
+        auto concat_inputs = concat_ins->inputs();
+        if(concat_inputs.size() < 2)
+            return;
+
+        // Collect (conv_a, prefix_len) candidates: prefix concats and direct single-element
+        auto front_outputs = concat_inputs.front()->outputs();
+        using conv_prefix  = std::pair<instruction_ref, std::size_t>;
+        std::vector<conv_prefix> candidates;
+        transform_if(
+            front_outputs.begin(),
+            front_outputs.end(),
+            join_back_inserter(candidates),
+            [&](instruction_ref output) {
+                // Direct convolution on first input (single-element prefix)
+                if(is_fusable_conv(output, concat_inputs.front(), conv_b, conv_b_val))
+                    return true;
+                // Prefix concat whose inputs match a prefix of concat_ins
+                if(output->name() != "concat" or output == concat_ins)
+                    return false;
+                auto out_inputs = output->inputs();
+                return out_inputs.size() < concat_inputs.size() and
+                       std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin());
+            },
+            [&](instruction_ref output) -> std::vector<conv_prefix> {
+                if(output->name() != "concat")
+                    return {{output, 1}};
+                auto fi = std::find_if(
+                    output->outputs().begin(), output->outputs().end(), [&](instruction_ref o) {
+                        return is_fusable_conv(o, output, conv_b, conv_b_val);
+                    });
+                if(fi == output->outputs().end())
+                    return {};
+                return {{*fi, output->inputs().size()}};
+            });
+
+        // Pick the longest prefix
+        auto it = std::max_element(
+            candidates.begin(), candidates.end(), [](const conv_prefix& a, const conv_prefix& b) {
+                return a.second < b.second;
+            });
+
+        if(it == candidates.end())
+            return;
+
+        auto conv_a       = it->first;
+        auto prefix_len   = it->second;
+        auto input_a      = conv_a->inputs()[0];
+        auto weight_a     = conv_a->inputs()[1];
+        auto prefix_chans = input_a->get_shape().lens()[1];
+        auto total_chans  = concat_ins->get_shape().lens()[1];
+
+        if(prefix_chans >= total_chans)
+            return;
+
+        if(not std::all_of(concat_inputs.begin(), concat_inputs.end(), [&](auto inp) {
+               return axis_shape_equal(input_a->get_shape(), inp->get_shape(), concat_axis);
+           }))
+            return;
+
+        if(not axis_shape_equal(weight_a->get_shape(), weight_b->get_shape(), 1))
+            return;
+
+        auto out_a = weight_a->get_shape().lens()[0];
+        auto out_b = weight_b->get_shape().lens()[0];
+
+        // --- Insert fused conv and slices at conv_a's position ---
+        auto w_b_prefix = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {prefix_chans}}}),
+            weight_b);
+
+        auto w_fused =
+            m.insert_instruction(conv_a, make_op("concat", {{"axis", 0}}), weight_a, w_b_prefix);
+        w_fused = m.insert_instruction(conv_a, make_op("contiguous"), w_fused);
+
+        auto fused_conv = m.insert_instruction(conv_a, conv_a->get_operator(), input_a, w_fused);
+
+        auto conv_a_result = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {out_a}}}),
+            fused_conv);
+        auto conv_b_prefix_result = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {out_a}}, {"ends", {out_a + out_b}}}),
+            fused_conv);
+
+        // --- Insert residual conv at conv_b's position ---
+        auto w_b_suffix = m.insert_instruction(
+            conv_b,
+            make_op("slice", {{"axes", {1}}, {"starts", {prefix_chans}}, {"ends", {total_chans}}}),
+            weight_b);
+        w_b_suffix = m.insert_instruction(conv_b, make_op("contiguous"), w_b_suffix);
+
+        std::vector<instruction_ref> remaining(concat_inputs.begin() + prefix_len,
+                                               concat_inputs.end());
+        instruction_ref extra;
+        if(remaining.size() == 1)
+        {
+            extra = remaining.front();
+        }
+        else
+        {
+            extra = m.insert_instruction(conv_b, make_op("concat", {{"axis", 1}}), remaining);
+        }
+
+        auto conv_b_suffix_result =
+            m.insert_instruction(conv_b, conv_b->get_operator(), extra, w_b_suffix);
+
+        auto conv_b_result = m.insert_instruction(
+            conv_b, make_op("add"), conv_b_prefix_result, conv_b_suffix_result);
+
+        m.replace_instruction(conv_a, conv_a_result);
+        m.replace_instruction(conv_b, conv_b_result);
+    }
+};
+
 static void
 move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
 {
@@ -1152,20 +1448,40 @@ move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_r
     }
 }
 
-/** Search for multiple "slice" instructions in an instruction's outputs
- *  which are contiguous slices of the same tensor.
- */
-static std::vector<instruction_ref> get_splits(instruction_ref ins)
+/** Collect the "slice" instructions in an instruction's outputs. */
+static std::vector<instruction_ref> get_slice_outputs(instruction_ref ins)
 {
     std::vector<instruction_ref> result;
     std::copy_if(ins->outputs().begin(),
                  ins->outputs().end(),
                  std::back_inserter(result),
-                 [&](auto i) { return i->name() == "slice"; });
+                 [](auto i) { return i->name() == "slice"; });
+    return result;
+}
+
+/** Search for multiple "slice" instructions in an instruction's outputs
+ *  which are contiguous slices of the same tensor.
+ *
+ *  With `partial == false` the slices must tile the whole tensor (start at 0 and
+ *  the last slice must reach the axis length).  With `partial == true` those two
+ *  checks are skipped, so a contiguous run of slices covering only a sub-range is
+ *  also accepted (the gap-free adjacency check still applies).
+ */
+static std::vector<instruction_ref> get_splits(instruction_ref ins, bool partial = false)
+{
+    auto result = get_slice_outputs(ins);
     if(result.size() < 2)
         return {};
     auto get_slice = [](auto& i) -> auto& { return any_cast<op::slice>(i->get_operator()); };
     auto&& axes    = get_slice(result.front()).axes;
+
+    auto is_static_slice = [&](auto i) {
+        const auto& s = get_slice(i);
+        return not s.axes.empty() and s.starts.size() == s.axes.size() and
+               s.ends.size() == s.axes.size();
+    };
+    if(not std::all_of(result.begin(), result.end(), is_static_slice))
+        return {};
 
     // "slice" instructions must all have the same axes
     if(std::any_of(result.begin(), result.end(), [&](auto i) { return get_slice(i).axes != axes; }))
@@ -1176,9 +1492,9 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
     // Sort the "slice" instructions in order of starts
     std::sort(
         result.begin(), result.end(), [&](auto x, auto y) { return get_start(x) < get_start(y); });
-    if(std::any_of(get_start(result.front()).begin(), get_start(result.front()).end(), [&](auto i) {
-           return i != 0;
-       }))
+    if(not partial and std::any_of(get_start(result.front()).begin(),
+                                   get_start(result.front()).end(),
+                                   [&](auto i) { return i != 0; }))
         return {};
 
     // one slice must "start" where the last slice "end"
@@ -1186,11 +1502,14 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
         result.begin(), result.end(), [&](auto x, auto y) { return get_end(x) != get_start(y); });
     if(it != result.end())
         return {};
-    for(std::size_t i = 0; i < axes.size(); i++)
+    if(not partial)
     {
-        auto axis = axes[i];
-        if(ins->get_shape().lens()[axis] != get_slice(result.back()).ends[i])
-            return {};
+        for(std::size_t i = 0; i < axes.size(); i++)
+        {
+            auto axis = axes[i];
+            if(ins->get_shape().lens()[axis] != get_slice(result.back()).ends[i])
+                return {};
+        }
     }
     return result;
 }
@@ -1403,104 +1722,187 @@ struct find_splits
         return false;
     }
 
+    // Fuse a binary group whose non-split argument is a foldable constant by
+    // concatenating the constants and computing `op` over the whole tensor.
+    // Returns the fused instruction and its slice-argument index, or a fused
+    // instruction of m.end() if the group cannot be fused (in which case the
+    // caller aborts, matching the original semantics).
+    std::tuple<instruction_ref, int>
+    fuse_binary_const_concat(module& m,
+                             instruction_ref ins,
+                             const std::vector<instruction_ref>& group,
+                             const std::vector<instruction_ref>& splits,
+                             const operation& op) const
+    {
+        auto start = group.front();
+        assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
+            return i->name() == "slice";
+        }) and "one argument must be a split");
+
+        auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
+        assert(not slice_op.axes.empty());
+        if(slice_op.axes.size() > 1)
+            return {m.end(), 0};
+        auto concat_axis = slice_op.axes.front();
+        if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
+            return {m.end(), 0};
+
+        int split_idx = get_binary_op_split_idx(group, splits);
+        assert(split_idx < 2);
+        size_t data_idx = 0;
+        if(split_idx < 0 and op.attributes().contains("commutative"))
+        {
+            split_idx = 0;
+            data_idx  = 1;
+            align_commutative_op_args(m, group, splits, split_idx);
+        }
+        else if(split_idx < 0)
+        {
+            return {m.end(), 0};
+        }
+        else
+        {
+            data_idx = split_idx == 0 ? 1 : 0;
+        }
+
+        std::vector<instruction_ref> data_args;
+        std::transform(group.begin(), group.end(), std::back_inserter(data_args), [&](auto i) {
+            return i->inputs()[data_idx];
+        });
+
+        // Data arguments must be a constant
+        if(std::any_of(
+               data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
+            return {m.end(), 0};
+
+        move_instructions_back(m, ins, data_args);
+
+        // TODO: Check if axises match
+        auto concat =
+            m.insert_instruction(ins, make_op("concat", {{"axis", concat_axis}}), data_args);
+
+        std::vector<instruction_ref> args(2);
+        args[split_idx] = ins;
+        args[data_idx]  = concat;
+        return {m.insert_instruction(std::next(ins), op, {args}, start->module_inputs()),
+                split_idx};
+    }
+
+    // Point each group member at the fused result `c`.  For a full cover the
+    // original slice operator is reused; for a partial cover each consumer's
+    // re-slice is shifted back by the bounding slice's start.
+    void rewrite_group_consumers(module& m,
+                                 const std::vector<instruction_ref>& group,
+                                 instruction_ref c,
+                                 int split_idx,
+                                 bool partial,
+                                 const op::slice& front_slice) const
+    {
+        for(auto i : group)
+        {
+            auto split = i->inputs()[split_idx];
+            assert(split->name() == "slice");
+            if(not partial)
+            {
+                m.replace_instruction(i, split->get_operator(), c);
+                continue;
+            }
+            // Re-slice the wide result relative to the bounding slice.
+            auto s     = any_cast<op::slice>(split->get_operator());
+            auto shift = [&](const std::vector<int64_t>& v) {
+                std::vector<int64_t> out(v.size());
+                std::transform(v.begin(),
+                               v.end(),
+                               front_slice.starts.begin(),
+                               out.begin(),
+                               [](int64_t a, int64_t b) { return a - b; });
+                return out;
+            };
+            m.replace_instruction(
+                i,
+                make_op("slice",
+                        {{"axes", s.axes}, {"starts", shift(s.starts)}, {"ends", shift(s.ends)}}),
+                c);
+        }
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins    = r.result;
-        auto splits = get_splits(ins);
+        auto ins     = r.result;
+        bool partial = false;
+        auto splits  = get_splits(ins);
+        if(splits.empty())
+        {
+            // The sibling slices only partially tile their tensor, e.g.
+            //     slice{0,1} -> pw, slice{1,2} -> pw   (over a length-3 tensor)
+            // Rewrite this as one wide op on the bounding slice with each
+            // consumer reading its sub-range back out:
+            //     slice{0,2} -> pw -> (slice{0,1}, slice{1,2})
+            splits  = get_splits(ins, /*partial=*/true);
+            partial = true;
+        }
         if(splits.empty())
             return;
         auto split_groups = get_split_groups(m, ins, splits);
         if(split_groups_are_dependent(m, ins, split_groups))
-        {
             return;
-        }
+
+        // A full cover computes the op on the whole tensor; a partial cover
+        // computes it on a bounding slice spanning [lo, hi) of the shared axis
+        // and shifts each consumer's re-slice by lo.  The bounding slice is
+        // created lazily (get_base) so nothing is inserted when no group fuses.
+        auto front_slice = any_cast<op::slice>(splits.front()->get_operator());
+        auto back_slice  = any_cast<op::slice>(splits.back()->get_operator());
+        // Restrict the partial hoist to a single axis.
+        if(partial and front_slice.axes.size() != 1)
+            return;
+        instruction_ref base = ins;
+        bool base_inserted   = false;
+        auto get_base        = [&] {
+            if(partial and not base_inserted)
+            {
+                base          = m.insert_instruction(std::next(ins),
+                                                     make_op("slice",
+                                                             {{"axes", front_slice.axes},
+                                                              {"starts", front_slice.starts},
+                                                              {"ends", back_slice.ends}}),
+                                                     ins);
+                base_inserted = true;
+            }
+            return base;
+        };
 
         for(const auto& group : split_groups)
         {
-            auto start       = group.front();
-            auto split_front = splits.front();
-            auto op          = start->get_operator();
-            if(not is_fusable(start, split_front))
-            {
+            auto start = group.front();
+            auto op    = start->get_operator();
+            if(not is_fusable(start, splits.front()))
                 continue;
-            }
 
             // Make sure there are no duplicates
             assert(std::none_of(
                 std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
 
-            auto split_idx    = 0;
+            int split_idx     = 0;
             instruction_ref c = m.end();
             if(start->inputs().size() == 1)
             {
-                c = m.insert_instruction(std::next(ins), op, {ins}, start->module_inputs());
+                auto b = get_base();
+                c      = m.insert_instruction(std::next(b), op, {b}, start->module_inputs());
             }
             else if(start->inputs().size() == 2)
             {
-                assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
-                    return i->name() == "slice";
-                }) and "one argument must be a split");
-
-                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
-                assert(not slice_op.axes.empty());
-                if(slice_op.axes.size() > 1)
+                // The constant-concat fusion rewrites the op on the whole tensor,
+                // so it only applies to a full cover.
+                if(partial)
+                    continue;
+                std::tie(c, split_idx) = fuse_binary_const_concat(m, ins, group, splits, op);
+                if(c == m.end())
                     return;
-                auto concat_axis = slice_op.axes.front();
-                if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
-                    return;
-
-                split_idx = get_binary_op_split_idx(group, splits);
-                assert(split_idx < 2);
-                size_t data_idx;
-                if(split_idx < 0 and op.attributes().contains("commutative"))
-                {
-                    split_idx = 0;
-                    data_idx  = 1;
-                    align_commutative_op_args(m, group, splits, split_idx);
-                }
-                else if(split_idx < 0)
-                {
-                    return;
-                }
-                else
-                {
-                    data_idx = split_idx == 0 ? 1 : 0;
-                }
-
-                std::vector<instruction_ref> data_args;
-                std::transform(group.begin(),
-                               group.end(),
-                               std::back_inserter(data_args),
-                               [&](auto i) { return i->inputs()[data_idx]; });
-
-                // Data arguments must be a constant
-                if(std::any_of(data_args.begin(), data_args.end(), [](auto i) {
-                       return not i->can_eval();
-                   }))
-                    return;
-
-                move_instructions_back(m, ins, data_args);
-
-                // TODO: Check if axises match
-                auto concat = m.insert_instruction(
-                    ins, make_op("concat", {{"axis", concat_axis}}), data_args);
-
-                std::vector<instruction_ref> args;
-                args.resize(2);
-                args[split_idx] = ins;
-                args[data_idx]  = concat;
-                c = m.insert_instruction(std::next(ins), op, {args}, start->module_inputs());
             }
+
             if(c != m.end())
-            {
-                for(auto i : group)
-                {
-                    auto split = i->inputs()[split_idx];
-                    assert(split->name() == "slice");
-
-                    m.replace_instruction(i, split->get_operator(), c);
-                }
-            }
+                rewrite_group_consumers(m, group, c, split_idx, partial, front_slice);
         }
     }
 };
@@ -1579,20 +1981,6 @@ struct find_split_concat
     }
 };
 
-static bool
-axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
-{
-    return x.size() == y.size() and x.size() > axis and
-           std::equal(x.begin(), x.begin() + axis, y.begin()) and
-           std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
-}
-
-static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
-{
-    // TODO: Check strides
-    return axis_equal(x.lens(), y.lens(), axis);
-}
-
 struct find_add_convs
 {
     auto matcher() const
@@ -1664,6 +2052,9 @@ struct find_add_convs
             else
                 return;
         }
+
+        if(not axis_shape_equal(a_input->get_shape(), b_input->get_shape(), 1))
+            return;
 
         auto concat_input =
             m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), a_input, b_input);
@@ -1982,11 +2373,204 @@ static bool same_ops(const std::vector<instruction_ref>& vec_ins)
 
 struct find_split_reshape
 {
+    static const auto& reshape_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "reshape_lazy",
+            "squeeze",
+            "unsqueeze",
+        };
+        return names;
+    }
     auto matcher() const
     {
-        auto slice_bind_slice = match::arg(0)(match::name("slice").bind("slice"));
-        return match::name("reshape")(match::arg(0)(match::name("contiguous")(slice_bind_slice)))
+        auto slice_bind_slice = match::name("slice").bind("slice");
+        auto reshape          = match::name(reshape_ops());
+        auto cont_reshape     = match::any_of(match::name("contiguous"), reshape);
+        return reshape(match::arg(0)(match::skip(cont_reshape)(slice_bind_slice)),
+                       match::none_of[match::outputs()](reshape()))
             .bind("reshape");
+    }
+
+    struct linear_map
+    {
+        std::size_t src = 0;
+        std::size_t dst = 0;
+
+        bool is_valid() const
+        {
+            if(src == dst)
+                return true;
+            if(dst > src)
+                return (dst % src) == 0;
+            return (src % dst) == 0;
+        }
+
+        bool is_valid_index(std::size_t i) const
+        {
+            if(src > dst)
+                return i % (src / dst) == 0;
+            return true;
+        }
+
+        std::size_t operator()(std::size_t i) const
+        {
+            if(src == dst)
+                return i;
+            if(dst > src)
+                return i * (dst / src);
+            return i / (src / dst);
+        };
+
+        friend std::ostream& operator<<(std::ostream& s, const linear_map& lm)
+        {
+            s << "src: " << lm.src << ", dst: " << lm.dst;
+            return s;
+        }
+    };
+
+    static bool is_reshape(instruction_ref ins)
+    {
+        return contains(reshape_ops(), ins->name()) or ins->name() == "contiguous";
+    }
+
+    static auto get_reshapes(instruction_ref ins)
+    {
+        return unfold(ins, [](instruction_ref out) -> std::optional<instruction_ref> {
+            if(out->outputs().size() != 1)
+                return std::nullopt;
+            auto next = out->outputs().front();
+            if(not contains(reshape_ops(), next->name()) or next->name() == "contiguous")
+                return std::nullopt;
+            return next;
+        });
+    }
+
+    // Collect the reshape descriptor for each split whose reshaped output
+    // targets the same shape as the matched reshape. Returns false if any
+    // candidate cannot be described as a shape transform.
+    static bool collect_descriptors(instruction_ref slc,
+                                    instruction_ref rsp,
+                                    const std::vector<instruction_ref>& splits,
+                                    std::vector<shape_transform_descriptor>& descs,
+                                    std::vector<instruction_ref>& slices,
+                                    std::vector<instruction_ref>& terminals)
+    {
+        for(auto split : splits)
+        {
+            if(split->get_shape().lens() != slc->get_shape().lens())
+                continue;
+            auto it = find_if(split->outputs(), [&](instruction_ref out) {
+                if(not is_reshape(out))
+                    return false;
+                auto last = find_last(get_reshapes(out));
+                if((*last)->outputs().empty())
+                    return false;
+                return (*last)->get_shape().lens() == rsp->get_shape().lens();
+            });
+            if(it == split->outputs().end())
+                continue;
+
+            auto inss  = get_reshapes(*it);
+            auto idims = split->get_shape().lens();
+            std::vector<operation> ops;
+            std::transform(inss.begin(), inss.end(), std::back_inserter(ops), [](auto i) {
+                return i->get_operator();
+            });
+            auto desc = shape_transform_descriptor::create(idims, ops);
+            if(desc.empty())
+                return false;
+            descs.push_back(desc);
+            slices.push_back(split);
+            terminals.push_back(*std::next(inss.begin(), ops.size() - 1));
+        }
+        return true;
+    }
+
+    // Map each sliced axis onto the merged destination axis and its linear
+    // scaling, growing dims accordingly. Returns false for any layout that
+    // cannot be expressed as a single reshape of the sliced input.
+    static bool compute_slice_axes(const shape_transform_descriptor& desc,
+                                   const std::vector<std::size_t>& op_axes,
+                                   const std::vector<std::size_t>& input_lens,
+                                   const std::vector<std::size_t>& slc_lens,
+                                   std::vector<std::size_t>& dims,
+                                   std::vector<std::size_t>& axes,
+                                   std::vector<linear_map>& linears)
+    {
+        auto am = desc.axes_map_from_src(true);
+        for(auto op_axis : op_axes)
+        {
+            auto mapped = am[op_axis];
+            if(mapped.empty())
+                return false;
+            auto axis = *std::min_element(mapped.begin(), mapped.end());
+            if(contains(axes, axis))
+                return false;
+            // The sliced axis must be the outermost subdimension in the
+            // destination dimension. If a subdimension from a different
+            // axis with len > 1 precedes it, slicing would produce a
+            // strided (non-contiguous) access pattern in the merged
+            // dimension.
+            const auto& subs = desc.dimensions[axis].subdimensions;
+            for(const auto& s : subs)
+            {
+                if(s.origin_axis().empty())
+                    continue;
+                if(s.origin_axis().front() == op_axis)
+                    break;
+                if(s.len > 1)
+                    return false;
+            }
+            auto per_axis_nslices = input_lens.at(op_axis) / slc_lens.at(op_axis);
+            dims[axis] *= per_axis_nslices;
+            linear_map linear{.src = input_lens.at(op_axis), .dst = dims[axis]};
+            if(not linear.is_valid())
+                return false;
+            axes.push_back(axis);
+            linears.push_back(linear);
+        }
+        return true;
+    }
+
+    // Translate each per-split slice into an equivalent slice on the merged
+    // axes. Returns false if a slice boundary does not align with the merge.
+    static bool build_new_slices(const std::vector<instruction_ref>& slices,
+                                 const std::vector<std::size_t>& axes,
+                                 const std::vector<linear_map>& linears,
+                                 std::vector<operation>& new_slices)
+    {
+        for(auto slice : slices)
+        {
+            auto v         = slice->get_operator().to_value();
+            auto op_starts = v.at("starts").to_vector<std::size_t>();
+            auto op_ends   = v.at("ends").to_vector<std::size_t>();
+
+            auto is_invalid_index = [&](auto i) {
+                return not linears[i].is_valid_index(op_starts[i]) or
+                       not linears[i].is_valid_index(op_ends[i]);
+            };
+            if(any_of(range(linears.size()), is_invalid_index))
+                return false;
+            std::vector<std::size_t> new_starts(linears.size());
+            std::vector<std::size_t> new_ends(linears.size());
+            std::transform(linears.begin(),
+                           linears.end(),
+                           op_starts.begin(),
+                           new_starts.begin(),
+                           [](const auto& lm, auto s) { return lm(s); });
+            std::transform(linears.begin(),
+                           linears.end(),
+                           op_ends.begin(),
+                           new_ends.begin(),
+                           [](const auto& lm, auto e) { return lm(e); });
+
+            new_slices.push_back(
+                make_op("slice", {{"axes", axes}, {"starts", new_starts}, {"ends", new_ends}}));
+        }
+        return true;
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1995,156 +2579,48 @@ struct find_split_reshape
         auto rsp   = r.instructions["reshape"];
         auto input = slc->inputs().front();
 
-        // Only apply simplification when slices are on a single axis
-        auto axes = any_cast<op::slice>(slc->get_operator()).axes;
-        if(axes.size() > 1)
-        {
+        auto splits = get_splits(input);
+        if(splits.size() < 2)
             return;
-        }
 
-        auto split_outputs = get_splits(input);
-        if(split_outputs.empty())
-        {
+        std::vector<shape_transform_descriptor> descs;
+        std::vector<instruction_ref> terminals;
+        std::vector<instruction_ref> slices;
+        if(not collect_descriptors(slc, rsp, splits, descs, slices, terminals))
             return;
-        }
 
-        // Find all the reshapes (similar to rsp) that can be simplified
-        std::vector<instruction_ref> conts;
-        std::vector<instruction_ref> vec_rsp;
-
-        // Iterate through slice and contiguous outputs to allow simplifications when
-        // slice is followed by multiple reshapes
-        for(auto& i : split_outputs)
-        {
-            std::copy_if(i->outputs().begin(),
-                         i->outputs().end(),
-                         std::back_inserter(conts),
-                         [](auto j) { return j->name() == "contiguous"; });
-        }
-
-        for(auto& i : conts)
-        {
-            std::copy_if(i->outputs().begin(),
-                         i->outputs().end(),
-                         std::back_inserter(vec_rsp),
-                         [&](auto j) { return j->get_operator() == rsp->get_operator(); });
-        }
-
-        // No simplification needed if there is only one slice -> cont -> reshape
-        if(vec_rsp.size() <= 1)
-        {
+        if(slices.size() < 2)
             return;
-        }
 
-        // ensure reshape happens after the axis dimension
-        auto axis         = axes[0];
-        auto slc_lens     = slc->get_shape().lens();
-        auto slc_dim_size = std::accumulate(
-            slc_lens.begin() + axis, slc_lens.end(), 1, std::multiplies<std::size_t>());
-        auto input_lens   = input->get_shape().lens();
-        auto input_size   = input->get_shape().elements();
-        auto slc_axis_len = input_lens[axis];
-
-        // search the reshape output (standard shape) to decide which axis are
-        // in its output corresponding to the slc_dim_size
-        auto rsp_lens    = rsp->get_shape().lens();
-        auto rsp_strides = rsp->get_shape().strides();
-        rsp_strides.insert(rsp_strides.begin(), rsp_strides[0] * rsp_lens[0]);
-
-        auto ait     = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
-        int rsp_axis = -1;
-        if(ait == rsp_strides.end())
-        {
+        // Check if all the reshape descriptors are the same
+        if(not std::all_of(
+               descs.begin() + 1, descs.end(), [&](auto i) { return i == descs.front(); }))
             return;
-        }
-        else if(ait == rsp_strides.end() - 1)
-        {
-            // edge case
-            // slice_dim == 1, in that case it could match with last stride of 1.
-            // it should accumulate lengths from last dim in that case. discount 1 to avoid going
-            // out of bounds.
-            assert(slc_dim_size == 1);
-            rsp_axis = std::distance(rsp_strides.begin(), ait) - 1;
-        }
-        else
-        {
-            rsp_axis = std::distance(rsp_strides.begin(), ait);
-        }
 
-        // Calculate reshape output shape
-        // Need to find a reshape such that data represented by instructions in vec_rsp can be
-        // written as slices of this new reshape. This is done by holding all the dims constant in
-        // rsp_lens to compute the required dim for rsp_axis (axis that will be sliced)
+        auto desc = descs.front();
 
-        // ex 1:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
-        //        Reshape Outputs: {2, 2, 2, 4}, {2, 2, 2, 4}, {2, 2, 2, 4}
-        //        rsp_axis = 1, rsp_out_lens (initial) = {2, 1, 2, 4}, rsp_fixed_size = 2*1*2*4 = 16
-        //        rsp_axis_len = 2*12*4 / 16 = 6
-        //        rsp_out_lens (final) = {2, 6, 2, 4}
-
-        // ex 2:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
-        //        Reshape Outputs: {2, 16}, {2, 16}, {2, 16}
-        //        rsp_axis = 1, rsp_out_lens (initial) = {2, 1}, rsp_fixed_size = 2*1 = 2
-        //        rsp_axis_len = 2*12*4 / 2 = 48
-        //        rsp_out_lens (final) = {2, 48}
-
-        std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
-        rsp_out_lens[rsp_axis] = 1;
-        auto rsp_fixed_size    = std::accumulate(
-            rsp_out_lens.begin(), rsp_out_lens.end(), 1, std::multiplies<std::size_t>());
-
-        // cannot create a valid reshape for simplification
-        if(input_size % rsp_fixed_size != 0)
-        {
+        auto slc_val = slc->get_operator().to_value();
+        auto op_axes = slc_val.at("axes").to_vector<std::size_t>();
+        std::vector<std::size_t> axes;
+        std::vector<linear_map> linears;
+        auto dims       = desc.lens();
+        auto input_lens = input->get_shape().lens();
+        auto slc_lens   = slc->get_shape().lens();
+        if(not compute_slice_axes(desc, op_axes, input_lens, slc_lens, dims, axes, linears))
             return;
-        }
-        auto rsp_axis_len      = input_size / rsp_fixed_size;
-        rsp_out_lens[rsp_axis] = rsp_axis_len;
 
-        // Calculate new slice start and end indices. Indices are scaled using the new reshape axis
-        // and the original slice axis. See examples:
+        std::vector<operation> new_slices;
+        if(not build_new_slices(slices, axes, linears, new_slices))
+            return;
 
-        // ex 1:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
-        //        Reshape Outputs: {2, 2, 2, 4}, {2, 2, 2, 4}, {2, 2, 2, 4}
-        //        slc_axis_len = 12, rsp_axis_len = 6
-        //        New Starts: {0*6/12, 4*6/12,  8*6/12} = {0, 2, 4}
-        //        New Ends:   {4*6/12, 8*6/12, 12*6/12} = {2, 4, 6}
+        auto reshape =
+            m.insert_instruction(std::next(input), make_op("reshape", {{"dims", dims}}), input);
 
-        // ex 2:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
-        //        Reshape Outputs: {2, 16}, {2, 16}, {2, 16}
-        //        slc_axis_len = 12, rsp_axis_len = 48
-        //        New Starts: {0*48/12, 4*48/12,  8*48/12} = { 0, 16, 32}
-        //        New Ends:   {4*48/12, 8*48/12, 12*48/12} = {16, 32, 48}
-
-        std::vector<int64_t> new_starts(vec_rsp.size());
-        std::transform(vec_rsp.begin(), vec_rsp.end(), new_starts.begin(), [&](auto is) {
-            auto cont   = is->inputs().front();
-            auto og_slc = cont->inputs().front();
-            return any_cast<op::slice>(og_slc->get_operator()).starts[0] * rsp_axis_len /
-                   slc_axis_len;
-        });
-
-        std::vector<int64_t> new_ends(vec_rsp.size());
-        std::transform(vec_rsp.begin(), vec_rsp.end(), new_ends.begin(), [&](auto is) {
-            auto cont   = is->inputs().front();
-            auto og_slc = cont->inputs().front();
-            return any_cast<op::slice>(og_slc->get_operator()).ends[0] * rsp_axis_len /
-                   slc_axis_len;
-        });
-
-        auto rsp_ins = m.insert_instruction(
-            std::next(input), make_op("reshape", {{"dims", rsp_out_lens}}), input);
-
-        // replace the original reshape with slice
-        for(std::size_t i = 0; i < vec_rsp.size(); ++i)
-        {
-            m.replace_instruction(
-                vec_rsp[i],
-                make_op(
-                    "slice",
-                    {{"axes", {rsp_axis}}, {"starts", {new_starts[i]}}, {"ends", {new_ends[i]}}}),
-                rsp_ins);
-        }
+        for_each(terminals.begin(),
+                 terminals.end(),
+                 new_slices.begin(),
+                 new_slices.end(),
+                 [&](auto terminal, auto op) { m.replace_instruction(terminal, op, reshape); });
     }
 };
 
@@ -2441,7 +2917,9 @@ void simplify_algebra::apply(module& m) const
                             find_log_exp{},
                             find_log_div{},
                             find_concat_conv{},
+                            find_conv_concat_split_fuse{},
                             find_concat_same_input{},
+                            find_concat_same_broadcast{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

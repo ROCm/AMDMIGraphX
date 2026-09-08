@@ -72,6 +72,7 @@ void run_command(argument_parser& ap, const std::vector<std::string>& args, bool
     ap.set_exe_name(ap.get_exe_name() + " " + command_name<T>());
     if(add_help)
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
+    ap.add_json_config_option();
     x.parse(ap);
     if(ap.parse(args))
         return;

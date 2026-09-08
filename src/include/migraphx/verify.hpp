@@ -251,6 +251,20 @@ bool allclose(const R1& r1, const R2& r2, tolerance tols)
     return false;
 }
 
+// The expected values are the reference in the tolerance formula, so keep them as the second
+// argument to allclose regardless of which position the caller passes them in.
+template <class R1, class R2>
+bool allclose(const R1& r1, const expected<R2>& r2, tolerance tols = tolerance{})
+{
+    return allclose(r1, r2.data(), tols);
+}
+
+template <class R1, class R2>
+bool allclose(const expected<R1>& r1, const R2& r2, tolerance tols = tolerance{})
+{
+    return allclose(r2, r1.data(), tols);
+}
+
 template <class R1, class R2>
 bool verify_rms_range(const R1& r1,
                       const R2& r2,

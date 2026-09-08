@@ -195,12 +195,6 @@ MIGRAPHX_DEVICE_MATH_FOR(float, abs, ::abs)
 MIGRAPHX_DEVICE_MATH_FOR(double, abs, ::abs)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, abs, ::__habs)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, abs, ::fabsf)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::fmaxf)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::fminf)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, min, ::min)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::__hmax)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::__hmin)
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>() and is_integral<T>{})>
 constexpr auto abs(const T& a)
@@ -211,13 +205,19 @@ constexpr auto abs(const T& a)
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr auto max(const T& a, const T& b)
 {
-    return where(a < b, b, a);
+    if constexpr(is_floating_point<T>{})
+        return __builtin_elementwise_maximum(a, b);
+    else
+        return where(a < b, b, a);
 }
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr auto min(const T& a, const T& b)
 {
-    return where(a < b, a, b);
+    if constexpr(is_floating_point<T>{})
+        return __builtin_elementwise_minimum(a, b);
+    else
+        return where(a < b, a, b);
 }
 
 template <class T, class Compare, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
@@ -230,24 +230,6 @@ template <class T, class Compare, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr auto min(const T& a, const T& b, Compare compare)
 {
     return where(compare(a, b), a, b);
-}
-
-template <class T,
-          class U,
-          class... Compare,
-          MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
-constexpr auto max(const T& a, const U& b, Compare... compare)
-{
-    return max<common_type_t<T, U>>(a, b, compare...);
-}
-
-template <class T,
-          class U,
-          class... Compare,
-          MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
-constexpr auto min(const T& a, const U& b, Compare... compare)
-{
-    return min<common_type_t<T, U>>(a, b, compare...);
 }
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
@@ -283,8 +265,6 @@ MIGRAPHX_DEVICE_MATH_VEC(isinf)
 MIGRAPHX_DEVICE_MATH_VEC(isnan)
 MIGRAPHX_DEVICE_MATH_VEC(log)
 MIGRAPHX_DEVICE_MATH_VEC(log2)
-MIGRAPHX_DEVICE_MATH_VEC(max)
-MIGRAPHX_DEVICE_MATH_VEC(min)
 MIGRAPHX_DEVICE_MATH_VEC(mod)
 MIGRAPHX_DEVICE_MATH_VEC(nearbyint)
 MIGRAPHX_DEVICE_MATH_VEC(pow)
@@ -297,6 +277,24 @@ MIGRAPHX_DEVICE_MATH_VEC(sqrt)
 MIGRAPHX_DEVICE_MATH_VEC(tan)
 MIGRAPHX_DEVICE_MATH_VEC(tanh)
 MIGRAPHX_DEVICE_MATH_VEC(where)
+
+template <class T, MIGRAPHX_REQUIRES(is_any_vec<T>())>
+constexpr auto min(const T& a, const T& b)
+{
+    if constexpr(is_integral<vec_type<T>>{})
+        return __builtin_elementwise_min(a, b);
+    else
+        return __builtin_elementwise_minimum(a, b);
+}
+
+template <class T, MIGRAPHX_REQUIRES(is_any_vec<T>())>
+constexpr auto max(const T& a, const T& b)
+{
+    if constexpr(is_integral<vec_type<T>>{})
+        return __builtin_elementwise_max(a, b);
+    else
+        return __builtin_elementwise_maximum(a, b);
+}
 
 // Map math functions to hip half2 functions
 // The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats
@@ -321,13 +319,68 @@ MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, sqrt, ::h2sqrt)
 template <class T, class U>
 constexpr auto convert(U v)
 {
-    return vec_transform(v)([](auto x) -> T { return static_cast<T>(x); });
+    return vec_transform(v)([](auto x) -> T {
+        using x_type = remove_cv_t<remove_reference_t<decltype(x)>>;
+        // Clang rejects a direct static_cast between _Float16 (half) and
+        // __bf16 (bf16); bounce that one pair through float. Every other
+        // conversion is a plain static_cast.
+        if constexpr((is_same<T, migraphx::half>{} and is_same<x_type, migraphx::bf16>{}) or
+                     (is_same<T, migraphx::bf16>{} and is_same<x_type, migraphx::half>{}))
+            return static_cast<T>(static_cast<float>(x));
+        else
+            return static_cast<T>(x);
+    });
+}
+
+template <class T, class U>
+constexpr auto deref(U v)
+{
+    return vec_transform(v)([](auto x) -> T { return *reinterpret_cast<T*>(x); });
+}
+
+template <class T>
+constexpr auto addressof(T& x)
+{
+    if constexpr(vec_size<T>() < 2)
+    {
+        return reinterpret_cast<uint64_t>(&x);
+    }
+    else
+    {
+        constexpr auto n             = vec_size<T>();
+        safe_vec<uint64_t, n> result = {0};
+        auto base                    = reinterpret_cast<uint64_t>(&x);
+        constexpr auto element_size  = sizeof(vec_type<T>);
+        for(int i = 0; i < n; i++)
+            result[i] = base + i * element_size;
+        return result;
+    }
 }
 
 template <class T, class U>
 constexpr auto ceil_div(T x, U y)
 {
     return (x + y - _c<1>) / y;
+}
+
+template <class T, class U, class... Compare, MIGRAPHX_REQUIRES(not is_same<T, U>{})>
+constexpr auto max(const T& a, const U& b, Compare... compare)
+{
+    // Use implicit_conversion so scalars are splatted across all vector lanes
+    using type = common_vec_t<T, U>;
+    type x     = implicit_conversion(a);
+    type y     = implicit_conversion(b);
+    return max(x, y, compare...);
+}
+
+template <class T, class U, class... Compare, MIGRAPHX_REQUIRES(not is_same<T, U>{})>
+constexpr auto min(const T& a, const U& b, Compare... compare)
+{
+    // Use implicit_conversion so scalars are splatted across all vector lanes
+    using type = common_vec_t<T, U>;
+    type x     = implicit_conversion(a);
+    type y     = implicit_conversion(b);
+    return min(x, y, compare...);
 }
 
 } // namespace migraphx

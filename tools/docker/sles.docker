@@ -1,9 +1,14 @@
 FROM registry.suse.com/suse/sle15:15.6
 
+ARG PREFIX=/usr/local
+ARG ROCM_VERSION=7.14
+ARG GPU_ARCH=""
+
+# Register TheRock ROCm zypper repository (multi-arch amdrocm-* rpm packages).
 RUN sh -c 'echo -e "\
 [rocm]\n\
 name=rocm\n\
-baseurl=https://repo.radeon.com/rocm/zyp/7.2.3/main\n\
+baseurl=https://repo.amd.com/rocm/packages-multi-arch/sles15/x86_64\n\
 enabled=1\n\
 gpgcheck=0\n\
 gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key\n\
@@ -12,34 +17,29 @@ gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key\n\
 RUN cat /etc/zypp/repos.d/rocm.repo
 
 #addition of repos for packages
-RUN zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/perl/15.6/devel:languages:perl.repo 
+RUN zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/perl/15.6/devel:languages:perl.repo
 
 RUN zypper -n --gpg-auto-import-keys refresh
 
 RUN zypper --gpg-auto-import-keys install -y \
+    cmake \
     doxygen \
     gcc-c++ \
     gdb \
     git \
-    hip-devel \
+    python3-devel \
     python3-pip \
     rpm-build
-
-# Workaround broken rocm packages
-RUN ln -s /opt/rocm-* /opt/rocm
-RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
-RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
-RUN ldconfig
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# Install yapf
-RUN pip3 install yapf==0.28.0
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
-# Install doc requirements
-# ADD docs/sphinx/requirements.txt /doc-requirements.txt
-# RUN pip3 install -r /doc-requirements.txt
+# pipx 0.16 (the last version for python 3.6) has no --global flag; these env
+# vars give the same global install locations.
+ENV PIPX_HOME=/opt/pipx
+ENV PIPX_BIN_DIR=/usr/local/bin
 
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
@@ -47,5 +47,24 @@ ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
-COPY ./tools/requirements-py.txt /
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements-py.txt
+COPY ./tools/requirements-py.txt /requirements-py.txt
+RUN ./install_prereqs.sh \
+        --rocm-version ${ROCM_VERSION} \
+        ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
+        ${USE_WHL:+--whl}
+RUN rm /install_prereqs.sh && rm /*.txt
+RUN test -f /usr/local/hash || exit 1
+
+# Workaround broken rocm packages
+RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
+RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
+RUN ldconfig
+
+# Manually remove rocm-cmake, since it shouldnt be installed in the first place
+RUN rm -rf /opt/rocm/share/rocmcmakebuildtools
+
+# Install yapf
+RUN pipx install yapf==0.28.0
+
+# Install clang format
+RUN pipx install clang-format==22.1.5

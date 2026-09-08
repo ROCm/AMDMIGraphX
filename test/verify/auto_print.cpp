@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +45,7 @@ std::function<void()>& auto_print::get_handler(const std::string& name)
 {
     // NOLINTNEXTLINE
     static handler_map handlers = create_handlers();
-    return handlers.at(name);
+    return handlers[name];
 }
 
 void auto_print::set_terminate_handler(const std::string& name)

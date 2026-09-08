@@ -46,6 +46,22 @@ Trim instructions from the end (Default: 0)
 
 Dim of a parameter (format: "@name d1 d2 dn")
 
+.. option:: --enable-symbolic
+
+Build ONNX input shapes with symbolic dimensions instead of range-only dynamic dimensions. Model
+``dim_param`` names become symbol names. Other ranged or unspecified dimensions are named
+``<input>_d<axis>``, while fixed dimensions remain constants.
+
+``--dyn-input-dim`` supplies per-input bounds and optimals and takes precedence over the other
+dynamic-dimension options. Otherwise, ``--dim-param`` supplies bounds for a matching model
+``dim_param``, and ``--default-dyn-dim`` supplies fallback bounds. A ``name`` field in a
+``--dyn-input-dim`` entry creates a symbol with that explicit name even without
+``--enable-symbolic``. The static ``--input-dim`` override is not converted to a symbolic shape.
+
+For example::
+
+    migraphx-driver read model.onnx --enable-symbolic --default-dyn-dim "{min:1, max:1024}"
+
 .. option:: --dyn-input-dim [std::vector<std::string>]
 
 Set dynamic dimensions of a parameter using JSON formatting (format "@name" "dynamic_dimension_json")

@@ -57,10 +57,10 @@ struct onnx_options
     /// Since loop will become a tensor of max iter size a huge number can cause overflow during
     /// shape computations.
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
-    /// Use dynamic output for operators when available
-    bool use_dyn_output = false;
     /// Parse in ONNX node names as debug symbols
     bool use_debug_symbols = false;
+    /// Build shapes with symbolic dimensions, resolving ONNX dim_param names to sym::var
+    bool use_symbolic_shapes = false;
     /// Path to use for the external data if it is stored at different location compared to onnx
     /// file
     std::string external_data_path = "";

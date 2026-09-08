@@ -34,7 +34,6 @@
 #include <set>
 #include <unordered_set>
 #include <string>
-#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -157,6 +156,7 @@ struct MIGRAPHX_EXPORT instruction
     bool is_undefined() const;
 
     argument eval(bool check_eval = true) const;
+    sym_argument sym_eval() const;
 
     void finalize(context& ctx);
 
@@ -213,6 +213,10 @@ struct MIGRAPHX_EXPORT instruction
     bool normalized       = false;
     std::size_t target_id = 0;
 };
+
+/// Logs the instruction's debug symbols (if any) to help trace a failure back to its source.
+/// Intended to be invoked from a scope-fail guard during stack unwinding; never throws.
+MIGRAPHX_EXPORT void log_debug_symbols_on_exception(const instruction& ins) noexcept;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

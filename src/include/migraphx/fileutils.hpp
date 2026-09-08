@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,9 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_FILEUTILS_HPP
 
 #include <migraphx/filesystem.hpp>
+#include <string>
 #include <string_view>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,6 +38,7 @@ MIGRAPHX_EXPORT fs::path make_shared_object_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path make_object_file_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path make_static_library_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path append_extension(const fs::path& path, std::string_view ext);
+MIGRAPHX_EXPORT std::string sanitize_filename(std::string s);
 
 inline std::string operator+(std::string l, const fs::path& r) { return std::move(l) + r.string(); }
 

@@ -97,13 +97,19 @@ struct find_leaky_relu
         auto x_ins = ins->inputs().front();
 
         float alpha_f = ins->get_operator().to_value()["alpha"].to<float>();
-        auto alpha    = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {alpha_f}});
-        auto zero     = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {0.0}});
-
-        auto greater   = insert_common_op(m, ins, make_op("greater"), {x_ins, zero});
+        auto alpha     = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {alpha_f}});
         auto mul_alpha = insert_common_op(m, ins, make_op("mul"), {x_ins, alpha});
-
-        m.replace_instruction(ins, make_op("where"), {greater, x_ins, mul_alpha});
+        if(alpha_f >= 0.0f and alpha_f <= 1.0f)
+        {
+            auto max_ins = insert_common_op(m, ins, make_op("max"), {x_ins, mul_alpha});
+            m.replace_instruction(ins, max_ins);
+        }
+        else
+        {
+            auto zero    = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {0.0}});
+            auto greater = insert_common_op(m, ins, make_op("greater"), {x_ins, zero});
+            m.replace_instruction(ins, make_op("where"), {greater, x_ins, mul_alpha});
+        }
     }
 };
 
@@ -129,12 +135,32 @@ struct find_where
     }
 };
 
+// mlir requires literals to be in a standard shape.
+struct find_nonstandard_literal
+{
+    auto matcher() const
+    {
+        return match::name("@literal")(match::not_standard_shape(),
+                                       match::none_of(match::broadcast_shape()));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto arg = ins->get_literal().get_argument();
+        shape s{arg.get_shape().type(), arg.get_shape().lens()};
+        literal result;
+        visit_all(arg)([&](auto x) { result = literal{s, x.to_vector()}; });
+        m.replace_instruction(ins, m.add_literal(result));
+    }
+};
+
 } // namespace
 
 void prepare_mlir::apply(module& m) const
 {
     match::find_matches(m, find_reduce{}, find_leaky_relu{});
-    match::find_matches(m, find_where{});
+    match::find_matches(m, find_where{}, find_nonstandard_literal{});
     run_passes(m, {dead_code_elimination{}});
 }
 

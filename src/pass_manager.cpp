@@ -31,14 +31,13 @@
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/fileutils.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/logger.hpp>
 #include <iostream>
 #include <sstream>
-#include <algorithm>
 #include <utility>
 #include <string>
-#include <string_view>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -159,14 +158,6 @@ struct module_pm : module_pass_manager
         validate_pass(*mod, p, *t);
     }
 
-    static void sanitize(std::string& s)
-    {
-        static constexpr std::string_view invalid = "<>:\"/\\|?*";
-
-        std::replace_if(
-            s.begin(), s.end(), [](char c) { return invalid.find(c) != std::string::npos; }, '_');
-    }
-
     template <class F>
     void try_and_dump_on_error(const pass& p, F f) const
     {
@@ -189,7 +180,7 @@ struct module_pm : module_pass_manager
             std::string base = p.name() + std::to_string(clk) + ".mxr";
 #if defined(_WIN32)
             // On Windows, some pass names may contain invalid characters for filenames
-            sanitize(base);
+            base = sanitize_filename(std::move(base));
 #endif
             fs::path fname = dirname / base;
             log::error() << "Dump: " << fname;

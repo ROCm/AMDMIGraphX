@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/generic_float.hpp>
+#include <migraphx/math.hpp>
 #include <migraphx/split_factor.hpp>
 #include <limits>
 #include "test.hpp"

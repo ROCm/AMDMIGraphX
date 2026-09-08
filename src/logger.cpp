@@ -98,15 +98,14 @@ static color severity_color(severity s)
     return color::reset;
 }
 
-// Create the default stderr sink
-static sink make_stderr_sink()
+// Create a sink that writes log records to the given output stream
+sink make_io_sink(std::ostream& os)
 {
-    return [](severity s, std::string_view msg, source_location loc) {
+    return [&os](severity s, std::string_view msg, source_location loc) {
         for(auto&& line : split_string(std::string{msg}, '\n'))
         {
-            std::cerr << severity_color(s) << format_timestamp() << " [" << to_string(s) << "] ["
-                      << loc.file_name() << ":" << loc.line() << "] " << line << color::reset
-                      << std::endl;
+            os << severity_color(s) << format_timestamp() << " [" << to_string(s) << "] ["
+               << loc.file_name() << ":" << loc.line() << "] " << line << color::reset << std::endl;
         }
     };
 }
@@ -160,7 +159,7 @@ static void access_sinks(const std::function<void(std::vector<std::optional<sink
 
         // If MIGRAPHX_LOG_LEVEL is set, this will store the value into the atomic when first called
         max_enabled_level().store(level);
-        return std::vector<std::optional<sink_entry>>{sink_entry{make_stderr_sink(), level}};
+        return std::vector<std::optional<sink_entry>>{sink_entry{make_io_sink(std::cerr), level}};
     }();
     std::lock_guard<std::mutex> lock(m);
     f(sinks);

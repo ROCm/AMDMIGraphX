@@ -263,6 +263,170 @@ TEST_CASE(allocate_copy_with_out)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(allocate_out_squeeze)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 1}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto sq = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
+        m1.add_return({sq});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output", out_s);
+        auto us     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), output);
+        auto p1     = m2.add_instruction(pass_op{}, us);
+        auto sq     = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_reshape_lazy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 3}};
+    migraphx::shape out_s{migraphx::shape::float_type, {8, 3}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1  = m1.add_instruction(pass_op{}, alloc);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {8, 3}}}), p1);
+        m1.add_return({rsp});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output", out_s);
+        auto rsp1 =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 4, 3}}}), output);
+        auto p1   = m2.add_instruction(pass_op{}, rsp1);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {8, 3}}}), p1);
+        m2.add_return({rsp2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_transpose)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape out_s{migraphx::shape::float_type, {4, 2}, {1, 4}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto t  = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), p1);
+        m1.add_return({t});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output", out_s);
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), output);
+        auto p1 = m2.add_instruction(pass_op{}, t1);
+        auto t2 = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), p1);
+        m2.add_return({t2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// An allocation shared by two return values cannot become the output parameter for both of them
+TEST_CASE(allocate_out_shared_alloc_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 1}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto sq = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
+        m1.add_return({sq, p1});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output0 = m2.add_parameter("output_0", out_s);
+        auto output1 = m2.add_parameter("output_1", s);
+        auto p1      = m2.add_instruction(pass_op{}, output1);
+        auto sq      = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
+        auto copy    = m2.add_instruction(migraphx::make_op("test_copy"), sq, output0);
+        m2.add_return({copy, p1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A broadcast is not a bijection, so the output buffer still needs a copy
+TEST_CASE(allocate_out_broadcast_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 1}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 4}, {1, 0}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), p1);
+        m1.add_return({mb});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output", out_s);
+        auto alloc =
+            m2.add_instruction(migraphx::make_op("allocate_with_out", {{"shape", to_value(s)}}));
+        auto p1 = m2.add_instruction(pass_op{}, alloc);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), p1);
+        auto copy = m2.add_instruction(migraphx::make_op("test_copy"), mb, output);
+        m2.add_return({copy});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A slice does not cover the whole allocation, so the output buffer still needs a copy
+TEST_CASE(allocate_out_slice_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 2}, {4, 1}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto sl = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), p1);
+        m1.add_return({sl});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output", out_s);
+        auto alloc =
+            m2.add_instruction(migraphx::make_op("allocate_with_out", {{"shape", to_value(s)}}));
+        auto p1 = m2.add_instruction(pass_op{}, alloc);
+        auto sl = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), p1);
+        auto copy = m2.add_instruction(migraphx::make_op("test_copy"), sl, output);
+        m2.add_return({copy});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(allocate_copy_with_no_out)
 {
     migraphx::shape s{migraphx::shape::float_type, {5}};

@@ -243,9 +243,7 @@ struct convolution
         }
 
         argument result{output_shape};
-        visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            migraphx::convolution(output, input, weights, new_padding, stride, dilation, group);
-        });
+        migraphx::convolution(result, args[0], args[1], new_padding, stride, dilation, group);
         return result;
     }
 };

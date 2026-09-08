@@ -173,5 +173,6 @@ int main(int argc, const char* argv[])
                             "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
                             "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
                         });
+
     rv.run(argc, argv);
 }

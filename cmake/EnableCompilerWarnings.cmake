@@ -97,8 +97,9 @@ else()
                 -Wno-gnu-anonymous-struct
                 -Wno-gnu-zero-variadic-macro-arguments
                 -Wno-experimental-lifetime-safety-intra-tu-suggestions
-                -Wno-lifetime-safety-intra-tu-suggestions
                 -Wno-lifetime-safety-cross-tu-suggestions
+                -Wno-lifetime-safety-intra-tu-suggestions
+                -Wno-lifetime-safety-invalidation
                 -Wno-missing-noreturn
                 -Wno-missing-prototypes
                 -Wno-nested-anon-types
@@ -116,6 +117,8 @@ else()
                 # -Wno-c++2a-designator
                 # -Weverything gives contradictory warnings, so disable the one that requires default in switch
                 -Wno-switch-default
+                # The whole purpose of designated field initializers is to skip fields
+                -Wno-missing-designated-field-initializers
             )
             if(WIN32 AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19")
                 list(APPEND CMAKE_COMPILER_WARNINGS

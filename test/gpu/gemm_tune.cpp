@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <hip/hip_runtime_api.h>
 #include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 #include <migraphx/make_op.hpp>
@@ -185,6 +186,15 @@ TEST_CASE(gemm_tune_strided_lowered)
 
 TEST_CASE(gemm_tune_invalid_sol_index)
 {
+    // TODO: JIRA Ticket TBD - rocBLAS solution-index validation
+    // (rocblas_gemm_flags_check_solution_index) does not report invalid indices on
+    // gfx1201; it returns rocblas_status_success for any index, so an invalid index
+    // is never reset to the default. Skip on gfx1201 until rocBLAS is fixed.
+    if(migraphx::gpu::get_gfx_name(migraphx::gpu::get_device_name()) == "gfx1201")
+    {
+        test::skip("rocBLAS solution-index validation is broken on gfx1201 (JIRA Ticket TBD)");
+    }
+
     migraphx::program p;
     auto* mm = p.get_main_module();
 

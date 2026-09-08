@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -137,6 +137,31 @@ struct bitonic_sort
                 lane_sort(get_bit(id, w), x);
             else
                 lane_merge(get_bit(id, w), x);
+        });
+    }
+
+    // Block-wide bitonic sort of N-element buffer (N must be a power of 2)
+    // with caller-supplied swap function.
+    // Used when multiple parallel arrays must be swapped in lockstep.
+    // compare_function(i, j) is true if position j should sort before
+    // position i.
+    template <index_int N, class SwapAt>
+    __device__ void block_sort_by_index(index idx, SwapAt swap_at) const
+    {
+        static_assert(is_power_of_2(N), "N must be a power of 2");
+        repeat_up_by_2_c<2, (N * 2)>([&](auto k) {
+            repeat_down_by_2_c<(k >> 1)>([&](auto j) {
+                idx.local_stride(N, [&](auto tid) {
+                    index_int partner = tid ^ j;
+                    if(partner > tid)
+                    {
+                        const bool reverse = (tid & k) != 0;
+                        if(reverse ^ compare_function(tid, partner))
+                            swap_at(tid, partner);
+                    }
+                });
+                __syncthreads();
+            });
         });
     }
 };

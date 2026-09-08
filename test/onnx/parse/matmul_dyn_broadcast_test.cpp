@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,21 +26,35 @@
 
 TEST_CASE(matmul_dyn_broadcast_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto p0  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
-    auto p1  = mm->add_parameter(
-        "2", migraphx::shape{migraphx::shape::float_type, {{5, 5}, {7, 7}, {4, 8, {6}}}});
-    auto usp0         = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), p0);
-    auto broadcast_p0 = mm->add_instruction(migraphx::make_op("broadcast_for_dot"), usp0, p1);
-    auto broadcast_p1 = mm->add_instruction(migraphx::make_op("broadcast_for_dot"), p1, usp0);
-    auto dot_ins      = mm->add_instruction(migraphx::make_op("dot"), broadcast_p0, broadcast_p1);
-    auto ret          = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), dot_ins);
-    mm->add_return({ret});
+    EXPECT(check_parse(
+        "matmul_dyn_broadcast_test.onnx",
+        {{"1", {migraphx::shape::float_type, {7}}},
+         {"2", {migraphx::shape::float_type, {{5, 5}, {7, 7}, {4, 8, {6}}}}}},
+        [](migraphx::module& m, const auto& a) {
+            auto u  = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a[0]);
+            auto b0 = m.add_instruction(migraphx::make_op("broadcast_for_dot"), u, a[1]);
+            auto b1 = m.add_instruction(migraphx::make_op("broadcast_for_dot"), a[1], u);
+            auto d  = m.add_instruction(migraphx::make_op("dot"), b0, b1);
+            m.add_return({m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), d)});
+        }));
+}
 
-    migraphx::onnx_options options;
-    options.map_dyn_input_dims["2"] = {{5, 5}, {7, 7}, {4, 8, {6}}};
-    auto prog                       = read_onnx("matmul_dyn_broadcast_test.onnx", options);
-
-    EXPECT(p == prog);
+TEST_CASE(matmul_sym_broadcast_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    EXPECT(check_parse(
+        "matmul_dyn_broadcast_test.onnx",
+        {{"1", {migraphx::shape::float_type, {7}}},
+         {"2", {migraphx::shape::float_type, sym_dims({lit(5), lit(7), var("k", {4, 8})})}}},
+        [](migraphx::module& m, const auto& a) {
+            auto u = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a[0]);
+            auto b = m.add_instruction(
+                migraphx::make_op(
+                    "multibroadcast",
+                    {{"out_dyn_dims", migraphx::to_value(sym_dims({lit(5), lit(1), lit(7)}))}}),
+                u);
+            auto d = m.add_instruction(migraphx::make_op("dot"), b, a[1]);
+            m.add_return({m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), d)});
+        }));
 }

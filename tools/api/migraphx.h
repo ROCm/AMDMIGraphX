@@ -29,6 +29,7 @@
 #include <stdint.h>
 
 #include <migraphx/api/export.h>
+#include <migraphx/config.h>
 
 // Add new types here
 // clang-format off
@@ -75,6 +76,14 @@ typedef enum
     MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
+
+typedef enum
+{
+    migraphx_compile_mode_eager    = 0,
+    migraphx_compile_mode_balanced = 50,
+    migraphx_compile_mode_max      = 100,
+
+} migraphx_compile_mode;
 
 <%
     generate_c_header()

@@ -301,7 +301,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
                 while(available > 0)
                 {
                     DWORD bytes_read{};
-                    DWORD to_read = (std::min)(available, static_cast<DWORD>(sizeof(buf)));
+                    DWORD to_read = std::min<DWORD>(available, sizeof(buf));
                     result = ReadFile(output.get_read_handle(), buf, to_read, &bytes_read, nullptr);
                     WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, bytes_read, nullptr, nullptr);
                     available -= bytes_read;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
+#include <migraphx/gpu/device/generate_random.hpp>
 #if MIGRAPHX_USE_MIOPEN
 #include <miopen/miopen.h>
 #endif
@@ -300,6 +301,26 @@ void gpu_fill(context& ctx, const argument& dst, int value)
         for(const auto& arg : dst.get_sub_objects())
             gpu_fill(ctx, arg, value);
     }
+}
+
+static void fill_random(context& ctx, const argument& dst, unsigned long seed)
+{
+    if(dst.get_sub_objects().empty())
+    {
+        device::generate_random(ctx.get_stream().get(), dst, seed);
+    }
+    else
+    {
+        for(const auto& arg : dst.get_sub_objects())
+            fill_random(ctx, arg, seed);
+    }
+}
+
+argument gpu_generate_random(context& ctx, const shape& s, unsigned long seed)
+{
+    auto result = allocate_gpu(s);
+    fill_random(ctx, result, seed);
+    return result;
 }
 
 void store_preallocated_param(context& ctx, const std::string& id, const argument& a)

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,28 +26,21 @@
 
 TEST_CASE(binary_dyn_brcst_mul_fp8_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter(
-        "0", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}});
-    auto l1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {4, 1}});
+    EXPECT(check_common_op(
+        "binary_dyn_brcst_mul_fp8_test.onnx",
+        migraphx::make_op("mul"),
+        {{"0", {migraphx::shape::fp8e4m3fnuz_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}}},
+         {"1", {migraphx::shape::fp8e4m3fnuz_type, {4, 1}}}}));
+}
 
-    auto bl0 = mm->add_instruction(
-        migraphx::make_op("multibroadcast",
-                          {{"out_dyn_dims", to_value(l0->get_shape().dyn_dims())}}),
-        l0,
-        l1);
-    auto bl1 = mm->add_instruction(
-        migraphx::make_op("multibroadcast",
-                          {{"out_dyn_dims", to_value(l0->get_shape().dyn_dims())}}),
-        l1,
-        bl0);
-    auto ret = mm->add_instruction(migraphx::make_op("mul"), bl0, bl1);
-    mm->add_return({ret});
-
-    migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    auto prog                     = read_onnx("binary_dyn_brcst_mul_fp8_test.onnx", options);
-
-    EXPECT(p == prog);
+TEST_CASE(binary_sym_brcst_mul_fp8_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    EXPECT(check_common_op("binary_dyn_brcst_mul_fp8_test.onnx",
+                           migraphx::make_op("mul"),
+                           {{"0",
+                             {migraphx::shape::fp8e4m3fnuz_type,
+                              sym_dims({var("n", {1, 4}), lit(3), lit(4), lit(5)})}},
+                            {"1", {migraphx::shape::fp8e4m3fnuz_type, {4, 1}}}}));
 }

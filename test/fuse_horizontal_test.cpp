@@ -22,14 +22,21 @@
  * THE SOFTWARE.
  */
 #include <migraphx/fuse_horizontal.hpp>
+#include <migraphx/fuse_pointwise.hpp>
+#include <migraphx/simplify_algebra.hpp>
+#include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
+#include <string>
+#include <vector>
 
 static void run_pass(migraphx::module& m)
 {
@@ -511,6 +518,858 @@ TEST_CASE(gather_horiz_no_fusion_dependent)
     auto m2 = m1;
     run_pass(m1);
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(same_table_gathers_basic)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {4}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {5}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {4}});
+        auto idx4 = m1.add_parameter("idx4", {migraphx::shape::int32_type, {6}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx4);
+
+        m1.add_return({g1, g2, g3, g4});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {4}});
+        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {5}});
+        auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {4}});
+        auto idx4 = m2.add_parameter("idx4", {migraphx::shape::int32_type, {6}});
+
+        auto concat_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx1, idx2, idx3, idx4});
+
+        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {13}}}), bg);
+        auto s4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {13}}, {"ends", {19}}}), bg);
+
+        m2.add_return({s1, s2, s3, s4});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(same_table_gathers_two_siblings)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 3}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {4}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {5}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+
+        m1.add_return({g1, g2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 3}}, 0));
+
+        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {4}});
+        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {5}});
+
+        auto concat_idx = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                             std::vector<migraphx::instruction_ref>{idx1, idx2});
+
+        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg);
+
+        m2.add_return({s1, s2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(same_table_gathers_single_no_rewrite)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {4}});
+        auto g   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx);
+        m1.add_return({g});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(same_table_gathers_shared_index)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 0));
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {4}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx);
+
+        m1.add_return({g1, g2, g3});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 0));
+        auto idx = m2.add_parameter("idx", {migraphx::shape::int32_type, {4}});
+
+        auto concat_idx = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                             std::vector<migraphx::instruction_ref>{idx, idx, idx});
+
+        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), bg);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {8}}, {"ends", {12}}}), bg);
+
+        m2.add_return({s1, s2, s3});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(same_table_gathers_2d_indices)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {7, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {4, 3}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {5, 3}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {6, 3}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        m1.add_return({g1, g2, g3});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {7, 2}}, 0));
+
+        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {4, 3}});
+        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {5, 3}});
+        auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {6, 3}});
+
+        auto concat_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx1, idx2, idx3});
+
+        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {15}}}), bg);
+
+        m2.add_return({s1, s2, s3});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(same_table_gathers_split_by_idx_type)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 0));
+
+        auto idx32a = m1.add_parameter("idx32a", {migraphx::shape::int32_type, {4}});
+        auto idx32b = m1.add_parameter("idx32b", {migraphx::shape::int32_type, {5}});
+        auto idx64  = m1.add_parameter("idx64", {migraphx::shape::int64_type, {4}});
+
+        auto g_a = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx32a);
+        auto g_b = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx32b);
+        auto g_c = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx64);
+
+        m1.add_return({g_a, g_b, g_c});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 0));
+
+        auto idx32a = m2.add_parameter("idx32a", {migraphx::shape::int32_type, {4}});
+        auto idx32b = m2.add_parameter("idx32b", {migraphx::shape::int32_type, {5}});
+        auto idx64  = m2.add_parameter("idx64", {migraphx::shape::int64_type, {4}});
+
+        auto concat_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx32a, idx32b});
+
+        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
+
+        auto s_a = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
+        auto s_b = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg);
+
+        // Lone int64 gather is left alone (group size = 1)
+        auto g_c = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx64);
+
+        m2.add_return({s_a, s_b, g_c});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Same-table gathers with differing index shapes (1-D and 2-D) now merge into a single
+// batched gather via the flattened path (indices flattened to 1-D, gathered, reshaped back).
+TEST_CASE(same_table_gathers_mixed_index_shapes)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 0));
+
+        auto idx_1d_a = m1.add_parameter("idx_1d_a", {migraphx::shape::int32_type, {4}});
+        auto idx_1d_b = m1.add_parameter("idx_1d_b", {migraphx::shape::int32_type, {5}});
+        auto idx_2d_a = m1.add_parameter("idx_2d_a", {migraphx::shape::int32_type, {4, 3}});
+        auto idx_2d_b = m1.add_parameter("idx_2d_b", {migraphx::shape::int32_type, {5, 3}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx_1d_a);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx_1d_b);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx_2d_a);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx_2d_b);
+
+        m1.add_return({g1, g2, g3, g4});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 0));
+
+        auto idx_1d_a = m2.add_parameter("idx_1d_a", {migraphx::shape::int32_type, {4}});
+        auto idx_1d_b = m2.add_parameter("idx_1d_b", {migraphx::shape::int32_type, {5}});
+        auto idx_2d_a = m2.add_parameter("idx_2d_a", {migraphx::shape::int32_type, {4, 3}});
+        auto idx_2d_b = m2.add_parameter("idx_2d_b", {migraphx::shape::int32_type, {5, 3}});
+
+        // All four gathers share the table but have mixed index ranks (1-D and 2-D), so they
+        // cannot be concatenated on axis 0.  They fuse via the flattened path: each 2-D index
+        // is reshaped to 1-D, all are concatenated, one batched gather runs, and each range is
+        // sliced back out and reshaped to its original output shape.  Element counts are
+        // 4, 5, 12, 15 -> ends 4, 9, 21, 36.
+        auto f3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), idx_2d_a);
+        auto f4 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {15}}}), idx_2d_b);
+
+        auto big_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx_1d_a, idx_1d_b, f3, f4});
+
+        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, big_idx);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {21}}}), bg);
+        auto r3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), s3);
+        auto s4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {21}}, {"ends", {36}}}), bg);
+        auto r4 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {5, 3, 2}}}), s4);
+
+        m2.add_return({s1, s2, r3, r4});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(same_table_gathers_multiple_tables)
+{
+    migraphx::module m1;
+    {
+        auto emb_a =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb_b =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+
+        auto idx_a1 = m1.add_parameter("idx_a1", {migraphx::shape::int32_type, {4}});
+        auto idx_a2 = m1.add_parameter("idx_a2", {migraphx::shape::int32_type, {5}});
+        auto idx_b1 = m1.add_parameter("idx_b1", {migraphx::shape::int32_type, {4}});
+        auto idx_b2 = m1.add_parameter("idx_b2", {migraphx::shape::int32_type, {5}});
+
+        auto ga1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_a, idx_a1);
+        auto gb1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_b, idx_b1);
+        auto ga2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_a, idx_a2);
+        auto gb2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_b, idx_b2);
+
+        m1.add_return({ga1, gb1, ga2, gb2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb_a =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb_b =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+
+        auto idx_a1 = m2.add_parameter("idx_a1", {migraphx::shape::int32_type, {4}});
+        auto idx_a2 = m2.add_parameter("idx_a2", {migraphx::shape::int32_type, {5}});
+        auto idx_b1 = m2.add_parameter("idx_b1", {migraphx::shape::int32_type, {4}});
+        auto idx_b2 = m2.add_parameter("idx_b2", {migraphx::shape::int32_type, {5}});
+
+        // Cross-embedding fusion runs first and, because both tables share the same
+        // embedding dim, bundles all four gathers into one batched gather.  Table dedup keeps
+        // each table once: concat is [3+4, 2] = [7, 2], and only table B's indices are shifted
+        // by +3 (table A's offset is 0).
+        auto concat_emb = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                             std::vector<migraphx::instruction_ref>{emb_a, emb_b});
+
+        auto offb1 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(3)}});
+        auto bcb1 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}), offb1);
+        auto adj_b1 = m2.add_instruction(migraphx::make_op("add"), idx_b1, bcb1);
+
+        auto offb2 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(3)}});
+        auto bcb2 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), offb2);
+        auto adj_b2 = m2.add_instruction(migraphx::make_op("add"), idx_b2, bcb2);
+
+        // Indices concatenated in gather (position) order: ga1, gb1, ga2, gb2.
+        auto concat_idx = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{idx_a1, adj_b1, idx_a2, adj_b2});
+
+        auto bg =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);
+
+        auto sa1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
+        auto sb1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), bg);
+        auto sa2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {8}}, {"ends", {13}}}), bg);
+        auto sb2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {13}}, {"ends", {18}}}), bg);
+
+        m2.add_return({sa1, sb1, sa2, sb2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(same_table_gathers_no_rewrite_non_constant_data)
+{
+    migraphx::module m1;
+    {
+        auto emb  = m1.add_parameter("emb", {migraphx::shape::float_type, {6, 2}});
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {1}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(same_table_gathers_no_rewrite_1d_data)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {1}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(same_table_gathers_no_rewrite_3d_data)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 3, 4}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {1}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {1}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(same_table_gathers_no_rewrite_axis_one)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 6}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {2}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {2}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), emb, idx3);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(same_table_gathers_no_rewrite_scalar_index)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::int32_t(0)}});
+        auto idx2 = m1.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::int32_t(1)}});
+        auto idx3 = m1.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::int32_t(2)}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        auto sum1 = m1.add_instruction(migraphx::make_op("add"), g1, g2);
+        auto sum2 = m1.add_instruction(migraphx::make_op("add"), sum1, g3);
+        m1.add_return({sum2});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(same_table_gathers_no_rewrite_small_batch)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {2}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        m1.add_return({g1, g2, g3});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(same_table_gathers_no_rewrite_mixed_batch_single_eligible)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {4}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        m1.add_return({g1, g2, g3});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(same_table_gathers_idempotent)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {4}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {5}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {6}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        m1.add_return({g1, g2, g3});
+    }
+    run_pass(m1);
+    auto snapshot = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == snapshot.sort());
+}
+
+// Same-table gathers with dynamic-shaped indices → no fusion.
+TEST_CASE(same_table_gathers_no_rewrite_dynamic_index)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape idx_s{migraphx::shape::int32_type, {dd{4, 8}}};
+
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", idx_s);
+        auto idx2 = m1.add_parameter("idx2", idx_s);
+        auto idx3 = m1.add_parameter("idx3", idx_s);
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        m1.add_return({g1, g2, g3});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Cross-embedding fusion candidates with dynamic-shaped indices → no fusion.
+TEST_CASE(gather_horiz_no_fusion_dynamic_index)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape idx_s{migraphx::shape::int32_type, {dd{1, 8}}};
+
+    migraphx::module m1;
+    {
+        auto emb1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+        auto emb3 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2}}, 2));
+        auto emb4 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 3));
+
+        auto idx1 = m1.add_parameter("idx1", idx_s);
+        auto idx2 = m1.add_parameter("idx2", idx_s);
+        auto idx3 = m1.add_parameter("idx3", idx_s);
+        auto idx4 = m1.add_parameter("idx4", idx_s);
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb1, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb2, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
+
+        m1.add_return({g1, g2, g3, g4});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Independent dots with identical activation/weight shapes and constant
+// weights should batch into a single GEMM, then slice+squeeze back.
+TEST_CASE(dot_horiz_fusion_basic)
+{
+    migraphx::module m1;
+    {
+        auto a0 = m1.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m1.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto a2 = m1.add_parameter("a2", {migraphx::shape::float_type, {2, 3}});
+        auto w0 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 1));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 2));
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), a0, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), a1, w1);
+        auto d2 = m1.add_instruction(migraphx::make_op("dot"), a2, w2);
+        m1.add_return({d0, d1, d2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a0 = m2.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m2.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto a2 = m2.add_parameter("a2", {migraphx::shape::float_type, {2, 3}});
+        auto w0 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
+        auto w1 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 1));
+        auto w2 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 2));
+
+        auto ua0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a0);
+        auto ua1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a1);
+        auto ua2  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a2);
+        auto bact = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua0, ua1, ua2);
+        auto uw0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w0);
+        auto uw1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
+        auto uw2  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
+        auto bwt  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw0, uw1, uw2);
+        auto bd   = m2.add_instruction(migraphx::make_op("dot"), bact, bwt);
+
+        auto s0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), bd);
+        auto sq0 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto s1  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bd);
+        auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto s2  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), bd);
+        auto sq2 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s2);
+        m2.add_return({sq0, sq1, sq2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Dots whose weights are not compile-time constants are not candidates.
+TEST_CASE(dot_horiz_fusion_non_constant_weight_unchanged)
+{
+    migraphx::module m1;
+    {
+        auto a0 = m1.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m1.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto w0 = m1.add_parameter("w0", {migraphx::shape::float_type, {3, 4}});
+        auto w1 = m1.add_parameter("w1", {migraphx::shape::float_type, {3, 4}});
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), a0, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), a1, w1);
+        m1.add_return({d0, d1});
+    }
+    migraphx::module before = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == before.sort());
+}
+
+// Dots with different activation/weight shapes do not share a group key.
+TEST_CASE(dot_horiz_fusion_mismatched_shapes_unchanged)
+{
+    migraphx::module m1;
+    {
+        auto a0 = m1.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m1.add_parameter("a1", {migraphx::shape::float_type, {2, 5}});
+        auto w0 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 4}}, 1));
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), a0, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), a1, w1);
+        m1.add_return({d0, d1});
+    }
+    migraphx::module before = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == before.sort());
+}
+
+// End-to-end: the pointwise hoist in find_splits (simplify_algebra) and
+// dot_horizontal_fusion (fuse_horizontal) cooperate in one pipeline.  The module
+// contains both opportunities and both reductions must occur.  This mirrors the
+// GPU pipeline ordering where fuse_pointwise collapses each per-slice SiLU into
+// a single pointwise op, simplify_algebra (optimize_module) then hoists it above
+// the slices, and fuse_horizontal batches the parallel dots.
+static void run_mlp_pipeline(migraphx::program& p)
+{
+    migraphx::run_passes(p,
+                         {migraphx::fuse_pointwise{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::simplify_algebra{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::fuse_horizontal{},
+                          migraphx::dead_code_elimination{}});
+}
+
+TEST_CASE(hoist_and_dot_fusion_end_to_end)
+{
+    migraphx::program p;
+    {
+        auto* m = p.get_main_module();
+        // Hoist target: a SiLU (sigmoid * x) replicated across sibling row
+        // slices of a common tensor that exactly tile it.
+        auto t = m->add_parameter("t", {migraphx::shape::float_type, {4, 8}});
+        std::vector<migraphx::instruction_ref> outs;
+        for(int i = 0; i < 4; ++i)
+        {
+            auto s = m->add_instruction(
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), t);
+            auto sig = m->add_instruction(migraphx::make_op("sigmoid"), s);
+            outs.push_back(m->add_instruction(migraphx::make_op("mul"), s, sig));
+        }
+
+        // Dot-fusion target: parallel constant-weight dots with identical shapes.
+        for(int i = 0; i < 3; ++i)
+        {
+            auto x =
+                m->add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 3}});
+            auto w = m->add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {3, 5}}, i));
+            outs.push_back(m->add_instruction(migraphx::make_op("dot"), x, w));
+        }
+
+        m->add_return(outs);
+    }
+    run_mlp_pipeline(p);
+
+    std::size_t n_dot       = 0;
+    std::size_t n_pointwise = 0;
+    for(auto ins : iterator_for(*p.get_main_module()))
+    {
+        const auto& name = ins->name();
+        if(name == "dot")
+            ++n_dot;
+        else if(name == "pointwise")
+            ++n_pointwise;
+    }
+
+    // dot_horizontal_fusion collapses the 3 towers into a single batched GEMM.
+    EXPECT(n_dot == 1);
+    // fuse_pointwise turns each per-slice SiLU into one pointwise op, which the
+    // find_splits hoist then collapses into a single pointwise on the bounding
+    // slice.
+    EXPECT(n_pointwise == 1);
+}
+
+// Parallel SwiGLU expert heads -- add(dot(mul(x, sigmoid(x)), W), bias) -- batch
+// into a single GEMM via dot_horizontal_fusion even though each dot feeds an
+// elementwise epilogue.  Nothing is stranded: find_splits (simplify_algebra)
+// re-fuses the per-slice epilogue after the batched dot is sliced back out.
+TEST_CASE(expert_head_dots_batch_with_constant_epilogue)
+{
+    migraphx::module m;
+    {
+        auto add_head = [&](const std::string& name, int seed) {
+            auto x = m.add_parameter(name, {migraphx::shape::float_type, {2, 8}});
+            auto w = m.add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, seed));
+            auto b = m.add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {2, 8}}, 10 + seed));
+            auto sig = m.add_instruction(migraphx::make_op("sigmoid"), x);
+            auto mul = m.add_instruction(migraphx::make_op("mul"), x, sig);
+            auto d   = m.add_instruction(migraphx::make_op("dot"), mul, w);
+            return m.add_instruction(migraphx::make_op("add"), d, b);
+        };
+        m.add_return({add_head("x0", 0), add_head("x1", 1), add_head("x2", 2), add_head("x3", 3)});
+    }
+    run_pass(m);
+
+    std::size_t n_dot = 0;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "dot")
+            ++n_dot;
+    }
+    // The four per-head epilogue dots collapse into a single batched GEMM.
+    EXPECT(n_dot == 1);
+}
+
+// A runtime (non-constant) epilogue operand does not affect GEMM batching: only
+// the weight needs to be constant, so the dots still collapse into one batched
+// GEMM regardless of what feeds the epilogue.
+TEST_CASE(expert_head_dots_batch_with_runtime_epilogue)
+{
+    migraphx::module m;
+    {
+        auto add_head = [&](const std::string& xname, const std::string& vname, int seed) {
+            auto x = m.add_parameter(xname, {migraphx::shape::float_type, {2, 8}});
+            auto v = m.add_parameter(vname, {migraphx::shape::float_type, {2, 8}});
+            auto w = m.add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, seed));
+            auto sig = m.add_instruction(migraphx::make_op("sigmoid"), x);
+            auto mul = m.add_instruction(migraphx::make_op("mul"), x, sig);
+            auto d   = m.add_instruction(migraphx::make_op("dot"), mul, w);
+            return m.add_instruction(migraphx::make_op("add"), d, v);
+        };
+        m.add_return({add_head("x0", "v0", 0),
+                      add_head("x1", "v1", 1),
+                      add_head("x2", "v2", 2),
+                      add_head("x3", "v3", 3)});
+    }
+    run_pass(m);
+
+    std::size_t n_dot = 0;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "dot")
+            ++n_dot;
+    }
+    // Batching is independent of the epilogue operand; the dots still collapse.
+    EXPECT(n_dot == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -146,11 +146,9 @@ static op_usage parse_op_usage(const std::string& ops)
     auto list = split_string(ops, ',');
     // Entries are trimmed because this format is also written by hand into JSON compile options,
     // where "conv, !dot" is natural but would otherwise leave the '!' at index 1 and not negate.
-    std::transform(list.begin(), list.end(), list.begin(), [](const std::string& s) {
-        return trim(s);
-    });
-    return {.requested_ops = get_usage<requested>(list),
-            .rejected_ops  = get_usage<rejected>(list)};
+    std::transform(
+        list.begin(), list.end(), list.begin(), [](const std::string& s) { return trim(s); });
+    return {.requested_ops = get_usage<requested>(list), .rejected_ops = get_usage<rejected>(list)};
 }
 
 // Ops forced on or off by MIGRAPHX_MLIR_USE_SPECIFIC_OPS. Parsed on first use.

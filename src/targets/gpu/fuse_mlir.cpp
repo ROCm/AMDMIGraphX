@@ -48,8 +48,9 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR_GEG_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_CEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_ENABLED);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_GEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
@@ -172,13 +173,15 @@ bool mlir_flash_decoding_enabled()
 
 struct mlir_op
 {
+    operation op    = make_op("convolution");
+    std::string tag = "";
+
     std::string name() const { return "gpu::mlir_op"; }
-    operation op = make_op("convolution");
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.op, "op"));
+        return pack(f(self.op, "op"), f(self.tag, "tag"));
     }
 
     // Check if the shape can be created from a transpose/broadcast/slice
@@ -248,6 +251,34 @@ const auto& reshaper_names()
 bool is_fusable_input_op(const std::string& name)
 {
     return contains(reshaper_names(), name) or contains({"slice"}, name);
+}
+
+instruction_ref strip_layout_ops(instruction_ref ins)
+{
+    while(contains(reshaper_names(), ins->name()) and ins->inputs().size() == 1)
+        ins = ins->inputs().front();
+    return ins;
+}
+
+// Only one mlir_op input may feed from the first gemm
+bool single_chain_input_to_second_gemm(instruction_ref first_gemm_ins,
+                                       const std::vector<instruction_ref>& second_mlir_inputs)
+{
+    const auto chain_anchor = strip_layout_ops(first_gemm_ins);
+    bool found_chain        = false;
+    for(instruction_ref input : second_mlir_inputs)
+    {
+        if(strip_layout_ops(input) == chain_anchor)
+        {
+            if(found_chain)
+                return false;
+            found_chain = true;
+            continue;
+        }
+        if(reaches(first_gemm_ins, input))
+            return false;
+    }
+    return found_chain;
 }
 
 std::tuple<instruction_ref, std::vector<operation>>
@@ -413,6 +444,19 @@ auto is_mlir_conv_backwards(mlir_mode mode)
 
         return (w.lens().size() == 4 or not(group > 1));
     });
+}
+
+auto is_mlir_fusible_geg_op()
+{
+    return match::name("gpu::mlir_op")(
+        match::make_basic_pred_matcher(
+            [](instruction_ref ins) { return not ins->module_inputs().empty(); }),
+        match::any_of(match::has_op_value("tag", "standalone_dot"),
+                      match::has_op_value("tag", "standalone_quant_dot"),
+                      match::has_op_value("tag", "standalone_convolution"),
+                      match::has_op_value("tag", "standalone_quant_convolution"),
+                      match::has_op_value("tag", "dot_pointwise"),
+                      match::has_op_value("tag", "conv_pointwise")));
 }
 
 std::unordered_map<instruction_ref, instruction_ref>
@@ -764,6 +808,7 @@ struct find_mlir_fused_ops
             gemm_has_multi_outs |= reshape_ins->outputs().size() > 1;
         }
         inss_to_insert.push_back(gemm_based_op);
+
         std::reverse(inss_to_insert.begin(), inss_to_insert.end());
         mm->add_instructions(inss_to_insert, &map_ins);
 
@@ -775,9 +820,15 @@ struct find_mlir_fused_ops
         }
         mm->add_return(rins);
 
-        auto inputs    = find_inputs(map_ins, &mpm.get_module(), mm);
-        auto fused_ins = mpm.get_module().insert_instruction(
-            pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
+        mlir_op mlir{gemm_based_op->get_operator()};
+        if(x_ins == gemm_based_op)
+        {
+            bool is_conv = contains({"convolution", "quant_convolution"}, gemm_based_op->name());
+            mlir.tag     = is_conv ? "conv_pointwise" : "dot_pointwise";
+        }
+        auto fused_ins =
+            mpm.get_module().insert_instruction(pw_ins, mlir, mlir_contiguous(mpm, inputs), {mm});
         if(gemm_has_multi_outs)
         {
             auto dot_ins = mpm.get_module().insert_instruction(
@@ -810,20 +861,27 @@ struct find_mlir_fused_ops
 };
 
 /**
- * Fuses rocMLIR conv/dot -> pointwise -> dot chain
+ * Fuses rocMLIR conv/dot -> optional pointwise -> dot -> optional pointwise chain
  * into a mlir_op with submodule.
  */
 struct find_mlir_fused_geg_ops
 {
-    mlir_mode conv_mode = mlir_mode::none;
-    mlir_mode dot_mode  = mlir_mode::none;
+    bool ceg_mode = false;
     std::string gfx_name;
-    bool enable_geg_multi_out_intermediates = false;
 
-    // check if individual GEMM meets architecture requirements
-    bool is_gemm_supported(instruction_ref ins) const
+    // check if individual GEMM meets architecture and mode requirements
+    // ins: the dot/convolution instruction inside the submodule
+    // is_second_gemm: true if this is the second gemm in the chain
+    bool is_gemm_supported(instruction_ref ins, bool is_second_gemm = false) const
     {
-        // on navis, wmma doesn't support fp32, so skip fp32 GEMMs
+        // convolution is only allowed in first position, and only when ceg_mode is enabled
+        if(contains({"convolution", "quant_convolution"}, ins->name()))
+        {
+            if(is_second_gemm or not ceg_mode)
+                return false;
+        }
+
+        // on navi, wmma doesn't support fp32, so skip fp32 GEMMs
         // one gemm being f32 is sufficient to turn off this fusion
         if(starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12"))
         {
@@ -835,150 +893,179 @@ struct find_mlir_fused_geg_ops
         return true;
     }
 
+    bool check_heuristic(instruction_ref first_gemm,
+                         const std::vector<instruction_ref>& second_inputs) const
+    {
+        if(second_inputs.empty())
+            return false;
+
+        const bool is_conv = contains({"convolution", "quant_convolution"}, first_gemm->name());
+
+        // CEG uses conv output (via pointwise) feeding the second gemm, not conv weights.
+        if(is_conv and ceg_mode)
+        {
+            auto shape_a1 = second_inputs.front()->get_shape();
+            auto shape_b2 = second_inputs.back()->get_shape();
+            if(shape_a1.ndim() < 2 or shape_b2.ndim() < 2)
+                return false;
+
+            std::int64_t g = shape_b2.lens().back();
+            if(g <= 1)
+                return false;
+
+            const auto& lens_a1 = shape_a1.lens();
+            std::int64_t m      = lens_a1[lens_a1.size() - 2];
+            std::int64_t n      = lens_a1.size() >= 2 ? lens_a1[1] : 0;
+            return m > 8 or n < 512;
+        }
+
+        const auto& first_inputs = first_gemm->inputs();
+        auto shape_a1            = first_inputs.front()->get_shape();
+        auto shape_b1            = first_inputs.back()->get_shape();
+        auto shape_b2            = second_inputs.back()->get_shape();
+
+        if(shape_a1.ndim() < 2 or shape_b1.ndim() < 2 or shape_b2.ndim() < 2)
+            return false;
+
+        // gemm0: (m x k) @ (k x n) -> (m x n)
+        // gemm1: (m x n) @ (n x g) -> (m x g)
+        const auto& lens_a1 = shape_a1.lens();
+        std::int64_t m      = lens_a1[lens_a1.size() - 2];
+        std::int64_t n      = shape_b1.lens().back();
+        std::int64_t k      = lens_a1.back();
+        std::int64_t g      = shape_b2.lens().back();
+
+        // skip if any dimension is 0 (extraction failed) or gemm1 is effectively a no-op
+        if(m == 0 or n == 0 or k == 0 or g <= 1)
+            return false;
+
+        // reject if tiny batch and wide hidden dim
+        if(m <= 8 and n >= 512)
+            return false;
+
+        // Conservative fuse gates: elemwise is a column vector, not a wide m x n tile.
+        // All dims are capped
+        constexpr std::int64_t n1_m_max = 1024;
+        constexpr std::int64_t n1_k_max = 128;
+        constexpr std::int64_t n1_g_max = 64;
+        if(n == 1 and k <= n1_k_max and m <= n1_m_max and g <= n1_g_max)
+            return true;
+
+        // Large batch skinny-k MLP bottom avoids huge m x n DRAM roundtrip.
+        // Skip huge second gemm (g > 256
+        constexpr std::int64_t dlrm_m_min = 98304; // 96K
+        constexpr std::int64_t dlrm_n_min = 512;
+        constexpr std::int64_t dlrm_k_max = 13;
+        constexpr std::int64_t dlrm_g_max = 256;
+        return m >= dlrm_m_min and n >= dlrm_n_min and k <= dlrm_k_max and g <= dlrm_g_max;
+    }
+
     /*
      * Matches:
-     * mlir_dot_or_conv <binds to "first_gemm_based_op"> ->
-     * pointwise <binds to "pointwise_op"> ->
-     * dot <matcher result, binds to "second_gemm_op">
+     * gpu::mlir_op(standalone_dot/standalone_convolution/dot_pointwise/conv_pointwise) <binds to
+     * "first_gemm_based_op"> ->
+     * gpu::mlir_op(standalone_dot/dot_pointwise) <matcher
+     * result, binds to "second_gemm_op">
      */
     auto matcher() const
     {
-        auto gemm_supported = match::make_basic_pred_matcher(
-            [this](instruction_ref ins) { return is_gemm_supported(ins); });
-
-        auto first_dot_or_conv =
-            match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode))(gemm_supported)
-                .bind("first_gemm_based_op");
-        auto elemwise =
-            mlir_pointwise()(match::any_of[match::inputs()](first_dot_or_conv)).bind("elemwise");
-        return is_mlir_dot(dot_mode)(gemm_supported)(match::arg(0)(elemwise))
-            .bind("second_gemm_op");
+        auto mlir_fusible_geg_op = is_mlir_fusible_geg_op();
+        auto first_mlir_op       = mlir_fusible_geg_op.bind("first_gemm_based_op");
+        // this is specifically disallowing multi out from the first submodule, which rocMLIR does
+        // not support
+        return mlir_fusible_geg_op(match::arg(0)(first_mlir_op)).bind("second_gemm_op");
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto second_gemm_ins = r.result;
-        auto elemwise_ins    = r.instructions["elemwise"];
         auto first_gemm_ins  = r.instructions["first_gemm_based_op"];
 
-        auto* elemwise_module = elemwise_ins->module_inputs().front();
-        auto elemwise_inputs  = elemwise_ins->inputs();
+        // extract the actual gemm instructions from the submodules
+        auto find_geg_gemm = [](const module* submod) {
+            return std::find_if(submod->begin(), submod->end(), [](const auto& i) {
+                return contains({"dot", "quant_dot", "convolution", "quant_convolution"}, i.name());
+            });
+        };
+        auto* first_submod  = first_gemm_ins->module_inputs().front();
+        auto first_gemm     = find_geg_gemm(first_submod);
+        auto* second_submod = second_gemm_ins->module_inputs().front();
+        auto second_gemm    = find_geg_gemm(second_submod);
 
-        // only one input to elemwise should depend on first_gemm
-        if(std::any_of(elemwise_inputs.begin(), elemwise_inputs.end(), [&](const auto& i) {
-               return i != first_gemm_ins and reaches(first_gemm_ins, i);
-           }))
+        // check if both gemms exist and are supported on this architecture
+        if(first_gemm == first_submod->end() or second_gemm == second_submod->end())
+            return;
+        if(not is_gemm_supported(first_gemm) or not is_gemm_supported(second_gemm, true))
             return;
 
-        // only one input to second_gemm should depend on elemwise or first_gemm
-        auto second_gemm_inputs = second_gemm_ins->inputs();
-        if(std::any_of(second_gemm_inputs.begin(), second_gemm_inputs.end(), [&](const auto& i) {
-               return (i != elemwise_ins and reaches(elemwise_ins, i)) and
-                      (i != first_gemm_ins and reaches(first_gemm_ins, i));
-           }))
+        if(not single_chain_input_to_second_gemm(first_gemm_ins, second_gemm_ins->inputs()))
+            return;
+
+        // check heuristic to determine if fusion should proceed
+        const auto& second_gemm_inputs = second_gemm->inputs();
+        if(not check_heuristic(first_gemm, second_gemm_inputs))
+            return;
+        if(not mlir_lds_usage_fits_arch(second_gemm_inputs.back()->get_shape().lens().back(),
+                                        gfx_name,
+                                        second_gemm->get_shape().type()))
+            return;
+
+        // the first mlir_op must have a single user in the parent module
+        if(first_gemm_ins->outputs().size() > 1)
             return;
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
-        module_ref mm =
-            mpm.create_module("mlir_" + elemwise_ins->module_inputs().front()->name() + "_geg");
+        std::string module_name = first_submod->name() + "_" + second_submod->name() + "_geg";
+        module_ref mm           = mpm.create_module(module_name);
         mm->set_bypass();
+
+        // fuse the first submodule into the new module
         fuse_input_ops(mm, first_gemm_ins->inputs(), &map_ins);
+        auto first_rins = mm->fuse(*first_submod, first_gemm_ins->inputs(), &map_ins);
+        // first_rins has exactly one element (the single output of the first submodule)
+        assert(first_rins.size() == 1);
+        map_ins[first_gemm_ins] = first_rins.front();
 
-        // need to track multi-user scenarios for both intermediates
-        bool first_gemm_has_multi_outs = first_gemm_ins->outputs().size() > 1;
-        bool elemwise_has_multi_outs   = elemwise_ins->outputs().size() > 1;
+        // fuse the second submodule into the new module
+        fuse_input_ops(mm, second_gemm_ins->inputs(), &map_ins);
+        auto second_rins = mm->fuse(*second_submod, second_gemm_ins->inputs(), &map_ins);
+        // second_rins contains the outputs of the second submodule (may be multiple if
+        // dot_pointwise/conv_pointwise with multi-outs)
+        const bool second_gemm_has_multi_outs = second_rins.size() > 1;
+        assert(second_rins.size() == 1 or second_rins.size() == 2);
+        map_ins[second_gemm_ins] = second_rins.front();
 
-        // if we have multi outs for either of the intermediates, check if this is supported first
-        if((first_gemm_has_multi_outs or elemwise_has_multi_outs) and
-           not enable_geg_multi_out_intermediates)
-            return;
-
-        // add the first gemm to the module
-        std::vector<instruction_ref> first_gemm_mapped_inputs;
-        first_gemm_mapped_inputs.reserve(first_gemm_ins->inputs().size());
-        std::transform(first_gemm_ins->inputs().begin(),
-                       first_gemm_ins->inputs().end(),
-                       std::back_inserter(first_gemm_mapped_inputs),
-                       [&](auto input) { return map_ins.at(input); });
-        auto first_gemm_in_module =
-            mm->add_instruction(first_gemm_ins->get_operator(), first_gemm_mapped_inputs);
-        map_ins[first_gemm_ins] = first_gemm_in_module;
-
-        // fuse external inputs for the elemwise operation
-        fuse_input_ops(mm, elemwise_inputs, &map_ins);
-
-        // fuse elemwise submodule
-        auto elemwise_rins =
-            mm->fuse(*elemwise_module, elemwise_inputs, &map_ins, &insert_pointwise);
-        assert(elemwise_rins.size() == 1);
-        map_ins[elemwise_ins] = elemwise_rins.front();
-
-        // fuse external inputs for the second gemm
-        fuse_input_ops(mm, second_gemm_inputs, &map_ins);
-
-        // add the second gemm to the new module
-        std::vector<instruction_ref> second_gemm_mapped_inputs;
-        second_gemm_mapped_inputs.reserve(second_gemm_inputs.size());
-        std::transform(second_gemm_inputs.begin(),
-                       second_gemm_inputs.end(),
-                       std::back_inserter(second_gemm_mapped_inputs),
-                       [&](auto input) { return map_ins.at(input); });
-        auto second_gemm_in_module =
-            mm->add_instruction(second_gemm_ins->get_operator(), second_gemm_mapped_inputs);
-        map_ins[second_gemm_ins] = second_gemm_in_module;
-
-        // primary output is the last gemm, which should be the first output
-        std::vector<instruction_ref> return_vals;
-        return_vals.push_back(second_gemm_in_module);
-
-        if(elemwise_has_multi_outs)
-        {
-            return_vals.push_back(map_ins[elemwise_ins]);
-        }
-        if(first_gemm_has_multi_outs)
-        {
-            return_vals.push_back(map_ins[first_gemm_ins]);
-        }
-        mm->add_return(return_vals);
+        // if second submodule has multi-outs, second_rins already contains [pointwise, gemm]
+        // otherwise it just contains [final_output]
+        mm->add_return(second_rins);
         auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
 
-        if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
+        // replace the second gemm with the fused GEG operation
+        auto fused_ins =
+            mpm.get_module().insert_instruction(second_gemm_ins,
+                                                mlir_op{second_rins.front()->get_operator()},
+                                                mlir_contiguous(mpm, inputs),
+                                                {mm});
+        if(second_gemm_has_multi_outs)
         {
-            // hoist external inputs before the fusion so that we can safely place the fused mod
-            // in the multi-out case at the beginning of the chain
-            mpm.get_module().hoist_external_inputs(first_gemm_ins, second_gemm_ins);
-            auto fused_ins =
-                mpm.get_module().insert_instruction(first_gemm_ins,
-                                                    mlir_op{second_gemm_ins->get_operator()},
-                                                    mlir_contiguous(mpm, inputs),
-                                                    {mm});
-            std::size_t output_idx = 0;
-            if(elemwise_has_multi_outs)
+            // the second submodule returns multiple values: [pointwise_result, gemm_result]
+            // find any get_tuple_elem instructions that extract from second_gemm_ins and update
+            // them
+            for(auto out : second_gemm_ins->outputs())
             {
-                auto elemwise_result = mpm.get_module().insert_instruction(
-                    first_gemm_ins,
-                    migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
-                    fused_ins);
-                mpm.get_module().replace_instruction(elemwise_ins, elemwise_result);
+                if(out->name() == "get_tuple_elem")
+                {
+                    // update the get_tuple_elem to point to the new fused instruction
+                    mpm.get_module().replace_instruction(out, out->get_operator(), fused_ins);
+                }
             }
-            if(first_gemm_has_multi_outs)
-            {
-                mpm.get_module().replace_instruction(
-                    first_gemm_ins,
-                    migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
-                    fused_ins);
-            }
+
+            // replace the pointwise result (the main output) with tuple elem 0
             mpm.get_module().replace_instruction(
                 second_gemm_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
         }
         else
         {
-            // simple single output case
-            auto fused_ins =
-                mpm.get_module().insert_instruction(second_gemm_ins,
-                                                    mlir_op{second_gemm_ins->get_operator()},
-                                                    mlir_contiguous(mpm, inputs),
-                                                    {mm});
             mpm.get_module().replace_instruction(second_gemm_ins, fused_ins);
         }
     }
@@ -1022,10 +1109,10 @@ struct find_mlir_standalone_op : match::supports_dynamic_shapes
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
         mm->add_return({anchor_op});
-        mpm.get_module().replace_instruction(gemm_based_op,
-                                             mlir_op{gemm_based_op->get_operator()},
-                                             mlir_contiguous(mpm, top_inputs),
-                                             {mm});
+        mlir_op mlir{gemm_based_op->get_operator()};
+        mlir.tag = "standalone_" + gemm_based_op->name();
+        mpm.get_module().replace_instruction(
+            gemm_based_op, mlir, mlir_contiguous(mpm, top_inputs), {mm});
     }
 };
 
@@ -1534,18 +1621,6 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_mlir_attention_op{});
     mpm.run_pass(dead_code_elimination{});
 
-    if(enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
-    {
-        match::find_matches(
-            mpm,
-            find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                                    .dot_mode  = get_mode("fused_dot", mlir_mode::fast),
-                                    .gfx_name  = device_name,
-                                    .enable_geg_multi_out_intermediates =
-                                        enable_geg_multi_out_intermediates});
-        mpm.run_pass(dead_code_elimination{});
-    }
-
     match::find_matches(
         mpm,
         find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
@@ -1569,6 +1644,17 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});
+
+    // GEG fusion runs after standalone gemm and gemm->pointwise fusions, since it combines them
+    if(not enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+    {
+        match::find_matches(
+            mpm,
+            find_mlir_fused_geg_ops{.ceg_mode = enabled(MIGRAPHX_ENABLE_MLIR_CEG_FUSION{}),
+                                    .gfx_name = device_name});
+        mpm.run_pass(dead_code_elimination{});
+    }
+
     if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
     {
         match::find_matches(

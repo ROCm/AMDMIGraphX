@@ -34,6 +34,10 @@ Number of chiplets (XCCs) to assume for cross-compilation. Only used when ``--gp
 
 Device properties to assume for cross-compilation, as a JSON object (e.g. ``"{arch:gfx942, num_cu:120, num_chiplets:1, max_threads_per_cu:2048, max_threads_per_block:1024}"``). Overrides ``--gpu-arch``, ``--gpu-num-cus`` and ``--gpu-num-chiplets`` for any keys present. Specifying ``arch`` here is sufficient to enable cross-compilation without ``--gpu-arch``.
 
+.. option::  --backend-options [std::string]
+
+Target-specific compile options, as a JSON object (e.g. ``"{convolution_layout:channels_last}"``). Options the target does not recognize are ignored. 
+
 .. option::  --enable-offload-copy
 
 Enable implicit offload copying

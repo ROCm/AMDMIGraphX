@@ -24,13 +24,18 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
 #define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
 
+#include <cstddef>
 #include <string>
+#include <vector>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/enum.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct module;
 struct module_pass_manager;
 
 /**
@@ -38,15 +43,21 @@ struct module_pass_manager;
  */
 struct MIGRAPHX_EXPORT layout_convolution
 {
-    enum layout_order
-    {
-        channels_first,
-        channels_last,
-        channels_auto
-    };
+    MIGRAPHX_NESTED_ENUM(layout_order, channels_first, channels_last, channels_auto)
     layout_order order = channels_first;
+    // Only used with channels_last: convolutions with at least this many
+    // output channels store their weights with the K dim innermost (yxck
+    // instead of kyxc for 2-D); 1 always applies it, 0 disables it. K-innermost
+    // makes the implicit-GEMM A matrix M-contiguous, avoiding power-of-2 row
+    // strides.
+    std::size_t output_channels_last_threshold = 0;
+    // Restrict the output-channels-last weight layout to these types; empty
+    // applies to all types.
+    std::vector<shape::type_t> output_channels_last_types = {};
     std::string name() const { return "layout_convolution"; }
     void apply(module_pass_manager& mpm) const;
+    // Applies this->order, which must be resolved to channels_first or channels_last.
+    void apply_layout(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

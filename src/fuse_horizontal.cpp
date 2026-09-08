@@ -31,6 +31,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/functional.hpp>
+#include <algorithm>
 #include <numeric>
 #include <vector>
 #include <unordered_map>
@@ -444,18 +445,75 @@ struct gather_horizontal_fusion
 };
 
 // ---------------------------------------------------------------------------
-// Future: add more horizontal fusion finders here, e.g.
+// Generic dot horizontal fusion
 //
-// struct pointwise_horizontal_fusion
-// {
-//     std::size_t min_group_size() const { return 2; }
-//     bool is_candidate(instruction_ref ins) const { ... }
-//     std::string group_key(instruction_ref ins) const { ... }
-//     std::vector<instruction_ref>
-//         fuse(module& m, const std::vector<instruction_ref>& ops,
-//              instruction_ref insert_pt) const { ... }
-// };
+// Batches structurally-identical dot operations into a single batched GEMM by
+// stacking activations and weights along a new leading dimension (axis 0).  The
+// batched dot output is sliced and squeezed back into the individual results.
+//
+// Parallel MoE-style expert heads (dot + bias/activation epilogue) are batched
+// here too: the dots collapse into one GEMM and the per-slice epilogues are
+// re-fused afterwards by find_splits in simplify_algebra, so nothing is stranded
+// behind the slice.
 // ---------------------------------------------------------------------------
+
+struct dot_horizontal_fusion
+{
+    // Batching adds N unsqueeze + 1 concat + N slice + N squeeze of glue, so only
+    // pay it for groups large enough to be worthwhile.
+    std::size_t min_group_size() const { return 3; }
+
+    bool is_candidate(instruction_ref ins) const
+    {
+        if(ins->name() != "dot")
+            return false;
+        if(ins->get_shape().dynamic())
+            return false;
+        if(ins->get_shape().ndim() < 2)
+            return false;
+        // Only fold when the weight is a compile-time constant so the batched
+        // weight tensor can be materialized.
+        return ins->inputs().at(1)->can_eval();
+    }
+
+    auto group_key(instruction_ref ins) const
+    {
+        return std::make_tuple(ins->inputs().at(0)->get_shape().lens(),
+                               ins->inputs().at(1)->get_shape().lens(),
+                               ins->get_shape().type());
+    }
+
+    std::vector<instruction_ref>
+    fuse(module& m, const std::vector<instruction_ref>& dots, instruction_ref insert_pt) const
+    {
+        // Stack input `input_idx` of every dot along a new leading axis.
+        auto stack = [&](std::size_t input_idx) {
+            std::vector<instruction_ref> unsqueezed(dots.size());
+            std::transform(dots.begin(), dots.end(), unsqueezed.begin(), [&](auto d) {
+                return m.insert_instruction(
+                    insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(input_idx));
+            });
+            return m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), unsqueezed);
+        };
+
+        auto batched_act = stack(0);
+        auto batched_wt  = stack(1);
+        auto batched_dot = m.insert_instruction(insert_pt, make_op("dot"), batched_act, batched_wt);
+
+        // Slice each original result back out of the batched dot.
+        std::vector<instruction_ref> results(dots.size());
+        for(std::size_t i = 0; i < dots.size(); ++i)
+        {
+            auto sliced = m.insert_instruction(
+                insert_pt,
+                make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
+                batched_dot);
+            results[i] =
+                m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced);
+        }
+        return results;
+    }
+};
 
 void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
@@ -463,7 +521,10 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
 
     // Fuse across distinct tables first, then same-table groups.  Running same-table
     // fusion first can shrink cross-table groups below their size threshold and miss it.
-    fuse_horizontal_ops(m, gather_horizontal_fusion{}, same_table_gather_horizontal_fusion{});
+    fuse_horizontal_ops(m,
+                        gather_horizontal_fusion{},
+                        same_table_gather_horizontal_fusion{},
+                        dot_horizontal_fusion{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

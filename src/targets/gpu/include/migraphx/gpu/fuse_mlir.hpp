@@ -25,7 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
 
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/mlir_ops.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,14 +35,18 @@ struct module_pass_manager;
 namespace gpu {
 
 MIGRAPHX_GPU_EXPORT bool mlir_enabled();
-MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx, const mlir_ops_options& mlir_ops);
+MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx,
+                                                const std::string& use_specific_ops);
 MIGRAPHX_GPU_EXPORT bool mlir_flash_decoding_enabled();
 
 struct MIGRAPHX_GPU_EXPORT fuse_mlir
 {
-    context* ctx      = nullptr;
-    mlir_ops_options mlir_ops{};
-    bool enable_extra = false;
+    context* ctx = nullptr;
+    // Comma-separated list of ops to force on to (or, with a '!'/'~' prefix, off of) MLIR, in the
+    // same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS and supplied via compile_options. Lowest
+    // priority: the env var and the architecture and build-config defaults are checked first.
+    std::string use_specific_ops = {};
+    bool enable_extra            = false;
     std::string name() const { return "gpu::fuse_mlir"; }
     void apply(module_pass_manager& mpm) const;
 };

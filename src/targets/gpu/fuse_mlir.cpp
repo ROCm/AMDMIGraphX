@@ -91,12 +91,12 @@ static bool is_negated_op(const std::string& s)
     return contains({'!', '~'}, s[0]);
 }
 
+// Selects the ops of a comma-split op list that Action applies to: `requested` keeps the plain
+// entries, `rejected` keeps the '!'/'~'-prefixed ones with the prefix stripped.
 template <class Action>
-static std::vector<std::string> get_usage()
+static std::vector<std::string> get_usage(const std::vector<std::string>& options)
 {
-    static const auto options =
-        split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ',');
-    static const bool enabled = std::is_same<Action, requested>{};
+    constexpr bool enabled = std::is_same<Action, requested>{};
     std::vector<std::string> result;
     auto remove_not_symbol = [&](const std::string& s) {
         if(is_negated_op(s))
@@ -118,18 +118,45 @@ static std::vector<std::string> get_usage()
     return result;
 }
 
-template <class Action>
-static bool specific_op(std::string_view option, bool fallback = false)
+// True when `option` is listed in `options`; a "fused" entry matches every fused_* op.
+static bool has_op(const std::vector<std::string>& options, std::string_view option)
 {
-    static const auto options = get_usage<Action>();
-    if(options.empty())
-        return fallback;
     if(contains(option, "fused") and contains(options, "fused"))
         return true;
     return contains(options, option);
 }
 
-bool mlir_attention_enabled(context* ctx, const mlir_ops_options& mlir_ops)
+template <class Action>
+static bool specific_op(std::string_view option, bool fallback = false)
+{
+    static const auto options =
+        get_usage<Action>(split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ','));
+    if(options.empty())
+        return fallback;
+    return has_op(options, option);
+}
+
+namespace {
+// The op list supplied through compile_options, in the same comma-separated format as
+// MIGRAPHX_MLIR_USE_SPECIFIC_OPS, split once so each query is a plain lookup.
+struct op_usage
+{
+    std::vector<std::string> requested_ops = {};
+    std::vector<std::string> rejected_ops  = {};
+
+    bool is_requested(std::string_view option) const { return has_op(requested_ops, option); }
+    bool is_rejected(std::string_view option) const { return has_op(rejected_ops, option); }
+};
+} // namespace
+
+static op_usage parse_op_usage(const std::string& ops)
+{
+    const auto list = split_string(ops, ',');
+    return {.requested_ops = get_usage<requested>(list),
+            .rejected_ops  = get_usage<rejected>(list)};
+}
+
+bool mlir_attention_enabled(context* ctx, const std::string& use_specific_ops)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
@@ -148,8 +175,12 @@ bool mlir_attention_enabled(context* ctx, const mlir_ops_options& mlir_ops)
     }
     if(specific_op<requested>("attention"))
         return true;
-    // if attention is not set by env check mlir ops
-    return mlir_ops.attention;
+    // Ops from compile_options are the lowest priority: they only decide when neither the env
+    // var nor the architecture default already has.
+    const auto ops = parse_op_usage(use_specific_ops);
+    if(ops.is_rejected("attention"))
+        return false;
+    return ops.is_requested("attention");
 #else
     return false;
 #endif
@@ -1596,28 +1627,31 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
+    const auto ops = parse_op_usage(use_specific_ops);
 
-    auto get_mode =
-        [&](std::string_view option, bool mlir_op, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
-            if(specific_op<rejected>(option))
-                return mlir_mode::none;
-            if(specific_op<requested>(option))
-                return mlir_mode::all;
-            if(is_navi)
-                return mlir_mode::all;
+    auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
+        if(specific_op<rejected>(option))
+            return mlir_mode::none;
+        if(specific_op<requested>(option))
+            return mlir_mode::all;
+        if(is_navi)
+            return mlir_mode::all;
 #if !MIGRAPHX_USE_MIOPEN
-            if(contains(option, "conv"))
-                return mlir_mode::all;
+        if(contains(option, "conv"))
+            return mlir_mode::all;
 #endif
 #if !MIGRAPHX_USE_ROCBLAS and !MIGRAPHX_USE_HIPBLASLT
-            if(contains(option, "dot") or contains(option, "fused_dot"))
-                return mlir_mode::all;
+        if(contains(option, "dot") or contains(option, "fused_dot"))
+            return mlir_mode::all;
 #endif
-            // if the op is not requested by env var, fall back to the mlir_ops default
-            if(mlir_op)
-                return mlir_mode::all;
-            return std::max(m1, m2);
-        };
+        // Ops from compile_options are the lowest priority: they only decide when neither the
+        // env var nor the architecture and build-config defaults above already have.
+        if(ops.is_rejected(option))
+            return mlir_mode::none;
+        if(ops.is_requested(option))
+            return mlir_mode::all;
+        return std::max(m1, m2);
+    };
 
     match::find_matches(mpm, find_channel_slice_convolution{});
     mpm.run_pass(dead_code_elimination{});
@@ -1630,17 +1664,14 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_fused_ops{
-            .conv_mode = get_mode("fused_convolution", mlir_ops.fused_convolution, mlir_mode::fast),
-            .dot_mode  = get_mode("fused_dot", mlir_ops.fused_dot, mlir_mode::fast)});
+        find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                            .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
 
     // gfx12 lacks an accurate half version of MIOpen convolution_backwards path, so
     // always route it through rocMLIR regardless of MIOpen availability or user
     // env-var overrides.
     mlir_mode conv_backwards_mode =
-        get_mode("convolution_backwards",
-                 mlir_ops.convolution_backwards,
-                 MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all);
+        get_mode("convolution_backwards", MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all);
     if(starts_with(device_name, "gfx12"))
     {
         conv_backwards_mode = mlir_mode::all;
@@ -1648,12 +1679,10 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_conv_op{
-            .mode    = get_mode("convolution", mlir_ops.convolution, mlir_mode::fast),
-            .counter = &counter},
+        find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_mode::fast),
+                                     .counter = &counter},
         find_mlir_standalone_conv_backwards_op{.mode = conv_backwards_mode, .counter = &counter},
-        find_mlir_standalone_dot_op{.mode    = get_mode("dot", mlir_ops.dot, mlir_mode::fast),
-                                    .counter = &counter});
+        find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});
 
@@ -1671,10 +1700,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     {
         match::find_matches(
             mpm,
-            find_mlir_split_reduce{
-                .conv_mode =
-                    get_mode("fused_convolution", mlir_ops.fused_convolution, mlir_mode::fast),
-                .dot_mode = get_mode("fused_dot", mlir_ops.fused_dot, mlir_mode::fast)});
+            find_mlir_split_reduce{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                                   .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
     }
 
     match::find_matches(mpm, find_pointwise_mlir{});

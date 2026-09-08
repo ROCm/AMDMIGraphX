@@ -109,6 +109,10 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Comma-separated list of ops to force on to (or, with a '!'/'~' prefix, off of) MLIR, e.g.
+    // "convolution,dot,!attention". Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
+    // priority over this, as do the architecture and build-config defaults.
+    std::string mlir_use_specific_ops = {};
     // Read/write problem caches (the common case: a user tuning a model). New
     // tuning solutions are saved back to these files.
     std::vector<std::string> problem_cache_files = {};
@@ -122,6 +126,7 @@ struct backend_options
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
                     f(self.convolution_layout, "convolution_layout"));
@@ -149,7 +154,6 @@ struct pipeline_factory
 {
     migraphx::context* gctx_ptr = nullptr;
     compile_options options;
-    mlir_ops_options mlir_ops;
     backend_options backend_opts = {};
 
     migraphx::context* get_generic_context() const { return gctx_ptr; }
@@ -237,10 +241,10 @@ struct pipeline_factory
     std::vector<pass> fusion_pipeline() const
     {
         return {
-            enable_pass(
-                options.compile_mode != compile_modes::eager and mlir_enabled(),
-                fuse_attention{.attn_enabled = mlir_attention_enabled(get_context(), mlir_ops),
-                               .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+            enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
+                        fuse_attention{.attn_enabled = mlir_attention_enabled(
+                                           get_context(), backend_opts.mlir_use_specific_ops),
+                                       .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
@@ -250,7 +254,9 @@ struct pipeline_factory
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
             dead_code_elimination{},
-            enable_pass(mlir_enabled(), fuse_mlir{get_context(), mlir_ops}),
+            enable_pass(mlir_enabled(),
+                        fuse_mlir{.ctx              = get_context(),
+                                  .use_specific_ops = backend_opts.mlir_use_specific_ops}),
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},
@@ -319,7 +325,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
-    auto mlir_ops = mlir_ops_options{};
     auto backend_opts = get_backend_options(options);
 
     // Problem cache files arrive as GPU backend options. The writable caches
@@ -328,7 +333,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
                             backend_opts.problem_cache_files);
 
-    pipeline_factory p{&gctx, options, mlir_ops, backend_opts};
+    pipeline_factory p{&gctx, options, backend_opts};
 
     std::vector<std::vector<pass>> pipelines;
 

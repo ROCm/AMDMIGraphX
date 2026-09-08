@@ -324,13 +324,22 @@ static void generate_pointwise(cpp_generator& gg,
     g.add_point_op("less", "migraphx::abs(${0} < ${1})");
     g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
     g.add_point_op("not", "migraphx::abs(not ${0})");
+    // logical ops also yield SIMD masks (-1 for true); normalize like the comparisons above
+    g.add_point_op("logical_and", "migraphx::abs(${0} and ${1})");
+    g.add_point_op("logical_or", "migraphx::abs(${0} or ${1})");
+    g.add_point_op("logical_xor", "migraphx::abs(${0} xor ${1})");
     // Add explicit conversions
     g.fresult(
         [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
-    gg.create_function(g.generate_module(m)
-                           .set_attributes({"__device__", "__attribute__((const))"})
-                           .set_generic_types(m)
-                           .set_name(name));
+    auto f = g.generate_module(m);
+    f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
+    // A fused pointwise module may keep an input that no instruction consumes (e.g. alpha*A*B
+    // folded to 0 when alpha == 0), which trips -Werror=unused-parameter in the JIT compile.
+    // Mark such params used, mirroring the reduce path's out_idx handling below.
+    for(const auto& pname : m.get_parameter_names())
+        if(m.get_parameter(pname)->outputs().empty())
+            f.unused_param(pname);
+    gg.create_function(f);
 }
 std::string generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple)
 {

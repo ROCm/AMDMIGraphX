@@ -672,9 +672,25 @@ struct miopen_apply
     void add_scan_slice_op()
     {
         apply_map.emplace("scan_slice", [=](instruction_ref ins) {
-            auto inputs  = ins->inputs();
-            auto cpu_idx = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[1]);
-            inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
+            auto inputs = ins->inputs();
+            auto idx    = inputs[1];
+            // The index may pass through a device-type convert (e.g. int64->int32 inserted by
+            // eliminate_data_type_for_gpu). Copy the GPU source to the host FIRST, then re-apply
+            // the convert on the host copy -- otherwise the convert stays a host op dereferencing
+            // GPU memory (segfault). Only exposed when the index isn't constant-folded away.
+            if(idx->name() == "convert" and idx->inputs().size() == 1)
+            {
+                auto cpu_src = mod->insert_instruction(
+                    ins, make_op("hip::copy_from_gpu"), idx->inputs().front());
+                auto synced = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_src);
+                inputs[1]   = mod->insert_instruction(ins, idx->get_operator(), synced);
+            }
+            else
+            {
+                auto cpu_idx =
+                    mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[1]);
+                inputs[1] = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
+            }
             return mod->replace_instruction(
                 ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
         });

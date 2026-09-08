@@ -68,6 +68,8 @@ Full documentation for MIGraphX is available at
 * Updated python API to allow getting and adding debug symbols from instructions (#4803).
 * Allow for 1 arg slicing over a dynamic dimension (#5015).
 * Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
+* Parsed ONNX `TopK` with a run-time `k` into `dyn_slice`, so the output shape carries `k` as a symbol instead of the widest possible dimension. A range-based dynamic input shape is now rejected; parse with symbolic shapes instead (#5150).
+* Made the ONNX parser's per-node identifier unique across modules by prefixing it with the module name, which also renames parsed subgraph modules (for example `If_5_if` is now `main_If_5_if`) (#5150).
 * Changed `propagate_constant` to skip folding a `convert` to a wider type, since that would enlarge the literal and lose the smaller storage type (#5138).
 * The 1 arg `slice` operator accepts symbolic input shapes when every sliced axis has a fixed length. Slicing a non-fixed symbolic axis, or supplying the bounds as inputs, needs `dyn_slice` since the integer bounds cannot express a symbolic output extent (#5112).
 * Rejected symbolic input shapes in the multi-input `slice` calls, and pointed both symbolic `slice` errors at `dyn_slice` (#5112).

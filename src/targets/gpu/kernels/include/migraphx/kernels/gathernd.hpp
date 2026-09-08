@@ -66,15 +66,17 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
     const auto num_slices_per_batch = num_slices / num_batches;
 
     ind.global_stride(output_shape.elements(), [&](auto i) {
-        const auto* indices_ptr     = indices_t.data();
         const size_t j              = i / slice_size;
         const size_t batch_idx      = j / num_slices_per_batch;
 
-        auto* slice_indices               = indices_ptr + (j * num_slice_dims);
+        const size_t slice_start          = j * num_slice_dims;
         size_t relative_slice_offset      = 0;
         for(size_t idx = 0; idx < num_slice_dims; ++idx)
         {
-            int64_t index                   = slice_indices[idx];
+            // Read indices through the stride-aware accessor (operator[]) so broadcast /
+            // non-standard strides resolve correctly. The raw .data() pointer assumed the
+            // index tensor was contiguously packed, which over-reads a broadcast index.
+            int64_t index                   = indices_t[slice_start + idx];
             const size_t input_dim_idx      = batch_dims + idx;
             const auto input_dim            = data_shape_lens[input_dim_idx];
             MIGRAPHX_ASSERT(index >= -static_cast<int64_t>(input_dim) and

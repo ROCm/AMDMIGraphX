@@ -1629,7 +1629,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
-    const auto ops = parse_op_usage(use_specific_ops);
+    const auto ops          = parse_op_usage(use_specific_ops);
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(env_op_usage().is_rejected(option))

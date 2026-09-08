@@ -42,9 +42,8 @@ MIGRAPHX_GPU_EXPORT bool mlir_flash_decoding_enabled();
 struct MIGRAPHX_GPU_EXPORT fuse_mlir
 {
     context* ctx = nullptr;
-    // Comma-separated list of ops to force on to (or, with a '!'/'~' prefix, off of) MLIR, in the
-    // same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS and supplied via compile_options. Lowest
-    // priority: the env var and the architecture and build-config defaults are checked first.
+    // List of ops to force onto MLIR ('!'/'~' prefix forces off), supplied via compile_options.
+    // Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes priority over this.
     std::string use_specific_ops = {};
     bool enable_extra            = false;
     std::string name() const { return "gpu::fuse_mlir"; }

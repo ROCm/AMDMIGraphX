@@ -91,11 +91,13 @@ static bool is_negated_op(const std::string& s)
     return contains({'!', '~'}, s[0]);
 }
 
-// Selects the ops of a comma-split op list that Action applies to: `requested` keeps the plain
-// entries, `rejected` keeps the '!'/'~'-prefixed ones with the prefix stripped.
+// Keeps the plain entries of an op list (`requested`), or the '!'/'~'-prefixed ones with the
+// prefix stripped (`rejected`).
 template <class Action>
 static std::vector<std::string> get_usage(const std::vector<std::string>& options)
 {
+    static_assert(std::is_same<Action, requested>{} or std::is_same<Action, rejected>{},
+                  "Action must be requested or rejected");
     constexpr bool enabled = std::is_same<Action, requested>{};
     std::vector<std::string> result;
     auto remove_not_symbol = [&](const std::string& s) {
@@ -118,7 +120,7 @@ static std::vector<std::string> get_usage(const std::vector<std::string>& option
     return result;
 }
 
-// True when `option` is listed in `options`; a "fused" entry matches every fused_* op.
+// True when `option` is listed; a "fused" entry matches any op with "fused" in its name.
 static bool has_op(const std::vector<std::string>& options, std::string_view option)
 {
     if(contains(option, "fused") and contains(options, "fused"))
@@ -126,19 +128,9 @@ static bool has_op(const std::vector<std::string>& options, std::string_view opt
     return contains(options, option);
 }
 
-template <class Action>
-static bool specific_op(std::string_view option, bool fallback = false)
-{
-    static const auto options =
-        get_usage<Action>(split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ','));
-    if(options.empty())
-        return fallback;
-    return has_op(options, option);
-}
-
 namespace {
-// The op list supplied through compile_options, in the same comma-separated format as
-// MIGRAPHX_MLIR_USE_SPECIFIC_OPS, split once so each query is a plain lookup.
+// A pre-split op list in the MIGRAPHX_MLIR_USE_SPECIFIC_OPS format, used for both the env var
+// and the compile_options string.
 struct op_usage
 {
     std::vector<std::string> requested_ops = {};
@@ -151,9 +143,21 @@ struct op_usage
 
 static op_usage parse_op_usage(const std::string& ops)
 {
-    const auto list = split_string(ops, ',');
+    auto list = split_string(ops, ',');
+    // Entries are trimmed because this format is also written by hand into JSON compile options,
+    // where "conv, !dot" is natural but would otherwise leave the '!' at index 1 and not negate.
+    std::transform(list.begin(), list.end(), list.begin(), [](const std::string& s) {
+        return trim(s);
+    });
     return {.requested_ops = get_usage<requested>(list),
             .rejected_ops  = get_usage<rejected>(list)};
+}
+
+// Ops forced on or off by MIGRAPHX_MLIR_USE_SPECIFIC_OPS. Parsed on first use.
+static const op_usage& env_op_usage()
+{
+    static const auto ops = parse_op_usage(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""));
+    return ops;
 }
 
 bool mlir_attention_enabled(context* ctx, const std::string& use_specific_ops)
@@ -161,7 +165,7 @@ bool mlir_attention_enabled(context* ctx, const std::string& use_specific_ops)
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
         return false;
-    if(specific_op<rejected>("attention"))
+    if(env_op_usage().is_rejected("attention"))
         return false;
     if(ctx != nullptr)
     {
@@ -173,10 +177,10 @@ bool mlir_attention_enabled(context* ctx, const std::string& use_specific_ops)
                        [&](const char* prefix) { return starts_with(device_name, prefix); }))
             return true;
     }
-    if(specific_op<requested>("attention"))
+    if(env_op_usage().is_requested("attention"))
         return true;
-    // Ops from compile_options are the lowest priority: they only decide when neither the env
-    // var nor the architecture default already has.
+    // Ops from compile_options are checked last: the gfx94/gfx95 default above has already
+    // returned, so a rejection here cannot turn attention off on those architectures.
     const auto ops = parse_op_usage(use_specific_ops);
     if(ops.is_rejected("attention"))
         return false;
@@ -1630,9 +1634,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     const auto ops = parse_op_usage(use_specific_ops);
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
-        if(specific_op<rejected>(option))
+        if(env_op_usage().is_rejected(option))
             return mlir_mode::none;
-        if(specific_op<requested>(option))
+        if(env_op_usage().is_requested(option))
             return mlir_mode::all;
         if(is_navi)
             return mlir_mode::all;
@@ -1644,8 +1648,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         if(contains(option, "dot") or contains(option, "fused_dot"))
             return mlir_mode::all;
 #endif
-        // Ops from compile_options are the lowest priority: they only decide when neither the
-        // env var nor the architecture and build-config defaults above already have.
+        // Ops from compile_options are checked last: the env var and the architecture and
+        // build-config defaults above win, but these still override the m1/m2 default below.
         if(ops.is_rejected(option))
             return mlir_mode::none;
         if(ops.is_requested(option))

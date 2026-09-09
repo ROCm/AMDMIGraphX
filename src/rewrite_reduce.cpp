@@ -247,10 +247,10 @@ struct find_reduce_mean_variance
     }
 };
 
-// Figure out if a wider accumulator type is needed based on `reduce`, `type` and number of reduced elements `n`.
-// All fp8 types need a wider accumulator.
-// fp16 reduce_prod needs wider accumulator because it has a smaller exponent range than fp32.
-// True for fp16 or bf16 reduce_sum if `n` > wide_reduce_elements_threshold
+// Figure out if a wider accumulator type is needed based on `reduce`, `type` and number of reduced
+// elements `n`. All fp8 types need a wider accumulator. fp16 reduce_prod needs wider accumulator
+// because it has a smaller exponent range than fp32. True for fp16 or bf16 reduce_sum if `n` >
+// wide_reduce_elements_threshold
 bool needs_wide_accumulator(const std::string& reduce, shape::type_t type, std::size_t n)
 {
     constexpr std::size_t wide_reduce_elements_threshold = 16384;
@@ -319,8 +319,9 @@ struct find_reduce_mean
         // Integral types widen for an 8 bit type, or for a 16 bit one once the count is a large
         // enough fraction of what the type can hold.
         // A mean is a sum, so floating point follows needs_wide_accumulator.
-        bool widen = is_integral ? (size == 1 or (n >= max_n / 4 and size < 3))
-                                 : needs_wide_accumulator(ins->name(), input->get_shape().type(), n);
+        bool widen = is_integral
+                         ? (size == 1 or (n >= max_n / 4 and size < 3))
+                         : needs_wide_accumulator(ins->name(), input->get_shape().type(), n);
         if(widen)
         {
             shape::type_t t = is_integral ? shape::int32_type : shape::float_type;

@@ -109,6 +109,10 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Comma-separated list of ops to force onto MLIR, e.g. "convolution,dot,!attention"; a
+    // '!' or '~' prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS,
+    // which takes priority over this, as do the architecture and build-config defaults.
+    std::string mlir_use_specific_ops = {};
     // Read/write problem caches (the common case: a user tuning a model). New
     // tuning solutions are saved back to these files.
     std::vector<std::string> problem_cache_files = {};
@@ -122,6 +126,7 @@ struct backend_options
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
                     f(self.convolution_layout, "convolution_layout"));
@@ -237,7 +242,8 @@ struct pipeline_factory
     {
         return {
             enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
-                        fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
+                        fuse_attention{.attn_enabled = mlir_attention_enabled(
+                                           get_context(), backend_opts.mlir_use_specific_ops),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
@@ -248,7 +254,9 @@ struct pipeline_factory
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
             dead_code_elimination{},
-            enable_pass(mlir_enabled(), fuse_mlir{get_context()}),
+            enable_pass(mlir_enabled(),
+                        fuse_mlir{.ctx              = get_context(),
+                                  .use_specific_ops = backend_opts.mlir_use_specific_ops}),
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},

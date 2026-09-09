@@ -129,6 +129,12 @@ make_candidate_budget(adaptive_time_stage stage, std::size_t bundle, std::size_t
     return {remaining, std::min(remaining, 2 + coarse_samples * bundle)};
 }
 
+// A timing stage needs three executions to initialize, estimate, and measure, and it reports a
+// tighter budget than that by throwing. Keeping the coarse stage this far below the lifetime is
+// what guarantees every finalist still has a workable precise budget.
+static_assert(coarse_samples >= 1 and benchmark_samples >= coarse_samples + 4,
+              "Coarse timing must leave the precise stage at least three executions");
+
 struct precompile_op
 {
     operation op                      = op::identity{};
@@ -382,9 +388,6 @@ struct benchmark_state
     std::vector<shared_benchmark_inputs> shared_inputs;
     // How much of each candidate's lifetime execution budget the timing stages have spent.
     std::vector<std::size_t> execution_counts;
-    // GPU failures tend to be sticky, so one broken candidate usually takes every later one down
-    // with it. Keep the first message to report instead of a more general message.
-    std::string first_error;
 
     std::shared_ptr<parameter_map>
     find_reusable(const std::unordered_map<std::string, double>& fill_map,
@@ -529,11 +532,10 @@ struct compile_plan
         return "No valid tuned compilation for " + preop.name() + " with " + problem_string() +
                "\n\n" + print_modules();
     }
-    std::string no_valid_benchmark_message(const std::string& first_error) const
+    std::string no_valid_benchmark_message() const
     {
         return "No valid tuned benchmark for " + preop.name() + " with " + problem_string() +
-               (first_error.empty() ? "" : "\n\nFirst error: " + first_error) + "\n\n" +
-               print_modules();
+               "\n\n" + print_modules();
     }
 
     // Builds the runnable form of one candidate, reusing input buffers from an earlier candidate
@@ -560,8 +562,10 @@ struct compile_plan
         return prepared;
     }
 
-    // Times a single candidate, as required by adaptive_time_topk_staged. A candidate that cannot
-    // be timed is reported as unmeasured rather than as an error so that tuning can continue.
+    // Times a single candidate, as required by adaptive_time_topk_staged. A candidate with no
+    // binary, no budget left, or an unusable measurement is reported as unmeasured so that tuning
+    // can continue. Candidates that cannot run at all are already filtered out when they fail to
+    // compile, so a failure here is a real error and is left to propagate.
     optional<double> time_solution(benchmark_state& state,
                                    std::size_t i,
                                    adaptive_time_stage stage,
@@ -578,55 +582,38 @@ struct compile_plan
         if(trace_level > 1)
             std::cout << (stage == adaptive_time_stage::coarse ? "Coarsely" : "Precisely")
                       << " benchmarking solution: " << config->solutions.at(i) << std::endl;
+        if(trace_level > 2)
+            std::cout << *results[i] << std::endl;
+        /*
+         * Replacing the instruction in this small program inserts every code object
+         * and prefill required by the candidate, so split-k is timed end to end.
+         */
+        auto bench_prog = results[i]->make_program();
+        if(trace_level > 2)
+            std::cout << bench_prog << std::endl;
+        const auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
+        const auto budget = make_candidate_budget(stage, bundle, state.execution_counts[i]);
+        if(budget.exhausted())
+            return nullopt;
+
         // Held for one timing only so that loaded code objects and input buffers are not
         // retained for every candidate at once.
-        optional<prepared_time_program> prepared;
-        try
-        {
-            if(trace_level > 2)
-                std::cout << *results[i] << std::endl;
-            /*
-             * Replacing the instruction in this small program inserts every code object
-             * and prefill required by the candidate, so split-k is timed end to end.
-             */
-            auto bench_prog = results[i]->make_program();
-            if(trace_level > 2)
-                std::cout << bench_prog << std::endl;
-            const auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
-            const auto budget = make_candidate_budget(stage, bundle, state.execution_counts[i]);
-            if(budget.exhausted())
-                return nullopt;
+        auto prepared = prepare_candidate(state, i, stage, std::move(bench_prog));
+        if(trace_level > 1)
+            std::cout << "Prepared benchmark solution: " << config->solutions.at(i) << std::endl;
 
-            prepared = prepare_candidate(state, i, stage, std::move(bench_prog));
-            if(trace_level > 1)
-                std::cout << "Prepared benchmark solution: " << config->solutions.at(i)
-                          << std::endl;
-
-            auto options             = input_options;
-            options.preferred_bundle = bundle;
-            options.max_executions   = std::min(options.max_executions, budget.remaining);
-            adaptive_time_budget stage_budget;
-            stage_budget.max_executions = budget.stage_limit;
-            auto measured               = adaptive_time_program(*prepared, options, stage_budget);
-            state.execution_counts[i] += prepared->executions;
-            if(not std::isfinite(measured) or measured <= 0.0)
-                return nullopt;
-            if(trace_level > 1)
-                std::cout << measured << "ms" << std::endl;
-            return measured;
-        }
-        catch(const std::exception& e)
-        {
-            if(prepared.has_value())
-                state.execution_counts[i] += prepared->executions;
-            if(state.first_error.empty())
-                state.first_error =
-                    "solution " + to_string(config->solutions.at(i)) + ": " + e.what();
-            if(trace_level > 0)
-                std::cerr << "Exception benchmarking " << preop.name() << " solution "
-                          << config->solutions.at(i) << ": " << e.what() << std::endl;
+        auto options             = input_options;
+        options.preferred_bundle = bundle;
+        options.max_executions   = std::min(options.max_executions, budget.remaining);
+        adaptive_time_budget stage_budget;
+        stage_budget.max_executions = budget.stage_limit;
+        auto measured               = adaptive_time_program(prepared, options, stage_budget);
+        state.execution_counts[i] += prepared.executions;
+        if(not std::isfinite(measured) or measured <= 0.0)
             return nullopt;
-        }
+        if(trace_level > 1)
+            std::cout << measured << "ms" << std::endl;
+        return measured;
     }
 
     const compiled_result& benchmark() const
@@ -677,7 +664,7 @@ struct compile_plan
                 return time_solution(state, i, stage, options);
             });
         if(not winner.has_value())
-            MIGRAPHX_THROW(no_valid_benchmark_message(state.first_error));
+            MIGRAPHX_THROW(no_valid_benchmark_message());
         const auto i = *winner;
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(trace_level > 0)

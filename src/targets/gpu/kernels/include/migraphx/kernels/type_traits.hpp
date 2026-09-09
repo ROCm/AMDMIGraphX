@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -220,7 +220,7 @@ struct common_type<T>
 template <class T, class U>
 struct common_type<T, U>
 {
-    using type = decltype(true ? declval<T>() : declval<U>());
+    using type = remove_cv_t<remove_reference_t<decltype(true ? declval<T>() : declval<U>())>>;
 };
 
 template <class T, class U, class... Us>

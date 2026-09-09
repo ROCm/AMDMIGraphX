@@ -22,8 +22,11 @@
  * THE SOFTWARE.
  */
 
+#include <algorithm>
 #include <iterator>
+#include <vector>
 #include <migraphx/builtin.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -41,6 +44,18 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP_TO_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP);
+
+void validate_pointwise_module(const module& m)
+{
+    auto invalid_ins = std::find_if(m.begin(), m.end(), [](const auto& ins) {
+        const auto& name = ins.name();
+        return not contains({"@literal", "@param", "@return"}, name) and
+               not ins.get_operator().attributes().get("pointwise", false);
+    });
+    if(invalid_ins != m.end())
+        MIGRAPHX_THROW("Pointwise module contains non-pointwise instruction: " +
+                       invalid_ins->name());
+}
 
 static module create_pointwise_module(module_ref in_mod)
 {
@@ -73,6 +88,8 @@ static module create_pointwise_module(module_ref in_mod)
 static code_object_op
 compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_ref mod)
 {
+    // Validate before create_pointwise_module removes aliasing shape operations.
+    validate_pointwise_module(*mod);
     operation cop;
     auto pw_mod = create_pointwise_module(mod);
     if(any_of(mod->get_parameters(), [&](instruction_ref param) {
@@ -113,10 +130,16 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
     return co;
 }
 
-static instruction_ref find_final_split(instruction_ref split_ins)
+instruction_ref find_final_split(instruction_ref split_ins)
 {
-    auto output_path = get_output_path(split_ins);
-    auto it          = std::adjacent_find(
+    auto output_path_range = get_output_path(split_ins);
+    std::vector<instruction_ref> output_path(output_path_range.begin(), output_path_range.end());
+    if(output_path.empty())
+        MIGRAPHX_THROW("find_final_split: empty output path for instruction: " + split_ins->name());
+    instruction_ref result = split_ins;
+    if(output_path.size() < 2)
+        return result;
+    auto it = std::adjacent_find(
         output_path.begin(), output_path.end(), [&](instruction_ref input, instruction_ref output) {
             if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
                 return false;
@@ -132,7 +155,8 @@ static instruction_ref find_final_split(instruction_ref split_ins)
             }
             return true;
         });
-    return *it;
+    result = (it == output_path.end()) ? output_path.back() : *it;
+    return result;
 }
 
 struct mlir_compiler : compiler<mlir_compiler>

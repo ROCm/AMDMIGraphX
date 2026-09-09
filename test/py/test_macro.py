@@ -151,11 +151,8 @@ def test_add_macro_convolution():
     p = migraphx.program()
     mm = p.get_main_module()
     # Input: (1, 1, 3, 3) - batch=1, channels=1, 3x3
-    x = mm.add_literal(make_arg([1, 1, 3, 3], [
-        1.0, 2.0, 3.0,
-        4.0, 5.0, 6.0,
-        7.0, 8.0, 9.0
-    ]))
+    x = mm.add_literal(
+        make_arg([1, 1, 3, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]))
     # Weight: (1, 1, 2, 2) - out_channels=1, in_channels=1, 2x2 kernel
     w = mm.add_literal(make_arg([1, 1, 2, 2], [1.0, 0.0, 0.0, 1.0]))
     mac = migraphx.macro("convolution")
@@ -173,11 +170,8 @@ def test_add_macro_convolution():
 def test_add_macro_convolution_with_bias():
     p = migraphx.program()
     mm = p.get_main_module()
-    x = mm.add_literal(make_arg([1, 1, 3, 3], [
-        1.0, 2.0, 3.0,
-        4.0, 5.0, 6.0,
-        7.0, 8.0, 9.0
-    ]))
+    x = mm.add_literal(
+        make_arg([1, 1, 3, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]))
     w = mm.add_literal(make_arg([1, 1, 2, 2], [1.0, 0.0, 0.0, 1.0]))
     bias = mm.add_literal(make_arg([1], [10.0]))
     mac = migraphx.macro("convolution")
@@ -192,11 +186,8 @@ def test_add_macro_convolution_with_bias():
 def test_add_macro_convolution_with_padding():
     p = migraphx.program()
     mm = p.get_main_module()
-    x = mm.add_literal(make_arg([1, 1, 3, 3], [
-        1.0, 2.0, 3.0,
-        4.0, 5.0, 6.0,
-        7.0, 8.0, 9.0
-    ]))
+    x = mm.add_literal(
+        make_arg([1, 1, 3, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]))
     # Weight: (1, 1, 3, 3) - 3x3 kernel all ones
     w = mm.add_literal(make_arg([1, 1, 3, 3], [1.0] * 9))
     mac = migraphx.macro("convolution", paddings=[1, 1])
@@ -238,11 +229,8 @@ def test_add_macro_einsum_transpose():
 def test_add_macro_einsum_trace():
     p = migraphx.program()
     mm = p.get_main_module()
-    a = mm.add_literal(make_arg([3, 3], [
-        1.0, 0.0, 0.0,
-        0.0, 2.0, 0.0,
-        0.0, 0.0, 3.0
-    ]))
+    a = mm.add_literal(
+        make_arg([3, 3], [1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 3.0]))
     mac = migraphx.macro("einsum", equation="ii->")
     result = mm.add_macro(mac, [a])
     mm.add_return([result[-1]])

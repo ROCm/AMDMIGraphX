@@ -22,7 +22,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-
 """Run migraphx-driver perf under curated MIGraphX environment-variable knobs.
 
 Each knob is toggled in isolation against a clean baseline, and a small set
@@ -68,7 +67,8 @@ KNOBS: tuple[tuple[str, Setting], ...] = (
     ("GEMM provider rocBLAS", ("MIGRAPHX_SET_GEMM_PROVIDER", "rocblas")),
     ("Enable CK GEMM", ("MIGRAPHX_ENABLE_CK", "1")),
     ("Disable MLIR", ("MIGRAPHX_DISABLE_MLIR", "1")),
-    ("MLIR use specific ops", ("MIGRAPHX_MLIR_USE_SPECIFIC_OPS", _MLIR_OPS_WHITELIST)),
+    ("MLIR use specific ops", ("MIGRAPHX_MLIR_USE_SPECIFIC_OPS",
+                               _MLIR_OPS_WHITELIST)),
     ("Enable MIOpen pooling", ("MIGRAPHX_ENABLE_MIOPEN_POOLING", "1")),
     ("Conv->dot rewrite", ("MIGRAPHX_ENABLE_REWRITE_DOT", "1")),
 )
@@ -159,10 +159,10 @@ def log_failed_driver_run(label: str, returncode: int, text: str) -> None:
 
 
 def run_perf(
-    driver: str,
-    perf_argv: list[str],
-    settings: Settings,
-    label: str,
+        driver: str,
+        perf_argv: list[str],
+        settings: Settings,
+        label: str,
 ) -> float | None:
     env = os.environ.copy()
     scrub_knob_vars(env, all_knob_names())
@@ -207,11 +207,11 @@ def infer_model_argument(perf_argv: list[str]) -> str | None:
 
 
 def write_config(
-    path: str,
-    model_file: str,
-    baseline_ms: float,
-    settings: Settings,
-    winner_ms: float,
+        path: str,
+        model_file: str,
+        baseline_ms: float,
+        settings: Settings,
+        winner_ms: float,
 ) -> None:
     if baseline_ms > 0:
         pct = (winner_ms - baseline_ms) / baseline_ms * 100.0
@@ -244,25 +244,24 @@ def default_config_path(perf_argv: list[str], explicit: str | None) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description=(
-            "Sweep a curated set of MIGraphX environment variables (one at a time), "
-            "run migraphx-driver perf for each, and report the fastest configuration."
-        ),
+        description=
+        ("Sweep a curated set of MIGraphX environment variables (one at a time), "
+         "run migraphx-driver perf for each, and report the fastest configuration."
+         ),
         epilog=(
             "Example: %(prog)s --driver ./build/bin/migraphx-driver "
             "perf --onnx resnet50-v2-7.onnx --gpu\n"
             "(resnet50-v2-7.onnx is the public ONNX-model-zoo model used by "
-            "examples/vision/python_resnet50)"
-        ),
+            "examples/vision/python_resnet50)"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--driver",
         metavar="PATH",
-        help=(
-            "migraphx-driver binary (default: MIGRAPHX_DRIVER, else ./bin/migraphx-driver "
-            "under the current working directory if present and executable, else PATH)"
-        ),
+        help=
+        ("migraphx-driver binary (default: MIGRAPHX_DRIVER, else ./bin/migraphx-driver "
+         "under the current working directory if present and executable, else PATH)"
+         ),
     )
     parser.add_argument(
         "-o",
@@ -273,17 +272,14 @@ def main() -> None:
     parser.add_argument(
         "--no-combos",
         action="store_true",
-        help=(
-            "Only sweep one knob at a time; skip the curated multi-knob "
-            "combinations (faster, but cannot find coupled wins)."
-        ),
+        help=("Only sweep one knob at a time; skip the curated multi-knob "
+              "combinations (faster, but cannot find coupled wins)."),
     )
     args, perf_argv = parser.parse_known_args()
     if not perf_argv:
         parser.error(
             "missing perf invocation e.g. perf <model.onnx> [--iterations N] [...]; "
-            "pass driver flags after script options."
-        )
+            "pass driver flags after script options.")
 
     perf_argv = list(perf_argv)
     if perf_argv[0] != "perf":
@@ -293,7 +289,7 @@ def main() -> None:
     note_cleared_parent_knobs(all_knob_names())
 
     rows: list[tuple[str, Settings]] = [("baseline", ())]
-    rows.extend((label, (setting,)) for label, setting in KNOBS)
+    rows.extend((label, (setting, )) for label, setting in KNOBS)
     if not args.no_combos:
         rows.extend(COMBOS)
 
@@ -313,7 +309,8 @@ def main() -> None:
 
     baseline = times[0]
     if baseline is None:
-        print("error: baseline failed; cannot rank configurations.", file=sys.stderr)
+        print("error: baseline failed; cannot rank configurations.",
+              file=sys.stderr)
         sys.exit(1)
 
     win_index = min(

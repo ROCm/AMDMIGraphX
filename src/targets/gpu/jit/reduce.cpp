@@ -355,9 +355,13 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         auto algo      = v.get("algo", get_reduce_algo(ctx, options.virtual_inputs));
         if(algo == "block" or algo == "wave")
         {
-            // Vectorize if the axis is a reduction axis
+            // Vectorize if the axis is a reduction axis. The occupancy-based
+            // vector sizes are not used since vectorizing the reduction axis
+            // does not reduce the number of workgroups, only the lanes
+            // reducing each output, so a full-width vector is always fewer
+            // load instructions for the same parallelism across outputs.
             if(options.virtual_inputs.back().lens()[faxis] == 1)
-                vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
+                vec = vectorize::elements(faxis, options.virtual_inputs, {8, 4, 2});
             auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
             if(algo == "block")
             {
@@ -490,9 +494,13 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     plan.algo =
         v.get("algo", get_reduce_algo(ctx, plan.virtual_inputs, plan.reduction_shape.lens()));
     bool no_vectorize = v.get("no_vectorize", false);
+    // The occupancy-based vector sizes are not used since vectorizing the
+    // reduction axis does not reduce the number of workgroups, only the lanes
+    // reducing each output, so a full-width vector is always fewer load
+    // instructions for the same parallelism across outputs.
     if((plan.algo == "block" or plan.algo == "block_tile" or plan.algo == "wave") and
        plan.reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
-        plan.vec = vectorize::elements(ctx, faxis, plan.virtual_inputs);
+        plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {8, 4, 2});
     plan.relements = plan.reduction_shape.elements() / plan.vec.size;
     return plan;
 }

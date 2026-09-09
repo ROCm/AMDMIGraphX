@@ -79,6 +79,7 @@
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
@@ -109,6 +110,8 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
+    bool hip_graph = false;
     // Read/write problem caches (the common case: a user tuning a model). New
     // tuning solutions are saved back to these files.
     std::vector<std::string> problem_cache_files = {};
@@ -122,6 +125,7 @@ struct backend_options
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.hip_graph, "hip_graph"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
                     f(self.convolution_layout, "convolution_layout"));
@@ -293,6 +297,8 @@ struct pipeline_factory
             promote_literals{},
             dead_code_elimination{},
             write_literals{.max_memory = max_memory},
+            enable_pass(backend_opts.hip_graph, hipgraphify{}),
+            dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},

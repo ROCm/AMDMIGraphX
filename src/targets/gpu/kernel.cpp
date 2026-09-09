@@ -23,8 +23,11 @@
  */
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/bit_cast.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/gpu/pack_args.hpp>
+#include <algorithm>
+#include <array>
 #include <cassert>
 
 #ifdef _WIN32
@@ -81,6 +84,98 @@ kernel::kernel(const char* image, const std::string& name) : impl(std::make_shar
 
 bool kernel::empty() const { return impl == nullptr; }
 
+hipFunction_t kernel::get_function() const { return impl == nullptr ? nullptr : impl->fun; }
+
+namespace {
+// HIP_LAUNCH_PARAM_* expand to C-style pointer casts that clang-tidy rejects,
+// so the launch-config sentinels are produced behind these accessors
+// (functions rather than globals to avoid the non-const-global lint).
+#ifdef MIGRAPHX_USE_CLANG_TIDY
+void* launch_param_pointer() { return nullptr; }
+void* launch_param_size() { return nullptr; }
+void* launch_param_end() { return nullptr; }
+#else
+void* launch_param_pointer() { return HIP_LAUNCH_PARAM_BUFFER_POINTER; }
+void* launch_param_size() { return HIP_LAUNCH_PARAM_BUFFER_SIZE; }
+void* launch_param_end() { return HIP_LAUNCH_PARAM_END; }
+#endif
+
+// A launch-config entry: (tag, value).
+using launch_param = std::pair<void*, void*>;
+static_assert(sizeof(launch_param) == 2 * sizeof(void*),
+              "the extra config array is viewed as an array of launch_param pairs");
+
+// The value of the entry with `tag` in [first, last), or nullptr when absent.
+void* find_launch_param(const launch_param* first, const launch_param* last, const void* tag)
+{
+    // NOLINTNEXTLINE(readability-qualified-auto)
+    auto it = std::find_if(first, last, [&](const launch_param& p) { return p.first == tag; });
+    return it == last ? nullptr : it->second;
+}
+} // namespace
+
+std::array<void*, 5> pack_kernel_config(char* buffer, std::size_t* size)
+{
+    return {launch_param_pointer(), buffer, launch_param_size(), size, launch_param_end()};
+}
+
+std::vector<char> unpack_kernel_config(void** extra)
+{
+    if(extra == nullptr)
+        return {};
+    // The config is a sequence of (tag, value) pairs terminated by the end
+    // sentinel; an array with no sentinel within the fixed cap is rejected.
+    constexpr std::size_t max_params = 8;
+    const auto* first                = reinterpret_cast<const launch_param*>(extra);
+    const auto* last = std::find_if(first, first + max_params, [](const launch_param& p) {
+        return p.first == launch_param_end();
+    });
+    if(last == first + max_params)
+        return {};
+    if(std::any_of(first, last, [](const launch_param& p) {
+           return p.first != launch_param_pointer() and p.first != launch_param_size();
+       }))
+        return {};
+    auto* buffer = static_cast<char*>(find_launch_param(first, last, launch_param_pointer()));
+    auto* size   = static_cast<std::size_t*>(find_launch_param(first, last, launch_param_size()));
+    if(buffer == nullptr or size == nullptr)
+        return {};
+    return {buffer, buffer + *size};
+}
+
+void write_pointer(char* pos, const char* p)
+{
+    auto bytes = migraphx::bit_cast<std::array<char, sizeof(char*)>>(p);
+    std::copy(bytes.begin(), bytes.end(), pos);
+}
+
+static char* read_pointer(const char* pos)
+{
+    std::array<char, sizeof(char*)> bytes{};
+    std::copy(pos, pos + sizeof(char*), bytes.begin());
+    return migraphx::bit_cast<char*>(bytes);
+}
+
+std::vector<std::pair<std::size_t, char*>>
+unpack_pointer_args(const std::vector<char>& buffer,
+                    const std::map<std::size_t, kernel_argument_value>& kernel_args)
+{
+    std::vector<std::pair<std::size_t, char*>> pointers;
+    if(kernel_args.empty())
+    {
+        // The all-pointer launch path packs one device pointer per 8-byte word.
+        for(std::size_t off = 0; off + sizeof(char*) <= buffer.size(); off += sizeof(char*))
+            pointers.emplace_back(off, read_pointer(buffer.data() + off));
+        return pointers;
+    }
+    // A slot past the end of the buffer is skipped rather than read.
+    for_each_kernarg_slot(kernel_args, [&](std::size_t pos, bool is_pointer) {
+        if(is_pointer and pos + sizeof(char*) <= buffer.size())
+            pointers.emplace_back(pos, read_pointer(buffer.data() + pos));
+    });
+    return pointers;
+}
+
 static void launch_kernel(hipFunction_t fun,
                           hipStream_t stream,
                           std::size_t global,
@@ -92,32 +187,10 @@ static void launch_kernel(hipFunction_t fun,
 {
     assert(global > 0);
     assert(local > 0);
-    void* config[] = {
-// HIP_LAUNCH_PARAM_* are macros that do horrible things
-#ifdef MIGRAPHX_USE_CLANG_TIDY
-        nullptr, kernargs, nullptr, &size, nullptr
-#else
-        HIP_LAUNCH_PARAM_BUFFER_POINTER,
-        kernargs,
-        HIP_LAUNCH_PARAM_BUFFER_SIZE,
-        &size,
-        HIP_LAUNCH_PARAM_END
-#endif
-    };
+    auto config = pack_kernel_config(static_cast<char*>(kernargs), &size);
 
-    auto status = hipExtModuleLaunchKernel(fun,
-                                           global,
-                                           1,
-                                           1,
-                                           local,
-                                           1,
-                                           1,
-                                           0,
-                                           stream,
-                                           nullptr,
-                                           reinterpret_cast<void**>(&config),
-                                           start,
-                                           stop);
+    auto status = hipExtModuleLaunchKernel(
+        fun, global, 1, 1, local, 1, 1, 0, stream, nullptr, config.data(), start, stop);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
     if(stop != nullptr)

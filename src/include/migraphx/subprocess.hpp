@@ -34,15 +34,19 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct subprocess_result
 {
+    /// Zero means the child exited normally with status zero. -1 means it did not exit normally at
+    /// all -- killed by a signal on POSIX, or terminated by an SEH exception on Windows. Any other
+    /// value is the child's own exit status. Prefer `success()` over comparing this directly.
     int exit_code = 0;
     std::vector<char> stdout_data{};
+
+    bool success() const { return exit_code == 0; }
 };
 
 /// Spawn `exe` with `argv` (not including the executable), feed `stdin_data` to the child while
 /// concurrently draining its stdout, and wait for it to exit. stderr is inherited, so the child's
-/// diagnostics go wherever ours go. Throws if the child cannot be spawned; a non-zero exit status
-/// is returned in `exit_code`, not thrown. Only compare `exit_code` against zero -- a child killed
-/// by a signal or an SEH exception reports -1.
+/// diagnostics go wherever ours go. Throws only if the child cannot be spawned or a pipe fails; a
+/// child that exits non-zero, dies, or stops reading its stdin is reported through the result.
 MIGRAPHX_EXPORT subprocess_result execute_subprocess(const fs::path& exe,
                                                      const std::vector<std::string>& argv,
                                                      const std::vector<char>& stdin_data);

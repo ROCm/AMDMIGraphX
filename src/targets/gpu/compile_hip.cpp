@@ -28,6 +28,8 @@
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
 #include <migraphx/logger.hpp>
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <iostream>
 #include <deque>
@@ -223,7 +225,23 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 
     prog.compile(options, quiet);
 
-    return {prog.get_code_obj()};
+    auto code_obj = prog.get_code_obj();
+    // Checked here so the in-process path and migraphx-hiprtc-driver both get it: hiprtc can
+    // report success and still hand back nothing, and an empty buffer reaches hipModuleLoadData as
+    // a null image.
+    if(code_obj.empty())
+        MIGRAPHX_THROW("hiprtc produced an empty code object for " + arch);
+    return {std::move(code_obj)};
+}
+
+// A cheap sanity check on bytes that arrived from another process: AMDGPU code objects are ELF, so
+// anything without the magic is not one. Not a validation of the object itself -- hipModuleLoadData
+// does that -- just enough to reject text or truncation before it is treated as an image.
+static bool is_code_object(const std::vector<char>& buffer)
+{
+    static constexpr std::array<char, 4> elf_magic = {'\x7f', 'E', 'L', 'F'};
+    return buffer.size() > elf_magic.size() and
+           std::equal(elf_magic.begin(), elf_magic.end(), buffer.begin());
 }
 
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
@@ -264,8 +282,19 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         // The msgpack request goes out on the driver's stdin, the code object comes back on its
         // stdout, and failure is reported by exit status (the driver logs to our stderr).
         auto result = execute_subprocess(driver, {}, to_msgpack(v));
-        if(result.exit_code != 0)
-            MIGRAPHX_THROW("hiprtc compilation failed!");
+        if(not result.success())
+            MIGRAPHX_THROW("hiprtc compilation failed for " + arch + ": " + driver.string() +
+                           (result.exit_code < 0
+                                ? " terminated abnormally"
+                                : " exited with status " + std::to_string(result.exit_code)));
+        // Exit status alone does not prove the bytes are a code object. A driver from a different
+        // install answers a request it does not understand by printing usage and exiting 0, and
+        // that text would otherwise be handed to hipModuleLoadData, which sizes the image from its
+        // own ELF header and reads past the buffer.
+        if(not is_code_object(result.stdout_data))
+            MIGRAPHX_THROW("hiprtc driver returned " + std::to_string(result.stdout_data.size()) +
+                           " bytes that are not a code object; " + driver.string() +
+                           " may not match this version of MIGraphX");
         // Not a braced return: that would pick the initializer_list constructor and copy.
         std::vector<std::vector<char>> code_objs;
         code_objs.push_back(std::move(result.stdout_data));

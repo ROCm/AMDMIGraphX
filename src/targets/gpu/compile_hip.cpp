@@ -36,12 +36,10 @@
 #include <hip/hiprtc.h>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/tmp_dir.hpp>
 #include <migraphx/dynamic_loader.hpp>
-#include <migraphx/process.hpp>
+#include <migraphx/subprocess.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
-#include <migraphx/file_buffer.hpp>
 #else
 #include <migraphx/compile_src.hpp>
 #include <migraphx/process.hpp>
@@ -162,7 +160,8 @@ struct hiprtc_program
     void compile(const std::vector<std::string>& options, bool quiet = false) const
     {
         if(enabled(MIGRAPHX_TRACE_HIPRTC{}))
-            std::cout << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
+            // stderr, not stdout: in migraphx-hiprtc-driver stdout carries the code object.
+            std::cerr << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
         std::vector<const char*> c_options;
         std::transform(options.begin(),
                        options.end(),
@@ -262,14 +261,12 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         v["arch"]   = to_value(arch);
         v["quiet"]  = quiet;
 
-        tmp_dir td{};
-        auto out = td.path / "output";
-
-        process(driver, {quote_string(out.string())}).write([&](auto writer) {
-            to_msgpack(v, std::move(writer));
-        });
-        if(fs::exists(out))
-            return {read_buffer(out)};
+        // The request goes out on the driver's stdin and the code object comes back on its stdout,
+        // so nothing here touches the filesystem. The driver logs to stderr, which it inherits from
+        // us, and reports failure through its exit status.
+        auto result = execute_subprocess(driver, {}, to_msgpack(v));
+        if(result.exit_code == 0 and not result.stdout_data.empty())
+            return {std::move(result.stdout_data)};
         MIGRAPHX_THROW("hiprtc compilation failed!");
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);

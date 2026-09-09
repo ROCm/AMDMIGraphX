@@ -25,10 +25,11 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/msgpack.hpp>
-#include <migraphx/file_buffer.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/ranges.hpp>
 #include <array>
 #include <iostream>
+#include <cstdio>
 #include <cstring>
 
 #ifdef _WIN32
@@ -62,17 +63,36 @@ static std::vector<char> read_stdin()
     return result;
 }
 
+// Write the code object to stdout. stdout is a binary channel here: nothing else in this process
+// may write to it, or the parent will read a corrupted code object.
+static void write_stdout(const std::vector<char>& buffer)
+{
+#ifdef _WIN32
+    // Set stream translation mode to BINARY to suppress translations.
+    // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setmode?view=msvc-170
+    if(_setmode(_fileno(stdout), _O_BINARY) == -1)
+        MIGRAPHX_THROW(std::strerror(errno));
+#endif
+    if(std::fwrite(buffer.data(), 1, buffer.size(), stdout) != buffer.size())
+        MIGRAPHX_THROW("Failed writing code object to stdout");
+    if(std::fflush(stdout) != 0)
+        MIGRAPHX_THROW("Failed flushing stdout");
+}
+
 int main(int argc, char const* argv[])
 {
-    if(argc < 2 or migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])))
+    // The compile request arrives on stdin and the code object leaves on stdout, so no arguments
+    // are expected in normal operation.
+    if(argc > 1)
     {
         std::cout << "USAGE:" << std::endl;
         std::cout << "    ";
         std::cout << "Used internally by migraphx to compile hip programs out-of-process."
                   << std::endl;
-        std::exit(0);
+        std::exit(migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])) ? 0
+                                                                                                : 1);
     }
-    bool quiet              = false;
+    bool quiet = false;
     try
     {
         auto v = migraphx::from_msgpack(read_stdin());
@@ -84,12 +104,17 @@ int main(int argc, char const* argv[])
                                                        v.at("params").to_vector<std::string>(),
                                                        v.at("arch").to<std::string>(),
                                                        quiet);
-        if(not out.empty())
-            migraphx::write_buffer(argv[1], out.front());
+        if(out.empty())
+            MIGRAPHX_THROW("hiprtc produced no code object");
+        write_stdout(out.front());
     }
     catch(const std::exception& err)
     {
         if(not quiet)
             std::cerr << err.what() << std::endl;
+        // The parent has no output file to check anymore, so the exit status is the only failure
+        // signal it gets.
+        return 1;
     }
+    return 0;
 }

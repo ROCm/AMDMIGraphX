@@ -155,6 +155,7 @@ MIGRAPHX_GPU_EXPORT double time_op(const context& ictx,
                                    int bundle = 1,
                                    int nruns  = 100);
 
+// TODO: Unused in-tree after adaptive timing; remove once external callers are confirmed gone.
 MIGRAPHX_GPU_EXPORT double time_program(const context& ictx,
                                         program p,
                                         const std::unordered_map<std::string, double>& fill_map,

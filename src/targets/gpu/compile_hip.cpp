@@ -261,13 +261,15 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         v["arch"]   = to_value(arch);
         v["quiet"]  = quiet;
 
-        // The request goes out on the driver's stdin and the code object comes back on its stdout,
-        // so nothing here touches the filesystem. The driver logs to stderr, which it inherits from
-        // us, and reports failure through its exit status.
+        // The msgpack request goes out on the driver's stdin, the code object comes back on its
+        // stdout, and failure is reported by exit status (the driver logs to our stderr).
         auto result = execute_subprocess(driver, {}, to_msgpack(v));
-        if(result.exit_code == 0 and not result.stdout_data.empty())
-            return {std::move(result.stdout_data)};
-        MIGRAPHX_THROW("hiprtc compilation failed!");
+        if(result.exit_code != 0)
+            MIGRAPHX_THROW("hiprtc compilation failed!");
+        // Not a braced return: that would pick the initializer_list constructor and copy.
+        std::vector<std::vector<char>> code_objs;
+        code_objs.push_back(std::move(result.stdout_data));
+        return code_objs;
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 }

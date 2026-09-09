@@ -32,6 +32,7 @@
 #include <vector>
 
 #include <migraphx/filesystem.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/subprocess.hpp>
 
 #ifdef _WIN32
@@ -82,7 +83,7 @@ TEST_CASE(echo_text)
 
 TEST_CASE(echo_binary)
 {
-    // Includes embedded nulls and \r\n pairs.
+    // Includes embedded nulls and stray CR and LF bytes.
     auto data   = make_payload(4096);
     auto result = migraphx::execute_subprocess(executable, {"--echo", "1"}, data);
     EXPECT(result.exit_code == 0);
@@ -96,8 +97,8 @@ TEST_CASE(empty_stdin)
     EXPECT(result.stdout_data.empty());
 }
 
-// The regression test that matters: both directions exceed the pipe buffer at the same time. An
-// implementation that writes all of stdin before reading any of stdout deadlocks here.
+// Both directions exceed the pipe buffer at once: an implementation that writes all of stdin before
+// reading any stdout deadlocks here.
 TEST_CASE(large_bidirectional)
 {
     auto data   = make_payload(1024 * 1024);
@@ -174,7 +175,7 @@ int main(int argc, const char* argv[])
         {
             auto repeat = std::stoul(args.at(1));
             auto data   = child_read_stdin();
-            if(std::find(args.begin(), args.end(), "--noise") != args.end())
+            if(migraphx::contains(args, std::string{"--noise"}))
                 std::cerr << std::string(8192, 'x') << std::endl;
             for(std::size_t i = 0; i < repeat; i++)
                 std::fwrite(data.data(), 1, data.size(), stdout);

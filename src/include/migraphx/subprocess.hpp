@@ -38,14 +38,11 @@ struct subprocess_result
     std::vector<char> stdout_data{};
 };
 
-/// Spawn `exe` with `argv` (which does not include the executable itself), write `stdin_data` to the
-/// child's stdin while concurrently draining its stdout, and wait for it to terminate.
-///
-/// The child's stderr is inherited from this process, so diagnostics go wherever ours go. stdout is
-/// a binary channel: nothing else may be written to it by the child.
-///
-/// Throws if the child cannot be spawned or if the pipes fail. A non-zero child exit status is not
-/// an exception, it is reported in `subprocess_result::exit_code`.
+/// Spawn `exe` with `argv` (not including the executable), feed `stdin_data` to the child while
+/// concurrently draining its stdout, and wait for it to exit. stderr is inherited, so the child's
+/// diagnostics go wherever ours go. Throws if the child cannot be spawned; a non-zero exit status
+/// is returned in `exit_code`, not thrown. Only compare `exit_code` against zero -- a child killed
+/// by a signal or an SEH exception reports -1.
 MIGRAPHX_EXPORT subprocess_result execute_subprocess(const fs::path& exe,
                                                      const std::vector<std::string>& argv,
                                                      const std::vector<char>& stdin_data);

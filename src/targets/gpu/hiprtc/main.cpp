@@ -30,49 +30,44 @@
 #include <array>
 #include <iostream>
 #include <cstdio>
-#include <cstring>
 
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
 #endif
 
-static std::vector<char> read_stdin()
+// CRLF translation would corrupt both the msgpack request and the code object. Nothing restores the
+// old mode: each stream is used once and the process exits straight after.
+// https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setmode?view=msvc-170
+static void set_binary_mode([[maybe_unused]] FILE* stream)
 {
 #ifdef _WIN32
-    // Set stream translation mode to BINARY to suppress translations.
-    // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setmode?view=msvc-170
-    auto old_mode = _setmode(_fileno(stdin), _O_BINARY);
-    if(old_mode == -1)
-        MIGRAPHX_THROW(std::strerror(errno));
+    if(_setmode(_fileno(stream), _O_BINARY) == -1)
+        MIGRAPHX_THROW("Failed to set stream to binary mode");
 #endif
+}
+
+static std::vector<char> read_stdin()
+{
+    set_binary_mode(stdin);
     std::vector<char> result;
     std::array<char, 1024> buffer{};
     std::size_t len = 0;
     while((len = std::fread(buffer.data(), 1, buffer.size(), stdin)) > 0)
     {
         if(std::ferror(stdin) != 0 and std::feof(stdin) == 0)
-            MIGRAPHX_THROW(std::strerror(errno));
+            MIGRAPHX_THROW("Failed reading request from stdin");
 
         result.insert(result.end(), buffer.data(), buffer.data() + len);
     }
-#ifdef _WIN32
-    // Reset to the previously set translation mode.
-    _setmode(_fileno(stdin), old_mode);
-#endif
     return result;
 }
 
-// Write the code object to stdout. stdout is a binary channel here: nothing else in this process
-// may write to it, or the parent will read a corrupted code object.
+// stdout is a binary channel: nothing else in this process may write to it, or the parent reads a
+// corrupted code object.
 static void write_stdout(const std::vector<char>& buffer)
 {
-#ifdef _WIN32
-    // Set stream translation mode to BINARY to suppress translations.
-    // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setmode?view=msvc-170
-    if(_setmode(_fileno(stdout), _O_BINARY) == -1)
-        MIGRAPHX_THROW(std::strerror(errno));
-#endif
+    set_binary_mode(stdout);
     if(std::fwrite(buffer.data(), 1, buffer.size(), stdout) != buffer.size())
         MIGRAPHX_THROW("Failed writing code object to stdout");
     if(std::fflush(stdout) != 0)
@@ -85,9 +80,10 @@ int main(int argc, char const* argv[])
     // are expected in normal operation.
     if(argc > 1)
     {
-        std::cout << "USAGE:" << std::endl;
-        std::cout << "    ";
-        std::cout << "Used internally by migraphx to compile hip programs out-of-process."
+        // stderr, not stdout: stdout is reserved for the code object.
+        std::cerr << "USAGE:" << std::endl;
+        std::cerr << "    ";
+        std::cerr << "Used internally by migraphx to compile hip programs out-of-process."
                   << std::endl;
         std::exit(migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])) ? 0
                                                                                                 : 1);
@@ -112,8 +108,7 @@ int main(int argc, char const* argv[])
     {
         if(not quiet)
             std::cerr << err.what() << std::endl;
-        // The parent has no output file to check anymore, so the exit status is the only failure
-        // signal it gets.
+        // Exit status is the parent's only failure signal.
         return 1;
     }
     return 0;

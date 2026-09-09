@@ -94,6 +94,16 @@ __device__ auto wrap(F f, T x, Ts... xs)
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_EACH(f) MIGRAPHX_DEVICE_MATH_LIFT(MIGRAPHX_DEVICE_MATH_PARSE f)
 
+#ifdef CPPCHECK
+// cppcheck cannot expand the recursive MIGRAPHX_PP_TRANSFORM_ARGS; the
+// overload set does not matter to static analysis.
+#define MIGRAPHX_DEVICE_MATH_WRAP(name, ...)               \
+    namespace math {                                       \
+    inline static constexpr auto wrap_##name = overload(); \
+    }                                                      \
+    template <class... Ts>                                 \
+    auto __device__ name(Ts... xs) MIGRAPHX_RETURNS(math::wrap(math::wrap_##name, xs...))
+#else
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_WRAP(name, ...)                                          \
     namespace math {                                                                  \
@@ -102,6 +112,7 @@ __device__ auto wrap(F f, T x, Ts... xs)
     }                                                                                 \
     template <class... Ts>                                                            \
     auto __device__ name(Ts... xs) MIGRAPHX_RETURNS(math::wrap(math::wrap_##name, xs...))
+#endif
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH(name, fname)                              \

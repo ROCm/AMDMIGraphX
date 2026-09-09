@@ -27,6 +27,7 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <hip/hip_runtime_api.h>
 #include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 #include <migraphx/make_op.hpp>
@@ -185,6 +186,15 @@ TEST_CASE(gemm_tune_strided_lowered)
 
 TEST_CASE(gemm_tune_invalid_sol_index)
 {
+#if HIP_VERSION_MAJOR < 10 or (HIP_VERSION_MAJOR == 10 and HIP_VERSION_MINOR < 1)
+    // rocBLAS on gfx1201 dispatches to hipBLASLt for GEMMs, which before ROCm 10.1 does not default
+    // to index 0 if the solution index is invalid
+    if(migraphx::gpu::get_gfx_name(migraphx::gpu::get_device_name()) == "gfx1201")
+    {
+        test::skip("rocBLAS solution-index validation requires ROCm 10.1 or newer on gfx1201");
+    }
+#endif
+
     migraphx::program p;
     auto* mm = p.get_main_module();
 

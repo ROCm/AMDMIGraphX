@@ -47,6 +47,8 @@ dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& lo
 MIGRAPHX_GPU_EXPORT bool
 is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution);
 
+MIGRAPHX_GPU_EXPORT instruction_ref find_final_split(instruction_ref split_ins);
+
 // Throws if the module contains anything other than pointwise, literal, parameter, or return
 // instructions.
 MIGRAPHX_GPU_EXPORT void validate_pointwise_module(const module& m);

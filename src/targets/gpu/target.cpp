@@ -117,14 +117,20 @@ struct backend_options
     std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
+    // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
+    bool hiprtc_disable_processes = false;
+    compile_ops_tuning_overrides tuning{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
-                    f(self.problem_cache_files, "problem_cache_files"),
-                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
-                    f(self.convolution_layout, "convolution_layout"));
+        return pack_join(
+            pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                 f(self.convolution_layout, "convolution_layout"),
+                 f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
+                 f(self.problem_cache_files, "problem_cache_files"),
+                 f(self.read_only_problem_cache_files, "read_only_problem_cache_files")),
+            migraphx::reflect(self.tuning, f));
     }
 };
 
@@ -288,7 +294,8 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager},
+                        options.compile_mode == compile_modes::eager,
+                        backend_opts.tuning.resolve()},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -311,13 +318,13 @@ struct pipeline_factory
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto& ctx = any_cast<context>(gctx);
+    auto& ctx         = any_cast<context>(gctx);
+    auto backend_opts = get_backend_options(options);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
+    ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
-
-    auto backend_opts = get_backend_options(options);
 
     // Problem cache files arrive as GPU backend options. The writable caches
     // (problem_cache_files) save new tuning solutions back; the read-only caches

@@ -501,10 +501,11 @@ struct compile_plan
         cr.replace.replace(m, cr.ins);
     }
 
-    void save_binaries(const fs::path& mxr_dir) const
+    std::size_t save_binaries(const fs::path& mxr_dir) const
     {
+        std::size_t saved_files = 0;
         if(not config.has_value())
-            return;
+            return saved_files;
         for(auto i : range(results.size()))
         {
             if(not results[i].has_value())
@@ -529,7 +530,9 @@ struct compile_plan
                                        std::to_string(problem_hash) + ".mxr");
             log::info() << "Saving benchmark binary: " << mxr_file;
             save(bench_prog, mxr_file.string());
+            ++saved_files;
         }
+        return saved_files;
     }
 };
 
@@ -572,6 +575,7 @@ struct compile_manager
 
         static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
         bool dump_mxr              = not mxr_path.empty();
+        std::size_t dumped_mxr_files = 0;
 
         if(dump_mxr)
         {
@@ -584,7 +588,7 @@ struct compile_manager
                 continue;
             if(dump_mxr and cp.results.size() > 1)
             {
-                cp.save_binaries(fs::path(mxr_path));
+                dumped_mxr_files += cp.save_binaries(fs::path(mxr_path));
             }
             else
             {
@@ -592,15 +596,21 @@ struct compile_manager
             }
         }
 
-        // Only throw on the root module so that submodules (which are processed
-        // first by the pass manager and may legitimately have no precompile ops
-        // or no multi-solution candidates) don't abort compilation before the
-        // root module has had a chance to dump its benchmark MXR files.
+        // Exit on the root module so all submodules get processed first.
         if(dump_mxr and is_root)
         {
-            log::info() << "Benchmark MXR files dumped to " << mxr_path
-                        << ". Run the MXR files to create a problem cache, then recompile with the "
-                           "cache.";
+            if(dumped_mxr_files > 0)
+            {
+                log::info()
+                    << "Benchmark MXR files dumped to " << mxr_path
+                    << ". Run the MXR files to create a problem cache, then recompile with the "
+                       "cache.";
+            }
+            else
+            {
+                log::info() << "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR is set to " << mxr_path
+                            << ", but no benchmark files were dumped.";
+            }
             std::exit(0);
         }
 

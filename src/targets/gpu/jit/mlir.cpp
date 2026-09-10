@@ -160,24 +160,24 @@ instruction_ref find_final_split(instruction_ref split_ins)
     return result;
 }
 
-static optional<instruction_ref> find_layout_tail_split(instruction_ref pointwise_ins)
+static optional<instruction_ref> find_layout_tail_split(const module& m)
 {
-    auto output_path_range = get_output_path(pointwise_ins);
-    std::vector<instruction_ref> output_path(output_path_range.begin(), output_path_range.end());
-    if(output_path.size() < 2)
-        return nullopt;
     auto is_layout = [](instruction_ref ins) {
         return contains({"flatten", "reshape", "reshape_lazy", "squeeze", "transpose", "unsqueeze"},
                         ins->name());
     };
-    auto it = std::find_if(std::next(output_path.begin()), output_path.end(), is_layout);
-    if(it == output_path.end())
+    auto returns = m.get_returns();
+    if(returns.size() != 1 or not is_layout(returns.front()))
         return nullopt;
-    if(not std::all_of(it, output_path.end(), [&](instruction_ref ins) {
-           return is_layout(ins) or ins->name() == "@return";
-       }))
-        return nullopt;
-    return *std::prev(it);
+
+    auto skip_layouts = [&](auto self, instruction_ref ins) -> instruction_ref {
+        if(not is_layout(ins))
+            return ins;
+        if(ins->inputs().size() != 1)
+            MIGRAPHX_THROW("find_layout_tail_split: layout instruction does not have one input");
+        return self(self, ins->inputs().front());
+    };
+    return skip_layouts(skip_layouts, returns.front());
 }
 
 struct mlir_compiler : compiler<mlir_compiler>
@@ -286,7 +286,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto input_args = ins->inputs();
             // remove alloc buffer
             input_args.pop_back();
-            auto tail_split = find_layout_tail_split(pointwise_ins);
+            auto tail_split = find_layout_tail_split(*smod);
             auto split_ins  = find_final_split(gemm_like_ins);
             // The tail split ends the pointwise kernel, so the mlir kernel must stop before it.
             // Otherwise the layout tail would be pulled back into the mlir module or the pointwise

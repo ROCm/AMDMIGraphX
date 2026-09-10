@@ -36,10 +36,13 @@ instruction_ref insert_apply_alpha_beta(module& m,
                                         const literal& alpha,
                                         const literal& beta)
 {
-    auto a          = args[0];
-    auto b          = args[1];
-    auto input_type = a->get_shape().type();
-    if(not float_equal(alpha.at<float>(0), 1.0))
+    auto a                   = args[0];
+    auto b                   = args[1];
+    auto input_type          = a->get_shape().type();
+    const bool alpha_is_zero = float_equal(alpha.at<float>(0), 0.0);
+    // alpha == 0 makes alpha*(A@B) vanish; skip scaling A so the dot stays plain (and dead), rather
+    // than emitting mul(0, A) -> dot which relies on constant folding to collapse.
+    if(not float_equal(alpha.at<float>(0), 1.0) and not alpha_is_zero)
     {
         auto alpha_literal = m.add_literal(alpha);
         a                  = insert_common_op(m, pos, migraphx::make_op("mul"), {alpha_literal, a});
@@ -69,9 +72,19 @@ instruction_ref insert_apply_alpha_beta(module& m,
                 beta_c = m.insert_instruction(
                     pos, migraphx::make_op("convert", {{"target_type", input_type}}), beta_c);
             }
+            // alpha == 0: the alpha*(A@B) term is zero, so the result is just beta*C and the dot
+            // (op_res) is left dead for dce.
+            if(alpha_is_zero)
+                return beta_c;
             return m.insert_instruction(pos, migraphx::make_op("add"), op_res, beta_c);
         }
     }
+    // alpha == 0 with no beta*C contribution: the result is zeros with the shape of the op.
+    if(alpha_is_zero)
+        return m.insert_instruction(
+            pos,
+            migraphx::make_op("multibroadcast", {{"out_lens", op_res->get_shape().lens()}}),
+            m.add_literal(literal{shape{op_res->get_shape().type()}, {0}}));
     return op_res;
 }
 

@@ -1318,17 +1318,17 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                        prefill_mlir_values.end(),
                        prefill_values.begin(),
                        [](const auto& v) -> value {
-                        // migx hip::fill only supports integer type. rocMLIR types the
-                        // prefill after the element type of the buffer being filled, so a
-                        // kernel writing an integer output (an int8 convolution
-                        // accumulating into i32, say) hands back an integer attribute
-                        // rather than a float one.
-                        if(mlirAttributeIsAInteger(v))
-                            return static_cast<int>(mlirIntegerAttrGetValueInt(v));
-                        if(mlirAttributeIsAFloat(v))
-                            return static_cast<int>(mlirFloatAttrGetValueDouble(v));
-                        MIGRAPHX_THROW("Unsupported rock.prefill attribute type");
-                    });
+                           // migx hip::fill only supports integer type. rocMLIR types the
+                           // prefill after the element type of the buffer being filled, so a
+                           // kernel writing an integer output (an int8 convolution
+                           // accumulating into i32, say) hands back an integer attribute
+                           // rather than a float one.
+                           if(mlirAttributeIsAInteger(v))
+                               return static_cast<int>(mlirIntegerAttrGetValueInt(v));
+                           if(mlirAttributeIsAFloat(v))
+                               return static_cast<int>(mlirFloatAttrGetValueDouble(v));
+                           MIGRAPHX_THROW("Unsupported rock.prefill attribute type");
+                       });
         mco.prefill_indices = prefill_indices;
         mco.prefill_values  = prefill_values;
     }

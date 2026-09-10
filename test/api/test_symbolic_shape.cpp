@@ -63,9 +63,7 @@ TEST_CASE(create_symbolic_dynamic_shape)
 
 TEST_CASE(make_symbolic_shape)
 {
-    migraphx::symbol_table symbols;
-    symbols.add("n", migraphx::dynamic_dimension{1, 8, migraphx::optimals{2, 4}});
-    migraphx::shape s{migraphx_shape_float_type, {"n", "3"}, symbols};
+    migraphx::shape s{migraphx_shape_float_type, {"n(constraints={[1..8]}, optimals={2, 4})", "3"}};
 
     EXPECT(s.dynamic());
     EXPECT(s.dyn_dims()[0].is_symbolic());
@@ -74,31 +72,24 @@ TEST_CASE(make_symbolic_shape)
 
     // The same shape built one dimension at a time.
     migraphx::dynamic_dimensions dyn_dims(
-        migraphx::dynamic_dimension{
-            "n", {{"n", migraphx::dynamic_dimension{1, 8, migraphx::optimals{2, 4}}}}},
-        migraphx::dynamic_dimension{"3", {}});
+        migraphx::dynamic_dimension{"n(constraints={[1..8]}, optimals={2, 4})"},
+        migraphx::dynamic_dimension{"3"});
     EXPECT(s == (migraphx::shape{migraphx_shape_float_type, dyn_dims}));
 }
 
-// Strides resolve through the same table, so they share the dimensions' symbols.
 TEST_CASE(make_symbolic_shape_with_strides)
 {
-    migraphx::symbol_table symbols;
-    symbols.add("n", migraphx::dynamic_dimension{1, 8});
-    migraphx::shape s{migraphx_shape_float_type, {"n", "3"}, {"1", "n"}, symbols};
+    migraphx::shape s{migraphx_shape_float_type,
+                      {"n(constraints={[1..8]})", "3"},
+                      {"1", "n(constraints={[1..8]})"}};
     EXPECT(s.dynamic());
     EXPECT(not s.standard());
 }
 
-// Several bounds for one name assert several intervals, which is what merging two differently
-// bounded same-named variables produces.
 TEST_CASE(make_symbolic_shape_multiple_constraints)
 {
-    migraphx::symbol_table symbols;
-    symbols.add("n",
-                migraphx::dynamic_dimensions(migraphx::dynamic_dimension{1, 20},
-                                             migraphx::dynamic_dimension{2, 10}));
-    migraphx::shape s{migraphx_shape_float_type, {"n"}, symbols};
+    migraphx::shape s{migraphx_shape_float_type,
+                      {"n(constraints={[1..20], [2..10]}, optimals={4})"}};
     EXPECT(s.dynamic());
     EXPECT(s.dyn_dims()[0].is_symbolic());
 }

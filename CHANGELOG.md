@@ -7,10 +7,9 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
-* Added symbolic shapes to the Python API: dimensions as expression strings with a `symbols` table and optional `dyn_strides`, plus `shape.dyn_strides()`, `shape.symbolic()`, `shape.symbol_table()` and `dynamic_dimension.expression` (#5205).
-* Added `migraphx::shape::make_symbolic_shape` and `migraphx::shape::symbol_table` for building and reading symbolic shapes (#5205).
-* Added `migraphx_shape_create_symbolic` and the `migraphx_symbol_table` handle to the C API, with a matching `migraphx::shape` constructor in `migraphx.hpp` (#5205).
-* Added `migraphx::sym::find_variable_bounds` and an overload of `migraphx::sym::var` taking a list of intervals (#5205).
+* Added symbolic shapes to the Python API: dimensions as self-contained expression strings with optional `dyn_strides`, plus `shape.dyn_strides()`, `shape.symbolic()` and `dynamic_dimension.expression` (#5205).
+* Added `migraphx::shape::make_symbolic_shape` and `migraphx_shape_create_symbolic` for building symbolic shapes from self-contained dimension and stride expressions, with a matching `migraphx::shape` constructor in `migraphx.hpp` (#5205).
+* Added constraints and optimals to the symbolic variable text format, plus an overload of `migraphx::sym::var` taking a list of intervals (#5205).
 * Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added support for building against ROCm 7.13 and newer using TheRock (#4952)
 * Added YOLO26 object detection example notebook.

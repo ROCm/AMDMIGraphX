@@ -2335,11 +2335,9 @@ TEST_CASE(module_print_symbolic_shape_cpp)
                        migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}}};
     EXPECT(migraphx::contains(
         printed_cpp(s),
-        R"(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n", "3"}, {{"n", {migraphx::shape::dynamic_dimension{1, 8}}}}))"));
-    EXPECT(migraphx::shape::make_symbolic_shape(
-               migraphx::shape::float_type,
-               {"n", "3"},
-               {{"n", {migraphx::shape::dynamic_dimension{1, 8}}}}) == s);
+        R"code(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n(constraints={[1..8]})", "3"}))code"));
+    EXPECT(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
+                                                {"n(constraints={[1..8]})", "3"}) == s);
 }
 
 TEST_CASE(module_print_symbolic_shape_py)
@@ -2349,54 +2347,44 @@ TEST_CASE(module_print_symbolic_shape_py)
                        migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}}};
     EXPECT(migraphx::contains(
         printed_py(s),
-        R"(migraphx.shape(type="float_type", dyn_dims=["n", "3"], symbols={"n": migraphx.shape.dynamic_dimension(1, 8)}))"));
+        R"code(migraphx.shape(type="float_type", dyn_dims=["n(constraints={[1..8]})", "3"]))code"));
 }
 
 TEST_CASE(module_print_symbolic_shape_compound_expression)
 {
     auto n = migraphx::sym::var("n", {1, 8});
     migraphx::shape s{migraphx::shape::float_type, {migraphx::shape::dynamic_dimension{n * 3 + 1}}};
-    EXPECT(migraphx::contains(printed_cpp(s), R"({"3*n + 1"})"));
-    EXPECT(migraphx::contains(printed_py(s), R"(dyn_dims=["3*n + 1"])"));
-    EXPECT(migraphx::shape::make_symbolic_shape(
-               migraphx::shape::float_type,
-               {"3*n + 1"},
-               {{"n", {migraphx::shape::dynamic_dimension{1, 8}}}}) == s);
+    EXPECT(migraphx::contains(printed_cpp(s), R"code({"3*n(constraints={[1..8]}) + 1"})code"));
+    EXPECT(
+        migraphx::contains(printed_py(s), R"code(dyn_dims=["3*n(constraints={[1..8]}) + 1"])code"));
+    EXPECT(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
+                                                {"3*n(constraints={[1..8]}) + 1"}) == s);
 }
 
-// Optimals belong to the symbol rather than to any one interval, so they ride on its first bound.
 TEST_CASE(module_print_symbolic_shape_optimals)
 {
     migraphx::shape s{migraphx::shape::float_type,
                       {migraphx::shape::dynamic_dimension{
                           migraphx::sym::var("n", {2, 16}, {std::int64_t{4}, std::int64_t{8}})}}};
     EXPECT(migraphx::contains(printed_cpp(s),
-                              R"({{"n", {migraphx::shape::dynamic_dimension{2, 16, {4, 8}}}}})"));
+                              R"code("n(constraints={[2..16]}, optimals={4, 8})")code"));
     EXPECT(migraphx::contains(printed_py(s),
-                              R"(symbols={"n": migraphx.shape.dynamic_dimension(2, 16, {4, 8})})"));
+                              R"code("n(constraints={[2..16]}, optimals={4, 8})")code"));
     EXPECT(migraphx::shape::make_symbolic_shape(
-               migraphx::shape::float_type,
-               {"n"},
-               {{"n", {migraphx::shape::dynamic_dimension{2, 16, {4, 8}}}}}) == s);
+               migraphx::shape::float_type, {"n(constraints={[2..16]}, optimals={4, 8})"}) == s);
 }
 
-// A symbol asserting more than one interval takes a list of bounds.
 TEST_CASE(module_print_symbolic_shape_multiple_constraints)
 {
     migraphx::shape s{migraphx::shape::float_type,
                       {migraphx::shape::dynamic_dimension{
                           migraphx::sym::var("n", {{1, 20}, {2, 10}}, {std::int64_t{4}})}}};
-    EXPECT(migraphx::contains(
-        printed_cpp(s),
-        R"({{"n", {migraphx::shape::dynamic_dimension{1, 20, {4}}, migraphx::shape::dynamic_dimension{2, 10}}}})"));
-    EXPECT(migraphx::contains(
-        printed_py(s),
-        R"(symbols={"n": [migraphx.shape.dynamic_dimension(1, 20, {4}), migraphx.shape.dynamic_dimension(2, 10)]})"));
-    EXPECT(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
-                                                {"n"},
-                                                {{"n",
-                                                  {migraphx::shape::dynamic_dimension{1, 20, {4}},
-                                                   migraphx::shape::dynamic_dimension{2, 10}}}}) ==
+    EXPECT(migraphx::contains(printed_cpp(s),
+                              R"code("n(constraints={[1..20], [2..10]}, optimals={4})")code"));
+    EXPECT(migraphx::contains(printed_py(s),
+                              R"code("n(constraints={[1..20], [2..10]}, optimals={4})")code"));
+    EXPECT(migraphx::shape::make_symbolic_shape(
+               migraphx::shape::float_type, {"n(constraints={[1..20], [2..10]}, optimals={4})"}) ==
            s);
 }
 
@@ -2411,7 +2399,7 @@ TEST_CASE(module_print_symbolic_shape_standard_omits_strides)
     EXPECT(not migraphx::contains(printed_py(s), "dyn_strides"));
 }
 
-// A stride resolves through the same symbol table, so it shares the dimensions' variables.
+// A stride carries the same self-contained symbolic variable as the dimension.
 TEST_CASE(module_print_symbolic_shape_strides)
 {
     auto n = migraphx::sym::var("n", {1, 8});
@@ -2420,13 +2408,12 @@ TEST_CASE(module_print_symbolic_shape_strides)
                        migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}},
                       {migraphx::sym::lit(1), n}};
     EXPECT(not s.standard());
-    EXPECT(migraphx::contains(printed_cpp(s), R"(, {"1", "n"}, {{"n", )"));
-    EXPECT(migraphx::contains(printed_py(s), R"(, dyn_strides=["1", "n"], symbols=)"));
-    EXPECT(migraphx::shape::make_symbolic_shape(
-               migraphx::shape::float_type,
-               {"n", "3"},
-               {"1", "n"},
-               {{"n", {migraphx::shape::dynamic_dimension{1, 8}}}}) == s);
+    EXPECT(migraphx::contains(printed_cpp(s), R"code(, {"1", "n(constraints={[1..8]})"})code"));
+    EXPECT(migraphx::contains(printed_py(s),
+                              R"code(, dyn_strides=["1", "n(constraints={[1..8]})"])code"));
+    EXPECT(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
+                                                {"n(constraints={[1..8]})", "3"},
+                                                {"1", "n(constraints={[1..8]})"}) == s);
 }
 
 // A partly symbolic shape is not symbolic(), and make_symbolic_shape cannot express a range
@@ -2439,14 +2426,28 @@ TEST_CASE(module_print_symbolic_shape_mixed_with_range)
     EXPECT(not s.symbolic());
     EXPECT(migraphx::contains(
         printed_cpp(s),
-        R"({migraphx::shape::make_symbolic_dynamic_dimension("n", {{"n", {migraphx::shape::dynamic_dimension{1, 8}}}}), migraphx::shape::dynamic_dimension{3, 5}})"));
+        R"code({migraphx::shape::make_symbolic_dynamic_dimension("n(constraints={[1..8]})"), migraphx::shape::dynamic_dimension{3, 5}})code"));
     EXPECT(migraphx::contains(
         printed_py(s),
-        R"(dyn_dims=[migraphx.shape.dynamic_dimension("n", {"n": migraphx.shape.dynamic_dimension(1, 8)}), migraphx.shape.dynamic_dimension(3, 5)])"));
-    EXPECT((migraphx::shape{migraphx::shape::float_type,
-                            {migraphx::shape::make_symbolic_dynamic_dimension(
-                                 "n", {{"n", migraphx::shape::dynamic_dimension{1, 8}}}),
-                             migraphx::shape::dynamic_dimension{3, 5}}}) == s);
+        R"code(dyn_dims=[migraphx.shape.dynamic_dimension("n(constraints={[1..8]})"), migraphx.shape.dynamic_dimension(3, 5)])code"));
+    EXPECT((migraphx::shape{
+               migraphx::shape::float_type,
+               {migraphx::shape::make_symbolic_dynamic_dimension("n(constraints={[1..8]})"),
+                migraphx::shape::dynamic_dimension{3, 5}}}) == s);
+}
+
+TEST_CASE(module_print_symbolic_shape_multiple_constraints_mixed_with_range)
+{
+    auto n = migraphx::sym::var("n", {{1, 20}, {2, 10}}, {std::int64_t{4}});
+    migraphx::shape s{
+        migraphx::shape::float_type,
+        {migraphx::shape::dynamic_dimension{n}, migraphx::shape::dynamic_dimension{3, 5}}};
+    EXPECT(migraphx::contains(
+        printed_cpp(s),
+        R"code(migraphx::shape::make_symbolic_dynamic_dimension("n(constraints={[1..20], [2..10]}, optimals={4})"))code"));
+    EXPECT(migraphx::contains(
+        printed_py(s),
+        R"code(migraphx.shape.dynamic_dimension("n(constraints={[1..20], [2..10]}, optimals={4})"))code"));
 }
 
 // A range-based dynamic shape has no expression, so it keeps the bounds spelling.

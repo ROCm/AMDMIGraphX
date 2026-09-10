@@ -220,22 +220,32 @@ static shape::dynamic_dimension make_symbolic_dynamic_dimension(
     return shape::make_symbolic_dynamic_dimension(expression, symbols);
 }
 
-// Build a symbolic shape from expression strings. The expressions arrive as C arrays rather than
-// through a handle, because std::vector<std::string> is already claimed by
+// Build a symbolic shape from self-contained expression strings. The expressions arrive as C
+// arrays rather than through a handle, because std::vector<std::string> is already claimed by
 // migraphx_quantize_op_names and registering it twice would silently rebind that handle's
 // parameters.
-static shape
-create_symbolic_shape(shape::type_t t,
-                      const char* const* dims,
-                      std::size_t ndims,
-                      const char* const* strides,
-                      std::size_t nstrides,
-                      const std::map<std::string, std::vector<shape::dynamic_dimension>>& symbols)
+static std::vector<std::string>
+make_expression_strings(const char* const* expressions, std::size_t size, const std::string& name)
+{
+    if(size == 0)
+        return {};
+    if(expressions == nullptr or
+       std::any_of(expressions, expressions + size, [](const char* expression) {
+           return expression == nullptr;
+       }))
+        MIGRAPHX_THROW("CREATE_SYMBOLIC_SHAPE: Null " + name + " expression");
+    return {expressions, expressions + size};
+}
+
+static shape create_symbolic_shape(shape::type_t t,
+                                   const char* const* dims,
+                                   std::size_t ndims,
+                                   const char* const* strides,
+                                   std::size_t nstrides)
 {
     return shape::make_symbolic_shape(t,
-                                      std::vector<std::string>(dims, dims + ndims),
-                                      std::vector<std::string>(strides, strides + nstrides),
-                                      symbols);
+                                      make_expression_strings(dims, ndims, "dimension"),
+                                      make_expression_strings(strides, nstrides, "stride"));
 }
 
 #ifdef MIGRAPHX_ENABLE_ONNX

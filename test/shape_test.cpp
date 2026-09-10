@@ -2574,7 +2574,7 @@ TEST_CASE(value_roundtrip_symbolic_mixed_with_range)
 TEST_CASE(make_symbolic_shape_dims)
 {
     auto s = migraphx::shape::make_symbolic_shape(
-        migraphx::shape::float_type, {"n", "3"}, {{"n", {{1, 8, {2, 4}}}}});
+        migraphx::shape::float_type, {"n(constraints={[1..8]}, optimals={2, 4})", "3"});
     EXPECT(s == (migraphx::shape{
                     migraphx::shape::float_type,
                     {dd{var("n", {1, 8}, {std::int64_t{2}, std::int64_t{4}})}, dd{lit(3)}}}));
@@ -2584,35 +2584,37 @@ TEST_CASE(make_symbolic_shape_dims)
 TEST_CASE(make_symbolic_shape_compound_expression)
 {
     auto n = var("n", {1, 8});
-    EXPECT(migraphx::shape::make_symbolic_shape(
-               migraphx::shape::float_type, {"3*n + 1"}, {{"n", {{1, 8}}}}) ==
+    EXPECT(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
+                                                {"3*n(constraints={[1..8]}) + 1"}) ==
            (migraphx::shape{migraphx::shape::float_type, {dd{n * 3 + 1}}}));
 }
 
-// A stride resolves through the same table, so it shares the dimensions' variables.
+// A stride carries the same self-contained symbolic variable as the dimension.
 TEST_CASE(make_symbolic_shape_strides)
 {
     auto n = var("n", {1, 8});
-    auto s = migraphx::shape::make_symbolic_shape(
-        migraphx::shape::float_type, {"n", "3"}, {"1", "n"}, {{"n", {{1, 8}}}});
+    auto s = migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
+                                                  {"n(constraints={[1..8]})", "3"},
+                                                  {"1", "n(constraints={[1..8]})"});
     EXPECT(s == (migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(1), n}}));
     EXPECT(not s.standard());
 }
 
-// Several bounds for one name assert several intervals, which is what merging two differently
-// bounded same-named variables produces.
 TEST_CASE(make_symbolic_shape_multiple_constraints)
 {
     auto s = migraphx::shape::make_symbolic_shape(
-        migraphx::shape::float_type, {"n"}, {{"n", {{1, 20}, {2, 10}}}});
+        migraphx::shape::float_type, {"n(constraints={[1..20], [2..10]}, optimals={4})"});
     EXPECT(s.dyn_dims().front() ==
-           dd{var("n", std::vector<migraphx::sym::interval>{{1, 20}, {2, 10}})});
+           dd{var("n", std::vector<migraphx::sym::interval>{{1, 20}, {2, 10}}, {std::int64_t{4}})});
 }
 
-// symbol_table is the inverse of make_symbolic_shape, so a symbolic shape rebuilds from its own
-// table.
-static bool symbol_table_roundtrips(const migraphx::shape& s, const std::vector<std::string>& dims)
+static bool expression_strings_roundtrip(const migraphx::shape& s)
 {
+    std::vector<std::string> dims;
+    std::transform(s.dyn_dims().begin(),
+                   s.dyn_dims().end(),
+                   std::back_inserter(dims),
+                   [](const auto& d) { return d.sym_expr.to_string(); });
     std::vector<std::string> strides;
     std::transform(s.dyn_strides().begin(),
                    s.dyn_strides().end(),
@@ -2620,79 +2622,55 @@ static bool symbol_table_roundtrips(const migraphx::shape& s, const std::vector<
                    [](const auto& e) { return e.to_string(); });
     if(s.standard())
         strides.clear();
-    return migraphx::shape::make_symbolic_shape(s.type(), dims, strides, s.symbol_table()) == s;
+    return migraphx::shape::make_symbolic_shape(s.type(), dims, strides) == s;
 }
 
-TEST_CASE(symbol_table_dims)
+TEST_CASE(symbolic_shape_expression_strings_roundtrip)
 {
-    auto s = migraphx::shape::make_symbolic_shape(
-        migraphx::shape::float_type, {"n", "3"}, {{"n", {{1, 8, {2, 4}}}}});
-    auto table = s.symbol_table();
-    EXPECT(table.size() == 1);
-    EXPECT(table.at("n") == std::vector<dd>{{1, 8, {2, 4}}});
-    EXPECT(symbol_table_roundtrips(s, {"n", "3"}));
+    auto n = var("n", {1, 8}, {2, 4});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    EXPECT(expression_strings_roundtrip(s));
 }
 
-TEST_CASE(symbol_table_compound_expression)
+TEST_CASE(symbolic_shape_compound_expression_strings_roundtrip)
 {
-    auto s = migraphx::shape::make_symbolic_shape(
-        migraphx::shape::float_type, {"3*n + 1", "m"}, {{"n", {{1, 8}}}, {"m", {{2, 4}}}});
-    EXPECT(symbol_table_roundtrips(s, {"3*n + 1", "m"}));
+    auto n = var("n", {1, 8});
+    auto m = var("m", {2, 4});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n * 3 + 1}, dd{m}}};
+    EXPECT(expression_strings_roundtrip(s));
 }
 
-// A stride's symbols are the dimensions' own, so the table covers them without duplication.
-TEST_CASE(symbol_table_strides)
-{
-    auto s = migraphx::shape::make_symbolic_shape(
-        migraphx::shape::float_type, {"n", "3"}, {"1", "n"}, {{"n", {{1, 8}}}});
-    EXPECT(not s.standard());
-    EXPECT(s.symbol_table().size() == 1);
-    EXPECT(symbol_table_roundtrips(s, {"n", "3"}));
-}
-
-TEST_CASE(symbol_table_multiple_constraints)
-{
-    auto s = migraphx::shape::make_symbolic_shape(
-        migraphx::shape::float_type, {"n"}, {{"n", {{1, 20, {4}}, {2, 10}}}});
-    EXPECT(s.symbol_table().at("n").size() == 2);
-    EXPECT(symbol_table_roundtrips(s, {"n"}));
-}
-
-// A name can be bound differently in two dimensions, so the table has to merge them rather than
-// report whichever was reached first; otherwise the shape it describes is not the shape it came
-// from.
-TEST_CASE(symbol_table_merges_across_dimensions)
-{
-    migraphx::shape s{migraphx::shape::float_type, {dd{var("n", {1, 8})}, dd{var("n", {1, 4})}}};
-    auto bounds = s.symbol_table().at("n");
-    EXPECT(bounds.size() == 2);
-    EXPECT(bounds == std::vector<dd>{{1, 4}, {1, 8}});
-}
-
-// A symbol used by a stride is already named by a dimension, so it adds no entry.
-TEST_CASE(symbol_table_merges_strides_with_dimensions)
+TEST_CASE(symbolic_shape_stride_expression_strings_roundtrip)
 {
     auto n = var("n", {1, 8});
     migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(1), n}};
-    EXPECT(s.symbol_table().at("n") == std::vector<dd>{{1, 8}});
+    EXPECT(not s.standard());
+    EXPECT(expression_strings_roundtrip(s));
 }
 
-// A range-based shape names no symbols.
-TEST_CASE(symbol_table_range_shape_is_empty)
+TEST_CASE(symbolic_shape_multiple_constraints_expression_strings_roundtrip)
 {
-    EXPECT((migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}}}.symbol_table().empty()));
-    EXPECT((migraphx::shape{migraphx::shape::float_type, {2, 3}}.symbol_table().empty()));
+    auto n = var("n", std::vector<migraphx::sym::interval>{{1, 20}, {2, 10}}, {4});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}}};
+    EXPECT(expression_strings_roundtrip(s));
+}
+
+// Same-named variables can carry different metadata in separate expressions; printing each
+// expression independently preserves that distinction.
+TEST_CASE(symbolic_shape_same_name_different_constraints_roundtrip)
+{
+    migraphx::shape s{migraphx::shape::float_type, {dd{var("n", {1, 8})}, dd{var("n", {1, 4})}}};
+    EXPECT(expression_strings_roundtrip(s));
 }
 
 TEST_CASE(make_symbolic_shape_errors)
 {
-    EXPECT(test::throws([] {
-        return migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {""}, {});
-    }));
+    EXPECT(test::throws(
+        [] { return migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {""}); }));
     // One stride per dimension or none at all.
     EXPECT(test::throws([] {
         return migraphx::shape::make_symbolic_shape(
-            migraphx::shape::float_type, {"n", "3"}, {"1"}, {{"n", {{1, 8}}}});
+            migraphx::shape::float_type, {"n(constraints={[1..8]})", "3"}, {"1"});
     }));
 }
 

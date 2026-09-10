@@ -1693,44 +1693,6 @@ std::unordered_set<expr> find_variables(const expr& e)
     return result;
 }
 
-// Accumulate one expression's variables without canonicalizing, so that merging several
-// expressions sorts each constraint set once rather than once per occurrence.
-static void collect_variable_bounds(const expr& e, std::map<std::string, variable_bounds>& result)
-{
-    std::unordered_set<expr> visited;
-    fix([&](auto self, const expr& x) {
-        if(x.empty() or not visited.insert(x).second)
-            return;
-        if(const auto* v = std::get_if<variable_node>(&get_node(x)))
-        {
-            auto& bounds = result[v->name];
-            bounds.constraints.insert(
-                bounds.constraints.end(), v->constraints.begin(), v->constraints.end());
-            bounds.optimals.insert(v->optimals.begin(), v->optimals.end());
-            return;
-        }
-        for(const auto& c : x.children())
-            self(c);
-    })(e);
-}
-
-std::map<std::string, variable_bounds> find_variable_bounds(const expr& e)
-{
-    return find_variable_bounds(std::vector<expr>{e});
-}
-
-std::map<std::string, variable_bounds> find_variable_bounds(const std::vector<expr>& es)
-{
-    std::map<std::string, variable_bounds> result;
-    for(const auto& e : es)
-        collect_variable_bounds(e, result);
-    // Nodes sharing a name but not their metadata are distinct exprs, so merge them the same way
-    // combining them into one expression would.
-    for(auto& entry : result)
-        normalize_constraints(entry.second.constraints);
-    return result;
-}
-
 [[maybe_unused]] static bool has_float_literal(const expr& e)
 {
     if(e.empty())
@@ -2044,6 +2006,37 @@ std::string to_string(const scalar& v)
         v);
 }
 
+static std::string constraint_to_string(const interval& constraint)
+{
+    return "[" + sym::to_string(constraint.min) + ".." + sym::to_string(constraint.max) + "]";
+}
+
+static std::string variable_to_string(const variable_node& variable)
+{
+    std::vector<std::string> attributes;
+    if(not variable.constraints.empty())
+    {
+        std::vector<std::string> constraints;
+        std::transform(variable.constraints.begin(),
+                       variable.constraints.end(),
+                       std::back_inserter(constraints),
+                       &constraint_to_string);
+        attributes.push_back("constraints={" + join_strings(constraints, ", ") + "}");
+    }
+    if(not variable.optimals.empty())
+    {
+        std::vector<std::string> optimals;
+        std::transform(variable.optimals.begin(),
+                       variable.optimals.end(),
+                       std::back_inserter(optimals),
+                       [](const scalar& optimal) { return sym::to_string(optimal); });
+        attributes.push_back("optimals={" + join_strings(optimals, ", ") + "}");
+    }
+    if(attributes.empty())
+        return variable.name;
+    return variable.name + "(" + join_strings(attributes, ", ") + ")";
+}
+
 struct string_prec
 {
     std::string str;
@@ -2080,7 +2073,7 @@ std::string expr::to_string() const
                                       return string_prec{sym::to_string(n.val)};
                                   },
                                   [](const variable_node& n) -> std::optional<string_prec> {
-                                      return string_prec{n.name};
+                                      return string_prec{variable_to_string(n)};
                                   },
                                   [](const op_node&) -> std::optional<string_prec> {
                                       return std::nullopt;
@@ -2260,42 +2253,163 @@ static expr call_function(const std::string& name, const std::vector<expr>& args
     return it->second(args);
 }
 
-static expr parse_number(sym_parser& p)
+static std::optional<scalar> parse_scalar(sym_parser& p, bool allow_sign = false)
 {
-    if((std::isdigit(p.peek_char()) == 0) and p.peek_char() != '.')
-        return {};
-    std::string token{p.parse_while([](unsigned char c) { return std::isdigit(c) or c == '.'; })};
-    // An exponent only counts when digits actually follow it, so a variable beginning with e is
-    // not mistaken for one. to_string emits this form for very large and very small doubles, and
-    // without it those cannot be read back.
-    auto tail = p.peek();
-    if(not tail.empty() and (tail.front() == 'e' or tail.front() == 'E'))
+    auto q = p;
+    std::string token;
+    if(allow_sign and (q.peek_char() == '-' or q.peek_char() == '+'))
     {
-        std::size_t n = 1;
-        if(n < tail.size() and (tail[n] == '+' or tail[n] == '-'))
-            n++;
-        if(n < tail.size() and std::isdigit(static_cast<unsigned char>(tail[n])) != 0)
+        token += q.peek_char();
+        q.advance(1);
+    }
+
+    auto whole = q.parse_while([](unsigned char c) { return std::isdigit(c) != 0; });
+    token += std::string{whole};
+    bool has_digits = not whole.empty();
+
+    // Do not consume the first dot of an interval delimiter such as "1..4".
+    if(q.peek_char() == '.' and not q.starts_with(std::string_view{".."}))
+    {
+        token += '.';
+        q.advance(1);
+        auto fraction = q.parse_while([](unsigned char c) { return std::isdigit(c) != 0; });
+        token += std::string{fraction};
+        has_digits = has_digits or not fraction.empty();
+    }
+    if(not has_digits)
+        return std::nullopt;
+
+    // An exponent only counts when digits actually follow it. to_string emits this form for very
+    // large and very small doubles, and without it those cannot be read back.
+    if(q.peek_char() == 'e' or q.peek_char() == 'E')
+    {
+        auto exponent_parser = q;
+        std::string exponent{exponent_parser.peek_char()};
+        exponent_parser.advance(1);
+        if(exponent_parser.peek_char() == '+' or exponent_parser.peek_char() == '-')
         {
-            token += std::string{tail.substr(0, n)};
-            p.advance(n);
-            token += std::string{p.parse_while([](unsigned char c) { return std::isdigit(c); })};
+            exponent += exponent_parser.peek_char();
+            exponent_parser.advance(1);
+        }
+        auto digits =
+            exponent_parser.parse_while([](unsigned char c) { return std::isdigit(c) != 0; });
+        if(not digits.empty())
+        {
+            exponent += std::string{digits};
+            token += exponent;
+            q = exponent_parser;
         }
     }
+
+    p = q;
     if(token.find_first_of(".eE") != std::string::npos)
-        return lit(std::stod(token));
-    return lit(std::stoll(token));
+        return scalar{std::stod(token)};
+    return scalar{std::stoll(token)};
+}
+
+static expr parse_number(sym_parser& p)
+{
+    auto value = parse_scalar(p);
+    if(not value.has_value())
+        return {};
+    return lit(*value);
+}
+
+static scalar parse_variable_scalar(sym_parser& p)
+{
+    auto value = parse_scalar(p, true);
+    if(not value.has_value())
+        MIGRAPHX_THROW(p.error_message("number"));
+    return *value;
+}
+
+static interval parse_constraint(sym_parser& p)
+{
+    p.expect(std::string_view{"["});
+    auto min = parse_variable_scalar(p);
+    p.expect(std::string_view{".."});
+    auto max = parse_variable_scalar(p);
+    p.expect(std::string_view{"]"});
+    return {std::move(min), std::move(max)};
+}
+
+template <class F>
+static auto parse_braced_list(sym_parser& p, F parse_element)
+{
+    using value_type = decltype(parse_element(p));
+    std::vector<value_type> result;
+    p.expect(std::string_view{"{"});
+    if(p.match(std::string_view{"}"}))
+        return result;
+    result.push_back(parse_element(p));
+    while(p.match(std::string_view{","}))
+        result.push_back(parse_element(p));
+    p.expect(std::string_view{"}"});
+    return result;
+}
+
+static std::string_view parse_identifier(sym_parser& p)
+{
+    char c = p.peek_char();
+    if((std::isalpha(static_cast<unsigned char>(c)) == 0) and c != '_')
+        return {};
+    return p.parse_while([](unsigned char ch) { return std::isalnum(ch) != 0 or ch == '_'; });
+}
+
+static bool starts_variable_attributes(sym_parser p)
+{
+    auto attribute = parse_identifier(p);
+    return not attribute.empty() and p.match(std::string_view{"="});
+}
+
+static expr parse_variable_attributes(sym_parser& p, std::string name)
+{
+    std::optional<std::vector<interval>> constraints;
+    std::optional<std::set<scalar>> optimals;
+    auto parse_attribute = [&] {
+        auto attribute = parse_identifier(p);
+        if(attribute.empty())
+            MIGRAPHX_THROW(p.error_message("variable attribute"));
+        p.expect(std::string_view{"="});
+        if(attribute == "constraints")
+        {
+            if(constraints.has_value())
+                MIGRAPHX_THROW("Duplicate variable attribute: constraints");
+            constraints = parse_braced_list(p, &parse_constraint);
+        }
+        else if(attribute == "optimals")
+        {
+            if(optimals.has_value())
+                MIGRAPHX_THROW("Duplicate variable attribute: optimals");
+            auto values = parse_braced_list(p, &parse_variable_scalar);
+            optimals    = std::set<scalar>{values.begin(), values.end()};
+        }
+        else
+        {
+            MIGRAPHX_THROW("Unknown variable attribute: " + std::string{attribute});
+        }
+    };
+
+    parse_attribute();
+    while(p.match(std::string_view{","}))
+        parse_attribute();
+    p.expect(std::string_view{")"});
+    return var(std::move(name),
+               constraints.value_or(std::vector<interval>{}),
+               optimals.value_or(std::set<scalar>{}));
 }
 
 static expr parse_func_or_var(sym_parser& p)
 {
-    char c = p.peek_char();
-    if((std::isalpha(c) == 0) and c != '_')
+    auto name = parse_identifier(p);
+    if(name.empty())
         return {};
-    auto name = p.parse_while([](unsigned char ch) { return std::isalnum(ch) or ch == '_'; });
     std::string sname(name);
     if(p.peek_char() != '(')
         return var(sname);
     p.advance(1);
+    if(starts_variable_attributes(p))
+        return parse_variable_attributes(p, std::move(sname));
     std::vector<expr> args;
     if(p.peek_char() != ')')
     {

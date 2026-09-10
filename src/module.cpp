@@ -43,7 +43,6 @@
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/logger.hpp>
 #include <iostream>
-#include <map>
 #include <algorithm>
 #include <array>
 #include <set>
@@ -1629,22 +1628,6 @@ static void print_make_op(std::ostream& os, const operation& op)
     os << ")";
 }
 
-// The bounds a symbol asserts, as the "min, max" arguments of a dynamic_dimension. The optimals
-// already ride on the first bound, which is where symbol_table put them.
-static std::vector<std::string>
-symbol_bounds(const std::vector<migraphx::shape::dynamic_dimension>& bounds)
-{
-    std::vector<std::string> result;
-    std::transform(bounds.begin(), bounds.end(), std::back_inserter(result), [](const auto& bound) {
-        auto i        = bound.get_interval();
-        auto spelling = std::to_string(i.min) + ", " + std::to_string(i.max);
-        if(bound.has_optimal())
-            spelling += ", {" + to_string_range(bound.get_optimals()) + "}";
-        return spelling;
-    });
-    return result;
-}
-
 static std::string expr_string(const migraphx::sym::expr& e) { return enclose_name(e.to_string()); }
 
 template <class Range>
@@ -1674,61 +1657,11 @@ static bool needs_dyn_strides(const migraphx::shape& s)
     return s.symbolic() and not s.standard();
 }
 
-using symbol_table = std::map<std::string, std::vector<migraphx::shape::dynamic_dimension>>;
-
-static std::string cpp_symbols_string(const symbol_table& symbols)
-{
-    std::vector<std::string> entries;
-    std::transform(
-        symbols.begin(), symbols.end(), std::back_inserter(entries), [](const auto& symbol) {
-            auto bounds = symbol_bounds(symbol.second);
-            std::vector<std::string> dims;
-            std::transform(
-                bounds.begin(), bounds.end(), std::back_inserter(dims), [](const auto& b) {
-                    return "migraphx::shape::dynamic_dimension{" + b + "}";
-                });
-            return "{" + enclose_name(symbol.first) + ", {" + join_strings(dims, ", ") + "}}";
-        });
-    return "{" + join_strings(entries, ", ") + "}";
-}
-
-static std::string py_symbols_string(const symbol_table& symbols)
-{
-    std::vector<std::string> entries;
-    std::transform(
-        symbols.begin(), symbols.end(), std::back_inserter(entries), [](const auto& symbol) {
-            auto bounds = symbol_bounds(symbol.second);
-            std::vector<std::string> dims;
-            std::transform(
-                bounds.begin(), bounds.end(), std::back_inserter(dims), [](const auto& b) {
-                    return "migraphx.shape.dynamic_dimension(" + b + ")";
-                });
-            auto value = dims.size() == 1 ? dims.front() : "[" + join_strings(dims, ", ") + "]";
-            return enclose_name(symbol.first) + ": " + value;
-        });
-    return "{" + join_strings(entries, ", ") + "}";
-}
-
-// The entries of a shape's table that one expression actually uses, which is what the
-// per-dimension spelling below needs.
-static symbol_table symbols_for(const migraphx::sym::expr& e, const symbol_table& symbols)
-{
-    auto used = migraphx::sym::find_variable_bounds(e);
-    symbol_table result;
-    std::transform(
-        used.begin(), used.end(), std::inserter(result, result.end()), [&](const auto& variable) {
-            return std::pair<std::string, std::vector<migraphx::shape::dynamic_dimension>>{
-                variable.first, symbols.at(variable.first)};
-        });
-    return result;
-}
-
 // A range-based dynamic dimension is printed from its bounds and optimals, a symbolic one from
-// its expression and the symbols that expression needs. make_symbolic_shape cannot express a
-// range dimension, so any shape holding one is spelled dimension by dimension instead.
+// its self-contained expression. make_symbolic_shape cannot express a range dimension, so any
+// shape holding one is spelled dimension by dimension instead.
 static std::string dyn_dims_string(const migraphx::shape& s, bool cpp)
 {
-    auto table = s.symbol_table();
     std::vector<std::string> dims;
     std::transform(
         s.dyn_dims().begin(), s.dyn_dims().end(), std::back_inserter(dims), [&](const auto& d) {
@@ -1741,19 +1674,10 @@ static std::string dyn_dims_string(const migraphx::shape& s, bool cpp)
                 return cpp ? "migraphx::shape::dynamic_dimension{" + result + "}"
                            : "migraphx.shape.dynamic_dimension(" + result + ")";
             }
-            auto symbols = symbols_for(d.sym_expr, table);
-            // make_symbolic_dynamic_dimension binds one interval per symbol, so a variable
-            // asserting several has no spelling in a partly symbolic shape.
-            if(std::any_of(symbols.begin(), symbols.end(), [](const auto& symbol) {
-                   return symbol.second.size() > 1;
-               }))
-                MIGRAPHX_THROW("PRINT_SHAPE: A symbol asserting several intervals cannot be "
-                               "printed in a partly symbolic shape");
-            auto args = expr_string(d.sym_expr) + ", ";
             if(cpp)
-                return "migraphx::shape::make_symbolic_dynamic_dimension(" + args +
-                       cpp_symbols_string(symbols) + ")";
-            return "migraphx.shape.dynamic_dimension(" + args + py_symbols_string(symbols) + ")";
+                return "migraphx::shape::make_symbolic_dynamic_dimension(" +
+                       expr_string(d.sym_expr) + ")";
+            return "migraphx.shape.dynamic_dimension(" + expr_string(d.sym_expr) + ")";
         });
     return join_strings(dims, ", ");
 }
@@ -1766,7 +1690,7 @@ static void print_py_shape(std::ostream& os, const migraphx::shape& s)
            << sym_dims_string(s) << "]";
         if(needs_dyn_strides(s))
             os << ", dyn_strides=[" << expr_list_string(s.dyn_strides()) << "]";
-        os << ", symbols=" << py_symbols_string(s.symbol_table()) << ")";
+        os << ")";
         return;
     }
     os << "migraphx.shape(type=" << to_json_string(s.type_string());
@@ -1791,7 +1715,7 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
            << sym_dims_string(s) << "}";
         if(needs_dyn_strides(s))
             os << ", {" << expr_list_string(s.dyn_strides()) << "}";
-        os << ", " << cpp_symbols_string(s.symbol_table()) << ")";
+        os << ")";
         return;
     }
     os << "migraphx::shape{migraphx::shape::" << s.type_string();

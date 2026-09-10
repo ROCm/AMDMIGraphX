@@ -27,7 +27,6 @@
 #include <array>
 #include <vector>
 #include <cassert>
-#include <map>
 #include <ostream>
 #include <numeric>
 #include <memory>
@@ -485,34 +484,23 @@ struct MIGRAPHX_EXPORT shape
     shape to_static(std::size_t x) const;
     shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map = {}) const;
 
-    // Build a symbolic dynamic_dimension by parsing an expression string and binding each
-    // named symbol to the interval/optimals carried by its (range) dynamic_dimension.
-    // Throws if the expression is empty.
+    // Build a symbolic dynamic_dimension by parsing an expression string. Variable constraints
+    // and optimals can be carried inline by the expression; the optional symbols map binds
+    // metadata to bare variable names for compatibility with existing callers.
     static dynamic_dimension make_symbolic_dynamic_dimension(
         const std::string& expression,
-        const std::unordered_map<std::string, dynamic_dimension>& symbols);
+        const std::unordered_map<std::string, dynamic_dimension>& symbols = {});
 
-    /// Build a symbolic shape from expression strings. Each free symbol is bound to the bounds
-    /// and optimals of its entry in `symbols`; several entries assert several intervals, which
-    /// is what a variable merged from differently bounded ones carries. This is the spelling the
-    /// --cpp and --py printers emit.
-    static shape
-    make_symbolic_shape(type_t t,
-                        const std::vector<std::string>& dims,
-                        const std::map<std::string, std::vector<dynamic_dimension>>& symbols);
+    /// Build a symbolic shape from expression strings. Variable constraints and optimals are
+    /// parsed from the expressions themselves. This is the spelling the --cpp and --py printers
+    /// emit.
+    static shape make_symbolic_shape(type_t t, const std::vector<std::string>& dims);
 
-    /// As above, for a transposed or broadcasted layout. Strides resolve through the same table,
-    /// so they share the dimensions' variables; without them the strides are packed standard.
-    static shape
-    make_symbolic_shape(type_t t,
-                        const std::vector<std::string>& dims,
-                        const std::vector<std::string>& strides,
-                        const std::map<std::string, std::vector<dynamic_dimension>>& symbols);
-
-    /// The symbols this shape's dimensions and strides use, in the form make_symbolic_shape
-    /// takes, so a symbolic shape round trips through its own API. Each interval a symbol
-    /// asserts becomes one dynamic_dimension, and its optimals ride on the first.
-    std::map<std::string, std::vector<dynamic_dimension>> symbol_table() const;
+    /// As above, for a transposed or broadcasted layout. Without explicit symbolic strides the
+    /// shape is packed standard.
+    static shape make_symbolic_shape(type_t t,
+                                     const std::vector<std::string>& dims,
+                                     const std::vector<std::string>& strides);
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);

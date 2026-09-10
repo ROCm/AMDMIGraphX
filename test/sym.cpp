@@ -1621,6 +1621,22 @@ TEST_CASE(to_string_literal_double)
 
 TEST_CASE(to_string_variable) { EXPECT(var("x").to_string() == "x"); }
 
+TEST_CASE(to_string_variable_metadata)
+{
+    auto n = var("n",
+                 std::vector<interval>{{int64_t{2}, int64_t{6}}, {int64_t{1}, int64_t{4}}},
+                 std::set<scalar>{int64_t{4}, int64_t{2}});
+    EXPECT(n.to_string() == "n(constraints={[1..4], [2..6]}, optimals={2, 4})");
+}
+
+TEST_CASE(to_string_variable_optional_metadata)
+{
+    EXPECT(var("n", interval{int64_t{1}, int64_t{4}}).to_string() == "n(constraints={[1..4]})");
+    EXPECT(
+        var("n", std::vector<interval>{}, std::set<scalar>{int64_t{2}, int64_t{4}}).to_string() ==
+        "n(optimals={2, 4})");
+}
+
 TEST_CASE(to_string_add)
 {
     auto x = var("x");
@@ -2811,6 +2827,58 @@ TEST_CASE(parse_variable)
     EXPECT(e == var("x"));
 }
 
+TEST_CASE(parse_variable_metadata)
+{
+    auto expected = var("n",
+                        std::vector<interval>{{int64_t{1}, int64_t{4}}, {int64_t{2}, int64_t{6}}},
+                        std::set<scalar>{int64_t{2}, int64_t{4}});
+    EXPECT(parse("n(constraints={[1..4], [2..6]}, optimals={2, 4})") == expected);
+}
+
+TEST_CASE(parse_variable_metadata_optional_and_reordered)
+{
+    EXPECT(parse("n(constraints={[1..4]})") == var("n", interval{int64_t{1}, int64_t{4}}));
+    EXPECT(parse("n(optimals={2, 4})") ==
+           var("n", std::vector<interval>{}, std::set<scalar>{int64_t{2}, int64_t{4}}));
+    EXPECT(parse("n(optimals={2, 4}, constraints={[1..4], [2..6]})") ==
+           var("n",
+               std::vector<interval>{{int64_t{1}, int64_t{4}}, {int64_t{2}, int64_t{6}}},
+               std::set<scalar>{int64_t{2}, int64_t{4}}));
+}
+
+TEST_CASE(parse_variable_metadata_scalars)
+{
+    EXPECT(parse("n(constraints={[-4..1], [2e0..6.0]}, optimals={-2, 1.5})") ==
+           var("n",
+               std::vector<interval>{{int64_t{-4}, int64_t{1}}, {2.0, 6.0}},
+               std::set<scalar>{int64_t{-2}, 1.5}));
+}
+
+TEST_CASE(parse_variable_metadata_in_expression)
+{
+    auto n = var("n",
+                 std::vector<interval>{{int64_t{1}, int64_t{4}}, {int64_t{2}, int64_t{6}}},
+                 std::set<scalar>{int64_t{2}, int64_t{4}});
+    auto e = sin(n * 3) + 1;
+    EXPECT(parse(to_string(e)) == e);
+}
+
+TEST_CASE(parse_variable_metadata_disambiguates_function_name)
+{
+    auto sin_variable = var("sin", interval{int64_t{1}, int64_t{4}});
+    EXPECT(parse(to_string(sin_variable)) == sin_variable);
+    EXPECT(parse("sin(x)") == sin(var("x")));
+}
+
+TEST_CASE(parse_variable_metadata_errors)
+{
+    EXPECT(test::throws([] { parse("n(constraints={[1..4]}, constraints={[2..6]})"); }));
+    EXPECT(test::throws([] { parse("n(optimals={2}, optimals={4})"); }));
+    EXPECT(test::throws([] { parse("n(unknown={2})"); }));
+    EXPECT(test::throws([] { parse("n(constraints={[4..1]})"); }));
+    EXPECT(test::throws([] { parse("n(constraints={[1, 4]})"); }));
+}
+
 TEST_CASE(parse_add)
 {
     auto e = parse("x + y");
@@ -3159,29 +3227,6 @@ TEST_CASE(var_name_must_be_an_identifier)
     EXPECT(test::throws(
         [] { return var("input.1", std::vector<interval>{interval{int64_t{1}, int64_t{8}}}); }));
     EXPECT(parse(to_string(var("_n0"))) == var("_n0"));
-}
-
-TEST_CASE(find_variable_bounds_keeps_metadata)
-{
-    auto n      = var("n", interval{int64_t{1}, int64_t{8}}, std::set<scalar>{int64_t{2}});
-    auto m      = var("m", interval{int64_t{2}, int64_t{16}});
-    auto bounds = migraphx::sym::find_variable_bounds(n * 3 + m);
-    EXPECT(bounds.size() == 2);
-    EXPECT(bounds.at("n").constraints == std::vector<interval>{{int64_t{1}, int64_t{8}}});
-    EXPECT(bounds.at("n").optimals == std::set<scalar>{int64_t{2}});
-    EXPECT(bounds.at("m").constraints == std::vector<interval>{{int64_t{2}, int64_t{16}}});
-    EXPECT(bounds.at("m").optimals.empty());
-    // A literal carries no variable.
-    EXPECT(migraphx::sym::find_variable_bounds(lit(3)).empty());
-}
-
-TEST_CASE(find_variable_bounds_merges_same_name)
-{
-    auto c1 = interval{int64_t{1}, int64_t{20}};
-    auto c2 = interval{int64_t{2}, int64_t{10}};
-    auto e  = var("x", c1) * var("y", {1, 2}) + var("x", c2);
-    auto x  = migraphx::sym::find_variable_bounds(e).at("x");
-    EXPECT(x.constraints == std::vector<interval>{c1, c2});
 }
 
 // A double has to read back as the same value, which the six significant digits a stream

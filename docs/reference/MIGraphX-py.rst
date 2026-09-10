@@ -114,15 +114,6 @@ shape
 
     :rtype: list[str]
 
-.. py:method:: symbol_table()
-
-    The bounds each symbol of the shape stands for, in the form the ``symbols`` argument takes,
-    so a symbolic shape can be rebuilt from what can be read of it. Empty for a range-based or
-    static shape. A symbol always maps to a list here, even where the constructor also accepts a
-    bare :py:class:`dynamic_dimension`.
-
-    :rtype: dict[str, list[dynamic_dimension]]
-
 dynamic_dimension
 -----------------
 
@@ -130,13 +121,15 @@ dynamic_dimension
 
     Constructs a `dynamic_dimension` from a minimum, a maximum, and optionally a set of optimals.
 
-.. py:class:: dynamic_dimension(expression, symbols)
+.. py:class:: dynamic_dimension(expression, symbols={})
     :no-index:
 
-    Constructs a symbolic `dynamic_dimension` by parsing an expression string and binding each
-    named symbol to the bounds and optimals of a range `dynamic_dimension`.
+    Constructs a symbolic `dynamic_dimension` by parsing an expression string. Constraints and
+    optimals can be written directly on each variable. The optional ``symbols`` map can still bind
+    bounds to bare variable names.
 
-    :param str expression: The expression to parse, such as ``"n * 3 + 1"``.
+    :param str expression: The expression to parse, such as
+                          ``"n(constraints={[1..8]}) * 3 + 1"``.
     :param dict[str, dynamic_dimension] symbols: The bounds to bind each name to.
 
 .. py:method:: is_fixed()
@@ -172,46 +165,31 @@ symbolic shapes
 ---------------
 
 A dynamic dimension can be a symbolic expression rather than a plain range. Expressions are
-written as strings and the symbols they name are given bounds through a ``symbols`` table, which
-is also the spelling :py:meth:`program.to_py` emits::
+written as strings, with each variable carrying its constraints and optimals inline. This is also
+the spelling :py:meth:`program.to_py` emits::
 
     s = migraphx.shape(type="float_type",
-                       dyn_dims=["n", "3"],
-                       symbols={"n": migraphx.shape.dynamic_dimension(1, 8, {2, 4})})
+                       dyn_dims=["n(constraints={[1..8]}, optimals={2, 4})", "3"])
 
 A symbol name has to be a valid identifier, that is a letter or an underscore followed by
 letters, digits or underscores, because the expression has to survive being parsed back. Names
 taken from an ONNX model are rewritten to fit, so an input named ``0`` yields the symbol
 ``_0_d0`` and a ``dim_param`` of ``batch.size`` yields ``batch_size``.
 
-Give a list of bounds when a symbol asserts more than one interval, which is what adding two
-differently bounded uses of the same name produces::
+List each interval in ``constraints`` when a symbol asserts more than one, which is what adding
+two differently bounded uses of the same name produces::
 
-    symbols={"n": [migraphx.shape.dynamic_dimension(1, 20),
-                   migraphx.shape.dynamic_dimension(2, 10, {4})]}
+    "n(constraints={[1..20], [2..10]}, optimals={4})"
 
 Pass ``dyn_strides`` for a transposed or broadcasted layout; without it an all-symbolic shape is
-given packed standard strides. Stride expressions resolve through the same ``symbols`` table, so
-they share the dimensions' symbols::
+given packed standard strides. Each stride is also a self-contained symbolic expression::
 
     s = migraphx.shape(type="float_type",
-                       dyn_dims=["n", "3"],
-                       dyn_strides=["1", "n"],
-                       symbols={"n": migraphx.shape.dynamic_dimension(1, 8)})
+                       dyn_dims=["n(constraints={[1..8]})", "3"],
+                       dyn_strides=["1", "n(constraints={[1..8]})"])
 
 A shape that mixes symbolic and range-based dimensions is built dimension by dimension instead,
-with :py:class:`dynamic_dimension` taking the expression and its symbols directly.
-
-:py:meth:`shape.symbol_table` is the inverse of the ``symbols`` argument, so a symbolic shape
-round trips through its own API::
-
-    s = migraphx.shape(type="float_type",
-                       dyn_dims=["n", "3"],
-                       symbols={"n": migraphx.shape.dynamic_dimension(1, 8, {2, 4})})
-    migraphx.shape(type="float_type", dyn_dims=["n", "3"], symbols=s.symbol_table()) == s
-
-A shape carrying explicit strides needs ``dyn_strides=s.dyn_strides()`` as well, since rebuilding
-without them gives packed standard strides.
+with :py:class:`dynamic_dimension` taking the self-contained expression directly.
 
 
 argument

@@ -624,10 +624,10 @@ struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
             &migraphx_dynamic_dimension_create_min_max_optimals, min, max, opts.get_handle_ptr());
     }
 
-    /// Build a symbolic dimension by parsing an expression string and binding each named
-    /// symbol to the bounds/optimals supplied as range dynamic_dimensions.
+    /// Build a symbolic dimension by parsing an expression string. Variables can carry metadata
+    /// inline; the optional map binds bounds/optimals to bare variable names.
     dynamic_dimension(const std::string& expression,
-                      const std::unordered_map<std::string, dynamic_dimension>& symbols);
+                      const std::unordered_map<std::string, dynamic_dimension>& symbols = {});
 
     bool is_fixed() const
     {
@@ -712,29 +712,6 @@ struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
     }
 };
 
-/// The bounds each named symbol of a symbolic shape stands for. Several bounds for one name
-/// assert several intervals, which is what a variable merged from differently bounded
-/// same-named ones carries.
-struct symbol_table : MIGRAPHX_HANDLE_BASE(symbol_table)
-{
-    MIGRAPHX_HANDLE_CONSTRUCTOR(symbol_table)
-
-    symbol_table() { this->make_handle(&migraphx_symbol_table_create); }
-
-    void add(const std::string& name, const dynamic_dimensions& bounds)
-    {
-        call(&migraphx_symbol_table_add,
-             this->get_handle_ptr(),
-             name.c_str(),
-             bounds.get_handle_ptr());
-    }
-
-    void add(const std::string& name, const dynamic_dimension& bound)
-    {
-        this->add(name, dynamic_dimensions{bound});
-    }
-};
-
 /**
  * @brief Describe shape of tensor
  * @details A shape consists of a data type, lengths of multi-dimension tensor, and strides
@@ -785,21 +762,22 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         this->make_handle(&migraphx_shape_create_dynamic, type, dyn_dims.get_handle_ptr());
     }
 
-    /// Construct a symbolic shape from expression strings, binding each named symbol to the
-    /// bounds carried by its entry in the table. The strides are packed standard.
-    shape(migraphx_shape_datatype_t type,
-          const std::vector<std::string>& dims,
-          const symbol_table& symbols)
-        : shape(type, dims, {}, symbols)
+    /// Construct a symbolic shape from self-contained expression strings. The strides are packed
+    /// standard.
+    shape(migraphx_shape_datatype_t type, const std::vector<std::string>& dims)
+        : shape(type, dims, {})
     {
     }
 
-    /// As above, for a transposed or broadcasted layout. Strides resolve through the same table,
-    /// so they share the dimensions' symbols.
+    shape(migraphx_shape_datatype_t type, std::initializer_list<std::string> dims)
+        : shape(type, std::vector<std::string>(dims))
+    {
+    }
+
+    /// As above, for a transposed or broadcasted layout.
     shape(migraphx_shape_datatype_t type,
           const std::vector<std::string>& dims,
-          const std::vector<std::string>& strides,
-          const symbol_table& symbols)
+          const std::vector<std::string>& strides)
     {
         auto to_c = [](const std::vector<std::string>& xs) {
             std::vector<const char*> result;
@@ -816,8 +794,14 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
                           cdims.data(),
                           cdims.size(),
                           cstrides.data(),
-                          cstrides.size(),
-                          symbols.get_handle_ptr());
+                          cstrides.size());
+    }
+
+    shape(migraphx_shape_datatype_t type,
+          std::initializer_list<std::string> dims,
+          std::initializer_list<std::string> strides)
+        : shape(type, std::vector<std::string>(dims), std::vector<std::string>(strides))
+    {
     }
 
     std::vector<size_t> lengths() const

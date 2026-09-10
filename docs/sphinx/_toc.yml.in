@@ -40,8 +40,8 @@ subtrees:
           - file: dev/tools
           - file: dev/debug_symbols
             title: Using debug symbols
-          - file: dev/unify-prefill-decode
-            title: Unifying prefill and decode
+          - file: dev/symbolic-specialization
+            title: Specializing a symbolic dimension
           - file: dev/cross_compilation
             title: Cross-compilation
   

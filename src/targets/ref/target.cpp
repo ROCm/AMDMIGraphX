@@ -27,6 +27,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/auto_contiguous.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/eliminate_convert.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/insert_pad.hpp>
@@ -41,8 +42,9 @@ namespace ref {
 
 std::string target::name() const { return "ref"; }
 
-std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
+std::vector<pass> target::get_passes(migraphx::context&, const compile_options& options) const
 {
+    throw_if_split_sizes_set(options, name());
     return {normalize_ops{},
             eliminate_pad{},
             dead_code_elimination{},

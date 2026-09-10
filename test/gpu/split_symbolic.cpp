@@ -23,19 +23,22 @@
  */
 
 #include <onnx_test.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 
 namespace {
 
-migraphx::onnx_options unify_options()
+constexpr std::size_t max_sequence_length = 4;
+
+migraphx::onnx_options symbolic_options()
 {
     migraphx::onnx_options options;
-    options.unify_prefill_decode          = true;
     options.use_symbolic_shapes           = true;
-    options.dim_params["sequence_length"] = {1, 4};
+    options.dim_params["sequence_length"] = {1, max_sequence_length};
     return options;
 }
 
@@ -71,13 +74,24 @@ std::vector<float> to_vector(const migraphx::argument& arg)
 
 } // namespace
 
-TEST_CASE(unify_prefill_decode_gpu)
+// The GPU target specializes during compilation, driven by compile_options::split_sizes, so this
+// covers the option reaching the pass as well as the specializations agreeing with the reference
+// target at each of the sizes it was given.
+TEST_CASE(split_symbolic_gpu)
 {
-    auto source = read_onnx("unify_prefill_decode_test.onnx", unify_options());
-    auto ref    = source;
+    auto source = read_onnx("unify_prefill_decode_test.onnx", symbolic_options());
+
+    auto ref = source;
+    migraphx::run_passes(
+        ref,
+        {migraphx::split_single_dyn_dim{"sequence_length", {1, max_sequence_length}},
+         migraphx::dead_code_elimination{}});
     ref.compile(migraphx::make_target("ref"));
+
     auto gpu = migraphx::make_target("gpu");
-    source.compile(gpu);
+    migraphx::compile_options options;
+    options.split_sizes = {1, max_sequence_length};
+    source.compile(gpu, options);
 
     auto compare = [&](const std::vector<std::size_t>& lens, std::vector<float> data) {
         auto ref_params  = make_parameters(ref, lens, data);

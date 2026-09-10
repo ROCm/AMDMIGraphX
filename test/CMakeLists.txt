@@ -105,18 +105,20 @@ endif()
 if(MIGRAPHX_ENABLE_ONNX)
 set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
 add_subdirectory(onnx)
-if(TARGET test_gpu_unify_prefill_decode)
-    target_link_libraries(test_gpu_unify_prefill_decode onnx_files)
-    target_include_directories(test_gpu_unify_prefill_decode PRIVATE onnx/include)
+if(TARGET test_gpu_split_symbolic)
+    target_link_libraries(test_gpu_split_symbolic onnx_files)
+    target_include_directories(test_gpu_split_symbolic PRIVATE onnx/include)
 endif()
-if(TARGET driver)
+# Specializing a symbolic dimension is a compile pass of the GPU pipeline, so the driver can only
+# be exercised end to end where that target is available.
+if(MIGRAPHX_ENABLE_GPU AND TARGET driver)
     add_test(
         NAME test_driver_symbolic_args
         COMMAND
             ${CMAKE_COMMAND}
             -DDRIVER=$<TARGET_FILE:driver>
             -DMODEL=${TEST_ONNX_DIR}/unify_prefill_decode_test.onnx
-            -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/unify_prefill_decode_driver.mxr
+            -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/split_symbolic_driver.mxr
             -P ${CMAKE_CURRENT_SOURCE_DIR}/driver_symbolic_args_test.cmake)
 endif()
 endif()

@@ -633,12 +633,14 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                bool fast_math,
                bool exhaustive_tune,
                migraphx::compile_modes compile_mode,
+               const std::vector<std::size_t>& split_sizes,
                const py::dict& advance_backend_options) {
                 migraphx::compile_options options;
                 options.offload_copy    = offload_copy;
                 options.fast_math       = fast_math;
                 options.exhaustive_tune = exhaustive_tune;
                 options.compile_mode    = compile_mode;
+                options.split_sizes     = split_sizes;
                 for(auto opt : advance_backend_options)
                 {
                     auto key = py::str(opt.first).cast<std::string>();
@@ -652,6 +654,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("fast_math")               = true,
             py::arg("exhaustive_tune")         = false,
             py::arg("compile_mode")            = migraphx::compile_modes::balanced,
+            py::arg("split_sizes")             = std::vector<std::size_t>{},
             py::arg("advance_backend_options") = py::dict())
         .def(
             "finalize",
@@ -807,8 +810,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            int64_t max_loop_iterations,
            int64_t limit_max_iterations,
            bool use_debug_symbols,
-           bool use_symbolic_shapes,
-           bool unify_prefill_decode) {
+           bool use_symbolic_shapes) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -821,7 +823,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.limit_max_iterations   = limit_max_iterations;
             options.use_debug_symbols      = use_debug_symbols;
             options.use_symbolic_shapes    = use_symbolic_shapes;
-            options.unify_prefill_decode   = unify_prefill_decode;
             return migraphx::parse_onnx(filename, options);
         },
         "Parse onnx file",
@@ -838,8 +839,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("max_loop_iterations")    = 10,
         py::arg("limit_max_iterations")   = std::numeric_limits<uint16_t>::max(),
         py::arg("use_debug_symbols")      = false,
-        py::arg("use_symbolic_shapes")    = false,
-        py::arg("unify_prefill_decode")   = false);
+        py::arg("use_symbolic_shapes")    = false);
 
     m.def(
         "parse_onnx_buffer",
@@ -854,8 +854,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            bool print_program_on_error,
            const std::string& external_data_path,
            bool use_debug_symbols,
-           bool use_symbolic_shapes,
-           bool unify_prefill_decode) {
+           bool use_symbolic_shapes) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -867,7 +866,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.external_data_path     = external_data_path;
             options.use_debug_symbols      = use_debug_symbols;
             options.use_symbolic_shapes    = use_symbolic_shapes;
-            options.unify_prefill_decode   = unify_prefill_decode;
             return migraphx::parse_onnx_buffer(onnx_buffer, options);
         },
         "Parse onnx file",
@@ -883,8 +881,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("print_program_on_error") = false,
         py::arg("external_data_path")     = "",
         py::arg("use_debug_symbols")      = false,
-        py::arg("use_symbolic_shapes")    = false,
-        py::arg("unify_prefill_decode")   = false);
+        py::arg("use_symbolic_shapes")    = false);
 #endif
 
     m.def(

@@ -21,6 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/compile_options.hpp>
+#include <migraphx/errors.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/value.hpp>
@@ -58,6 +62,23 @@ TEST_CASE(target_to_value_is_object)
     auto t = migraphx::make_target("ref");
     auto v = t.to_value();
     CHECK(v.is_object());
+}
+
+// Specialization is only implemented by targets with a dynamic-shapes pipeline. Compiling for one
+// without it has to fail rather than hand back a program that runs but was never specialized.
+TEST_CASE(compile_for_ref_rejects_split_sizes)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {2, 2}}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x)});
+
+    migraphx::compile_options options;
+    options.split_sizes = {1, 4};
+
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { p.compile(migraphx::make_target("ref"), options); }, "split_sizes is not"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

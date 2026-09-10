@@ -24,6 +24,7 @@
 
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/adjust_allocation.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
@@ -60,8 +61,9 @@ namespace cpu {
 std::string target::name() const { return "cpu"; }
 
 // cppcheck-suppress constParameterReference
-std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options&) const
+std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
+    throw_if_split_sizes_set(options, name());
     auto& ctx = any_cast<context>(gctx);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
     std::set<std::string> unsupported_ops{

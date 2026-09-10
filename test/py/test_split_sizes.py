@@ -21,38 +21,46 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-
 import migraphx
 
 
-def _options():
-    return {
-        "use_symbolic_shapes": True,
-        "unify_prefill_decode": True,
-        "dim_params": {
-            "sequence_length": migraphx.shape.dynamic_dimension(1, 4)
-        },
-    }
+def _symbolic_program():
+    return migraphx.parse_onnx(
+        "unify_prefill_decode_test.onnx",
+        use_symbolic_shapes=True,
+        dim_params={"sequence_length": migraphx.shape.dynamic_dimension(1, 4)})
 
 
-def _is_unified(program):
+def _is_specialized(program):
     return any(ins.name() == "select_module"
                for ins in program.get_main_module())
 
 
-def test_parse_onnx_unify_prefill_decode():
-    program = migraphx.parse_onnx("unify_prefill_decode_test.onnx",
-                                  **_options())
-    assert _is_unified(program)
-    assert program.get_parameter_shapes()["x"].dyn_dims()[1].is_symbolic()
+def test_compile_with_split_sizes():
+    program = _symbolic_program()
+    program.compile(migraphx.get_target("gpu"), split_sizes=[1, 4])
+    assert _is_specialized(program)
 
 
-def test_parse_onnx_buffer_unify_prefill_decode():
-    with open("unify_prefill_decode_test.onnx", "rb") as model:
-        program = migraphx.parse_onnx_buffer(model.read(), **_options())
-    assert _is_unified(program)
+def test_compile_without_split_sizes():
+    # An empty split_sizes asks for every size the dimension can take, so a narrow range still
+    # specializes; naming the sizes is what keeps a wide range from being enumerated.
+    program = _symbolic_program()
+    program.compile(migraphx.get_target("gpu"))
+    assert _is_specialized(program)
+
+
+def test_split_sizes_rejected_by_ref():
+    program = _symbolic_program()
+    try:
+        program.compile(migraphx.get_target("ref"), split_sizes=[1, 4])
+    except RuntimeError as error:
+        assert "split_sizes is not" in str(error)
+    else:
+        assert False, "expected the ref target to reject split_sizes"
 
 
 if __name__ == "__main__":
-    test_parse_onnx_unify_prefill_decode()
-    test_parse_onnx_buffer_unify_prefill_decode()
+    test_compile_with_split_sizes()
+    test_compile_without_split_sizes()
+    test_split_sizes_rejected_by_ref()

@@ -28,8 +28,10 @@
 #include <migraphx/compile_modes.hpp>
 #include <migraphx/tracer.hpp>
 #include <migraphx/value.hpp>
+#include <cstddef>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,6 +48,15 @@ struct compile_options
     bool exhaustive_tune = false;
 
     compile_modes compile_mode = compile_modes::balanced;
+
+    /**
+     * The sizes a dynamic dimension is specialized for, one submodule per size, dispatched at
+     * runtime by a select_module. Empty means every size the dimension can take, which is only
+     * reasonable for a narrow range; a model run at a few known sizes, such as an LLM at one
+     * token and at a padded prompt length, should name them here instead.
+     */
+    std::vector<std::size_t> split_sizes = {};
+
     /**
      * Backend-specific options keyed by name. Targets can read these to
      * configure compilation in a way that is opaque to the core engine.
@@ -65,6 +76,19 @@ inline void set_backend_options(compile_options& options, const value& v)
         MIGRAPHX_THROW("set_backend_options expects an object value");
     for(const auto& opt : v)
         options.backend_options[opt.get_key()] = opt.without_key();
+}
+
+/**
+ * Called by targets that cannot specialize a dynamic dimension. Ignoring the request would hand
+ * back a program that still runs but is not specialized, so the caller would only discover the
+ * option had no effect by inspecting the result.
+ */
+inline void throw_if_split_sizes_set(const compile_options& options, const std::string& target_name)
+{
+    if(not options.split_sizes.empty())
+        MIGRAPHX_THROW("COMPILE: the " + target_name +
+                       " target cannot specialize a dynamic dimension, so split_sizes is not "
+                       "supported");
 }
 
 } // namespace MIGRAPHX_INLINE_NS

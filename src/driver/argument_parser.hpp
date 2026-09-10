@@ -298,7 +298,9 @@ struct argument_parser
     MIGRAPHX_DRIVER_STATIC auto append()
     {
         return write_action([](auto&, auto& x, auto& params) {
-            using type = typename bare<decltype(params)>::value_type;
+            // The element type comes from the destination, not from the string tokens being
+            // parsed, so appending to a container of numbers converts rather than failing.
+            using type = typename bare<decltype(x)>::value_type;
             std::transform(params.begin(),
                            params.end(),
                            std::inserter(x, x.end()),

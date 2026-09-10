@@ -107,4 +107,35 @@ TEST_CASE(set_backend_options_non_object_throws)
     EXPECT(options.backend_options.empty());
 }
 
+TEST_CASE(split_sizes_defaults_to_empty)
+{
+    migraphx::compile_options options;
+    EXPECT(options.split_sizes.empty());
+}
+
+TEST_CASE(throw_if_split_sizes_set_allows_empty)
+{
+    // A target that cannot specialize is still free to compile anything that did not ask for it.
+    migraphx::compile_options options;
+    migraphx::throw_if_split_sizes_set(options, "ref");
+}
+
+TEST_CASE(throw_if_split_sizes_set_rejects_request)
+{
+    migraphx::compile_options options;
+    options.split_sizes = {1, 128};
+
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::throw_if_split_sizes_set(options, "ref"); }, "split_sizes is not"));
+}
+
+TEST_CASE(throw_if_split_sizes_set_names_the_target)
+{
+    migraphx::compile_options options;
+    options.split_sizes = {1};
+
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::throw_if_split_sizes_set(options, "cpu"); }, "cpu"));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -302,14 +302,16 @@ struct mlir_compiler : compiler<mlir_compiler>
                     MIGRAPHX_THROW("mlir_compiler: tail split is not on the gemm output path");
                 split_ins = *it;
             }
-            std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
-            if(not is_module_fusible(mod_splits[0].mod, ctx, solution))
-            {
-                split_ins  = gemm_like_ins;
-                mod_splits = smod->split(input_args, {split_ins});
-            }
             if(tail_split.has_value())
             {
+                std::array<module_with_inputs, 3> mod_splits =
+                    smod->split(input_args, {split_ins}, {tail_split.value()});
+                if(not is_module_fusible(mod_splits[0].mod, ctx, solution))
+                {
+                    split_ins  = gemm_like_ins;
+                    mod_splits =
+                        smod->split(input_args, {split_ins}, {tail_split.value()});
+                }
                 auto compile_copy = [&](const shape& copy_input_shape) {
                     return any_cast<code_object_op>(
                         gpu::compile_op("hip::copy",
@@ -318,17 +320,22 @@ struct mlir_compiler : compiler<mlir_compiler>
                                         {{"lambda", "[](auto x) { return make_tuple(x); }"},
                                          {"kernel", "hip_copy_kernel"}}));
                 };
-                auto mod_splits3 = smod->split(input_args, {split_ins}, {tail_split.value()});
                 std::vector<mlir_code_object> cops = {
-                    compile_mlir_part(ctx, mod_splits3[0], solution),
-                    mlir_code_object{compile_pointwise_part(ctx, mod_splits3[1])},
+                    compile_mlir_part(ctx, mod_splits[0], solution),
+                    mlir_code_object{compile_pointwise_part(ctx, mod_splits[1])},
                     mlir_code_object{
-                        compile_copy(mod_splits3[2].mod.get_output_shapes().front())}};
-                std::array<module_with_inputs, 2> mods = {std::move(mod_splits3[0]),
-                                                          std::move(mod_splits3[1])};
+                        compile_copy(mod_splits[2].mod.get_output_shapes().front())}};
+                std::array<module_with_inputs, 2> mods = {std::move(mod_splits[0]),
+                                                          std::move(mod_splits[1])};
                 return insert(cops, mods, ins, split_ins, true);
             }
 
+            std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
+            if(not is_module_fusible(mod_splits[0].mod, ctx, solution))
+            {
+                split_ins  = gemm_like_ins;
+                mod_splits = smod->split(input_args, {split_ins});
+            }
             auto cop1 = compile_mlir_part(ctx, mod_splits[0], solution);
             auto cop2 = compile_pointwise_part(ctx, mod_splits[1]);
             assert(cop2.expected_inputs.back() == ins->get_shape());

@@ -726,17 +726,12 @@ struct parse_gridsample : op_parser<parse_gridsample>
         if(not enabled(MIGRAPHX_DISABLE_GRIDSAMPLE_OP{}) and supported_modes and
            x->get_shape().type() == grid_shape.type() and not is_dynamic)
         {
-            auto x_c =
-                x->get_shape().standard() ? x : info.add_instruction(make_op("contiguous"), x);
-            auto g_c =
-                grid_shape.standard() ? grid : info.add_instruction(make_op("contiguous"), grid);
-
             return info.add_instruction(make_op("gridsample",
                                                 {{"mode", mode},
                                                  {"padding_mode", padding_mode},
                                                  {"align_corners", align_corners}}),
-                                        x_c,
-                                        g_c);
+                                        x,
+                                        grid);
         }
 
         return contains(mode, "nearest")

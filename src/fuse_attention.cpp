@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/propagate_constant.hpp>
 #include <migraphx/split_factor.hpp>
 #include <optional>
 
@@ -1009,6 +1010,12 @@ struct find_kv_cache_attention
         module m_attn;
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
         auto attn_outs = m_attn.fuse(attn_inss, &map_mm_to_mattn);
+        // The captured attention can include a constant mask (causal / local-window) computed as a
+        // long op chain that is only a single literal once folded. Fold the constants inside the
+        // attention submodule so the fused kernel is handed a literal even when propagate_constant
+        // is disabled globally -- an unfolded mask chain blows up downstream MLIR compilation. This
+        // direct apply() on the (small) submodule is not gated by MIGRAPHX_DISABLE_PASSES.
+        propagate_constant{}.apply(m_attn);
 
         for(auto ins : iterator_for(m_attn))
         {

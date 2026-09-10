@@ -29,8 +29,8 @@
 
 // This covers split-k perfConfigs that reject conv+unary-pointwise+layout fusion. The relu is
 // not absorbed into the MLIR kernel, so this compiles as conv, pointwise, and layout-copy.
-struct test_conv_relu_reshape_lazy_transpose
-    : verify_program<test_conv_relu_reshape_lazy_transpose>
+struct test_conv_relu_reshape_lazy_transpose :
+verify_program<test_conv_relu_reshape_lazy_transpose>
 {
     migraphx::program create_program() const
     {

@@ -32,6 +32,7 @@ from urllib.parse import quote
 
 DTYPES = ('fp32', 'fp16', 'int8')
 PERF_THRESHOLD = 5.0
+RUN_PATTERN = re.compile(r'^(\d{4}-\d{2}-\d{2})-(\d+)-[0-9a-f]{7}$')
 
 
 class RawMarkdown(str):
@@ -176,11 +177,19 @@ def accuracy_cell(result, folder, stem):
 def find_baseline(root, run_id):
     if root is None or not root.is_dir():
         return None
-    candidates = [
-        path for path in root.iterdir()
-        if path.is_dir() and path.name != run_id and (path / 'perf').is_dir()
-    ]
-    return max(candidates, key=lambda path: path.name) if candidates else None
+
+    def run_order(name):
+        match = RUN_PATTERN.fullmatch(name)
+        return (match.group(1), int(match.group(2)), name) if match else None
+
+    current_order = run_order(run_id) if run_id else None
+    candidates = []
+    for path in root.iterdir():
+        order = run_order(path.name)
+        if (path.is_dir() and (path / 'perf').is_dir() and order is not None
+                and (current_order is None or order < current_order)):
+            candidates.append((order, path))
+    return max(candidates, key=lambda item: item[0])[1] if candidates else None
 
 
 def formatted_rate(result):
@@ -192,19 +201,25 @@ def formatted_rate(result):
 
 
 def compare_perf(current, baseline):
-    if current['status'] != 'complete' or baseline['status'] != 'complete':
+    if current['status'] != 'complete':
         return 'error', '', ':x:'
+    if baseline['status'] != 'complete':
+        return 'n/a', '', ':heavy_minus_sign:'
     if current['batch'] and baseline[
             'batch'] and current['batch'] != baseline['batch']:
-        return 'error', '', ':x:'
+        return 'n/a', '', ':heavy_minus_sign:'
     try:
         current_rate = float(current['rate'])
-        baseline_rate = float(baseline['rate'])
     except ValueError:
         return 'error', '', ':x:'
-    if not math.isfinite(current_rate) or not math.isfinite(
-            baseline_rate) or baseline_rate <= 0:
+    try:
+        baseline_rate = float(baseline['rate'])
+    except ValueError:
+        return 'n/a', '', ':heavy_minus_sign:'
+    if not math.isfinite(current_rate):
         return 'error', '', ':x:'
+    if not math.isfinite(baseline_rate) or baseline_rate <= 0:
+        return 'n/a', '', ':heavy_minus_sign:'
     diff = (current_rate - baseline_rate) * 100 / baseline_rate
     if diff <= -PERF_THRESHOLD:
         return 'regress', '{:.2f}%'.format(diff), ':red_circle:'
@@ -270,17 +285,19 @@ def generate(args):
     accuracy_error = len(rows) - accuracy_pass - accuracy_fail
     perf_pass = sum(row['comparison'] == 'pass' for row in rows)
     perf_regress = sum(row['comparison'] == 'regress' for row in rows)
-    perf_error = len(rows) - perf_pass - perf_regress
+    perf_na = sum(row['comparison'] == 'n/a' for row in rows)
+    perf_error = len(rows) - perf_pass - perf_regress - perf_na
 
     lines += [
         '## Summary',
         '',
-        '| Check | Pass | Fail | Regress | Error |',
-        '|:------|-----:|-----:|--------:|------:|',
-        '| Accuracy | {} | {} | — | {} |'.format(accuracy_pass, accuracy_fail,
-                                                 accuracy_error),
-        '| Performance | {} | — | {} | {} |'.format(perf_pass, perf_regress,
-                                                    perf_error),
+        '| Check | Pass | Fail | Regress | Error | N/A |',
+        '|:------|-----:|-----:|--------:|------:|----:|',
+        '| Accuracy | {} | {} | — | {} | 0 |'.format(accuracy_pass,
+                                                     accuracy_fail,
+                                                     accuracy_error),
+        '| Performance | {} | — | {} | {} | {} |'.format(
+            perf_pass, perf_regress, perf_error, perf_na),
         '',
         'Performance regressions are rate drops of at least {:.0f}%. '
         'Rate gains of at least {:.0f}% are highlighted :high_brightness:.'.
@@ -320,8 +337,7 @@ def generate(args):
         label = formatted_rate(
             perf) if perf['status'] == 'complete' else perf['status'].upper()
         old_label = formatted_rate(
-            old_perf
-        ) if old_perf['status'] == 'complete' else old_perf['status'].upper()
+            old_perf) if old_perf['status'] == 'complete' else 'N/A'
         rate = markdown_link(perf['status'], perf_dir, row['stem'], label)
         old_rate = markdown_link(
             old_perf['status'], baseline_perf_dir, row['stem'], old_label,

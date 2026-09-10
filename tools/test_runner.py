@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -109,8 +109,8 @@ def wrapup_inputs(io_folder, param_names):
             name_array.append(name)
 
     # fall back to positional mapping (input_i.pb -> i-th model input)
-    if len(name_array) < len(data_array) or any(
-            name not in param_map for name in param_names):
+    if len(name_array) < len(data_array) or any(name not in param_map
+                                                for name in param_names):
         return {param_names[i]: data_array[i] for i in range(len(param_names))}
 
     return param_map
@@ -128,8 +128,8 @@ def read_outputs(io_folder, out_names):
             name_array.append(name)
 
     # fall back to positional order when names are absent or do not match
-    if len(name_array) < len(data_array) or any(
-            name not in name_array for name in out_names):
+    if len(name_array) < len(data_array) or any(name not in name_array
+                                                for name in out_names):
         return data_array
 
     for name in out_names:
@@ -175,9 +175,12 @@ def get_input_shapes(sample_case, param_names):
             name_array.append(name)
 
     # fall back to positional mapping when names are absent or do not match
-    if len(name_array) < len(shape_array) or any(
-            name not in param_shape_map for name in param_names):
-        return {param_names[i]: shape_array[i] for i in range(len(param_names))}
+    if len(name_array) < len(shape_array) or any(name not in param_shape_map
+                                                 for name in param_names):
+        return {
+            param_names[i]: shape_array[i]
+            for i in range(len(param_names))
+        }
 
     return param_shape_map
 
@@ -228,13 +231,12 @@ def check_correctness(gold_outputs, outputs, rtol=1e-3, atol=1e-3):
 def tune_input_shape(model, input_data):
     param_shapes = model.get_parameter_shapes()
     input_shapes = {}
+    changed = False
     for name, s in param_shapes.items():
         assert name in input_data
-        data_shape = list(input_data[name].shape)
-        if not np.array_equal(data_shape, s.lens()):
-            input_shapes[name] = data_shape
-
-    return input_shapes
+        input_shapes[name] = list(input_data[name].shape)
+        changed = changed or not np.array_equal(input_shapes[name], s.lens())
+    return input_shapes if changed else {}
 
 
 def load_npz_case(npz_path):
@@ -243,8 +245,9 @@ def load_npz_case(npz_path):
     data = np.load(npz_path, allow_pickle=True, encoding='bytes')
     keys = list(getattr(data, 'files', []))
     if 'inputs' not in keys or 'outputs' not in keys:
-        raise KeyError("{}: expected 'inputs' and 'outputs' arrays, found {}".format(
-            os.path.basename(npz_path), keys))
+        raise KeyError(
+            "{}: expected 'inputs' and 'outputs' arrays, found {}".format(
+                os.path.basename(npz_path), keys))
     inputs = [np.asarray(x) for x in data['inputs']]
     outputs = [np.asarray(x) for x in data['outputs']]
     return inputs, outputs
@@ -271,12 +274,18 @@ def run_npz_cases(test_loc, model_path_name, param_names, npz_files, args):
 
     correct_num = 0
     for idx, (inputs, gold_outputs) in enumerate(cases):
-        input_data = {param_names[i]: inputs[i] for i in range(len(param_names))}
+        input_data = {
+            param_names[i]: inputs[i]
+            for i in range(len(param_names))
+        }
 
         # if input shape is different from model shape, reload and recompile
         input_shapes = tune_input_shape(model, input_data)
         if not len(input_shapes) == 0:
-            model = migraphx.parse_onnx(model_path_name, map_input_dims=input_shapes)
+            model = migraphx.parse_onnx(model_path_name,
+                                        map_input_dims=input_shapes)
+            if args.fp16:
+                migraphx.quantize_fp16(model)
             model.compile(migraphx.get_target(target))
 
         output_data = run_one_case(model, input_data)
@@ -323,9 +332,11 @@ def main():
     if not cases:
         npz_files = sorted(glob.glob(test_loc + '/test_data_*.npz'))
         if npz_files:
-            run_npz_cases(test_loc, model_path_name, param_names, npz_files, args)
+            run_npz_cases(test_loc, model_path_name, param_names, npz_files,
+                          args)
             return
-        print("No test_data_set_* or test_data_*.npz found in {}".format(test_loc))
+        print("No test_data_set_* or test_data_*.npz found in {}".format(
+            test_loc))
         sys.exit(1)
     sample_case = test_loc + '/' + cases[0]
     param_shapes = get_input_shapes(sample_case, param_names)
@@ -353,6 +364,8 @@ def main():
         if not len(input_shapes) == 0:
             model = migraphx.parse_onnx(model_path_name,
                                         map_input_dims=input_shapes)
+            if args.fp16:
+                migraphx.quantize_fp16(model)
             model.compile(migraphx.get_target(target))
 
         # run the model and return outputs
@@ -376,6 +389,7 @@ def main():
         error_num = case_num - correct_num
         print(str(error_num) + " cases failed!")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

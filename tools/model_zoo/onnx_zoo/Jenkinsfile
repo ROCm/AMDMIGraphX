@@ -58,7 +58,7 @@ pipeline {
                 script {
                     def date = sh(script: 'date -u +%Y-%m-%d', returnStdout: true).trim()
                     def sha = sh(script: 'git rev-parse --short=7 HEAD', returnStdout: true).trim()
-                    env.RUN_ID = "${date}-${sha}"
+                    env.RUN_ID = "${date}-${env.BUILD_NUMBER}-${sha}"
                     sh "rm -rf '${ZOO_DIR}/logs'"
                 }
             }
@@ -112,7 +112,7 @@ pipeline {
             steps {
                 script {
                     // Restarting only this stage would publish a "null" directory.
-                    if (!(env.RUN_ID ==~ /^\d{4}-\d{2}-\d{2}-[0-9a-f]{7}$/)) {
+                    if (!(env.RUN_ID ==~ /^\d{4}-\d{2}-\d{2}-\d+-[0-9a-f]{7}$/)) {
                         error("RUN_ID is '${env.RUN_ID}'; run the whole pipeline rather than restarting this stage")
                     }
                 }

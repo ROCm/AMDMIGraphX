@@ -33,22 +33,22 @@ You can also pass multiple folders, e.g.:
 
 ```bash
 # Test every model found under the pre-downloaded location
-USE_LOCAL=1 ./test_models.sh /mnt/nas_share/onnx-model-zoo
+USE_LOCAL=1 ./test_models.sh /datasets/onnx-model-zoo
 
 # Or select a subset
 USE_LOCAL=1 ./test_models.sh \
-    /mnt/nas_share/onnx-model-zoo/text/machine_comprehension/t5 \
-    /mnt/nas_share/onnx-model-zoo/vision/classification/shufflenet
+    /datasets/onnx-model-zoo/text/machine_comprehension/t5 \
+    /datasets/onnx-model-zoo/vision/classification/shufflenet
 ```
 
 ## Results
 
-Result are separated by dtype: `logs/fp32`, `logs/fp16` and `logs/int8`
+Accuracy and performance logs are written under `logs/accuracy` and `logs/perf`.
+FP16 runs use an `_fp16` filename suffix.
 
 > [!NOTE]
 > `int8`/`qdq` models are already quantized in-graph, so they are only run in
-> their native precision and logged under `logs/int8`; the fp16 pass is skipped
-> for them.
+> their native precision; the fp16 pass is skipped for them.
 
 ### Helpers
 
@@ -58,7 +58,7 @@ grep -HRL PASSED logs
 # Runtime error
 grep -HRi RuntimeError logs/
 # Accuracy issue
-grep -HRl FAILED logs
+grep -HRl FAILED logs/accuracy
 ```
 
 ## Cleanup

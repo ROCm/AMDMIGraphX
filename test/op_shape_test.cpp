@@ -949,6 +949,13 @@ TEST_CASE(convolution_backwards_2stride)
                  weights);
 }
 
+TEST_CASE(convolution_backwards_stride_zero)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 2, 2}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 1, 2, 2}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"stride", {0, 1}}}), input, weights);
+}
+
 TEST_CASE(convolution_backwards_2dilation)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};

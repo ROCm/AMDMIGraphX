@@ -30,6 +30,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -266,6 +267,7 @@ TEST_CASE(compile_errors)
         migraphx::gpu::compile_hip_src({make_src_file("main.cpp", incorrect_program)},
                                        {},
                                        migraphx::gpu::get_device_name(),
+                                       false,
                                        true);
     }));
 }
@@ -276,6 +278,7 @@ TEST_CASE(compile_warnings)
         return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", unused_param)},
                                               params,
                                               migraphx::gpu::get_device_name(),
+                                              false,
                                               true);
     };
 
@@ -534,6 +537,55 @@ TEST_CASE(assert_type_min_max)
             auto co = migraphx::gpu::compile_hip_code_object(ctx, src, options);
         });
     }
+}
+
+// Compile with disable_processes=true to force in-process hiprtc instead of spawning
+// migraphx-hiprtc-driver; the resulting binary must be valid and execute correctly.
+TEST_CASE(compile_hip_src_disable_processes)
+{
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, {}, migraphx::gpu::get_device_name(), true);
+    EXPECT(binaries.size() == 1);
+
+    migraphx::argument input{{migraphx::shape::int8_type, {5}}};
+    auto ginput = migraphx::gpu::to_gpu(input);
+    migraphx::gpu::kernel k{binaries.front(), "write"};
+    k.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int8_t>());
+    auto output = migraphx::gpu::from_gpu(ginput);
+
+    EXPECT(output != input);
+    auto data = output.get<std::int8_t>();
+    EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+// hiprtc_disable_processes set via backend_options must thread through the full GPU target
+// pass pipeline (backend_options -> context -> compile_hip_src) and still produce a correct result.
+// relu lowers to gpu::precompile_op so compile_ops::apply triggers hiprtc compilation,
+// exercising the disable_processes path end-to-end through the pass pipeline.
+TEST_CASE(compile_code_object_disable_processes_backend_option)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {5, 2}};
+    auto input_literal = migraphx::generate_literal(input_shape);
+
+    auto make_prog = [&] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        mm->add_return(
+            {mm->add_instruction(migraphx::make_op("relu"), mm->add_literal(input_literal))});
+        return p;
+    };
+
+    auto p_ref = make_prog();
+    p_ref.compile(migraphx::make_target("ref"), migraphx::compile_options{});
+    auto expected = p_ref.eval({}).front();
+
+    auto p_gpu = make_prog();
+    migraphx::compile_options options;
+    options.backend_options["hiprtc_disable_processes"] = migraphx::value(true);
+    p_gpu.compile(migraphx::make_target("gpu"), options);
+    auto result = migraphx::gpu::from_gpu(p_gpu.eval({}).front());
+
+    EXPECT(result == expected);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

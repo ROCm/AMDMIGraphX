@@ -674,6 +674,50 @@ TEST_CASE(eval_trace_with_target_test)
     EXPECT(not fired_ops.empty());
 }
 
+TEST_CASE(eval_substitute_replaces_result_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
+    mm->add_instruction(migraphx::make_op("add"), sum, one);
+    p.compile(id_target{});
+
+    migraphx::execution_environment exec_env;
+    exec_env.substitute = [&](migraphx::instruction_ref ins,
+                              const migraphx::argument&) -> migraphx::optional<migraphx::argument> {
+        if(ins != sum)
+            return migraphx::nullopt;
+        return migraphx::literal{10}.get_argument();
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{11});
+}
+
+TEST_CASE(eval_substitute_nullopt_keeps_result_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(id_target{});
+
+    auto count = 0;
+    migraphx::execution_environment exec_env;
+    exec_env.substitute = [&](migraphx::instruction_ref,
+                              const migraphx::argument&) -> migraphx::optional<migraphx::argument> {
+        count++;
+        return migraphx::nullopt;
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(count > 0);
+}
+
 TEST_CASE(async_eval_on_cpu_target_invokes_set_and_restore_queue)
 {
     // The async branches of program::eval() call contexts.front().set_queue()

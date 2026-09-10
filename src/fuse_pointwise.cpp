@@ -34,6 +34,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
+#include <migraphx/rewrite_broadcasts.hpp>
 #include <iterator>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
@@ -441,55 +442,7 @@ struct pointwise_reshape : rewrite_reshapes_base
     static std::string name() { return "pointwise"; }
 };
 
-struct pointwise_broadcast_pointwise : match::supports_dynamic_shapes
-{
-    auto matcher() const
-    {
-        auto pointwise = match::name("pointwise")(match::used_once()).bind("x");
-        auto broadcast_pointwise =
-            match::name("multibroadcast")(match::used_once(), match::args(pointwise))
-                .bind("broadcast");
-        auto dyn_broadcast_pointwise =
-            match::name("multibroadcast")(match::used_once(),
-                                          match::nargs(2),
-                                          match::arg(0)(pointwise),
-                                          match::arg(1)(match::any().bind("ref_ins")))
-                .bind("broadcast");
-        return match::name("pointwise")(match::any_of[match::inputs()](
-            match::any_of(broadcast_pointwise, dyn_broadcast_pointwise)));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto broadcast_ins    = r.instructions["broadcast"];
-        auto x_ins            = r.instructions["x"];
-        bool is_dyn_broadcast = contains(r.instructions, "ref_ins");
-
-        auto broadcast = broadcast_ins->get_operator();
-
-        auto x_inputs = x_ins->inputs();
-        std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
-            if(is_dyn_broadcast)
-            {
-                return m.insert_instruction(
-                    broadcast_ins, broadcast, {input, r.instructions["ref_ins"]});
-            }
-            return m.insert_instruction(broadcast_ins, broadcast, input);
-        });
-
-        m.replace_instruction(
-            broadcast_ins, x_ins->get_operator(), x_inputs, x_ins->module_inputs());
-    }
-};
-
 } // namespace
-
-static void rewrite_broadcasts(module_pass_manager& mpm)
-{
-    match::find_matches(mpm.get_module(), pointwise_broadcast_pointwise{});
-    mpm.run_pass(eliminate_common_subexpression{});
-    mpm.run_pass(dead_code_elimination{});
-}
 
 void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
@@ -505,7 +458,7 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
         if(enable_rewrite_reshapes)
             mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
         if(enable_rewrite_broadcasts)
-            rewrite_broadcasts(mpm);
+            rewrite_broadcasts(mpm, "pointwise");
         dedup_pointwise_inputs(mpm);
         auto changed = split_pointwise_through_slices(mpm);
         changed      = find_pointwise_modules(mpm, enable_multi_output) or changed;

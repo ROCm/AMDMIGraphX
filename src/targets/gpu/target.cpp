@@ -117,14 +117,17 @@ struct backend_options
     std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
+    // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
+    bool hiprtc_disable_processes = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.convolution_layout, "convolution_layout"),
+                    f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.problem_cache_files, "problem_cache_files"),
-                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
-                    f(self.convolution_layout, "convolution_layout"));
+                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
 };
 
@@ -201,14 +204,18 @@ struct pipeline_factory
 
     std::vector<pass> optimize_rewrite_pipeline() const
     {
-        auto gfx_name          = get_context()->get_current_device().get_gfx_name();
-        bool bf16_missing_valu = not starts_with(gfx_name, "gfx125");
+        auto gfx_name = get_context()->get_current_device().get_gfx_name();
+        const bool missing_fp32_mma =
+            starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
+        const bool bf16_missing_valu = not starts_with(gfx_name, "gfx125");
         return {
             rewrite_convolution{},
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
-            layout_convolution{.order = backend_opts.convolution_layout},
+            layout_convolution{.order                          = backend_opts.convolution_layout,
+                               .output_channels_last_threshold = missing_fp32_mma ? 8u : 0u,
+                               .output_channels_last_types     = {shape::float_type}},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},
@@ -307,13 +314,13 @@ struct pipeline_factory
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto& ctx = any_cast<context>(gctx);
+    auto& ctx         = any_cast<context>(gctx);
+    auto backend_opts = get_backend_options(options);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
+    ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
-
-    auto backend_opts = get_backend_options(options);
 
     // Problem cache files arrive as GPU backend options. The writable caches
     // (problem_cache_files) save new tuning solutions back; the read-only caches

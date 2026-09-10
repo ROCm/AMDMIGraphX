@@ -176,7 +176,8 @@ def getRawTypeName(data, cast):
     raw_gt = brackets.at(lt.link)
     if not raw_lt or not raw_gt:
         return None
-    return " ".join(tok.str for tok in raw_lt.next.forward(raw_gt)).replace(" :: ", "::")
+    return " ".join(tok.str for tok in raw_lt.next.forward(raw_gt)).replace(
+        " :: ", "::")
 
 
 @cppcheck.checker
@@ -396,9 +397,10 @@ def RedundantCast(cfg, data):
                 continue
 
         if not simpleMatch(token.previous, "auto"):
-            if not isTokensEqual(getVariableDecl(m.assign.variable),
-                                 getInnerLink(m.cast),
-                                 skip='static|constexpr|const|volatile|&|&&|*'):
+            if not isTokensEqual(
+                    getVariableDecl(m.assign.variable),
+                    getInnerLink(m.cast),
+                    skip='static|constexpr|const|volatile|&|&&|*'):
                 continue
         cppcheck.reportError(token, "style", "Static cast is redundant.")
 
@@ -642,6 +644,7 @@ def UseManagePointer(cfg, data):
         cppcheck.reportError(token, "style",
                              "Use manage pointer for resource management.")
 
+
 @cppcheck.checker
 def UseNamedLogicOperator(cfg, data):
     names = {'&&': 'and', '||': 'or', '!': 'not'}
@@ -679,9 +682,9 @@ def UseNamedLogicOperator(cfg, data):
             if op1.isName and not op1.varId and not op1.function:
                 continue
         cppcheck.reportError(
-            token, "style",
-            "Use named logic operator '%s' for '%s'" % (names[token.str],
-                                                       token.str))
+            token, "style", "Use named logic operator '%s' for '%s'" %
+            (names[token.str], token.str))
+
 
 @cppcheck.checker
 def UseSmartPointer(cfg, data):
@@ -727,6 +730,7 @@ def MatcherNestedParentheses(cfg, data):
             )
             break
 
+
 @cppcheck.checker
 def AvoidNestedValue(cfg, data):
     for token in cfg.tokenlist:
@@ -740,14 +744,15 @@ def AvoidNestedValue(cfg, data):
             continue
         if match(valueTok.next, "::|("):
             continue
-        cppcheck.reportError(
-            token, "style",
-            "Construct trait instead of using ::value"
-        )
+        cppcheck.reportError(token, "style",
+                             "Construct trait instead of using ::value")
+
 
 @cppcheck.checker
 def UseCachedEnvVar(cfg, data):
-    env_functions = {"enabled", "disabled", "env", "value_of", "string_value_of"}
+    env_functions = {
+        "enabled", "disabled", "env", "value_of", "string_value_of"
+    }
     for token in cfg.tokenlist:
         if not isFunctionCall(token):
             continue
@@ -756,9 +761,6 @@ def UseCachedEnvVar(cfg, data):
         m = match(token, "%name% ( %name%@env_var :: value ( ) )|,")
         if not m:
             continue
-        if(m.env_var.str == "T"):
+        if (m.env_var.str == "T"):
             continue
-        cppcheck.reportError(
-            token, "style",
-            "Use cached env variable"
-        )
+        cppcheck.reportError(token, "style", "Use cached env variable")

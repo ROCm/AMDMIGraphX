@@ -2658,6 +2658,25 @@ TEST_CASE(symbol_table_multiple_constraints)
     EXPECT(symbol_table_roundtrips(s, {"n"}));
 }
 
+// A name can be bound differently in two dimensions, so the table has to merge them rather than
+// report whichever was reached first; otherwise the shape it describes is not the shape it came
+// from.
+TEST_CASE(symbol_table_merges_across_dimensions)
+{
+    migraphx::shape s{migraphx::shape::float_type, {dd{var("n", {1, 8})}, dd{var("n", {1, 4})}}};
+    auto bounds = s.symbol_table().at("n");
+    EXPECT(bounds.size() == 2);
+    EXPECT(bounds == std::vector<dd>{{1, 4}, {1, 8}});
+}
+
+// A symbol used by a stride is already named by a dimension, so it adds no entry.
+TEST_CASE(symbol_table_merges_strides_with_dimensions)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(1), n}};
+    EXPECT(s.symbol_table().at("n") == std::vector<dd>{{1, 8}});
+}
+
 // A range-based shape names no symbols.
 TEST_CASE(symbol_table_range_shape_is_empty)
 {

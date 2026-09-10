@@ -205,7 +205,13 @@ with :py:class:`dynamic_dimension` taking the expression and its symbols directl
 :py:meth:`shape.symbol_table` is the inverse of the ``symbols`` argument, so a symbolic shape
 round trips through its own API::
 
+    s = migraphx.shape(type="float_type",
+                       dyn_dims=["n", "3"],
+                       symbols={"n": migraphx.shape.dynamic_dimension(1, 8, {2, 4})})
     migraphx.shape(type="float_type", dyn_dims=["n", "3"], symbols=s.symbol_table()) == s
+
+A shape carrying explicit strides needs ``dyn_strides=s.dyn_strides()`` as well, since rebuilding
+without them gives packed standard strides.
 
 
 argument

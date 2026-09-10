@@ -276,6 +276,10 @@ struct variable_bounds
 // Find distinct variables keyed by name, keeping the metadata find_variables strips. Variables
 // sharing a name are merged as combining them into one expression would.
 MIGRAPHX_EXPORT std::map<std::string, variable_bounds> find_variable_bounds(const expr& e);
+// The same across several expressions, so a name appearing in more than one is merged rather
+// than reported from whichever was visited first.
+MIGRAPHX_EXPORT std::map<std::string, variable_bounds>
+find_variable_bounds(const std::vector<expr>& es);
 // Whether dividend is evenly divisible by divisor (integral operands only).
 MIGRAPHX_EXPORT bool is_divisible(const expr& dividend, const expr& divisor);
 

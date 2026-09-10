@@ -2326,9 +2326,8 @@ static std::string printed_py(const migraphx::shape& s)
     return ss.str();
 }
 
-// Each of these pins the emitted spelling and then compiles that same spelling to confirm it
-// rebuilds the shape, so a printer change that stays syntactically valid but loses the
-// expression still fails.
+// These pin the emitted spelling; the C++ cases also build a shape from that same spelling, so a
+// printer change that stays syntactically valid but loses the expression still fails.
 TEST_CASE(module_print_symbolic_shape_cpp)
 {
     migraphx::shape s{migraphx::shape::float_type,

@@ -193,14 +193,13 @@ def test_to_py_preserves_symbolic_expression():
     assert not s.symbolic()
     assert '"3*n + 1"' in code
 
-    # The generated code has to rebuild an equal program, expression included. sort() normalizes
-    # instruction order, which to_py only perturbs once a module has more than one parameter.
+    # The generated code has to rebuild an equal program, expression included; sort() normalizes
+    # instruction order.
     scope = {"migraphx": migraphx}
     exec(code, scope)
     assert scope["p"].sort() == p.sort()
 
-    # Program equality compares printed IR, which renders neither optimals nor symbolic strides,
-    # so the expression is only really pinned by comparing the shape itself.
+    # Printed IR leaves out a dimension's optimals, so compare the shape itself as well.
     assert scope["p"].get_parameter_shapes()["x"] == s
 
 

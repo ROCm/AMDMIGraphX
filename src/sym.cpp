@@ -1693,27 +1693,41 @@ std::unordered_set<expr> find_variables(const expr& e)
     return result;
 }
 
-std::map<std::string, variable_bounds> find_variable_bounds(const expr& e)
+// Accumulate one expression's variables without canonicalizing, so that merging several
+// expressions sorts each constraint set once rather than once per occurrence.
+static void collect_variable_bounds(const expr& e, std::map<std::string, variable_bounds>& result)
 {
     std::unordered_set<expr> visited;
-    std::map<std::string, variable_bounds> result;
     fix([&](auto self, const expr& x) {
         if(x.empty() or not visited.insert(x).second)
             return;
         if(const auto* v = std::get_if<variable_node>(&get_node(x)))
         {
-            // Two nodes sharing a name but not their metadata are distinct exprs, so merge them
-            // the same way combining them into one expression would.
             auto& bounds = result[v->name];
             bounds.constraints.insert(
                 bounds.constraints.end(), v->constraints.begin(), v->constraints.end());
-            normalize_constraints(bounds.constraints);
             bounds.optimals.insert(v->optimals.begin(), v->optimals.end());
             return;
         }
         for(const auto& c : x.children())
             self(c);
     })(e);
+}
+
+std::map<std::string, variable_bounds> find_variable_bounds(const expr& e)
+{
+    return find_variable_bounds(std::vector<expr>{e});
+}
+
+std::map<std::string, variable_bounds> find_variable_bounds(const std::vector<expr>& es)
+{
+    std::map<std::string, variable_bounds> result;
+    for(const auto& e : es)
+        collect_variable_bounds(e, result);
+    // Nodes sharing a name but not their metadata are distinct exprs, so merge them the same way
+    // combining them into one expression would.
+    for(auto& entry : result)
+        normalize_constraints(entry.second.constraints);
     return result;
 }
 

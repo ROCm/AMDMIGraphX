@@ -975,8 +975,7 @@ shape shape::make_symbolic_shape(
     if(strides.size() != dims.size())
         MIGRAPHX_THROW(
             "MAKE_SYMBOLIC_SHAPE: number of strides does not match number of dimensions");
-    // A stride is a product of the dimensions, so it resolves through the same table and ends up
-    // sharing their variables.
+    // Strides parse with the same bindings, so they share the dimensions' variables.
     std::vector<sym::expr> dyn_strides;
     std::transform(
         strides.begin(), strides.end(), std::back_inserter(dyn_strides), [&](const std::string& s) {
@@ -1017,18 +1016,17 @@ std::map<std::string, std::vector<shape::dynamic_dimension>> shape::symbol_table
     // A static or tuple shape names no symbols, and dyn_dims() would throw on one.
     if(not dynamic())
         return {};
-    std::map<std::string, sym::variable_bounds> variables;
-    auto collect = [&](const sym::expr& e) {
-        for(auto&& [name, bounds] : sym::find_variable_bounds(e))
-            variables.emplace(name, std::move(bounds));
-    };
+    // A name can appear in several dimensions or strides, so they are merged together rather
+    // than one expression at a time.
+    std::vector<sym::expr> exprs;
     for(const auto& d : dyn_dims())
     {
         if(d.is_symbolic())
-            collect(d.sym_expr);
+            exprs.push_back(d.sym_expr);
     }
-    for(const auto& e : dyn_strides())
-        collect(e);
+    const auto& strides = dyn_strides();
+    exprs.insert(exprs.end(), strides.begin(), strides.end());
+    auto variables = sym::find_variable_bounds(exprs);
     std::map<std::string, std::vector<dynamic_dimension>> result;
     std::transform(
         variables.begin(), variables.end(), std::inserter(result, result.end()), [](const auto& v) {

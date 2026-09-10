@@ -439,9 +439,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("dyn_dims", &migraphx::shape::dyn_dims)
         .def("dyn_strides",
              [](const migraphx::shape& s) { return to_expression_strings(s.dyn_strides()); })
-        // The bounds each symbol stands for, in the form the symbols argument takes, so a
-        // symbolic shape can be rebuilt from what Python can read of it. A symbol always maps
-        // to a list here, even where the constructor also accepts a bare dynamic_dimension.
         .def("symbol_table", &migraphx::shape::symbol_table)
         .def("sub_shapes", &migraphx::shape::sub_shapes)
         .def("packed", &migraphx::shape::packed)

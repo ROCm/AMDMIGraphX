@@ -1629,9 +1629,6 @@ static void print_make_op(std::ostream& os, const operation& op)
     os << ")";
 }
 
-// A double has to survive the round trip through the generated source, so it is printed with
-// enough digits to recover it exactly; the stream default would round to six significant digits,
-// which is also why the expression strings below do not come from sym::expr::to_string.
 // The bounds a symbol asserts, as the "min, max" arguments of a dynamic_dimension. The optimals
 // already ride on the first bound, which is where symbol_table put them.
 static std::vector<std::string>
@@ -1727,8 +1724,8 @@ static symbol_table symbols_for(const migraphx::sym::expr& e, const symbol_table
 }
 
 // A range-based dynamic dimension is printed from its bounds and optimals, a symbolic one from
-// its expression and the symbols that expression needs. This is the mixed-shape spelling;
-// make_symbolic_shape cannot express a range dimension, so those shapes go dimension by dimension.
+// its expression and the symbols that expression needs. make_symbolic_shape cannot express a
+// range dimension, so any shape holding one is spelled dimension by dimension instead.
 static std::string dyn_dims_string(const migraphx::shape& s, bool cpp)
 {
     auto table = s.symbol_table();
@@ -1746,7 +1743,7 @@ static std::string dyn_dims_string(const migraphx::shape& s, bool cpp)
             }
             auto symbols = symbols_for(d.sym_expr, table);
             // make_symbolic_dynamic_dimension binds one interval per symbol, so a variable
-            // asserting several has no spelling here. It cannot reach a mixed shape.
+            // asserting several has no spelling in a partly symbolic shape.
             if(std::any_of(symbols.begin(), symbols.end(), [](const auto& symbol) {
                    return symbol.second.size() > 1;
                }))
@@ -1893,7 +1890,7 @@ module::print_py(std::ostream& os,
                 print_py_op(os, ins->get_operator());
                 os << ", [" << join_strings(input_vars, ", ") << "]";
                 // The trailing shape is only a comment in the generated code, so it need not be
-                // constructible: print the readable form, not the json a symbolic shape would emit.
+                // constructible: print the readable form rather than the constructor spelling.
                 os << ") # " << ins->get_shape() << std::endl;
             }
         },

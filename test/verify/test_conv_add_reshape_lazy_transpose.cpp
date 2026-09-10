@@ -27,8 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// This covers split-k perfConfigs that reject conv+pointwise+layout fusion. The add is still
-// absorbed into the MLIR kernel, leaving a conv+add kernel and a layout-copy kernel.
+// This covers split-k perfConfigs that reject conv+pointwise+layout fusion. The add ends the
+// pointwise kernel, so this compiles as convolution, pointwise, and layout-copy kernels.
 struct test_conv_add_reshape_lazy_transpose
     : verify_program<test_conv_add_reshape_lazy_transpose>
 {

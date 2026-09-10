@@ -371,8 +371,8 @@ time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::functi
 {
     if(bundle <= 0 or nruns <= 0)
         MIGRAPHX_THROW("Timing bundle and runs must be greater than zero");
-    auto repeats = static_cast<std::size_t>(bundle);
-    auto samples = static_cast<std::size_t>(nruns);
+    std::size_t repeats = bundle;
+    std::size_t samples = nruns;
     if(const auto env_bundle = benchmarking_override(MIGRAPHX_BENCHMARKING_BUNDLE{}))
         repeats = *env_bundle;
     if(const auto env_samples = benchmarking_override(MIGRAPHX_BENCHMARKING_NRUNS{}))

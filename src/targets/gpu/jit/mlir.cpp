@@ -288,11 +288,19 @@ struct mlir_compiler : compiler<mlir_compiler>
             input_args.pop_back();
             auto tail_split = find_layout_tail_split(pointwise_ins);
             auto split_ins  = find_final_split(gemm_like_ins);
-            if(tail_split.has_value())
+            // The tail split ends the pointwise kernel, so the mlir kernel must stop before it.
+            // Otherwise the layout tail would be pulled back into the mlir module or the pointwise
+            // kernel would be left with nothing to compute.
+            if(tail_split.has_value() and contains(get_output_path(tail_split.value()), split_ins))
             {
-                auto tail_path = get_output_path(tail_split.value());
-                if(std::find(tail_path.begin(), tail_path.end(), split_ins) != tail_path.end())
-                    split_ins = tail_split.value();
+                auto gemm_path = get_output_path(gemm_like_ins);
+                auto it        = std::adjacent_find(
+                    gemm_path.begin(), gemm_path.end(), [&](instruction_ref, instruction_ref out) {
+                        return out == tail_split.value();
+                    });
+                if(it == gemm_path.end())
+                    MIGRAPHX_THROW("mlir_compiler: tail split is not on the gemm output path");
+                split_ins = *it;
             }
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
             if(not is_module_fusible(mod_splits[0].mod, ctx, solution))
@@ -310,16 +318,6 @@ struct mlir_compiler : compiler<mlir_compiler>
                                         {{"lambda", "[](auto x) { return make_tuple(x); }"},
                                          {"kernel", "hip_copy_kernel"}}));
                 };
-                // The epilogue was absorbed into the mlir kernel, so only the tail is left over
-                // and there is no pointwise kernel between it and the copy.
-                if(split_ins == tail_split.value())
-                {
-                    std::vector<mlir_code_object> cops = {
-                        compile_mlir_part(ctx, mod_splits[0], solution),
-                        mlir_code_object{
-                            compile_copy(mod_splits[1].mod.get_output_shapes().front())}};
-                    return insert(cops, mod_splits, ins, split_ins, true);
-                }
                 auto mod_splits3 = smod->split(input_args, {split_ins}, {tail_split.value()});
                 std::vector<mlir_code_object> cops = {
                     compile_mlir_part(ctx, mod_splits3[0], solution),
@@ -450,19 +448,6 @@ struct mlir_compiler : compiler<mlir_compiler>
                                });
                 auto mlir_ins =
                     insert_mlir(m, ins, any_cast<code_object_op>(ops[0]), dot_inputs_updated);
-                if(has_copy_tail and ops.size() == 2)
-                {
-                    auto copy_op          = any_cast<code_object_op>(ops.back());
-                    auto copy_input_shape = copy_op.expected_inputs.front();
-                    auto copy_input       = m.insert_instruction(
-                        ins,
-                        migraphx::make_op("as_shape", {{"shape", to_value(copy_input_shape)}}),
-                        mlir_ins);
-                    auto copy_ins =
-                        m.insert_instruction(ins, copy_op, copy_input, ins->inputs().back());
-                    return m.replace_instruction(ins, copy_ins);
-                }
-
                 auto pwm = mods[1];
                 pwm.replace(split_ins, mlir_ins);
                 auto pw_inputs = pwm.inputs;

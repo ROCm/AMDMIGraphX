@@ -197,13 +197,21 @@ struct pipeline_factory
         };
     }
 
+    // propagate_constant folds compile-time constants to literals; balanced_lite skips it in the
+    // frontend optimize_modules (the expensive weight-layout materialization) while keeping the
+    // per-kernel folds in compile_gen. Every other mode folds.
+    bool fold_frontend_constants() const
+    {
+        return options.compile_mode != compile_modes::balanced_lite;
+    }
+
     std::vector<pass> optimize_rewrite_pipeline() const
     {
         return {
             rewrite_convolution{},
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
-            optimize_module{},
+            optimize_module{.run_propagate_constant = fold_frontend_constants()},
             layout_convolution{.order = backend_opts.convolution_layout},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
@@ -230,9 +238,9 @@ struct pipeline_factory
                         fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
-            optimize_module{},
+            optimize_module{.run_propagate_constant = fold_frontend_constants()},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
-            fuse_pointwise_reduce{},
+            fuse_pointwise_reduce{.run_propagate_constant = fold_frontend_constants()},
             dead_code_elimination{},
 #ifndef _WIN32
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),

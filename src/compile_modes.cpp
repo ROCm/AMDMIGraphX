@@ -40,8 +40,10 @@ compile_modes convert_to_compile_mode(uint8_t mode)
         log::warn() << "Compile mode value " << mode << " out of range [0, 100], clamping to "
                     << clamped;
 
-    static const std::array<compile_modes, 3> modes = {
-        compile_modes::eager, compile_modes::balanced, compile_modes::max};
+    static const std::array<compile_modes, 4> modes = {compile_modes::eager,
+                                                       compile_modes::balanced_lite,
+                                                       compile_modes::balanced,
+                                                       compile_modes::max};
 
     // NOLINTNEXTLINE(readability-qualified-auto)
     auto it = std::find_if(modes.begin(), modes.end(), [&](compile_modes m) {
@@ -62,6 +64,8 @@ compile_modes convert_to_compile_mode(const std::string& mode)
     auto lower = to_lower(mode);
     if(lower == "eager")
         return compile_modes::eager;
+    if(lower == "balanced_lite" or lower == "graph_only")
+        return compile_modes::balanced_lite;
     if(lower == "balanced")
         return compile_modes::balanced;
     if(lower == "max")

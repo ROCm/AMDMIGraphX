@@ -270,6 +270,11 @@ void run_verify::run(int argc, const char* argv[]) const
         const std::string eager_name = p.name + "_eager";
         labels[p.section].push_back(eager_name);
         test::add_test_case(eager_name, [=] { verify(p, migraphx::compile_modes::eager); });
+
+        const std::string balanced_lite_name = p.name + "_balanced_lite";
+        labels[p.section].push_back(balanced_lite_name);
+        test::add_test_case(balanced_lite_name,
+                            [=] { verify(p, migraphx::compile_modes::balanced_lite); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {

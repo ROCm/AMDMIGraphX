@@ -40,6 +40,7 @@ struct module_pass_manager;
 struct MIGRAPHX_EXPORT optimize_module
 {
     std::unordered_set<std::string> propagate_constant_skip_ops = {};
+    bool run_propagate_constant                                 = true;
     std::string name() const { return "optimize_module"; }
     void apply(module_pass_manager& mpm) const;
 };

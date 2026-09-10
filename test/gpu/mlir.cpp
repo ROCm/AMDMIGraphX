@@ -896,4 +896,60 @@ module {
     CHECK(encode(s) == encode(mlir_output_with_attrs));
 }
 
+// rocMLIR accumulates a reduction into its output buffer, so it asks for that buffer to be
+// zero-initialized through a rock.prefill attribute typed after the buffer's element type.
+// hip::fill only takes an integer value, so compile_mlir has to convert both the float
+// attribute a float reduction produces and the integer one an i32 reduction produces.
+TEST_CASE(prefill_float_reduce)
+{
+    migraphx::module m;
+    auto a      = m.add_parameter("a", {migraphx::shape::float_type, {1, 5, 4}});
+    auto b      = m.add_parameter("b", {migraphx::shape::float_type, {1, 4, 3}});
+    auto dot    = m.add_instruction(migraphx::make_op("dot"), a, b);
+    auto reduce = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), dot);
+    m.add_return({reduce});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    // compile_mlir takes the parameter shapes in sorted-name order with the output shape last.
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), reduce->get_shape()};
+    migraphx::gpu::context ctx;
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    auto mco = compile_mlir(ctx, create_mlir_submodule(m), shapes, tc.solutions.front());
+
+    EXPECT(not mco.prefill_values.empty());
+    EXPECT(mco.prefill_indices.size() == mco.prefill_values.size());
+    EXPECT(migraphx::all_of(mco.prefill_values, [](const migraphx::value& v) {
+        return v.is_int64() and v.to<int>() == 0;
+    }));
+}
+
+TEST_CASE(prefill_integer_reduce)
+{
+    migraphx::module m;
+    auto a      = m.add_parameter("a", {migraphx::shape::int8_type, {1, 5, 4}});
+    auto b      = m.add_parameter("b", {migraphx::shape::int8_type, {1, 4, 3}});
+    auto dot    = m.add_instruction(migraphx::make_op("quant_dot"), a, b);
+    auto reduce = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), dot);
+    m.add_return({reduce});
+    EXPECT(reduce->get_shape().type() == migraphx::shape::int32_type);
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), reduce->get_shape()};
+    migraphx::gpu::context ctx;
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    auto mco = compile_mlir(ctx, create_mlir_submodule(m), shapes, tc.solutions.front());
+
+    EXPECT(not mco.prefill_values.empty());
+    EXPECT(mco.prefill_indices.size() == mco.prefill_values.size());
+    EXPECT(migraphx::all_of(mco.prefill_values, [](const migraphx::value& v) {
+        return v.is_int64() and v.to<int>() == 0;
+    }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -327,7 +327,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                         compile_copy(mod_splits[2].mod.get_output_shapes().front())}};
                 std::array<module_with_inputs, 2> mods = {std::move(mod_splits[0]),
                                                           std::move(mod_splits[1])};
-                return insert(cops, mods, ins, split_ins, true);
+                return insert(cops, mods, ins, split_ins, std::move(mod_splits[2]));
             }
 
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
@@ -412,7 +412,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                             const std::array<module_with_inputs, 2>& mods,
                             instruction_ref precompile_ins,
                             instruction_ref split_ins,
-                            bool has_copy_tail = false) const
+                            optional<module_with_inputs> layout_tail = nullopt) const
     {
         std::vector<operation> cobjs(mcos.size());
         std::transform(
@@ -458,7 +458,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                 auto pwm = mods[1];
                 pwm.replace(split_ins, mlir_ins);
                 auto pw_inputs = pwm.inputs;
-                if(has_copy_tail)
+                if(layout_tail.has_value())
                 {
                     auto pw_alloc = m.insert_instruction(
                         ins,
@@ -485,16 +485,16 @@ struct mlir_compiler : compiler<mlir_compiler>
                                });
                 auto pw_ins =
                     insert_mlir(m, ins, any_cast<code_object_op>(ops[1]), pw_inputs_updated);
-                if(not has_copy_tail)
+                if(not layout_tail.has_value())
                     return m.replace_instruction(ins, pw_ins);
 
-                auto copy_input_shape = any_cast<code_object_op>(ops[2]).expected_inputs.front();
-                auto copy_input       = m.insert_instruction(
-                    ins,
-                    migraphx::make_op("as_shape", {{"shape", to_value(copy_input_shape)}}),
-                    pw_ins);
-                auto copy_ins = m.insert_instruction(
-                    ins, any_cast<code_object_op>(ops[2]), copy_input, ins->inputs().back());
+                assert(layout_tail->inputs.size() == 1);
+                auto tail_outputs = m.insert_inline(ins, layout_tail->mod, {pw_ins});
+                assert(tail_outputs.size() == 1);
+                auto copy_ins = m.insert_instruction(ins,
+                                                     any_cast<code_object_op>(ops[2]),
+                                                     tail_outputs.front(),
+                                                     ins->inputs().back());
                 return m.replace_instruction(ins, copy_ins);
             }};
     }

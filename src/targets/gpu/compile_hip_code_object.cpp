@@ -230,7 +230,10 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");
-    auto cos = compile_hip_src(srcs, options.params, ctx.get_current_device().get_device_name());
+    auto cos = compile_hip_src(srcs,
+                               options.params,
+                               ctx.get_current_device().get_device_name(),
+                               ctx.get_disable_processes());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
     return cos.front();

@@ -1198,6 +1198,45 @@ TEST_CASE(dot_horiz_fusion_basic)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Two dependent groups of parallel dots must remain topologically ordered after fusion.
+TEST_CASE(dot_horiz_fusion_chained_groups)
+{
+    migraphx::module m;
+    {
+        auto x0 = m.add_parameter("x0", {migraphx::shape::float_type, {2, 4}});
+        auto x1 = m.add_parameter("x1", {migraphx::shape::float_type, {2, 4}});
+        auto x2 = m.add_parameter("x2", {migraphx::shape::float_type, {2, 4}});
+        auto b0 = m.add_parameter("b0", {migraphx::shape::float_type, {2, 4}});
+        auto b1 = m.add_parameter("b1", {migraphx::shape::float_type, {2, 4}});
+        auto b2 = m.add_parameter("b2", {migraphx::shape::float_type, {2, 4}});
+        auto w00 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 0));
+        auto w01 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 1));
+        auto w02 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 2));
+        auto w10 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 3));
+        auto w11 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 4));
+        auto w12 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 5));
+        auto d00 = m.add_instruction(migraphx::make_op("dot"), x0, w00);
+        auto a0  = m.add_instruction(migraphx::make_op("add"), d00, b0);
+        auto d10 = m.add_instruction(migraphx::make_op("dot"), a0, w10);
+        auto d01 = m.add_instruction(migraphx::make_op("dot"), x1, w01);
+        auto a1  = m.add_instruction(migraphx::make_op("add"), d01, b1);
+        auto d11 = m.add_instruction(migraphx::make_op("dot"), a1, w11);
+        auto d02 = m.add_instruction(migraphx::make_op("dot"), x2, w02);
+        auto a2  = m.add_instruction(migraphx::make_op("add"), d02, b2);
+        auto d12 = m.add_instruction(migraphx::make_op("dot"), a2, w12);
+        m.add_return({d10, d11, d12});
+    }
+    run_pass(m);
+
+    EXPECT(m.validate() == m.end());
+}
+
 // Dots whose weights are not compile-time constants are not candidates.
 TEST_CASE(dot_horiz_fusion_non_constant_weight_unchanged)
 {

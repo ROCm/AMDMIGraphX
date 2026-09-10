@@ -68,6 +68,32 @@ TEST_CASE(nonzero_num_nonzero)
     EXPECT(result_vector == std::vector<int64_t>{8});
 }
 
+TEST_CASE(nonzero_all_zeros)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data(s.elements(), 0.0f);
+    auto input       = mm->add_literal(migraphx::literal(s, data));
+    auto nz          = mm->add_instruction(migraphx::make_op("nonzero"), input);
+    auto indices     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
+    auto num_nonzero = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
+    mm->add_return({indices, num_nonzero});
+    p.compile(migraphx::make_target("ref"));
+
+    auto results = p.eval({});
+
+    // Nothing is nonzero, so every column of the 2x6 padded buffer stays zero.
+    std::vector<int64_t> indices_vector;
+    results.at(0).visit([&](auto output) { indices_vector.assign(output.begin(), output.end()); });
+    EXPECT(indices_vector == std::vector<int64_t>(12, 0));
+
+    std::vector<int64_t> num_nonzero_vector;
+    results.at(1).visit(
+        [&](auto output) { num_nonzero_vector.assign(output.begin(), output.end()); });
+    EXPECT(num_nonzero_vector == std::vector<int64_t>{0});
+}
+
 TEST_CASE(nonzero_dyn_input)
 {
     migraphx::program p;

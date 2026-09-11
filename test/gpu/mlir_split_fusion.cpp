@@ -63,6 +63,21 @@ TEST_CASE(find_final_split_with_multiple_outputs)
     EXPECT(migraphx::gpu::find_final_split(graph.dot) == graph.dot);
 }
 
+TEST_CASE(find_final_split_with_shared_broadcast)
+{
+    migraphx::module m;
+    auto graph     = make_dot_graph(m);
+    auto scale     = m.add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto broadcast = m.add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {1, 5, 3}}}), scale);
+    auto add  = m.add_instruction(migraphx::make_op("add"), graph.dot, broadcast);
+    auto tanh = m.add_instruction(migraphx::make_op("tanh"), add);
+    auto mul  = m.add_instruction(migraphx::make_op("mul"), broadcast, graph.bias);
+    m.add_return({tanh, mul});
+
+    EXPECT(migraphx::gpu::find_final_split(graph.dot) == graph.dot);
+}
+
 TEST_CASE(find_final_split_without_boundary)
 {
     migraphx::module m;

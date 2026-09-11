@@ -24,9 +24,11 @@
 
 #include <algorithm>
 #include <iterator>
+#include <unordered_set>
 #include <vector>
 #include <migraphx/builtin.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -141,6 +143,19 @@ instruction_ref find_final_split(instruction_ref split_ins)
         return result;
     auto it = std::adjacent_find(
         output_path.begin(), output_path.end(), [&](instruction_ref input, instruction_ref output) {
+            std::unordered_set<instruction_ref> visited;
+            const bool has_closed_inputs = fix<bool>([&](auto self, instruction_ref ins) -> bool {
+                if(not visited.insert(ins).second)
+                    return true;
+                if(ins != output and ins->name() != "@param" and
+                   std::any_of(ins->outputs().begin(),
+                               ins->outputs().end(),
+                               [&](instruction_ref out) { return not reaches(out, output); }))
+                    return false;
+                return std::all_of(ins->inputs().begin(), ins->inputs().end(), self);
+            })(output);
+            if(not has_closed_inputs)
+                return true;
             if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
                 return false;
             if(contains({"add", "mul"}, output->name()))
@@ -245,7 +260,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             input_args.pop_back();
             auto split_ins                               = find_final_split(gemm_like_ins);
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
-            auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
+            auto dot_mlir_inputs                         = to_shapes(mod_splits[0].inputs);
             // add alloc for the gemm output
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);

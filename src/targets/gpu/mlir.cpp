@@ -23,9 +23,11 @@
  */
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -1326,7 +1328,13 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                            if(mlirAttributeIsAInteger(v))
                                return static_cast<int>(mlirIntegerAttrGetValueInt(v));
                            if(mlirAttributeIsAFloat(v))
-                               return static_cast<int>(mlirFloatAttrGetValueDouble(v));
+                           {
+                               auto d = mlirFloatAttrGetValueDouble(v);
+                               if(not float_equal(std::trunc(d), d))
+                                   MIGRAPHX_THROW("rock.prefill value " + std::to_string(d) +
+                                                  " is not representable as an integer");
+                               return static_cast<int>(d);
+                           }
                            MIGRAPHX_THROW("Unsupported rock.prefill attribute type");
                        });
         mco.prefill_indices = prefill_indices;

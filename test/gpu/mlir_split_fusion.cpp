@@ -78,6 +78,21 @@ TEST_CASE(find_final_split_with_shared_broadcast)
     EXPECT(migraphx::gpu::find_final_split(graph.dot) == graph.dot);
 }
 
+TEST_CASE(find_final_split_with_shared_gemm_input)
+{
+    migraphx::module m;
+    auto a      = m.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {5, 3}});
+    auto b      = m.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 3, 3}});
+    auto bias   = m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {1, 5, 3}});
+    auto shared = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 5, 3}}}), a);
+    auto dot    = m.add_instruction(migraphx::make_op("dot"), shared, b);
+    auto add    = m.add_instruction(migraphx::make_op("add"), dot, bias);
+    auto mul    = m.add_instruction(migraphx::make_op("mul"), shared, bias);
+    m.add_return({add, mul});
+
+    EXPECT(test::throws([&] { migraphx::gpu::find_final_split(dot); }));
+}
+
 TEST_CASE(find_final_split_without_boundary)
 {
     migraphx::module m;

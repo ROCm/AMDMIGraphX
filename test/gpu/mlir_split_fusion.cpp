@@ -27,55 +27,50 @@
 #include <migraphx/module.hpp>
 #include <test.hpp>
 
-struct dot_graph
-{
-    migraphx::instruction_ref dot;
-    migraphx::instruction_ref bias;
-};
-
-static dot_graph make_dot_graph(migraphx::module& m)
-{
-    auto a    = m.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 5, 4}});
-    auto b    = m.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 4, 3}});
-    auto bias = m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {1, 5, 3}});
-    return {m.add_instruction(migraphx::make_op("dot"), a, b), bias};
-}
-
 TEST_CASE(find_final_split_before_pointwise)
 {
     migraphx::module m;
-    auto graph = make_dot_graph(m);
-    auto add   = m.add_instruction(migraphx::make_op("add"), graph.dot, graph.bias);
-    auto tanh  = m.add_instruction(migraphx::make_op("tanh"), add);
+    auto a    = m.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 5, 4}});
+    auto b    = m.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 4, 3}});
+    auto bias = m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {1, 5, 3}});
+    auto dot  = m.add_instruction(migraphx::make_op("dot"), a, b);
+    auto add  = m.add_instruction(migraphx::make_op("add"), dot, bias);
+    auto tanh = m.add_instruction(migraphx::make_op("tanh"), add);
     m.add_return({tanh});
 
-    EXPECT(migraphx::gpu::find_final_split(graph.dot) == add);
+    EXPECT(migraphx::gpu::find_final_split(dot) == add);
 }
 
 TEST_CASE(find_final_split_with_multiple_outputs)
 {
     migraphx::module m;
-    auto graph = make_dot_graph(m);
-    auto add   = m.add_instruction(migraphx::make_op("add"), graph.dot, graph.bias);
-    auto mul   = m.add_instruction(migraphx::make_op("mul"), graph.dot, graph.bias);
+    auto a    = m.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 5, 4}});
+    auto b    = m.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 4, 3}});
+    auto bias = m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {1, 5, 3}});
+    auto dot  = m.add_instruction(migraphx::make_op("dot"), a, b);
+    auto add  = m.add_instruction(migraphx::make_op("add"), dot, bias);
+    auto mul  = m.add_instruction(migraphx::make_op("mul"), dot, bias);
     m.add_return({add, mul});
 
-    EXPECT(migraphx::gpu::find_final_split(graph.dot) == graph.dot);
+    EXPECT(migraphx::gpu::find_final_split(dot) == dot);
 }
 
 TEST_CASE(find_final_split_with_shared_broadcast)
 {
     migraphx::module m;
-    auto graph     = make_dot_graph(m);
-    auto scale     = m.add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto a     = m.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 5, 4}});
+    auto b     = m.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 4, 3}});
+    auto bias  = m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {1, 5, 3}});
+    auto dot   = m.add_instruction(migraphx::make_op("dot"), a, b);
+    auto scale = m.add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {3}});
     auto broadcast = m.add_instruction(
         migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {1, 5, 3}}}), scale);
-    auto add  = m.add_instruction(migraphx::make_op("add"), graph.dot, broadcast);
+    auto add  = m.add_instruction(migraphx::make_op("add"), dot, broadcast);
     auto tanh = m.add_instruction(migraphx::make_op("tanh"), add);
-    auto mul  = m.add_instruction(migraphx::make_op("mul"), broadcast, graph.bias);
+    auto mul  = m.add_instruction(migraphx::make_op("mul"), broadcast, bias);
     m.add_return({tanh, mul});
 
-    EXPECT(migraphx::gpu::find_final_split(graph.dot) == graph.dot);
+    EXPECT(migraphx::gpu::find_final_split(dot) == dot);
 }
 
 TEST_CASE(find_final_split_with_shared_gemm_input)
@@ -96,10 +91,12 @@ TEST_CASE(find_final_split_with_shared_gemm_input)
 TEST_CASE(find_final_split_without_boundary)
 {
     migraphx::module m;
-    auto graph   = make_dot_graph(m);
-    auto reshape = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 15}}}), graph.dot);
+    auto a       = m.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 5, 4}});
+    auto b       = m.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 4, 3}});
+    auto dot     = m.add_instruction(migraphx::make_op("dot"), a, b);
+    auto reshape = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 15}}}), dot);
 
-    EXPECT(migraphx::gpu::find_final_split(graph.dot) == reshape);
+    EXPECT(migraphx::gpu::find_final_split(dot) == reshape);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

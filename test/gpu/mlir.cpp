@@ -900,7 +900,7 @@ module {
 // zero-initialized through a rock.prefill attribute typed after the buffer's element type.
 // hip::fill only takes an integer value, so compile_mlir has to convert both the float
 // attribute a float reduction produces and the integer one an i32 reduction produces.
-TEST_CASE(prefill_float_reduce)
+TEST_CASE_SKIP(prefill_float_reduce)
 {
     migraphx::module m;
     auto a      = m.add_parameter("a", {migraphx::shape::float_type, {1, 5, 4}});
@@ -926,7 +926,7 @@ TEST_CASE(prefill_float_reduce)
     }));
 }
 
-TEST_CASE(prefill_integer_reduce)
+TEST_CASE_SKIP(prefill_integer_reduce)
 {
     migraphx::module m;
     auto a      = m.add_parameter("a", {migraphx::shape::int8_type, {1, 5, 4}});

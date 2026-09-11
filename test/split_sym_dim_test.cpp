@@ -819,6 +819,41 @@ TEST_CASE(split_sym_dim_coalesces_across_absorbable_symbolic_reshape)
     EXPECT(static_relus == 6);
 }
 
+TEST_CASE(split_sym_dim_retries_affected_connected_edge)
+{
+    auto n = var("n", {1, 2}, {1, 2});
+    auto m = var("m", {1, 2}, {1, 2});
+    auto q = var("q", {1, 2}, {1, 2});
+    migraphx::program p;
+    auto& main    = *p.get_main_module();
+    auto input    = main.add_parameter("input", symbolic_shape({n, lit(4)}));
+    auto other    = main.add_parameter("other", symbolic_shape({m, lit(4)}));
+    auto q_source = main.add_parameter("q_source", symbolic_shape({lit(4), q}));
+    auto before   = main.add_instruction(migraphx::make_op("relu"), input);
+    other         = main.add_instruction(migraphx::make_op("relu"), other);
+    auto reduced  = main.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), before);
+    auto expanded =
+        main.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reduced);
+    expanded    = main.add_instruction(symbolic_multibroadcast({lit(4), q}), expanded, q_source);
+    auto packed = main.add_instruction(migraphx::make_op("contiguous"), expanded);
+    auto output = main.add_instruction(migraphx::make_op("dot"), before, packed);
+    main.add_return({output, other});
+
+    run_pass(p, 4);
+
+    std::size_t selects      = 0;
+    std::size_t static_relus = 0;
+    for(auto&& ins : *p.get_main_module())
+        if(ins.name() == "select_module")
+            ++selects;
+    for_each_clone_instruction(p, [&](auto& ins) {
+        if(ins.name() == "relu")
+            ++static_relus;
+    });
+    EXPECT(selects == 2);
+    EXPECT(static_relus == 6);
+}
+
 TEST_CASE(split_sym_dim_preserves_two_input_reshape_target_layout)
 {
     auto n = var("n", {1, 4}, {2});

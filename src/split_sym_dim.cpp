@@ -25,6 +25,7 @@
 #include <migraphx/split_sym_dim.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/dim_like.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/literal.hpp>
@@ -1350,7 +1351,7 @@ bool roots_fit_clone_limit(const std::vector<const root_spec*>& roots, std::size
     return true;
 }
 
-std::optional<std::vector<const root_spec*>> select_instruction_roots(
+std::optional<std::vector<const root_spec*>> find_instruction_roots(
     const symbolic_op_info& info, const std::vector<root_spec>& roots, std::size_t max_clones)
 {
     std::unordered_set<sym::expr> required;
@@ -1407,9 +1408,27 @@ bool block_is_closed(const block_plan& block)
     for(const auto* op : block.ops)
         included.insert(op->ins);
 
-    // Both traversals depend only on the instruction and `included`, so memos are block-wide.
     std::unordered_set<instruction_ref> visited;
     std::unordered_set<instruction_ref> boundary_visited;
+
+    auto boundary_reaches_block = fix<bool>([&](auto self, auto dependency) -> bool {
+        if(not boundary_visited.insert(dependency).second)
+            return false;
+        if(contains(included, dependency))
+            return true;
+        return any_of(dependency->inputs(), self);
+    });
+
+    auto dependencies_are_closed = fix<bool>([&](auto self, auto current) -> bool {
+        if(not visited.insert(current).second)
+            return true;
+        if(contains(included, current))
+            return true;
+        if(absorbable_dependency(current, included))
+            return all_of(current->inputs(), self);
+        return not boundary_reaches_block(current);
+    });
+
     for(const auto* op : block.ops)
     {
         const auto& info = *op;
@@ -1427,35 +1446,8 @@ bool block_is_closed(const block_plan& block)
                     return false;
                 continue;
             }
-
-            std::vector<instruction_ref> stack = {source};
-            while(not stack.empty())
-            {
-                auto current = stack.back();
-                stack.pop_back();
-                if(not visited.insert(current).second)
-                    continue;
-                if(contains(included, current))
-                    continue;
-                if(absorbable_dependency(current, included))
-                {
-                    stack.insert(stack.end(), current->inputs().begin(), current->inputs().end());
-                    continue;
-                }
-
-                std::vector<instruction_ref> boundary = {current};
-                while(not boundary.empty())
-                {
-                    auto dependency = boundary.back();
-                    boundary.pop_back();
-                    if(not boundary_visited.insert(dependency).second)
-                        continue;
-                    if(contains(included, dependency))
-                        return false;
-                    boundary.insert(
-                        boundary.end(), dependency->inputs().begin(), dependency->inputs().end());
-                }
-            }
+            if(not dependencies_are_closed(source))
+                return false;
         }
     }
     return true;
@@ -1492,88 +1484,142 @@ bool merge_block_into(block_plan& target, const block_plan& source, std::size_t 
     return true;
 }
 
-struct block_candidate
-{
-    block_plan plan;
-    std::set<block_candidate*> neighbors;
-    bool active = true;
-};
-
-void connect_blocks(block_candidate* x, block_candidate* y)
-{
-    if(x == y)
-        return;
-    x->neighbors.insert(y);
-    y->neighbors.insert(x);
-}
-
-block_candidate* merge_blocks(block_candidate* x, block_candidate* y, std::size_t max_clones)
+// Block index is topological rank, and an emptied operation list marks a block merged away.
+std::optional<std::size_t>
+merge_blocks(std::vector<block_plan>& blocks,
+             std::unordered_map<instruction_ref, std::size_t>& block_for_instruction,
+             std::size_t x,
+             std::size_t y,
+             std::size_t max_clones)
 {
     const auto target = std::min(x, y);
     const auto source = std::max(x, y);
-    if(not target->active or not source->active)
-        return nullptr;
-    if(not merge_block_into(target->plan, source->plan, max_clones))
-        return nullptr;
-
-    for(auto* neighbor : source->neighbors)
-    {
-        neighbor->neighbors.erase(source);
-        connect_blocks(target, neighbor);
-    }
-    source->neighbors.clear();
-    source->active = false;
+    if(target == source or blocks.at(source).ops.empty())
+        return std::nullopt;
+    if(not merge_block_into(blocks.at(target), blocks.at(source), max_clones))
+        return std::nullopt;
+    for(const auto* op : blocks.at(source).ops)
+        block_for_instruction.at(op->ins) = target;
+    blocks.at(source).ops.clear();
     return target;
 }
 
-block_candidate* grow_connected_block(block_candidate* candidate, std::size_t max_clones)
+void insert_block_connection(
+    std::set<std::pair<std::size_t, std::size_t>>& connections,
+    instruction_ref consumer,
+    std::size_t input,
+    const std::unordered_map<instruction_ref, std::size_t>& block_for_instruction,
+    const std::unordered_map<instruction_ref, std::size_t>& instruction_rank)
 {
-    while(true)
+    auto consumer_block = block_for_instruction.find(consumer);
+    if(consumer_block == block_for_instruction.end())
+        return;
+    auto producer_block = block_for_instruction.find(consumer->inputs().at(input));
+    if(producer_block == block_for_instruction.end() or
+       producer_block->second == consumer_block->second)
+        return;
+    connections.insert({instruction_rank.at(consumer), input});
+}
+
+std::set<std::pair<std::size_t, std::size_t>> find_all_block_connections(
+    const std::vector<symbolic_op_info>& infos,
+    const std::unordered_map<instruction_ref, std::size_t>& block_for_instruction,
+    const std::unordered_map<instruction_ref, std::size_t>& instruction_rank)
+{
+    std::set<std::pair<std::size_t, std::size_t>> result;
+    for(const auto& info : infos)
     {
-        auto neighbors            = candidate->neighbors;
-        block_candidate* survivor = nullptr;
-        for(auto* neighbor : neighbors)
+        for(auto input : range(info.ins->inputs().size()))
+            insert_block_connection(
+                result, info.ins, input, block_for_instruction, instruction_rank);
+    }
+    return result;
+}
+
+std::set<std::pair<std::size_t, std::size_t>> find_block_connections(
+    const block_plan& block,
+    const std::unordered_map<instruction_ref, std::size_t>& block_for_instruction,
+    const std::unordered_map<instruction_ref, std::size_t>& instruction_rank)
+{
+    std::set<std::pair<std::size_t, std::size_t>> result;
+    for(const auto* info : block.ops)
+    {
+        for(auto input : range(info->ins->inputs().size()))
+            insert_block_connection(
+                result, info->ins, input, block_for_instruction, instruction_rank);
+        for(auto output : info->ins->outputs())
         {
-            survivor = merge_blocks(candidate, neighbor, max_clones);
-            if(survivor != nullptr)
-                break;
+            const auto& inputs = output->inputs();
+            for(auto input : range(inputs.size()))
+                if(inputs.at(input) == info->ins)
+                    insert_block_connection(
+                        result, output, input, block_for_instruction, instruction_rank);
         }
-        if(survivor == nullptr)
-            return candidate;
-        candidate = survivor;
+    }
+    return result;
+}
+
+void coalesce_connected_blocks(
+    const std::vector<symbolic_op_info>& infos,
+    std::vector<block_plan>& blocks,
+    std::unordered_map<instruction_ref, std::size_t>& block_for_instruction,
+    const std::unordered_map<instruction_ref, std::size_t>& instruction_rank,
+    std::set<std::pair<std::size_t, std::size_t>>& connections,
+    std::size_t max_clones)
+{
+    std::set<std::pair<std::size_t, std::size_t>> retries;
+    while(not connections.empty())
+    {
+        auto connection = *connections.begin();
+        connections.erase(connections.begin());
+        auto [consumer_rank, input] = connection;
+        const auto& consumer        = infos.at(consumer_rank).ins;
+        const auto& producer        = consumer->inputs().at(input);
+        auto merged                 = merge_blocks(blocks,
+                                   block_for_instruction,
+                                   block_for_instruction.at(consumer),
+                                   block_for_instruction.at(producer),
+                                   max_clones);
+        if(merged.has_value())
+        {
+            auto affected =
+                find_block_connections(blocks.at(*merged), block_for_instruction, instruction_rank);
+            auto next = affected.upper_bound(connection);
+            retries.insert(affected.begin(), next);
+            connections.insert(next, affected.end());
+        }
+        if(connections.empty())
+            connections.swap(retries);
     }
 }
 
-void coalesce_connected_blocks(std::vector<block_candidate>& candidates, std::size_t max_clones)
+void coalesce_independent_blocks(
+    const std::vector<symbolic_op_info>& infos,
+    std::vector<block_plan>& blocks,
+    std::unordered_map<instruction_ref, std::size_t>& block_for_instruction,
+    const std::unordered_map<instruction_ref, std::size_t>& instruction_rank,
+    std::size_t max_clones)
 {
-    for(auto& candidate : candidates)
-        if(candidate.active)
-            grow_connected_block(&candidate, max_clones);
-}
-
-void coalesce_independent_blocks(std::vector<block_candidate>& candidates, std::size_t max_clones)
-{
-    std::set<block_candidate*> pending;
-    for(auto& candidate : candidates)
-        if(candidate.active)
-            pending.insert(&candidate);
-
-    while(not pending.empty())
+    for(auto target : range(blocks.size()))
     {
-        auto* candidate = *pending.begin();
-        pending.erase(pending.begin());
-        if(not candidate->active)
+        if(blocks.at(target).ops.empty())
             continue;
-
-        for(auto& other : candidates)
+        for(auto source : range(target + 1, blocks.size()))
         {
-            if(&other == candidate or not other.active or contains(candidate->neighbors, &other))
-                continue;
-            auto* survivor = merge_blocks(candidate, &other, max_clones);
-            if(survivor == nullptr)
-                continue;
-            pending.insert(grow_connected_block(survivor, max_clones));
-            break;
+            auto merged = merge_blocks(blocks, block_for_instruction, target, source, max_clones);
+            if(merged.has_value())
+            {
+                auto connections = find_block_connections(
+                    blocks.at(*merged), block_for_instruction, instruction_rank);
+                coalesce_connected_blocks(infos,
+                                          blocks,
+                                          block_for_instruction,
+                                          instruction_rank,
+                                          connections,
+                                          max_clones);
+                if(blocks.at(target).ops.empty())
+                    break;
+            }
         }
     }
 }
@@ -1582,39 +1628,31 @@ std::vector<block_plan> discover_blocks(const std::vector<symbolic_op_info>& inf
                                         const std::vector<root_spec>& roots,
                                         std::size_t max_clones)
 {
-    std::vector<block_candidate> candidates;
-    // Candidate pointers stay stable and preserve module order.
-    candidates.reserve(infos.size());
-    std::unordered_map<instruction_ref, block_candidate*> block_for_instruction;
-    for(const auto& info : infos)
+    std::vector<block_plan> blocks;
+    std::unordered_map<instruction_ref, std::size_t> block_for_instruction;
+    std::unordered_map<instruction_ref, std::size_t> instruction_rank;
+    for(auto rank : range(infos.size()))
     {
+        const auto& info = infos.at(rank);
         if(not can_specialize(info))
             continue;
-        auto selected = select_instruction_roots(info, roots, max_clones);
-        if(not selected.has_value())
+        auto required_roots = find_instruction_roots(info, roots, max_clones);
+        if(not required_roots.has_value())
             continue;
-        auto& candidate = candidates.emplace_back();
-        candidate.plan  = {{&info}, std::move(*selected)};
-        for(auto input : info.ins->inputs())
-        {
-            auto found = block_for_instruction.find(input);
-            if(found != block_for_instruction.end())
-                connect_blocks(&candidate, found->second);
-        }
-        block_for_instruction.emplace(info.ins, &candidate);
+        block_for_instruction.emplace(info.ins, blocks.size());
+        instruction_rank.emplace(info.ins, rank);
+        blocks.push_back({{&info}, std::move(*required_roots)});
     }
 
-    coalesce_connected_blocks(candidates, max_clones);
-    coalesce_independent_blocks(candidates, max_clones);
+    auto connections = find_all_block_connections(infos, block_for_instruction, instruction_rank);
+    coalesce_connected_blocks(
+        infos, blocks, block_for_instruction, instruction_rank, connections, max_clones);
+    coalesce_independent_blocks(infos, blocks, block_for_instruction, instruction_rank, max_clones);
 
-    std::vector<block_plan> blocks;
-    blocks.reserve(candidates.size());
-    transform_if(
-        candidates.begin(),
-        candidates.end(),
-        std::back_inserter(blocks),
-        [](const auto& candidate) { return candidate.active; },
-        [](auto& candidate) { return std::move(candidate.plan); });
+    blocks.erase(std::remove_if(blocks.begin(),
+                                blocks.end(),
+                                [](const auto& block) { return block.ops.empty(); }),
+                 blocks.end());
     return blocks;
 }
 
@@ -1634,9 +1672,8 @@ add_or_reuse_pad(module& m, const operation& pad_op, instruction_ref input, pad_
     return result;
 }
 
-using replacement_map       = std::unordered_map<instruction_ref, instruction_ref>;
-using instruction_block_map = std::unordered_map<instruction_ref, std::size_t>;
-using symbolic_info_map     = std::unordered_map<instruction_ref, const symbolic_op_info*>;
+using replacement_map   = std::unordered_map<instruction_ref, instruction_ref>;
+using symbolic_info_map = std::unordered_map<instruction_ref, const symbolic_op_info*>;
 
 bool needs_fixed_retarget(const shape& s, const substitution_map& substitutions)
 {
@@ -1669,11 +1706,12 @@ slice_spec make_output_slice(const symbolic_op_info& info)
     return result;
 }
 
-clone_recipe make_clone_recipe(const symbolic_op_info& info,
-                               const block_plan& block,
-                               const instruction_block_map& block_for_instruction,
-                               const symbolic_info_map& info_for_instruction,
-                               const substitution_map& target_substitutions)
+clone_recipe
+make_clone_recipe(const symbolic_op_info& info,
+                  const block_plan& block,
+                  const std::unordered_map<instruction_ref, std::size_t>& block_for_instruction,
+                  const symbolic_info_map& info_for_instruction,
+                  const substitution_map& target_substitutions)
 {
     const auto& args = info.ins->inputs();
     clone_recipe result;
@@ -1734,7 +1772,7 @@ clone_recipe_map make_clone_recipes(const std::vector<block_plan>& blocks,
     for(const auto& root : roots)
         target_substitutions.emplace(root.root, root.target_symbol);
 
-    instruction_block_map block_for_instruction;
+    std::unordered_map<instruction_ref, std::size_t> block_for_instruction;
     symbolic_info_map info_for_instruction;
     for(std::size_t block_index = 0; block_index < blocks.size(); ++block_index)
         for(const auto* info : blocks.at(block_index).ops)
@@ -2268,10 +2306,11 @@ build_clone(const std::string& name,
     return {std::move(clone_module), {freeze, std::move(output_shapes)}};
 }
 
-instruction_ref resolve_replacement(module& m,
-                                    instruction_ref source,
-                                    replacement_map& replacements,
-                                    const instruction_block_map& block_for_instruction)
+instruction_ref
+resolve_replacement(module& m,
+                    instruction_ref source,
+                    replacement_map& replacements,
+                    const std::unordered_map<instruction_ref, std::size_t>& block_for_instruction)
 {
     auto found = replacements.find(source);
     if(found != replacements.end())
@@ -2324,11 +2363,12 @@ instruction_ref find_output_value(const clone_input& input, const output_value_m
     return found->second;
 }
 
-void resolve_frame_inputs(module& m,
-                          block_frame& frame,
-                          replacement_map& replacements,
-                          const instruction_block_map& block_for_instruction,
-                          const output_value_map& output_values)
+void resolve_frame_inputs(
+    module& m,
+    block_frame& frame,
+    replacement_map& replacements,
+    const std::unordered_map<instruction_ref, std::size_t>& block_for_instruction,
+    const output_value_map& output_values)
 {
     for(std::size_t index = 0; index < frame.inputs.size(); ++index)
     {
@@ -2443,7 +2483,7 @@ void specialize_blocks(module_pass_manager& mpm,
     for(const auto& name : m.get_parameter_names())
         parameter_names[m.get_parameter(name)] = name;
     auto root_sources = find_root_sources(m);
-    instruction_block_map block_for_instruction;
+    std::unordered_map<instruction_ref, std::size_t> block_for_instruction;
     for(std::size_t block_index = 0; block_index < blocks.size(); ++block_index)
         for(const auto* info : blocks.at(block_index).ops)
             block_for_instruction.emplace(info->ins, block_index);

@@ -554,6 +554,33 @@ TEST_CASE(horizontal_mutli_out_fused3)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(horizontal_mutli_out_shared_literal_not_fused)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto lit  = mm->add_literal(migraphx::literal{s, {1, 2, 3, 4, 5, 6}});
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, lit);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), y, lit);
+        mm->add_return({add1, add2});
+    }
+    run_pass(p1, {.enable_multi_output = true});
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto lit  = mm->add_literal(migraphx::literal{s, {1, 2, 3, 4, 5, 6}});
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, lit}, single_pointwise("add"));
+        auto add2 = add_pointwise(p2, "main:pointwise1", {y, lit}, single_pointwise("add"));
+        mm->add_return({add1, add2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(horizontal_mutli_out_fused_submodule)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -1127,6 +1154,43 @@ TEST_CASE(add_broadcast_add)
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), x);
         auto by =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), y);
+        auto fadd =
+            add_pointwise(p2, "main:pointwise0", {bx, by, z}, [=](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+            });
+        mm->add_return({fadd});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(add_broadcast_axis_add)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {3}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s1);
+        auto y     = mm->add_parameter("y", s1);
+        auto z     = mm->add_parameter("z", s2);
+        auto add1  = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto badd1 = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s2.lens()}}), add1);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), badd1, z);
+        mm->add_return({add2});
+    }
+    run_pass(p1, {.enable_rewrite_broadcasts = true});
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s1);
+        auto z   = mm->add_parameter("z", s2);
+        auto bx  = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s2.lens()}}), x);
+        auto by = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s2.lens()}}), y);
         auto fadd =
             add_pointwise(p2, "main:pointwise0", {bx, by, z}, [=](auto* pm, const auto& inputs) {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);

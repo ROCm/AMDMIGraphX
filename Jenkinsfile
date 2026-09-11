@@ -273,10 +273,10 @@ def rocmtest = { Map conf = [:], Closure body ->
 
         stage("build ${variant}") {
             try {
+                sh "mkdir -p '${env.WORKSPACE}/../.cache/ccache' '${env.WORKSPACE}/../.cache/comgr_cache'"
                 withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
                     timeout(time: 4, unit: 'HOURS') {
                         sh """
-                            mkdir -p ${ccache} ${comgr_cache}
                             ls -l /workspaces/
                             ls -l /workspaces/.cache/
                         """
@@ -320,7 +320,7 @@ pipeline {
                             checkout scm
                             def calculateImageTagScript = """
                                 shopt -s globstar
-                                sha256sum Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
+                                sha256sum Dockerfile **/*requirements.txt tools/requirements-py.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
                             """
                             env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
                             env.IMAGE_EXISTS = sh(script: "docker manifest inspect ${DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
@@ -483,7 +483,7 @@ pipeline {
                         MIGRAPHX_ENABLE_MLIR_INPUT_FUSION = '1'
                         MIGRAPHX_MLIR_ENABLE_SPLITK = '1'
                         MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION = '1'
-                        MIGRAPHX_ENABLE_MLIR_GEG_FUSION = '1'
+                        MIGRAPHX_ENABLE_MLIR_CEG_FUSION = '1'
                         MIGRAPHX_ENABLE_SPLIT_REDUCE = '1'
                         MIGRAPHX_DISABLE_LAYERNORM_FUSION = '1'
                     }

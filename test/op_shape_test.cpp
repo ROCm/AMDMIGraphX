@@ -1415,6 +1415,29 @@ TEST_CASE(dot_sym_k_vs_range)
     expect_shape(expected, migraphx::make_op("dot"), s_a, s_b);
 }
 
+TEST_CASE(dynamic_range_output_dim_not_symbolic_error)
+{
+    migraphx::shape scalar{migraphx::shape::int64_type, {1}};
+    dd output_dim{1, 8};
+    throws_shape(
+        migraphx::make_op("dynamic_range", {{"output_dim", migraphx::to_value(output_dim)}}),
+        scalar,
+        scalar,
+        scalar);
+}
+
+TEST_CASE(dynamic_range_output_dim_exceeds_max_error)
+{
+    migraphx::shape scalar{migraphx::shape::int64_type, {1}};
+    dd output_dim{var("n", {1, 9})};
+    throws_shape(
+        migraphx::make_op("dynamic_range",
+                          {{"max_output", 8}, {"output_dim", migraphx::to_value(output_dim)}}),
+        scalar,
+        scalar,
+        scalar);
+}
+
 TEST_CASE(dyn_slice_static)
 {
     // Concrete bounds over a static input stay static: a slice is just a view.
@@ -1919,6 +1942,55 @@ TEST_CASE(broadcast_with_dims2)
                  migraphx::make_op("broadcast_with_dims"),
                  s0,
                  s1);
+}
+
+TEST_CASE(broadcast_with_dims_symbolic_output)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {1, 1, 1}};
+    shape dims{shape::int64_type, {4}};
+    std::vector<dd> output_dims{dd{lit(2)}, dd{var("sequence", {1, 8})}, dd{lit(4)}, dd{lit(5)}};
+    expect_shape(shape{shape::float_type, output_dims},
+                 migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
+}
+
+TEST_CASE(broadcast_with_dims_symbolic_output_rank_error)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {1, 1, 1}};
+    shape dims{shape::int64_type, {4}};
+    std::vector<dd> output_dims{dd{var("sequence", {1, 8})}, dd{lit(4)}, dd{lit(5)}};
+    throws_shape(migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
+}
+
+TEST_CASE(broadcast_with_dims_non_symbolic_output_error)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {1, 1, 1}};
+    shape dims{shape::int64_type, {4}};
+    std::vector<dd> output_dims{dd{2, 2}, dd{var("sequence", {1, 8})}, dd{lit(4)}, dd{lit(5)}};
+    throws_shape(migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
+}
+
+TEST_CASE(broadcast_with_dims_symbolic_output_mismatch_error)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {2, 3}};
+    shape dims{shape::int64_type, {2}};
+    std::vector<dd> output_dims{dd{var("sequence", {1, 8})}, dd{lit(4)}};
+    throws_shape(migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
 }
 
 TEST_CASE(fixed_pad)
@@ -6751,6 +6823,42 @@ TEST_CASE(test_unsqueeze_sym_step_non_divisible_throws)
     auto n = var("N", {1, 8});
     migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(3)}}};
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(topk_sym_shape)
+{
+    // A symbolic input keeps every dimension symbolic, with the sorted axis set to min(k, dim).
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    auto sorted = migraphx::sym::min(lit(3), m);
+    migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{sorted}}};
+    migraphx::shape ind{migraphx::shape::int64_type, {dd{n}, dd{sorted}}};
+    expect_shape(
+        migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}), input);
+    EXPECT(val.to_static({{n, 4}, {m, 8}}) ==
+           migraphx::shape{migraphx::shape::float_type, {4, 3}, {3, 1}});
+}
+
+TEST_CASE(topk_sym_shape_folded_k)
+{
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    {
+        // `k` at or above the axis maximum can never trim it, so the dimension is unchanged.
+        migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{m}}};
+        migraphx::shape ind{migraphx::shape::int64_type, {dd{n}, dd{m}}};
+        expect_shape(
+            migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 4}, {"axis", 1}}), input);
+    }
+    {
+        // `k` below the axis minimum always trims it, which fixes the sorted axis.
+        migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{lit(1)}}};
+        migraphx::shape ind{migraphx::shape::int64_type, {dd{n}, dd{lit(1)}}};
+        expect_shape(
+            migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 1}, {"axis", 1}}), input);
+    }
 }
 
 TEST_CASE(transpose_shape)

@@ -28,6 +28,8 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/sym.hpp>
 #include <test.hpp>
 
 static void run_lowering(migraphx::module& m, bool offload_copy = false)
@@ -99,6 +101,48 @@ TEST_CASE(dyn_slice_lowering_dyn_slice_op)
             m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_starts, copy_ends);
         auto sl = m2.add_instruction(op, data, sync, copy_ends);
         m2.add_return({sl});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(dyn_slice_lowering_mixed_host_and_device_metadata)
+{
+    using dd  = migraphx::shape::dynamic_dimension;
+    auto n    = migraphx::sym::var("N", {1, 4});
+    auto zero = migraphx::sym::lit(0);
+    migraphx::shape source_shape{migraphx::shape::float_type, {dd{n}}};
+    migraphx::shape data_shape{migraphx::shape::float_type, {4}};
+    migraphx::shape index_shape{migraphx::shape::int64_type, {1}};
+    auto eval_op = migraphx::make_op(
+        "eval_expr_from_shape",
+        {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{zero})}});
+    auto slice_op =
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", migraphx::to_value(std::vector<migraphx::sym::expr>{zero})},
+                           {"ends", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}});
+
+    migraphx::module m1;
+    {
+        auto source = m1.add_parameter("source", source_shape);
+        auto data   = m1.add_parameter("data", data_shape);
+        auto ends   = m1.add_parameter("ends", index_shape);
+        auto starts = m1.add_instruction(eval_op, source);
+        auto slice  = m1.add_instruction(slice_op, data, starts, ends);
+        m1.add_return({slice});
+    }
+    run_lowering(m1);
+
+    migraphx::module m2;
+    {
+        auto source    = m2.add_parameter("source", source_shape);
+        auto data      = m2.add_parameter("data", data_shape);
+        auto ends      = m2.add_parameter("ends", index_shape);
+        auto starts    = m2.add_instruction(eval_op, source);
+        auto copy_ends = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
+        auto sync      = m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_ends);
+        auto slice     = m2.add_instruction(slice_op, data, starts, sync);
+        m2.add_return({slice});
     }
     EXPECT(m1 == m2);
 }

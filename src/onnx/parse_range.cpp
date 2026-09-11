@@ -46,6 +46,30 @@ struct parse_range : op_parser<parse_range>
 
         if(start_arg.empty() or limit_arg.empty() or delta_arg.empty())
         {
+            const auto start = args[0]->sym_eval();
+            const auto limit = args[1]->sym_eval();
+            const auto delta = args[2]->sym_eval();
+            if(not start.empty() and not limit.empty() and not delta.empty())
+            {
+                const auto start_values = start.get();
+                const auto limit_values = limit.get();
+                const auto delta_values = delta.get();
+                const auto delta_value  = delta_values.size() == 1
+                                              ? sym::fixed_value(delta_values.front())
+                                              : std::nullopt;
+                if(start_values.size() == 1 and limit_values.size() == 1 and
+                   delta_value.has_value() and sym::to<int64_t>(*delta_value) == 1)
+                {
+                    const auto output_length = limit_values.front() - start_values.front();
+                    const auto output_bounds = output_length.eval_interval();
+                    if(sym::to<int64_t>(output_bounds.min) >= 0)
+                    {
+                        const shape::dynamic_dimension output_dim{output_length};
+                        return info.add_instruction(
+                            make_op("dynamic_range", {{"output_dim", to_value(output_dim)}}), args);
+                    }
+                }
+            }
             return info.add_instruction(make_op("dynamic_range"), args);
         }
 

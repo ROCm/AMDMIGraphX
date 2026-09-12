@@ -1009,6 +1009,18 @@ struct find_kv_cache_attention
                     continue;
                 if(not is_valid_attn_op(input))
                     continue;
+                // MIDDLE-WAY FIX (blast-radius-minimized): do NOT pull a reduction
+                // (e.g. a preceding RMSNorm's reduce_sum) into the attention submodule
+                // as a backward side-input. rocMLIR cannot lower a tosa.reduce whose
+                // output feeds the attention gemm -- its output must trace to a kernel
+                // result (TosaToRock.cpp traceToRes), which fails for a reduce consumed
+                // by the gemm. Keeping such a reduction as its own kernel makes the
+                // fused (flash) attention compilable. The attention's OWN softmax
+                // reduces are on the direct start->end path (find_instructions_between)
+                // and are unaffected. The general solution -- rocMLIR fusing an
+                // intermediate reduction into the gemm prologue -- is planned separately.
+                if(starts_with(input->get_operator().name(), "reduce_"))
+                    continue;
                 if(input->can_eval() or std::all_of(input->outputs().begin(),
                                                     input->outputs().end(),
                                                     [&](auto o) { return contains(inss, o); }))

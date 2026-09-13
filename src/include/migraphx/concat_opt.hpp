@@ -53,6 +53,11 @@ struct concat_optimization
     allocation_model allocation() const;
     bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const;
     bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const;
+    /// Return true if the instruction can report `s` as its output shape once
+    /// its allocation is replaced by a view with that shape
+    bool supports_output_shape(instruction_ref ins, const shape& s) const;
+    /// Update the instruction so it reports `s` as its output shape
+    void set_output_shape(instruction_ref ins, const shape& s) const;
 };
 
 #else
@@ -70,6 +75,10 @@ struct MIGRAPHX_EXPORT concat_optimization
     bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const;
     //
     bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const;
+    //
+    bool supports_output_shape(instruction_ref ins, const shape& s) const;
+    //
+    void set_output_shape(instruction_ref ins, const shape& s) const;
     //
     allocation_model allocation() const;
 };
@@ -102,6 +111,10 @@ struct concat_optimization
                      std::declval<instruction_ref>(), std::declval<std::size_t>()),
                  std::declval<PrivateDetailTypeErasedT>().supports_non_packed_input(
                      std::declval<instruction_ref>(), std::declval<std::size_t>()),
+                 std::declval<PrivateDetailTypeErasedT>().supports_output_shape(
+                     std::declval<instruction_ref>(), std::declval<const shape&>()),
+                 std::declval<PrivateDetailTypeErasedT>().set_output_shape(
+                     std::declval<instruction_ref>(), std::declval<const shape&>()),
                  std::declval<PrivateDetailTypeErasedT>().allocation(),
                  void());
 
@@ -203,6 +216,18 @@ struct concat_optimization
         return (*this).private_detail_te_get_handle().supports_non_packed_input(ins, axis);
     }
 
+    bool supports_output_shape(instruction_ref ins, const shape& s) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().supports_output_shape(ins, s);
+    }
+
+    void set_output_shape(instruction_ref ins, const shape& s) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().set_output_shape(ins, s);
+    }
+
     allocation_model allocation() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -227,6 +252,8 @@ struct concat_optimization
         virtual optional<op::concat> get_concat(const operation& op) const                   = 0;
         virtual bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const = 0;
         virtual bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const  = 0;
+        virtual bool supports_output_shape(instruction_ref ins, const shape& s) const        = 0;
+        virtual void set_output_shape(instruction_ref ins, const shape& s) const             = 0;
         virtual allocation_model allocation() const                                          = 0;
     };
 
@@ -275,6 +302,18 @@ struct concat_optimization
         {
 
             return private_detail_te_value.supports_non_packed_input(ins, axis);
+        }
+
+        bool supports_output_shape(instruction_ref ins, const shape& s) const override
+        {
+
+            return private_detail_te_value.supports_output_shape(ins, s);
+        }
+
+        void set_output_shape(instruction_ref ins, const shape& s) const override
+        {
+
+            private_detail_te_value.set_output_shape(ins, s);
         }
 
         allocation_model allocation() const override

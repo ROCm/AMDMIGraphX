@@ -159,55 +159,60 @@ struct __attribute__((packed, may_alias)) generic_float
         return f.to_float();
     }
 
+    // Shift `significand` right by `drop` bits, rounding to nearest with ties to even.
+    // This is the rounding the hardware conversions use.
+    static constexpr std::uint32_t rne_shift(std::uint32_t significand, int drop) noexcept
+    {
+        if(drop <= 0)
+            return significand;
+        if(drop >= int(sizeof(std::uint32_t) * 8))
+            return 0;
+        const auto lsb = (significand >> drop) & 1u;
+        return (significand + (1u << (drop - 1u)) - 1u + lsb) >> drop;
+    }
+
     constexpr void from_float(float32_parts f) noexcept
     {
+        constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
+        constexpr const int drop = int(float32_parts::mantissa_width() - MantissaSize);
+
         sign = f.sign;
 
-        if(f.exponent == 0)
-        {
-            exponent = 0;
-            mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
-        }
-        else if(f.exponent == float32_parts::max_exponent())
+        if(f.exponent == float32_parts::max_exponent())
         {
             exponent = all_ones<ExponentSize>();
-            mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
+            // Narrowing the payload must not turn a nan into an infinity.
+            std::uint32_t payload = f.mantissa >> drop;
+            if(f.mantissa != 0 and payload == 0)
+                payload = 1u << (MantissaSize - 1);
+            mantissa = payload;
+            return;
+        }
+
+        // A float32 subnormal has no implicit leading one, but it shares the exponent of the
+        // smallest float32 normal.
+        const bool subnormal = f.exponent == 0;
+        const int e          = int(subnormal ? 1u : f.exponent) - diff;
+        const std::uint32_t significand =
+            f.mantissa | (subnormal ? 0u : 1u << float32_parts::mantissa_width());
+
+        // Every exponent step below the target's minimum drops one more significand bit.
+        const auto m = rne_shift(significand, drop + std::max(0, 1 - e));
+        // The significand's leading one lands in the exponent field, so a rounding carry out of
+        // the significand bumps the exponent for free, and a result that is subnormal in the
+        // target just leaves the exponent field at zero.
+        const std::uint32_t bits = (std::uint32_t(std::max(e, 1) - 1) << MantissaSize) + m;
+
+        if((bits >> MantissaSize) >= all_ones<ExponentSize>())
+        {
+            exponent = all_ones<ExponentSize>();
+            mantissa = 0;
         }
         else
         {
-            constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
-            auto e                   = int(f.exponent) - diff;
-
-            if(e >= static_cast<int>(all_ones<ExponentSize>()))
-            {
-                exponent = all_ones<ExponentSize>();
-                mantissa = 0;
-            }
-            else if(e < 1)
-            {
-                exponent = 0;
-
-                auto shift        = diff - int(f.exponent);
-                auto shift_amount = shift + (float32_parts::mantissa_width() - MantissaSize) + 1;
-
-                if(shift_amount < (sizeof(unsigned int) * 8))
-                {
-                    mantissa = (f.mantissa | (1u << float32_parts::mantissa_width())) >>
-                               (shift + (float32_parts::mantissa_width() - MantissaSize) + 1);
-                }
-                else
-                {
-                    mantissa = 0;
-                }
-            }
-            else
-            {
-                exponent = int(f.exponent) - diff;
-                mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
-            }
+            exponent = bits >> MantissaSize;
+            mantissa = bits & all_ones<MantissaSize>();
         }
-
-        exponent = std::min<type>(exponent, all_ones<ExponentSize>());
     }
 
     constexpr bool is_normal() const noexcept

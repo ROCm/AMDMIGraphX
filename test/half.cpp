@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1191,6 +1191,60 @@ TEST_CASE(test_numeric_lowest_1)
     float flowest = std::numeric_limits<float>::lowest();
     migraphx::half half_neginf(flowest);
     CHECK(bit_equal(half_neginf, -std::numeric_limits<migraphx::half>::infinity()));
+}
+
+// Conversion from float32 rounds to nearest with ties to even, matching the hardware conversion
+// this type emulates. Truncating instead biases every converted value toward zero.
+TEST_CASE(test_round_nearest_even)
+{
+    // Exactly halfway between mantissa 0 and mantissa 1; the tie goes to the even mantissa, so it
+    // stays at 1.0. Round-half-away-from-zero would give 0x3c01 here.
+    CHECK(bit_equal(migraphx::half(1.0f + 1.0f / 2048.0f), uint16_t{0x3c00}));
+    // Halfway between mantissa 1 and mantissa 2; the even one is 2, so this tie rounds up.
+    CHECK(bit_equal(migraphx::half(1.0f + 3.0f / 2048.0f), uint16_t{0x3c02}));
+    // Past the midpoint, so it rounds up whatever the tie rule is.
+    CHECK(bit_equal(migraphx::half(1.0f + 7.0f / 4096.0f), uint16_t{0x3c02}));
+    // Short of the midpoint, so it rounds down.
+    CHECK(bit_equal(migraphx::half(1.0f + 1.0f / 4096.0f), uint16_t{0x3c00}));
+}
+
+TEST_CASE(test_round_carries_into_exponent)
+{
+    // The rounded mantissa overflows its field, so the carry has to reach the exponent: 2047.75
+    // rounds to 2048 rather than staying at the largest mantissa of the binade below.
+    CHECK(bit_equal(migraphx::half(2047.75f), uint16_t{0x6800}));
+    // 65520 is the midpoint between the largest finite half and 65536; the tie rounds away from
+    // the odd mantissa, so the carry out of the top binade has to produce infinity, not wrap.
+    CHECK(bit_equal(migraphx::half(65520.0f), std::numeric_limits<migraphx::half>::infinity()));
+    CHECK(bit_equal(migraphx::half(65519.0f), std::numeric_limits<migraphx::half>::max()));
+}
+
+TEST_CASE(test_subnormal_rounding)
+{
+    // Rounding up the largest half subnormal carries into the smallest normal.
+    CHECK(bit_equal(migraphx::half(std::ldexp(1023.75f, -24)),
+                    std::numeric_limits<migraphx::half>::min()));
+    CHECK(bit_equal(migraphx::half(std::ldexp(1023.25f, -24)), uint16_t{0x03ff}));
+    // half's exponent range is far narrower than float32's, so every float32 subnormal sits below
+    // half's smallest subnormal and converts to a signed zero.
+    CHECK(bit_equal(migraphx::half(migraphx::bit_cast<float>(uint32_t{0x00400000})),
+                    migraphx::half(0.0f)));
+    CHECK(bit_equal(migraphx::half(migraphx::bit_cast<float>(uint32_t{0x80400000})),
+                    migraphx::half(-0.0f)));
+}
+
+TEST_CASE(test_nan_payload_narrowing)
+{
+    // A float32 nan whose payload lives entirely in the dropped bits still has to convert to a
+    // nan; truncating the payload on its own would leave an infinity behind.
+    CHECK(bit_equal(migraphx::half(migraphx::bit_cast<float>(uint32_t{0x7f800001})),
+                    std::numeric_limits<migraphx::half>::quiet_NaN()));
+    CHECK(bit_equal(migraphx::half(migraphx::bit_cast<float>(uint32_t{0xff800001})),
+                    -std::numeric_limits<migraphx::half>::quiet_NaN()));
+    // A payload that survives the shift is carried over untouched, so a signaling nan stays
+    // signaling.
+    CHECK(bit_equal(migraphx::half(std::numeric_limits<float>::signaling_NaN()),
+                    std::numeric_limits<migraphx::half>::signaling_NaN()));
 }
 
 TEST_CASE(test_max_eq_lowest)

@@ -76,12 +76,24 @@ check_resize(const migraphx::value& v, const migraphx::shape& input_shape, bool 
 
     CHECK(output1.get_shape().lens() == output2.get_shape().lens());
 
+    // The rewrite interpolates in the tensor type while the resize op uses double, so narrow types
+    // can land one ULP apart. Only those get a tolerance, and elementwise rather than RMS, which
+    // would average a single wrong gather index away on a large output.
     return test::make_predicate(ss.str(), [=] {
         bool result = false;
         migraphx::visit_all(output1, output2)([&](auto v1, auto v2) {
-            result = std::equal(v1.begin(), v1.end(), v2.begin(), v2.end(), [](auto x, auto y) {
-                return migraphx::float_equal(x, y);
-            });
+            if(migraphx::contains({migraphx::shape::float_type, migraphx::shape::double_type},
+                                  output1.get_shape().type()))
+            {
+                result = std::equal(v1.begin(), v1.end(), v2.begin(), v2.end(), [](auto x, auto y) {
+                    return migraphx::float_equal(x, y);
+                });
+            }
+            else
+            {
+                // The default rtol of 1e-3 is just over one ULP of half.
+                result = migraphx::verify::allclose(v1, migraphx::verify::expected{v2});
+            }
         });
         return result;
     });

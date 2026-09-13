@@ -94,12 +94,12 @@ void sqlite_problem_cache::load(const std::string& path)
     }
     for(const auto& row : rows)
     {
+        auto solution = from_json_string(row.at("solution"));
         cache_device_key dk;
         from_value(from_json_string(row.at("device_key")), dk);
         // Normalize keys on load: JSON erases value types, so a serialized key
         // must be canonicalized to match the normalized runtime lookup key.
-        cache[dk][from_json_string(row.at("problem_key")).normalize()] =
-            from_json_string(row.at("solution"));
+        cache[dk][from_json_string(row.at("problem_key")).normalize()] = solution;
     }
 }
 
@@ -118,6 +118,10 @@ void sqlite_problem_cache::save(const std::string& path) const
         const std::string dk = to_json_string(to_value(bucket.first));
         for(const auto& kv : bucket.second)
         {
+            // Never persist a null mark() sentinel: on reload it would make an
+            // op skip compilation.
+            if(kv.second.is_null())
+                continue;
             sql += "INSERT OR REPLACE INTO solutions(device_key, problem_key, solution) VALUES(";
             sql += sql_quote(dk) + "," + sql_quote(to_json_string(kv.first)) + "," +
                    sql_quote(to_json_string(kv.second)) + ");";

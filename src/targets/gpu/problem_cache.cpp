@@ -141,7 +141,8 @@ optional<value> problem_cache::get(const std::string& name, const value& problem
 {
     const auto key = create_key(name, problem);
     // Writable caches first (a locally tuned solution wins), then the read-only
-    // layers in priority order (first hit wins among them).
+    // layers in priority order (first hit wins among them). A null value is a
+    // mark() sentinel, which save() never persists.
     const auto search = [&](const std::vector<problem_cache_backend>& backends) -> optional<value> {
         const auto it = std::find_if(backends.begin(), backends.end(), [&](const auto& b) {
             return b.get(device_key, key).has_value();

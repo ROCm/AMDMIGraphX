@@ -141,7 +141,8 @@ instruction_ref find_final_split(instruction_ref split_ins)
         return result;
     auto it = std::adjacent_find(
         output_path.begin(), output_path.end(), [&](instruction_ref input, instruction_ref output) {
-            if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
+            if(contains({"reshape", "reshape_lazy", "squeeze", "unsqueeze", "transpose"},
+                        output->name()))
                 return false;
             if(contains({"add", "mul"}, output->name()))
             {
@@ -157,6 +158,26 @@ instruction_ref find_final_split(instruction_ref split_ins)
         });
     result = (it == output_path.end()) ? output_path.back() : *it;
     return result;
+}
+
+static optional<instruction_ref> find_layout_tail_split(const module& m)
+{
+    auto is_layout = [](instruction_ref ins) {
+        return contains({"flatten", "reshape", "reshape_lazy", "squeeze", "transpose", "unsqueeze"},
+                        ins->name());
+    };
+    auto returns = m.get_returns();
+    if(returns.size() != 1 or not is_layout(returns.front()))
+        return nullopt;
+
+    auto skip_layouts = [&](auto self, instruction_ref ins) -> instruction_ref {
+        if(not is_layout(ins))
+            return ins;
+        if(ins->inputs().size() != 1)
+            MIGRAPHX_THROW("find_layout_tail_split: layout instruction does not have one input");
+        return self(self, ins->inputs().front());
+    };
+    return skip_layouts(skip_layouts, returns.front());
 }
 
 struct mlir_compiler : compiler<mlir_compiler>
@@ -223,6 +244,28 @@ struct mlir_compiler : compiler<mlir_compiler>
         }
     }
 
+    mlir_code_object
+    compile_mlir_part(context& ctx, const module_with_inputs& mwi, const value& solution) const
+    {
+        auto input_shapes = to_shapes(mwi.inputs);
+        input_shapes.push_back(mwi.mod.get_output_shapes().front());
+        return compile_mlir(ctx, mwi.mod, input_shapes, solution);
+    }
+
+    code_object_op compile_pointwise_part(context& ctx, module_with_inputs& mwi) const
+    {
+        auto input_shapes = to_shapes(mwi.inputs);
+        if(mwi.mod.get_output_shapes().size() == 1)
+        {
+            input_shapes.push_back(mwi.mod.get_output_shapes().front());
+        }
+        else
+        {
+            input_shapes.push_back(shape{mwi.mod.get_output_shapes()});
+        }
+        return compile_pointwise_module(ctx, input_shapes, &mwi.mod);
+    }
+
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
@@ -243,15 +286,59 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto input_args = ins->inputs();
             // remove alloc buffer
             input_args.pop_back();
-            auto split_ins                               = find_final_split(gemm_like_ins);
+            auto tail_split = find_layout_tail_split(*smod);
+            auto split_ins  = find_final_split(gemm_like_ins);
+            // The tail split ends the pointwise kernel, so the mlir kernel must stop before it.
+            // Otherwise the layout tail would be pulled back into the mlir module or the pointwise
+            // kernel would be left with nothing to compute.
+            if(tail_split.has_value() and contains(get_output_path(tail_split.value()), split_ins))
+            {
+                auto gemm_path = get_output_path(gemm_like_ins);
+                auto it        = std::adjacent_find(
+                    gemm_path.begin(), gemm_path.end(), [&](instruction_ref, instruction_ref out) {
+                        return out == tail_split.value();
+                    });
+                if(it == gemm_path.end())
+                    MIGRAPHX_THROW("mlir_compiler: tail split is not on the gemm output path");
+                split_ins = *it;
+            }
+            if(tail_split.has_value())
+            {
+                std::array<module_with_inputs, 3> mod_splits =
+                    smod->split(input_args, {split_ins}, {tail_split.value()});
+                if(not is_module_fusible(mod_splits[0].mod, ctx, solution))
+                {
+                    split_ins  = gemm_like_ins;
+                    mod_splits =
+                        smod->split(input_args, {split_ins}, {tail_split.value()});
+                }
+                auto compile_copy = [&](const shape& copy_input_shape) {
+                    return any_cast<code_object_op>(
+                        gpu::compile_op("hip::copy",
+                                        ctx,
+                                        {copy_input_shape, ins->inputs().back()->get_shape()},
+                                        {{"lambda", "[](auto x) { return make_tuple(x); }"},
+                                         {"kernel", "hip_copy_kernel"}}));
+                };
+                std::vector<mlir_code_object> cops = {
+                    compile_mlir_part(ctx, mod_splits[0], solution),
+                    mlir_code_object{compile_pointwise_part(ctx, mod_splits[1])},
+                    mlir_code_object{
+                        compile_copy(mod_splits[2].mod.get_output_shapes().front())}};
+                std::array<module_with_inputs, 2> mods = {std::move(mod_splits[0]),
+                                                          std::move(mod_splits[1])};
+                return insert(cops, mods, ins, split_ins, std::move(mod_splits[2]));
+            }
+
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
-            auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
-            // add alloc for the gemm output
-            dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
-            mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
-            auto pw_shapes        = to_shapes(mod_splits[1].inputs);
-            pw_shapes.push_back(ins->get_shape());
-            auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
+            if(not is_module_fusible(mod_splits[0].mod, ctx, solution))
+            {
+                split_ins  = gemm_like_ins;
+                mod_splits = smod->split(input_args, {split_ins});
+            }
+            auto cop1 = compile_mlir_part(ctx, mod_splits[0], solution);
+            auto cop2 = compile_pointwise_part(ctx, mod_splits[1]);
+            assert(cop2.expected_inputs.back() == ins->get_shape());
             std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
             return insert(cops, mod_splits, ins, split_ins);
         }
@@ -324,7 +411,8 @@ struct mlir_compiler : compiler<mlir_compiler>
     compiler_replace insert(const std::vector<mlir_code_object>& mcos,
                             const std::array<module_with_inputs, 2>& mods,
                             instruction_ref precompile_ins,
-                            instruction_ref split_ins) const
+                            instruction_ref split_ins,
+                            optional<module_with_inputs> layout_tail = nullopt) const
     {
         std::vector<operation> cobjs(mcos.size());
         std::transform(
@@ -370,7 +458,19 @@ struct mlir_compiler : compiler<mlir_compiler>
                 auto pwm = mods[1];
                 pwm.replace(split_ins, mlir_ins);
                 auto pw_inputs = pwm.inputs;
-                pw_inputs.push_back(ins->inputs().back());
+                if(layout_tail.has_value())
+                {
+                    auto pw_alloc = m.insert_instruction(
+                        ins,
+                        migraphx::make_op(
+                            "hip::allocate",
+                            {{"shape", to_value(mods[1].mod.get_output_shapes().front())}}));
+                    pw_inputs.push_back(pw_alloc);
+                }
+                else
+                {
+                    pw_inputs.push_back(ins->inputs().back());
+                }
                 std::vector<instruction_ref> pw_inputs_updated;
                 std::transform(pw_inputs.begin(),
                                pw_inputs.end(),
@@ -385,7 +485,17 @@ struct mlir_compiler : compiler<mlir_compiler>
                                });
                 auto pw_ins =
                     insert_mlir(m, ins, any_cast<code_object_op>(ops[1]), pw_inputs_updated);
-                return m.replace_instruction(ins, pw_ins);
+                if(not layout_tail.has_value())
+                    return m.replace_instruction(ins, pw_ins);
+
+                assert(layout_tail->inputs.size() == 1);
+                auto tail_outputs = m.insert_inline(ins, layout_tail->mod, {pw_ins});
+                assert(tail_outputs.size() == 1);
+                auto copy_ins = m.insert_instruction(ins,
+                                                     any_cast<code_object_op>(ops[2]),
+                                                     tail_outputs.front(),
+                                                     ins->inputs().back());
+                return m.replace_instruction(ins, copy_ins);
             }};
     }
 

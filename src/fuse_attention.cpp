@@ -908,6 +908,116 @@ struct find_flash_decoding
     }
 };
 
+// Fuse the SkipSimplifiedLayerNorm (and SimplifiedLayerNorm) subgraph into a group op
+// before fuse_pointwise_reduce runs. This prevents fuse_pointwise from fusing the FP32
+// variance+rsqrt+multiply chain into a kernel that reverts the gamma multiply to FP16.
+//
+// The SLN subgraph emitted by parse_skip_simplified_layer_normalization.cpp is:
+//   add(x, skip) → convert(→fp32) → mul → mul → reduce_mean(rms, fp32)
+//   → add(rms, eps_fp32) → rsqrt(fp32) → mul(float_x, rrms, fp32)
+//   → mul(result, gamma_fp32, fp32) → convert(→fp16) [= result output]
+//
+// The matcher identifies the result convert(→fp16) whose input traces through rsqrt(fp32).
+// This is sufficient to uniquely identify SLN subgraphs (rsqrt in FP32 only appears here).
+struct find_skip_simplified_layer_norm
+{
+    std::size_t* counter;
+
+    auto matcher() const
+    {
+        // Match: convert(→fp16) whose input is mul whose input (transitively) is rsqrt(fp32)
+        auto rsqrt_fp32 = match::name("rsqrt")(
+            match::arg(0)(match::any().bind("rms_ep")));           // rms + eps (fp32)
+        auto mul_x_rrms = match::name("mul")(                      // float_x * rrms_fp32
+            match::any_arg(0, 1)(rsqrt_fp32));
+        auto mul_gamma  = match::name("mul")(                      // result_fp32 * gamma_fp32
+            match::any_arg(0, 1)(mul_x_rrms));
+        // Final convert back to fp16 / io_dtype
+        return match::name("convert")(
+            match::arg(0)(mul_gamma)).bind("sln_result");
+    }
+
+    std::string get_count() const { return std::to_string((*counter)++); }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto sln_result = r.instructions["sln_result"];
+        auto rms_ep     = r.instructions["rms_ep"];
+
+        // Collect the SLN subgraph: all instructions between rms_ep (inclusive) and
+        // sln_result (inclusive) that are exclusively part of this SLN chain.
+        // Walk from rms_ep forward to sln_result, collecting ops.
+        auto& m = mpm.get_module();
+
+        // Gather all instructions reachable from rms_ep that lead to sln_result
+        std::unordered_set<instruction_ref> sln_inss;
+        auto is_sln_op = [](instruction_ref ins) {
+            if(ins->name() == "contiguous")
+                return true;
+            if(ins->get_operator().attributes().get("pointwise", false))
+                return true;
+            static const std::unordered_set<std::string> sln_ops = {
+                "mul", "add", "sub", "div", "convert", "reduce_mean", "reduce_sum",
+                "multibroadcast", "broadcast", "rsqrt", "reshape", "squeeze", "unsqueeze"};
+            return contains(sln_ops, ins->name());
+        };
+
+        std::function<bool(instruction_ref)> collect = [&](instruction_ref ins) -> bool {
+            if(contains(sln_inss, ins))
+                return true;
+            if(ins == rms_ep)
+            {
+                sln_inss.insert(ins);
+                return true;
+            }
+            if(not is_sln_op(ins))
+                return false;
+            bool any_input_in = false;
+            for(auto input : ins->inputs())
+            {
+                if(collect(input))
+                    any_input_in = true;
+            }
+            if(any_input_in)
+                sln_inss.insert(ins);
+            return any_input_in;
+        };
+        collect(sln_result);
+
+        if(sln_inss.size() < 3) // sanity: need at least rsqrt + mul + convert
+            return;
+
+        // Sort topologically
+        std::vector<instruction_ref> sorted_inss(sln_inss.begin(), sln_inss.end());
+        std::sort(sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
+            return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+        });
+
+        // Build submodule
+        module m_sln;
+        std::unordered_map<instruction_ref, instruction_ref> map_mm_to_msln;
+        m_sln.fuse(sorted_inss, &map_mm_to_msln);
+        dead_code_elimination{}.apply(m_sln);
+
+        m_sln.add_return({map_mm_to_msln.at(sln_result)});
+
+        auto map_msln_to_mm = [&] {
+            std::unordered_map<instruction_ref, instruction_ref> inv;
+            for(auto& [k, v] : map_mm_to_msln)
+                inv[v] = k;
+            return inv;
+        }();
+        auto new_inputs = m_sln.get_inputs(map_msln_to_mm);
+
+        module_ref mpm_sln = mpm.create_module("sln" + get_count(), std::move(m_sln));
+        mpm_sln->set_bypass();
+
+        auto group_ins = m.insert_instruction(
+            sln_result, make_op("group", {{"tag", "skip_layer_norm"}}), new_inputs, {mpm_sln});
+        m.replace_instruction(sln_result, group_ins);
+    }
+};
+
 struct find_kv_cache_attention
 {
     std::size_t* counter;
@@ -1131,6 +1241,13 @@ struct find_kv_cache_attention
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
+
+    // Fuse SkipSimplifiedLayerNorm into a group op (opaque to fuse_pointwise) so that
+    // the FP32 variance+rsqrt+mul chain is not broken by fuse_pointwise coercing the
+    // gamma multiply back to FP16. Must run before fuse_pointwise_reduce.
+    match::find_matches(mpm, find_skip_simplified_layer_norm{.counter = &counter});
+    mpm.get_module().sort();
+    mpm.run_pass(dead_code_elimination{});
 
     // Fuse kv-cache attention by default
     match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});

@@ -25,6 +25,8 @@ Full documentation for MIGraphX is available at
 * Parsed ONNX `TopK` with a run-time `k` into `dyn_slice`, so the output shape carries `k` as a symbol instead of the widest possible dimension. A range-based dynamic input shape is now rejected; parse with symbolic shapes instead (#5150).
 * Made the ONNX parser's per-node identifier unique across modules by prefixing it with the module name, which also renames parsed subgraph modules (for example `If_5_if` is now `main_If_5_if`) (#5150).
 * The 1 arg `slice` operator accepts symbolic input shapes when every sliced axis has a fixed length. Slicing a non-fixed symbolic axis, or supplying the bounds as inputs, needs `dyn_slice` since the integer bounds cannot express a symbolic output extent (#5112).
+* Changed the `nonzero` operator to return a tuple of its zero-padded indices and a new `num_nonzero` count, matching how `nonmaxsuppression` reports `num_selected`; the ONNX `NonZero` parser trims the padding with a `dyn_slice` so a parsed model returns the specification's `[rank, num_nonzero]` output.
+* Changed `nonzero` to accept dynamic input shapes, padding the indices for the largest input the shape allows; on the GPU a dynamic input runs on the host because the kernel bakes the input lengths into its code object.
 
 ### Resolved issues
 

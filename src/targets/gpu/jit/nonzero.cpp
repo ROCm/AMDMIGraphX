@@ -38,10 +38,10 @@ namespace migraphx {
 
 extern "C" {
 
-MIGRAPHX_GLOBAL void nonzero_kernel(void* in_data, void* output)
+MIGRAPHX_GLOBAL void nonzero_kernel(${params})
 {
-    make_tensors()(in_data, output)([](auto input, auto out) {
-        nonzero(input, out);
+    make_tensors()(${args})([](auto input, auto out, auto num_nonzero) {
+        nonzero(input, out, num_nonzero);
     });
 }
 
@@ -58,9 +58,9 @@ struct nonzero_compiler : compiler<nonzero_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value&) const
     {
         hip_compile_options options;
-        options.inputs         = inputs;
+        options.inputs         = flatten_tuple_shapes(inputs);
         options.output         = inputs.back();
-        options.virtual_inputs = inputs;
+        options.virtual_inputs = options.inputs;
         options.kernel_name    = "nonzero_kernel";
 
         // The block_scan algorithm uses shared memory sized to block_size
@@ -70,7 +70,10 @@ struct nonzero_compiler : compiler<nonzero_compiler>
         options.global                   = block_size;
         options.local                    = block_size;
 
-        auto src = interpolate_string(nonzero_kernel, {});
+        auto src =
+            interpolate_string(nonzero_kernel,
+                               {{"params", enum_params(options.inputs.size(), "void * private_p")},
+                                {"args", enum_params(options.inputs.size(), "private_p")}});
 
         return compile_hip_code_object(ctx, src, options);
     }

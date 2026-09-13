@@ -8,6 +8,10 @@ MIGraphX environment variables
 
 The MIGraphX environment variables can be used by contributors to the MIGraphX code base to customize tuning, verification, and tracing.
 
+For user-facing guides on the most common tuning and validation variables, see
+:doc:`Tune model performance <../how-to/model-performance-tuning>` and
+:doc:`Validate model outputs <../how-to/model-validation>`.
+
 
 Model performance tunable variables
 ************************************

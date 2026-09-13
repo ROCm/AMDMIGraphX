@@ -3,9 +3,18 @@
 root: index
 subtrees:
 
+  - caption: Getting started
+    entries:
+    - file: tutorials/getting-started
+      title: Get started with MIGraphX
+    - file: tutorials/parse-load-save-tutorial
+      title: Parse, load, and save a model
+
   - caption: Installation
     entries: 
     - file: install/install-migraphx
+    - file: install/install-docker
+      title: Install MIGraphX with Docker
     - file: install/install-torch-migraphx
 
   - caption: Conceptual
@@ -13,6 +22,13 @@ subtrees:
     - file: conceptual/deep-learning-compilation
       title: Deep learning compilation with MIGraphX
     
+  - caption: How-to
+    entries:
+    - file: how-to/model-performance-tuning
+      title: Tune model performance
+    - file: how-to/model-validation
+      title: Validate model outputs
+
   - caption: Reference
     entries:
     - file: reference/MIGraphX-user-reference

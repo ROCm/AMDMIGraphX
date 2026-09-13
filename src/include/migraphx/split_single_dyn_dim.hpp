@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/functional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,6 +39,18 @@ inline namespace MIGRAPHX_INLINE_NS {
  */
 struct MIGRAPHX_EXPORT split_single_dyn_dim
 {
+    /// If true, emit one submodule per `dynamic_dimension::optimals`
+    /// value plus the min/max endpoints, instead of one per integer in
+    /// [min, max].  O(|optimals|) compile cost; runtime falls back to
+    /// smallest compatible bucket.  Off by default (backward compat).
+    bool bucket_by_optimals = false;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.bucket_by_optimals, "bucket_by_optimals"));
+    }
+
     std::string name() const { return "split_single_dyn_dim"; }
     void apply(module_pass_manager&) const;
 };

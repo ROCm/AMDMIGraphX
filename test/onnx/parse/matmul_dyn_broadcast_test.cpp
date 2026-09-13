@@ -48,12 +48,51 @@ TEST_CASE(matmul_sym_broadcast_test)
         {{"1", {migraphx::shape::float_type, {7}}},
          {"2", {migraphx::shape::float_type, sym_dims({lit(5), lit(7), var("k", {4, 8})})}}},
         [](migraphx::module& m, const auto& a) {
-            auto u = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a[0]);
+            auto u     = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a[0]);
+            auto batch = m.add_instruction(
+                migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), a[1]);
+            auto rows = m.add_instruction(
+                migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), u);
+            auto columns = m.add_instruction(
+                migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 2}}), u);
+            auto dims =
+                m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), batch, rows, columns);
             auto b = m.add_instruction(
                 migraphx::make_op(
-                    "multibroadcast",
+                    "broadcast_with_dims",
                     {{"out_dyn_dims", migraphx::to_value(sym_dims({lit(5), lit(1), lit(7)}))}}),
-                u);
+                u,
+                dims);
+            auto d = m.add_instruction(migraphx::make_op("dot"), b, a[1]);
+            m.add_return({m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), d)});
+        }));
+}
+
+TEST_CASE(matmul_sym_batch_broadcast_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    EXPECT(check_parse(
+        "matmul_dyn_broadcast_test.onnx",
+        {{"1", {migraphx::shape::float_type, {7}}},
+         {"2", {migraphx::shape::float_type, sym_dims({var("batch", {1, 8}), lit(7), lit(4)})}}},
+        [](migraphx::module& m, const auto& a) {
+            auto u     = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a[0]);
+            auto batch = m.add_instruction(
+                migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), a[1]);
+            auto rows = m.add_instruction(
+                migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), u);
+            auto columns = m.add_instruction(
+                migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 2}}), u);
+            auto dims =
+                m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), batch, rows, columns);
+            auto b = m.add_instruction(
+                migraphx::make_op(
+                    "broadcast_with_dims",
+                    {{"out_dyn_dims",
+                      migraphx::to_value(sym_dims({var("batch", {1, 8}), lit(1), lit(7)}))}}),
+                u,
+                dims);
             auto d = m.add_instruction(migraphx::make_op("dot"), b, a[1]);
             m.add_return({m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), d)});
         }));

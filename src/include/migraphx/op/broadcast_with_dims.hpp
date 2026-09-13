@@ -81,7 +81,7 @@ struct broadcast_with_dims
             if(broadcasted != output_dyn_dims)
                 MIGRAPHX_THROW(
                     "BROADCAST_WITH_DIMS: input shape does not broadcast to out_dyn_dims");
-            return {input_tensor_shape.type(), output_dyn_dims};
+            return make_bcast_shape(input_tensor_shape.to_symbolic(), output_dyn_dims);
         }
         // A broadcast output dimension is always >= 1 (ONNX Expand only ever grows a size-1 axis),
         // so use a lower bound of 1.

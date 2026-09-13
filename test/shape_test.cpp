@@ -1631,6 +1631,17 @@ TEST_CASE(test_symbolic_to_static)
     EXPECT(s_static.strides() == std::vector<std::size_t>{32, 4, 1});
 }
 
+TEST_CASE(test_fixed_symbolic_standard_to_static)
+{
+    auto n      = var("n", {3, 4});
+    auto extent = (n - 1) / 2 + 1;
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{extent}}};
+
+    EXPECT(s.is_fixed());
+    EXPECT(s.standard());
+    EXPECT(s.to_static() == migraphx::shape{migraphx::shape::float_type, {1, 1, 2}});
+}
+
 TEST_CASE(test_symbolic_shape_serialize)
 {
     auto n = var("n", {1, 8});

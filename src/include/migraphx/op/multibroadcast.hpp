@@ -121,6 +121,17 @@ struct multibroadcast
             if(std::any_of(
                    inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
             {
+                const bool symbolic_target =
+                    not output_dyn_dims.empty() and
+                    std::all_of(output_dyn_dims.begin(), output_dyn_dims.end(), [](const auto& d) {
+                        return d.is_symbolic();
+                    });
+                const bool has_range_input =
+                    std::any_of(inputs.begin(), inputs.end(), [](auto input) {
+                        return input.dynamic() and not input.symbolic();
+                    });
+                if(symbolic_target and not has_range_input)
+                    return make_bcast_shape(s0.to_symbolic(), output_dyn_dims);
                 if(not output_dyn_dims.empty())
                 {
                     return {t, output_dyn_dims};

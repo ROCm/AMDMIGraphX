@@ -25,6 +25,7 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/sym.hpp>
 #include <map>
 #include <functional>
@@ -97,23 +98,59 @@ std::vector<int64_t> find_permutation(const shape& s)
     return result;
 }
 
+namespace {
+// A dim of length 1 places no constraint on the memory layout, so a shape
+// supports any permutation that keeps its non-singleton dims in decreasing
+// stride order.
+bool supports_permutation(const shape& s, const std::vector<int64_t>& permutation)
+{
+    assert(permutation.size() == s.ndim());
+    if(s.dynamic())
+        return find_permutation(s) == permutation;
+    std::vector<std::size_t> strides;
+    transform_if(
+        permutation.begin(),
+        permutation.end(),
+        std::back_inserter(strides),
+        [&](auto d) { return s.lens()[d] > 1; },
+        [&](auto d) { return s.strides()[d]; });
+    return std::is_sorted(strides.begin(), strides.end(), std::greater<>{});
+}
+} // namespace
+
 std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
 {
     if(shapes.empty())
         return {};
-    std::map<std::vector<int64_t>, std::size_t> count;
-    for(auto&& s : shapes)
-    {
-        if(s.broadcasted())
-            continue;
-        count[find_permutation(s)]++;
-    }
-    if(count.empty())
+    std::vector<shape> voters;
+    std::copy_if(shapes.begin(), shapes.end(), std::back_inserter(voters), [](const shape& s) {
+        return not s.broadcasted();
+    });
+    if(voters.empty())
     {
         std::vector<int64_t> r(shapes.front().ndim());
         std::iota(r.begin(), r.end(), 0);
         return r;
     }
+    const auto ndim = voters.front().ndim();
+    if(std::any_of(voters.begin(), voters.end(), [&](const shape& s) { return s.ndim() != ndim; }))
+        MIGRAPHX_THROW("FIND_PERMUTATION: mismatched shape ranks");
+    std::map<std::vector<int64_t>, std::size_t> count;
+    std::transform(voters.begin(),
+                   voters.end(),
+                   std::inserter(count, count.end()),
+                   [](const shape& s) { return std::make_pair(find_permutation(s), 0); });
+    if(count.size() == 1)
+        return count.begin()->first;
+    // When layouts disagree, each shape votes for every candidate it supports.
+    // Shapes with singleton dims are layout-ambiguous and support several, so
+    // they cannot outvote shapes with a definite layout.
+    std::transform(
+        count.begin(), count.end(), element_output_iterator<1>(count.begin()), [&](const auto& p) {
+            return std::count_if(voters.begin(), voters.end(), [&](const shape& s) {
+                return supports_permutation(s, p.first);
+            });
+        });
     auto it = std::max_element(
         count.begin(), count.end(), by(std::less<>{}, [](auto&& p) { return p.second; }));
     assert(it != count.end());

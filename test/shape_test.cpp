@@ -1284,6 +1284,38 @@ TEST_CASE(from_4d_permutation)
     EXPECT(migraphx::find_permutation(out_shape) == permutation);
 }
 
+TEST_CASE(find_permutation_multi_singleton_ambiguous)
+{
+    // A standard shape with a singleton channel is layout-ambiguous, so the
+    // NHWC shape decides the layout.
+    auto nhwc = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {1, 511, 32, 32}, {0, 2, 3, 1});
+    migraphx::shape single{migraphx::shape::float_type, {1, 1, 32, 32}};
+    std::vector<int64_t> permutation = {0, 2, 3, 1};
+    EXPECT(migraphx::find_permutation({nhwc, single}) == permutation);
+    EXPECT(migraphx::find_permutation({single, nhwc}) == permutation);
+}
+
+TEST_CASE(find_permutation_multi_singleton_only)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 32, 32}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 1, 32, 32}};
+    std::vector<int64_t> permutation = {0, 1, 2, 3};
+    EXPECT(migraphx::find_permutation({s1, s2}) == permutation);
+}
+
+TEST_CASE(find_permutation_multi_majority)
+{
+    // Shapes without singleton dims keep one vote each, so the majority layout
+    // still wins.
+    auto nhwc =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {2, 8, 4, 4}, {0, 2, 3, 1});
+    migraphx::shape nchw1{migraphx::shape::float_type, {2, 8, 4, 4}};
+    migraphx::shape nchw2{migraphx::shape::float_type, {2, 8, 4, 4}};
+    std::vector<int64_t> permutation = {0, 1, 2, 3};
+    EXPECT(migraphx::find_permutation({nchw1, nhwc, nchw2}) == permutation);
+}
+
 TEST_CASE(multi_within_bounds)
 {
     migraphx::shape in_shape{migraphx::shape::float_type, {3, 2, 2}};

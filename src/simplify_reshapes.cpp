@@ -2188,10 +2188,10 @@ struct find_layout_broadcast
 };
 
 // Match slice->squeeze->pw/reduce where the squeeze and slice share the same
-// single axis, then rewrite to slice->pw/reduce->squeeze (unsqueezing the
-// other inputs).  find_op_shape_transform_op propagates the squeeze through
-// any downstream op chain, and find_splits in simplify_algebra merges parallel
-// branches back together.
+// single axis, then rewrite to slice->pw/reduce->squeeze (unsqueezing non-scalar
+// inputs and broadcasting scalars).  find_op_shape_transform_op propagates the
+// squeeze through any downstream op chain, and find_splits in simplify_algebra
+// merges parallel branches back together.
 struct find_slice_squeeze
 {
     auto matcher() const
@@ -2220,6 +2220,13 @@ struct find_slice_squeeze
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input == squeeze)
                 return slice_ins;
+            // Rank-0/1 scalars cannot be unsqueezed; broadcast to the slice shape instead.
+            if(input->get_shape().scalar() and input->get_shape().elements() == 1 and
+               input->get_shape().ndim() <= 1)
+                return m.insert_instruction(
+                    op_ins,
+                    make_op("multibroadcast", {{"out_lens", slice_ins->get_shape().lens()}}),
+                    input);
             return m.insert_instruction(op_ins, make_op("unsqueeze", {{"axes", {axis}}}), input);
         });
 

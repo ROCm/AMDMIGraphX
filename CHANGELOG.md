@@ -124,6 +124,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed a `simplify_reshapes` compilation failure when `find_slice_squeeze` rewrites pointwise operations with singleton scalar inputs by broadcasting scalars to the restored slice dimensions.
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).

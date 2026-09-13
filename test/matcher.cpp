@@ -912,7 +912,7 @@ TEST_CASE(match_has_value7)
     auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
     auto sum1 = mm.add_instruction(sum_op{}, one, zero);
     mm.add_instruction(pass_op{}, sum1);
-    auto m1 = match::has_value(0.0f, 0, 0);
+    auto m1 = match::has_value(0.0f, {.atol = 0, .rtol = 0});
     auto r1 = find_match(mm, m1);
     EXPECT(r1.result == mm.end());
     // increase tolerance
@@ -930,7 +930,7 @@ TEST_CASE(match_has_value8)
     auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
     auto sum1 = mm.add_instruction(sum_op{}, one, zero);
     mm.add_instruction(pass_op{}, sum1);
-    auto m1 = match::has_value(0.0f, 0, 0);
+    auto m1 = match::has_value(0.0f, {.atol = 0, .rtol = 0});
     auto r1 = find_match(mm, m1);
     EXPECT(r1.result == mm.end());
     // increase tolerance
@@ -953,14 +953,71 @@ TEST_CASE(match_has_value9)
     auto r2 = find_match(mm, m2);
     EXPECT(r2.result == n_five);
     // do exact match
-    auto m3 = match::has_value(-5.0f, 0, 0);
+    auto m3 = match::has_value(-5.0f, {.atol = 0, .rtol = 0});
     auto r3 = find_match(mm, m3);
     EXPECT(r3.result == n_five);
     // do exact match
-    auto m4 = match::has_value(5.0f, 0, 0);
+    auto m4 = match::has_value(5.0f, {.atol = 0, .rtol = 0});
     auto r4 = find_match(mm, m4);
     EXPECT(r4.result == mm.end());
 }
+// fp8e4m3fn holds only 8 representable values per binade, so a window sized for fp32 spans
+// neighbouring constants. A literal of 2 must not report as 1: passes that use has_value to spot
+// an identity multiply would otherwise delete a real multiply.
+TEST_CASE(match_has_value_fp8_not_neighbour)
+{
+    migraphx::module mm;
+    auto s   = migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}};
+    auto two = mm.add_literal(migraphx::literal{s, {2.0}});
+    mm.add_instruction(pass_op{}, two);
+    EXPECT(find_match(mm, match::has_value(1.0f)).result == mm.end());
+    EXPECT(find_match(mm, match::has_value(2.0f)).result == two);
+}
+
+// The same window let a pow exponent of 0.5, as in a batchnorm, report as 2.0 and trip the
+// variance rewrite.
+TEST_CASE(match_has_value_fp8_not_half_for_two)
+{
+    migraphx::module mm;
+    auto s    = migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}};
+    auto half = mm.add_literal(migraphx::literal{s, {0.5}});
+    mm.add_instruction(pass_op{}, half);
+    EXPECT(find_match(mm, match::has_value(2.0f)).result == mm.end());
+    EXPECT(find_match(mm, match::has_value(0.5f)).result == half);
+}
+
+// Tightening must still admit a constant that was rounded into the narrow type. 0.044715 comes
+// from the gelu tanh matcher, and its nearest fp8e4m3fn value is about 0.04297.
+TEST_CASE(match_has_value_fp8_rounded_constant)
+{
+    migraphx::module mm;
+    auto s = migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}};
+    auto c = mm.add_literal(migraphx::literal{s, {0.044715}});
+    mm.add_instruction(pass_op{}, c);
+    EXPECT(find_match(mm, match::has_value(0.044715)).result == c);
+}
+
+TEST_CASE(match_has_value_bf16_not_neighbour)
+{
+    migraphx::module mm;
+    auto s   = migraphx::shape{migraphx::shape::bf16_type, {1}, {0}};
+    auto one = mm.add_literal(migraphx::literal{s, {1.5}});
+    mm.add_instruction(pass_op{}, one);
+    EXPECT(find_match(mm, match::has_value(1.0f)).result == mm.end());
+    EXPECT(find_match(mm, match::has_value(1.5f)).result == one);
+}
+
+// float keeps the historical window, so a value a few rounding steps away still matches.
+TEST_CASE(match_has_value_float_window_unchanged)
+{
+    migraphx::module mm;
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    auto eps  = std::numeric_limits<float>::epsilon();
+    auto near = mm.add_literal(migraphx::literal{s, {1.0f + 4 * eps}});
+    mm.add_instruction(pass_op{}, near);
+    EXPECT(find_match(mm, match::has_value(1.0f)).result == near);
+}
+
 TEST_CASE(match_has_value_eps1)
 {
     migraphx::module mm;
@@ -971,7 +1028,7 @@ TEST_CASE(match_has_value_eps1)
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
     mm.add_return({sum1});
-    auto m = match::has_value(7.f, 1, 0);
+    auto m = match::has_value(7.f, {.atol = 1, .rtol = 0});
     auto r = find_match(mm, m);
     EXPECT(r.result == l0);
 }
@@ -986,7 +1043,7 @@ TEST_CASE(match_has_value_eps2)
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
     mm.add_return({sum1});
-    auto m = match::has_value(3.f, 10, 10);
+    auto m = match::has_value(3.f, {.atol = 10, .rtol = 10});
     auto r = find_match(mm, m);
     EXPECT(r.result == l1);
 }
@@ -1002,7 +1059,7 @@ TEST_CASE(match_has_value_eps3)
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
     mm.add_return({sum1});
     auto eps = std::numeric_limits<float>::epsilon();
-    auto m   = match::has_value(7.0 + 100 * eps, 10, 10);
+    auto m   = match::has_value(7.0 + 100 * eps, {.atol = 10, .rtol = 10});
     auto r   = find_match(mm, m);
     EXPECT(r.result == mm.end());
 }

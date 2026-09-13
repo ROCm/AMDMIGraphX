@@ -1196,40 +1196,104 @@ inline auto literal_value_checker(F f)
     }));
 }
 
-/**
- * Uses integer multiples of the corresponding floating point epsilon and
- * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(x)).
- * atol_mult controls the absolute tolerance.
- * rtol_mult controls the relative tolerance.
- * Uses no tolerance for integral types.
- */
-template <class T>
-inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 10)
+struct value_tolerance
 {
-    return literal_value_checker([=](migraphx::literal l) {
-        bool b = false;
-        l.visit([&](auto v) {
+    /// Multiples of the literal type's epsilon
+    optional<double> atol;
+    optional<double> rtol;
+
+    /// The window has_value uses when the caller does not name one. Every enumerator is listed so
+    /// that a type added to shape::type_t has to name its own window here rather than silently
+    /// picking up a window sized for float.
+    static value_tolerance get_default_tols(shape::type_t t)
+    {
+        switch(t)
+        {
+        // The historical window, and negligible slack at these widths.
+        case shape::float_type: [[fallthrough]];
+        case shape::double_type: return {10, 10};
+        // Seven rounding steps is a small slice of the values half holds per binade, and about five
+        // percent of a binade in bf16, which still leaves 1.0 and 1.125 apart.
+        case shape::half_type: [[fallthrough]];
+        case shape::bf16_type: return {3, 4};
+        // Under a single rounding step, so the window cannot reach the neighbouring constant in
+        // types holding only a handful of values per binade.
+        case shape::fp8e4m3fn_type: [[fallthrough]];
+        case shape::fp8e4m3fnuz_type: [[fallthrough]];
+        case shape::fp8e5m2_type: [[fallthrough]];
+        case shape::fp8e5m2fnuz_type: return {0.25, 0.5};
+        // Integral types compare exactly. literal::visit throws for tuple and fp4x2, so their
+        // window is never reached.
+        case shape::bool_type: [[fallthrough]];
+        case shape::uint8_type: [[fallthrough]];
+        case shape::int8_type: [[fallthrough]];
+        case shape::uint16_type: [[fallthrough]];
+        case shape::int16_type: [[fallthrough]];
+        case shape::uint32_type: [[fallthrough]];
+        case shape::int32_type: [[fallthrough]];
+        case shape::uint64_type: [[fallthrough]];
+        case shape::int64_type: [[fallthrough]];
+        case shape::tuple_type: [[fallthrough]];
+        case shape::fp4x2_type: return {0, 0};
+        }
+        MIGRAPHX_THROW("has_value: invalid literal type");
+    }
+};
+
+namespace detail {
+/// Compares every element of `l` against `x` within eps * (atol + rtol * abs(x)), where eps is the
+/// literal type's epsilon and the multiples default to `value_tolerance::get_default_tols` for that
+/// type. Integral types have an epsilon of zero, so they require an exact match, as does a window
+/// of zero.
+template <class T>
+inline bool literal_has_value(const migraphx::literal& l, T x, value_tolerance tols)
+{
+    auto defaults = value_tolerance::get_default_tols(l.get_shape().type());
+    auto atol     = tols.atol.value_or(defaults.atol.value());
+    auto rtol     = tols.rtol.value_or(defaults.rtol.value());
+    auto target   = static_cast<double>(x);
+    bool b        = false;
+    l.visit([&](auto v) {
+        // A literal views const data, so drop the qualifier or numeric_limits will miss the
+        // specialization for the narrow types and report an epsilon of zero.
+        using type  = std::remove_cv_t<typename decltype(v)::value_type>;
+        auto eps    = static_cast<double>(std::numeric_limits<type>::epsilon());
+        auto window = eps * (atol + rtol * std::fabs(target));
+        if(migraphx::float_equal(window, 0))
+        {
             // cast to the literal's data type before comparing
-            using type     = typename decltype(v)::value_type;
-            auto tolerance = atol_mult + rtol_mult * std::fabs(x);
-            if(migraphx::float_equal(tolerance, 0) or std::is_integral<type>{})
-            {
-                if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                       return migraphx::float_equal(val, static_cast<type>(x));
-                   }))
-                    b = true;
-            }
-            else
-            {
-                auto eps = std::numeric_limits<type>::epsilon();
-                if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                       return std::fabs(val - static_cast<type>(x)) < (eps * tolerance);
-                   }))
-                    b = true;
-            }
-        });
-        return b;
+            b = std::all_of(v.begin(), v.end(), [&](auto val) {
+                return migraphx::float_equal(val, static_cast<type>(x));
+            });
+        }
+        else
+        {
+            // Difference taken in double: in a narrow type the subtraction would itself round
+            // before being compared against the window.
+            b = std::all_of(v.begin(), v.end(), [&](auto val) {
+                return std::fabs(static_cast<double>(val) - target) < window;
+            });
+        }
     });
+    return b;
+}
+} // namespace detail
+
+/// Matches a literal holding `x`, using the per-type defaults so that a constant in a narrow type
+/// is held to a window that cannot reach the neighbouring representable value.
+template <class T>
+inline auto has_value(T x)
+{
+    return literal_value_checker(
+        [=](migraphx::literal l) { return detail::literal_has_value(l, x, value_tolerance{}); });
+}
+
+/// As above with the epsilon multiples given explicitly. Both zero requires an exact match.
+template <class T>
+inline auto has_value(T x, value_tolerance tols)
+{
+    return literal_value_checker(
+        [=](migraphx::literal l) { return detail::literal_has_value(l, x, tols); });
 }
 
 inline auto has_attribute(const std::string& name)

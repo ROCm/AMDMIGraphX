@@ -27,10 +27,12 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <algorithm>
 #include <numeric>
 #include <functional>
 #include <iostream>
+#include <vector>
 
 #ifdef _WIN32
 // cppcheck-suppress definePrefix
@@ -48,45 +50,198 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_CMD_EXECUTE)
 
 #ifndef _WIN32
 
+#include <spawn.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <cerrno>
+#include <array>
+
+extern char** environ;
+
 static std::function<void(const char*)> redirect_to(std::ostream& os)
 {
     return [&](const char* x) { os << x; };
 }
 
-template <class F>
-static int exec(const std::string& cmd, const char* type, F f)
+static std::vector<std::string> copy_environ()
 {
-    int ec = 0;
-    if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
-        std::cout << cmd << std::endl;
-    auto closer = [&](FILE* stream) {
-        auto status = pclose(stream);
-        ec          = WIFEXITED(status) ? WEXITSTATUS(status) : 0; // NOLINT
-    };
+    std::vector<std::string> env;
+    if(environ == nullptr)
+        return env;
+    for(char** e = environ; *e != nullptr; ++e)
+        env.emplace_back(*e);
+    return env;
+}
+
+static std::vector<char*> to_cstr_array(std::vector<std::string>& storage)
+{
+    std::vector<char*> result;
+    result.reserve(storage.size() + 1);
+    for(auto& s : storage)
+        result.push_back(s.data());
+    result.push_back(nullptr);
+    return result;
+}
+
+static int wait_for_pid(pid_t pid)
+{
+    int status = 0;
+    while(waitpid(pid, &status, 0) < 0)
     {
-        // TODO: Use execve instead of popen
-        std::unique_ptr<FILE, decltype(closer)> pipe(popen(cmd.c_str(), type), closer); // NOLINT
-        if(not pipe)
-            MIGRAPHX_THROW("popen() failed: " + cmd);
-        f(pipe.get());
+        if(errno == EINTR)
+            continue;
+        MIGRAPHX_THROW("waitpid() failed");
     }
+    if(WIFEXITED(status))
+        return WEXITSTATUS(status);
+    MIGRAPHX_THROW("Child process terminated abnormally");
+}
+
+struct spawn_options
+{
+    const fs::path* cwd           = nullptr;
+    const std::vector<std::string>* env = nullptr;
+    int stdin_fd                  = -1;
+    int stdout_fd                 = -1;
+    bool close_stdin_write        = false;
+};
+
+static pid_t spawn_process_async(const std::string& command,
+                                 const std::vector<std::string>& args,
+                                 const spawn_options& options)
+{
+    std::vector<std::string> argv_storage;
+    argv_storage.push_back(command);
+    argv_storage.insert(argv_storage.end(), args.begin(), args.end());
+    auto argv = to_cstr_array(argv_storage);
+
+    std::vector<std::string> env_storage;
+    std::vector<char*> envp;
+    if(options.env != nullptr and not options.env->empty())
+    {
+        env_storage = copy_environ();
+        env_storage.insert(env_storage.end(), options.env->begin(), options.env->end());
+        envp = to_cstr_array(env_storage);
+    }
+
+    posix_spawn_file_actions_t actions;
+    if(posix_spawn_file_actions_init(&actions) != 0)
+        MIGRAPHX_THROW("posix_spawn_file_actions_init() failed");
+
+    auto cleanup = scope_guard{[&] { posix_spawn_file_actions_destroy(&actions); }};
+
+    if(options.cwd != nullptr and not options.cwd->empty())
+    {
+        if(posix_spawn_file_actions_addchdir_np(&actions, options.cwd->c_str()) != 0)
+            MIGRAPHX_THROW("posix_spawn_file_actions_addchdir_np() failed");
+    }
+
+    if(options.stdin_fd >= 0)
+    {
+        if(posix_spawn_file_actions_adddup2(&actions, options.stdin_fd, STDIN_FILENO) != 0)
+            MIGRAPHX_THROW("posix_spawn_file_actions_adddup2() failed for stdin");
+    }
+
+    if(options.stdout_fd >= 0)
+    {
+        if(posix_spawn_file_actions_adddup2(&actions, options.stdout_fd, STDOUT_FILENO) != 0)
+            MIGRAPHX_THROW("posix_spawn_file_actions_adddup2() failed for stdout");
+    }
+
+    pid_t pid = 0;
+    const int spawn_result =
+        envp.empty()
+            ? posix_spawn(&pid, command.c_str(), &actions, nullptr, argv.data(), environ)
+            : posix_spawn(
+                  &pid, command.c_str(), &actions, nullptr, argv.data(), envp.data());
+    if(spawn_result != 0)
+        MIGRAPHX_THROW("posix_spawn() failed for command: " + command);
+
+    if(options.close_stdin_write)
+        close(options.stdin_fd);
+
+    return pid;
+}
+
+static int spawn_process(const std::string& command,
+                         const std::vector<std::string>& args,
+                         const spawn_options& options)
+{
+    return wait_for_pid(spawn_process_async(command, args, options));
+}
+
+template <class F>
+static int exec_process(const std::string& command,
+                        const std::vector<std::string>& args,
+                        const spawn_options& options,
+                        F&& read_output)
+{
+    int pipefd[2] = {-1, -1};
+    spawn_options spawn_opts = options;
+    const bool capture_output = options.stdout_fd < 0 and options.stdin_fd < 0;
+
+    if(capture_output)
+    {
+        if(pipe(pipefd) != 0)
+            MIGRAPHX_THROW("pipe() failed");
+        spawn_opts.stdout_fd = pipefd[1];
+    }
+
+    int ec = spawn_process(command, args, spawn_opts);
+
+    if(capture_output)
+    {
+        close(pipefd[1]);
+        std::array<char, 128> buffer{};
+        ssize_t n = 0;
+        while((n = read(pipefd[0], buffer.data(), buffer.size())) > 0)
+            read_output(buffer.data(), static_cast<std::size_t>(n));
+        close(pipefd[0]);
+    }
+
     return ec;
 }
 
-static int exec(const std::string& cmd, const std::function<void(const char*)>& std_out)
+static int exec_process(const std::string& command,
+                        const std::vector<std::string>& args,
+                        const spawn_options& options,
+                        const std::function<void(const char*)>& std_out)
 {
-    return exec(cmd, "r", [&](FILE* f) {
-        std::array<char, 128> buffer;
-        while(fgets(buffer.data(), buffer.size(), f) != nullptr)
-            std_out(buffer.data());
+    return exec_process(command, args, options, [&](const char* data, std::size_t) {
+        std_out(data);
     });
 }
 
-static int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
+static int exec_process(const std::string& command,
+                        const std::vector<std::string>& args,
+                        const spawn_options& options,
+                        std::function<void(process::writer)> std_in)
 {
-    return exec(cmd, "w", [&](FILE* f) {
-        std_in([&](const char* buffer, std::size_t n) { std::fwrite(buffer, 1, n, f); });
+    int pipefd[2] = {-1, -1};
+    if(pipe(pipefd) != 0)
+        MIGRAPHX_THROW("pipe() failed");
+
+    spawn_options spawn_opts = options;
+    spawn_opts.stdin_fd      = pipefd[0];
+
+    const pid_t pid = spawn_process_async(command, args, spawn_opts);
+    close(pipefd[0]);
+
+    std_in([&](const char* buffer, std::size_t n) {
+        ssize_t written = 0;
+        while(written < static_cast<ssize_t>(n))
+        {
+            const auto rc =
+                write(pipefd[1], buffer + written, n - static_cast<std::size_t>(written));
+            if(rc < 0)
+                MIGRAPHX_THROW("write() failed while sending data to child process");
+            written += rc;
+        }
     });
+    close(pipefd[1]);
+
+    return wait_for_pid(pid);
 }
 
 #else
@@ -362,31 +517,42 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
 
 struct process_impl
 {
-    std::string args{};
-    std::string envs{};
+    std::vector<std::string> args{};
+    std::vector<std::string> envs{};
     std::string command{};
     fs::path cwd{};
 
-    std::string get_command() const
+    spawn_options spawn_opts() const
     {
-        std::string result;
+        spawn_options opts{};
         if(not cwd.empty())
-            result += "cd " + cwd.string() + "; ";
+            opts.cwd = &cwd;
         if(not envs.empty())
-            result += envs + " ";
-        result += command;
-        if(not args.empty())
-            result += " " + args;
+            opts.env = &envs;
+        return opts;
+    }
+
+    std::string describe() const
+    {
+        std::string result = command;
+        for(const auto& arg : args)
+            result += " " + arg;
         return result;
     }
 
     template <class... Ts>
     void check_exec(Ts&&... xs) const
     {
-        int ec = migraphx::exec(std::forward<Ts>(xs)...);
+        if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
+        {
+            std::cout << "command=" << describe();
+            if(not cwd.empty())
+                std::cout << " cwd=" << cwd.string();
+            std::cout << std::endl;
+        }
+        int ec = migraphx::exec_process(std::forward<Ts>(xs)...);
         if(ec != 0)
-            MIGRAPHX_THROW("Command " + get_command() + " exited with status " +
-                           std::to_string(ec));
+            MIGRAPHX_THROW("Command " + describe() + " exited with status " + std::to_string(ec));
     }
 };
 
@@ -394,8 +560,7 @@ process::process(const std::string& cmd, const std::vector<std::string>& args)
     : impl(std::make_unique<process_impl>())
 {
     impl->command = cmd;
-    if(not args.empty())
-        impl->args = join_strings(args, " ");
+    impl->args    = args;
 }
 
 process::process(process&&) noexcept = default;
@@ -416,10 +581,7 @@ process& process::cwd(const fs::path& p)
 
 process& process::env(const std::vector<std::string>& envs)
 {
-    if(not envs.empty())
-    {
-        impl->envs = join_strings(envs, " ");
-    }
+    impl->envs = envs;
     return *this;
 }
 
@@ -457,7 +619,7 @@ void process::read(const writer& output) const
     // clang-format on
 #else
     std::stringstream ss;
-    impl->check_exec(impl->get_command(), redirect_to(ss));
+    impl->check_exec(impl->command, impl->args, impl->spawn_opts(), redirect_to(ss));
     auto result = ss.str();
 #endif
     output(result.data(), result.size());
@@ -466,7 +628,7 @@ void process::read(const writer& output) const
 void process::exec()
 {
 #ifndef _WIN32
-    impl->check_exec(impl->get_command(), redirect_to(std::cout));
+    impl->check_exec(impl->command, impl->args, impl->spawn_opts(), redirect_to(std::cout));
 #else
     // clang-format off
     impl->check_exec(impl->command, impl->cwd.string(), impl->args, impl->envs,
@@ -478,7 +640,7 @@ void process::exec()
 void process::write(std::function<void(writer)> pipe_in)
 {
 #ifndef _WIN32
-    impl->check_exec(impl->get_command(), std::move(pipe_in));
+    impl->check_exec(impl->command, impl->args, impl->spawn_opts(), std::move(pipe_in));
 #else
     // clang-format off
     impl->check_exec(impl->command, impl->cwd.string(),

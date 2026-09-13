@@ -38,6 +38,7 @@
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/split_factor.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -99,14 +100,15 @@ struct splitter
         });
         if(result.size() > 2)
             return {};
-        // Only handle reduce_sum for now
-        // TODO: Support other reduction types
+        // argmin/argmax cant be completed by a second reduction
         if(not std::all_of(result.begin(), result.end(), [](instruction_ref ins) {
-               return ins->name() == "reduce_sum";
+               return contains(ins->name(), "reduce");
            }))
             return {};
         if(result.size() < 2)
             return result;
+        // Skip internal reductions (like softmax's reduce_max) since the
+        // partial result cant be completed by the trailing reduction
         if(reaches(result[0], result[1]))
             return {};
         return result;
@@ -148,6 +150,61 @@ struct splitter
 
     std::optional<dominator_info> dom = std::nullopt;
 };
+
+struct partial_split
+{
+    std::int64_t axis = 0;
+    std::size_t group = 1;
+
+    // Split dimension `axis` into {group, n/group} so the first fused_reduce
+    // can do a partial reduction over the remaining n/group elements, which
+    // stay contiguous so the reads coalesce. Broadcast dimensions stay 1.
+    std::vector<std::size_t> split_dims(std::vector<std::size_t> dims) const
+    {
+        assert(axis >= 0 and axis < static_cast<std::int64_t>(dims.size()));
+        auto& dim      = dims[axis];
+        auto group_dim = dim == 1 ? 1 : group;
+        assert(dim % group_dim == 0);
+        dim /= group_dim;
+        dims.insert(dims.begin() + axis, group_dim);
+        return dims;
+    }
+
+    // Shift the axes to account for the inserted group dimension, which is
+    // not reduced by the first fused_reduce
+    std::vector<std::int64_t> split_axes(std::vector<std::int64_t> axes) const
+    {
+        std::transform(axes.begin(), axes.end(), axes.begin(), [&](std::int64_t a) {
+            return a < axis ? a : a + 1;
+        });
+        return axes;
+    }
+
+    operation split_op(const operation& op) const
+    {
+        if(contains(op.name(), "reduce"))
+        {
+            auto v    = op.to_value();
+            v["axes"] = split_axes(v["axes"].to_vector<std::int64_t>());
+            return make_op(op.name(), v);
+        }
+        if(op.name() == "multibroadcast")
+        {
+            auto v        = op.to_value();
+            v["out_lens"] = split_dims(v["out_lens"].to_vector<std::size_t>());
+            return make_op(op.name(), v);
+        }
+        return op;
+    }
+
+    // Ops split_op can rewrite or pass through unchanged; the pass-through
+    // is only valid for ops that dont depend on the split dimensions
+    static bool can_split(const instruction& i)
+    {
+        return is_reduce(i) or
+               contains({"@param", "@return", "pointwise", "multibroadcast"}, i.name());
+    }
+};
 } // namespace
 
 static std::string assign_op(const std::vector<instruction_ref>& splits)
@@ -169,11 +226,193 @@ insert_module_inline(module& m, instruction_ref ins, const module::with_inputs& 
     return m.insert_instructions(ins, &mwi.mod, &param_map);
 }
 
+// Unpack a multi-output instruction into get_tuple_elem instructions; a
+// single output is returned as-is
+static std::vector<instruction_ref>
+insert_tuple_elements(module& m, instruction_ref ins, instruction_ref value, std::size_t n)
+{
+    assert(n >= 1);
+    if(n == 1)
+        return {value};
+    std::vector<instruction_ref> result;
+    transform(range(n), std::back_inserter(result), [&](auto i) {
+        return m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", i}}), value);
+    });
+    return result;
+}
+
+// Replace the splits in the trailing module with the reduced values and
+// inline it into the parent module
+static void inline_trailing_module(module& m,
+                                   instruction_ref ins,
+                                   module::with_inputs& tail,
+                                   const std::vector<instruction_ref>& splits,
+                                   instruction_ref value)
+{
+    tail.replace(splits, insert_tuple_elements(m, ins, value, splits.size()));
+    auto replaced = insert_module_inline(m, ins, tail);
+    assert(replaced.size() == 1);
+    m.replace_instruction(ins, replaced.front());
+}
+
 static std::size_t get_reduce_size(const_module_ref rm)
 {
     auto ins = std::find_if(rm->begin(), rm->end(), &is_reduce);
     assert(ins != rm->end());
     return ins->inputs().front()->get_shape().elements() / ins->get_shape().elements();
+}
+
+// Atomic-based split_fused_reduce only supports float reduce_sum for now
+// TODO: Support other reduction types and data types
+static bool can_use_atomic_split(const std::vector<instruction_ref>& splits)
+{
+    return std::all_of(splits.begin(), splits.end(), [](instruction_ref split) {
+        return split->name() == "reduce_sum" and
+               contains({shape::float_type, shape::half_type}, split->get_shape().type());
+    });
+}
+
+static std::optional<partial_split> find_partial_split(const_module_ref rm,
+                                                       const std::vector<instruction_ref>& splits,
+                                                       const std::vector<std::int64_t>& axes,
+                                                       std::size_t lower_split_size)
+{
+    // Every operator must be mappable onto the split dimensions
+    if(not std::all_of(rm->begin(), rm->end(), &partial_split::can_split))
+        return std::nullopt;
+    // The trailing reduction completes each partial result with the same axes
+    if(not std::all_of(splits.begin(), splits.end(), [&](instruction_ref split) {
+           return split->get_operator().to_value()["axes"].to_vector<std::int64_t>() == axes;
+       }))
+        return std::nullopt;
+    assert(not splits.empty());
+    auto it = std::max_element(splits.begin(), splits.end(), by(std::less<>{}, [](auto split) {
+                                   return split->inputs().front()->get_shape().elements();
+                               }));
+    const auto& lens = (*it)->inputs().front()->get_shape().lens();
+    assert(std::all_of(axes.begin(), axes.end(), [&](auto axis) {
+        return axis >= 0 and axis < static_cast<std::int64_t>(lens.size());
+    }));
+    auto relements =
+        (*it)->inputs().front()->get_shape().elements() / (*it)->get_shape().elements();
+    // Pick the reduce axis that can be split into the most groups, preferring
+    // the innermost axis on ties. The threshold is scaled by the reduction
+    // size of the other axes so the remaining reduction is below the
+    // lower_split_size.
+    auto best = transform_accumulate(
+        axes.begin(),
+        axes.end(),
+        partial_split{},
+        [](const partial_split& x, const partial_split& y) { return y.group >= x.group ? y : x; },
+        [&](std::int64_t axis) -> partial_split {
+            std::size_t r = lens[axis];
+            auto min_size = std::max<std::size_t>(
+                lower_split_size / std::max<std::size_t>(relements / r, 1), 1);
+            return {axis, split_dim(r, min_size)};
+        });
+    if(best.group < 2)
+        return std::nullopt;
+    // Every shape must be broadcast or full along the split axis
+    if(not std::all_of(rm->begin(), rm->end(), [&](const instruction& i) {
+           if(i.name() == "@return")
+               return true;
+           auto dim = i.get_shape().lens()[best.axis];
+           return dim == 1 or dim == lens[best.axis];
+       }))
+        return std::nullopt;
+    return best;
+}
+
+static void apply_partial_split(module_pass_manager& mpm,
+                                instruction_ref ins,
+                                const std::vector<instruction_ref>& splits,
+                                const std::vector<std::int64_t>& axes,
+                                const partial_split& ps,
+                                std::array<module::with_inputs, 2> mods)
+{
+    // The pipeline runs this pass before multi-output fusion, so the
+    // fused_reduce still has a single non-tuple output
+    assert(ins->get_shape().type() != shape::tuple_type);
+    auto& m  = mpm.get_module();
+    auto* rm = ins->module_inputs().front();
+
+    // Reshape the inputs so the split axis becomes {group, n/group}
+    std::vector<instruction_ref> split_inputs;
+    std::transform(mods[0].inputs.begin(),
+                   mods[0].inputs.end(),
+                   std::back_inserter(split_inputs),
+                   [&](instruction_ref input) {
+                       return m.insert_instruction(
+                           ins,
+                           make_op("reshape", {{"dims", ps.split_dims(input->get_shape().lens())}}),
+                           input);
+                   });
+
+    // The first fused_reduce does a partial reduction for each group
+    auto* splitm = mpm.create_module(rm->name() + "_split");
+    splitm->set_bypass();
+    auto outs =
+        splitm->fuse(mods[0].mod,
+                     split_inputs,
+                     nullptr,
+                     [&](module& sm,
+                         instruction_ref pos,
+                         const operation& op,
+                         const std::vector<instruction_ref>& inputs,
+                         const std::vector<module_ref>& mod_args) {
+                         return sm.insert_instruction(pos, ps.split_op(op), inputs, mod_args);
+                     });
+    splitm->add_return(outs);
+    auto partial = m.insert_instruction(
+        ins, make_op("fused_reduce", {{"axes", ps.split_axes(axes)}}), split_inputs, {splitm});
+    auto partials = insert_tuple_elements(m, ins, partial, splits.size());
+
+    // Squeeze the reduced axis so the group dimension takes its place
+    std::vector<instruction_ref> squeezed;
+    std::transform(
+        partials.begin(), partials.end(), std::back_inserter(squeezed), [&](instruction_ref p) {
+            return m.insert_instruction(ins, make_op("squeeze", {{"axes", {ps.axis + 1}}}), p);
+        });
+
+    // The second fused_reduce completes each partial result with another
+    // reduction over the groups
+    auto* finalm = mpm.create_module(rm->name() + "_final");
+    finalm->set_bypass();
+    std::vector<instruction_ref> completed;
+    transform(range(squeezed.size()), std::back_inserter(completed), [&](auto i) {
+        auto param = finalm->add_parameter(param_name(i), squeezed[i]->get_shape().as_standard());
+        return finalm->add_instruction(make_op(splits[i]->name(), {{"axes", axes}}), param);
+    });
+
+    finalm->add_return(completed);
+
+    // Complete the reduction alone (the subwave algorithm packs multiple of
+    // these small reductions into each wavefront) and insert the trailing
+    // operators into the parent module; the later fuse_reduce pass fuses
+    // them into the completion kernel when its min_fused_outputs gate says
+    // it is profitable
+    auto completion =
+        m.insert_instruction(ins, make_op("fused_reduce", {{"axes", axes}}), squeezed, {finalm});
+    inline_trailing_module(m, ins, mods[1], splits, completion);
+}
+
+static void apply_atomic_split(module_pass_manager& mpm,
+                               instruction_ref ins,
+                               const std::vector<instruction_ref>& splits,
+                               const std::vector<std::int64_t>& axes,
+                               std::array<module::with_inputs, 2> mods)
+{
+    auto& m      = mpm.get_module();
+    auto* rm     = ins->module_inputs().front();
+    auto* splitm = mpm.create_module(rm->name() + "_split", std::move(mods[0].mod));
+    splitm->set_bypass();
+
+    auto split_reduce = m.insert_instruction(
+        ins,
+        make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign_op(splits)}}),
+        mods[0].inputs,
+        {splitm});
+    inline_trailing_module(m, ins, mods[1], splits, split_reduce);
 }
 
 void split_reduce::apply(module_pass_manager& mpm) const
@@ -182,21 +421,46 @@ void split_reduce::apply(module_pass_manager& mpm) const
     {
         if(ins->name() != "fused_reduce")
             continue;
-        auto* rm = ins->module_inputs().front();
-        if(get_reduce_size(rm) < split_size)
+        if(ins->get_shape().dynamic())
+            continue;
+        auto* rm         = ins->module_inputs().front();
+        auto reduce_size = get_reduce_size(rm);
+        if(reduce_size < split_size and reduce_size < lower_split_size)
             continue;
         splitter s{rm};
         auto splits = s.find_splits();
         if(splits.empty())
             continue;
-        // Only use split reduce with float for now
-        // TODO: Support other data types
-        if(not std::all_of(splits.begin(), splits.end(), [](instruction_ref split) {
-               return contains({shape::float_type, shape::half_type}, split->get_shape().type());
-           }))
-            continue;
         auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();
+
+        auto batch = splits.front()->get_shape().elements();
+        // Below the upper_split_size a single workgroup per output can
+        // handle the reduction well, so only split when the batch is too
+        // small to fill the device. Beyond the upper_split_size the
+        // reduction is too large for a single workgroup, so a split is
+        // needed regardless of the batch.
+        bool split_batch = batch < lower_max_batch or reduce_size >= upper_split_size;
+        // The partial split adds a kernel launch, so it also needs enough
+        // total work for lower_max_batch workgroups to each get a group of
+        // lower_split_size elements; smaller tensors are launch-bound and
+        // run faster with fewer kernels
+        bool enough_work = batch * reduce_size >= lower_max_batch * lower_split_size;
+        bool use_atomic =
+            split_batch and reduce_size >= split_size and can_use_atomic_split(splits);
+        // When both are applicable, prefer_partial_reduce decides, except on
+        // launch-bound tensors where the single-kernel atomic split is used
+        // instead. Without the atomic split, a launch-bound tensor is not
+        // split at all unless the reduction is too large for a single
+        // workgroup.
+        bool try_partial = split_batch and reduce_size >= lower_split_size and
+                           (enough_work or reduce_size >= upper_split_size) and
+                           (not use_atomic or (prefer_partial_reduce and enough_work));
+        std::optional<partial_split> ps;
+        if(try_partial)
+            ps = find_partial_split(rm, splits, axes, lower_split_size);
+        if(not ps.has_value() and not use_atomic)
+            continue;
 
         auto alive = s.find_alive(splits);
 
@@ -214,33 +478,10 @@ void split_reduce::apply(module_pass_manager& mpm) const
             mods = rm->split(ins->inputs(), splits);
         }
 
-        auto* splitm = mpm.create_module(rm->name() + "_split", std::move(mods[0].mod));
-        splitm->set_bypass();
-
-        // Insert split reduce
-        auto split_reduce = mpm.get_module().insert_instruction(
-            ins,
-            make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign_op(splits)}}),
-            mods[0].inputs,
-            {splitm});
-
-        std::vector<instruction_ref> split_reduce_each;
-        if(splits.size() == 1)
-        {
-            split_reduce_each = {split_reduce};
-        }
+        if(ps.has_value())
+            apply_partial_split(mpm, ins, splits, axes, *ps, std::move(mods));
         else
-        {
-            transform(range(splits.size()), std::back_inserter(split_reduce_each), [&](auto i) {
-                return mpm.get_module().insert_instruction(
-                    ins, make_op("get_tuple_elem", {{"index", i}}), split_reduce);
-            });
-        }
-
-        mods[1].replace(splits, split_reduce_each);
-        auto replaced = insert_module_inline(mpm.get_module(), ins, mods[1]);
-        assert(replaced.size() == 1);
-        mpm.get_module().replace_instruction(ins, replaced.front());
+            apply_atomic_split(mpm, ins, splits, axes, std::move(mods));
     }
 }
 

@@ -50,9 +50,12 @@ void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
     mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = false});
     mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = true});
     mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = true});
-    mpm.run_pass(split_reduce{.split_size = get_split_size(split_size)});
+    mpm.run_pass(split_reduce{.split_size       = get_split_size(split_size),
+                              .upper_split_size = upper_split_size,
+                              .lower_max_batch  = lower_max_batch});
     mpm.run_pass(fuse_pointwise{.enable_rewrite_broadcasts = true});
-    mpm.run_pass(fuse_reduce{.enable_rewrite_broadcasts = true});
+    mpm.run_pass(
+        fuse_reduce{.enable_rewrite_broadcasts = true, .min_fused_outputs = min_fused_outputs});
     if(not enabled(MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION{}))
     {
         mpm.run_pass(fuse_pointwise{.enable_multi_output = true});

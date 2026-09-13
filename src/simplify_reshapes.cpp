@@ -2097,6 +2097,14 @@ struct find_reshape_dot
         {
             new_dot = m.insert_instruction(dot, make_op("dot"), inp, new_other);
         }
+        // Moving the reshape across the dot is only valid when the element count is
+        // preserved; otherwise the trailing reshape back to the original dot shape is
+        // invalid (observed creating an N->M element reshape that aborts compilation).
+        if(new_dot->get_shape().elements() != dot->get_shape().elements())
+        {
+            m.remove_instruction(new_dot);
+            return;
+        }
         m.replace_instruction(
             dot, make_op("reshape", {{"dims", dot->get_shape().lens()}}), new_dot);
     }

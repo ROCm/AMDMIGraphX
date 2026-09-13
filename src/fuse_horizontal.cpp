@@ -486,6 +486,12 @@ struct dot_horizontal_fusion
     std::vector<instruction_ref>
     fuse(module& m, const std::vector<instruction_ref>& dots, instruction_ref insert_pt) const
     {
+        // Skip fusion if any dot is dependent on another
+        if(any_of(dots, [&](auto x) {
+               return any_of(dots, [&](auto y) { return x != y and reaches(x, y); });
+           }))
+            return {};
+
         // Stack input `input_idx` of every dot along a new leading axis.
         auto stack = [&](std::size_t input_idx) {
             std::vector<instruction_ref> unsqueezed(dots.size());

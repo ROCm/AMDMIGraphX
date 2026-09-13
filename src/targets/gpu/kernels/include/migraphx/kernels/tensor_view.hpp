@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -61,20 +61,27 @@ struct tensor_view
         index_int offset;
 #ifdef MIGRAPHX_DEBUG
         index_int idx = 0;
+#endif
         template <class U>
         constexpr index_to_offset(U i) : offset(Shape{}.index(i))
         {
+#ifdef MIGRAPHX_DEBUG
             if constexpr(is_convertible<U, index_int>{})
                 idx = i;
             else
                 idx = Shape{}.single(i);
+#endif
         }
-#else
-        template <class U>
-        constexpr index_to_offset(U i) : offset(Shape{}.index(i))
+
+        template <class... Us>
+        constexpr index_to_offset(Us... is)
+            : offset(Shape{}.index({is...}))
+#ifdef MIGRAPHX_DEBUG
+              ,
+              idx(Shape{}.single({is...}))
+#endif
         {
         }
-#endif
     };
 
     constexpr T& operator[](MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_to_offset) i) const

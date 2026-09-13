@@ -18,6 +18,7 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
+* Changed out-of-process hipRTC compilation to return the code object on `migraphx-hiprtc-driver`'s stdout instead of a temporary file, so kernel compilation no longer writes to the filesystem. The driver no longer accepts an output-path argument and reports failure through its exit status, so a driver and library from different installs must not be mixed (#5190).
 * Changed `propagate_constant` to skip folding a `convert` to a wider type, since that would enlarge the literal and lose the smaller storage type (#5138).
 * The 1 arg `slice` operator accepts symbolic input shapes when every sliced axis has a fixed length. Slicing a non-fixed symbolic axis, or supplying the bounds as inputs, needs `dyn_slice` since the integer bounds cannot express a symbolic output extent (#5112).
 * Rejected symbolic input shapes in the multi-input `slice` calls, and pointed both symbolic `slice` errors at `dyn_slice` (#5112).

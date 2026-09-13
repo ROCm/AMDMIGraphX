@@ -23,9 +23,11 @@
  */
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -1317,12 +1319,23 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::transform(prefill_mlir_values.begin(),
                        prefill_mlir_values.end(),
                        prefill_values.begin(),
-                       [](const auto& v) {
-                           // mlir sets fill attribute as float but migx hip::fill operator only
-                           // supports integer type.
-                           // TODO: Need to add checks that it is indeed an integer.
-                           double dv = mlirFloatAttrGetValueDouble(v);
-                           return static_cast<int>(dv);
+                       [](const auto& v) -> value {
+                           // migx hip::fill only supports integer type. rocMLIR types the
+                           // prefill after the element type of the buffer being filled, so a
+                           // kernel writing an integer output (an int8 convolution
+                           // accumulating into i32, say) hands back an integer attribute
+                           // rather than a float one.
+                           if(mlirAttributeIsAInteger(v))
+                               return static_cast<int>(mlirIntegerAttrGetValueInt(v));
+                           if(mlirAttributeIsAFloat(v))
+                           {
+                               auto d = mlirFloatAttrGetValueDouble(v);
+                               if(not float_equal(std::trunc(d), d))
+                                   MIGRAPHX_THROW("rock.prefill value " + std::to_string(d) +
+                                                  " is not representable as an integer");
+                               return static_cast<int>(d);
+                           }
+                           MIGRAPHX_THROW("Unsupported rock.prefill attribute type");
                        });
         mco.prefill_indices = prefill_indices;
         mco.prefill_values  = prefill_values;

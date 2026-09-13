@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import string, sys, re
+import string, sys, re, ast
 
 trivial = [
     'std::size_t', 'instruction_ref', 'support_metric', 'const_module_ref',
@@ -473,11 +473,48 @@ def template_eval(template, **kwargs):
     end = '%>'
     escaped = (re.escape(start), re.escape(end))
     mark = re.compile('%s(.*?)%s' % escaped, re.DOTALL)
-    for key in kwargs:
-        exec('%s = %s' % (key, kwargs[key]))
+    namespace = dict(kwargs)
+    allowed_nodes = {
+        ast.Expression,
+        ast.Constant,
+        ast.Name,
+        ast.Load,
+        ast.BinOp,
+        ast.UnaryOp,
+        ast.Compare,
+        ast.BoolOp,
+        ast.Add,
+        ast.Sub,
+        ast.Mult,
+        ast.Div,
+        ast.Mod,
+        ast.Pow,
+        ast.And,
+        ast.Or,
+        ast.Not,
+        ast.Eq,
+        ast.NotEq,
+        ast.Lt,
+        ast.LtE,
+        ast.Gt,
+        ast.GtE,
+        ast.List,
+        ast.Tuple,
+        ast.Subscript,
+        ast.Slice,
+        ast.Call,
+        ast.Attribute,
+        ast.keyword,
+    }
     for item in mark.findall(template):
-        template = template.replace(start + item + end,
-                                    str(eval(item.strip())))
+        tree = ast.parse(item.strip(), mode='eval')
+        for node in ast.walk(tree):
+            if type(node) not in allowed_nodes:
+                raise ValueError(
+                    f"Disallowed expression in template: {type(node).__name__}")
+        value = eval(compile(tree, '<template>', 'eval'),
+                     {"__builtins__": {}}, namespace)
+        template = template.replace(start + item + end, str(value))
     return template
 
 

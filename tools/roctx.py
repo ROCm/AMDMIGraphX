@@ -27,6 +27,8 @@
 import json
 import argparse
 import os
+import subprocess
+import shlex
 from sys import argv as sysargs
 from sys import version_info as python_version
 from sys import exit as sys_exit
@@ -220,7 +222,7 @@ def run():
     executable = f"/opt/rocm/bin/migraphx-driver roctx {run_args}"
     process_args = configs + ' ' + output_dir + ' ' + executable
     for i in range(repeat_count):
-        os.system('rocprof ' + process_args)
+        subprocess.run(shlex.split('rocprof ' + process_args), check=True)
     print("RUN COMPLETE.")
 
 
@@ -254,12 +256,16 @@ def main():
         rpd_path = '/tmp/rocm-profile-data/rocmProfileData/'
         if not os.path.exists(rpd_path):
             print("rocmProfileData DOES NOT EXIST. CLONING...")
-            os.system(
-                f"git clone https://github.com/ROCmSoftwarePlatform/rocmProfileData.git {rpd_path}"
-            )
+            subprocess.run([
+                'git', 'clone',
+                'https://github.com/ROCmSoftwarePlatform/rocmProfileData.git',
+                rpd_path
+            ],
+                         check=True)
         os.chdir(rpd_path + "rocpd_python/")
-        os.system(python_bin + ' -m pip install --upgrade pip')
-        os.system(python_bin + ' setup.py install')
+        subprocess.run([python_bin, '-m', 'pip', 'install', '--upgrade', 'pip'],
+                       check=True)
+        subprocess.run([python_bin, 'setup.py', 'install'], check=True)
         os.chdir(curr)
         run()
         os.chdir(curr + f"/{args.out}/")

@@ -839,4 +839,315 @@ TEST_CASE(logsoftmax)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// The reduce kernel accumulates in whatever type it reads, so the pass converts the input of a
+// low precision reduction to float and converts the result back.
+TEST_CASE(reduce_sum_fp8_widens)
+{
+    for(auto t : {migraphx::shape::fp8e4m3fnuz_type,
+                  migraphx::shape::fp8e5m2fnuz_type,
+                  migraphx::shape::fp8e4m3fn_type,
+                  migraphx::shape::fp8e5m2_type})
+    {
+        migraphx::shape s{t, {2, 8}};
+        migraphx::module m1;
+        {
+            auto x   = m1.add_parameter("x", s);
+            auto sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+            m1.add_return({sum});
+        }
+        run_pass(m1);
+        migraphx::module m2;
+        {
+            auto x    = m2.add_parameter("x", s);
+            auto wide = m2.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+            auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), wide);
+            auto back =
+                m2.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), sum);
+            m2.add_return({back});
+        }
+        EXPECT(m1.sort() == m2.sort());
+    }
+}
+
+TEST_CASE(reduce_sum_short_16bit_unchanged)
+{
+    for(auto t : {migraphx::shape::half_type, migraphx::shape::bf16_type})
+    {
+        migraphx::shape s{t, {2, 1024}};
+        migraphx::module m1;
+        {
+            auto x   = m1.add_parameter("x", s);
+            auto sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+            m1.add_return({sum});
+        }
+        run_pass(m1);
+        migraphx::module m2;
+        {
+            auto x   = m2.add_parameter("x", s);
+            auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+            m2.add_return({sum});
+        }
+        EXPECT(m1.sort() == m2.sort());
+    }
+}
+
+TEST_CASE(reduce_sum_long_16bit_widens)
+{
+    for(auto t : {migraphx::shape::half_type, migraphx::shape::bf16_type})
+    {
+        migraphx::shape s{t, {2, 16385}};
+        migraphx::module m1;
+        {
+            auto x   = m1.add_parameter("x", s);
+            auto sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+            m1.add_return({sum});
+        }
+        run_pass(m1);
+        migraphx::module m2;
+        {
+            auto x    = m2.add_parameter("x", s);
+            auto wide = m2.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+            auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), wide);
+            auto back =
+                m2.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), sum);
+            m2.add_return({back});
+        }
+        EXPECT(m1.sort() == m2.sort());
+    }
+}
+
+TEST_CASE(reduce_sum_float_unchanged)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 16385}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        m1.add_return({sum});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        m2.add_return({sum});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_sum_widen_is_idempotent)
+{
+    migraphx::shape s{migraphx::shape::fp8e4m3fn_type, {2, 8}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        m1.add_return({sum});
+    }
+    run_pass(m1);
+    auto m2 = m1;
+    run_pass(m2);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_fp8_widens)
+{
+    for(auto t : {migraphx::shape::fp8e4m3fnuz_type,
+                  migraphx::shape::fp8e5m2fnuz_type,
+                  migraphx::shape::fp8e4m3fn_type,
+                  migraphx::shape::fp8e5m2_type})
+    {
+        migraphx::shape s{t, {2, 8}};
+        migraphx::module m1;
+        {
+            auto x    = m1.add_parameter("x", s);
+            auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+            m1.add_return({prod});
+        }
+        run_pass(m1);
+        migraphx::module m2;
+        {
+            auto x    = m2.add_parameter("x", s);
+            auto wide = m2.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+            auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), wide);
+            auto back =
+                m2.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), prod);
+            m2.add_return({back});
+        }
+        EXPECT(m1.sort() == m2.sort());
+    }
+}
+
+TEST_CASE(reduce_prod_half_widens)
+{
+    // A short half product widens even though the equivalent sum does not, since a product can
+    // leave half's range at any length. Compare reduce_sum_short_16bit_unchanged.
+    migraphx::shape s{migraphx::shape::half_type, {2, 8}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto wide = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), wide);
+        auto back =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), prod);
+        m2.add_return({back});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_short_bf16_unchanged)
+{
+    // bf16 has the exponent range of float, so a short product has nothing to gain.
+    migraphx::shape s{migraphx::shape::bf16_type, {2, 1024}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m2.add_return({prod});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_long_bf16_widens)
+{
+    migraphx::shape s{migraphx::shape::bf16_type, {2, 16385}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto wide = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), wide);
+        auto back =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), prod);
+        m2.add_return({back});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_float_unchanged)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 16385}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m2.add_return({prod});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_int8_unchanged)
+{
+    // Integral products are left to the integral rule in find_reduce_mean and are not widened here.
+    migraphx::shape s{migraphx::shape::int8_type, {2, 8}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto prod = m2.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m2.add_return({prod});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_prod_widen_is_idempotent)
+{
+    migraphx::shape s{migraphx::shape::half_type, {2, 8}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto prod = m1.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), x);
+        m1.add_return({prod});
+    }
+    run_pass(m1);
+    auto m2 = m1;
+    run_pass(m2);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_mean_long_bf16_widens)
+{
+    // bf16 has the exponent range of float, so the max_n rule that covers half never fires for it.
+    migraphx::shape s{migraphx::shape::bf16_type, {2, 16385}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto mean = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), x);
+        m1.add_return({mean});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto wide = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto n   = m2.add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {16385}});
+        auto div = migraphx::add_common_op(m2, migraphx::make_op("div"), {wide, n});
+        auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), div);
+        auto back =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", s.type()}}), sum);
+        m2.add_return({back});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_mean_short_bf16_unchanged)
+{
+    migraphx::shape s{migraphx::shape::bf16_type, {2, 1024}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto mean = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), x);
+        m1.add_return({mean});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto n   = m2.add_literal(migraphx::literal{{s.type(), {1}}, {1024}});
+        auto div = migraphx::add_common_op(m2, migraphx::make_op("div"), {x, n});
+        auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), div);
+        m2.add_return({sum});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

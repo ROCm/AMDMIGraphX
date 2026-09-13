@@ -220,6 +220,7 @@ add_library(migraphx_gpu
     fuse_mlir.cpp
     fuse_ops.cpp
     gemm_impl.cpp
+    gptoss_moe.cpp
     hip.cpp
     hipblaslt.cpp
     hip_gemm_impl.cpp
@@ -273,6 +274,7 @@ endfunction()
 
 register_migraphx_gpu_ops(hip_
     fixed_pad
+    gptoss_moe
     loop
     topk
 )

@@ -951,10 +951,19 @@ struct find_kv_cache_attention
             match::opaque(match::skip(match::name("convert"))(match::softmax_input(mask_cvt)));
         auto values = match::opaque(
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v"));
-        auto gemm2 = match::opaque(
-            match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values)));
-        auto transpose_out = match::opaque(match::name("transpose")(match::arg(0)(gemm2)));
-        return match::name("reshape")(match::arg(0)(transpose_out));
+        return match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
+    }
+
+    /// The view ops laying out the attention output after the second gemm,
+    /// in whatever form the reshape simplifications left them
+    static instruction_ref find_output_end(instruction_ref gemm2)
+    {
+        static const std::unordered_set<std::string> view_ops = {
+            "transpose", "reshape", "unsqueeze", "squeeze"};
+        auto end = gemm2;
+        while(end->outputs().size() == 1 and contains(view_ops, end->outputs().front()->name()))
+            end = end->outputs().front();
+        return end;
     }
 
     std::string get_count() const { return std::to_string((*counter)++); }
@@ -1036,10 +1045,10 @@ struct find_kv_cache_attention
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto total_sl = r.instructions["total_sl"];
-        auto reshape  = r.result;
+        auto end      = find_output_end(r.result);
 
         // Capture all instructions part of the attention op
-        auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
+        auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, end);
 
         // Add captured instructions to new submodule
         module m_attn;

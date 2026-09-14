@@ -41,6 +41,8 @@
 #include <migraphx/functional.hpp>
 #include <iterator>
 #include <map>
+#include <numeric>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -686,6 +688,173 @@ struct reduce_reshape : rewrite_reshapes_base
     }
 };
 
+/// Whether an input of the reduce is an unpack_int4 that has not been
+/// fused into the reduce yet
+bool input_has_unpack(instruction_ref reduce)
+{
+    static const std::unordered_set<std::string> view_ops = {"reshape",
+                                                             "squeeze",
+                                                             "unsqueeze",
+                                                             "flatten",
+                                                             "transpose",
+                                                             "multibroadcast",
+                                                             "broadcast",
+                                                             "contiguous"};
+    return any_of(reduce->inputs(), [&](instruction_ref input) {
+        while(input->inputs().size() == 1 and contains(view_ops, input->name()))
+            input = input->inputs().front();
+        return input->name() == "unpack_int4";
+    });
+}
+
+/// Split a fused_reduce that is only consumed by slices along a non-reduced
+/// axis into one reduce per slice over the sliced inputs, so the consumers
+/// of the slices can fuse with the reductions (eg swiglu over the halves of
+/// a gate_up matvec). Waits for the unpack to be fused since the slices are
+/// pushed into the reduce inputs.
+struct find_reduce_slice
+{
+    auto matcher() const
+    {
+        auto unit_reshapes = match::name("squeeze", "unsqueeze", "transpose");
+        return match::name("slice")(
+            match::arg(0)(match::skip(unit_reshapes)(match::name("fused_reduce").bind("reduce"))));
+    }
+
+    static std::vector<std::size_t> slice_axes(instruction_ref slice)
+    {
+        return slice->get_operator().to_value().at("axes").to_vector<std::size_t>();
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m     = mpm.get_module();
+        auto slice  = r.result;
+        auto reduce = r.instructions["reduce"];
+        if(input_has_unpack(reduce))
+            return;
+        auto axes = slice_axes(slice);
+        if(axes.size() != 1)
+            return;
+        auto v     = slice->get_operator().to_value();
+        auto start = v.at("starts").to_vector<std::int64_t>().front();
+        auto end   = v.at("ends").to_vector<std::int64_t>().front();
+        auto input = slice->inputs().front();
+        // Every consumer of the reduce must be a slice along the same axis,
+        // otherwise the reduction would be duplicated
+        if(not all_of(input->outputs(), [&](instruction_ref out) {
+               return out->name() == "slice" and slice_axes(out) == axes;
+           }))
+            return;
+        std::vector<operation> ops;
+        for(auto ins = input; ins != reduce; ins = ins->inputs().front())
+        {
+            if(ins != input and ins->outputs().size() != 1)
+                return;
+            ops.push_back(ins->get_operator());
+        }
+        if(input != reduce and reduce->outputs().size() != 1)
+            return;
+        std::reverse(ops.begin(), ops.end());
+        const auto& rlens = reduce->get_shape().lens();
+        std::size_t raxis = axes.front();
+        if(not ops.empty())
+        {
+            auto desc = shape_transform_descriptor::create(rlens, ops);
+            if(desc.empty())
+                return;
+            auto is = range(rlens.size());
+            auto it = std::find_if(is.begin(), is.end(), [&](auto i) {
+                return desc.get_dst_axes_from_src(i) == std::vector<std::size_t>{axes.front()};
+            });
+            if(it == is.end())
+                return;
+            raxis = *it;
+        }
+        auto reduce_axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        if(contains(reduce_axes, raxis))
+            return;
+        auto len = static_cast<std::int64_t>(rlens[raxis]);
+        if(start < 0 or end <= start or end > len or end - start == len)
+            return;
+        if(not all_of(reduce->inputs(), [&](instruction_ref x) {
+               return x->get_shape().lens()[raxis] == rlens[raxis];
+           }))
+            return;
+        auto slice_op = make_op("slice", {{"axes", {raxis}}, {"starts", {start}}, {"ends", {end}}});
+        auto inputs   = reduce->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](instruction_ref x) {
+            return m.insert_instruction(slice, slice_op, x);
+        });
+        // Broadcasts inside the submodule expand to the full axis
+        auto new_len     = static_cast<std::size_t>(end - start);
+        const auto* oldm = reduce->module_inputs().front();
+        auto* sm         = mpm.create_module(oldm->name() + "_slice" + std::to_string(start));
+        sm->set_bypass();
+        auto outs = sm->fuse(
+            *oldm, inputs, nullptr, reduce_reshape::transform_op([&](const operation& sop) {
+                if(not contains({"multibroadcast", "broadcast"}, sop.name()))
+                    return sop;
+                auto sv       = sop.to_value();
+                auto out_lens = sv.at("out_lens").to_vector<std::size_t>();
+                if(raxis < out_lens.size() and out_lens[raxis] == rlens[raxis])
+                    out_lens[raxis] = new_len;
+                sv["out_lens"] = out_lens;
+                return make_op(sop.name(), sv);
+            }));
+        sm->add_return(outs);
+        auto new_reduce = m.insert_instruction(slice, reduce->get_operator(), inputs, {sm});
+        auto y          = std::accumulate(
+            ops.begin(), ops.end(), new_reduce, [&](instruction_ref ins, const operation& op) {
+                return m.insert_instruction(slice, op, ins);
+            });
+        assert(y->get_shape().lens() == slice->get_shape().lens());
+        m.replace_instruction(slice, y);
+    }
+};
+
+/// Map a pointwise over squeezed fused_reduce outputs into the reduce space
+/// so it can fuse as an epilogue of the reductions: the other inputs are
+/// unsqueezed instead and the result is squeezed after the pointwise
+struct find_reduce_squeeze_pointwise
+{
+    auto matcher() const
+    {
+        auto squeeze =
+            match::name("squeeze")(match::used_once(), match::arg(0)(match::name("fused_reduce")));
+        return match::name("pointwise")(match::any_of[match::inputs()](squeeze.bind("squeeze")));
+    }
+
+    static std::vector<std::int64_t> squeeze_axes(instruction_ref squeeze)
+    {
+        return squeeze->get_operator().to_value().at("axes").to_vector<std::int64_t>();
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m   = mpm.get_module();
+        auto pw   = r.result;
+        auto axes = squeeze_axes(r.instructions["squeeze"]);
+        if(pw->get_shape().type() == shape::tuple_type)
+            return;
+        auto is_squeezed_reduce = [&](instruction_ref input) {
+            if(input->name() != "squeeze" or input->outputs().size() != 1)
+                return false;
+            if(input->inputs().front()->name() != "fused_reduce")
+                return false;
+            return squeeze_axes(input) == axes;
+        };
+        auto inputs = pw->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](instruction_ref input) {
+            if(is_squeezed_reduce(input))
+                return input->inputs().front();
+            return m.insert_instruction(pw, make_op("unsqueeze", {{"axes", axes}}), input);
+        });
+        auto new_pw = m.insert_instruction(pw, pw->get_operator(), inputs, pw->module_inputs());
+        m.replace_instruction(pw, make_op("squeeze", {{"axes", axes}}), new_pw);
+    }
+};
+
 } // namespace
 
 void fuse_reduce::apply(module_pass_manager& mpm) const
@@ -707,7 +876,9 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
                             find_reduce_pointwise{.min_fused_outputs = min_fused_outputs},
                             find_pointwise_reduce{},
                             find_reduce_reduce{},
-                            find_unpack_reduce{});
+                            find_unpack_reduce{},
+                            find_reduce_slice{},
+                            find_reduce_squeeze_pointwise{});
         mpm.run_pass(dead_code_elimination{});
     }
 }

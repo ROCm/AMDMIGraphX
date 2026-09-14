@@ -83,7 +83,12 @@ struct parse_generic_op : op_parser<parse_generic_op>
     {
         const auto& val = parser.load_to_value(opd.op_name, info, false);
 
-        if(any_of(args, [&](const auto& arg) { return arg->get_shape().dynamic(); }))
+        // ONNX spec: gather/gathernd take 2 args; empty data is valid and yields an empty result.
+        const bool keep_empty_args = opd.op_name == "gather" or opd.op_name == "gathernd";
+        const bool has_dynamic =
+            any_of(args, [](const auto& arg) { return arg->get_shape().dynamic(); });
+
+        if(keep_empty_args or has_dynamic)
         {
             return op::builder::add(opd.op_name, *info.mod, args, val).at(0);
         }

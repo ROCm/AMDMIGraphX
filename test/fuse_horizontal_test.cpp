@@ -1198,8 +1198,8 @@ TEST_CASE(dot_horiz_fusion_basic)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Two dependent groups of parallel dots must remain topologically ordered after fusion.
-TEST_CASE(dot_horiz_fusion_chained_groups)
+// Dependent dots with the same group key must not be fused together.
+TEST_CASE(dot_horiz_no_fusion_chained_groups)
 {
     migraphx::module m;
     {
@@ -1232,9 +1232,10 @@ TEST_CASE(dot_horiz_fusion_chained_groups)
         auto d12 = m.add_instruction(migraphx::make_op("dot"), a2, w12);
         m.add_return({d10, d11, d12});
     }
+    auto expected = m;
     run_pass(m);
 
-    EXPECT(m.validate() == m.end());
+    EXPECT(m == expected);
 }
 
 // Dots whose weights are not compile-time constants are not candidates.

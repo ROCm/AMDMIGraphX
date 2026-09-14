@@ -98,6 +98,11 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
         std::sort(
             group.begin(), group.end(), [&](auto a, auto b) { return pos.at(a) < pos.at(b); });
 
+        if(any_of(group, [&](auto x) {
+               return any_of(group, [&](auto y) { return x != y and reaches(x, y); });
+           }))
+            return;
+
         auto insert_pt    = std::next(group.back());
         auto replacements = finder.fuse(m, group, insert_pt);
         if(replacements.empty())
@@ -486,12 +491,6 @@ struct dot_horizontal_fusion
     std::vector<instruction_ref>
     fuse(module& m, const std::vector<instruction_ref>& dots, instruction_ref insert_pt) const
     {
-        // Skip fusion if any dot is dependent on another
-        if(any_of(dots, [&](auto x) {
-               return any_of(dots, [&](auto y) { return x != y and reaches(x, y); });
-           }))
-            return {};
-
         // Stack input `input_idx` of every dot along a new leading axis.
         auto stack = [&](std::size_t input_idx) {
             std::vector<instruction_ref> unsqueezed(dots.size());

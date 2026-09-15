@@ -28,6 +28,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <chrono>
+#include <thread>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -103,6 +105,44 @@ double time_op(const context& ictx, operation op, int bundle, int nruns)
     return time_op(ictx, op, inputs, bundle, nruns);
 }
 
+std::vector<argument> generate_program_arguments(
+    const context& ictx, const program& p, const std::unordered_map<std::string, double>& fill_map)
+{
+    migraphx::context ctx = ictx;
+    auto& gctx            = any_cast<migraphx::gpu::context>(ctx);
+    const auto* mm        = p.get_main_module();
+    auto names            = mm->get_parameter_names();
+    std::vector<argument> args;
+    args.reserve(names.size());
+    unsigned long seed = 0;
+    std::transform(names.begin(), names.end(), std::back_inserter(args), [&](const auto& name) {
+        auto s         = mm->get_parameter_shape(name);
+        std::string id = "";
+        if(s.type() != migraphx::shape::tuple_type)
+            id = s.type_string() + migraphx::shape::to_sizes_string({s.as_standard()});
+
+        // fill_map inputs need specific values (host fill); the rest are generated
+        // on the GPU to skip the host PRNG + H2D copy per candidate.
+        if(contains(fill_map, id))
+            return to_gpu(fill_argument(s, fill_map.at(id)));
+        return gpu_generate_random(gctx, s, seed++);
+    });
+    return args;
+}
+
+static parameter_map make_parameter_map(const program& p, const std::vector<argument>& args)
+{
+    auto names = p.get_main_module()->get_parameter_names();
+    assert(names.size() == args.size());
+    parameter_map param_map;
+    std::transform(names.begin(),
+                   names.end(),
+                   args.begin(),
+                   std::inserter(param_map, param_map.end()),
+                   [](const auto& name, const auto& arg) { return std::make_pair(name, arg); });
+    return param_map;
+}
+
 double time_program(const context& ictx,
                     program p,
                     const std::unordered_map<std::string, double>& fill_map,
@@ -111,30 +151,39 @@ double time_program(const context& ictx,
 {
     std::vector<migraphx::context> ctx_vec = {ictx};
     auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());
-    auto* mm                               = p.get_main_module();
-    mm->finalize(ctx_vec);
-    auto in_shapes = p.get_parameter_shapes();
-    std::unordered_map<std::string, migraphx::argument> param_map;
-    unsigned long seed = 0;
-    for(const auto& [name, shape] : in_shapes)
-    {
-        std::string id = "";
-        if(shape.type() != migraphx::shape::tuple_type)
-            id = shape.type_string() + migraphx::shape::to_sizes_string({shape.as_standard()});
-
-        // fill_map inputs need specific values (host fill); the rest are generated
-        // on the GPU to skip the host PRNG + H2D copy per candidate.
-        if(contains(fill_map, id))
-        {
-            param_map[name] = to_gpu(fill_argument(shape, fill_map.at(id)));
-        }
-        else
-        {
-            param_map[name] = gpu_generate_random(gctx, shape, seed++);
-        }
-    }
-    auto run = [&] { p.eval_with_context(ctx_vec, param_map); };
+    p.get_main_module()->finalize(ctx_vec);
+    auto param_map = make_parameter_map(p, generate_program_arguments(ictx, p, fill_map));
+    auto run       = [&] { p.eval_with_context(ctx_vec, param_map); };
     return time_loop(gctx, bundle, nruns, run);
+}
+
+const benchmark_candidate&
+simple_benchmark::run(const context& ictx, const std::vector<benchmark_candidate>& candidates) const
+{
+    if(candidates.empty())
+        MIGRAPHX_THROW("simple_benchmark: no candidates to benchmark");
+    std::vector<migraphx::context> ctx_vec = {ictx};
+    auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());
+    std::vector<double> times;
+    times.reserve(candidates.size());
+    std::transform(candidates.begin(),
+                   candidates.end(),
+                   std::back_inserter(times),
+                   [&](const benchmark_candidate& candidate) {
+                       auto trace = candidate.trace();
+                       trace("Benchmarking solution: ", candidate.solution());
+                       auto p = candidate.make_program();
+                       candidate.before_run(p);
+                       p.get_main_module()->finalize(ctx_vec);
+                       auto param_map = make_parameter_map(p, candidate.generate_arguments(ictx));
+                       auto t         = time_loop(
+                           gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); });
+                       trace(t, "ms");
+                       return t;
+                   });
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    auto fastest = std::min_element(times.begin(), times.end());
+    return candidates.at(std::distance(times.begin(), fastest));
 }
 
 } // namespace gpu

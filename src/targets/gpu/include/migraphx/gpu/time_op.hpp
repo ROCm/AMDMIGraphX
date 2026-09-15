@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,11 +27,30 @@
 #include <migraphx/program.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/benchmark_candidate.hpp>
 #include <migraphx/operation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+/* Generate an input argument for each parameter of the program in parameter
+   order. Inputs found in fill_map are filled with the given value on the host;
+   the rest are filled with random data generated on the GPU. */
+MIGRAPHX_GPU_EXPORT std::vector<argument>
+generate_program_arguments(const context& ictx,
+                           const program& p,
+                           const std::unordered_map<std::string, double>& fill_map = {});
+
+/* Time each candidate and return the fastest one */
+struct MIGRAPHX_GPU_EXPORT simple_benchmark
+{
+    int bundle = 1;
+    int nruns  = 100;
+
+    const benchmark_candidate& run(const context& ictx,
+                                   const std::vector<benchmark_candidate>& candidates) const;
+};
 
 MIGRAPHX_GPU_EXPORT double time_op(const context& ictx,
                                    operation op,

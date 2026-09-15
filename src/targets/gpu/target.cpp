@@ -119,18 +119,15 @@ struct backend_options
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
     // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
     bool hiprtc_disable_processes = false;
-    compile_ops_tuning_overrides tuning{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack_join(
-            pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
-                 f(self.convolution_layout, "convolution_layout"),
-                 f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
-                 f(self.problem_cache_files, "problem_cache_files"),
-                 f(self.read_only_problem_cache_files, "read_only_problem_cache_files")),
-            migraphx::reflect(self.tuning, f));
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.convolution_layout, "convolution_layout"),
+                    f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
+                    f(self.problem_cache_files, "problem_cache_files"),
+                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
 };
 
@@ -294,8 +291,7 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager,
-                        backend_opts.tuning.resolve()},
+                        options.compile_mode == compile_modes::eager},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},

@@ -28,6 +28,8 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/compile_src.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/gpu/launch_dims.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,10 +39,8 @@ struct context;
 
 struct hip_compile_options
 {
-    // Total number of work-items
-    std::size_t global;
-    // Number of work-items that make up a work-group
-    std::size_t local;
+    launch_dims global{0};
+    launch_dims local{0};
     std::vector<shape> inputs;
     shape output;
     std::string kernel_name                    = "kernel";

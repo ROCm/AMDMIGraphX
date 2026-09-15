@@ -83,15 +83,15 @@ bool kernel::empty() const { return impl == nullptr; }
 
 static void launch_kernel(hipFunction_t fun,
                           hipStream_t stream,
-                          std::size_t global,
-                          std::size_t local,
+                          std::array<std::size_t, 3> global,
+                          std::array<std::size_t, 3> local,
                           void* kernargs,
                           std::size_t size,
                           hipEvent_t start,
                           hipEvent_t stop)
 {
-    assert(global > 0);
-    assert(local > 0);
+    assert(global[0] > 0 and global[1] > 0 and global[2] > 0);
+    assert(local[0] > 0 and local[1] > 0 and local[2] > 0);
     void* config[] = {
 // HIP_LAUNCH_PARAM_* are macros that do horrible things
 #ifdef MIGRAPHX_USE_CLANG_TIDY
@@ -106,12 +106,12 @@ static void launch_kernel(hipFunction_t fun,
     };
 
     auto status = hipExtModuleLaunchKernel(fun,
-                                           global,
-                                           1,
-                                           1,
-                                           local,
-                                           1,
-                                           1,
+                                           global[0],
+                                           global[1],
+                                           global[2],
+                                           local[0],
+                                           local[1],
+                                           local[2],
                                            0,
                                            stream,
                                            nullptr,
@@ -129,8 +129,8 @@ static void launch_kernel(hipFunction_t fun,
 }
 
 void kernel::launch(hipStream_t stream,
-                    std::size_t global,
-                    std::size_t local,
+                    std::array<std::size_t, 3> global,
+                    std::array<std::size_t, 3> local,
                     pointers args,
                     hipEvent_t start,
                     hipEvent_t stop) const
@@ -143,8 +143,8 @@ void kernel::launch(hipStream_t stream,
 }
 
 void kernel::launch(hipStream_t stream,
-                    std::size_t global,
-                    std::size_t local,
+                    std::array<std::size_t, 3> global,
+                    std::array<std::size_t, 3> local,
                     const std::vector<kernel_argument>& args,
                     hipEvent_t start,
                     hipEvent_t stop) const
@@ -157,8 +157,8 @@ void kernel::launch(hipStream_t stream,
 }
 
 void kernel::launch(hipStream_t stream,
-                    std::size_t global,
-                    std::size_t local,
+                    std::array<std::size_t, 3> global,
+                    std::array<std::size_t, 3> local,
                     void* kernargs,
                     std::size_t kernargs_size,
                     hipEvent_t start,

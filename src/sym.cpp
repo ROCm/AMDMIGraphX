@@ -456,6 +456,10 @@ expr lit(scalar v) { return expr(literal_node{v}); }
 
 static void normalize_constraints(std::vector<interval>& cs);
 
+static bool is_identifier_start(unsigned char c) { return std::isalpha(c) != 0 or c == '_'; }
+
+static bool is_identifier_char(unsigned char c) { return std::isalnum(c) != 0 or c == '_'; }
+
 // A symbolic shape is spelled in generated code as an expression string, so every symbol has to
 // survive a round trip through parse. That means a name must be an identifier by the same rule
 // parse_func_or_var accepts.
@@ -464,11 +468,9 @@ static void check_var_name(const std::string& name)
     if(name.empty())
         MIGRAPHX_THROW("Variable name must not be empty");
     auto first = static_cast<unsigned char>(name.front());
-    if(std::isalpha(first) == 0 and first != '_')
+    if(not is_identifier_start(first))
         MIGRAPHX_THROW("Variable name must start with a letter or an underscore: " + name);
-    if(not std::all_of(name.begin(), name.end(), [](unsigned char c) {
-           return std::isalnum(c) != 0 or c == '_';
-       }))
+    if(not std::all_of(name.begin(), name.end(), &is_identifier_char))
         MIGRAPHX_THROW("Variable name must only contain letters, digits and underscores: " + name);
 }
 
@@ -493,6 +495,36 @@ expr var(std::string name, std::vector<interval> constraints, std::set<scalar> o
     // set compares equal to the same one obtained by merging or deserializing.
     normalize_constraints(constraints);
     return expr(variable_node{std::move(name), std::move(constraints), std::move(optimals)});
+}
+
+static std::string sanitize_symbol_name(std::string_view external_name)
+{
+    std::string result{external_name};
+    std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) {
+        return is_identifier_char(c) ? static_cast<char>(c) : '_';
+    });
+    if(result.empty())
+        return "_";
+    if(not is_identifier_start(static_cast<unsigned char>(result.front())))
+        result.insert(result.begin(), '_');
+    return result;
+}
+
+std::string symbol_name_registry::resolve(std::string_view external_name)
+{
+    std::string name{external_name};
+    auto it = resolved_names.find(name);
+    if(it != resolved_names.end())
+        return it->second;
+
+    auto base      = sanitize_symbol_name(external_name);
+    auto candidate = base;
+    for(std::size_t i = 2; contains(used_names, candidate); i++)
+        candidate = base + "_" + std::to_string(i);
+
+    resolved_names.emplace(std::move(name), candidate);
+    used_names.insert(candidate);
+    return candidate;
 }
 
 expr arg(expr x) { return x; }
@@ -2347,10 +2379,9 @@ static auto parse_braced_list(sym_parser& p, F parse_element)
 
 static std::string_view parse_identifier(sym_parser& p)
 {
-    char c = p.peek_char();
-    if((std::isalpha(static_cast<unsigned char>(c)) == 0) and c != '_')
+    if(not is_identifier_start(static_cast<unsigned char>(p.peek_char())))
         return {};
-    return p.parse_while([](unsigned char ch) { return std::isalnum(ch) != 0 or ch == '_'; });
+    return p.parse_while(&is_identifier_char);
 }
 
 static expr parse_variable_metadata(sym_parser& p, std::string name)

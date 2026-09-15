@@ -3230,6 +3230,26 @@ TEST_CASE(var_name_must_be_an_identifier)
     EXPECT(parse(to_string(var("_n0"))) == var("_n0"));
 }
 
+TEST_CASE(symbol_name_registry_sanitizes_external_names)
+{
+    migraphx::sym::symbol_name_registry names;
+    EXPECT(names.resolve("input.1") == "input_1");
+    EXPECT(names.resolve("2d") == "_2d");
+    EXPECT(names.resolve("") == "_");
+
+    migraphx::sym::symbol_name_registry canonical_names;
+    EXPECT(canonical_names.resolve("batch_size") == "batch_size");
+}
+
+TEST_CASE(symbol_name_registry_resolves_collisions_stably)
+{
+    migraphx::sym::symbol_name_registry names;
+    EXPECT(names.resolve("batch.size") == "batch_size");
+    EXPECT(names.resolve("batch.size") == "batch_size");
+    EXPECT(names.resolve("batch_size") == "batch_size_2");
+    EXPECT(names.resolve("batch-size") == "batch_size_3");
+}
+
 // A double has to read back as the same value, which the six significant digits a stream
 // defaults to cannot promise.
 TEST_CASE(scalar_to_string_round_trips)

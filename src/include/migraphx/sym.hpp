@@ -254,6 +254,19 @@ MIGRAPHX_EXPORT expr var(std::string name,
                          std::vector<interval> constraints,
                          std::set<scalar> optimals = {});
 
+// Map arbitrary external names to unique identifiers accepted by var() and parse(). Repeated
+// external names resolve identically; distinct names that sanitize alike receive numeric suffixes.
+// Keep one registry for the complete source being imported.
+class MIGRAPHX_EXPORT symbol_name_registry
+{
+    public:
+    std::string resolve(std::string_view external_name);
+
+    private:
+    std::unordered_map<std::string, std::string> resolved_names;
+    std::unordered_set<std::string> used_names;
+};
+
 // Project an expr onto its structural symbol form, stripping all variable
 // metadata (constraints, optimals). `same_symbol(a, b)` is true when a and b
 // are equal ignoring that metadata. max_depth limits the strip to the top

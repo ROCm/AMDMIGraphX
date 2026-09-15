@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/sym.hpp>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <onnx.pb.h>
@@ -110,10 +111,8 @@ struct onnx_parser
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     int64_t opset_version        = 13;
 
-    // ONNX names are arbitrary strings but a symbol name has to be an identifier, so each one
-    // is rewritten once and remembered, which is what keeps two names that sanitize alike
-    // distinct. Mutable because the parse_type chain that reaches it is const.
-    mutable std::unordered_map<std::string, std::string> symbol_names;
+    // Keep external ONNX names unique and parseable across every module built for this model.
+    sym::symbol_name_registry symbol_names;
 
     std::unordered_map<std::string, op_func> ops;
 
@@ -132,10 +131,10 @@ struct onnx_parser
     parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining = false);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
-    shape parse_type(const onnx::TypeProto& t, const std::string& name) const;
+    shape parse_type(const onnx::TypeProto& t, const std::string& name);
     shape parse_type(const onnx::TypeProto& t,
                      const std::string& name,
-                     const std::vector<shape::dynamic_dimension>& override_dims) const;
+                     const std::vector<shape::dynamic_dimension>& override_dims);
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
     std::string to_string(const onnx::AttributeProto& attr) const;
 };

@@ -42,7 +42,6 @@
 #include <migraphx/logger.hpp>
 #include <onnx.pb.h>
 #include <algorithm>
-#include <cctype>
 #include <iomanip>
 #include <iterator>
 #include <set>
@@ -395,7 +394,7 @@ parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto
 }
 
 static std::unordered_map<std::string, instruction_ref>
-parse_inputs(const onnx_parser& parser,
+parse_inputs(onnx_parser& parser,
              module* mod,
              const onnx::GraphProto& graph,
              std::unordered_map<std::string, instruction_ref> mod_insts)
@@ -907,50 +906,16 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-// Rewrite an ONNX name into an identifier, which is what sym::var accepts and what lets a
-// symbolic shape be spelled as an expression string. Anything outside [A-Za-z0-9_] becomes an
-// underscore and a leading digit gains one, so "input.1" and "0" become "input_1" and "_0".
-static std::string sanitize_symbol_name(const std::string& name)
-{
-    std::string result;
-    result.reserve(name.size() + 1);
-    if(name.empty() or std::isdigit(static_cast<unsigned char>(name.front())) != 0)
-        result += '_';
-    std::transform(name.begin(), name.end(), std::back_inserter(result), [](unsigned char c) {
-        return std::isalnum(c) != 0 ? static_cast<char>(c) : '_';
-    });
-    return result;
-}
-
-// Sanitizing is many-to-one, so a name that lands on one already taken by a different original
-// gains a counter. The mapping is remembered so the same ONNX name always yields the same symbol.
-static const std::string& symbol_name_for(const onnx_parser& parser, const std::string& name)
-{
-    auto it = parser.symbol_names.find(name);
-    if(it != parser.symbol_names.end())
-        return it->second;
-    auto base      = sanitize_symbol_name(name);
-    auto candidate = base;
-    auto taken     = [&](const std::string& s) {
-        return std::any_of(parser.symbol_names.begin(),
-                           parser.symbol_names.end(),
-                           [&](const auto& kv) { return kv.second == s; });
-    };
-    for(std::size_t i = 2; taken(candidate); i++)
-        candidate = base + "_" + std::to_string(i);
-    return parser.symbol_names.emplace(name, std::move(candidate)).first->second;
-}
-
-static shape::dynamic_dimension make_symbol(const onnx_parser& parser,
+static shape::dynamic_dimension make_symbol(onnx_parser& parser,
                                             const std::string& sym_name,
                                             const shape::dynamic_dimension& bounds)
 {
     auto iv = bounds.get_interval();
     return shape::dynamic_dimension{
-        sym::var(symbol_name_for(parser, sym_name), {iv.min, iv.max}, sym_optimals(bounds))};
+        sym::var(parser.symbol_names.resolve(sym_name), {iv.min, iv.max}, sym_optimals(bounds))};
 }
 
-static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,
+static shape::dynamic_dimension resolve_dim(onnx_parser& parser,
                                             const shape::dynamic_dimension& bounds,
                                             const std::string& name,
                                             int axis)
@@ -966,7 +931,7 @@ static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,
 }
 
 static shape::dynamic_dimension
-resolve_default_dim(const onnx_parser& parser, const std::string& name, int axis)
+resolve_default_dim(onnx_parser& parser, const std::string& name, int axis)
 {
     return resolve_dim(parser, parser.default_dyn_dim_value, name, axis);
 }
@@ -982,7 +947,7 @@ static shape::dynamic_dimension dim_param_bounds(const onnx_parser& parser,
     return parser.default_dyn_dim_value;
 }
 
-static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
+static shape::dynamic_dimension map_dyn_dim(onnx_parser& parser,
                                             const onnx::TensorShapeProto::Dimension* model_dim,
                                             const shape::dynamic_dimension* override_dim,
                                             const std::string& name,
@@ -1018,7 +983,7 @@ static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
     return resolve_default_dim(parser, name, axis);
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::string& name) const
+shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::string& name)
 {
     return parse_type(t, name, {});
 }
@@ -1027,7 +992,7 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::string& name)
 // the model supplies the symbol name.
 shape onnx_parser::parse_type(const onnx::TypeProto& t,
                               const std::string& name,
-                              const std::vector<shape::dynamic_dimension>& override_dims) const
+                              const std::vector<shape::dynamic_dimension>& override_dims)
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
     auto&& tensor_dims       = t.tensor_type().shape().dim();

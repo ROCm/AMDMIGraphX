@@ -105,10 +105,14 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             }
         }
 
-        if(args.size() < 7 or args.size() > 11)
+        // Inputs 0-10 are the standard GQA inputs. Input 11 (optional) is the
+        // per-head attention "sinks" tensor (GPT-OSS): a learned additive value
+        // in the softmax denominator that lets a head attend to "nothing".
+        if(args.size() < 7 or args.size() > 12)
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
         }
+        const bool has_sinks = args.size() > 11 and not args.at(11)->is_undefined();
 
         auto qkv = args.at(0);
         if(args.at(1)->get_shape().lens().size() > 1)
@@ -241,7 +245,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             bool is_prompt       = sequence_length > 1;
             auto window_size_lit = info.add_literal(
                 migraphx::literal{migraphx::shape{past_sl->get_shape().type(), {1}},
-                                  {is_prompt ? -local_window_size : -(local_window_size + 1)}});
+                                  {is_prompt ? -local_window_size : -(local_window_size - 1)}});
             window_size_lit = info.add_instruction(
                 migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
             auto window_comp = info.add_instruction(
@@ -255,9 +259,49 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
-        auto where   = info.add_instruction(make_op("where"), mask, ninf, mul);
-        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
-        auto scores  = info.add_instruction(make_op("dot"), softmax, v);
+        auto where = info.add_instruction(make_op("where"), mask, ninf, mul);
+
+        instruction_ref softmax;
+        if(has_sinks)
+        {
+            // Attention sinks (GPT-OSS): each head has a learned scalar added in
+            // the softmax denominator:
+            //   softmax_i = exp(x_i) / (sum_j exp(x_j) + exp(sink_head)).
+            // Implement by appending the per-head sink as an extra logit column,
+            // running softmax over the extended axis, then dropping that column.
+            // This is numerically equivalent and reuses the stable softmax.
+            auto sinks = args.at(11); // shape [num_heads]
+            sinks = info.add_instruction(
+                make_op("reshape", {{"dims", {1, num_heads, 1, 1}}}), sinks);
+            // Broadcast the sink column to [batch, num_heads, sequence_length, 1].
+            std::vector<std::size_t> sink_lens{batch_size, num_heads, sequence_length, 1};
+            auto sink_col =
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", sink_lens}}), sinks);
+            // Match the score tensor's element type (scores are in `where`).
+            if(sink_col->get_shape().type() != where->get_shape().type())
+            {
+                sink_col = info.add_instruction(
+                    make_op("convert", {{"target_type", where->get_shape().type()}}), sink_col);
+            }
+            // Concatenate sink column onto the masked scores along the key axis.
+            auto ext = info.add_instruction(make_op("concat", {{"axis", 3}}), where, sink_col);
+            auto sm  = info.add_instruction(make_op("softmax", {{"axis", 3}}), ext);
+            // Drop the sink column: keep [0 : -1] along axis 3 (remove the appended
+            // sink column, which is always the last column at runtime regardless of T).
+            // ends=-1 (Python-style) is normalized by MIGraphX to (T+1)-1=T at runtime,
+            // keeping exactly the T score positions. Baking max_seq_len from the
+            // compile-time static shape would truncate to 1 when past_sequence_length
+            // is a dynamic (symbolic) dim that defaults to 1 during compilation.
+            softmax = info.add_instruction(
+                make_op("slice",
+                        {{"axes", {3}}, {"starts", {0}}, {"ends", {-1}}}),
+                sm);
+        }
+        else
+        {
+            softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+        }
+        auto scores = info.add_instruction(make_op("dot"), softmax, v);
         auto out =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
         out = info.add_instruction(

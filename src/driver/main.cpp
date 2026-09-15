@@ -1082,6 +1082,7 @@ struct verify : command<verify>
     bool per_instruction = false;
     bool reduce          = false;
     bool bisect          = false;
+    bool layerwise       = false;
     verify_options vo;
     void parse(argument_parser& ap)
     {
@@ -1095,6 +1096,11 @@ struct verify : command<verify>
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
         ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
+        ap(layerwise,
+           {"-l", "--layerwise"},
+           ap.help("Compare outputs layer by layer in a single run instead of recompiling for each "
+                   "step"),
+           ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
            ap.help(
@@ -1142,6 +1148,10 @@ struct verify : command<verify>
         else if(bisect)
         {
             verify_bisected_program(p, t, c.co, vo, m, tols);
+        }
+        else if(layerwise)
+        {
+            verify_layerwise_program(p, t, c.co, vo, m, tols);
         }
         else
         {

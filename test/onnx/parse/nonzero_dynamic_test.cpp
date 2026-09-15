@@ -26,11 +26,21 @@
 
 TEST_CASE(nonzero_dynamic_test)
 {
+    using migraphx::sym::var;
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::bool_type, {2, 2}};
-    auto data = mm->add_parameter("data", s);
-    auto r    = mm->add_instruction(migraphx::make_op("nonzero"), data);
+    auto data        = mm->add_parameter("data", s);
+    auto nz          = mm->add_instruction(migraphx::make_op("nonzero"), data);
+    auto indices     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
+    auto num_nonzero = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
+    auto starts      = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto ends        = migraphx::value::array{migraphx::to_value(var("NonZero_1", {0, 4}))};
+    auto r           = mm->add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", ends}}),
+        indices,
+        starts,
+        num_nonzero);
     mm->add_return({r});
 
     auto prog = read_onnx("nonzero_dynamic_test.onnx");

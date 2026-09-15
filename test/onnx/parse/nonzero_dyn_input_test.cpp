@@ -24,25 +24,24 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(nonzero_large_test)
+// A dynamic input pads the indices for the 4x2 maximum, so the trim is bounded by 8 rather than
+// by the 4 elements the model itself declares.
+TEST_CASE(nonzero_dyn_input_test)
 {
     using migraphx::sym::var;
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::bool_type, {32, 32}};
-    auto data        = mm->add_parameter("data", s);
-    auto nz          = mm->add_instruction(migraphx::make_op("nonzero"), data);
-    auto indices     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
-    auto num_nonzero = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
-    auto starts      = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
-    auto ends        = migraphx::value::array{migraphx::to_value(var("NonZero_1", {0, 1024}))};
-    auto r           = mm->add_instruction(
-        migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", ends}}),
-        indices,
-        starts,
-        num_nonzero);
-    mm->add_return({r});
-
-    auto prog = read_onnx("nonzero_large_test.onnx");
-    EXPECT(p == prog);
+    migraphx::shape s{migraphx::shape::bool_type, {{1, 4}, {2, 2}}};
+    EXPECT(check_parse("nonzero_dynamic_test.onnx", {{"data", s}}, [](auto& m, const auto& args) {
+        auto nz      = m.add_instruction(migraphx::make_op("nonzero"), args[0]);
+        auto indices = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
+        auto num_nonzero =
+            m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
+        auto starts = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+        auto ends   = migraphx::value::array{migraphx::to_value(var("NonZero_1", {0, 8}))};
+        auto r      = m.add_instruction(
+            migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", ends}}),
+            indices,
+            starts,
+            num_nonzero);
+        m.add_return({r});
+    }));
 }

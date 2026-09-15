@@ -23,7 +23,6 @@
  */
 
 #include <migraphx/register_target.hpp>
-#include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
 TEST_CASE(nonzero_test)
@@ -38,9 +37,12 @@ TEST_CASE(nonzero_test)
     pp["data"] = migraphx::argument(s, data.data());
 
     auto result = p.eval(pp).back();
-    std::vector<float> result_vector;
+    std::vector<int64_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {0, 0, 1, 0, 0, 1, 0, 0};
-    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+    // The parser trims the operator's padded indices down to the 3 nonzero elements.
+    std::vector<int64_t> gold = {0, 0, 1, 0, 1, 0};
+    EXPECT(result_vector == gold);
+    // The trim is an aliased view into the padded buffer, so it keeps that buffer's row stride.
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {2, 3}, {4, 1}});
 }

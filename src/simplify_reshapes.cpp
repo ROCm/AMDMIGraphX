@@ -1624,7 +1624,7 @@ struct find_reshape_cont
         if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
             return;
 
-#ifdef MIGRAPHX_WORKAROUND_RESHAPE_CONT_NONSTANDARD
+#if MIGRAPHX_WORKAROUND_RESHAPE_CONT_NONSTANDARD
         auto rdims_sz = std::vector<std::size_t>(dims.begin(), dims.end());
         if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto in) {
                return in == in_ins or

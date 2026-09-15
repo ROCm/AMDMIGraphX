@@ -98,6 +98,11 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
         std::sort(
             group.begin(), group.end(), [&](auto a, auto b) { return pos.at(a) < pos.at(b); });
 
+        if(any_of(group, [&](auto x) {
+               return any_of(group, [&](auto y) { return x != y and reaches(x, y); });
+           }))
+            return;
+
         auto insert_pt    = std::next(group.back());
         auto replacements = finder.fuse(m, group, insert_pt);
         if(replacements.empty())

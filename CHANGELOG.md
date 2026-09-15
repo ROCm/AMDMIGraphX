@@ -33,6 +33,7 @@ Full documentation for MIGraphX is available at
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
 * Fixed the ONNX and TensorFlow DLLs leaking protobuf state when unloaded with `FreeLibrary` on Windows (#5157).
 * Fixed `fuse_horizontal` creating cyclic graphs when a fusion group contained dependent operations (#5250).
+* Fixed `gpu::mlir_op` compilation failures for convolution and pointwise fusions followed by layout operations by splitting them into MLIR, pointwise, and layout-copy kernels when needed (#5064).
 
 ### Optimized
 
@@ -142,7 +143,6 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing (#4969).
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE` (#4991).
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions (#5038).
-* Fixed `gpu::mlir_op` compilation failures for convolution and pointwise fusions followed by layout operations by splitting them into MLIR, pointwise, and layout-copy kernels when needed.
 
 ### Optimized
 

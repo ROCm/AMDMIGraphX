@@ -140,16 +140,15 @@ bool is_offload_copy_set(const program& p)
     return param_ins.empty();
 }
 
-double time_run(const program& p, const parameter_map& m, int n)
+double time_run(const program& p, const std::vector<parameter_map>& ms, int n)
 {
     // Run once without timing
-    p.eval(m);
+    p.eval(ms.back());
     p.finish();
     double total = time<milliseconds>([&] {
         for(auto i : range(n))
         {
-            (void)i;
-            p.eval(m);
+            p.eval(ms[i % ms.size()]);
         }
         p.finish();
     });

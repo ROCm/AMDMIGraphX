@@ -30,11 +30,10 @@ TEST_CASE(gather_empty_test)
     auto* mm = p.get_main_module();
     auto data =
         mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {1, 8400, 84}});
-    auto indices =
-        mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {1}, {0}});
-    auto empty = mm->add_instruction(
+    mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {1}, {0}});
+    mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2}}, {"starts", {84}}, {"ends", {84}}}), data);
-    auto ret = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), empty, indices);
+    auto ret = mm->add_instruction(migraphx::make_op("undefined"));
     mm->add_return({ret});
 
     auto prog = read_onnx("gather_empty_test.onnx");

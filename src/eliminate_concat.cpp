@@ -29,15 +29,24 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/reshape_dims.hpp>
 
 #include <migraphx/dfor.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <iterator>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+bool reshape_lazy_accepts_input_shape(instruction_ref ins, const shape& input_shape)
+{
+    if(ins->name() != "reshape_lazy")
+        return true;
+    return reshape_dims(input_shape, ins->get_shape().lens(), {.lazy = true}).has_value();
+}
 
 struct concat_optimizer
 {
@@ -66,14 +75,60 @@ struct concat_optimizer
         return ins->name() == "allocate" or ins->name() == am.name();
     }
 
-    bool need_copy(instruction_ref ins) const { return not is_allocation(get_output_alias(ins)); }
+    bool need_copy(instruction_ref ins, const shape& replacement_shape) const
+    {
+        auto alias = get_output_alias(ins);
+        return not is_allocation(alias) or
+               not replacement_supports_reshape_lazy(alias, replacement_shape);
+    }
+
+    bool replacement_supports_reshape_lazy(instruction_ref replaced,
+                                           const shape& replacement_shape) const
+    {
+        std::unordered_map<instruction_ref, shape> shapes = {{replaced, replacement_shape}};
+        auto downstream_range                             = range(std::next(replaced), m->end());
+        auto downstream_refs                              = iterator_for(downstream_range);
+        return std::all_of(
+            downstream_refs.begin(), downstream_refs.end(), [&](instruction_ref ins) {
+                bool changed      = false;
+                auto input_shapes = to_shapes(ins->inputs());
+                std::transform(ins->inputs().begin(),
+                               ins->inputs().end(),
+                               input_shapes.begin(),
+                               [&](instruction_ref arg) {
+                                   auto it = shapes.find(arg);
+                                   if(it == shapes.end())
+                                       return arg->get_shape();
+                                   changed = true;
+                                   return it->second;
+                               });
+                if(not changed)
+                    return true;
+                if(not reshape_lazy_accepts_input_shape(ins, input_shapes.front()))
+                    return false;
+                shape output_shape;
+                try
+                {
+                    output_shape =
+                        ins->get_operator().compute_shape(input_shapes, ins->module_inputs());
+                }
+                catch(const std::exception&)
+                {
+                    return false;
+                }
+                if(output_shape != ins->get_shape())
+                    shapes.emplace(ins, std::move(output_shape));
+                return true;
+            });
+    }
 
     instruction_ref
     insert_copy(const operation& op, instruction_ref input, instruction_ref super) const
     {
         auto slice = m->insert_instruction(std::next(super), op, super);
         // If its packed then replace the allocation with the slice instead
-        if(not need_copy(input) and slice->get_shape().packed() and input->outputs().size() == 1)
+        if(not need_copy(input, slice->get_shape()) and slice->get_shape().packed() and
+           input->outputs().size() == 1)
         {
             m->replace_instruction(get_output_alias(input), slice);
             return input;
@@ -142,9 +197,23 @@ void eliminate_concat::apply(module& m) const
             continue;
         auto lens        = ins->inputs().front()->get_shape().lens();
         std::size_t axis = tune_axis(lens.size(), concat_op->axis, concat_op->name());
-        auto ncopies     = std::count_if(
+        if(std::any_of(
+               ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
+                   auto slice_shape = shape{input->get_shape().type(),
+                                            input->get_shape().lens(),
+                                            ins->get_shape().strides()};
+                   auto needs_copy = co.need_copy(input, slice_shape) or not slice_shape.packed() or
+                                     input->outputs().size() != 1;
+                   return needs_copy and
+                          not co.replacement_supports_reshape_lazy(input, slice_shape);
+               }))
+            continue;
+        auto ncopies = std::count_if(
             ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
-                if(co.need_copy(input))
+                auto slice_shape = shape{input->get_shape().type(),
+                                         input->get_shape().lens(),
+                                         ins->get_shape().strides()};
+                if(co.need_copy(input, slice_shape))
                     return true;
                 if(is_packed(input, axis))
                     return false;

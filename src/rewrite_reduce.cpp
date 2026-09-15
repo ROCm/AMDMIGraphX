@@ -270,7 +270,8 @@ bool needs_wide_accumulator(const std::string& reduce, shape::type_t type, std::
     return false;
 }
 
-// Change the accumulator type to float for reductions over low precision floating point types when needed.
+// Change the accumulator type to float for reductions over low precision floating point types when
+// needed.
 struct find_low_precision_reduce
 {
     auto matcher() const { return match::name("reduce_sum", "reduce_prod"); }

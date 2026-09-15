@@ -117,6 +117,9 @@ if(MIGRAPHX_STRIP_SYMBOLS AND NOT WIN32 AND NOT APPLE)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
 endif()
 
+option(MIGRAPHX_ENABLE_HARDENING "Enable Linux exploit-mitigation compiler and linker flags" ON)
+include(Hardening)
+
 if(WIN32) # CK is not yet ported to Windows
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" OFF)
 else()

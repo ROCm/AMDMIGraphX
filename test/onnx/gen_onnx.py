@@ -16213,6 +16213,24 @@ def symbolic_reshape_negative_one_dim_test():
 
 
 @onnx_test()
+def symbolic_reshape_constant_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    constant_output = helper.make_tensor_value_info('constant_output',
+                                                    TensorProto.FLOAT,
+                                                    ['batch', 4])
+    attribute_output = helper.make_tensor_value_info('attribute_output',
+                                                     TensorProto.FLOAT,
+                                                     ['batch', 4])
+    target = helper.make_tensor('target_value', TensorProto.INT64, [2], [0, 4])
+    nodes = [
+        helper.make_node('Constant', [], ['target'], value=target),
+        helper.make_node('Reshape', ['x', 'target'], ['constant_output']),
+        helper.make_node('Reshape', ['x'], ['attribute_output'], shape=[0, 4]),
+    ]
+    return (nodes, [x], [constant_output, attribute_output])
+
+
+@onnx_test()
 def scatternd_nonpacked_indices_test():
     n = 16
 

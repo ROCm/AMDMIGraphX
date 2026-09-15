@@ -102,6 +102,7 @@ void eliminate_data_type::apply(module& m) const
     static const std::vector<std::string> skip_op_names = {"addressof",
                                                            "convert",
                                                            "deref",
+                                                           "dyn_slice",
                                                            "get_tuple_elem",
                                                            "if",
                                                            "loop",
@@ -110,7 +111,8 @@ void eliminate_data_type::apply(module& m) const
                                                            "scatternd_add",
                                                            "scatternd_mul",
                                                            "scatternd_none",
-                                                           "select_module"};
+                                                           "select_module",
+                                                           "slice"};
     if(unsupported_types.empty())
         return;
 

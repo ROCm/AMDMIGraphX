@@ -73,6 +73,7 @@ int main(int argc, const char* argv[])
          "test_if_param",
          "test_if_literal",
          "test_select_module_add",
+         "test_select_module_aliased_outputs",
          "test_select_module_reduce",
          "test_select_module_conv",
          "test_split_single_dyn_dim",

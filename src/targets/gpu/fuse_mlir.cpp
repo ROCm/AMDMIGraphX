@@ -948,7 +948,7 @@ struct find_mlir_fused_geg_ops
         constexpr std::int64_t n1_m_max = 1024;
         constexpr std::int64_t n1_k_max = 128;
         constexpr std::int64_t n1_g_max = 64;
-        if(n == 1 and k <= n1_k_max and m <= n1_m_max and g <= n1_g_max)
+        if(n == 1 and shape_a1.ndim() == 2 and k <= n1_k_max and m <= n1_m_max and g <= n1_g_max)
             return true;
 
         // Large batch skinny-k MLP bottom avoids huge m x n DRAM roundtrip.

@@ -962,9 +962,9 @@ TEST_CASE(match_has_value9)
     EXPECT(r4.result == mm.end());
 }
 // fp8e4m3fn holds only 8 representable values per binade, so a window sized for fp32 spans
-// neighbouring constants. A literal of 2 must not report as 1: passes that use has_value to spot
+// neighboring constants. A literal of 2 must not report as 1: passes that use has_value to spot
 // an identity multiply would otherwise delete a real multiply.
-TEST_CASE(match_has_value_fp8_not_neighbour)
+TEST_CASE(match_has_value_fp8_not_neighbor)
 {
     migraphx::module mm;
     auto s   = migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}};
@@ -997,7 +997,7 @@ TEST_CASE(match_has_value_fp8_rounded_constant)
     EXPECT(find_match(mm, match::has_value(0.044715)).result == c);
 }
 
-TEST_CASE(match_has_value_bf16_not_neighbour)
+TEST_CASE(match_has_value_bf16_not_neighbor)
 {
     migraphx::module mm;
     auto s   = migraphx::shape{migraphx::shape::bf16_type, {1}, {0}};

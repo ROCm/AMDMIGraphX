@@ -1195,7 +1195,7 @@ struct value_tolerance
         // percent of a binade in bf16, which still leaves 1.0 and 1.125 apart.
         case shape::half_type: [[fallthrough]];
         case shape::bf16_type: return {3, 4};
-        // Under a single rounding step, so the window cannot reach the neighbouring constant in
+        // Under a single rounding step, so the window cannot reach the neighboring constant in
         // types holding only a handful of values per binade.
         case shape::fp8e4m3fn_type: [[fallthrough]];
         case shape::fp8e4m3fnuz_type: [[fallthrough]];
@@ -1230,13 +1230,13 @@ inline bool literal_has_value(const migraphx::literal& l, T x, value_tolerance t
     auto defaults = value_tolerance::get_default_tols(l.get_shape().type());
     auto atol     = tols.atol.value_or(defaults.atol.value());
     auto rtol     = tols.rtol.value_or(defaults.rtol.value());
-    auto target   = static_cast<double>(x);
+    double target = x;
     bool b        = false;
     l.visit([&](auto v) {
         // A literal views const data, so drop the qualifier or numeric_limits will miss the
         // specialization for the narrow types and report an epsilon of zero.
         using type  = std::remove_cv_t<typename decltype(v)::value_type>;
-        auto eps    = static_cast<double>(std::numeric_limits<type>::epsilon());
+        double eps  = std::numeric_limits<type>::epsilon();
         auto window = eps * (atol + rtol * std::fabs(target));
         if(migraphx::float_equal(window, 0))
         {
@@ -1259,7 +1259,7 @@ inline bool literal_has_value(const migraphx::literal& l, T x, value_tolerance t
 } // namespace detail
 
 /// Matches a literal holding `x`, using the per-type defaults so that a constant in a narrow type
-/// is held to a window that cannot reach the neighbouring representable value.
+/// is held to a window that cannot reach the neighboring representable value.
 template <class T>
 inline auto has_value(T x)
 {

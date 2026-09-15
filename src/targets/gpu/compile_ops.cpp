@@ -47,9 +47,11 @@
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <functional>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -407,6 +409,40 @@ struct benchmark_state
     }
 };
 
+enum class compile_plan_source
+{
+    no_tuning_config,
+    problem_cache,
+    tuning,
+    benchmark_skipped,
+    single_solution
+};
+
+static const char* compile_plan_source_name(compile_plan_source source)
+{
+    switch(source)
+    {
+    case compile_plan_source::no_tuning_config: return "no tuning config";
+    case compile_plan_source::problem_cache: return "problem-cache hit";
+    case compile_plan_source::tuning: return "tuning required";
+    case compile_plan_source::benchmark_skipped: return "benchmark skipped";
+    case compile_plan_source::single_solution: return "single solution";
+    }
+    MIGRAPHX_THROW("Unknown compile plan source");
+}
+
+struct solution_compile_timing
+{
+    value solution;
+    std::chrono::steady_clock::time_point start;
+    std::chrono::steady_clock::time_point finish;
+
+    double elapsed_ms() const
+    {
+        return std::chrono::duration<double, std::milli>{finish - start}.count();
+    }
+};
+
 // forward declared since it requires compile_manager
 static void replace_inserted_device_ops(context& ctx, module& m);
 
@@ -419,14 +455,28 @@ struct compile_plan
     optional<tuning_config> config                 = nullopt;
     std::vector<optional<compiled_result>> results = {};
     adaptive_tuning_options tuning                 = {};
+    compile_plan_source source                     = compile_plan_source::no_tuning_config;
+    std::vector<solution_compile_timing> compile_timings;
+    double tuning_config_ms = 0.0;
     void update_config(bool exhaustive)
     {
+        const auto start = std::chrono::steady_clock::now();
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
+        const auto elapsed =
+            std::chrono::duration<double, std::milli>{std::chrono::steady_clock::now() - start};
+        tuning_config_ms = elapsed.count();
+    }
+    void resize_results(std::size_t size)
+    {
+        results.resize(size);
+        compile_timings.resize(size);
     }
     template <class Vector>
     void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
     {
+        compile_timings[i].solution = solution;
         compiles.emplace_back([=] {
+            compile_timings[i].start = std::chrono::steady_clock::now();
             try
             {
                 results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
@@ -442,6 +492,7 @@ struct compile_plan
             {
                 results[i] = nullopt;
             }
+            compile_timings[i].finish = std::chrono::steady_clock::now();
         });
     }
 
@@ -457,7 +508,8 @@ struct compile_plan
                 // No solution yet until benchmarked so skip for now
                 if(solution.is_null())
                     return;
-                results.resize(1);
+                source = compile_plan_source::problem_cache;
+                resize_results(1);
                 insert_compiles(compiles, solution, 0);
             }
             else
@@ -472,13 +524,16 @@ struct compile_plan
                    (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
-                    results.resize(1);
+                    source = solutions.size() == 1 ? compile_plan_source::single_solution
+                                                   : compile_plan_source::benchmark_skipped;
+                    resize_results(1);
                     insert_compiles(compiles, solutions.front(), 0);
                 }
                 else
                 {
+                    source = compile_plan_source::tuning;
                     ctx->get_problem_cache().mark(preop.name(), problem);
-                    results.resize(solutions.size());
+                    resize_results(solutions.size());
                     for(auto i : range(solutions.size()))
                     {
                         insert_compiles(compiles, solutions[i], i);
@@ -488,9 +543,88 @@ struct compile_plan
         }
         else
         {
-            results.resize(1);
+            source = compile_plan_source::no_tuning_config;
+            resize_results(1);
             insert_compiles(compiles, value{}, 0);
         }
+    }
+    double compile_work_ms() const
+    {
+        // Candidate compiles can overlap, so this is total compiler work rather than elapsed
+        // model-compilation time.
+        return std::accumulate(compile_timings.begin(),
+                               compile_timings.end(),
+                               0.0,
+                               [](double total, const auto& timing) {
+                                   return total + timing.elapsed_ms();
+                               });
+    }
+    double compile_wall_span_ms() const
+    {
+        if(compile_timings.empty())
+            return 0.0;
+        // Plans share one parallel compile queue. Spans from different plans can overlap and must
+        // not be added together.
+        auto first = std::min_element(
+            compile_timings.begin(), compile_timings.end(), [](const auto& x, const auto& y) {
+                return x.start < y.start;
+            });
+        auto last = std::max_element(
+            compile_timings.begin(), compile_timings.end(), [](const auto& x, const auto& y) {
+                return x.finish < y.finish;
+            });
+        return std::chrono::duration<double, std::milli>{last->finish - first->start}.count();
+    }
+    std::size_t successful_compiles() const
+    {
+        return std::count_if(
+            results.begin(), results.end(), [](const auto& result) { return result.has_value(); });
+    }
+    bool will_benchmark() const { return results.size() > 1 and successful_compiles() > 1; }
+    void trace_compile_times() const
+    {
+        const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+        if(trace_level == 0)
+            return;
+        std::cout << "Compile time for " << preop.name() << " ("
+                  << compile_plan_source_name(source) << "): " << tuning_config_ms
+                  << "ms tuning setup, " << compile_wall_span_ms() << "ms candidate wall span, "
+                  << compile_work_ms() << "ms summed candidate time, "
+                  << successful_compiles() << "/" << results.size() << " candidates succeeded"
+                  << std::endl;
+        if(trace_level > 1)
+        {
+            if(config)
+                std::cout << "Compile problem: " << config->problem << std::endl;
+            for(auto i : range(compile_timings.size()))
+            {
+                std::cout << "Compiled solution: " << compile_timings[i].solution << " in "
+                          << compile_timings[i].elapsed_ms() << "ms";
+                if(not results[i].has_value())
+                    std::cout << " (failed)";
+                std::cout << std::endl;
+            }
+            // Multi-candidate plans print their traces while benchmarking. A single-candidate
+            // plan skips that path, so emit its compiler trace here instead.
+            if(trace_level > 2 and results.size() == 1 and results.front().has_value())
+            {
+                std::cout << "Compiled trace for " << preop.name() << ":" << std::endl;
+                std::cout << *results.front() << std::endl;
+            }
+        }
+    }
+    void trace_benchmark_time(double elapsed_ms, bool benchmarked) const
+    {
+        if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) == 0)
+            return;
+        std::cout << "Benchmark wall time for " << preop.name() << ": ";
+        if(benchmarked)
+            std::cout << elapsed_ms << "ms";
+        else if(results.size() > 1)
+            std::cout << "skipped (fewer than two valid candidates)";
+        else
+            std::cout << "skipped (" << compile_plan_source_name(source) << ")";
+        std::cout << std::endl;
     }
     std::string problem_string() const
     {
@@ -685,7 +819,12 @@ struct compile_plan
 
     void replace(module& m) const
     {
-        const auto& cr = benchmark();
+        const bool benchmarked = will_benchmark();
+        const auto start       = std::chrono::steady_clock::now();
+        const auto& cr          = benchmark();
+        const auto elapsed      = std::chrono::duration<double, std::milli>{
+            std::chrono::steady_clock::now() - start};
+        trace_benchmark_time(elapsed.count(), benchmarked);
         cr.replace.replace(m, cr.ins);
     }
 
@@ -774,6 +913,7 @@ struct compile_manager
         {
             if(cp.results.empty())
                 continue;
+            cp.trace_compile_times();
             if(dump_mxr and cp.results.size() > 1)
             {
                 dumped_mxr_files += cp.save_binaries(fs::path(mxr_path));

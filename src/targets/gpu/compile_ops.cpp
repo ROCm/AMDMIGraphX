@@ -466,13 +466,15 @@ struct compile_plan
             std::cout << "Problem: " << config->problem << std::endl;
         std::vector<benchmark_candidate> candidates;
         candidates.reserve(results.size());
-        migraphx::for_each(results.begin(),
-                           results.end(),
-                           config->solutions.begin(),
-                           [&](const auto& cr, const auto& solution) {
-                               if(cr.has_value())
-                                   candidates.push_back(cr->make_benchmark_candidate(solution));
-                           });
+        transform_if(
+            results.begin(),
+            results.end(),
+            config->solutions.begin(),
+            std::back_inserter(candidates),
+            [](const auto& cr, const auto&) { return cr.has_value(); },
+            [](const auto& cr, const auto& solution) {
+                return cr->make_benchmark_candidate(solution);
+            });
         auto skipped = results.size() - candidates.size();
         if(skipped > 0 and trace_level > 1)
             std::cout << "No binary for " << skipped << " solutions" << std::endl;

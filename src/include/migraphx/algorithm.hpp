@@ -50,6 +50,22 @@ void transform_if(Iterator start, Iterator last, Output out, Predicate pred, F f
     }
 }
 
+template <class Iterator1, class Iterator2, class Output, class Predicate, class F>
+void transform_if(
+    Iterator1 first1, Iterator1 last1, Iterator2 first2, Output out, Predicate pred, F f)
+{
+    while(first1 != last1)
+    {
+        if(pred(*first1, *first2))
+        {
+            *out = f(*first1, *first2);
+            ++out;
+        }
+        ++first1;
+        ++first2;
+    }
+}
+
 /// Similiar to std::accumulate but a projection can be applied to the elements first
 template <class Iterator, class T, class BinaryOp, class UnaryOp>
 T transform_accumulate(Iterator first, Iterator last, T init, BinaryOp binop, UnaryOp unaryop)

@@ -8,6 +8,9 @@ on:
       - master
       - 'release/**'
 
+permissions:
+  contents: read
+
 jobs:
   windows-cpu:
     runs-on: windows-2025
@@ -23,20 +26,20 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4
       with:
         python-version: 3.12
 
     - name: Setup cmake
-      uses: jwlawson/actions-setup-cmake@v1.9
+      uses: jwlawson/actions-setup-cmake@710e05536f2b819d5918f51a5de5b392e99bba3c  # v1.9
       with:
         cmake-version: 3.20.0
 
     - name: Install LLVM/Clang
-      uses: KyleMayes/install-llvm-action@v2
+      uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0  # v2
       with:
         version: "20"
         directory: ${{ runner.temp }}/llvm
@@ -46,7 +49,7 @@ jobs:
 
     - name: Cache dependencies
       continue-on-error: true
-      uses: actions/cache@v4.2.0
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       id: deps_cache
       with:
         path: ${{ github.workspace }}/cget
@@ -96,15 +99,30 @@ jobs:
       ROCM_VERSION: "7.13"
 
     steps:
-    - uses: actions/checkout@v4.2.2
+    - name: Free disk space
+      shell: pwsh
+      run: |
+        Get-PSDrive C | Select-Object @{Name="Used (GB)"; Expression={$_.Used / 1GB}}, @{Name="Free (GB)"; Expression={$_.Free / 1GB}}
+        if (Test-Path 'C:\Android') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue 'C:\Android' }
+        if (Test-Path 'C:\ghcup') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue 'C:\ghcup' }
+        if (Test-Path 'C:\tools\stack') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue 'C:\tools\stack' }
+        Get-ChildItem 'C:\hostedtoolcache\windows' -Filter 'Java_*' -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Get-ChildItem 'C:\hostedtoolcache\windows' -Filter 'swift*' -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path 'C:\Ruby*') { Get-Item 'C:\Ruby*' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }
+        if (Test-Path 'C:\hostedtoolcache\windows\go') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue 'C:\hostedtoolcache\windows\go' }
+        Get-PSDrive C | Select-Object @{Name="Used (GB)"; Expression={$_.Used / 1GB}}, @{Name="Free (GB)"; Expression={$_.Free / 1GB}}
+
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4
       with:
         python-version: 3.12
 
     - name: Setup cmake
-      uses: jwlawson/actions-setup-cmake@v1.9
+      uses: jwlawson/actions-setup-cmake@710e05536f2b819d5918f51a5de5b392e99bba3c  # v1.9
       with:
         cmake-version: 3.31.10
 
@@ -112,7 +130,7 @@ jobs:
       run: choco install visualstudio2022buildtools -y --package-parameters "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
       
     - name: Setup MSVC Developer Command Prompt
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756  # v1
       with:
         vsversion: 2022 # v17.13.4
 
@@ -141,7 +159,7 @@ jobs:
 
     - name: Cache dependencies
       continue-on-error: true
-      uses: actions/cache@v4.2.0
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
       id: deps_cache
       with:
         path: ${{ github.workspace }}/cget

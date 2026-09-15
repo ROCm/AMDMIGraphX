@@ -46,6 +46,17 @@
 #define MIGRAPHX_USE_TYPE_ERASED_MATCHERS 0
 #endif
 
+#ifndef MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER
+#if MIGRAPHX_USE_TYPE_ERASED_MATCHERS
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 0
+// Windows and gcc use an excessive amount of memory to compile deeply nested matcher types
+#elif defined(_WIN32) || (defined(__GNUC__) && not defined(__clang__))
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 1
+#else
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 0
+#endif
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -268,6 +279,16 @@ struct any_matcher : any_matcher_base
     {
     }
 };
+
+template <class M>
+auto opaque(M m)
+{
+#if MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER
+    return any_matcher{m};
+#else
+    return m;
+#endif
+}
 
 /// Create a basic matcher from a matcher
 template <class M>

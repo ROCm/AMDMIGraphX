@@ -80,12 +80,15 @@ struct benchmark_candidate
 #else
 
 <%
- interface('benchmark_candidate',
-     virtual('generate_arguments', returns='std::vector<argument>', ictx='const context&', const=True),
-     virtual('make_program', returns='program', const=True),
-     virtual('trace', returns='tracer', const=True),
-     virtual('solution', returns='value', const=True),
-     virtual('before_run', returns='void', p='const program&', const=True))
+    interface('benchmark_candidate',
+              virtual('generate_arguments',
+                      returns = 'std::vector<argument>',
+                      ictx    = 'const context&',
+                      const   = True),
+              virtual('make_program', returns = 'program', const = True),
+              virtual('trace', returns = 'tracer', const = True),
+              virtual('solution', returns = 'value', const = True),
+              virtual('before_run', returns = 'void', p = 'const program&', const = True))
 %>
 
 #endif

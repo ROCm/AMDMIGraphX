@@ -589,6 +589,7 @@ struct compile_plan
          * and prefill required by the candidate, so split-k is timed end to end.
          */
         auto bench_prog = results[i]->make_program();
+        replace_inserted_device_ops(*ctx, *bench_prog.get_main_module());
         if(trace_level > 2)
             std::cout << bench_prog << std::endl;
         const auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());

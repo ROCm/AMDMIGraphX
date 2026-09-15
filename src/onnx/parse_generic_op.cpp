@@ -95,7 +95,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
                      [&](const instruction_ref& arg) { return arg->get_shape().elements() > 0; });
 
         // Return undefined if all args are empty, or a gather/gathernd operand was dropped
-        bool is_gather = opd.op_name == "gather" or opd.op_name == "gathernd";
+        bool is_gather = contains({"gather", "gathernd"}, opd.op_name);
         if(new_args.empty() or (is_gather and new_args.size() != args.size()))
         {
             return info.add_instruction(make_op("undefined"));

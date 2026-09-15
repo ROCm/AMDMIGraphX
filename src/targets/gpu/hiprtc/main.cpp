@@ -25,54 +25,94 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/msgpack.hpp>
-#include <migraphx/file_buffer.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/ranges.hpp>
 #include <array>
 #include <iostream>
-#include <cstring>
+#include <cstdio>
 
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
+#else
+#include <unistd.h>
 #endif
+
+// CRLF translation would corrupt both the msgpack request and the code object. Nothing restores the
+// old mode: each stream is used once and the process exits straight after.
+// https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setmode?view=msvc-170
+static void set_binary_mode([[maybe_unused]] FILE* stream)
+{
+#ifdef _WIN32
+    if(_setmode(_fileno(stream), _O_BINARY) == -1)
+        MIGRAPHX_THROW("Failed to set stream to binary mode");
+#endif
+}
 
 static std::vector<char> read_stdin()
 {
-#ifdef _WIN32
-    // Set stream translation mode to BINARY to suppress translations.
-    // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setmode?view=msvc-170
-    auto old_mode = _setmode(_fileno(stdin), _O_BINARY);
-    if(old_mode == -1)
-        MIGRAPHX_THROW(std::strerror(errno));
-#endif
+    set_binary_mode(stdin);
     std::vector<char> result;
     std::array<char, 1024> buffer{};
     std::size_t len = 0;
     while((len = std::fread(buffer.data(), 1, buffer.size(), stdin)) > 0)
-    {
-        if(std::ferror(stdin) != 0 and std::feof(stdin) == 0)
-            MIGRAPHX_THROW(std::strerror(errno));
-
         result.insert(result.end(), buffer.data(), buffer.data() + len);
-    }
-#ifdef _WIN32
-    // Reset to the previously set translation mode.
-    _setmode(_fileno(stdin), old_mode);
-#endif
+    // Checked after the loop: a short read is how both EOF and an error end it, and only ferror
+    // tells them apart. Inside the loop the check can never see the read that terminated it.
+    if(std::ferror(stdin) != 0)
+        MIGRAPHX_THROW("Failed reading request from stdin");
     return result;
+}
+
+// stdout is a binary channel: nothing else in this process may write to it, or the parent reads a
+// corrupted code object.
+static void write_stdout(const std::vector<char>& buffer)
+{
+    set_binary_mode(stdout);
+    if(std::fwrite(buffer.data(), 1, buffer.size(), stdout) != buffer.size())
+        MIGRAPHX_THROW("Failed writing code object to stdout");
+    if(std::fflush(stdout) != 0)
+        MIGRAPHX_THROW("Failed flushing stdout");
+}
+
+// stderr, not stdout: stdout is reserved for the code object.
+static void print_usage()
+{
+    std::cerr << "USAGE:" << std::endl;
+    std::cerr << "    ";
+    std::cerr << "Used internally by migraphx to compile hip programs out-of-process." << std::endl;
+    std::cerr << "    ";
+    std::cerr << "Reads a compile request on stdin and writes a code object to stdout."
+              << std::endl;
+}
+
+// True when stdin is a terminal, i.e. nobody piped a request in. Without this a bare invocation
+// would silently block in fread waiting for a human to type msgpack.
+static bool stdin_is_interactive()
+{
+#ifdef _WIN32
+    return _isatty(_fileno(stdin)) != 0;
+#else
+    return isatty(fileno(stdin)) != 0;
+#endif
 }
 
 int main(int argc, char const* argv[])
 {
-    if(argc < 2 or migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])))
+    // The compile request arrives on stdin and the code object leaves on stdout, so no arguments
+    // are expected in normal operation.
+    if(argc > 1)
     {
-        std::cout << "USAGE:" << std::endl;
-        std::cout << "    ";
-        std::cout << "Used internally by migraphx to compile hip programs out-of-process."
-                  << std::endl;
-        std::exit(0);
+        print_usage();
+        std::exit(
+            migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])) ? 0 : 1);
     }
-    bool quiet              = false;
+    if(stdin_is_interactive())
+    {
+        print_usage();
+        std::exit(1);
+    }
+    bool quiet = false;
     try
     {
         auto v = migraphx::from_msgpack(read_stdin());
@@ -84,12 +124,14 @@ int main(int argc, char const* argv[])
                                                        v.at("params").to_vector<std::string>(),
                                                        v.at("arch").to<std::string>(),
                                                        quiet);
-        if(not out.empty())
-            migraphx::write_buffer(argv[1], out.front());
+        write_stdout(out.front());
     }
     catch(const std::exception& err)
     {
         if(not quiet)
             std::cerr << err.what() << std::endl;
+        // Exit status is the parent's only failure signal.
+        return 1;
     }
+    return 0;
 }

@@ -344,7 +344,14 @@ constexpr auto pack_compare(Compare compare, P1 p1, P2 p2)
 template <index_int N>
 constexpr auto arg_c()
 {
-    return [](auto... xs) { return detail::args_at(detail::gens<N>{})(xs...); };
+    if constexpr(N == 0)
+    {
+        return [](auto x, auto...) { return x; };
+    }
+    else
+    {
+        return [](auto... xs) { return detail::args_at(detail::gens<N>{})(xs...); };
+    }
 }
 
 template <class IntegralConstant>

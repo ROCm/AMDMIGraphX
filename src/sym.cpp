@@ -2013,16 +2013,15 @@ static std::string constraint_to_string(const interval& constraint)
 
 static std::string variable_to_string(const variable_node& variable)
 {
-    std::vector<std::string> attributes;
-    if(not variable.constraints.empty())
-    {
-        std::vector<std::string> constraints;
-        std::transform(variable.constraints.begin(),
-                       variable.constraints.end(),
-                       std::back_inserter(constraints),
-                       &constraint_to_string);
-        attributes.push_back("constraints={" + join_strings(constraints, ", ") + "}");
-    }
+    if(variable.constraints.empty() and variable.optimals.empty())
+        return variable.name;
+
+    std::vector<std::string> constraints;
+    std::transform(variable.constraints.begin(),
+                   variable.constraints.end(),
+                   std::back_inserter(constraints),
+                   &constraint_to_string);
+    std::string result = variable.name + "({" + join_strings(constraints, ", ") + "}";
     if(not variable.optimals.empty())
     {
         std::vector<std::string> optimals;
@@ -2030,11 +2029,9 @@ static std::string variable_to_string(const variable_node& variable)
                        variable.optimals.end(),
                        std::back_inserter(optimals),
                        [](const scalar& optimal) { return sym::to_string(optimal); });
-        attributes.push_back("optimals={" + join_strings(optimals, ", ") + "}");
+        result += ", {" + join_strings(optimals, ", ") + "}";
     }
-    if(attributes.empty())
-        return variable.name;
-    return variable.name + "(" + join_strings(attributes, ", ") + ")";
+    return result + ")";
 }
 
 struct string_prec
@@ -2356,47 +2353,17 @@ static std::string_view parse_identifier(sym_parser& p)
     return p.parse_while([](unsigned char ch) { return std::isalnum(ch) != 0 or ch == '_'; });
 }
 
-static bool starts_variable_attributes(sym_parser p)
+static expr parse_variable_metadata(sym_parser& p, std::string name)
 {
-    auto attribute = parse_identifier(p);
-    return not attribute.empty() and p.match(std::string_view{"="});
-}
-
-static expr parse_variable_attributes(sym_parser& p, std::string name)
-{
-    std::optional<std::vector<interval>> constraints;
-    std::optional<std::set<scalar>> optimals;
-    auto parse_attribute = [&] {
-        auto attribute = parse_identifier(p);
-        if(attribute.empty())
-            MIGRAPHX_THROW(p.error_message("variable attribute"));
-        p.expect(std::string_view{"="});
-        if(attribute == "constraints")
-        {
-            if(constraints.has_value())
-                MIGRAPHX_THROW("Duplicate variable attribute: constraints");
-            constraints = parse_braced_list(p, &parse_constraint);
-        }
-        else if(attribute == "optimals")
-        {
-            if(optimals.has_value())
-                MIGRAPHX_THROW("Duplicate variable attribute: optimals");
-            auto values = parse_braced_list(p, &parse_variable_scalar);
-            optimals    = std::set<scalar>{values.begin(), values.end()};
-        }
-        else
-        {
-            MIGRAPHX_THROW("Unknown variable attribute: " + std::string{attribute});
-        }
-    };
-
-    parse_attribute();
-    while(p.match(std::string_view{","}))
-        parse_attribute();
+    auto constraints = parse_braced_list(p, &parse_constraint);
+    std::set<scalar> optimals;
+    if(p.match(std::string_view{","}))
+    {
+        auto values = parse_braced_list(p, &parse_variable_scalar);
+        optimals.insert(values.begin(), values.end());
+    }
     p.expect(std::string_view{")"});
-    return var(std::move(name),
-               constraints.value_or(std::vector<interval>{}),
-               optimals.value_or(std::set<scalar>{}));
+    return var(std::move(name), std::move(constraints), std::move(optimals));
 }
 
 static expr parse_func_or_var(sym_parser& p)
@@ -2408,8 +2375,8 @@ static expr parse_func_or_var(sym_parser& p)
     if(p.peek_char() != '(')
         return var(sname);
     p.advance(1);
-    if(starts_variable_attributes(p))
-        return parse_variable_attributes(p, std::move(sname));
+    if(p.peek_char() == '{')
+        return parse_variable_metadata(p, std::move(sname));
     std::vector<expr> args;
     if(p.peek_char() != ')')
     {

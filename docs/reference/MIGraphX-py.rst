@@ -124,12 +124,12 @@ dynamic_dimension
 .. py:class:: dynamic_dimension(expression, symbols={})
     :no-index:
 
-    Constructs a symbolic `dynamic_dimension` by parsing an expression string. Constraints and
-    optimals can be written directly on each variable. The optional ``symbols`` map can still bind
-    bounds to bare variable names.
+    Constructs a symbolic `dynamic_dimension` by parsing an expression string. A variable's first
+    braced argument lists its constraints and its optional second braced argument lists its
+    optimals. The optional ``symbols`` map can still bind bounds to bare variable names.
 
     :param str expression: The expression to parse, such as
-                          ``"n(constraints={[1..8]}) * 3 + 1"``.
+                          ``"n({[1..8]}) * 3 + 1"``.
     :param dict[str, dynamic_dimension] symbols: The bounds to bind each name to.
 
 .. py:method:: is_fixed()
@@ -169,24 +169,28 @@ written as strings, with each variable carrying its constraints and optimals inl
 the spelling :py:meth:`program.to_py` emits::
 
     s = migraphx.shape(type="float_type",
-                       dyn_dims=["n(constraints={[1..8]}, optimals={2, 4})", "3"])
+                       dyn_dims=["n({[1..8]}, {2, 4})", "3"])
 
 A symbol name has to be a valid identifier, that is a letter or an underscore followed by
 letters, digits or underscores, because the expression has to survive being parsed back. Names
 taken from an ONNX model are rewritten to fit, so an input named ``0`` yields the symbol
 ``_0_d0`` and a ``dim_param`` of ``batch.size`` yields ``batch_size``.
 
-List each interval in ``constraints`` when a symbol asserts more than one, which is what adding
-two differently bounded uses of the same name produces::
+List each interval in the first braced argument when a symbol asserts more than one constraint,
+which is what adding two differently bounded uses of the same name produces. The optional second
+braced argument contains the optimals::
 
-    "n(constraints={[1..20], [2..10]}, optimals={4})"
+    "n({[1..20], [2..10]}, {4})"
+
+To specify optimals without constraints, pass an empty first argument, for example
+``"n({}, {2, 4})"``.
 
 Pass ``dyn_strides`` for a transposed or broadcasted layout; without it an all-symbolic shape is
 given packed standard strides. Each stride is also a self-contained symbolic expression::
 
     s = migraphx.shape(type="float_type",
-                       dyn_dims=["n(constraints={[1..8]})", "3"],
-                       dyn_strides=["1", "n(constraints={[1..8]})"])
+                       dyn_dims=["n({[1..8]})", "3"],
+                       dyn_strides=["1", "n({[1..8]})"])
 
 A shape that mixes symbolic and range-based dimensions is built dimension by dimension instead,
 with :py:class:`dynamic_dimension` taking the self-contained expression directly.

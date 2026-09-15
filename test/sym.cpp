@@ -1626,15 +1626,15 @@ TEST_CASE(to_string_variable_metadata)
     auto n = var("n",
                  std::vector<interval>{{int64_t{2}, int64_t{6}}, {int64_t{1}, int64_t{4}}},
                  std::set<scalar>{int64_t{4}, int64_t{2}});
-    EXPECT(n.to_string() == "n(constraints={[1..4], [2..6]}, optimals={2, 4})");
+    EXPECT(n.to_string() == "n({[1..4], [2..6]}, {2, 4})");
 }
 
 TEST_CASE(to_string_variable_optional_metadata)
 {
-    EXPECT(var("n", interval{int64_t{1}, int64_t{4}}).to_string() == "n(constraints={[1..4]})");
+    EXPECT(var("n", interval{int64_t{1}, int64_t{4}}).to_string() == "n({[1..4]})");
     EXPECT(
         var("n", std::vector<interval>{}, std::set<scalar>{int64_t{2}, int64_t{4}}).to_string() ==
-        "n(optimals={2, 4})");
+        "n({}, {2, 4})");
 }
 
 TEST_CASE(to_string_add)
@@ -2832,15 +2832,15 @@ TEST_CASE(parse_variable_metadata)
     auto expected = var("n",
                         std::vector<interval>{{int64_t{1}, int64_t{4}}, {int64_t{2}, int64_t{6}}},
                         std::set<scalar>{int64_t{2}, int64_t{4}});
-    EXPECT(parse("n(constraints={[1..4], [2..6]}, optimals={2, 4})") == expected);
+    EXPECT(parse("n({[1..4], [2..6]}, {2, 4})") == expected);
 }
 
-TEST_CASE(parse_variable_metadata_optional_and_reordered)
+TEST_CASE(parse_variable_metadata_optional)
 {
-    EXPECT(parse("n(constraints={[1..4]})") == var("n", interval{int64_t{1}, int64_t{4}}));
-    EXPECT(parse("n(optimals={2, 4})") ==
+    EXPECT(parse("n({[1..4]})") == var("n", interval{int64_t{1}, int64_t{4}}));
+    EXPECT(parse("n({}, {2, 4})") ==
            var("n", std::vector<interval>{}, std::set<scalar>{int64_t{2}, int64_t{4}}));
-    EXPECT(parse("n(optimals={2, 4}, constraints={[1..4], [2..6]})") ==
+    EXPECT(parse("n({[1..4], [2..6]}, {2, 4})") ==
            var("n",
                std::vector<interval>{{int64_t{1}, int64_t{4}}, {int64_t{2}, int64_t{6}}},
                std::set<scalar>{int64_t{2}, int64_t{4}}));
@@ -2848,7 +2848,7 @@ TEST_CASE(parse_variable_metadata_optional_and_reordered)
 
 TEST_CASE(parse_variable_metadata_scalars)
 {
-    EXPECT(parse("n(constraints={[-4..1], [2e0..6.0]}, optimals={-2, 1.5})") ==
+    EXPECT(parse("n({[-4..1], [2e0..6.0]}, {-2, 1.5})") ==
            var("n",
                std::vector<interval>{{int64_t{-4}, int64_t{1}}, {2.0, 6.0}},
                std::set<scalar>{int64_t{-2}, 1.5}));
@@ -2872,11 +2872,12 @@ TEST_CASE(parse_variable_metadata_disambiguates_function_name)
 
 TEST_CASE(parse_variable_metadata_errors)
 {
-    EXPECT(test::throws([] { parse("n(constraints={[1..4]}, constraints={[2..6]})"); }));
-    EXPECT(test::throws([] { parse("n(optimals={2}, optimals={4})"); }));
-    EXPECT(test::throws([] { parse("n(unknown={2})"); }));
-    EXPECT(test::throws([] { parse("n(constraints={[4..1]})"); }));
-    EXPECT(test::throws([] { parse("n(constraints={[1, 4]})"); }));
+    EXPECT(test::throws([] { parse("n(constraints={[1..4]})"); }));
+    EXPECT(test::throws([] { parse("n(optimals={2, 4})"); }));
+    EXPECT(test::throws([] { parse("n({[1..4]}, {2}, {4})"); }));
+    EXPECT(test::throws([] { parse("n({2, 4})"); }));
+    EXPECT(test::throws([] { parse("n({[4..1]})"); }));
+    EXPECT(test::throws([] { parse("n({[1, 4]})"); }));
 }
 
 TEST_CASE(parse_add)

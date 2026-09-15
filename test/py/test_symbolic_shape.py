@@ -64,12 +64,10 @@ def test_create_symbolic_dyn_shape():
 
 def test_create_symbolic_shape_from_strings():
     dd = migraphx.shape.dynamic_dimension
-    s = migraphx.shape(
-        type='float',
-        dyn_dims=["n(constraints={[1..8]}, optimals={2, 4})", "3"])
+    s = migraphx.shape(type='float', dyn_dims=["n({[1..8]}, {2, 4})", "3"])
     assert s.symbolic()
     dims = s.dyn_dims()
-    assert dims[0].expression == "n(constraints={[1..8]}, optimals={2, 4})"
+    assert dims[0].expression == "n({[1..8]}, {2, 4})"
     assert dims[0].min == 1
     assert dims[0].max == 8
     assert dims[0].optimals == {2, 4}
@@ -83,40 +81,34 @@ def test_create_symbolic_shape_from_strings():
 
 
 def test_create_symbolic_shape_compound_expression():
-    s = migraphx.shape(type='float',
-                       dyn_dims=["3*n(constraints={[1..8]}) + 1"])
-    assert s.dyn_dims()[0].expression == "3*n(constraints={[1..8]}) + 1"
+    s = migraphx.shape(type='float', dyn_dims=["3*n({[1..8]}) + 1"])
+    assert s.dyn_dims()[0].expression == "3*n({[1..8]}) + 1"
     assert (s.dyn_dims()[0].min, s.dyn_dims()[0].max) == (4, 25)
 
 
 def test_create_symbolic_shape_with_strides():
     s = migraphx.shape(type='float',
-                       dyn_dims=["n(constraints={[1..8]})", "3"],
-                       dyn_strides=["1", "n(constraints={[1..8]})"])
+                       dyn_dims=["n({[1..8]})", "3"],
+                       dyn_strides=["1", "n({[1..8]})"])
     assert not s.standard()
-    assert s.dyn_strides() == ["1", "n(constraints={[1..8]})"]
+    assert s.dyn_strides() == ["1", "n({[1..8]})"]
 
 
 def test_create_symbolic_shape_multiple_constraints():
-    s = migraphx.shape(
-        type='float',
-        dyn_dims=["n(constraints={[1..20], [2..10]}, optimals={4})"])
+    s = migraphx.shape(type='float', dyn_dims=["n({[1..20], [2..10]}, {4})"])
     assert s.dyn_dims()[0].is_symbolic()
     assert s.dyn_dims()[0].optimals == {4}
 
 
 def test_expression_strings_round_trip():
     s = migraphx.shape(type='float',
-                       dyn_dims=[
-                           "3*n(constraints={[1..8]}, optimals={2, 4}) + 1",
-                           "m(constraints={[2..16]})"
-                       ])
+                       dyn_dims=["3*n({[1..8]}, {2, 4}) + 1", "m({[2..16]})"])
     dims = [d.expression for d in s.dyn_dims()]
     assert migraphx.shape(type='float', dyn_dims=dims) == s
 
     strided = migraphx.shape(type='float',
-                             dyn_dims=["n(constraints={[1..8]})", "3"],
-                             dyn_strides=["1", "n(constraints={[1..8]})"])
+                             dyn_dims=["n({[1..8]})", "3"],
+                             dyn_strides=["1", "n({[1..8]})"])
     dims = [d.expression for d in strided.dyn_dims()]
     assert migraphx.shape(type='float',
                           dyn_dims=dims,
@@ -126,8 +118,7 @@ def test_expression_strings_round_trip():
 def test_symbol_name_must_be_an_identifier():
     # A symbolic shape is spelled as an expression string, so a name has to survive parsing.
     try:
-        migraphx.shape(type='float',
-                       dyn_dims=["input.1(constraints={[1..8]})"])
+        migraphx.shape(type='float', dyn_dims=["input.1({[1..8]})"])
     except RuntimeError:
         pass
     else:
@@ -137,19 +128,19 @@ def test_symbol_name_must_be_an_identifier():
 def test_to_py_preserves_symbolic_expression():
     p = migraphx.program()
     m = p.get_main_module()
-    s = migraphx.shape(type='float',
-                       dyn_dims=[
-                           migraphx.shape.dynamic_dimension(
-                               "n(constraints={[1..8]}) * 3 + 1"),
-                           migraphx.shape.dynamic_dimension(3, 3)
-                       ])
+    s = migraphx.shape(
+        type='float',
+        dyn_dims=[
+            migraphx.shape.dynamic_dimension("n({[1..8]}) * 3 + 1"),
+            migraphx.shape.dynamic_dimension(3, 3)
+        ])
     m.add_return(
         [m.add_instruction(migraphx.op("neg"), [m.add_parameter("x", s)])])
 
     code = p.to_py()
     # The second dimension is range-based, so this is the per-dimension spelling.
     assert not s.symbolic()
-    assert '"3*n(constraints={[1..8]}) + 1"' in code
+    assert '"3*n({[1..8]}) + 1"' in code
 
     # The generated code has to rebuild an equal program, expression included; sort() normalizes
     # instruction order.
@@ -165,8 +156,8 @@ def test_to_py_preserves_symbolic_strides():
     p = migraphx.program()
     m = p.get_main_module()
     s = migraphx.shape(type='float',
-                       dyn_dims=["n(constraints={[1..8]})", "3"],
-                       dyn_strides=["1", "n(constraints={[1..8]})"])
+                       dyn_dims=["n({[1..8]})", "3"],
+                       dyn_strides=["1", "n({[1..8]})"])
     m.add_return(
         [m.add_instruction(migraphx.op("neg"), [m.add_parameter("x", s)])])
 
@@ -185,8 +176,7 @@ def test_to_py_mixed_symbolic_and_range():
     s = migraphx.shape(
         type='float',
         dyn_dims=[
-            migraphx.shape.dynamic_dimension(
-                "n(constraints={[1..20], [2..10]}, optimals={4})"),
+            migraphx.shape.dynamic_dimension("n({[1..20], [2..10]}, {4})"),
             migraphx.shape.dynamic_dimension(3, 5)
         ])
     m.add_return(

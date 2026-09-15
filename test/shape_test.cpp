@@ -2573,8 +2573,8 @@ TEST_CASE(value_roundtrip_symbolic_mixed_with_range)
 
 TEST_CASE(make_symbolic_shape_dims)
 {
-    auto s = migraphx::shape::make_symbolic_shape(
-        migraphx::shape::float_type, {"n(constraints={[1..8]}, optimals={2, 4})", "3"});
+    auto s = migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
+                                                  {"n({[1..8]}, {2, 4})", "3"});
     EXPECT(s == (migraphx::shape{
                     migraphx::shape::float_type,
                     {dd{var("n", {1, 8}, {std::int64_t{2}, std::int64_t{4}})}, dd{lit(3)}}}));
@@ -2584,26 +2584,25 @@ TEST_CASE(make_symbolic_shape_dims)
 TEST_CASE(make_symbolic_shape_compound_expression)
 {
     auto n = var("n", {1, 8});
-    EXPECT(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
-                                                {"3*n(constraints={[1..8]}) + 1"}) ==
-           (migraphx::shape{migraphx::shape::float_type, {dd{n * 3 + 1}}}));
+    EXPECT(
+        migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"3*n({[1..8]}) + 1"}) ==
+        (migraphx::shape{migraphx::shape::float_type, {dd{n * 3 + 1}}}));
 }
 
 // A stride carries the same self-contained symbolic variable as the dimension.
 TEST_CASE(make_symbolic_shape_strides)
 {
     auto n = var("n", {1, 8});
-    auto s = migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
-                                                  {"n(constraints={[1..8]})", "3"},
-                                                  {"1", "n(constraints={[1..8]})"});
+    auto s = migraphx::shape::make_symbolic_shape(
+        migraphx::shape::float_type, {"n({[1..8]})", "3"}, {"1", "n({[1..8]})"});
     EXPECT(s == (migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(1), n}}));
     EXPECT(not s.standard());
 }
 
 TEST_CASE(make_symbolic_shape_multiple_constraints)
 {
-    auto s = migraphx::shape::make_symbolic_shape(
-        migraphx::shape::float_type, {"n(constraints={[1..20], [2..10]}, optimals={4})"});
+    auto s = migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
+                                                  {"n({[1..20], [2..10]}, {4})"});
     EXPECT(s.dyn_dims().front() ==
            dd{var("n", std::vector<migraphx::sym::interval>{{1, 20}, {2, 10}}, {std::int64_t{4}})});
 }
@@ -2670,7 +2669,7 @@ TEST_CASE(make_symbolic_shape_errors)
     // One stride per dimension or none at all.
     EXPECT(test::throws([] {
         return migraphx::shape::make_symbolic_shape(
-            migraphx::shape::float_type, {"n(constraints={[1..8]})", "3"}, {"1"});
+            migraphx::shape::float_type, {"n({[1..8]})", "3"}, {"1"});
     }));
 }
 

@@ -44,7 +44,6 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
-#include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
 #include <cassert>
@@ -425,15 +424,6 @@ struct compile_plan
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
     }
 
-    bool is_cached_solution_applicable(const value& solution) const
-    {
-        if(preop.name() != "gpu::mlir_op" or solution.if_string() == nullptr)
-            return true;
-
-        const auto& modules = ins->module_inputs();
-        return modules.empty() or is_module_fusible(*modules.front(), *ctx, solution);
-    }
-
     template <class Vector>
     void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
     {
@@ -469,16 +459,9 @@ struct compile_plan
                 // but no winning solution has been recorded yet.
                 if(solution.is_null())
                     return;
-                if(is_cached_solution_applicable(solution))
-                {
-                    results.resize(1);
-                    insert_compiles(compiles, solution, 0);
-                    return;
-                }
-                if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 0)
-                    std::cout << "Ignoring cached solution for " << preop.name()
-                              << " because it is not applicable to the fused module"
-                              << std::endl;
+                results.resize(1);
+                insert_compiles(compiles, solution, 0);
+                return;
             }
 
             // No usable cached solution: choose a configured solution directly or benchmark

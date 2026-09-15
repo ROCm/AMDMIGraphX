@@ -16,6 +16,7 @@ Full documentation for MIGraphX is available at
 * Added a `find_slice_reshaped_concat` matcher to `simplify_reshapes` that forwards a slice reading exactly one segment of a concat through intervening reshape/transpose view ops, removing the concat entirely (#5183).
 * Added a `--layerwise` mode to `verify` that compares the reference and target layer by layer without recompiling (#5067).
 
+
 ### Changed
 
 * Changed `propagate_constant` to skip folding a `convert` to a wider type, since that would enlarge the literal and lose the smaller storage type (#5138).
@@ -33,6 +34,7 @@ Full documentation for MIGraphX is available at
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
 * Fixed the ONNX and TensorFlow DLLs leaking protobuf state when unloaded with `FreeLibrary` on Windows (#5157).
 * Fixed `fuse_horizontal` creating cyclic graphs when a fusion group contained dependent operations (#5250).
+* Fixed the `has_value` matcher matching a neighbouring representable value in narrow types, where its `float`-sized tolerance window spans several `fp8`/`bf16` values; the window is now scaled per literal type (#5190).
 
 ### Optimized
 
@@ -142,6 +144,7 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing (#4969).
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE` (#4991).
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions (#5038).
+* Fixed the `has_value` matcher matching a neighboring representable value in narrow types, where its `float`-sized tolerance window spans several `fp8`/`bf16` values; the window is now scaled per literal type (#5190).
 
 ### Optimized
 

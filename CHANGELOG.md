@@ -32,6 +32,7 @@ Full documentation for MIGraphX is available at
 * Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
 * Fixed the ONNX and TensorFlow DLLs leaking protobuf state when unloaded with `FreeLibrary` on Windows (#5157).
+* Fixed `fuse_horizontal` creating cyclic graphs when a fusion group contained dependent operations (#5250).
 
 ### Optimized
 
@@ -100,6 +101,7 @@ Full documentation for MIGraphX is available at
 * Added slice squeeze matcher to propagate squeeze downstream and allow for parallel branches to merge together (#5004).
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
+* Added adaptive GPU JIT tuning that briefly benchmarks each valid candidate, then remeasures the fastest candidates with a larger timing budget.
 
 
 ### Changed

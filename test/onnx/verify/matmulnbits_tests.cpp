@@ -51,7 +51,7 @@ TEST_CASE(matmulnbits_mm_test)
     std::vector<float> scales{1, 2, 3, 4};
     pm["scales"] = migraphx::argument(scales_shape, scales.data());
 
-    auto zp_shape = migraphx::shape{migraphx::shape::uint8_type, {4}};
+    auto zp_shape = migraphx::shape{migraphx::shape::uint8_type, {4, 1}};
     std::vector<uint8_t> zp{0x08, 0x09, 0x0a, 0x0b};
     pm["zp"] = migraphx::argument{zp_shape, zp.data()};
 

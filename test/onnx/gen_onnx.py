@@ -13336,7 +13336,8 @@ def matmulnbits_mm_test():
                                            [4, 1, 8])
     scales = onnx.helper.make_tensor_value_info("scales",
                                                 onnx.TensorProto.FLOAT, [4])
-    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8, [4])
+    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8,
+                                            [4, 1])
     c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 4])
 
     node = onnx.helper.make_node("MatMulNBits",

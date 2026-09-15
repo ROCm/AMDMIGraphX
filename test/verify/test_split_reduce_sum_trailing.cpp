@@ -20,33 +20,32 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
 
-#include <migraphx/config.hpp>
-#include <cstddef>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/shape.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_reduce
+// A split reduce_sum with a full-sized trailing pointwise and enough outputs
+// for fuse_reduce to fuse the trailing operators into the completion kernel
+struct test_split_reduce_sum_trailing : verify_program<test_split_reduce_sum_trailing>
 {
-    std::string name() const { return "fuse_reduce"; }
-    void apply(module_pass_manager& mpm) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {4, 4, 327680}};
+        auto x     = mm->add_parameter("x", s);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto add = mm->add_instruction(migraphx::make_op("add"), x, rsumb);
+        mm->add_return({add});
+        return p;
+    };
 
-    bool enable_rewrite_reshapes   = true;
-    bool enable_rewrite_broadcasts = false;
-    /// Fusing a trailing pointwise whose output is larger than what the
-    /// reduction reads makes the kernel write that output with one workgroup
-    /// per reduction output, so it is only fused when there are at least
-    /// this many reduction outputs to stream it well
-    std::size_t min_fused_outputs = 1;
+    std::string section() const { return "reduce"; }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP

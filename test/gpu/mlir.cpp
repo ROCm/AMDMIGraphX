@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
+#include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -41,6 +42,9 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_identity.hpp>
+#include <migraphx/memory_coloring.hpp>
 #include <test.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
@@ -924,10 +928,59 @@ TEST_CASE(prefill_tuple_output)
     if(migraphx::gpu::dump_mlir(*sm).empty())
         return;
 
-    auto output = mm->add_instruction(
-        migraphx::make_op("gpu::mlir_op", {{"op", migraphx::to_value(dot->get_operator())}}),
-        {a, b},
-        {sm});
+    auto mlir_op =
+        migraphx::make_op("gpu::mlir_op", {{"op", migraphx::to_value(dot->get_operator())}});
+    auto is_fill = [](const migraphx::operation& op) {
+        return op.name() == "gpu::code_object" and
+               migraphx::any_cast<migraphx::gpu::code_object_op>(op).symbol_name ==
+                   "hip_fill_kernel";
+    };
+    auto is_fill_instruction = [&](const auto& ins) { return is_fill(ins.get_operator()); };
+
+    // Compile one candidate directly to verify prefills are part of compiler_replace rather than
+    // inserted as device ops that would need serial compilation during benchmarking.
+    migraphx::module candidate;
+    auto candidate_a = candidate.add_parameter("a", a_shape);
+    auto candidate_b = candidate.add_parameter("b", b_shape);
+    migraphx::shape tuple_shape{std::vector<migraphx::shape>{row_sum_shape, column_sum_shape}};
+    auto candidate_output = candidate.add_parameter("output", tuple_shape);
+    auto precompile_op =
+        migraphx::make_op("gpu::precompile_op", {{"op", migraphx::to_value(mlir_op)}});
+    auto candidate_ins = candidate.add_instruction(
+        precompile_op, {candidate_a, candidate_b, candidate_output}, {sm});
+    candidate.add_return({candidate_ins});
+
+    migraphx::gpu::context ctx;
+    auto tuning = migraphx::gpu::get_tuning_config(ctx, candidate_ins, mlir_op, false);
+    CHECK(tuning.has_value());
+    CHECK(not tuning->solutions.empty());
+    auto replacement =
+        migraphx::gpu::compile(ctx, candidate_ins, mlir_op, tuning->solutions.front());
+    EXPECT(replacement.code_objects.size() == 3);
+    EXPECT(std::count_if(
+               replacement.code_objects.begin(), replacement.code_objects.end(), is_fill) == 2);
+
+    replacement.replace(candidate, candidate_ins);
+    EXPECT(std::none_of(candidate.begin(), candidate.end(), [](const auto& ins) {
+        return ins.name() == "hip::fill";
+    }));
+    EXPECT(std::count_if(candidate.begin(), candidate.end(), is_fill_instruction) == 2);
+    EXPECT(std::count_if(candidate.begin(), candidate.end(), [](const auto& ins) {
+               return ins.name() == "identity";
+           }) == 1);
+
+    // Match benchmark-program cleanup: preserve the identity until after DCE and memory coloring
+    // so both prefills remain in the timed instruction stream.
+    migraphx::run_passes(candidate,
+                         {migraphx::dead_code_elimination{},
+                          migraphx::memory_coloring{"hip::allocate"},
+                          migraphx::eliminate_identity{}});
+    EXPECT(std::count_if(candidate.begin(), candidate.end(), is_fill_instruction) == 2);
+    EXPECT(std::none_of(candidate.begin(), candidate.end(), [](const auto& ins) {
+        return ins.name() == "identity";
+    }));
+
+    auto output = mm->add_instruction(mlir_op, {a, b}, {sm});
     auto row_square_sum_output =
         mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), output);
     auto column_sum_output =
@@ -938,18 +991,15 @@ TEST_CASE(prefill_tuple_output)
     options.offload_copy = true;
     p.compile(migraphx::make_target("gpu"), options);
 
-    auto is_fill = [](const auto& ins) {
-        return ins.name() == "gpu::code_object" and
-               migraphx::any_cast<migraphx::gpu::code_object_op>(ins.get_operator()).symbol_name ==
-                   "hip_fill_kernel";
-    };
     auto* compiled_mm = p.get_main_module();
-    EXPECT(std::count_if(compiled_mm->begin(), compiled_mm->end(), is_fill) == 2);
+    EXPECT(std::count_if(compiled_mm->begin(), compiled_mm->end(), is_fill_instruction) == 2);
     EXPECT(std::count_if(compiled_mm->begin(), compiled_mm->end(), [&](const auto& ins) {
-               return is_fill(ins) and ins.inputs().front()->get_shape() == row_sum_shape;
+               return is_fill_instruction(ins) and
+                      ins.inputs().front()->get_shape() == row_sum_shape;
            }) == 1);
     EXPECT(std::count_if(compiled_mm->begin(), compiled_mm->end(), [&](const auto& ins) {
-               return is_fill(ins) and ins.inputs().front()->get_shape() == column_sum_shape;
+               return is_fill_instruction(ins) and
+                      ins.inputs().front()->get_shape() == column_sum_shape;
            }) == 1);
 
     migraphx::program ref;

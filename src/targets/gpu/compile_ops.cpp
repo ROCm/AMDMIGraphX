@@ -357,9 +357,11 @@ struct compiled_result
         replace.replace(*mm, bench_ins);
         run_passes(*mm,
                    {
-                       eliminate_identity{},
                        dead_code_elimination{},
                        memory_coloring{"hip::allocate"},
+                       // Remove ordering identities last so DCE keeps side-effecting operations
+                       // that only reach the compiled kernel through those identities.
+                       eliminate_identity{},
                    });
         return bench_prog;
     }

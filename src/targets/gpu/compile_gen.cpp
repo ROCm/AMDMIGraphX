@@ -32,6 +32,8 @@
 #include <migraphx/module.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/optimize_module.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -306,14 +308,11 @@ std::string make_transformer_args(std::vector<std::string> transformers)
     return join_strings(std::move(transformers), ", ");
 }
 
-static void generate_pointwise(cpp_generator& gg,
-                               const module& pm,
-                               const std::string& name,
-                               bool always_return_tuple = false)
+static void generate_prepared_pointwise(cpp_generator& gg,
+                                        const module& m,
+                                        const std::string& name,
+                                        bool always_return_tuple = false)
 {
-    module m = pm;
-    run_passes(m, {rewrite_quantization{}, optimize_module{}});
-    m.sort();
     cpp_generator g;
     g.always_return_tuple(always_return_tuple);
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
@@ -332,6 +331,18 @@ static void generate_pointwise(cpp_generator& gg,
                            .set_generic_types(m)
                            .set_name(name));
 }
+
+static void generate_pointwise(cpp_generator& gg,
+                               const module& pm,
+                               const std::string& name,
+                               bool always_return_tuple = false)
+{
+    module m = pm;
+    run_passes(m, {rewrite_quantization{}, optimize_module{}});
+    m.sort();
+    generate_prepared_pointwise(gg, m, name, always_return_tuple);
+}
+
 std::string generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple)
 {
     cpp_generator g;
@@ -482,16 +493,27 @@ static std::vector<std::size_t> get_rlens(const module& m)
     return reduce->get_shape().lens();
 }
 
-std::string generate_reduce(module m, const std::string& name)
+std::string generate_reduce(const module& m, const std::string& name)
 {
-    preload_params(m);
-    run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
-    m.sort();
+    // Copy into a private program so the rewrites dont touch the module being
+    // compiled, and clear bypass so run_passes visits the fused submodules
+    program p{m};
+    for(auto* mod : p.get_modules())
+        mod->set_bypass(false);
+    auto& rm = *p.get_main_module();
+    preload_params(rm);
+    run_passes(p,
+               {rewrite_quantization{},
+                optimize_module{},
+                prepare_reduce{},
+                optimize_module{},
+                dead_code_elimination{}});
+    rm.sort();
     cpp_generator g;
     g.always_return_tuple();
-    auto rlens    = get_rlens(m);
+    auto rlens    = get_rlens(rm);
     std::size_t i = 0;
-    auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
+    auto f        = g.generate_module(rm, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
         {
             return reduce_op::generate(ins, cpp_generator::to_args(ins->inputs(), names));
@@ -500,7 +522,7 @@ std::string generate_reduce(module m, const std::string& name)
         {
             auto pointwise_name = "pointwise" + std::to_string(i);
             i++;
-            generate_pointwise(g, *ins->module_inputs().front(), pointwise_name);
+            generate_prepared_pointwise(g, *ins->module_inputs().front(), pointwise_name);
             std::vector<instruction_ref> tensors;
             std::copy_if(ins->inputs().begin(),
                          ins->inputs().end(),
@@ -544,12 +566,23 @@ std::string generate_reduce(module m, const std::string& name)
         {
             return names.at(ins->inputs().front());
         }
+        // Packed inputs are read at half the vector size, so unpacking a packed
+        // vector (plain or with the convert folded in) yields a full-width vector
         if(ins->name() == "unpack_int4")
         {
-            // The packed input is vectorized by half of the vector size so
-            // each element unpacks into a full vector along the reduction
             return "r.lazy_inner(MIGRAPHX_LIFT(migraphx::unpack_int4))(" +
                    names.at(ins->inputs().front()) + ")";
+        }
+        if(ins->name() == "gpu::unpack_int4_convert")
+        {
+            auto v    = ins->get_operator().to_value();
+            auto type = shape::cpp_type(v.at("target_type").to<shape::type_t>());
+            return interpolate_string("r.lazy_inner([](auto x) { return "
+                                      "migraphx::unpack_int4_as<${type}>(x, ${type}(${bias})); "
+                                      "})(${x})",
+                                      {{"type", type},
+                                       {"bias", to_string(v.at("bias").to<double>())},
+                                       {"x", names.at(ins->inputs().front())}});
         }
         if(ins->name() == "get_tuple_elem")
         {

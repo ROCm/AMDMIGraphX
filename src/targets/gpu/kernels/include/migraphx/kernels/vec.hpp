@@ -153,6 +153,8 @@ __device__ __host__ T* remove_packed(T* x)
 template <class T, index_int N>
 __device__ __host__ T* remove_packed(packed<T, N>* x)
 {
+    static_assert(is_standard_layout<packed<T, N>>{} and sizeof(packed<T, N>) == sizeof(T),
+                  "packed must be a transparent wrapper of T");
     return reinterpret_cast<T*>(x);
 }
 

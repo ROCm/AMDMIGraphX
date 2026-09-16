@@ -38,6 +38,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/tune_axis.hpp>
 #include <iterator>
 #include <map>
 #include <numeric>
@@ -493,13 +494,13 @@ struct find_unpack_reduce
 
     static std::size_t normalized_axis(instruction_ref unpack)
     {
-        auto axis = unpack->get_operator().to_value().at("axis").to<std::int64_t>();
-        auto ndim = unpack->inputs().front()->get_shape().ndim();
-        return axis < 0 ? axis + ndim : axis;
+        return tune_axis(unpack->get_shape().ndim(),
+                         unpack->get_operator().to_value().at("axis").to<int>(),
+                         unpack->name());
     }
 
-    // Move the unpack below the reshapes between it and the reduce by
-    // reshaping the packed input instead, so the unpack can be fused
+    // Push the unpack past the reshapes so it feeds the reduce directly,
+    // reshaping the packed input instead so it can be fused
     static optional<instruction_ref>
     hoist_unpack(module& m, instruction_ref input, instruction_ref unpack)
     {
@@ -527,9 +528,8 @@ struct find_unpack_reduce
         auto packed = unpack->inputs().front();
         if(elements(lens) != packed->get_shape().elements())
             return nullopt;
-        std::vector<std::int64_t> packed_dims(lens.begin(), lens.end());
         auto packed_reshape =
-            m.insert_instruction(input, make_op("reshape", {{"dims", packed_dims}}), packed);
+            m.insert_instruction(input, make_op("reshape", {{"dims", lens}}), packed);
         auto new_unpack =
             m.insert_instruction(input, make_op("unpack_int4", {{"axis", axis}}), packed_reshape);
         return m.replace_instruction(input, new_unpack);
@@ -567,8 +567,9 @@ struct find_unpack_reduce
         auto axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
         if(not contains(axes, axis))
             return;
+        static const auto fp8 = fp8_types{}.get();
         if(not std::all_of(reduce->inputs().begin(), reduce->inputs().end(), [&](auto ri) {
-               if(contains(fp8_types{}.get(), ri->get_shape().type()))
+               if(contains(fp8, ri->get_shape().type()))
                    return false;
                return is_vectorizable_by_two(ri->get_shape(), axis);
            }))

@@ -95,7 +95,7 @@ std::string make_transformer_args(const Ts&... xs)
 std::string
 generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple = false);
 
-MIGRAPHX_GPU_EXPORT std::string generate_reduce(module m, const std::string& name);
+MIGRAPHX_GPU_EXPORT std::string generate_reduce(const module& m, const std::string& name);
 
 std::string generate_name_from_ops(const module& m, const std::string& postname = "");
 

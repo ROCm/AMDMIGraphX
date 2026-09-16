@@ -31,6 +31,7 @@
 #include <migraphx/apply_alpha_beta.hpp>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
 #include <basic_ops.hpp>
 
@@ -237,6 +238,34 @@ TEST_CASE(program_submodules_capture_parent_teardown)
     // A copy carries the same cross-module references and must tear down the same way.
     migraphx::program copy = p;
     EXPECT(copy == p);
+}
+
+TEST_CASE(program_from_module_copies_submodules)
+{
+    // Constructing a program from a module copies the submodules its
+    // instructions reference, so the program owns every module it uses
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    auto* mm  = p1.get_main_module();
+    auto cond = mm->add_parameter("cond", {migraphx::shape::bool_type, {1}});
+
+    auto* then_mod = p1.create_module("then_mod");
+    auto tl        = then_mod->add_literal(migraphx::literal{s, {1, 2, 3, 4, 5, 6}});
+    then_mod->add_return({then_mod->add_instruction(migraphx::make_op("neg"), tl)});
+    auto* else_mod = p1.create_module("else_mod");
+    auto el        = else_mod->add_literal(migraphx::literal{s, {6, 5, 4, 3, 2, 1}});
+    else_mod->add_return({else_mod->add_instruction(migraphx::make_op("relu"), el)});
+    auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({if_ins});
+
+    migraphx::program p2{*p1.get_main_module()};
+    EXPECT(p2 == p1);
+    auto mods = p2.get_main_module()->get_sub_modules();
+    EXPECT(mods.size() == 2);
+    EXPECT(mods.front() == p2.get_module("then_mod"));
+    EXPECT(mods.back() == p2.get_module("else_mod"));
+    EXPECT(mods.front() != then_mod);
+    EXPECT(mods.back() != else_mod);
 }
 
 TEST_CASE(program_modules_destroyed_referenced_first)

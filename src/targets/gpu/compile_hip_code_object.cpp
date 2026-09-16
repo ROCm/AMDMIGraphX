@@ -29,6 +29,8 @@
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
+#include <algorithm>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,25 +53,27 @@ struct make_tensor<${n}>
 };
 )__migraphx__";
 
-static std::string
-generate_make_tensor(std::size_t n, const shape& s, const std::string& type_override)
+static std::string generate_make_tensor(std::size_t n, const shape& s, const std::string& type)
 {
-    return interpolate_string(
-        make_tensor_template,
-        {{"n", std::to_string(n)},
-         {"type", type_override.empty() ? shape::cpp_type(s.type()) : type_override},
-         {"lens", generate_index_ints(s.lens())},
-         {"strides", generate_index_ints(s.strides())}});
+    return interpolate_string(make_tensor_template,
+                              {{"n", std::to_string(n)},
+                               {"type", type},
+                               {"lens", generate_index_ints(s.lens())},
+                               {"strides", generate_index_ints(s.strides())}});
 }
 
 static std::string generate_args_hpp(const std::vector<shape>& inputs,
                                      const std::map<std::size_t, std::string>& type_overrides)
 {
+    assert(std::all_of(type_overrides.begin(), type_overrides.end(), [&](const auto& p) {
+        return p.first < inputs.size();
+    }));
     std::string inner;
     for(std::size_t i = 0; i < inputs.size(); i++)
     {
-        auto it = type_overrides.find(i);
-        inner += generate_make_tensor(i, inputs[i], it == type_overrides.end() ? "" : it->second);
+        auto it   = type_overrides.find(i);
+        auto type = it == type_overrides.end() ? shape::cpp_type(inputs[i].type()) : it->second;
+        inner += generate_make_tensor(i, inputs[i], type);
     }
     const std::string args_hpp = R"__migraphx__(
 #ifndef MIGRAPHX_GUARD_AUTO_ARGS_HPP

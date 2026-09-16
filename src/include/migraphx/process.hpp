@@ -67,7 +67,7 @@ struct MIGRAPHX_EXPORT process
     /// and never merges stderr into stdout, so stdout stays a clean binary channel; cwd() and env()
     /// are unsupported. Throws if the child cannot be spawned, exits non-zero, or terminates
     /// abnormally.
-    void read_write(std::function<void(writer)> pipe_in, const writer& output);
+    void read_write(const std::function<void(writer)>& pipe_in, const writer& output);
 
     private:
     std::unique_ptr<process_impl> impl;

@@ -228,7 +228,7 @@ TEST_CASE(read_write_nonzero_exit_code)
 }
 
 // A child that dies from a signal (POSIX) or an SEH exception (Windows) has no exit status. Without
-// a mapping for that, WEXITSTATUS of a signalled child is 0 and a crashed compiler would look like
+// a mapping for that, WEXITSTATUS of a signaled child is 0 and a crashed compiler would look like
 // success.
 TEST_CASE(read_write_abnormal_termination)
 {
@@ -286,8 +286,10 @@ TEST_CASE(read_write_rejects_cwd_and_env)
 // C:\\a\\b on the far side, and neither form is visible without echoing argv back.
 TEST_CASE(read_write_argv_round_trip)
 {
+    // Raw literals: the whole point of these cases is which backslashes and quotes reach the child,
+    // and escaping them twice over hides exactly that.
     std::vector<std::string> args = {
-        "C:\\a\\b", "C:\\a\\b\\", "a\"b", "a\\\"b", "a\\\\", "x y", "", "--looks-like-a-flag"};
+        R"(C:\a\b)", R"(C:\a\b\)", R"(a"b)", R"(a\"b)", R"(a\\)", "x y", "", "--looks-like-a-flag"};
     std::vector<std::string> mode_args = {"args"};
     mode_args.insert(mode_args.end(), args.begin(), args.end());
 
@@ -323,6 +325,7 @@ TEST_CASE(read_write_concurrent_spawns)
     std::vector<std::vector<char>> results(n);
     std::vector<std::string> errors(n);
     std::vector<std::thread> threads;
+    threads.reserve(n);
     for(std::size_t i = 0; i < n; i++)
     {
         threads.emplace_back([&, i] {

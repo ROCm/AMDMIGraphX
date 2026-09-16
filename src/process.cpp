@@ -731,7 +731,7 @@ exec_result exec_read_write(const std::string& cmd,
     std::size_t total_bytes_written = 0;
     std::size_t total_bytes_read    = 0;
 
-    // stdout is deliberately first: WaitForMultipleObjects reports the lowest signalled index, so a
+    // stdout is deliberately first: WaitForMultipleObjects reports the lowest signaled index, so a
     // child that writes its output and immediately exits still gets drained before we notice it
     // died. Slot 1 holds the write event only while we still have data to send.
     std::array<HANDLE, 3> handles{
@@ -871,7 +871,7 @@ exec_result exec_read_write(const std::string& cmd,
         throw_error(GetLastError(), "Failed to get child exit code");
 
     // An SEH-terminated child exits with something like 0xC0000005, which does not fit an int.
-    // Report those the same way POSIX reports a signalled child.
+    // Report those the same way POSIX reports a signaled child.
     if(exit_code > static_cast<DWORD>((std::numeric_limits<int>::max)()))
         return {-1, std::move(stdout_data)};
     return {static_cast<int>(exit_code), std::move(stdout_data)};
@@ -881,7 +881,6 @@ exec_result exec_read_write(const std::string& cmd,
 
 struct fd_wrapper
 {
-    fd_wrapper() = default;
     explicit fd_wrapper(int f) : fd(f) {}
     fd_wrapper(const fd_wrapper&)            = delete;
     fd_wrapper& operator=(const fd_wrapper&) = delete;
@@ -954,8 +953,7 @@ struct sigpipe_blocker
         sigset_t block_set;
         sigemptyset(&block_set);
         sigaddset(&block_set, SIGPIPE);
-        blocked         = pthread_sigmask(SIG_BLOCK, &block_set, &old_set) == 0;
-        already_blocked = sigismember(&old_set, SIGPIPE) == 1;
+        blocked = pthread_sigmask(SIG_BLOCK, &block_set, &old_set) == 0;
     }
     sigpipe_blocker(const sigpipe_blocker&)            = delete;
     sigpipe_blocker& operator=(const sigpipe_blocker&) = delete;
@@ -964,10 +962,11 @@ struct sigpipe_blocker
         if(not blocked)
             return;
         // Consume a SIGPIPE raised while it was blocked, so unblocking does not deliver it. Only
-        // safe to do when we are the ones who blocked it. sigtimedwait with a zero timeout rather
-        // than sigwait: sigpending also reports process-directed signals, and two threads racing
-        // for the same one would leave the loser blocked forever.
-        if(not already_blocked)
+        // safe to do when we are the ones who blocked it, which is what the saved mask tells us.
+        // sigtimedwait with a zero timeout rather than sigwait: sigpending also reports
+        // process-directed signals, and two threads racing for the same one would leave the loser
+        // blocked forever.
+        if(sigismember(&old_set, SIGPIPE) != 1)
         {
             sigset_t wait_set;
             sigemptyset(&wait_set);
@@ -981,8 +980,7 @@ struct sigpipe_blocker
     }
 
     sigset_t old_set{};
-    bool blocked         = false;
-    bool already_blocked = false;
+    bool blocked = false;
 };
 
 // poll() flags are signed ints against a signed short; mask in unsigned to keep the bit test out of
@@ -1177,7 +1175,7 @@ exec_result exec_read_write(const std::string& cmd,
     child_stdout_read.close();
 
     int wait_status = child.wait();
-    // Report a signalled child as a generic failure; the caller only needs "did it work".
+    // Report a signaled child as a generic failure; the caller only needs "did it work".
     int exit_code = WIFSIGNALED(wait_status) ? -1 : WEXITSTATUS(wait_status); // NOLINT
     return {exit_code, pump.take_stdout()};
 }
@@ -1316,7 +1314,7 @@ void process::write(std::function<void(writer)> pipe_in)
 #endif
 }
 
-void process::read_write(std::function<void(writer)> pipe_in, const writer& output)
+void process::read_write(const std::function<void(writer)>& pipe_in, const writer& output)
 {
     // Neither is plumbed through: the direct spawn has nowhere to put a shell's `cd` and `VAR=x`
     // prefixes, and no caller needs them. Better to say so than to silently drop them.

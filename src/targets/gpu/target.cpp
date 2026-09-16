@@ -111,7 +111,8 @@ struct backend_options
     std::vector<std::string> mlss_use_specific_ops = {};
     // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
     // prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
-    // priority over this, as do the architecture and build-config defaults.
+    // priority over this. The architecture and build-config defaults only force ops on, so a
+    // '!' entry cannot disable an op those defaults enable (e.g. attention on gfx94/gfx95).
     std::vector<std::string> mlir_use_specific_ops = {};
     // Read/write problem caches (the common case: a user tuning a model). New
     // tuning solutions are saved back to these files.

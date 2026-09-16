@@ -75,15 +75,6 @@ bool mlir_enabled()
 #endif
 }
 
-namespace {
-struct requested
-{
-};
-struct rejected
-{
-};
-} // namespace
-
 static bool is_negated_op(const std::string& s)
 {
     if(s.empty())
@@ -91,26 +82,24 @@ static bool is_negated_op(const std::string& s)
     return contains({'!', '~'}, s[0]);
 }
 
-// Keeps the plain entries of an op list (`requested`), or the '!'/'~'-prefixed ones with the
-// prefix stripped (`rejected`).
-template <class Action>
-static std::vector<std::string> get_usage(const std::vector<std::string>& options)
+static std::string remove_not_symbol(const std::string& s)
 {
-    static_assert(std::is_same<Action, requested>{} or std::is_same<Action, rejected>{},
-                  "Action must be requested or rejected");
-    constexpr bool enabled = std::is_same<Action, requested>{};
+    if(is_negated_op(s))
+        return s.substr(1);
+    return s;
+}
+
+// Keeps the plain entries of an op list (`enabled`), or the '!'/'~'-prefixed ones with the
+// prefix stripped (not `enabled`). Entries that name no op, such as a bare '!', are dropped.
+static std::vector<std::string> get_usage(const std::vector<std::string>& options, bool enabled)
+{
     std::vector<std::string> result;
-    auto remove_not_symbol = [&](const std::string& s) {
-        if(is_negated_op(s))
-            return s.substr(1);
-        return s;
-    };
     transform_if(
         options.begin(),
         options.end(),
         std::back_inserter(result),
         [&](const std::string& option) {
-            if(option.empty())
+            if(remove_not_symbol(option).empty())
                 return false;
             if(is_negated_op(option))
                 return not enabled;
@@ -129,8 +118,8 @@ static bool has_op(const std::vector<std::string>& options, std::string_view opt
 }
 
 namespace {
-// An op list in the MIGRAPHX_MLIR_USE_SPECIFIC_OPS format, split into the ops forced on and the
-// ops forced off. Used for both the env var and the compile_options list.
+// An op list in the MIGRAPHX_MLIR_USE_SPECIFIC_OPS format, split into ops forced on and forced
+// off.
 struct op_usage
 {
     std::vector<std::string> requested_ops = {};
@@ -143,12 +132,11 @@ struct op_usage
 
 static op_usage parse_op_usage(std::vector<std::string> list)
 {
-    // Entries are trimmed because these lists are written by hand, in the env var or in JSON
-    // compile options, where "conv, !dot" is natural but would otherwise leave the '!' at
-    // index 1 and not negate.
+    // The env var "conv, !dot" splits into " !dot", whose '!' is no longer at index 0 and so
+    // would not negate; trimming also tolerates stray spaces in hand-written JSON entries.
     std::transform(
         list.begin(), list.end(), list.begin(), [](const std::string& s) { return trim(s); });
-    return {.requested_ops = get_usage<requested>(list), .rejected_ops = get_usage<rejected>(list)};
+    return {.requested_ops = get_usage(list, true), .rejected_ops = get_usage(list, false)};
 }
 
 // Ops forced on or off by MIGRAPHX_MLIR_USE_SPECIFIC_OPS. Parsed on first use.
@@ -178,8 +166,8 @@ bool mlir_attention_enabled(context* ctx, const std::vector<std::string>& use_sp
     }
     if(env_op_usage().is_requested("attention"))
         return true;
-    // Ops from compile_options are checked last: the gfx94/gfx95 default above has already
-    // returned, so a rejection here cannot turn attention off on those architectures.
+    // compile_options is checked last: unlike the env var rejection above, a rejection here
+    // runs after the gfx94/gfx95 default and so cannot switch attention off on those chips.
     const auto ops = parse_op_usage(use_specific_ops);
     if(ops.is_rejected("attention"))
         return false;
@@ -1647,8 +1635,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         if(contains(option, "dot") or contains(option, "fused_dot"))
             return mlir_mode::all;
 #endif
-        // Ops from compile_options are checked last: the env var and the architecture and
-        // build-config defaults above win, but these still override the m1/m2 default below.
+        // compile_options is checked last: the env var and the navi/build-config forcing above
+        // win, but this still overrides the m1/m2 default.
         if(ops.is_rejected(option))
             return mlir_mode::none;
         if(ops.is_requested(option))

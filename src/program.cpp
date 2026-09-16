@@ -96,9 +96,29 @@ struct program_impl
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
+static void replace_module_refs(module& m,
+                                const std::unordered_map<module_ref, module_ref>& mod_map)
+{
+    for(auto ins : iterator_for(m))
+        instruction::replace_refs(ins, {}, mod_map);
+}
+
 program::program(module m) : impl(std::make_unique<program_impl>())
 {
-    this->create_module("main", std::move(m));
+    auto sub_mods = m.get_sub_modules();
+    auto* root    = this->create_module("main", std::move(m));
+    // Copy the submodules the instructions reference so the program owns
+    // every module it uses
+    std::unordered_map<module_ref, module_ref> mod_map;
+    for(auto* sm : sub_mods)
+    {
+        if(contains(mod_map, sm))
+            continue;
+        mod_map[sm] = this->create_module(sm->name(), *sm);
+    }
+    replace_module_refs(*root, mod_map);
+    for(auto&& pp : mod_map)
+        replace_module_refs(*pp.second, mod_map);
 }
 
 program::program(program&&) noexcept = default;

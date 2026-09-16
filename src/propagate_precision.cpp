@@ -144,7 +144,7 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
 
 // Promotion converts an op's inputs to the target type, which only preserves the value when the
 // inputs share the target's category. quantizelinear mixes a float scale with integral operands,
-// so promoting it to int would truncate the scale (e.g. 0.05 -> 0) and zero the result.
+// so promoting it to int would truncate the scale (e.g. 0.05 -> 0) and then divide by it.
 static bool inputs_match_category(instruction_ref ins, precision target)
 {
     return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref input) {
@@ -195,6 +195,8 @@ static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref
                 continue;
             // Stop when crossing a type category boundary (e.g., int or fp8 to float)
             if(not same_category(precision{output->get_shape().type()}, target))
+                continue;
+            if(not inputs_match_category(output, target))
                 continue;
             auto next = get_next_input(output);
             if(not next.has_value())

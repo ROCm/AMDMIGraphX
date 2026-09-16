@@ -190,6 +190,11 @@ struct match_find_quantizable_ops
         qop_args.at(0) = rebias_uint8_to_int8(m, qop, qop_args.at(0), zp1);
         qop_args.at(1) = rebias_uint8_to_int8(m, qop, qop_args.at(1), zp2);
 
+        // Types are admitted per operand above, so a pair the rebias could not unify (e.g. uint8
+        // with fp8) is still mixed here and would trip the op's same_type() check.
+        if(qop_args.at(0)->get_shape().type() != qop_args.at(1)->get_shape().type())
+            return;
+
         instruction_ref dq;
         instruction_ref out_scale;
         instruction_ref out_zp;
@@ -304,11 +309,6 @@ struct match_find_quantizable_ops
                 out_zp = m.insert_instruction(qop, migraphx::make_op("sub"), out_zp, out_zp_3);
             }
         }
-
-        // The correction inherits its layout from a zero point broadcast to all-zero strides, so
-        // find_permutation has no strides to read and orders the axes by length instead.
-        if(out_zp->get_shape().packed() and not out_zp->get_shape().standard())
-            out_zp = m.insert_instruction(qop, make_op("contiguous"), out_zp);
 
         dq = m.insert_instruction(qop, make_op("dequantizelinear"), dq, out_scale, out_zp);
         if(is_fp16_model)

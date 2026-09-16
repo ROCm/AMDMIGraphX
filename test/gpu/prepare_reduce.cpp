@@ -251,10 +251,10 @@ static migraphx::operation unpack_int4_convert(double bias)
 // (convert(x0) + zp) * x1 * x2
 static void add_dequant_pointwise(migraphx::module& pm, float zp)
 {
-    auto x0  = pm.add_parameter("x0", scalar(migraphx::shape::uint8_type));
-    auto x1  = pm.add_parameter("x1", scalar(migraphx::shape::half_type));
-    auto x2  = pm.add_parameter("x2", scalar(migraphx::shape::half_type));
-    auto c   = pm.add_instruction(
+    auto x0 = pm.add_parameter("x0", scalar(migraphx::shape::uint8_type));
+    auto x1 = pm.add_parameter("x1", scalar(migraphx::shape::half_type));
+    auto x2 = pm.add_parameter("x2", scalar(migraphx::shape::half_type));
+    auto c  = pm.add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x0);
     auto lit = pm.add_literal(migraphx::literal{scalar(migraphx::shape::half_type), {zp}});
     auto a   = pm.add_instruction(migraphx::make_op("add"), c, lit);

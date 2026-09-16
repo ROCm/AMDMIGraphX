@@ -82,11 +82,10 @@ __device__ inline uint32_t unpack_int4_byte_pair(uint32_t x, uint32_t j)
 // Both nibbles of byte j as fp16 without a convert: or-ed into the mantissa
 // of 1024.0 (0x6400) the low nibble reads as 1024 + lo and the high nibble
 // as 1024 + 16 * hi, which one packed fma turns into lo + bias and hi + bias
-__device__ inline vec<half, 2>
-unpack_int4_half_pair(uint32_t word, uint32_t j, vec<half, 2> offset)
+__device__ inline vec<half, 2> unpack_int4_half_pair(uint32_t word, uint32_t j, vec<half, 2> offset)
 {
-    auto p = unpack_int4_byte_pair(word, j);
-    auto m = __builtin_bit_cast(vec<half, 2>, (p & 0x00f0000fu) | 0x64006400u);
+    auto p                   = unpack_int4_byte_pair(word, j);
+    auto m                   = __builtin_bit_cast(vec<half, 2>, (p & 0x00f0000fu) | 0x64006400u);
     const vec<half, 2> scale = {half(1), half(1.0 / 16)};
     return __builtin_elementwise_fma(m, scale, offset);
 }
@@ -117,7 +116,7 @@ __device__ vec<half, N * 2> unpack_int4_as_half(vec<U, N> x, half bias)
 template <index_int S>
 __device__ float unpack_int4_float_nibble(uint32_t word, float bias)
 {
-    auto m = __builtin_bit_cast(float, (word & (0xfu << S)) | 0x4b000000u);
+    auto m                = __builtin_bit_cast(float, (word & (0xfu << S)) | 0x4b000000u);
     constexpr float scale = 1.0f / (1u << S);
     return __builtin_elementwise_fma(m, scale, bias - float(1u << (23 - S)));
 }

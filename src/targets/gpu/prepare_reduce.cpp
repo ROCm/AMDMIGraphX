@@ -119,8 +119,7 @@ struct unpack_int4_convert
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.axis, "axis"), f(self.target_type, "target_type"), f(self.bias, "bias"));
+        return pack(f(self.axis, "axis"), f(self.target_type, "target_type"), f(self.bias, "bias"));
     }
 
     std::string name() const { return "gpu::unpack_int4_convert"; }

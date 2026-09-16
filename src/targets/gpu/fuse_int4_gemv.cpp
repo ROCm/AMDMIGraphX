@@ -43,21 +43,26 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_INT4_GEMV);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT4_GEMV_TRACE);
 
 struct int4_gemv_op
 {
     std::string name() const { return "gpu::int4_gemv"; }
 
-    std::size_t N       = 0;
-    std::size_t K       = 0;
-    int block_k         = 32;
-    bool has_zp         = false;
-    bool has_bias       = false;
+    std::size_t N = 0;
+    std::size_t K = 0;
+    int block_k   = 32;
+    bool has_zp   = false;
+    bool has_bias = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.N, "N"), f(self.K, "K"), f(self.block_k, "block_k"), f(self.has_zp, "has_zp"), f(self.has_bias, "has_bias"));
+        return pack(f(self.N, "N"),
+                    f(self.K, "K"),
+                    f(self.block_k, "block_k"),
+                    f(self.has_zp, "has_zp"),
+                    f(self.has_bias, "has_bias"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -104,8 +109,8 @@ std::optional<instruction_ref> find_unpack_int4_ancestor(instruction_ref ins, in
 struct dequant_info
 {
     instruction_ref scales;
-    instruction_ref zp;        // empty if symmetric
-    instruction_ref unpack;    // the unpack_int4 instruction
+    instruction_ref zp;     // empty if symmetric
+    instruction_ref unpack; // the unpack_int4 instruction
     int block_k = 32;
     bool has_zp = false;
 };
@@ -113,17 +118,26 @@ struct dequant_info
 std::optional<dequant_info> find_dequant_in_chain(instruction_ref dot_b_input)
 {
     // Walk back from dot's B input through reshaping ops to find dequantizelinear/pointwise
-    static const std::set<std::string> reshape_ops = {
-        "transpose", "contiguous", "reshape", "multibroadcast", "broadcast", "flatten", "squeeze",
-        "unsqueeze", "slice"};
+    static const std::set<std::string> reshape_ops = {"transpose",
+                                                      "contiguous",
+                                                      "reshape",
+                                                      "multibroadcast",
+                                                      "broadcast",
+                                                      "flatten",
+                                                      "squeeze",
+                                                      "unsqueeze",
+                                                      "slice"};
 
     auto cur = dot_b_input;
     while(reshape_ops.count(cur->name()) > 0 and not cur->inputs().empty())
     {
-        std::cerr << "[int4_gemv] chain walk: " << cur->name() << " -> " << cur->inputs().front()->name() << std::endl;
+        if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+            std::cout << "[int4_gemv] chain walk: " << cur->name() << " -> "
+                      << cur->inputs().front()->name() << std::endl;
         cur = cur->inputs().front();
     }
-    std::cerr << "[int4_gemv] chain ended at: " << cur->name() << std::endl;
+    if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+        std::cout << "[int4_gemv] chain ended at: " << cur->name() << std::endl;
 
     // cur should now be dequantizelinear or a pointwise wrapping it
     if(cur->name() == "dequantizelinear")
@@ -146,11 +160,15 @@ std::optional<dequant_info> find_dequant_in_chain(instruction_ref dot_b_input)
         auto scales_root = trace_through_views(inputs[1]);
         auto sr_shape    = scales_root->get_shape();
         // Find the last non-1 dimension (skip trailing unsqueeze dims)
-        auto sr_lens = sr_shape.lens();
+        auto sr_lens        = sr_shape.lens();
         std::size_t sr_last = 1;
         for(auto it = sr_lens.rbegin(); it != sr_lens.rend(); ++it)
         {
-            if(*it > 1) { sr_last = *it; break; }
+            if(*it > 1)
+            {
+                sr_last = *it;
+                break;
+            }
         }
         if(sr_shape.ndim() >= 2 and sr_last > 1 and sr_last < K)
         {
@@ -165,7 +183,7 @@ std::optional<dequant_info> find_dequant_in_chain(instruction_ref dot_b_input)
 
         if(inputs.size() >= 3)
         {
-            info.has_zp = true;
+            info.has_zp  = true;
             auto zp_root = trace_through_views(inputs[2]);
             info.zp      = zp_root;
         }
@@ -179,7 +197,7 @@ std::optional<dequant_info> find_dequant_in_chain(instruction_ref dot_b_input)
         if(inputs.size() < 2 or inputs.size() > 3)
             return std::nullopt;
 
-        auto x = inputs[0];
+        auto x      = inputs[0];
         auto unpack = find_unpack_int4_ancestor(x);
         if(not unpack.has_value())
             return std::nullopt;
@@ -190,13 +208,17 @@ std::optional<dequant_info> find_dequant_in_chain(instruction_ref dot_b_input)
         auto packed_shape = info.unpack->inputs().front()->get_shape();
         auto K            = packed_shape.lens().back() * 2;
 
-        auto scales_root  = trace_through_views(inputs[1]);
-        auto sr_shape     = scales_root->get_shape();
-        auto sr_lens2 = sr_shape.lens();
+        auto scales_root    = trace_through_views(inputs[1]);
+        auto sr_shape       = scales_root->get_shape();
+        auto sr_lens2       = sr_shape.lens();
         std::size_t sr_last = 1;
         for(auto it = sr_lens2.rbegin(); it != sr_lens2.rend(); ++it)
         {
-            if(*it > 1) { sr_last = *it; break; }
+            if(*it > 1)
+            {
+                sr_last = *it;
+                break;
+            }
         }
         if(sr_shape.ndim() >= 2 and sr_last > 1 and sr_last < K)
         {
@@ -211,13 +233,14 @@ std::optional<dequant_info> find_dequant_in_chain(instruction_ref dot_b_input)
 
         if(inputs.size() >= 3)
         {
-            info.has_zp = true;
+            info.has_zp  = true;
             auto zp_root = trace_through_views(inputs[2]);
             info.zp      = zp_root;
         }
-        std::cerr << "[int4_gemv] dequant MATCHED: K=" << K << " block_k=" << info.block_k << " has_zp=" << info.has_zp
-                  << " scales.shape=" << info.scales->get_shape()
-                  << std::endl;
+        if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+            std::cout << "[int4_gemv] dequant MATCHED: K=" << K << " block_k=" << info.block_k
+                      << " has_zp=" << info.has_zp << " scales.shape=" << info.scales->get_shape()
+                      << std::endl;
         return info;
     }
 
@@ -233,9 +256,8 @@ static bool is_pointwise_add(instruction_ref pw_ins)
     // A simple add pointwise module: @param x0, @param x1, add(x0, x1), @return
     for(auto ins : iterator_for(*pm))
     {
-        if(ins->name() == "@param" or ins->name() == "@return" or
-           ins->name() == "@literal" or ins->name() == "multibroadcast" or
-           ins->name() == "broadcast")
+        if(ins->name() == "@param" or ins->name() == "@return" or ins->name() == "@literal" or
+           ins->name() == "multibroadcast" or ins->name() == "broadcast")
             continue;
         if(ins->name() != "add")
             return false;
@@ -245,7 +267,8 @@ static bool is_pointwise_add(instruction_ref pw_ins)
 
 // Find the bias operand in a pointwise-add: the input that is NOT dot_ins.
 // Returns nullopt if the add has more than 2 inputs or neither input is dot_ins.
-static std::optional<instruction_ref> find_bias_in_add(instruction_ref pw_ins, instruction_ref dot_ins)
+static std::optional<instruction_ref> find_bias_in_add(instruction_ref pw_ins,
+                                                       instruction_ref dot_ins)
 {
     auto inputs = pw_ins->inputs();
     if(inputs.size() != 2)
@@ -259,17 +282,16 @@ static std::optional<instruction_ref> find_bias_in_add(instruction_ref pw_ins, i
 
 struct find_int4_gemv_op
 {
-    auto matcher() const
-    {
-        return match::name("dot");
-    }
+    auto matcher() const { return match::name("dot"); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto dot_ins = r.result;
 
         // Only intercept when the env var is set
-        std::cerr << "[int4_gemv] matcher hit dot, env=" << enabled(MIGRAPHX_ENABLE_INT4_GEMV{}) << std::endl;
+        if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+            std::cout << "[int4_gemv] matcher hit dot, env=" << enabled(MIGRAPHX_ENABLE_INT4_GEMV{})
+                      << std::endl;
         if(not enabled(MIGRAPHX_ENABLE_INT4_GEMV{}))
             return;
 
@@ -286,20 +308,25 @@ struct find_int4_gemv_op
             a_shape.lens().begin(), a_shape.lens().end() - 2, std::size_t{1}, std::multiplies<>{});
         if(g * m != 1)
         {
-            std::cerr << "[int4_gemv] skip: g*m=" << g*m << std::endl;
+            if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+                std::cout << "[int4_gemv] skip: g*m=" << g * m << std::endl;
             return;
         }
 
         // Check that B input chain contains unpack_int4 and dequantizelinear
-        auto b_input     = dot_ins->inputs().back();
-        std::cerr << "[int4_gemv] M=1 dot found, B input=" << b_input->name() << std::endl;
-        auto dequant     = find_dequant_in_chain(b_input);
+        auto b_input = dot_ins->inputs().back();
+        if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+            std::cout << "[int4_gemv] M=1 dot found, B input=" << b_input->name() << std::endl;
+        auto dequant = find_dequant_in_chain(b_input);
         if(not dequant.has_value())
         {
-            std::cerr << "[int4_gemv] skip: no dequant in chain" << std::endl;
+            if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+                std::cout << "[int4_gemv] skip: no dequant in chain" << std::endl;
             return;
         }
-        std::cerr << "[int4_gemv] MATCHED! N=" << dot_ins->get_shape().lens().back() << std::endl;
+        if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+            std::cout << "[int4_gemv] MATCHED! N=" << dot_ins->get_shape().lens().back()
+                      << std::endl;
 
         auto& info = dequant.value();
 
@@ -322,8 +349,9 @@ struct find_int4_gemv_op
                 fuse_bias  = true;
                 add_ins    = dot_outputs.front();
                 bias_input = maybe_bias.value();
-                std::cerr << "[int4_gemv] fusing trailing add (bias shape="
-                          << bias_input->get_shape() << ")" << std::endl;
+                if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+                    std::cout << "[int4_gemv] fusing trailing add (bias shape="
+                              << bias_input->get_shape() << ")" << std::endl;
             }
         }
 
@@ -348,10 +376,10 @@ struct find_int4_gemv_op
             auto folded = info.zp->eval();
             if(not folded.empty() and folded.get_shape().standard())
             {
-                std::cerr << "[int4_gemv] folded zp unpack_int4 -> literal "
-                          << folded.get_shape() << std::endl;
-                info.zp = mpm.get_module().add_literal(
-                    literal{folded.get_shape(), folded.data()});
+                if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+                    std::cout << "[int4_gemv] folded zp unpack_int4 -> literal "
+                              << folded.get_shape() << std::endl;
+                info.zp = mpm.get_module().add_literal(literal{folded.get_shape(), folded.data()});
             }
         }
 
@@ -372,7 +400,6 @@ struct find_int4_gemv_op
         }
     }
 };
-
 
 } // namespace
 

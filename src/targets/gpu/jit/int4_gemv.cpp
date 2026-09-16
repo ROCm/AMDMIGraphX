@@ -26,23 +26,36 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/instruction.hpp>
+#include <iostream>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT4_GEMV_CONFIG);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT4_GEMV_TRACE);
 
-// Config table ported from HIP EP's offline autotuned LUT (gfx1151, commit
-// 13f44fb8).  TILE_N capped at 16 -- HIP EP proved 32/64 always spill and
-// lose (732-1436 B scratch, 1.13x-9.3x slower across 50 sweeps).
+// Config selection runs in three tiers, in this order:
 //
-// The function signature adds K so the table can distinguish shapes that share
-// N but differ in reduction length (e.g. gate_up vs down_proj).
-static std::pair<int, int> get_gemv_config(std::size_t n, std::size_t k,
-                                           const std::string& arch)
+//   1. MIGRAPHX_INT4_GEMV_CONFIG env override  -- parse_env_config(), below
+//   2. measured[] exact-match table            -- get_gemv_config()
+//   3. heuristic ladder                        -- get_gemv_config()
+//
+// Tiers 2 and 3 both live inside get_gemv_config(); it reports which one
+// answered through its `trusted` out-param.
+//
+// Tiers 1 and 2 are trusted answers: a shape that hits either needs no search,
+// and get_tuning_config() returns a single solution for it so compile_ops
+// skips benchmarking entirely.  Tier 3 is a GUESS, and it is measured to lose
+// 13-27% on shapes nobody tuned -- so a tier-3 shape gets the candidate grid
+// benchmarked instead, with the heuristic pick seeded first so that behaviour
+// is unchanged when benchmarking is skipped.
+static optional<std::pair<int, int>> parse_env_config(std::size_t n, std::size_t k)
 {
     // Env override.  Two accepted forms:
     //
@@ -126,121 +139,66 @@ static std::pair<int, int> get_gemv_config(std::size_t n, std::size_t k,
                 return fallback;
         }
     }
+    return nullopt;
+}
 
-    // --------------------------------------------------------------------
-    // v6: split on K at 2048 FIRST.
-    //
-    // v4's table had no K threshold below 4096 in its large-N branches, so
-    // Qwen's gate/up (N=4864, K=896) and Phi's gate/up (N=8192, K=3072)
-    // both fell through to {32,4} -- the same config for a 3.4x difference
-    // in reduction length.  Measured on STX-Halo that single collision is
-    // worth +7% on Qwen and -40% on Phi simultaneously, which is why no
-    // single-table version beat baseline on both.  The lm_head bucket
-    // (n>=16384) collided the same way: Qwen K=896 and Phi K=3072 both
-    // landed on {128,2}.
-    //
-    // Short reductions cannot feed a wide block: at K=896 a BLOCK_SIZE of
-    // 256 leaves most lanes with <4 elements each, so the small-BS entries
-    // that HIP EP autotuned are right there.  At K>=2048 there is enough
-    // reduction work to fill a wide block, and v3's larger BS/TN entries
-    // measured +56% on Phi where v4's small blocks measured -40%.
-    //
-    // So: K < 2048 keeps v4's HIP-EP-autotuned entries, K >= 2048 uses v3's
-    // N-keyed entries.  Both halves are the configuration that was actually
-    // measured best for the shapes that reach it -- this is not a
-    // compromise between the two tables, it is the union of their wins.
-    // --------------------------------------------------------------------
+// Config for (n,k,arch).  When `trusted` is non-null it is set to true if the
+// answer came from the env override or the measured[] table, and false if it
+// came from the heuristic ladder -- i.e. false means "this is a guess".
+static std::pair<int, int>
+get_gemv_config(std::size_t n, std::size_t k, const std::string& arch, bool* trusted = nullptr)
+{
+    auto set_trusted = [&](bool t) {
+        if(trusted != nullptr)
+            *trusted = t;
+    };
 
-    // v7 addendum: the vocabulary projection is its own regime, keyed on N alone.
-    //
-    // An lm_head is structurally unlike a transformer-block matmul: N is the
-    // vocab size (100k+), K is modest, and it runs once per token with no
-    // reuse across the N dimension.  TILE_N=32 there asks each thread to hold
-    // 32 accumulators across a 128k-wide output -- the case the HIP EP sweep
-    // referenced above found always spills.
-    //
-    // v6 routed this correctly for Qwen only by accident: its lm_head is
-    // K=896, so it fell into the short-reduction branch and got {128,2}.
-    // Llama's lm_head is K=2048, so it fell out the other side onto {256,32}.
-    // Both models that own a huge-N lm_head (Qwen 151936, Llama 128256)
-    // regress under a table that gives it TN=32; Phi, whose graph has NO
-    // quantized lm_head at all, is the one model that gains under v3.
-    // Make the routing explicit instead of K-dependent.
-    //
-    // NOTE (2026-09-14): shape-level reasoning, not yet a per-op measurement.
-    // If the profile shows lm_head is not a material share of Llama decode,
-    // this branch is wrong and should be reverted, not tuned.
-    //
-    // v8 CORRECTION (2026-09-14, from the STX-Halo driver profile + kernel analysis).
-    // Two things above are wrong and both were load-bearing:
-    //
-    // (1) This is NOT an "lm_head branch".  MIGraphX concat-fuses gate+up before
-    //     the GEMV, so Llama's and Phi's fused gate_up are BOTH N=16384 and land
-    //     here too.  On Llama that is ~43% of weight traffic on top of the
-    //     lm_head's ~21% -- which is what actually explains v7's size, not the
-    //     lm_head alone.  Qwen's gate_up fuses to 9728 and does NOT reach here.
-    // (2) The lm_head is not slow at TILE_N=32.  Measured in the driver, Llama's
-    //     128256x2048 runs 19.8% FASTER under v3's {256,32} than under baseline.
-    //     The huge-N/TN=32 story is falsified; what v7 changed that mattered was
-    //     BLOCK_SIZE, not TILE_N.
-    //
-    // (3) FALSIFIED BY MEASUREMENT -- kept because it was the reasoning that
-    //     produced the experiment below, and a dead mechanism is only useful
-    //     with its falsifier attached.  The argument was: the kernel's shuffle
-    //     reduction runs unconditionally on every thread, while a thread only
-    //     enters the K loop if tid < K/32, so reduction work per useful FMA is
-    //     ~5*BLOCK_SIZE/K, TILE_N cancels, and BLOCK_SIZE above K/32 buys
-    //     nothing but idle waves.  That predicts {64,8} beats {128,2} at
-    //     K=2048.  Measured: it loses by ~6%.  See the v8 block below.
-    //
+    if(auto env = parse_env_config(n, k))
+    {
+        set_trusted(true);
+        return *env;
+    }
+
     // ------------------------------------------------------------------
-    // v8 MEASURED AND REVERTED (2026-09-14).  The prediction above was
-    // signed before the run: "if v8 does not beat v7 on Llama, the 5*BS/K
-    // model is wrong and this should revert to {128,2}."  It did not.
+    // Config selection, in three tiers: env override, a table of measured
+    // winners keyed on (arch, N, K) exactly, then a heuristic ladder.
     //
-    //   Llama, STX-Halo, 128 tok, tp_steady P50, cold cache, md5-verified:
-    //     baseline          78.2 / 69.9
-    //     v7 {128,2}       165.8 / 164.4 / 165.7   <- tight, both metrics agree
-    //     v8 {64,8}        155.6  (5 iters, 152.8-156.5)
+    // Why the table is exact-match rather than ranges.  Range-fitted
+    // heuristics collide: shapes with very different reduction lengths land
+    // on one entry and the config that is right for one is badly wrong for
+    // the other.  Measured example -- Qwen's gate_up (N=4864, K=896) and
+    // Phi's (N=8192, K=3072) shared an entry, and a single config for both
+    // was simultaneously +7% on one model and -40% on the other.  An exact
+    // key cannot do that: an unmeasured shape falls through to the heuristic
+    // unchanged, so adding a row can only affect the shape it was measured
+    // on.
     //
-    // v8 is ~6% below v7 and does not overlap its band.  So BLOCK_SIZE is
-    // NOT simply capped by K/32: {64,8} cuts the modelled reduction ratio 4x
-    // versus v7 and measures SLOWER, which the 5*BS/K model cannot produce.
+    // Why `arch` is in the key.  Winners do not transfer between
+    // architectures -- the n>=16384 heuristic branch helps gfx1151 and costs
+    // gfx1201 7.3%.  Keying on arch keeps a measurement from being imposed
+    // on hardware it was never taken on.
     //
-    // Reverting to {128,2} as pre-registered rather than tuning around the
-    // result -- the discriminating experiment was chosen so that a loss kills
-    // the mechanism, and a mechanism that is dead should not be re-fitted.
-    // NOTE this leaves v7's own explanation UNSETTLED: {128,2} is the config
-    // that measured best, not a config we can currently explain.  What is
-    // established is that the branch catches fused gate_up (N=16384) as well
-    // as the lm_head, and that TILE_N=32 is not the problem (the lm_head is
-    // 19.8% faster with it).
+    // Why the ladder splits on K at 2048.  Short reductions cannot fill a
+    // wide block: at K=896 a BLOCK_SIZE of 256 leaves most lanes with fewer
+    // than four elements, so small blocks win.  At K>=2048 there is enough
+    // reduction work to fill a wide block and the larger BLOCK_SIZE/TILE_N
+    // entries win instead.
+    //
+    // Note on the huge-N branch: it is not an "lm_head branch".  MIGraphX
+    // concat-fuses gate+up before the GEMV, so a fused gate_up also lands at
+    // N=16384 and is typically the larger share of weight traffic.  Both
+    // shapes reach this branch and they do not want the same config.
+    //
+    // BLOCK_SIZE has no fixed sign.  Phi's 16384x3072 gate_up wants 256;
+    // Llama's 16384x2048 wants 64 -- same op, same arch, adjacent K,
+    // opposite directions.  Do not collapse such rows into a range.
+    //
+    // When the table misses and `get_tuning_config` is consulted, the
+    // heuristic result becomes the first candidate and the remaining grid is
+    // benchmarked against it, so a miss costs compile time rather than
+    // throughput.
     // ------------------------------------------------------------------
-    // --------------------------------------------------------------------
-    // v12: measured-winner allowlist, keyed on (arch, N, K) EXACTLY.
-    //
-    // Everything below this block is a heuristic -- a set of ranges fitted to
-    // a handful of shapes and then applied to every shape that happens to fall
-    // in the range.  That is how the v6 collision happened (Qwen K=896 and Phi
-    // K=3072 landing on one entry) and how the n>=16384 branch came to cost
-    // Navi48 7.3% while helping STX-Halo.
-    //
-    // This table is the opposite construction, and it has three properties
-    // that the ranges cannot have:
-    //
-    //   * No regression by construction.  An unmeasured (arch,n,k) cannot
-    //     reach a new value -- it falls through byte-for-byte to the heuristic
-    //     that shipped before this block existed.
-    //   * `arch` is in the key, so a winner measured on gfx1151 cannot be
-    //     imposed on gfx1201.  The parameter was already accepted and ignored;
-    //     this is what it was there for.
-    //   * Exact match, not ranges, so adding a row affects exactly the one
-    //     shape it was measured on and nothing else.
-    //
-    // Every row must cite the measurement that produced it.  A row without a
-    // measurement is a heuristic wearing a table's clothing, which is the
-    // thing this block exists to stop.
-    // --------------------------------------------------------------------
+
     struct gemv_entry
     {
         const char* arch;
@@ -254,7 +212,7 @@ static std::pair<int, int> get_gemv_config(std::size_t n, std::size_t k,
     // 16.7416 ms for the heuristic below (-26.8%).  Gate: token ids identical.
     //
     // Llama-3.2-1B-Instruct INT4 decode shapes (K=2048 family).  End-to-end
-    // Throughput Steady P50 on STX-Halo (gfx1151), ep.v13-dot2, 128 new / 256
+    // Throughput Steady P50 on STX-Halo (gfx1151), 128 new / 256
     // max_length, 5 iters, cold .mxr per arm, TIMING VALIDITY: valid.  Gate:
     // token ids identical to baseline on every arm quoted.
     //
@@ -295,13 +253,19 @@ static std::pair<int, int> get_gemv_config(std::size_t n, std::size_t k,
     for(const auto& e : measured)
     {
         if(n == e.n and k == e.k and arch == e.arch)
+        {
+            set_trusted(true);
             return {e.block_size, e.tile_n};
+        }
     }
+
+    // Everything below is the guess.
+    set_trusted(false);
 
     if(n >= 16384)
         return {128, 2};
 
-    // Short-reduction regime (Qwen-class: K < 2048).  v4 / HIP EP entries.
+    // Short-reduction regime (Qwen-class: K < 2048).
     if(k < 2048)
     {
         if(n >= 4096)
@@ -309,7 +273,7 @@ static std::pair<int, int> get_gemv_config(std::size_t n, std::size_t k,
         return {32, 2};
     }
 
-    // Long-reduction regime (Phi/Llama-class: K >= 2048).  v3 entries.
+    // Long-reduction regime (Phi/Llama-class: K >= 2048).
     if(n > 4096)
         return {256, 32};
     if(n > 1024)
@@ -362,7 +326,34 @@ struct int4_gemv_compiler : compiler<int4_gemv_compiler>
         auto has_zp   = v.at("has_zp").to<bool>();
         auto has_bias = v.at("has_bias").to<bool>();
 
-        auto [gemv_block_size, gemv_tile_n] = get_gemv_config(N, K, ctx.get_current_device().get_gfx_name());
+        // A solution supplied by the tuning path wins; otherwise fall back to
+        // the env/table/heuristic ladder.  Both routes land here so there is
+        // exactly one place that decides the launch geometry.
+        int gemv_block_size = 0;
+        int gemv_tile_n     = 0;
+        const char* source  = "tuned";
+        if(v.contains("block_size") and v.contains("tile_n"))
+        {
+            gemv_block_size = v.at("block_size").to<int>();
+            gemv_tile_n     = v.at("tile_n").to<int>();
+        }
+        else
+        {
+            bool trusted = false;
+            std::tie(gemv_block_size, gemv_tile_n) =
+                get_gemv_config(N, K, ctx.get_current_device().get_gfx_name(), &trusted);
+            source = trusted ? "table" : "heuristic";
+        }
+
+        // MIGRAPHX_INT4_GEMV_TRACE=1 prints the config actually used for every
+        // shape, whatever chose it.  This is how you find out what the tuner
+        // picked: the winning solution is what reaches compile_op.
+        if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+        {
+            std::cout << "[int4_gemv] N=" << N << " K=" << K << " block_k=" << block_k
+                      << " has_zp=" << (has_zp ? 1 : 0) << " -> block_size=" << gemv_block_size
+                      << " tile_n=" << gemv_tile_n << " (" << source << ")" << std::endl;
+        }
 
         hip_compile_options options;
         options.inputs      = inputs;
@@ -371,19 +362,21 @@ struct int4_gemv_compiler : compiler<int4_gemv_compiler>
 
         // Flat 1D grid: total_blocks = n_blocks * batch
         // Kernel recovers: n_block = blockIdx.x % n_blocks, batch_id = blockIdx.x / n_blocks
-        auto batch    = inputs.front().lens().front();
-        auto n_blocks = (N + gemv_tile_n - 1) / gemv_tile_n;
+        auto batch     = inputs.front().lens().front();
+        auto n_blocks  = (N + gemv_tile_n - 1) / gemv_tile_n;
         options.global = n_blocks * batch * gemv_block_size;
         options.local  = gemv_block_size;
 
         auto n_params = inputs.size();
-        // Argument layout: p0=A, p1=B, p2=scales, then optionally zp, then optionally bias, then output
+        // Argument layout: p0=A, p1=B, p2=scales, then optionally zp, then optionally bias, then
+        // output
         int next_arg = 3;
 
         std::string zp_cast;
         if(has_zp)
         {
-            zp_cast = "auto* zp_ptr = reinterpret_cast<const migraphx::uint8_t*>(private_p" + std::to_string(next_arg) + ");";
+            zp_cast = "auto* zp_ptr = reinterpret_cast<const migraphx::uint8_t*>(private_p" +
+                      std::to_string(next_arg) + ");";
             next_arg++;
         }
         else
@@ -394,7 +387,8 @@ struct int4_gemv_compiler : compiler<int4_gemv_compiler>
         std::string bias_cast;
         if(has_bias)
         {
-            bias_cast = "auto* bias_ptr = reinterpret_cast<const _Float16*>(private_p" + std::to_string(next_arg) + ");";
+            bias_cast = "auto* bias_ptr = reinterpret_cast<const _Float16*>(private_p" +
+                        std::to_string(next_arg) + ");";
             next_arg++;
         }
         else
@@ -404,27 +398,99 @@ struct int4_gemv_compiler : compiler<int4_gemv_compiler>
 
         std::string out_arg = "private_p" + std::to_string(next_arg);
 
-        auto src = interpolate_string(
-            int4_gemv_kernel_src,
-            {{"params", enum_params(n_params, "void * private_p")},
-             {"block_size", std::to_string(gemv_block_size)},
-             {"tile_n", std::to_string(gemv_tile_n)},
-             {"block_k", std::to_string(block_k)},
-             {"has_zp", has_zp ? "true" : "false"},
-             {"has_bias", has_bias ? "true" : "false"},
-             {"zp_cast", zp_cast},
-             {"bias_cast", bias_cast},
-             {"out_arg", out_arg},
-             {"N", std::to_string(N)},
-             {"K", std::to_string(K)},
-             {"n_blocks", std::to_string(n_blocks)}});
+        auto src = interpolate_string(int4_gemv_kernel_src,
+                                      {{"params", enum_params(n_params, "void * private_p")},
+                                       {"block_size", std::to_string(gemv_block_size)},
+                                       {"tile_n", std::to_string(gemv_tile_n)},
+                                       {"block_k", std::to_string(block_k)},
+                                       {"has_zp", has_zp ? "true" : "false"},
+                                       {"has_bias", has_bias ? "true" : "false"},
+                                       {"zp_cast", zp_cast},
+                                       {"bias_cast", bias_cast},
+                                       {"out_arg", out_arg},
+                                       {"N", std::to_string(N)},
+                                       {"K", std::to_string(K)},
+                                       {"n_blocks", std::to_string(n_blocks)}});
 
         return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    // Candidate grid for a shape we have not measured.
+    //
+    // BLOCK_SIZE {64,128,256} x TILE_N {2,4,8} = 9 points.  Chosen from the
+    // Llama gate_up bracket (the only shape bracketed on both axes):
+    // TILE_N=4 won at every BLOCK_SIZE tried, and BLOCK_SIZE was single-peaked
+    // at 64 (32/64/128/256/512 = 164.32/229.29/226.50/219.85/204.55 tok/s
+    // end-to-end).  The grid brackets that peak on both axes.
+    //
+    // Do NOT narrow this until the single peak is confirmed on a second shape.
+    // BLOCK_SIZE has no fixed sign: phi3.5's 16384x3072 gate_up wants 256 and
+    // Llama's 16384x2048 gate_up wants 64 -- same op, same arch, adjacent K,
+    // opposite directions.
+    //
+    // TILE_N stops at 8 because 32/64 spill (732-1436 B scratch measured), and
+    // 16 only appears under exhaustive tuning.
+    static std::vector<value> candidate_configs(bool exhaustive)
     {
-        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+        std::vector<int> block_sizes = {64, 128, 256};
+        std::vector<int> tile_ns     = {2, 4, 8};
+        if(exhaustive)
+        {
+            block_sizes = {32, 64, 128, 256, 512};
+            tile_ns     = {2, 4, 8, 16};
+        }
+        std::vector<value> result;
+        for(auto bs : block_sizes)
+            for(auto tn : tile_ns)
+                result.push_back({{"block_size", bs}, {"tile_n", tn}});
+        return result;
+    }
+
+    optional<tuning_config>
+    get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
+    {
+        auto v = op.to_value();
+        auto n = v.at("N").to<std::size_t>();
+        auto k = v.at("K").to<std::size_t>();
+
+        tuning_config tc;
+        tc.problem               = to_value(to_shapes(ins->inputs()));
+        tc.detailed_problem_info = "int4_gemv N=" + std::to_string(n) + " K=" + std::to_string(k);
+
+        bool trusted = false;
+        auto picked  = get_gemv_config(n, k, ctx.get_current_device().get_gfx_name(), &trusted);
+        value seed{{"block_size", picked.first}, {"tile_n", picked.second}};
+
+        // A shape with an env override or a measured[] row already has its
+        // answer.  Returning exactly one solution makes compile_ops skip
+        // benchmarking entirely and insert it straight into the problem cache,
+        // so tuned models pay nothing for this hook being here.
+        if(trusted and not exhaustive)
+        {
+            tc.solutions = {seed};
+            return tc;
+        }
+
+        // Otherwise the config would have been a guess.  Benchmark instead.
+        // The guess goes first so that when benchmarking is skipped
+        // (MIGRAPHX_SKIP_BENCHMARKING, cross-compile) compile_ops takes
+        // solutions.front() and behaviour is byte-for-byte what shipped before.
+        tc.solutions = {seed};
+        for(const auto& c : candidate_configs(exhaustive))
+        {
+            if(c != seed)
+                tc.solutions.push_back(c);
+        }
+        return tc;
+    }
+
+    compiler_replace
+    compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
+    {
+        auto v = op.to_value();
+        for(const auto& x : solution)
+            v.insert(x);
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 

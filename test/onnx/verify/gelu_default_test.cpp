@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,18 +43,17 @@ TEST_CASE(gelu_default_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // gold values according to specification:
-    // https://github.com/onnx/onnx/blob/main/docs/Operators.md#examples-59
-    // x = np.array([-100.0, -7.5, -5.2, -1.0, 0.0, 1.5, 4.9, 8.2, 1000.0]).astype(np.float32)
-    // 0.5 * x * (1 + np.vectorize(math.erf)(x / np.sqrt(2)))
-    std::vector<float> gold = {0.0,
-                               -2.3939184e-13,
-                               -5.1815033e-07f,
-                               -0.15865526f,
+    // output from onnxruntime CPU EP
+    // The two most negative inputs give exactly zero because erf(x / sqrt(2)) rounds to -1 in
+    // float32 at those magnitudes, so the 1 + erf cancels. Exact math gives -2.4e-13 for -7.5.
+    std::vector<float> gold = {-0.0f,
+                               -0.0f,
+                               -4.64916212e-07f,
+                               -0.158655256f,
                                0.0f,
-                               1.3997892f,
-                               4.8999977f,
-                               8.1999998f,
+                               1.39978921f,
+                               4.89999771f,
+                               8.19999981f,
                                1000.0f};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));

@@ -75,7 +75,12 @@ jobs:
     name: Build image
     runs-on: ROCM-Ubuntu
     needs: check_image
-    if: ${{ needs.check_image.outputs.imageexists != 'true' }}
+    if: >-
+      ${{
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.head.repo.full_name == github.repository) &&
+        needs.check_image.outputs.imageexists != 'true'
+      }}
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
@@ -97,7 +102,12 @@ jobs:
     name: Build SLES image
     runs-on: ROCM-Ubuntu
     needs: check_image
-    if: ${{ needs.check_image.outputs.imageexists_sles != 'true' }}
+    if: >-
+      ${{
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.head.repo.full_name == github.repository) &&
+        needs.check_image.outputs.imageexists_sles != 'true'
+      }}
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
     - name: Build and publish SLES
@@ -124,7 +134,13 @@ jobs:
     env:
       DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
 
-    if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
+    if: >-
+      ${{
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.head.repo.full_name == github.repository) &&
+        !cancelled() &&
+        (needs.build_image.result == 'success' || needs.build_image.result == 'skipped')
+      }}
     steps: 
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
@@ -181,7 +197,13 @@ jobs:
     env:
       DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
 
-    if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
+    if: >-
+      ${{
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.head.repo.full_name == github.repository) &&
+        !cancelled() &&
+        (needs.build_image.result == 'success' || needs.build_image.result == 'skipped')
+      }}
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
@@ -282,7 +304,14 @@ jobs:
     env:
       DOCKER_TAG_SLES: ${{ needs.check_image.outputs.imagetag_sles }}
     
-    if: ${{ !cancelled() && (needs.build_SLES_image.result == 'success' || needs.build_SLES_image.result == 'skipped') }}      
+    if: >-
+      ${{
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.head.repo.full_name == github.repository) &&
+        !cancelled() &&
+        (needs.build_SLES_image.result == 'success' ||
+         needs.build_SLES_image.result == 'skipped')
+      }}
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       with:

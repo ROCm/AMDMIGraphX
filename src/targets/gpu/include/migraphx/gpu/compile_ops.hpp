@@ -25,6 +25,10 @@
 #define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/gpu/time_op.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/reflect.hpp>
+#include <cstdint>
 #include <string>
 
 namespace migraphx {
@@ -36,11 +40,33 @@ namespace gpu {
 
 struct context;
 
+struct MIGRAPHX_GPU_EXPORT compile_ops_tuning_overrides
+{
+    optional<std::int64_t> top_k             = nullopt;
+    optional<std::int64_t> coarse_target_ms  = nullopt;
+    optional<std::int64_t> precise_target_ms = nullopt;
+    optional<std::int64_t> max_samples       = nullopt;
+    optional<std::int64_t> sleep_us          = nullopt;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.top_k, "tuning_top_k"),
+                    f(self.coarse_target_ms, "tuning_coarse_target_ms"),
+                    f(self.precise_target_ms, "tuning_precise_target_ms"),
+                    f(self.max_samples, "tuning_max_samples"),
+                    f(self.sleep_us, "tuning_sleep_us"));
+    }
+
+    adaptive_tuning_options resolve() const;
+};
+
 struct MIGRAPHX_GPU_EXPORT compile_ops
 {
     context* ctx         = nullptr;
     bool exhaustive_tune = false;
     bool skip_benchmark  = false;
+    adaptive_tuning_options tuning{};
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module_pass_manager& mpm) const;
 };

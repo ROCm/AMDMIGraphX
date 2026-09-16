@@ -111,7 +111,7 @@ struct onnx_parser
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     int64_t opset_version        = 13;
 
-    // Map for sanitized ONNX symbols 
+    // Keep sanitized ONNX symbols stable and collision-free across every module in this model.
     sym::symbol_name_registry symbol_names;
 
     std::unordered_map<std::string, op_func> ops;

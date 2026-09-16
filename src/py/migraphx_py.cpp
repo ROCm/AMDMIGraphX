@@ -383,13 +383,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             if(v.contains("dyn_dims"))
             {
                 const auto& dims = v.at("dyn_dims");
-                //Strides are only needed for non-standard layout.
+                // make_symbolic_shape infers packed, standard strides when dyn_strides is omitted.
                 if(not dims.empty() and dims.front().if_string() != nullptr)
                     return migraphx::shape::make_symbolic_shape(
                         t,
                         dims.to_vector<std::string>(),
-                        v.contains("dyn_strides") ? v.at("dyn_strides").to_vector<std::string>()
-                                                  : std::vector<std::string>{});
+                        v.get("dyn_strides", std::vector<std::string>{}));
                 return migraphx::shape(
                     t, migraphx::from_value<std::vector<migraphx::shape::dynamic_dimension>>(dims));
             }

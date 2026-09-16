@@ -3254,10 +3254,13 @@ TEST_CASE(symbol_name_registry_resolves_collisions_stably)
 // defaults to cannot promise.
 TEST_CASE(scalar_to_string_round_trips)
 {
-    EXPECT(migraphx::sym::to_string(scalar{int64_t{42}}) == "42");
-    EXPECT(migraphx::sym::to_string(scalar{3.14}) == "3.14");
+    EXPECT(to_string(lit(int64_t{42})) == "42");
+    EXPECT(to_string(lit(3.14)) == "3.14");
     for(double d : {3.14, 0.1, 1.0 / 3.0, 1e-9, 1.7976931348623157e308})
-        EXPECT(parse(migraphx::sym::to_string(scalar{d})) == lit(d));
+    {
+        auto e = lit(d);
+        EXPECT(parse(to_string(e)) == e);
+    }
 }
 
 // Adding two same-named variables merges their metadata by unioning the constraint sets, so this

@@ -762,22 +762,11 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         this->make_handle(&migraphx_shape_create_dynamic, type, dyn_dims.get_handle_ptr());
     }
 
-    /// Construct a symbolic shape from self-contained expression strings. The strides are packed
-    /// standard.
-    shape(migraphx_shape_datatype_t type, const std::vector<std::string>& dims)
-        : shape(type, dims, {})
-    {
-    }
-
-    shape(migraphx_shape_datatype_t type, std::initializer_list<std::string> dims)
-        : shape(type, std::vector<std::string>(dims))
-    {
-    }
-
-    /// As above, for a transposed or broadcasted layout.
+    /// Construct a symbolic shape from dimension and optional stride expression strings. The
+    /// strides are packed standard when omitted.
     shape(migraphx_shape_datatype_t type,
           const std::vector<std::string>& dims,
-          const std::vector<std::string>& strides)
+          const std::vector<std::string>& strides = {})
     {
         auto to_c = [](const std::vector<std::string>& xs) {
             std::vector<const char*> result;
@@ -795,6 +784,11 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
                           cdims.size(),
                           cstrides.data(),
                           cstrides.size());
+    }
+
+    shape(migraphx_shape_datatype_t type, std::initializer_list<std::string> dims)
+        : shape(type, std::vector<std::string>(dims))
+    {
     }
 
     shape(migraphx_shape_datatype_t type,

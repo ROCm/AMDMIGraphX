@@ -246,7 +246,8 @@ class MIGRAPHX_EXPORT expr
 
 MIGRAPHX_EXPORT expr var(std::string name);
 MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
-// Constructor allowing for multiple constraints.
+// Merging same-named variables can produce multiple asserted intervals; this overload preserves
+// the complete constraint set so the merged variable can be reconstructed.
 MIGRAPHX_EXPORT expr var(std::string name,
                          std::vector<interval> constraints,
                          std::set<scalar> optimals = {});
@@ -321,8 +322,6 @@ auto call(std::string name, Eval eval)
 }
 
 MIGRAPHX_EXPORT std::string to_string(const expr& e);
-// The shortest spelling of a scalar that parses back to the same value.
-MIGRAPHX_EXPORT std::string to_string(const scalar& v);
 
 MIGRAPHX_EXPORT expr parse(const std::string& str);
 

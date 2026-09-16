@@ -493,16 +493,12 @@ struct MIGRAPHX_EXPORT shape
         const std::string& expression,
         const std::unordered_map<std::string, dynamic_dimension>& symbols = {});
 
-    /// Build a symbolic shape from expression strings. Variable constraints and optimals are
-    /// parsed from the expressions themselves. This is the spelling the --cpp and --py printers
-    /// emit.
-    static shape make_symbolic_shape(type_t t, const std::vector<std::string>& dims);
-
-    /// As above, for a transposed or broadcasted layout. Without explicit symbolic strides the
-    /// shape is packed standard.
+    /// Build a symbolic shape from dimension and optional stride expression strings. Variable
+    /// constraints and optimals are parsed from the expressions themselves. Without explicit
+    /// symbolic strides the shape is packed standard.
     static shape make_symbolic_shape(type_t t,
                                      const std::vector<std::string>& dims,
-                                     const std::vector<std::string>& strides);
+                                     const std::vector<std::string>& strides = {});
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);

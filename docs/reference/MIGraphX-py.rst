@@ -173,8 +173,8 @@ the spelling :py:meth:`program.to_py` emits::
 
 A symbol name has to be a valid identifier, that is a letter or an underscore followed by
 letters, digits or underscores, because the expression has to survive being parsed back. Names
-taken from an ONNX model are rewritten to fit, so an input named ``0`` yields the symbol
-``_0_d0`` and a ``dim_param`` of ``batch.size`` yields ``batch_size``.
+taken from an ONNX model are rewritten to fit. For example, an unnamed dynamic axis 0 of an input
+named ``0`` yields ``_0_d0``, while a ``dim_param`` of ``batch.size`` yields ``batch_size``.
 
 List each interval in the first braced argument when a symbol asserts more than one constraint,
 which is what adding two differently bounded uses of the same name produces. The optional second

@@ -25,6 +25,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/streamutils.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
@@ -902,29 +903,6 @@ shape shape::to_dynamic() const
     return {type(), lens(), lens(), {}};
 }
 
-// Build the variable a symbol name stands for in the compatibility binding map.
-static sym::expr make_symbol(const std::string& name, const shape::dynamic_dimension& bound)
-{
-    auto opts = bound.get_optimals();
-    std::set<sym::scalar> optimals(opts.begin(), opts.end());
-    auto iv = bound.get_interval();
-    return sym::var(name, {iv.min, iv.max}, std::move(optimals));
-}
-
-static std::unordered_map<sym::expr, sym::expr>
-make_bindings(const std::unordered_map<std::string, shape::dynamic_dimension>& symbols)
-{
-    std::unordered_map<sym::expr, sym::expr> bindings;
-    std::transform(symbols.begin(),
-                   symbols.end(),
-                   std::inserter(bindings, bindings.end()),
-                   [](const auto& kv) {
-                       return std::pair<sym::expr, sym::expr>{sym::parse(kv.first),
-                                                              make_symbol(kv.first, kv.second)};
-                   });
-    return bindings;
-}
-
 static sym::expr parse_bound(const std::string& expression, const std::string& what)
 {
     auto e = sym::parse(expression);
@@ -938,12 +916,22 @@ shape::dynamic_dimension shape::make_symbolic_dynamic_dimension(
     const std::unordered_map<std::string, dynamic_dimension>& symbols)
 {
     auto e = parse_bound(expression, "MAKE_SYMBOLIC_DYNAMIC_DIMENSION: symbolic");
-    return dynamic_dimension{e.subs(make_bindings(symbols))};
-}
+    if(symbols.empty())
+        return dynamic_dimension{std::move(e)};
 
-shape shape::make_symbolic_shape(type_t t, const std::vector<std::string>& dims)
-{
-    return make_symbolic_shape(t, dims, {});
+    std::unordered_map<sym::expr, sym::expr> bindings;
+    std::transform(symbols.begin(),
+                   symbols.end(),
+                   std::inserter(bindings, bindings.end()),
+                   [](const auto& kv) {
+                       const auto& [name, bound] = kv;
+                       auto opts                 = bound.get_optimals();
+                       std::set<sym::scalar> optimals(opts.begin(), opts.end());
+                       auto iv = bound.get_interval();
+                       return std::pair<sym::expr, sym::expr>{
+                           sym::parse(name), sym::var(name, {iv.min, iv.max}, std::move(optimals))};
+                   });
+    return dynamic_dimension{e.subs(bindings)};
 }
 
 shape shape::make_symbolic_shape(type_t t,
@@ -960,7 +948,7 @@ shape shape::make_symbolic_shape(type_t t,
     if(strides.size() != dims.size())
         MIGRAPHX_THROW(
             "MAKE_SYMBOLIC_SHAPE: number of strides does not match number of dimensions");
-    // Strides parse with the same bindings, so they share the dimensions' variables.
+    // Stride expressions are self-contained and parsed independently of dimension expressions.
     std::vector<sym::expr> dyn_strides;
     std::transform(
         strides.begin(), strides.end(), std::back_inserter(dyn_strides), [&](const std::string& s) {
@@ -1386,13 +1374,7 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
         if(x.symbolic())
         {
             os << x.type_string() << ", {";
-            const auto& dd = x.dyn_dims();
-            for(std::size_t i = 0; i < dd.size(); ++i)
-            {
-                if(i > 0)
-                    os << ", ";
-                os << dd[i];
-            }
+            os << stream_range(x.dyn_dims());
             os << "}, ";
             os << "{" << to_string_range(x.dyn_strides()) << "}";
         }

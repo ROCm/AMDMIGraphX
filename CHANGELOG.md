@@ -51,7 +51,7 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
-* Symbol names in symbolic shapes must now be valid identifiers; names taken from an ONNX model are rewritten to fit, so an input named `0` yields `_0_d0` and a `dim_param` of `batch.size` yields `batch_size` (#5205).
+* `migraphx::sym::var` now requires valid identifier names. The ONNX parser sanitizes external names and disambiguates collisions; for example, unnamed axis 0 of input `0` becomes `_0_d0`, while a `dim_param` of `batch.size` becomes `batch_size` (#5205).
 * Converted `nonzero` operator from device implementation to JIT compilation (#4720).
 * Converted `prefix_scan_sum` operator from device implementation to JIT compilation (#4720).
 * Converted `reverse` operator from device implementation to JIT compilation (#4645).
@@ -73,7 +73,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
-* Fixed `migraphx::sym::expr::to_string` rounding double literals to six significant digits, so they could not be parsed back (#5205).
+* Fixed `migraphx::sym::expr::to_string` rounding double literals to six significant digits, which prevented some expressions from round-tripping exactly through `migraphx::sym::parse` (#5205).
 * Fixed the reference `nonzero` operator to handle non-standard input layouts such as transposed or broadcasted tensors.
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).

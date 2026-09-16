@@ -1630,45 +1630,38 @@ static void print_make_op(std::ostream& os, const operation& op)
 
 static std::string expr_string(const migraphx::sym::expr& e) { return enclose_name(e.to_string()); }
 
+static std::string expr_string(const migraphx::shape::dynamic_dimension& d)
+{
+    return expr_string(d.sym_expr);
+}
+
 template <class Range>
 static std::string expr_list_string(const Range& exprs)
 {
     std::vector<std::string> strings;
+    strings.reserve(exprs.size());
     std::transform(exprs.begin(), exprs.end(), std::back_inserter(strings), [](const auto& e) {
         return expr_string(e);
     });
-    return join_strings(strings, ", ");
-}
-
-static std::string sym_dims_string(const migraphx::shape& s)
-{
-    std::vector<std::string> dims;
-    std::transform(s.dyn_dims().begin(),
-                   s.dyn_dims().end(),
-                   std::back_inserter(dims),
-                   [](const auto& d) { return expr_string(d.sym_expr); });
-    return join_strings(dims, ", ");
-}
-
-static bool needs_dyn_strides(const migraphx::shape& s)
-{
-    return s.symbolic() and not s.standard();
+    return join_strings(std::move(strings), ", ");
 }
 
 // All-symbolic shapes are handled separately, so a remaining dynamic shape is range-based.
 static std::string range_dims_string(const migraphx::shape& s, bool cpp)
 {
     std::vector<std::string> dims;
+    dims.reserve(s.dyn_dims().size());
     std::transform(
         s.dyn_dims().begin(), s.dyn_dims().end(), std::back_inserter(dims), [&](const auto& d) {
-            auto i      = d.get_interval();
-            auto result = std::to_string(i.min) + ", " + std::to_string(i.max);
-            if(d.has_optimal())
-                result += ", {" + to_string_range(d.get_optimals()) + "}";
+            auto i        = d.get_interval();
+            auto optimals = d.get_optimals();
+            auto result   = std::to_string(i.min) + ", " + std::to_string(i.max);
+            if(not optimals.empty())
+                result += ", {" + to_string_range(optimals) + "}";
             return cpp ? "migraphx::shape::dynamic_dimension{" + result + "}"
                        : "migraphx.shape.dynamic_dimension(" + result + ")";
         });
-    return join_strings(dims, ", ");
+    return join_strings(std::move(dims), ", ");
 }
 
 static void print_py_shape(std::ostream& os, const migraphx::shape& s)
@@ -1676,8 +1669,8 @@ static void print_py_shape(std::ostream& os, const migraphx::shape& s)
     if(s.symbolic())
     {
         os << "migraphx.shape(type=" << to_json_string(s.type_string()) << ", dyn_dims=["
-           << sym_dims_string(s) << "]";
-        if(needs_dyn_strides(s))
+           << expr_list_string(s.dyn_dims()) << "]";
+        if(not s.standard())
             os << ", dyn_strides=[" << expr_list_string(s.dyn_strides()) << "]";
         os << ")";
         return;
@@ -1701,8 +1694,8 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
     if(s.symbolic())
     {
         os << "migraphx::shape::make_symbolic_shape(migraphx::shape::" << s.type_string() << ", {"
-           << sym_dims_string(s) << "}";
-        if(needs_dyn_strides(s))
+           << expr_list_string(s.dyn_dims()) << "}";
+        if(not s.standard())
             os << ", {" << expr_list_string(s.dyn_strides()) << "}";
         os << ")";
         return;

@@ -2015,32 +2015,24 @@ std::set<std::size_t> expr::eval_optimals_uint() const
     return result;
 }
 
-// A scalar has to survive the round trip through to_string and parse, so a double gets the
-// shortest representation that reads back exactly. A stream would round to six significant
-// digits, which is lossy for any literal that is not a simple decimal.
-std::string to_string(const scalar& v)
+// Format doubles with the shortest representation that round-trips through parse(); a stream's
+// default six significant digits can change values that require more precision.
+static std::string scalar_to_string(const scalar& v)
 {
     return visit(
         [](auto x) -> std::string {
-            if constexpr(std::is_floating_point<decltype(x)>{})
-            {
-                std::array<char, 32> buffer{};
-                auto result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), x);
-                if(result.ec != std::errc{})
-                    MIGRAPHX_THROW("Failed to format scalar");
-                return std::string(buffer.data(), result.ptr);
-            }
-            else
-            {
-                return std::to_string(x);
-            }
+            std::array<char, 32> buffer{};
+            auto result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), x);
+            if(result.ec != std::errc{})
+                MIGRAPHX_THROW("Failed to format scalar");
+            return std::string(buffer.data(), result.ptr);
         },
         v);
 }
 
 static std::string constraint_to_string(const interval& constraint)
 {
-    return "[" + sym::to_string(constraint.min) + ".." + sym::to_string(constraint.max) + "]";
+    return "[" + scalar_to_string(constraint.min) + ".." + scalar_to_string(constraint.max) + "]";
 }
 
 static std::string variable_to_string(const variable_node& variable)
@@ -2049,19 +2041,21 @@ static std::string variable_to_string(const variable_node& variable)
         return variable.name;
 
     std::vector<std::string> constraints;
+    constraints.reserve(variable.constraints.size());
     std::transform(variable.constraints.begin(),
                    variable.constraints.end(),
                    std::back_inserter(constraints),
                    &constraint_to_string);
-    std::string result = variable.name + "({" + join_strings(constraints, ", ") + "}";
+    std::string result = variable.name + "({" + join_strings(std::move(constraints), ", ") + "}";
     if(not variable.optimals.empty())
     {
         std::vector<std::string> optimals;
+        optimals.reserve(variable.optimals.size());
         std::transform(variable.optimals.begin(),
                        variable.optimals.end(),
                        std::back_inserter(optimals),
-                       [](const scalar& optimal) { return sym::to_string(optimal); });
-        result += ", {" + join_strings(optimals, ", ") + "}";
+                       [](const scalar& optimal) { return scalar_to_string(optimal); });
+        result += ", {" + join_strings(std::move(optimals), ", ") + "}";
     }
     return result + ")";
 }
@@ -2099,7 +2093,7 @@ std::string expr::to_string() const
                        return string_prec{};
                    return std::visit(
                        overloaded{[](const literal_node& n) -> std::optional<string_prec> {
-                                      return string_prec{sym::to_string(n.val)};
+                                      return string_prec{scalar_to_string(n.val)};
                                   },
                                   [](const variable_node& n) -> std::optional<string_prec> {
                                       return string_prec{variable_to_string(n)};

@@ -23,9 +23,11 @@
  */
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -48,7 +50,7 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 5
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 6
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK
@@ -1317,12 +1319,23 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::transform(prefill_mlir_values.begin(),
                        prefill_mlir_values.end(),
                        prefill_values.begin(),
-                       [](const auto& v) {
-                           // mlir sets fill attribute as float but migx hip::fill operator only
-                           // supports integer type.
-                           // TODO: Need to add checks that it is indeed an integer.
-                           double dv = mlirFloatAttrGetValueDouble(v);
-                           return static_cast<int>(dv);
+                       [](const auto& v) -> value {
+                           // migx hip::fill only supports integer type. rocMLIR types the
+                           // prefill after the element type of the buffer being filled, so a
+                           // kernel writing an integer output (an int8 convolution
+                           // accumulating into i32, say) hands back an integer attribute
+                           // rather than a float one.
+                           if(mlirAttributeIsAInteger(v))
+                               return static_cast<int>(mlirIntegerAttrGetValueInt(v));
+                           if(mlirAttributeIsAFloat(v))
+                           {
+                               auto d = mlirFloatAttrGetValueDouble(v);
+                               if(not float_equal(std::trunc(d), d))
+                                   MIGRAPHX_THROW("rock.prefill value " + std::to_string(d) +
+                                                  " is not representable as an integer");
+                               return static_cast<int>(d);
+                           }
+                           MIGRAPHX_THROW("Unsupported rock.prefill attribute type");
                        });
         mco.prefill_indices = prefill_indices;
         mco.prefill_values  = prefill_values;
@@ -1372,6 +1385,23 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     return tc;
+}
+
+bool mlir_lds_usage_fits_arch(int64_t gemm_o,
+                              const std::string& arch,
+                              shape::type_t elem_type,
+                              const module* m)
+{
+    mlir_program prog;
+    if(m != nullptr)
+    {
+        prog.parse(*m);
+        return mlirMIGraphXLDSUsageFitsArch(
+            0, nullptr, prog.make_type(elem_type), prog.mmodule.get());
+    }
+
+    return mlirMIGraphXLDSUsageFitsArch(
+        gemm_o, arch.c_str(), prog.make_type(elem_type), MlirModule{});
 }
 
 void dump_mlir_to_mxr(module m,
@@ -1431,6 +1461,22 @@ tuning_config get_tuning_config_mlir(const context&, module, const std::vector<s
 {
     return {};
 }
+
+bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const module*)
+{
+    return false;
+}
+
+// Conservative "MLIR unavailable" default: the module cannot be MLIR-fused, so callers
+// take their non-MLIR path. Present so libmigraphx_gpu.so has no dangling MLIR symbols
+// when MIGRAPHX_MLIR is disabled.
+bool is_module_fusible(const module&, const context&, const value&) { return false; }
+
+void adjust_param_shapes(module&, const std::vector<shape>&) {}
+
+void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
+
+void dump_mlir_to_mxr(module, const std::vector<instruction_ref>&, const fs::path&) {}
 // NOLINTEND(performance-unnecessary-value-param)
 
 #endif

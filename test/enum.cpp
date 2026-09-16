@@ -24,9 +24,12 @@
 #include <migraphx/enum.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/streamutils.hpp>
 #include <algorithm>
+#include <sstream>
 #include <string>
 #include <type_traits>
+#include <vector>
 #include "test.hpp"
 
 // These enums are test-local fixtures; the anonymous namespace gives the macro-generated helper
@@ -39,6 +42,11 @@ MIGRAPHX_ENUM(my_enum, first, last = 10)
 
 // Single enumerator, exercises the base case of the value-capturing expansion.
 MIGRAPHX_ENUM(solo, only_one)
+
+// Declared and never used at all. Guards the [[maybe_unused]] on the generated namespace-scope
+// helpers: in an anonymous namespace they have internal linkage, so without it an enum whose
+// helpers this file never calls would warn under -Wunused-function.
+MIGRAPHX_ENUM(never_used, never_used_value)
 
 // Expression-valued enumerators, including one that references a previous enumerator.
 MIGRAPHX_ENUM(flags, none = 0, bit0 = 1, bit1 = 2, both = bit0 + bit1)
@@ -292,6 +300,63 @@ TEST_CASE(nested_enum_class)
     EXPECT(to_string(gadget::unit::cm) == "cm");
     EXPECT(migraphx::from_string<gadget::unit>("m") == gadget::unit::m);
     EXPECT(test::throws([] { migraphx::from_string<gadget::unit>("km"); }));
+}
+
+TEST_CASE(stream_unscoped_enum)
+{
+    std::ostringstream ss;
+    ss << red << ' ' << green << ' ' << blue;
+    // The generated overload is an exact match, so it wins over the conversion to int: green
+    // streams as its name and not as 5.
+    EXPECT(ss.str() == "red green blue");
+}
+
+TEST_CASE(stream_scoped_enum)
+{
+    std::ostringstream ss;
+    ss << scoped_color::magenta;
+    EXPECT(ss.str() == "magenta");
+}
+
+TEST_CASE(stream_nested_enum)
+{
+    std::ostringstream ss;
+    ss << gadget::on;
+    EXPECT(ss.str() == "on");
+}
+
+TEST_CASE(stream_nested_enum_class)
+{
+    std::ostringstream ss;
+    ss << gadget::unit::cm;
+    EXPECT(ss.str() == "cm");
+}
+
+TEST_CASE(stream_enum_in_migraphx_namespace)
+{
+    // The generated body calls to_string unqualified, which must not be ambiguous with the
+    // migraphx::to_string(const T&) template for an enum declared inside namespace migraphx.
+    std::ostringstream ss;
+    ss << migraphx::busy;
+    EXPECT(ss.str() == "busy");
+}
+
+TEST_CASE(stream_unknown_value_throws)
+{
+    EXPECT(test::throws([] {
+        std::ostringstream ss;
+        ss << static_cast<color>(4);
+    }));
+}
+
+TEST_CASE(stream_range_of_named_enums)
+{
+    // How a reflected vector-of-enum operator attribute reaches the printed IR: stream_range
+    // streams each element with a plain os << x.
+    std::vector<gadget::unit> units = {gadget::unit::mm, gadget::unit::m};
+    std::ostringstream ss;
+    ss << migraphx::stream_range(units);
+    EXPECT(ss.str() == "mm, m");
 }
 
 TEST_CASE(is_named_enum_trait)

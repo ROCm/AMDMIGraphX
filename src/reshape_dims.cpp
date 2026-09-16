@@ -153,6 +153,20 @@ std::vector<shape::dynamic_dimension> resolve_reshape_dims(const shape& sym_in,
     return output_dyn_dims;
 }
 
+std::vector<shape::dynamic_dimension> resolve_reshape_dims(const shape& sym_in,
+                                                           const std::vector<sym::expr>& dims)
+{
+    std::vector<dim_like> resolved_dims;
+    resolved_dims.reserve(dims.size());
+    transform(dims, std::back_inserter(resolved_dims), [](const auto& expression) {
+        const auto value = sym::fixed_value(expression);
+        if(value.has_value())
+            return dim_like{sym::to<int64_t>(*value)};
+        return dim_like{shape::dynamic_dimension{expression}};
+    });
+    return resolve_reshape_dims(sym_in, resolved_dims);
+}
+
 void validate_reshape_dims(const std::string& name, const std::vector<dim_like>& dims)
 {
     if(std::any_of(dims.begin(), dims.end(), [](const dim_like& d) {
@@ -176,27 +190,15 @@ optional<shape> reshape_dims(const shape& input,
     return reshape_dims(input, sym_rdims, options);
 }
 
-optional<shape>
-reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_dims_options options)
+// Walk the input dims and the requested dims together, squeezing a run of input axes whose
+// product is a requested dim and unsqueezing an input axis into a run of requested dims, deriving
+// the stride of each requested dim as it goes. nullopt when the layout can't be proven.
+static optional<std::vector<sym::expr>>
+compute_reshape_strides(const std::vector<sym::expr>& idims,
+                        const std::vector<sym::expr>& istrides,
+                        const std::vector<sym::expr>& rdims,
+                        reshape_dims_options options)
 {
-    const std::vector<shape::dynamic_dimension> rdds(rdims.begin(), rdims.end());
-
-    if(input.standard())
-        return shape{input.type(), rdds};
-
-    // Broadcasts have ambiguous permutations (multiple axes share stride 0), so
-    // for non-lazy reshape fall back to a standard layout. Sliced (non-packed)
-    // inputs still propagate the permutation via the algorithm + with_lens below.
-    if(not options.lazy and input.broadcasted())
-        return shape{input.type(), rdds};
-
-    std::vector<sym::expr> idims(input.dyn_dims().size());
-    std::transform(input.dyn_dims().begin(),
-                   input.dyn_dims().end(),
-                   idims.begin(),
-                   [](const auto& dd) { return dd.sym_expr; });
-    const auto& istrides = input.dyn_strides();
-
     std::vector<sym::expr> rstrides;
     std::size_t i = 0;
     std::size_t r = 0;
@@ -271,7 +273,35 @@ reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_di
     if(rdims.size() != rstrides.size())
         return nullopt;
 
-    auto result = shape{input.type(), rdds, rstrides};
+    return rstrides;
+}
+
+optional<shape>
+reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_dims_options options)
+{
+    const std::vector<shape::dynamic_dimension> rdds(rdims.begin(), rdims.end());
+
+    if(input.standard())
+        return shape{input.type(), rdds};
+
+    // Broadcasts have ambiguous permutations (multiple axes share stride 0), so
+    // for non-lazy reshape fall back to a standard layout. Sliced (non-packed)
+    // inputs still propagate the permutation via the algorithm + with_lens below.
+    if(not options.lazy and input.broadcasted())
+        return shape{input.type(), rdds};
+
+    // Range-based dynamic dimensions carry no stride expressions to merge or split.
+    if(input.dynamic() and not input.symbolic())
+        return nullopt;
+
+    // Lift a static input to symbolic literals so one algorithm resolves both kinds.
+    const auto sym_in = input.to_symbolic();
+    auto rstrides =
+        compute_reshape_strides(sym_in.sym_dims(), sym_in.dyn_strides(), rdims, options);
+    if(not rstrides.has_value())
+        return nullopt;
+
+    auto result = shape{input.type(), rdds, *rstrides};
     if(options.lazy or result.packed())
         return result;
     // TODO: Add as_packed to shape class

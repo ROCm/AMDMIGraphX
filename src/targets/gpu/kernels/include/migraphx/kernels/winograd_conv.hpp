@@ -26,6 +26,7 @@
 
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/bit_cast.hpp>
+#include <migraphx/kernels/buffer_load.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/vec.hpp>
@@ -35,11 +36,6 @@
 #include <migraphx/kernels/integral_constant.hpp>
 
 namespace migraphx {
-
-// gfx12 buffer-resource word 3 constant (from composable_kernel).
-// Setting this in the SRD makes raw_buffer_load_* return 0 for OOB accesses,
-// which lets us drop the per-element bounds checks in the input transform.
-constexpr uint32_t buffer_rsrc_3rd_dword_gfx12 = 0x31004000;
 
 // Quad of WMMAs in a single inline-asm block. Forces the compiler to issue
 // them back-to-back (each is 8-cycle wait state but to a DIFFERENT
@@ -122,37 +118,6 @@ __device__ inline void wmma_octet_asm(vec<half, 8> a0,
                    "v"(b6),
                    "v"(a7),
                    "v"(b7));
-}
-
-__device__ inline auto make_input_buffer_rsrc(const half* p, uint32_t byte_count)
-{
-    // The builtin takes a non-const base pointer, but the input tensor is const.
-    auto* base = const_cast<half*>(p); // NOLINT(cppcoreguidelines-pro-type-const-cast)
-    return __builtin_amdgcn_make_buffer_rsrc(base, 0, byte_count, buffer_rsrc_3rd_dword_gfx12);
-}
-
-// Lane-indexed raw buffer load of a single fp16. OOB returns 0.
-__device__ inline half buffer_load_half(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
-{
-    uint16_t v = __builtin_amdgcn_raw_buffer_load_b16(rsrc, byte_offset, 0, 0);
-    return bit_cast<half>(v);
-}
-
-// Lane-indexed raw buffer load of 4 fp16 = 8 bytes. OOB bytes return 0.
-// Caller is responsible for alignment (byte_offset divisible by 4 to avoid
-// faulting; gfx12 buffer loads tolerate 4-byte alignment for b64).
-__device__ inline vec<half, 4> buffer_load_half4(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
-{
-    auto v = __builtin_amdgcn_raw_buffer_load_b64(rsrc, byte_offset, 0, 0);
-    return bit_cast<vec<half, 4>>(v);
-}
-
-// Lane-indexed raw buffer load of 8 fp16 = 16 bytes (b128). OOB bytes return 0.
-// Used by the NHWC input load, where 8 contiguous channels are read at once.
-__device__ inline vec<half, 8> buffer_load_half8(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
-{
-    auto v = __builtin_amdgcn_raw_buffer_load_b128(rsrc, byte_offset, 0, 0);
-    return bit_cast<vec<half, 8>>(v);
 }
 
 // F(2x2, 3x3) Winograd transforms used inline by the WMMA path.
@@ -363,12 +328,12 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const auto x_sh             = x_shape.strides;
     const auto* x_data          = x.data();
     const uint32_t x_byte_count = static_cast<uint32_t>(x_shape.element_space()) * sizeof(half);
-    auto x_rsrc                 = make_input_buffer_rsrc(x_data, x_byte_count);
+    auto x_rsrc                 = make_oob_buffer_rsrc(x_data, x_byte_count);
 
     const auto* u_data = u.data();
     const uint32_t u_byte_count =
         static_cast<uint32_t>(u.get_shape().element_space()) * sizeof(half);
-    auto u_rsrc = make_input_buffer_rsrc(u_data, u_byte_count);
+    auto u_rsrc = make_oob_buffer_rsrc(u_data, u_byte_count);
     // U layout: [4 or 3, 3, K, C] -- strides for byte offset computation.
     const auto u_sh = u.get_shape().strides;
 
@@ -473,7 +438,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                         constexpr int j   = j_val;
                         const bool ok     = active and hi[i] and wj[j];
                         const int32_t off = ok ? base_off + i * sh_b + j * sw_b : oob_byte;
-                        auto v8           = buffer_load_half8(x_rsrc, off);
+                        auto v8           = buffer_load_vec<half, 8>(x_rsrc, off);
                         // Last channel block may be partial: zero c >= C, which
                         // would otherwise read the next pixel's channels.
                         if(c_partial)
@@ -510,7 +475,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 {
                     repeat_c<4>([&](auto i) {
                         const int32_t row_off = hi[i] ? off + static_cast<int>(i) * sh_b : oob_byte;
-                        auto row              = buffer_load_half4(x_rsrc, row_off);
+                        auto row              = buffer_load_vec<half, 4>(x_rsrc, row_off);
                         d[i * 4 + 0]          = wj[0] ? row.x : hzero;
                         d[i * 4 + 1]          = wj[1] ? row.y : hzero;
                         d[i * 4 + 2]          = wj[2] ? row.z : hzero;
@@ -525,7 +490,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                 (hi[i] and wj[j])
                                     ? off + static_cast<int>(i) * sh_b + static_cast<int>(j) * sw_b
                                     : oob_byte;
-                            d[i * 4 + j] = buffer_load_half(x_rsrc, e_off);
+                            d[i * 4 + j] = buffer_load<half>(x_rsrc, e_off);
                         });
                     });
                 }

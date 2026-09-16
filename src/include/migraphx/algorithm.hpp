@@ -180,6 +180,20 @@ Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
     return first;
 }
 
+/// Similiar to std::transform but instead pass adjacent pairs to the function. Unlike
+/// std::adjacent_difference, the first element is not copied to the output, so one less element is
+/// written and the output can have a different type than the input.
+template <class Iterator, class Output, class F>
+Output adjacent_transform(Iterator first, Iterator last, Output out, F f)
+{
+    if(first == last)
+        return out;
+    // Transform the range offset by one with the original range to get the adjacent pairs
+    return std::transform(std::next(first), last, first, out, [&](auto&& after, auto&& before) {
+        return f(before, after);
+    });
+}
+
 /// Similiar to std::for_each but instead pass adjacent pairs to the function
 template <class Iterator, class F>
 Iterator adjacent_for_each(Iterator first, Iterator last, F f)

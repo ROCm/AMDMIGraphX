@@ -29,6 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -81,6 +82,32 @@ struct where
                 return {s1.type(), s1.dyn_dims()};
             return {s1.type(), s1.lens()};
         }
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.size() != 3 or any_of(args, [](const auto& arg) { return arg.empty(); }) or
+           args[1].get_shape().lens() != output_shape.lens() or
+           args[2].get_shape().lens() != output_shape.lens())
+            return {};
+        const bool scalar_condition = args[0].get_shape().elements() == 1;
+        if(not scalar_condition and args[0].get_shape().lens() != output_shape.lens())
+            return {};
+
+        sym_argument result{output_shape};
+        const auto condition = args[0].get();
+        const auto x         = args[1].get();
+        const auto y         = args[2].get();
+        auto output          = result.get();
+        for(auto i : range(output_shape.elements()))
+        {
+            const auto condition_value = sym::fixed_value(condition[scalar_condition ? 0 : i]);
+            if(not condition_value.has_value())
+                return {};
+            output[i] = sym::to<int64_t>(*condition_value) != 0 ? x[i] : y[i];
+        }
+        return result;
     }
 
     argument compute(shape output_shape, std::vector<argument> args) const

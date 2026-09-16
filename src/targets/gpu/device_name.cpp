@@ -141,7 +141,8 @@ static bool hipblaslt_supported_impl(const std::string& gfx_name)
 {
     return (gfx_name == "gfx90a" or (starts_with(gfx_name, "gfx94") and gfx_name >= "gfx942") or
             (starts_with(gfx_name, "gfx95") and gfx_name >= "gfx950") or
-            starts_with(gfx_name, "gfx110") or starts_with(gfx_name, "gfx120"));
+            starts_with(gfx_name, "gfx110") or starts_with(gfx_name, "gfx115") or
+            starts_with(gfx_name, "gfx120"));
 }
 #endif
 

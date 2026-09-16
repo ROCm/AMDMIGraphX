@@ -201,6 +201,8 @@ def formatted_rate(result):
 
 
 def compare_perf(current, baseline):
+    if current['status'] == 'skipped':
+        return 'n/a', '', ':heavy_minus_sign:'
     if current['status'] != 'complete':
         return 'error', '', ':x:'
     if baseline['status'] != 'complete':
@@ -282,7 +284,8 @@ def generate(args):
 
     accuracy_pass = sum(row['accuracy']['status'] == 'pass' for row in rows)
     accuracy_fail = sum(row['accuracy']['status'] == 'fail' for row in rows)
-    accuracy_error = len(rows) - accuracy_pass - accuracy_fail
+    accuracy_na = sum(row['accuracy']['status'] == 'skipped' for row in rows)
+    accuracy_error = len(rows) - accuracy_pass - accuracy_fail - accuracy_na
     perf_pass = sum(row['comparison'] == 'pass' for row in rows)
     perf_regress = sum(row['comparison'] == 'regress' for row in rows)
     perf_na = sum(row['comparison'] == 'n/a' for row in rows)
@@ -293,9 +296,10 @@ def generate(args):
         '',
         '| Check | Pass | Fail | Regress | Error | N/A |',
         '|:------|-----:|-----:|--------:|------:|----:|',
-        '| Accuracy | {} | {} | — | {} | 0 |'.format(accuracy_pass,
-                                                     accuracy_fail,
-                                                     accuracy_error),
+        '| Accuracy | {} | {} | — | {} | {} |'.format(accuracy_pass,
+                                                      accuracy_fail,
+                                                      accuracy_error,
+                                                      accuracy_na),
         '| Performance | {} | — | {} | {} | {} |'.format(
             perf_pass, perf_regress, perf_error, perf_na),
         '',

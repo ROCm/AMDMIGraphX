@@ -70,7 +70,7 @@ def deviation(gold, actual, atol, rtol):
     # A NaN is never within tolerance; rank it as an outright miss rather than
     # letting it propagate into a number that reads as a pass.
     dev = np.where(np.isnan(dev), np.inf, dev)
-    tol = atol + rtol * np.abs(actual.astype(np.float64))
+    tol = atol + rtol * np.abs(gold.astype(np.float64))
     frac = np.divide(dev,
                      tol,
                      out=np.where(dev > 0, np.inf, 0.0),
@@ -101,7 +101,7 @@ def check(gold_outputs, outputs, args):
         atol = max(args.atol, args.atol_frac * rng)
         dev, frac = deviation(gold, actual, atol, args.rtol)
         worst_dev, worst_frac = max(worst_dev, dev), max(worst_frac, frac)
-        if not np.allclose(gold, actual, args.rtol, atol):
+        if not np.allclose(actual, gold, args.rtol, atol):
             print(
                 "\nOutput {} is incorrect ... max abs diff {:.6g} vs atol {:.6g}, "
                 "rtol {:.6g}, expected range {:.6g}".format(

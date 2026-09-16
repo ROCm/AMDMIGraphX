@@ -22,7 +22,11 @@
 # THE SOFTWARE.
 #####################################################################################
 import os, sys
+import codecs
 import glob
+import io
+import pickle
+import zipfile
 import numpy as np
 import argparse
 import onnx
@@ -239,17 +243,55 @@ def tune_input_shape(model, input_data):
     return input_shapes if changed else {}
 
 
+_NUMPY_GLOBALS = {
+    ('_codecs', 'encode'): codecs.encode,
+    ('numpy', 'ndarray'): np.ndarray,
+    ('numpy', 'dtype'): np.dtype,
+    ('numpy.core.multiarray', '_reconstruct'): np.empty(0).__reduce__()[0],
+    ('numpy._core.multiarray', '_reconstruct'): np.empty(0).__reduce__()[0],
+    ('numpy.core.multiarray', 'scalar'): np.float32(0).__reduce__()[0],
+    ('numpy._core.multiarray', 'scalar'): np.float32(0).__reduce__()[0],
+}
+
+
+class _NumpyUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        try:
+            return _NUMPY_GLOBALS[(module, name)]
+        except KeyError as e:
+            raise pickle.UnpicklingError(
+                "Unsupported object in legacy NPZ: {}.{}".format(module,
+                                                                 name)) from e
+
+
+def _load_npz_array(archive, name):
+    stream = io.BytesIO(archive.read(name + '.npy'))
+    version = np.lib.format.read_magic(stream)
+    shape, _, dtype = np.lib.format._read_array_header(stream, version)
+    if dtype.hasobject:
+        array = _NumpyUnpickler(stream, fix_imports=True,
+                                encoding='bytes').load()
+        if not isinstance(
+                array,
+                np.ndarray) or array.shape != shape or array.dtype != dtype:
+            raise ValueError(
+                "Invalid object array '{}' in legacy NPZ".format(name))
+        return array
+    stream.seek(0)
+    return np.load(stream, allow_pickle=False)
+
+
 def load_npz_case(npz_path):
     # Legacy caffe2-era ONNX zoo test data: an .npz holding object arrays
     # 'inputs' and 'outputs', each with the tensors in model order.
-    data = np.load(npz_path, allow_pickle=True, encoding='bytes')
-    keys = list(getattr(data, 'files', []))
-    if 'inputs' not in keys or 'outputs' not in keys:
-        raise KeyError(
-            "{}: expected 'inputs' and 'outputs' arrays, found {}".format(
-                os.path.basename(npz_path), keys))
-    inputs = [np.asarray(x) for x in data['inputs']]
-    outputs = [np.asarray(x) for x in data['outputs']]
+    with zipfile.ZipFile(npz_path) as data:
+        keys = [name[:-4] for name in data.namelist() if name.endswith('.npy')]
+        if 'inputs' not in keys or 'outputs' not in keys:
+            raise KeyError(
+                "{}: expected 'inputs' and 'outputs' arrays, found {}".format(
+                    os.path.basename(npz_path), keys))
+        inputs = [np.asarray(x) for x in _load_npz_array(data, 'inputs')]
+        outputs = [np.asarray(x) for x in _load_npz_array(data, 'outputs')]
     return inputs, outputs
 
 

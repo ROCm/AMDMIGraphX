@@ -28,9 +28,15 @@
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/md5.hpp>
+#include <migraphx/msgpack.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/value.hpp>
 #include <cassert>
+#include <exception>
 #include <iostream>
 #include <deque>
+#include <numeric>
 
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
@@ -39,8 +45,6 @@
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/process.hpp>
-#include <migraphx/msgpack.hpp>
-#include <migraphx/serialize.hpp>
 #include <migraphx/file_buffer.hpp>
 #else
 #include <migraphx/compile_src.hpp>
@@ -57,6 +61,103 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_CACHE_MAX_BYTES);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_CACHE_MAX_ENTRIES);
+
+hip_compile_cache::hip_compile_cache()
+    : hip_compile_cache(
+          value_of(MIGRAPHX_GPU_HIP_CACHE_MAX_BYTES{}, 256 * 1024 * std::size_t{1024}),
+          value_of(MIGRAPHX_GPU_HIP_CACHE_MAX_ENTRIES{}, std::size_t{256}))
+{
+}
+
+hip_compile_cache::hip_compile_cache(std::size_t bytes, std::size_t entries)
+    : max_bytes(bytes), max_entries(entries)
+{
+}
+
+void hip_compile_cache::trim()
+{
+    auto bytes          = current_bytes;
+    auto count          = entries.size();
+    auto first_to_keep  = std::find_if(lru.rbegin(), lru.rend(), [&](const std::string& cache_key) {
+        if(bytes <= max_bytes and count <= max_entries)
+            return true;
+        auto it = entries.find(cache_key);
+        assert(it != entries.end());
+        bytes -= it->second.bytes;
+        count--;
+        return false;
+    });
+    auto first_to_evict = first_to_keep.base();
+    std::for_each(first_to_evict, lru.end(), [&](const std::string& cache_key) {
+        auto it = entries.find(cache_key);
+        assert(it != entries.end());
+        current_bytes -= it->second.bytes;
+        entries.erase(it);
+    });
+    lru.erase(first_to_evict, lru.end());
+}
+
+hip_compile_cache::result hip_compile_cache::get_or_compile(const std::string& key,
+                                                            const std::function<result()>& compile)
+{
+    if(max_bytes == 0 or max_entries == 0)
+        return compile();
+
+    std::shared_ptr<std::promise<result>> producer;
+    std::shared_future<result> future;
+    {
+        std::lock_guard<std::mutex> lock{mutex};
+        auto it = entries.find(key);
+        if(it == entries.end())
+        {
+            producer = std::make_shared<std::promise<result>>();
+            future   = producer->get_future().share();
+            entry cache_entry;
+            cache_entry.future = future;
+            entries.emplace(key, std::move(cache_entry));
+        }
+        else
+        {
+            future = it->second.future;
+            if(it->second.ready)
+                lru.splice(lru.begin(), lru, it->second.position);
+        }
+    }
+
+    if(producer == nullptr)
+        return future.get();
+
+    try
+    {
+        auto compiled = compile();
+        auto bytes    = std::accumulate(compiled.begin(),
+                                     compiled.end(),
+                                     std::size_t{0},
+                                     [](auto n, const auto& binary) { return n + binary.size(); });
+        {
+            std::lock_guard<std::mutex> lock{mutex};
+            auto it = entries.find(key);
+            assert(it != entries.end());
+            lru.push_front(key);
+            it->second.position = lru.begin();
+            it->second.bytes    = bytes;
+            it->second.ready    = true;
+            current_bytes += bytes;
+            trim();
+        }
+        producer->set_value(compiled);
+        return compiled;
+    }
+    catch(...)
+    {
+        producer->set_exception(std::current_exception());
+        std::lock_guard<std::mutex> lock{mutex};
+        entries.erase(key);
+        throw;
+    }
+}
 
 #ifdef MIGRAPHX_USE_HIPRTC
 
@@ -227,11 +328,11 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
     return {prog.get_code_obj()};
 }
 
-std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
-                                               const std::vector<std::string>& params,
-                                               const std::string& arch,
-                                               bool disable_processes,
-                                               bool quiet)
+static std::vector<std::vector<char>> compile_hip_src_impl(const std::vector<src_file>& srcs,
+                                                           const std::vector<std::string>& params,
+                                                           const std::string& arch,
+                                                           bool disable_processes,
+                                                           bool quiet)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
@@ -308,11 +409,11 @@ static src_compiler assemble(src_compiler compiler)
     return compiler;
 }
 
-std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
-                                               const std::vector<std::string>& params,
-                                               const std::string& arch,
-                                               bool /*disable_processes*/,
-                                               bool /*quiet*/)
+static std::vector<std::vector<char>> compile_hip_src_impl(const std::vector<src_file>& srcs,
+                                                           const std::vector<std::string>& params,
+                                                           const std::string& arch,
+                                                           bool /*disable_processes*/,
+                                                           bool /*quiet*/)
 {
     // disable_processes has no effect on the clang path, there is no hiprtc subprocess to skip.
     assert(not srcs.empty());
@@ -370,6 +471,34 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 }
 
 #endif // MIGRAPHX_USE_HIPRTC
+
+std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
+                                               const std::vector<std::string>& params,
+                                               const std::string& arch,
+                                               bool disable_processes,
+                                               bool quiet,
+                                               hip_compile_cache* cache)
+{
+    auto compile = [&] {
+        return compile_hip_src_impl(srcs, params, arch, disable_processes, quiet);
+    };
+    if(cache == nullptr)
+        return compile();
+
+    value key;
+    key["srcs"]              = to_value(std::vector<hiprtc_src_file>{srcs.begin(), srcs.end()});
+    key["params"]            = to_value(params);
+    key["arch"]              = arch;
+    key["disable_processes"] = disable_processes;
+    key["quiet"]             = quiet;
+    key["debug"]             = enabled(MIGRAPHX_GPU_DEBUG{});
+    key["debug_symbols"]     = enabled(MIGRAPHX_GPU_DEBUG_SYM{});
+    key["optimize"]          = string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3");
+    key["extra_flags"]       = string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, "");
+    auto packed_key          = to_msgpack(key);
+    return cache->get_or_compile(md5(std::string_view{packed_key.data(), packed_key.size()}),
+                                 compile);
+}
 
 bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags)
 {

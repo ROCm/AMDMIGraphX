@@ -29,6 +29,11 @@
 #include <migraphx/compile_src.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/functional.hpp>
+#include <functional>
+#include <future>
+#include <list>
+#include <map>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -54,6 +59,37 @@ struct hiprtc_src_file
     }
 };
 
+struct MIGRAPHX_GPU_EXPORT hip_compile_cache
+{
+    using result = std::vector<std::vector<char>>;
+
+    // Defaults to 256 MiB and 256 entries. Override with
+    // MIGRAPHX_GPU_HIP_CACHE_MAX_BYTES and MIGRAPHX_GPU_HIP_CACHE_MAX_ENTRIES.
+    // Setting either limit to zero disables caching.
+    hip_compile_cache();
+    hip_compile_cache(std::size_t max_bytes, std::size_t max_entries);
+
+    result get_or_compile(const std::string& key, const std::function<result()>& compile);
+
+    private:
+    struct entry
+    {
+        std::shared_future<result> future;
+        std::list<std::string>::iterator position;
+        std::size_t bytes = 0;
+        bool ready        = false;
+    };
+
+    void trim();
+
+    std::mutex mutex;
+    std::map<std::string, entry> entries;
+    std::list<std::string> lru;
+    std::size_t current_bytes = 0;
+    std::size_t max_bytes;
+    std::size_t max_entries;
+};
+
 MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
                                          const std::vector<std::string>& flags);
 
@@ -69,8 +105,9 @@ MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs,
                 const std::vector<std::string>& params,
                 const std::string& arch,
-                bool disable_processes = false,
-                bool quiet             = false);
+                bool disable_processes   = false,
+                bool quiet               = false,
+                hip_compile_cache* cache = nullptr);
 
 MIGRAPHX_GPU_EXPORT std::string enum_params(std::size_t count, std::string param);
 

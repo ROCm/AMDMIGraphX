@@ -25,12 +25,27 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_REWRITE_BROADCASTS_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <cstddef>
 #include <string>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
+struct shape;
+
+// True if the broadcast output shape only expands the given reduce axes, which
+// allows the broadcast to be fused into the reduction
+MIGRAPHX_EXPORT bool is_valid_broadcast(const shape& s, std::vector<std::size_t> reduce_axes);
+
+// True if an input other than the broadcast spans the reduce axes. Fusing a
+// broadcast into a reduction requires such an input since the codegen cannot
+// reduce purely broadcasted data.
+MIGRAPHX_EXPORT bool has_spanning_input(const std::vector<instruction_ref>& inputs,
+                                        instruction_ref broadcast,
+                                        const std::vector<std::size_t>& reduce_axes);
 
 // Move a broadcast or multibroadcast between a pointwise producer and a consumer
 // of the given op onto the pointwise inputs so the two can be fused.

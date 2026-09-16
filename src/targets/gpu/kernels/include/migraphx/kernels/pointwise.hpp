@@ -40,7 +40,7 @@ template <class Stride, class F, class Output, class T, class... Ts>
 __device__ void pointwise_tensor(Stride stride, F f, Output out, T x, Ts... xs)
 {
     stride(x.get_shape().elements(), [&](auto i) {
-        auto r = f(load_element(x, i), load_element(xs, i)...);
+        auto r = f(stream_load(x, i), stream_load(xs, i)...);
         out([&](auto... outs) {
             r([&](auto... rs) {
                 static_assert(sizeof...(outs) == sizeof...(rs));

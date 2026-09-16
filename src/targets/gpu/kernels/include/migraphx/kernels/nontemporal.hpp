@@ -25,7 +25,6 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_NONTEMPORAL_HPP
 #define MIGRAPHX_GUARD_KERNELS_NONTEMPORAL_HPP
 
-#include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/bit_cast.hpp>
@@ -33,17 +32,9 @@
 
 namespace migraphx {
 
-// Unsigned integer with the same size as T, used to move struct element types (eg fp8)
-// through a builtin that only accepts arithmetic and vector types.
-template <class T>
-using nontemporal_storage = conditional_t<
-    sizeof(T) == 1,
-    uint8_t,
-    conditional_t<sizeof(T) == 2, uint16_t, conditional_t<sizeof(T) == 4, uint32_t, uint64_t>>>;
-
-// Load a single value with a nontemporal hint so it bypasses the cache. The builtin only
-// accepts arithmetic and vector types, so any other trivially-copyable type is loaded
-// through a same-sized integer and bit-cast back.
+// Load with a nontemporal (streaming) hint: the value is not expected to be reused.
+// The builtin only accepts arithmetic and vector types, so struct element types (eg fp8)
+// are loaded through a same-sized unsigned integer and bit-cast back.
 template <class T>
 __device__ T nontemporal_load(const T* ptr)
 {
@@ -53,18 +44,16 @@ __device__ T nontemporal_load(const T* ptr)
     }
     else
     {
-        static_assert(is_trivially_copyable<T>{});
-        using storage = nontemporal_storage<T>;
-        static_assert(sizeof(storage) == sizeof(T));
+        using storage = sized_uint_t<sizeof(T)>;
+        static_assert(alignof(T) >= alignof(storage));
         return bit_cast<T>(__builtin_nontemporal_load(reinterpret_cast<const storage*>(ptr)));
     }
 }
 
-// Read an element from an input tensor. Inputs that are not broadcasted are read only
-// once, so a nontemporal load avoids polluting the cache. Broadcasted inputs reuse the
-// same element across threads, so a regular cached load is kept for them.
+// Non-broadcasted inputs are streamed with no reuse expected, so use a nontemporal load.
+// Broadcasted inputs are re-read by other threads or workgroups, so keep a cached load.
 template <class T, class I>
-__device__ auto load_element(const T& x, I i)
+__device__ auto stream_load(const T& x, I i)
 {
     if constexpr(get_shape_c<T>{}.broadcasted())
         return x[i];

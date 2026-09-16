@@ -480,13 +480,14 @@ struct reducer_base
             auto&& derived = static_cast<const Derived&>(*this);
             auto t         = derived.slice(x);
             using type     = typename decltype(t)::type;
-            // Read-only inputs are streamed with nontemporal loads, outputs
-            // need a reference to the element so they are written in place
-            if constexpr(is_const<type>{})
-                return make_storage_access<type>(
-                    [=](auto i, auto...) { return load_element(t, i); });
-            else
-                return make_storage_access<type>([=](auto i, auto...) -> auto& { return t[i]; });
+            // Inputs are passed as const views and are streamed; non-const views are
+            // outputs and need a reference so they are written in place.
+            return make_storage_access<type>([=](auto i, auto...) -> decltype(auto) {
+                if constexpr(is_const<type>{})
+                    return stream_load(t, i);
+                else
+                    return t[i];
+            });
         }
     }
 

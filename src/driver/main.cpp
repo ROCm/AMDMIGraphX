@@ -1119,7 +1119,10 @@ struct time_cmd : command<time_cmd>
     void parse(argument_parser& ap)
     {
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run."));
-        ap(nbuffers, {"--buffers", "-b"}, ap.help("Number of rotated buffers to use."));
+        ap(nbuffers,
+           {"--buffers", "-b"},
+           ap.help("Number of parameter buffer sets to rotate through between iterations (avoids "
+                   "cache reuse)."));
         c.parse(ap);
     }
 
@@ -1127,12 +1130,10 @@ struct time_cmd : command<time_cmd>
     {
         auto p = c.compile();
         log::info() << "Allocating params ...";
+        if(nbuffers == 0)
+            MIGRAPHX_THROW("--buffers must be at least 1");
         std::vector<parameter_map> ms;
-        for(auto i : range(nbuffers))
-        {
-            (void)i;
-            ms.push_back(c.params(p));
-        }
+        std::generate_n(std::back_inserter(ms), nbuffers, [&] { return c.params(p); });
         log::info() << "Running ...";
         double t = time_run(p, ms, n);
         std::cout << "Total time: " << t << "ms" << std::endl;

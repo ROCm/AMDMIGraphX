@@ -309,10 +309,6 @@ TEST_CASE(propagate_no_crossover_fp8_boundary_output)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// quantizelinear mixes a float scale with an integral zero point and output, so promoting it to
-// the zero point's wider integral type would truncate the scale to 0 and then divide by it.
-// Output direction: convert(int32 -> uint8) feeding the zero point, with the scale and data
-// scalar so the zero point is the only operand the traversal follows.
 TEST_CASE(propagate_no_crossover_mixed_category_quantizelinear_output)
 {
     migraphx::shape s1{migraphx::shape::int32_type, {4}};

@@ -109,10 +109,10 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
-    // Comma-separated list of ops to force onto MLIR, e.g. "convolution,dot,!attention"; a
-    // '!' or '~' prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS,
-    // which takes priority over this, as do the architecture and build-config defaults.
-    std::string mlir_use_specific_ops = {};
+    // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
+    // prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
+    // priority over this, as do the architecture and build-config defaults.
+    std::vector<std::string> mlir_use_specific_ops = {};
     // Read/write problem caches (the common case: a user tuning a model). New
     // tuning solutions are saved back to these files.
     std::vector<std::string> problem_cache_files = {};

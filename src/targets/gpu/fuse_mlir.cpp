@@ -129,8 +129,8 @@ static bool has_op(const std::vector<std::string>& options, std::string_view opt
 }
 
 namespace {
-// A pre-split op list in the MIGRAPHX_MLIR_USE_SPECIFIC_OPS format, used for both the env var
-// and the compile_options string.
+// An op list in the MIGRAPHX_MLIR_USE_SPECIFIC_OPS format, split into the ops forced on and the
+// ops forced off. Used for both the env var and the compile_options list.
 struct op_usage
 {
     std::vector<std::string> requested_ops = {};
@@ -141,11 +141,11 @@ struct op_usage
 };
 } // namespace
 
-static op_usage parse_op_usage(const std::string& ops)
+static op_usage parse_op_usage(std::vector<std::string> list)
 {
-    auto list = split_string(ops, ',');
-    // Entries are trimmed because this format is also written by hand into JSON compile options,
-    // where "conv, !dot" is natural but would otherwise leave the '!' at index 1 and not negate.
+    // Entries are trimmed because these lists are written by hand, in the env var or in JSON
+    // compile options, where "conv, !dot" is natural but would otherwise leave the '!' at
+    // index 1 and not negate.
     std::transform(
         list.begin(), list.end(), list.begin(), [](const std::string& s) { return trim(s); });
     return {.requested_ops = get_usage<requested>(list), .rejected_ops = get_usage<rejected>(list)};
@@ -154,11 +154,12 @@ static op_usage parse_op_usage(const std::string& ops)
 // Ops forced on or off by MIGRAPHX_MLIR_USE_SPECIFIC_OPS. Parsed on first use.
 static const op_usage& env_op_usage()
 {
-    static const auto ops = parse_op_usage(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""));
+    static const auto ops =
+        parse_op_usage(split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ','));
     return ops;
 }
 
-bool mlir_attention_enabled(context* ctx, const std::string& use_specific_ops)
+bool mlir_attention_enabled(context* ctx, const std::vector<std::string>& use_specific_ops)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())

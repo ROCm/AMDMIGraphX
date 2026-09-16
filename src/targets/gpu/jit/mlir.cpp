@@ -446,7 +446,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                 auto pw_ins =
                     insert_mlir(m, ins, any_cast<code_object_op>(ops[1]), pw_inputs_updated);
                 return m.replace_instruction(ins, pw_ins);
-            }};
+            },
+            &trace};
     }
 
     optional<tuning_config> get_tuning_config(const context& ctx,

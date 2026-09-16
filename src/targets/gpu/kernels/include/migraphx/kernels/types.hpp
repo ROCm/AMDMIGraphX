@@ -87,8 +87,6 @@ using bf16  = __bf16;
 template <class T, index_int N>
 struct packed
 {
-    using value_type                = T;
-    static constexpr index_int size = N;
     T data;
 };
 

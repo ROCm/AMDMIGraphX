@@ -168,7 +168,7 @@ struct rewrite_reshapes
             auto input_ins   = r.instructions["input"];
 
             // cppcheck-suppress knownConditionTrueFalse
-            if(not T::matches(ins) or not is_viable(ins, input_ins, x_ins))
+            if(not T::matches(ins))
                 return;
 
             auto dims2 = T::base_dims(x_ins);

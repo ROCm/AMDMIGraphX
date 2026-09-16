@@ -30,13 +30,13 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/identity.hpp>
-#include <migraphx/check_shapes.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/tune_axis.hpp>
 #include <cmath>
 #include <unordered_map>
 #include <unordered_set>
@@ -126,11 +126,9 @@ struct unpack_int4_convert
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
-        auto lens = inputs.front().lens();
-        auto a    = axis < 0 ? axis + static_cast<int64_t>(lens.size()) : axis;
-        lens.at(a) *= 2;
-        return {target_type, lens};
+        return make_op("unpack_int4", {{"axis", axis}})
+            .compute_shape(inputs)
+            .with_type(target_type);
     }
 };
 MIGRAPHX_REGISTER_OP(unpack_int4_convert);
@@ -225,16 +223,14 @@ void fuse_reductions(module& m)
 std::vector<instruction_ref>
 find_pointwise_params(const module& pm, instruction_ref ins, instruction_ref input)
 {
-    auto names = pm.get_parameter_names();
-    std::sort(names.begin(), names.end());
+    auto pmap = pm.get_ins_param_map(ins->inputs(), true);
     std::vector<instruction_ref> result;
-    auto is = range(std::min(names.size(), ins->inputs().size()));
     transform_if(
-        is.begin(),
-        is.end(),
+        pmap.begin(),
+        pmap.end(),
         std::back_inserter(result),
-        [&](auto i) { return ins->inputs()[i] == input; },
-        [&](auto i) { return pm.get_parameter(names[i]); });
+        [&](const auto& p) { return p.second == input; },
+        [](const auto& p) { return p.first; });
     return result;
 }
 
@@ -271,24 +267,23 @@ optional<std::vector<instruction_ref>> find_unpack_converts(instruction_ref unpa
     return converts;
 }
 
-/// The small integer literal that the only consumer of `ins`, an add or sub,
-/// adds to it; only such a bias folds into the unpack exactly
+/// The integer literal added to `ins` by its only consumer (an add, or a sub
+/// with `ins` first); only a small integer bias folds into the unpack exactly
 optional<double> find_literal_bias(instruction_ref ins)
 {
     if(ins->outputs().size() != 1)
         return nullopt;
-    auto op = ins->outputs().front();
-    if(op->inputs().size() != 2)
+    auto op     = ins->outputs().front();
+    bool is_add = op->name() == "add";
+    bool is_sub = op->name() == "sub" and op->inputs()[0] == ins;
+    if((not is_add and not is_sub) or op->inputs().size() != 2)
         return nullopt;
     auto lit = op->inputs()[0] == ins ? op->inputs()[1] : op->inputs()[0];
     if(lit->name() != "@literal" or lit->get_shape().elements() != 1)
         return nullopt;
-    double value = 0;
-    lit->get_literal().visit([&](auto v) { value = v.front(); });
-    if(op->name() == "sub" and op->inputs()[0] == ins)
+    auto value = lit->get_literal().at<double>();
+    if(is_sub)
         value = -value;
-    else if(op->name() != "add")
-        return nullopt;
     if(not float_equal(value, std::floor(value)) or std::fabs(value) > 256)
         return nullopt;
     return value;
@@ -301,8 +296,8 @@ struct unpack_convert
     optional<double> bias = nullopt;
 };
 
-/// Fold the conversion into the unpack when every consumer converts it to the
-/// same fp16 or fp32 type, and the zero point when they all add the same literal
+/// Whether `unpack` can fold its converts: every consumer must convert to the
+/// same fp16 or fp32 type; the zero point folds too when all add the same literal
 optional<unpack_convert> fold_decision(instruction_ref unpack)
 {
     auto converts = find_unpack_converts(unpack);
@@ -334,7 +329,8 @@ module fold_pointwise_module(const module& pm,
 {
     module result;
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
-    // Re-add the parameters in their original order so the module lays out the same
+    // Re-add the parameters first, in their original order, so the pointwise
+    // inputs still map to them by position
     for(const auto& name : pm.get_parameter_names())
     {
         auto ins = pm.get_parameter(name);
@@ -366,10 +362,10 @@ instruction_ref convert_unpack(module& m,
     auto it = converted.find(unpack);
     if(it != converted.end())
         return it->second;
-    auto axis = unpack->get_operator().to_value().at("axis").to<int64_t>();
-    if(axis < 0)
-        axis += unpack->get_shape().ndim();
-    auto ins = m.insert_instruction(
+    auto axis = tune_axis(unpack->get_shape().ndim(),
+                          unpack->get_operator().to_value().at("axis").to<int>(),
+                          unpack->name());
+    auto ins  = m.insert_instruction(
         unpack, unpack_int4_convert{axis, uc.type, uc.bias.value_or(0)}, unpack->inputs());
     converted[unpack] = ins;
     return ins;
@@ -411,24 +407,26 @@ void fold_unpack_convert(module_pass_manager& mpm)
         auto* pm = pw->module_inputs().front();
         if(contains(rebuilt, pm))
             continue;
-        auto names = pm->get_parameter_names();
-        std::sort(names.begin(), names.end());
         std::unordered_map<instruction_ref, unpack_convert> folded;
-        auto inputs = pw->inputs();
-        for(std::size_t i = 0; i < inputs.size(); i++)
+        for(const auto& [param, input] : pm->get_ins_param_map(pw->inputs(), true))
         {
-            auto it = unpacks.find(unpack_source(inputs[i]));
-            if(it == unpacks.end())
-                continue;
-            folded[pm->get_parameter(names[i])] = it->second;
-            auto unpack = convert_unpack(m, converted, it->first, it->second);
-            if(inputs[i]->name() == "multibroadcast")
-                unpack = m.insert_instruction(inputs[i], inputs[i]->get_operator(), unpack);
-            inputs[i] = unpack;
+            auto it = unpacks.find(unpack_source(input));
+            if(it != unpacks.end())
+                folded[param] = it->second;
         }
         if(folded.empty())
             continue;
         rebuilt.insert(pm);
+        auto inputs = pw->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+            auto it = unpacks.find(unpack_source(input));
+            if(it == unpacks.end())
+                return input;
+            auto unpack = convert_unpack(m, converted, it->first, it->second);
+            if(input->name() == "multibroadcast")
+                unpack = m.insert_instruction(input, input->get_operator(), unpack);
+            return unpack;
+        });
         auto* fm = mpm.create_module(pm->name() + ":unpack", fold_pointwise_module(*pm, folded));
         m.replace_instruction(pw, pw->get_operator(), inputs, {fm});
     }

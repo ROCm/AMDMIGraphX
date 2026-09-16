@@ -239,7 +239,7 @@ __device__ __host__ auto vectorize_tensor(T x)
     if constexpr(pack_factor<type>{} > 1)
     {
         // A packed element holds pack_factor values, so vectorizing by
-        // N/pack_factor keeps the same lens as the unpacked tensors
+        // N/pack_factor gives the same vectorized lens as the other tensors at N
         static_assert(N % pack_factor<type>{} == 0, "Vector size must cover the pack factor");
         auto y = make_tensor_view(remove_packed(x.data()), x.get_shape());
         return vectorize_tensor<N / pack_factor<type>{}, Axis>(y);

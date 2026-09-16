@@ -404,6 +404,19 @@ struct find_op_shape_transform_op
         return desc.elements() == ins->get_shape().elements();
     }
 
+    /// Insert the shape transforms mapping `input` through `gdesc` before `pos`
+    static instruction_ref insert_transforms(module& m,
+                                             instruction_ref pos,
+                                             const shape_transform_descriptor& gdesc,
+                                             instruction_ref input,
+                                             bool no_broadcast = false)
+    {
+        auto gops = generate(gdesc, input->get_shape(), no_broadcast);
+        return std::accumulate(gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+            return m.insert_instruction(pos, op, start);
+        });
+    }
+
     static std::vector<operation>
     generate(const shape_transform_descriptor& desc, const shape& input_shape, bool no_broadcast)
     {
@@ -467,9 +480,6 @@ struct find_op_shape_transform_op
         auto x_ins     = r.instructions["x"];
         auto input_ins = r.instructions["input"];
 
-        if(not is_viable(input_ins, x_ins))
-            return;
-
         std::vector<operation> ops;
         auto next_ins = input_ins;
         while(next_ins != x_ins)
@@ -505,11 +515,7 @@ struct find_op_shape_transform_op
         auto reshape_input =
             [&](const auto& ins_to_insert, const auto& gdesc, bool no_broadcast = false) {
                 return [&, no_broadcast](auto input) {
-                    auto gops = generate(gdesc, input->get_shape(), no_broadcast);
-                    return std::accumulate(
-                        gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
-                            return m.insert_instruction(ins_to_insert, op, start);
-                        });
+                    return insert_transforms(m, ins_to_insert, gdesc, input, no_broadcast);
                 };
             };
         auto x_inputs = x_ins->inputs();
@@ -542,30 +548,21 @@ struct find_op_shape_transform_op
     }
 };
 
-// Rewrite an op into the common-dims space of a shape-transform chain that
-// feeds it from a non-pointwise base such as a literal or parameter. This
-// removes collapses of non-contiguous dimensions (like a reshape of a
-// broadcasted per-group scale) that would otherwise require a contiguous
-// copy and block fusion. find_op_shape_transform_op handles chains that
-// start at a pointwise or reduce instead.
+// Rewrite an op into the common dims of a shape-transform chain fed by a
+// non-pointwise base (literal or parameter), so a reshape of a broadcasted
+// per-group scale doesnt need a contiguous copy that blocks fusion.
+// find_op_shape_transform_op handles chains starting at a pointwise or reduce.
 struct find_entry_shape_transform_op
 {
     bool enable = true;
-
-    static const auto& entry_ops()
-    {
-        // Restricted for now; the mapping is op-agnostic so more pointwise
-        // ops can be added later
-        static const std::unordered_set<std::string> names = {"dequantizelinear"};
-        return names;
-    }
 
     auto matcher() const
     {
         auto reshapes    = match::name(find_op_shape_transform_op::shape_transform_ops());
         auto entry       = match::none_of(match::reduce(), match::pointwise());
         auto entry_chain = reshapes(match::arg(0)(match::skip(reshapes())(entry)));
-        return match::name(entry_ops())(match::any_of[match::inputs()](entry_chain));
+        // Restricted to dequantizelinear for now; the mapping is op-agnostic
+        return match::name("dequantizelinear")(match::any_of[match::inputs()](entry_chain));
     }
 
     struct entry_transform
@@ -618,32 +615,25 @@ struct find_entry_shape_transform_op
             return;
         const auto& desc = et->desc;
 
-        auto reshape_input = [&](const auto& gdesc, bool no_broadcast = false) {
-            return [&, no_broadcast](auto input) {
-                auto gops =
-                    find_op_shape_transform_op::generate(gdesc, input->get_shape(), no_broadcast);
-                return std::accumulate(
-                    gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
-                        return m.insert_instruction(ins, op, start);
-                    });
-            };
-        };
-
-        auto new_input_ins = reshape_input(desc.to_common_from_src())(et->base);
+        auto new_input_ins = find_op_shape_transform_op::insert_transforms(
+            m, ins, desc.to_common_from_src(), et->base);
         if(new_input_ins->get_shape().elements() != ins->get_shape().elements())
         {
             new_input_ins = m.insert_instruction(
                 ins, make_op("multibroadcast", {{"out_lens", desc.common_dims()}}), new_input_ins);
         }
-        auto inputs = ins->inputs();
+        auto common_from_dst = desc.to_common_from_dst();
+        auto inputs          = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input == et->input)
                 return new_input_ins;
-            return reshape_input(desc.to_common_from_dst(), true)(input);
+            return find_op_shape_transform_op::insert_transforms(
+                m, ins, common_from_dst, input, true);
         });
         auto new_op =
             find_op_shape_transform_op::insert(m, ins, inputs, desc.common_axes_map_from_dst());
-        auto rins = reshape_input(desc.to_dst_from_common())(new_op);
+        auto rins = find_op_shape_transform_op::insert_transforms(
+            m, ins, desc.to_dst_from_common(), new_op);
         assert(ins->get_shape().lens() == rins->get_shape().lens());
         m.replace_instruction(ins, rins);
     }

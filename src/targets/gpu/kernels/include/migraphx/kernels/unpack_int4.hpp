@@ -28,11 +28,13 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/bit_cast.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
 
 // Value-level unpack used by fused kernels: each packed byte expands into
-// its two int4 values along the vector lane, low nibble first
+// two adjacent lanes, low nibble first
 template <class T, index_int N>
 constexpr vec<T, N * 2> unpack_int4(vec<T, N> x)
 {
@@ -55,9 +57,11 @@ constexpr vec<T, N * 2> unpack_int4(vec<T, N> x)
     return result;
 }
 
-constexpr vec<uint8_t, 2> unpack_int4(uint8_t x) { return unpack_int4(vec<uint8_t, 1>{x}); }
-
-constexpr vec<int8_t, 2> unpack_int4(int8_t x) { return unpack_int4(vec<int8_t, 1>{x}); }
+template <class T, MIGRAPHX_REQUIRES(is_integral<T>{})>
+constexpr vec<T, 2> unpack_int4(T x)
+{
+    return unpack_int4(vec<T, 1>{x});
+}
 
 namespace detail {
 
@@ -73,9 +77,11 @@ __device__ vec<uint32_t, N / 4> unpack_int4_words(vec<T, N> x)
         return words ^ 0x88888888u;
 }
 
-// Byte j of x in bytes 0 and 2 of the result: [b, 0, b, 0]
+// Byte j of x in bytes 0 and 2 of the result: [b, 0, b, 0]. The perm
+// selector picks byte j of x (j < 4) and 0x0c selects a zero byte
 __device__ inline uint32_t unpack_int4_byte_pair(uint32_t x, uint32_t j)
 {
+    MIGRAPHX_ASSERT(j < 4);
     return __builtin_amdgcn_perm(x, x, 0x0c000c00u | (j << 16u) | j);
 }
 
@@ -85,7 +91,7 @@ __device__ inline uint32_t unpack_int4_byte_pair(uint32_t x, uint32_t j)
 __device__ inline vec<half, 2> unpack_int4_half_pair(uint32_t word, uint32_t j, vec<half, 2> offset)
 {
     auto p                   = unpack_int4_byte_pair(word, j);
-    auto m                   = __builtin_bit_cast(vec<half, 2>, (p & 0x00f0000fu) | 0x64006400u);
+    auto m                   = bit_cast<vec<half, 2>>((p & 0x00f0000fu) | 0x64006400u);
     const vec<half, 2> scale = {half(1), half(1.0 / 16)};
     return __builtin_elementwise_fma(m, scale, offset);
 }
@@ -116,7 +122,8 @@ __device__ vec<half, N * 2> unpack_int4_as_half(vec<U, N> x, half bias)
 template <index_int S>
 __device__ float unpack_int4_float_nibble(uint32_t word, float bias)
 {
-    auto m                = __builtin_bit_cast(float, (word & (0xfu << S)) | 0x4b000000u);
+    static_assert(S + 4 <= 23, "Nibble must fit in the float mantissa");
+    auto m                = bit_cast<float>((word & (0xfu << S)) | 0x4b000000u);
     constexpr float scale = 1.0f / (1u << S);
     return __builtin_elementwise_fma(m, scale, bias - float(1u << (23 - S)));
 }
@@ -132,7 +139,7 @@ __device__ vec<float, N * 2> unpack_int4_as_float(vec<U, N> x, float bias)
     for(index_int i = 0; i < N / 4; i++)
     {
         auto q = words[i];
-        // Nibbles 5-7 sit above the 23-bit mantissa, so shift them down first
+        // Nibbles 5-7 reach past the 23-bit mantissa, so shift them down first
         auto q12          = q >> 12u;
         result[8 * i]     = unpack_int4_float_nibble<0>(q, bias);
         result[8 * i + 1] = unpack_int4_float_nibble<4>(q, bias);
@@ -159,19 +166,16 @@ __device__ vec<T, N * 2> unpack_int4_as(vec<U, N> x, T bias)
     else if constexpr(N % 4 == 0 and is_same<T, float>{})
         return detail::unpack_int4_as_float(x, bias);
     else
-        return __builtin_convertvector(unpack_int4(x), vec<T, N * 2>) + bias;
+    {
+        vec<T, N * 2> result = implicit_conversion(unpack_int4(x));
+        return result + bias;
+    }
 }
 
-template <class T>
-__device__ vec<T, 2> unpack_int4_as(uint8_t x, T bias)
+template <class T, class U, MIGRAPHX_REQUIRES(is_integral<U>{})>
+__device__ vec<T, 2> unpack_int4_as(U x, T bias)
 {
-    return unpack_int4_as<T>(vec<uint8_t, 1>{x}, bias);
-}
-
-template <class T>
-__device__ vec<T, 2> unpack_int4_as(int8_t x, T bias)
-{
-    return unpack_int4_as<T>(vec<int8_t, 1>{x}, bias);
+    return unpack_int4_as<T>(vec<U, 1>{x}, bias);
 }
 
 template <int Axis, class Output, class Input>
@@ -182,18 +186,10 @@ __device__ void unpack_int4(Output output, Input input)
     make_index().global_stride(input_shape.elements(), [&](auto i) {
         auto idx = input_shape.multi(i);
         idx[Axis] *= 2;
-        const auto input_val = input[i];
-
-        // unpack_int4 op's normalize_compute_shape will ensure that Input::type is either uint8_t
-        // or int8_t
-        if constexpr(is_unsigned<typename Input::type>{})
-            output[idx] = input_val & 0xfu;
-        else
-            // NOLINTNEXTLINE (hicpp-signed-bitwise)
-            output[idx] = static_cast<int8_t>(static_cast<uint8_t>(input_val) << 4) >> 4;
-
+        auto values = unpack_int4(input[i]);
+        output[idx] = values[0];
         idx[Axis] += 1;
-        output[idx] = input_val >> 4;
+        output[idx] = values[1];
     });
 }
 

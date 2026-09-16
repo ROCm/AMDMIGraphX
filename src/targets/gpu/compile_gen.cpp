@@ -308,16 +308,6 @@ std::string make_transformer_args(std::vector<std::string> transformers)
     return join_strings(std::move(transformers), ", ");
 }
 
-/// The pointwise module as it is generated: quantization ops rewritten and
-/// the module simplified
-static module prepare_pointwise(const module& pm)
-{
-    module m = pm;
-    run_passes(m, {rewrite_quantization{}, optimize_module{}});
-    m.sort();
-    return m;
-}
-
 static void generate_prepared_pointwise(cpp_generator& gg,
                                         const module& m,
                                         const std::string& name,
@@ -347,7 +337,10 @@ static void generate_pointwise(cpp_generator& gg,
                                const std::string& name,
                                bool always_return_tuple = false)
 {
-    generate_prepared_pointwise(gg, prepare_pointwise(pm), name, always_return_tuple);
+    module m = pm;
+    run_passes(m, {rewrite_quantization{}, optimize_module{}});
+    m.sort();
+    generate_prepared_pointwise(gg, m, name, always_return_tuple);
 }
 
 std::string generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple)
@@ -505,8 +498,8 @@ static std::vector<std::size_t> get_rlens(const module& m)
 
 std::string generate_reduce(const module& m, const std::string& name)
 {
-    // A program of its own, so the rewrites never touch the program being
-    // compiled; the fused modules drop their bypass flag so the passes prepare them
+    // Copy into a private program so the rewrites dont touch the module being
+    // compiled, and clear bypass so run_passes visits the fused submodules
     program p{m};
     for(auto* mod : p.get_modules())
         mod->set_bypass(false);
@@ -576,8 +569,8 @@ std::string generate_reduce(const module& m, const std::string& name)
         {
             return names.at(ins->inputs().front());
         }
-        // The packed input is vectorized by half of the vector size so each
-        // element unpacks into a full vector along the reduction
+        // Packed inputs are read at half the vector size, so unpacking a packed
+        // vector (plain or with the convert folded in) yields a full-width vector
         if(ins->name() == "unpack_int4")
         {
             return "r.lazy_inner(MIGRAPHX_LIFT(migraphx::unpack_int4))(" +

@@ -117,7 +117,7 @@ program::program(module m) : impl(std::make_unique<program_impl>())
         mod_map[sm] = this->create_module(sm->name(), *sm);
     }
     replace_module_refs(*root, mod_map);
-    for(auto&& pp : mod_map)
+    for(const auto& pp : mod_map)
         replace_module_refs(*pp.second, mod_map);
 }
 

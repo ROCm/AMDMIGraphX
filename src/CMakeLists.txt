@@ -147,7 +147,6 @@ add_library(migraphx
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
-    subprocess.cpp
     sym.cpp
     sym_argument.cpp
     target.cpp

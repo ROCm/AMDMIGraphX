@@ -38,8 +38,8 @@
 #include <unistd.h>
 #endif
 
-// CRLF translation would corrupt both the msgpack request and the code object. Nothing restores the
-// old mode: each stream is used once and the process exits straight after.
+// CRLF translation would corrupt both the msgpack request and the msgpack reply. Nothing restores
+// the old mode: each stream is used once and the process exits straight after.
 // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setmode?view=msvc-170
 static void set_binary_mode([[maybe_unused]] FILE* stream)
 {
@@ -65,7 +65,7 @@ static std::vector<char> read_stdin()
 }
 
 // stdout is a binary channel: nothing else in this process may write to it, or the parent reads a
-// corrupted code object.
+// corrupted reply.
 static void write_stdout(const std::vector<char>& buffer)
 {
     set_binary_mode(stdout);
@@ -75,14 +75,15 @@ static void write_stdout(const std::vector<char>& buffer)
         MIGRAPHX_THROW("Failed flushing stdout");
 }
 
-// stderr, not stdout: stdout is reserved for the code object.
+// stderr, not stdout: stdout is reserved for the reply.
 static void print_usage()
 {
     std::cerr << "USAGE:" << std::endl;
     std::cerr << "    ";
     std::cerr << "Used internally by migraphx to compile hip programs out-of-process." << std::endl;
     std::cerr << "    ";
-    std::cerr << "Reads a compile request on stdin and writes a code object to stdout."
+    std::cerr << "Reads a msgpack compile request on stdin and writes a msgpack reply, carrying "
+                 "the code object, to stdout."
               << std::endl;
 }
 
@@ -124,7 +125,13 @@ int main(int argc, char const* argv[])
                                                        v.at("params").to_vector<std::string>(),
                                                        v.at("arch").to<std::string>(),
                                                        quiet);
-        write_stdout(out.front());
+        if(out.empty())
+            MIGRAPHX_THROW("hiprtc produced no code object");
+        // A msgpack map rather than the raw bytes, so the reply can carry more than the code object
+        // later on without the parent having to guess at what it received.
+        migraphx::value reply;
+        reply["code_object"] = migraphx::value::binary{out.front()};
+        write_stdout(migraphx::to_msgpack(reply));
     }
     catch(const std::exception& err)
     {

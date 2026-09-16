@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <functional>
 #include <string>
 #include <memory>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,6 +60,15 @@ struct MIGRAPHX_EXPORT process
     void exec();
     void write(std::function<void(writer)> pipe_in);
     void read(const writer& output) const;
+
+    /// Feed the child `pipe_in`'s bytes on stdin while concurrently draining its stdout, then hand
+    /// the collected stdout to `output`. Doing both at once is what makes a request larger than the
+    /// pipe buffer possible; write() followed by read() would deadlock. Unlike the other methods
+    /// this one spawns the command directly rather than through a shell, and leaves stderr
+    /// inherited instead of merging it into stdout, so stdout stays a clean binary channel. cwd()
+    /// and env() are not supported here. Throws if the child cannot be spawned, exits non-zero, or
+    /// terminates abnormally.
+    void read_write(std::function<void(writer)> pipe_in, const writer& output);
 
     private:
     std::unique_ptr<process_impl> impl;

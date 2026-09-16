@@ -165,13 +165,10 @@ TEST_CASE(environment_variable)
     EXPECT(buffer == reversed);
 }
 
-// ---------------------------------------------------------------------------------------------
 // read_write: stdin and stdout pumped at the same time.
-//
-// Every child mode below is introduced by this token, so anything else on the command line belongs
-// to the modes above or to test::run and its --list / --start-from / case-filter handling.
-// ---------------------------------------------------------------------------------------------
 
+// Introduces every child mode below, so all other argv stays with the modes above and with
+// test::run's own --list / --start-from / case filters.
 static const char* const child_flag = "--migraphx-read-write-child";
 
 // A payload with every byte value in it, so a text-mode stdout that mangles \n or truncates at \0
@@ -192,11 +189,9 @@ static std::vector<char> read_write_child(const std::vector<std::string>& mode_a
     args.insert(args.end(), mode_args.begin(), mode_args.end());
     std::vector<char> result;
     migraphx::process{executable, args}.read_write(
-        [&](const auto& writer) {
-            if(not data.empty())
-                writer(data.data(), data.size());
-        },
+        [&](const auto& writer) { writer(data.data(), data.size()); },
         [&](const char* buf, std::size_t n) {
+            // read_write calls this exactly once, but data() is null when the child wrote nothing.
             if(n > 0)
                 result.assign(buf, buf + n);
         });
@@ -212,7 +207,6 @@ TEST_CASE(read_write_text)
 
 TEST_CASE(read_write_binary)
 {
-    // Includes embedded nulls and stray CR and LF bytes.
     auto data = make_payload(4096);
     EXPECT(read_write_child({"echo", "1"}, data) == data);
 }
@@ -373,16 +367,6 @@ static void set_binary_mode()
 #endif
 }
 
-static std::vector<char> child_read_stdin()
-{
-    std::vector<char> result;
-    std::array<char, 1024> buffer{};
-    std::size_t len = 0;
-    while((len = std::fread(buffer.data(), 1, buffer.size(), stdin)) > 0)
-        result.insert(result.end(), buffer.begin(), buffer.begin() + len);
-    return result;
-}
-
 static void child_write(const std::vector<char>& data)
 {
     // fwrite with a null pointer is undefined even for a zero count, and data() may be null for an
@@ -421,14 +405,14 @@ static int run_child(const std::vector<std::string>& args)
     }
     if(mode == "echo-then-fail")
     {
-        child_write(child_read_stdin());
+        child_write(read_stdin());
         std::fflush(stdout);
         return 3;
     }
     if(mode == "echo")
     {
         auto repeat = std::stoul(args.at(1));
-        auto data   = child_read_stdin();
+        auto data   = read_stdin();
         if(migraphx::contains(args, std::string{"noise"}))
             std::cerr << std::string(8192, 'x') << std::endl;
         for(std::size_t i = 0; i < repeat; i++)

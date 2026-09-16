@@ -52,6 +52,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <limits>
 #include <numeric>
 #include <functional>
@@ -397,13 +398,11 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
 // ---------------------------------------------------------------------------------------------
 // Bidirectional exec, backing process::read_write.
 //
-// The exec helpers above each own a single pipe, which is all popen can give us and all the other
-// process methods need. read_write has to write the child's stdin and drain its stdout at the same
-// time: a request larger than the 64 KB pipe buffer deadlocks if the two are done in sequence, and
-// hipRTC compile requests are an order of magnitude larger than that. So this path spawns the child
-// directly -- no shell -- and pumps both pipes from one thread, with overlapped I/O on Windows and
-// poll() on POSIX. stderr is inherited rather than merged into stdout, so stdout stays a clean
-// binary channel.
+// The exec helpers above each own a single pipe -- all popen can give us, and all the other process
+// methods need. read_write must pump both directions at once: a request larger than the 64 KB pipe
+// buffer deadlocks if write and read are sequenced, and hipRTC compile requests are an order of
+// magnitude larger than that. Both pipes are driven from one thread, with overlapped I/O on Windows
+// and poll() on POSIX.
 //
 // Derived from rocFFT's shared/subprocess.h (Copyright (C) 2024 Advanced Micro Devices, Inc., MIT).
 // ---------------------------------------------------------------------------------------------
@@ -412,9 +411,8 @@ namespace {
 
 struct exec_result
 {
-    /// Zero means the child exited normally with status zero. -1 means it did not exit normally at
-    /// all -- killed by a signal on POSIX, or terminated by an SEH exception on Windows. Any other
-    /// value is the child's own exit status.
+    /// The child's exit status, or -1 if it did not exit normally at all -- killed by a signal on
+    /// POSIX, terminated by an SEH exception on Windows.
     int exit_code = 0;
     std::vector<char> stdout_data{};
 };
@@ -482,7 +480,7 @@ void make_pipe(handle_wrapper& read, handle_wrapper& write, bool async_read)
                                   std::to_string(GetCurrentThreadId()) + "_" +
                                   std::to_string(reinterpret_cast<std::uintptr_t>(&read)); // NOLINT
 
-    SECURITY_ATTRIBUTES sa;
+    SECURITY_ATTRIBUTES sa{};
     sa.nLength              = sizeof(SECURITY_ATTRIBUTES);
     sa.bInheritHandle       = TRUE;
     sa.lpSecurityDescriptor = nullptr;
@@ -551,9 +549,10 @@ struct proc_thread_attribute_list
         SIZE_T size = 0;
         // Always fails; it only reports the required size.
         InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
-        // std::allocator<char> goes through ::operator new, which is aligned for any fundamental
-        // type, so the attribute list is suitably aligned.
-        storage.resize(size);
+        assert(size > 0);
+        // Held as max_align_t rather than char so the alignment the cast below needs is guaranteed
+        // by the element type instead of by whatever std::allocator<char> happens to do.
+        storage.resize((size + sizeof(std::max_align_t) - 1) / sizeof(std::max_align_t));
         auto* attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(storage.data()); // NOLINT
         if(InitializeProcThreadAttributeList(attributes, 1, 0, &size) == FALSE)
             throw_error(GetLastError(), "Failed to initialize process attribute list");
@@ -581,7 +580,7 @@ struct proc_thread_attribute_list
             DeleteProcThreadAttributeList(list);
     }
 
-    std::vector<char> storage{};
+    std::vector<std::max_align_t> storage{};
     LPPROC_THREAD_ATTRIBUTE_LIST list = nullptr;
 };
 
@@ -777,8 +776,8 @@ exec_result exec_read_write(const std::string& cmd,
     // Returns false once the child has closed stdout.
     auto issue_read = [&] {
         // Grow before issuing: the buffer must not move while a read is pending.
+        assert(not read_io.active);
         stdout_data.resize(total_bytes_read + read_chunk_size);
-        assert(stdout_data.size() - total_bytes_read >= read_chunk_size);
         if(ReadFile(child_stdout_read.get(),
                     stdout_data.data() + total_bytes_read,
                     read_chunk_size,
@@ -805,6 +804,9 @@ exec_result exec_read_write(const std::string& cmd,
     bool reading = issue_read();
     while(reading)
     {
+        // The shortened wait is only correct because finish_writing() hands slot 1 to the process
+        // handle as it clears `writing`; otherwise we would stop watching the child for death.
+        assert(writing or handles[1] == process_handle.get());
         auto wait_result = WaitForMultipleObjects(writing ? 3 : 2, handles.data(), FALSE, INFINITE);
         if(wait_result == WAIT_OBJECT_0)
         {
@@ -998,13 +1000,24 @@ constexpr std::size_t write_chunk_size = 4096;
 // obscure what it does.
 struct pipe_pump
 {
+    pipe_pump(const std::vector<char>& data, fd_wrapper& write_end, fd_wrapper& read_end)
+        : stdin_data(data), stdin_write(write_end), stdout_read(read_end)
+    {
+        fds[0].fd     = stdin_write.get();
+        fds[0].events = POLLOUT;
+        fds[1].fd     = stdout_read.get();
+        fds[1].events = POLLIN;
+        if(stdin_data.empty())
+            finish_writing();
+    }
+
     const std::vector<char>& stdin_data;
     fd_wrapper& stdin_write;
     fd_wrapper& stdout_read;
     std::array<pollfd, 2> fds{};
     std::size_t total_bytes_written = 0;
+    std::size_t total_bytes_read    = 0;
     std::vector<char> stdout_data{};
-    std::vector<char> buffer = std::vector<char>(read_chunk_size);
 
     // Stop feeding the child and let it see EOF. A negative fd is ignored by poll.
     void finish_writing()
@@ -1050,7 +1063,11 @@ struct pipe_pump
             return not has_event(fds[1].revents, POLLHUP) and
                    not has_event(fds[1].revents, POLLERR);
         }
-        auto bytes_read = ::read(stdout_read.get(), buffer.data(), buffer.size());
+        // Read straight into the result rather than via a scratch buffer, so a multi-megabyte code
+        // object is not copied a second time on its way out.
+        stdout_data.resize(total_bytes_read + read_chunk_size);
+        auto bytes_read =
+            ::read(stdout_read.get(), stdout_data.data() + total_bytes_read, read_chunk_size);
         if(bytes_read < 0)
         {
             if(errno == EINTR)
@@ -1060,8 +1077,15 @@ struct pipe_pump
         // A zero-length read on a pipe means every write end is closed.
         if(bytes_read == 0)
             return false;
-        stdout_data.insert(stdout_data.end(), buffer.data(), buffer.data() + bytes_read);
+        total_bytes_read += static_cast<std::size_t>(bytes_read);
         return true;
+    }
+
+    // Drop the slack left by the last resize. Must not be called with a read outstanding.
+    std::vector<char> take_stdout()
+    {
+        stdout_data.resize(total_bytes_read);
+        return std::move(stdout_data);
     }
 };
 
@@ -1133,12 +1157,6 @@ exec_result exec_read_write(const std::string& cmd,
     child_stdout_write.close();
 
     pipe_pump pump{stdin_data, child_stdin_write, child_stdout_read};
-    pump.fds[0].fd     = child_stdin_write.get();
-    pump.fds[0].events = POLLOUT;
-    pump.fds[1].fd     = child_stdout_read.get();
-    pump.fds[1].events = POLLIN;
-    if(stdin_data.empty())
-        pump.finish_writing();
 
     sigpipe_blocker no_sigpipe;
     for(;;)
@@ -1161,7 +1179,7 @@ exec_result exec_read_write(const std::string& cmd,
     int wait_status = child.wait();
     // Report a signalled child as a generic failure; the caller only needs "did it work".
     int exit_code = WIFSIGNALED(wait_status) ? -1 : WEXITSTATUS(wait_status); // NOLINT
-    return {exit_code, std::move(pump.stdout_data)};
+    return {exit_code, pump.take_stdout()};
 }
 
 #endif
@@ -1170,13 +1188,14 @@ exec_result exec_read_write(const std::string& cmd,
 
 struct process_impl
 {
-    std::string args{};
     std::string envs{};
     std::string command{};
     fs::path cwd{};
-    // The individual arguments, which `args` has already joined into a shell word. read_write
-    // spawns the command directly instead of through a shell, so it needs the real argv back.
+    // read_write spawns the command directly instead of through a shell, so the arguments are kept
+    // unjoined and the shell-facing form is built on demand.
     std::vector<std::string> arg_list{};
+
+    std::string args() const { return join_strings(arg_list, " "); }
 
     std::string get_command() const
     {
@@ -1186,8 +1205,8 @@ struct process_impl
         if(not envs.empty())
             result += envs + " ";
         result += command;
-        if(not args.empty())
-            result += " " + args;
+        if(not arg_list.empty())
+            result += " " + args();
         return result;
     }
 
@@ -1206,8 +1225,6 @@ process::process(const std::string& cmd, const std::vector<std::string>& args)
 {
     impl->command  = cmd;
     impl->arg_list = args;
-    if(not args.empty())
-        impl->args = join_strings(args, " ");
 }
 
 process::process(process&&) noexcept = default;
@@ -1248,7 +1265,7 @@ void process::read(const writer& output) const
                                CREATE_ALWAYS,
                                FILE_ATTRIBUTE_NORMAL,
                                nullptr);
-    impl->check_exec(impl->command, impl->cwd.string(), impl->args, impl->envs,
+    impl->check_exec(impl->command, impl->cwd.string(), impl->args(), impl->envs,
                      handle == nullptr or handle == INVALID_HANDLE_VALUE ?
                                      GetStdHandle(STD_OUTPUT_HANDLE) : handle);
     CloseHandle(handle);
@@ -1281,7 +1298,7 @@ void process::exec()
     impl->check_exec(impl->get_command(), redirect_to(std::cout));
 #else
     // clang-format off
-    impl->check_exec(impl->command, impl->cwd.string(), impl->args, impl->envs,
+    impl->check_exec(impl->command, impl->cwd.string(), impl->args(), impl->envs,
                      GetStdHandle(STD_OUTPUT_HANDLE));
     // clang-format on
 #endif
@@ -1294,7 +1311,7 @@ void process::write(std::function<void(writer)> pipe_in)
 #else
     // clang-format off
     impl->check_exec(impl->command, impl->cwd.string(),
-                     impl->args, impl->envs, std::move(pipe_in));
+                     impl->args(), impl->envs, std::move(pipe_in));
     // clang-format on
 #endif
 }
@@ -1307,8 +1324,9 @@ void process::read_write(std::function<void(writer)> pipe_in, const writer& outp
         MIGRAPHX_THROW("Command " + impl->get_command() +
                        " uses read_write, which does not support cwd or env");
 
-    // Collected up front rather than streamed: pipe_in pushes, so interleaving it with the drain
-    // would take a second thread, and every caller already has its request in memory anyway.
+    // Collected up front rather than streamed: pipe_in pushes, and the pump has to hand the kernel
+    // a contiguous buffer it can keep re-offsetting into across many poll iterations. Interleaving
+    // the two would take a second thread.
     std::vector<char> stdin_data;
     pipe_in([&](const char* buffer, std::size_t n) {
         // An empty write may hand us a null pointer, which is not a valid range even for a count

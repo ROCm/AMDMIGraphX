@@ -61,13 +61,12 @@ struct MIGRAPHX_EXPORT process
     void write(std::function<void(writer)> pipe_in);
     void read(const writer& output) const;
 
-    /// Feed the child `pipe_in`'s bytes on stdin while concurrently draining its stdout, then hand
-    /// the collected stdout to `output`. Doing both at once is what makes a request larger than the
-    /// pipe buffer possible; write() followed by read() would deadlock. Unlike the other methods
-    /// this one spawns the command directly rather than through a shell, and leaves stderr
-    /// inherited instead of merging it into stdout, so stdout stays a clean binary channel. cwd()
-    /// and env() are not supported here. Throws if the child cannot be spawned, exits non-zero, or
-    /// terminates abnormally.
+    /// Writes the bytes `pipe_in` produces to the child's stdin while concurrently draining its
+    /// stdout; done in sequence, a request larger than the pipe buffer would deadlock. `output` is
+    /// invoked exactly once, with the whole of stdout. Spawns directly rather than through a shell
+    /// and never merges stderr into stdout, so stdout stays a clean binary channel; cwd() and env()
+    /// are unsupported. Throws if the child cannot be spawned, exits non-zero, or terminates
+    /// abnormally.
     void read_write(std::function<void(writer)> pipe_in, const writer& output);
 
     private:

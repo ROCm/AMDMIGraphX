@@ -268,29 +268,12 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         v["quiet"]  = quiet;
 
         // The msgpack request goes out on the driver's stdin and a msgpack reply comes back on its
-        // stdout; read_write throws if the driver fails, having let it log to our stderr.
-        std::vector<char> reply;
-        process{driver}.read_write(
-            [&](const auto& writer) {
-                auto request = to_msgpack(v);
-                writer(request.data(), request.size());
-            },
-            [&](const char* data, std::size_t n) {
-                if(n > 0)
-                    reply.assign(data, data + n);
-            });
-
+        // stdout; read_write throws if the driver fails, having let it log to our stderr. Both
+        // directions stream, so neither multi-megabyte payload is buffered a second time.
         value response;
-        try
-        {
-            response = from_msgpack(reply);
-        }
-        catch(const std::exception& e)
-        {
-            MIGRAPHX_THROW("hiprtc driver returned a malformed reply: " + std::string{e.what()});
-        }
-        if(not response.contains("code_object"))
-            MIGRAPHX_THROW("hiprtc driver reply contains no code object");
+        process{driver}.read_write(
+            [&](const auto& writer) { to_msgpack(v, writer); },
+            [&](const char* data, std::size_t n) { response = from_msgpack(data, n); });
         const auto& code_obj = response.at("code_object").get_binary();
         // Not a braced return: that would pick the initializer_list constructor and copy.
         std::vector<std::vector<char>> code_objs;

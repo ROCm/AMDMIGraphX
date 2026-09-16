@@ -28,6 +28,7 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/ranges.hpp>
 #include <array>
+#include <cassert>
 #include <iostream>
 #include <cstdio>
 
@@ -65,12 +66,16 @@ static std::vector<char> read_stdin()
 }
 
 // stdout is a binary channel: nothing else in this process may write to it, or the parent reads a
-// corrupted reply.
-static void write_stdout(const std::vector<char>& buffer)
+// corrupted reply. Takes a producer rather than a buffer so the reply, which carries the whole code
+// object, is written as it is serialized instead of being materialized twice.
+template <class F>
+static void write_stdout(const F& produce)
 {
     set_binary_mode(stdout);
-    if(std::fwrite(buffer.data(), 1, buffer.size(), stdout) != buffer.size())
-        MIGRAPHX_THROW("Failed writing code object to stdout");
+    produce([](const char* data, std::size_t n) {
+        if(std::fwrite(data, 1, n, stdout) != n)
+            MIGRAPHX_THROW("Failed writing reply to stdout");
+    });
     if(std::fflush(stdout) != 0)
         MIGRAPHX_THROW("Failed flushing stdout");
 }
@@ -87,8 +92,8 @@ static void print_usage()
               << std::endl;
 }
 
-// True when stdin is a terminal, i.e. nobody piped a request in. Without this a bare invocation
-// would silently block in fread waiting for a human to type msgpack.
+// Without this, a bare invocation would silently block in fread waiting for a human to type
+// msgpack.
 static bool stdin_is_interactive()
 {
 #ifdef _WIN32
@@ -100,8 +105,8 @@ static bool stdin_is_interactive()
 
 int main(int argc, char const* argv[])
 {
-    // The compile request arrives on stdin and the code object leaves on stdout, so no arguments
-    // are expected in normal operation.
+    // Request and reply are both msgpack on stdin/stdout, so no arguments are expected in normal
+    // operation.
     if(argc > 1)
     {
         print_usage();
@@ -125,13 +130,13 @@ int main(int argc, char const* argv[])
                                                        v.at("params").to_vector<std::string>(),
                                                        v.at("arch").to<std::string>(),
                                                        quiet);
-        if(out.empty())
-            MIGRAPHX_THROW("hiprtc produced no code object");
+        // compile_hip_src_with_hiprtc throws on an empty code object and returns exactly one.
+        assert(not out.empty());
         // A msgpack map rather than the raw bytes, so the reply can carry more than the code object
         // later on without the parent having to guess at what it received.
         migraphx::value reply;
         reply["code_object"] = migraphx::value::binary{out.front()};
-        write_stdout(migraphx::to_msgpack(reply));
+        write_stdout([&](auto writer) { migraphx::to_msgpack(reply, writer); });
     }
     catch(const std::exception& err)
     {

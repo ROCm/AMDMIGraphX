@@ -2408,39 +2408,6 @@ TEST_CASE(module_print_symbolic_shape_strides)
                migraphx::shape::float_type, {"n({[1..8]})", "3"}, {"1", "n({[1..8]})"}) == s);
 }
 
-// A partly symbolic shape is not symbolic(), and make_symbolic_shape cannot express a range
-// dimension, so it is spelled dimension by dimension instead.
-TEST_CASE(module_print_symbolic_shape_mixed_with_range)
-{
-    migraphx::shape s{migraphx::shape::float_type,
-                      {migraphx::shape::dynamic_dimension{migraphx::sym::var("n", {1, 8})},
-                       migraphx::shape::dynamic_dimension{3, 5}}};
-    EXPECT(not s.symbolic());
-    EXPECT(migraphx::contains(
-        printed_cpp(s),
-        R"code({migraphx::shape::make_symbolic_dynamic_dimension("n({[1..8]})"), migraphx::shape::dynamic_dimension{3, 5}})code"));
-    EXPECT(migraphx::contains(
-        printed_py(s),
-        R"code(dyn_dims=[migraphx.shape.dynamic_dimension("n({[1..8]})"), migraphx.shape.dynamic_dimension(3, 5)])code"));
-    EXPECT((migraphx::shape{migraphx::shape::float_type,
-                            {migraphx::shape::make_symbolic_dynamic_dimension("n({[1..8]})"),
-                             migraphx::shape::dynamic_dimension{3, 5}}}) == s);
-}
-
-TEST_CASE(module_print_symbolic_shape_multiple_constraints_mixed_with_range)
-{
-    auto n = migraphx::sym::var("n", {{1, 20}, {2, 10}}, {std::int64_t{4}});
-    migraphx::shape s{
-        migraphx::shape::float_type,
-        {migraphx::shape::dynamic_dimension{n}, migraphx::shape::dynamic_dimension{3, 5}}};
-    EXPECT(migraphx::contains(
-        printed_cpp(s),
-        R"code(migraphx::shape::make_symbolic_dynamic_dimension("n({[1..20], [2..10]}, {4})"))code"));
-    EXPECT(migraphx::contains(
-        printed_py(s),
-        R"code(migraphx.shape.dynamic_dimension("n({[1..20], [2..10]}, {4})"))code"));
-}
-
 // A range-based dynamic shape has no expression, so it keeps the bounds spelling.
 TEST_CASE(module_print_dyn_range_shape_stays_readable)
 {

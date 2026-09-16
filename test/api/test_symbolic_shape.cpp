@@ -54,11 +54,19 @@ TEST_CASE(create_symbolic_dynamic_shape)
 {
     migraphx::dynamic_dimensions dyn_dims(
         migraphx::dynamic_dimension{"n", {{"n", migraphx::dynamic_dimension{1, 4}}}},
-        migraphx::dynamic_dimension{3, 3});
+        migraphx::dynamic_dimension{"3"});
     migraphx::shape s{migraphx_shape_float_type, dyn_dims};
     EXPECT(s.dynamic());
     EXPECT(s.dyn_dims()[0].is_symbolic());
-    EXPECT(not s.dyn_dims()[1].is_symbolic());
+    EXPECT(s.dyn_dims()[1].is_symbolic());
+}
+
+TEST_CASE(create_mixed_dynamic_shape_throws)
+{
+    migraphx::dynamic_dimensions dyn_dims(
+        migraphx::dynamic_dimension{"n", {{"n", migraphx::dynamic_dimension{1, 4}}}},
+        migraphx::dynamic_dimension{3, 3});
+    EXPECT(test::throws([&] { return migraphx::shape{migraphx_shape_float_type, dyn_dims}; }));
 }
 
 TEST_CASE(make_symbolic_shape)

@@ -250,6 +250,8 @@ struct MIGRAPHX_EXPORT shape
     shape(type_t t, std::initializer_list<std::size_t> d);
     shape(type_t t, std::initializer_list<std::size_t> l, std::initializer_list<std::size_t> s);
 
+    // A dynamic shape's dimensions must be either all symbolic or all range-based. Explicit
+    // dynamic strides are supported only for symbolic dimensions.
     shape(type_t t, std::vector<dynamic_dimension> dims);
     shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<sym::expr> dstrides);
 

@@ -2561,14 +2561,20 @@ TEST_CASE(value_roundtrip_symbolic_non_standard_strides)
     EXPECT(value_shape_roundtrips(s));
 }
 
-// A partly symbolic shape is not symbolic(), so it decodes with no dyn_strides while still
-// carrying a symbolic dimension.
-TEST_CASE(value_roundtrip_symbolic_mixed_with_range)
+TEST_CASE(mixed_dynamic_dimensions_throw)
 {
     auto n = var("n", {1, 8});
-    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{3, 5}}};
-    EXPECT(not s.symbolic());
-    EXPECT(value_shape_roundtrips(s));
+    EXPECT(test::throws(
+        [&] { return migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{3, 5}}}; }));
+}
+
+TEST_CASE(non_symbolic_dynamic_dimensions_with_strides_throw)
+{
+    EXPECT(test::throws([] {
+        return migraphx::shape{migraphx::shape::float_type,
+                               std::vector<dd>{{1, 4}, {3, 5}},
+                               std::vector<migraphx::sym::expr>{lit(3), lit(1)}};
+    }));
 }
 
 TEST_CASE(make_symbolic_shape_dims)

@@ -54,12 +54,26 @@ def test_create_symbolic_dyn_shape():
     dds = [
         migraphx.shape.dynamic_dimension(
             "n", {"n": migraphx.shape.dynamic_dimension(1, 4)}),
-        migraphx.shape.dynamic_dimension(3, 3)
+        migraphx.shape.dynamic_dimension("3")
     ]
     s = migraphx.shape(type='float', dyn_dims=dds)
     assert s.dynamic()
     assert s.dyn_dims()[0].is_symbolic()
-    assert not s.dyn_dims()[1].is_symbolic()
+    assert s.dyn_dims()[1].is_symbolic()
+
+
+def test_create_mixed_dyn_shape_raises():
+    dds = [
+        migraphx.shape.dynamic_dimension(
+            "n", {"n": migraphx.shape.dynamic_dimension(1, 4)}),
+        migraphx.shape.dynamic_dimension(3, 3)
+    ]
+    try:
+        migraphx.shape(type='float', dyn_dims=dds)
+    except RuntimeError:
+        pass
+    else:
+        assert False, "expected mixed dynamic dimensions to be rejected"
 
 
 def test_create_symbolic_shape_from_strings():
@@ -132,14 +146,13 @@ def test_to_py_preserves_symbolic_expression():
         type='float',
         dyn_dims=[
             migraphx.shape.dynamic_dimension("n({[1..8]}) * 3 + 1"),
-            migraphx.shape.dynamic_dimension(3, 3)
+            migraphx.shape.dynamic_dimension("3")
         ])
     m.add_return(
         [m.add_instruction(migraphx.op("neg"), [m.add_parameter("x", s)])])
 
     code = p.to_py()
-    # The second dimension is range-based, so this is the per-dimension spelling.
-    assert not s.symbolic()
+    assert s.symbolic()
     assert '"3*n({[1..8]}) + 1"' in code
 
     # The generated code has to rebuild an equal program, expression included; sort() normalizes
@@ -165,26 +178,6 @@ def test_to_py_preserves_symbolic_strides():
     assert "dyn_strides" in code
     scope = {"migraphx": migraphx}
     exec(code, scope)
-    assert scope["p"].get_parameter_shapes()["x"] == s
-
-
-# make_symbolic_shape cannot express a range dimension, so a partly symbolic shape is printed
-# dimension by dimension instead.
-def test_to_py_mixed_symbolic_and_range():
-    p = migraphx.program()
-    m = p.get_main_module()
-    s = migraphx.shape(
-        type='float',
-        dyn_dims=[
-            migraphx.shape.dynamic_dimension("n({[1..20], [2..10]}, {4})"),
-            migraphx.shape.dynamic_dimension(3, 5)
-        ])
-    m.add_return(
-        [m.add_instruction(migraphx.op("neg"), [m.add_parameter("x", s)])])
-
-    assert not s.symbolic()
-    scope = {"migraphx": migraphx}
-    exec(p.to_py(), scope)
     assert scope["p"].get_parameter_shapes()["x"] == s
 
 
@@ -226,6 +219,7 @@ if __name__ == "__main__":
     test_create_symbolic_dyn_dims()
     test_create_symbolic_compound_expr()
     test_create_symbolic_dyn_shape()
+    test_create_mixed_dyn_shape_raises()
     test_create_symbolic_shape_from_strings()
     test_create_symbolic_shape_compound_expression()
     test_create_symbolic_shape_with_strides()
@@ -234,6 +228,5 @@ if __name__ == "__main__":
     test_symbol_name_must_be_an_identifier()
     test_to_py_preserves_symbolic_expression()
     test_to_py_preserves_symbolic_strides()
-    test_to_py_mixed_symbolic_and_range()
     test_to_py_preserves_dyn_dim_optimals()
     test_parse_onnx_symbolic_dyn_input()

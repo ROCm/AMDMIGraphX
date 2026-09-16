@@ -185,15 +185,16 @@ braced argument contains the optimals::
 To specify optimals without constraints, pass an empty first argument, for example
 ``"n({}, {2, 4})"``.
 
+A dynamic shape's dimensions must be either all symbolic or all range-based. Use a symbolic
+literal such as ``"3"`` for a fixed axis in a symbolic shape rather than mixing in
+``dynamic_dimension(3, 3)``.
+
 Pass ``dyn_strides`` for a transposed or broadcasted layout; without it an all-symbolic shape is
 given packed standard strides. Each stride is also a self-contained symbolic expression::
 
     s = migraphx.shape(type="float_type",
                        dyn_dims=["n({[1..8]})", "3"],
                        dyn_strides=["1", "n({[1..8]})"])
-
-A shape that mixes symbolic and range-based dimensions is built dimension by dimension instead,
-with :py:class:`dynamic_dimension` taking the self-contained expression directly.
 
 
 argument

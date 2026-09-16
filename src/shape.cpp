@@ -79,7 +79,13 @@ struct shape_impl
     shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)
         : m_type(t), m_dyn_dims(std::move(dims))
     {
-        if(all_dims_symbolic())
+        const bool all_symbolic = all_dims_symbolic();
+        if(not all_symbolic and std::any_of(m_dyn_dims.begin(),
+                                            m_dyn_dims.end(),
+                                            [](const auto& d) { return d.is_symbolic(); }))
+            MIGRAPHX_THROW(
+                "SHAPE: dynamic dimensions must be either all symbolic or all range-based");
+        if(all_symbolic)
         {
             calculate_dyn_strides();
             m_standard = true;
@@ -92,6 +98,8 @@ struct shape_impl
         : m_type(t), m_dyn_dims(std::move(dims)), m_dyn_strides(std::move(dstrides))
     {
         assert(m_dyn_strides.size() == m_dyn_dims.size());
+        if(not m_dyn_dims.empty() and not all_dims_symbolic())
+            MIGRAPHX_THROW("SHAPE: dynamic strides require all dimensions to be symbolic");
         assert(std::all_of(m_dyn_strides.begin(), m_dyn_strides.end(), [](const auto& s) {
             return sym::to<int64_t>(s.eval_interval().min) >= 0;
         }));
@@ -1383,10 +1391,7 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
             {
                 if(i > 0)
                     os << ", ";
-                if(dd[i].is_symbolic())
-                    os << dd[i];
-                else
-                    os << dd[i].get_interval().min;
+                os << dd[i];
             }
             os << "}, ";
             os << "{" << to_string_range(x.dyn_strides()) << "}";

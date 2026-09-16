@@ -120,6 +120,13 @@ constexpr tensor_view<T, Shape> make_tensor_view(T* x, Shape)
     return {x};
 }
 
+/// View the same elements as read-only
+template <class T, class Shape>
+constexpr tensor_view<const T, Shape> as_const(tensor_view<T, Shape> x)
+{
+    return {x.data()};
+}
+
 template <class T, class Permutation>
 constexpr auto reorder_tensor_view(T x, Permutation perm)
 {

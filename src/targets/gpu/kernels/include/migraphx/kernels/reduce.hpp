@@ -28,6 +28,7 @@
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/nontemporal.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/scatter_reduction_modes.hpp>
@@ -478,8 +479,14 @@ struct reducer_base
         {
             auto&& derived = static_cast<const Derived&>(*this);
             auto t         = derived.slice(x);
-            return make_storage_access<typename decltype(t)::type>(
-                [=](auto i, auto...) -> auto& { return t[i]; });
+            using type     = typename decltype(t)::type;
+            // Read-only inputs are streamed with nontemporal loads, outputs
+            // need a reference to the element so they are written in place
+            if constexpr(is_const<type>{})
+                return make_storage_access<type>(
+                    [=](auto i, auto...) { return load_element(t, i); });
+            else
+                return make_storage_access<type>([=](auto i, auto...) -> auto& { return t[i]; });
         }
     }
 
@@ -1168,16 +1175,16 @@ __device__ void
 simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOuput write)
 {
     Algo::template run<Output>([&](auto out_idx, auto r) {
-        auto x = r.reduce(op, init, read)(input);
+        auto x = r.reduce(op, init, read)(as_const(input));
         r.outer([&] { output[out_idx] = write(x); });
     });
 }
 
-template <class Algo, class Reduced, class Output, class Assign, class F>
-__device__ void fused_reduce(Output output_pack, Assign assign, F f)
+template <class Algo, class Reduced, class Output, class Assign, class F, class... Inputs>
+__device__ void fused_reduce(Output output_pack, Assign assign, F f, Inputs... inputs)
 {
     Algo::template run<Reduced>([&](auto out_idx, auto r) {
-        auto result_tuple = f(r, out_idx);
+        auto result_tuple = f(as_const(inputs)..., r, out_idx);
         unpack_each(
             [&](auto output, auto result) {
                 if constexpr(reduce::is_inner_storage<decltype(result)>{})

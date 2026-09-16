@@ -601,7 +601,14 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     bool no_vectorize = v.get("no_vectorize", false) and plan.packed_args.empty();
     if((plan.algo == "block" or plan.algo == "block_tile" or plan.algo == "wave") and
        plan.reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
-        plan.vec = vectorize::elements(ctx, faxis, plan.virtual_inputs);
+    {
+        // A packed input holds two elements per byte, so a full 16-byte load
+        // needs a vector of 32 logical elements
+        if(plan.packed_args.empty())
+            plan.vec = vectorize::elements(ctx, faxis, plan.virtual_inputs);
+        else
+            plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {32, 16, 8, 4, 2});
+    }
     if(not plan.packed_args.empty() and plan.vec.size < 2)
         plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {2});
     if(not plan.packed_args.empty() and plan.vec.size < 2)

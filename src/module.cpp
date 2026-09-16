@@ -1650,8 +1650,6 @@ static std::string sym_dims_string(const migraphx::shape& s)
     return join_strings(dims, ", ");
 }
 
-// Strides are only carried by an all-symbolic shape, and make_symbolic_shape recomputes packed
-// standard ones when none are given, so they are needed only for another layout.
 static bool needs_dyn_strides(const migraphx::shape& s)
 {
     return s.symbolic() and not s.standard();

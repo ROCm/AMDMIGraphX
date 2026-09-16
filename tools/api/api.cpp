@@ -220,10 +220,9 @@ static shape::dynamic_dimension make_symbolic_dynamic_dimension(
     return shape::make_symbolic_dynamic_dimension(expression, symbols);
 }
 
-// Build a symbolic shape from self-contained expression strings. The expressions arrive as C
-// arrays rather than through a handle, because std::vector<std::string> is already claimed by
-// migraphx_quantize_op_names and registering it twice would silently rebind that handle's
-// parameters.
+// Build a symbolic shape from self-contained expression strings. The C API takes explicit string
+// arrays and sizes because declaring std::vector<std::string> in the API generator would select
+// its global migraphx_quantize_op_names_t mapping and expose that unrelated opaque handle here.
 static std::vector<std::string>
 make_expression_strings(const char* const* expressions, std::size_t size, const std::string& name)
 {

@@ -246,17 +246,13 @@ class MIGRAPHX_EXPORT expr
 
 MIGRAPHX_EXPORT expr var(std::string name);
 MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
-// A variable can end up asserting more than one interval: adding two same-named
-// variables merges their metadata by unioning the constraint sets. This overload
-// is what spells that result, so every variable the library can produce is also
-// constructible.
+// Constructor allowing for multiple constraints.
 MIGRAPHX_EXPORT expr var(std::string name,
                          std::vector<interval> constraints,
                          std::set<scalar> optimals = {});
 
 // Map arbitrary external names to unique identifiers accepted by var() and parse(). Repeated
 // external names resolve identically; distinct names that sanitize alike receive numeric suffixes.
-// Keep one registry for the complete source being imported.
 class MIGRAPHX_EXPORT symbol_name_registry
 {
     public:

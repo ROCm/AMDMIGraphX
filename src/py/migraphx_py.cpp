@@ -383,9 +383,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             if(v.contains("dyn_dims"))
             {
                 const auto& dims = v.at("dyn_dims");
-                // Expression strings carry their variable metadata inline. Strides are only
-                // needed for a transposed or broadcasted layout, since make_symbolic_shape
-                // computes packed standard ones otherwise.
+                //Strides are only needed for non-standard layout.
                 if(not dims.empty() and dims.front().if_string() != nullptr)
                     return migraphx::shape::make_symbolic_shape(
                         t,

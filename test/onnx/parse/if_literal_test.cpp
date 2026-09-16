@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,13 +33,13 @@ TEST_CASE(if_literal_test)
 
     migraphx::shape s{migraphx::shape::float_type, {5}};
 
-    auto* then_mod           = p.create_module("If_1_if");
+    auto* then_mod           = p.create_module("main_If_1_if");
     std::vector<float> data1 = {1, 2, 3, 4, 5};
     auto l1                  = then_mod->add_literal(migraphx::literal(s, data1));
     then_mod->add_literal({});
     then_mod->add_return({l1});
 
-    auto* else_mod           = p.create_module("If_1_else");
+    auto* else_mod           = p.create_module("main_If_1_else");
     std::vector<float> data2 = {5, 4, 3, 2, 1};
     auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
     else_mod->add_literal({});

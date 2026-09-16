@@ -668,8 +668,9 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
 
         std::vector<instruction_ref> result;
-        std::size_t output_num   = node.output().size();
-        std::string node_name    = node.op_type() + "_" + std::to_string(mod->size());
+        std::size_t output_num = node.output().size();
+        std::string node_name =
+            mod->name() + "_" + node.op_type() + "_" + std::to_string(mod->size());
         std::string debug_symbol = make_node_debug_symbol(this->use_debug_symbols, node, node_name);
         auto guard =
             on_scope_fail([&]() noexcept { log_node_parse_exception(node, debug_symbol); });
@@ -908,10 +909,7 @@ static shape::dynamic_dimension make_symbol(const std::string& sym_name,
                                             const shape::dynamic_dimension& bounds)
 {
     auto iv = bounds.get_interval();
-    return shape::dynamic_dimension{
-        sym::var(sym_name,
-                 {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)},
-                 sym_optimals(bounds))};
+    return shape::dynamic_dimension{sym::var(sym_name, {iv.min, iv.max}, sym_optimals(bounds))};
 }
 
 static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,

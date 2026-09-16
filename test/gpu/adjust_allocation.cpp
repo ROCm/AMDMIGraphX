@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/adjust_allocation.hpp>
@@ -54,6 +55,8 @@ static void run_lowering(migraphx::program& p, bool offload_copy = false)
          migraphx::gpu::lowering{&ctx, offload_copy},
          migraphx::dead_code_elimination{},
          migraphx::eliminate_contiguous{"gpu::contiguous"},
+         migraphx::dead_code_elimination{},
+         migraphx::gpu::lower_reshape{},
          migraphx::dead_code_elimination{},
          migraphx::replace_allocate{migraphx::gpu::gpu_allocation_model{}, offload_copy},
          migraphx::dead_code_elimination{}});

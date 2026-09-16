@@ -484,6 +484,13 @@ struct MIGRAPHX_EXPORT shape
     shape to_static(std::size_t x) const;
     shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map = {}) const;
 
+    // Build a symbolic dynamic_dimension by parsing an expression string and binding each
+    // named symbol to the interval/optimals carried by its (range) dynamic_dimension.
+    // Throws if the expression is empty.
+    static dynamic_dimension make_symbolic_dynamic_dimension(
+        const std::string& expression,
+        const std::unordered_map<std::string, dynamic_dimension>& symbols);
+
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape& x);

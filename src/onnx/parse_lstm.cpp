@@ -24,7 +24,9 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/map_activation_functions.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
@@ -158,16 +160,18 @@ struct parse_lstm : op_parser<parse_lstm>
                        vec_actv_funcs.begin(),
                        [&](const auto& name) { return map_activation_functions().at(name); });
 
-        float clip = 0.0;
-        if(contains(info.attributes, "clip"))
+        // clip is not yet supported by the lstm builder
+        if(contains(info.attributes, "clip") and
+           not float_equal(parser.parse_value(info.attributes.at("clip")).at<float>(), 0.0f))
         {
-            clip = parser.parse_value(info.attributes.at("clip")).at<float>();
+            MIGRAPHX_THROW("LSTM: clip attribute is not supported");
         }
 
-        int input_forget = 0;
-        if(contains(info.attributes, "input_forget"))
+        // input_forget is not yet supported by the lstm builder
+        if(contains(info.attributes, "input_forget") and
+           parser.parse_value(info.attributes.at("input_forget")).at<int>() != 0)
         {
-            input_forget = parser.parse_value(info.attributes.at("input_forget")).at<int>();
+            MIGRAPHX_THROW("LSTM: input_forget attribute is not supported");
         }
 
         int layout = 0;
@@ -188,20 +192,14 @@ struct parse_lstm : op_parser<parse_lstm>
             lstm_transpose_inputs(info, args);
         }
 
-        // first output for concatenation of hidden states
-        auto hidden_states = info.add_instruction(make_op("lstm",
-                                                          {{"hidden_size", hidden_size},
-                                                           {"actv_func", to_value(vec_actv_funcs)},
-                                                           {"direction", dirct},
-                                                           {"clip", clip},
-                                                           {"input_forget", input_forget}}),
-                                                  args);
-
-        auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
-
-        // third output for last cell output
-        auto last_cell_output =
-            info.add_instruction(make_op("rnn_last_cell_output"), hidden_states);
+        auto results =
+            op::builder::add("lstm",
+                             *info.mod,
+                             args,
+                             {{"actv_func", to_value(vec_actv_funcs)}, {"direction", dirct}});
+        auto hidden_states    = results.at(0);
+        auto last_output      = results.at(1);
+        auto last_cell_output = results.at(2);
 
         if(layout != 0)
         {

@@ -279,7 +279,7 @@ program
 
     :rtype: list[shape]
 
-.. py:method:: compile(t, offload_copy=True, fast_math=True, exhaustive_tune=False)
+.. py:method:: compile(t, offload_copy=True, fast_math=True, exhaustive_tune=False, advance_backend_options={})
 
     Compiles the program for the target and optimizes it.
 
@@ -287,6 +287,7 @@ program
     :param bool offload_copy: For targets with offloaded memory(such as the gpu), this will insert instructions during compilation to copy the input parameters to the offloaded memory and to copy the final result from the offloaded memory back to main memory.
     :param bool fast_math: Optimize math functions to use faster approximate versions. There may be slight accuracy degredation when enabled.
     :param exhaustive_tune: Flag to enable exhaustive search to find the fastest version of generated kernels for selected backend.
+    :param dict advance_backend_options: Backend-specific compilation options. Options unknown to the target are ignored. 
 
 .. py:method:: get_main_module()
     

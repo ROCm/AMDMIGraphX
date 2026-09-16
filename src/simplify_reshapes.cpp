@@ -254,7 +254,37 @@ struct find_op_shape_transform_op
         auto match_op      = match::any_of(match::reduce(), match::pointwise());
         auto x_op          = match_op(match::none_of(fusable_split()));
         auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
-        return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
+        // A chain that matches but cant be rewritten (eg an element-expanding
+        // broadcast) would shadow a rewritable chain on another input, so
+        // scan the inputs for a viable chain instead
+        return match_op(match::make_basic_fun_matcher(
+            [=](match::matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+                const auto& inputs = ins->inputs();
+                auto it = std::find_if(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+                    if(not reshapes_x_op.match(ctx, input).has_value())
+                        return false;
+                    return is_viable(input, ctx.instructions.at("x"));
+                });
+                if(it == inputs.end())
+                    return nullopt;
+                ctx.instructions["input"] = *it;
+                return ins;
+            }));
+    }
+
+    static bool is_viable(instruction_ref input_ins, instruction_ref x_ins)
+    {
+        // shape_transform_descriptor doesnt handle scalars for now
+        if(input_ins->get_shape().scalar() or x_ins->get_shape().scalar())
+            return false;
+        // If its just a broadcast then skip
+        if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
+               return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
+           }))
+            return false;
+        // A chain that changes the element count is only valid for a reduction
+        return is_reduce(x_ins) or
+               input_ins->get_shape().elements() == x_ins->get_shape().elements();
     }
 
     static bool matches_op(instruction_ref ins)
@@ -437,14 +467,7 @@ struct find_op_shape_transform_op
         auto x_ins     = r.instructions["x"];
         auto input_ins = r.instructions["input"];
 
-        // shape_transform_descriptor doesnt handle scalars for now
-        if(input_ins->get_shape().scalar() or x_ins->get_shape().scalar())
-            return;
-
-        // If its just a broadcast then skip
-        if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
-               return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
-           }))
+        if(not is_viable(input_ins, x_ins))
             return;
 
         std::vector<operation> ops;
@@ -514,6 +537,113 @@ struct find_op_shape_transform_op
         // Replace final instruction
         auto pw   = insert(m, ins, inputs, desc.common_axes_map_from_dst());
         auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);
+        assert(ins->get_shape().lens() == rins->get_shape().lens());
+        m.replace_instruction(ins, rins);
+    }
+};
+
+// Rewrite an op into the common-dims space of a shape-transform chain that
+// feeds it from a non-pointwise base such as a literal or parameter. This
+// removes collapses of non-contiguous dimensions (like a reshape of a
+// broadcasted per-group scale) that would otherwise require a contiguous
+// copy and block fusion. find_op_shape_transform_op handles chains that
+// start at a pointwise or reduce instead.
+struct find_entry_shape_transform_op
+{
+    bool enable = true;
+
+    static const auto& entry_ops()
+    {
+        // Restricted for now; the mapping is op-agnostic so more pointwise
+        // ops can be added later
+        static const std::unordered_set<std::string> names = {"dequantizelinear"};
+        return names;
+    }
+
+    auto matcher() const
+    {
+        auto reshapes    = match::name(find_op_shape_transform_op::shape_transform_ops());
+        auto entry       = match::none_of(match::reduce(), match::pointwise());
+        auto entry_chain = reshapes(match::arg(0)(match::skip(reshapes())(entry)));
+        return match::name(entry_ops())(match::any_of[match::inputs()](entry_chain));
+    }
+
+    struct entry_transform
+    {
+        instruction_ref input;
+        instruction_ref base;
+        shape_transform_descriptor desc;
+    };
+
+    static optional<entry_transform> find_entry_transform(instruction_ref ins)
+    {
+        for(auto input : ins->inputs())
+        {
+            std::vector<operation> ops;
+            auto base = input;
+            while(contains(find_op_shape_transform_op::shape_transform_ops(), base->name()))
+            {
+                ops.push_back(base->get_operator());
+                base = base->inputs().front();
+            }
+            if(ops.empty())
+                continue;
+            if(find_op_shape_transform_op::matches_op(base))
+                continue;
+            // shape_transform_descriptor doesnt handle scalars for now
+            if(base->get_shape().scalar() or input->get_shape().scalar())
+                continue;
+            std::reverse(ops.begin(), ops.end());
+            auto desc = shape_transform_descriptor::create(base->get_shape().lens(), ops);
+            if(desc.empty())
+                continue;
+            if(desc.elements() != ins->get_shape().elements())
+                continue;
+            // Only rewrite when the op hides merged axes that the common
+            // dims space would expose
+            if(desc.common_dims() == ins->get_shape().lens())
+                continue;
+            return entry_transform{input, base, std::move(desc)};
+        }
+        return nullopt;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        if(not enable)
+            return;
+        auto ins = r.result;
+        auto et  = find_entry_transform(ins);
+        if(not et.has_value())
+            return;
+        const auto& desc = et->desc;
+
+        auto reshape_input = [&](const auto& gdesc, bool no_broadcast = false) {
+            return [&, no_broadcast](auto input) {
+                auto gops =
+                    find_op_shape_transform_op::generate(gdesc, input->get_shape(), no_broadcast);
+                return std::accumulate(
+                    gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+                        return m.insert_instruction(ins, op, start);
+                    });
+            };
+        };
+
+        auto new_input_ins = reshape_input(desc.to_common_from_src())(et->base);
+        if(new_input_ins->get_shape().elements() != ins->get_shape().elements())
+        {
+            new_input_ins = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", desc.common_dims()}}), new_input_ins);
+        }
+        auto inputs = ins->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+            if(input == et->input)
+                return new_input_ins;
+            return reshape_input(desc.to_common_from_dst(), true)(input);
+        });
+        auto new_op =
+            find_op_shape_transform_op::insert(m, ins, inputs, desc.common_axes_map_from_dst());
+        auto rins = reshape_input(desc.to_dst_from_common())(new_op);
         assert(ins->get_shape().lens() == rins->get_shape().lens());
         m.replace_instruction(ins, rins);
     }
@@ -2271,7 +2401,8 @@ void simplify_reshapes::apply(module& m) const
                             find_unary_shape_transforms{},
                             find_reshape_dot{},
                             find_mul_add_shape_op_dot{},
-                            find_op_shape_transform_op{.enable = enable_op_shape_transform_op});
+                            find_op_shape_transform_op{.enable = enable_op_shape_transform_op},
+                            find_entry_shape_transform_op{.enable = enable_op_shape_transform_op});
         dead_code_elimination{}.apply(m);
     });
 }

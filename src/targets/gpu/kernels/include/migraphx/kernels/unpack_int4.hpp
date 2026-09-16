@@ -27,8 +27,37 @@
 #include "migraphx/kernels/types.hpp"
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
+
+// Value-level unpack used by fused kernels: each packed byte expands into
+// its two int4 values along the vector lane, low nibble first
+template <class T, index_int N>
+constexpr vec<T, N * 2> unpack_int4(vec<T, N> x)
+{
+    vec<T, N * 2> result{};
+    for(index_int i = 0; i < N; i++)
+    {
+        if constexpr(is_unsigned<T>{})
+        {
+            result[2 * i]     = x[i] & 0xfu;
+            result[2 * i + 1] = x[i] >> 4u;
+        }
+        else
+        {
+            // NOLINTNEXTLINE(hicpp-signed-bitwise)
+            result[2 * i] = static_cast<int8_t>(static_cast<uint8_t>(x[i]) << 4u) >> 4;
+            // NOLINTNEXTLINE(hicpp-signed-bitwise)
+            result[2 * i + 1] = x[i] >> 4;
+        }
+    }
+    return result;
+}
+
+constexpr vec<uint8_t, 2> unpack_int4(uint8_t x) { return unpack_int4(vec<uint8_t, 1>{x}); }
+
+constexpr vec<int8_t, 2> unpack_int4(int8_t x) { return unpack_int4(vec<int8_t, 1>{x}); }
 
 template <int Axis, class Output, class Input>
 __device__ void unpack_int4(Output output, Input input)

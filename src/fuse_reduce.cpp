@@ -36,6 +36,8 @@
 #include <migraphx/rewrite_reshapes.hpp>
 #include <migraphx/rewrite_broadcasts.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <iterator>
 #include <map>
 
@@ -258,6 +260,14 @@ static std::vector<std::size_t> expand_dims(std::vector<std::size_t> lens,
 }
 
 namespace {
+
+bool has_unpack(instruction_ref ins)
+{
+    const auto* sm = ins->module_inputs().front();
+    return std::any_of(
+        sm->begin(), sm->end(), [](const auto& i) { return i.name() == "unpack_int4"; });
+}
+
 // Hoist a broadcast above a fused_reduce when it expands axes that were
 // already size 1 on the reduce inputs rather than reduced axes. The leftover
 // broadcast then only expands the reduced axes, which the fusion matchers
@@ -283,6 +293,9 @@ struct find_reduce_broadcast
 
         // The leftover broadcast can only fuse into a reduce over the same axes
         if(ins->name() == "fused_reduce" and ins->get_operator() != reduce->get_operator())
+            return;
+        // Rebuilding the submodule at expanded shapes cant remap packed inputs
+        if(has_unpack(reduce))
             return;
 
         auto axes         = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
@@ -470,9 +483,128 @@ struct find_reduce_reduce
     }
 };
 
+// Fuse an unpack_int4 feeding a fused_reduce into the submodule so the
+// packed data is read directly by the reduction kernel. The kernel unpacks
+// by vectorizing the packed input with half the vector size, so only fuse
+// when every input can be vectorized along the unpack axis.
+struct find_unpack_reduce
+{
+    auto matcher() const
+    {
+        auto unpack = match::name("unpack_int4")(match::used_once()).bind("unpack");
+        auto reshapes =
+            match::name("reshape", "squeeze", "unsqueeze", "flatten")(match::used_once());
+        return match::name("fused_reduce")(
+            any_input(match::skip(reshapes)(unpack), match::used_once()));
+    }
+
+    static std::size_t normalized_axis(instruction_ref unpack)
+    {
+        auto axis = unpack->get_operator().to_value().at("axis").to<std::int64_t>();
+        auto ndim = unpack->inputs().front()->get_shape().ndim();
+        return axis < 0 ? axis + ndim : axis;
+    }
+
+    // Move the unpack below the reshapes between it and the reduce by
+    // reshaping the packed input instead, so the unpack can be fused
+    static optional<instruction_ref>
+    hoist_unpack(module& m, instruction_ref input, instruction_ref unpack)
+    {
+        if(input == unpack)
+            return unpack;
+        std::vector<operation> ops;
+        auto next_ins = input;
+        while(next_ins != unpack)
+        {
+            ops.push_back(next_ins->get_operator());
+            next_ins = next_ins->inputs().front();
+        }
+        std::reverse(ops.begin(), ops.end());
+        auto desc = shape_transform_descriptor::create(unpack->get_shape().lens(), ops);
+        if(desc.empty() or desc.has_broadcast())
+            return nullopt;
+        auto axes = desc.get_dst_axes_from_src(normalized_axis(unpack));
+        if(axes.empty())
+            return nullopt;
+        auto axis = axes.back();
+        auto lens = input->get_shape().lens();
+        if(lens[axis] % 2 != 0)
+            return nullopt;
+        lens[axis] /= 2;
+        auto packed = unpack->inputs().front();
+        if(elements(lens) != packed->get_shape().elements())
+            return nullopt;
+        std::vector<std::int64_t> packed_dims(lens.begin(), lens.end());
+        auto packed_reshape =
+            m.insert_instruction(input, make_op("reshape", {{"dims", packed_dims}}), packed);
+        auto new_unpack =
+            m.insert_instruction(input, make_op("unpack_int4", {{"axis", axis}}), packed_reshape);
+        return m.replace_instruction(input, new_unpack);
+    }
+
+    static bool is_vectorizable_by_two(const shape& s, std::size_t axis)
+    {
+        if(s.lens()[axis] != 1)
+        {
+            if(s.strides()[axis] > 1)
+                return false;
+            if(s.strides()[axis] == 1 and s.lens()[axis] % 2 != 0)
+                return false;
+        }
+        return std::all_of(s.strides().begin(), s.strides().end(), [](auto stride) {
+            return stride < 2 or stride % 2 == 0;
+        });
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto reduce  = r.result;
+        auto input   = r.instructions["input"];
+        auto hoisted = hoist_unpack(mpm.get_module(), input, r.instructions["unpack"]);
+        if(not hoisted.has_value())
+            return;
+        auto unpack = *hoisted;
+        auto axis   = normalized_axis(unpack);
+        auto packed = unpack->inputs().front();
+        // The unpack axis must be the fastest dimension to read the packed
+        // data vectorized
+        if(packed->get_shape().strides()[axis] != 1)
+            return;
+        // Vectorization requires the unpack axis to be reduced
+        auto axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        if(not contains(axes, axis))
+            return;
+        if(not std::all_of(reduce->inputs().begin(), reduce->inputs().end(), [&](auto ri) {
+               if(contains(fp8_types{}.get(), ri->get_shape().type()))
+                   return false;
+               return is_vectorizable_by_two(ri->get_shape(), axis);
+           }))
+            return;
+
+        const auto* old_rm = reduce->module_inputs().front();
+        auto* rm           = mpm.create_module(old_rm->name() + ":unpack_int4");
+        rm->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        map_ins[unpack] = rm->fuse({unpack}, &map_ins).front();
+        rm->add_return(insert_module_in_submodule(rm, reduce, &map_ins));
+        finalize_reduce_module(rm);
+
+        auto new_inputs = find_inputs(map_ins, &mpm.get_module(), rm);
+        mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
+    }
+};
+
 struct reduce_reshape : rewrite_reshapes_base
 {
     static std::string name() { return "fused_reduce"; }
+
+    static bool matches(instruction_ref ins)
+    {
+        if(ins->name() != name())
+            return true;
+        // Submodules with packed inputs cant be remapped to the common dims
+        return not has_unpack(ins);
+    }
 
     template <class Transform>
     static auto transform_op(Transform t)
@@ -555,8 +687,11 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
             match::find_matches(mpm, find_reduce_broadcast{});
             rewrite_broadcasts(mpm, "fused_reduce");
         }
-        match::find_matches(
-            mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
+        match::find_matches(mpm,
+                            find_reduce_pointwise{},
+                            find_pointwise_reduce{},
+                            find_reduce_reduce{},
+                            find_unpack_reduce{});
         mpm.run_pass(dead_code_elimination{});
     }
 }

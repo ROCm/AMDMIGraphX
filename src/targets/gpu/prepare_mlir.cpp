@@ -129,13 +129,31 @@ struct find_where
     }
 };
 
-// mlir requires literals to be in a standard shape.
+// rocMLIR rejects non-splat literals whose strides are not the packed
+// layout. MIGraphX treats size-1 dims with stride 0 as .standard(), so
+// also rewrite those (and other packed-but-noncanonical stride sets).
+// True broadcasts (element_space < elements) are left alone; rocMLIR
+// accepts splat/broadcast attributes for those.
+static bool has_canonical_literal_strides(const shape& s)
+{
+    if(s.dynamic() or not s.sub_shapes().empty())
+        return true;
+    if(s.elements() != s.element_space())
+        return true;
+    shape canonical{s.type(), s.lens()};
+    return s.strides() == canonical.strides();
+}
+
+MIGRAPHX_PRED_MATCHER(mlir_noncanonical_literal_shape, instruction_ref ins)
+{
+    return not has_canonical_literal_strides(ins->get_shape());
+}
+
 struct find_nonstandard_literal
 {
     auto matcher() const
     {
-        return match::name("@literal")(match::not_standard_shape(),
-                                       match::none_of(match::broadcast_shape()));
+        return match::name("@literal")(mlir_noncanonical_literal_shape());
     }
 
     void apply(module& m, const match::matcher_result& r) const

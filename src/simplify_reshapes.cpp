@@ -75,6 +75,16 @@ insert_auto_reshape(module& m, instruction_ref ins, const Dims& dims, instructio
         return input;
     }
 
+    // Do not expand a scalar into a high-rank all-ones layout (e.g. 8-D or
+    // 66-D from 1+64+1). That shape is not a useful tensor layout and breaks
+    // MLIR gemm indexing in fused attention.
+    if(input->get_shape().elements() == 1 and
+       std::distance(dims.begin(), dims.end()) > 4 and
+       std::all_of(dims.begin(), dims.end(), [](auto d) { return d == 1; }))
+    {
+        return input;
+    }
+
     auto curr_lens = input->get_shape().lens();
     // Check if we can use squeeze (removing dimensions of size 1)
     if(curr_lens.size() > dims.size())
@@ -193,11 +203,15 @@ struct find_nested_shape_transforms
         }
         if(x->get_shape().scalar())
         {
+            if(ins->get_shape().ndim() > 4)
+                return;
             m.replace_instruction(
                 ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
         }
         else if(x->get_shape().elements() == 1 and ins->get_shape().elements() == 1)
         {
+            if(ins->get_shape().ndim() > 4)
+                return;
             // TODO: Use squeeze or unsqueeze
             m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), x);
         }
@@ -459,6 +473,15 @@ struct find_op_shape_transform_op
 
         auto desc = make_descriptor(x_ins, ops, input_ins);
         if(desc.empty())
+            return;
+
+        // A common space of many unit dims is the 1-arg reshape descriptor
+        // splitting a real length (e.g. 64) into that many 1s. Skip rather than
+        // materialize an 8-D or 66-D all-ones tensor that later MLIR cannot index.
+        auto cdims = desc.common_dims();
+        if(cdims.size() > 4 and std::all_of(cdims.begin(), cdims.end(), [](auto d) {
+               return d == 1;
+           }))
             return;
 
         if(not is_valid(x_ins, desc))

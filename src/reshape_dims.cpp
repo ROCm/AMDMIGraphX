@@ -156,15 +156,7 @@ std::vector<shape::dynamic_dimension> resolve_reshape_dims(const shape& sym_in,
 std::vector<shape::dynamic_dimension> resolve_reshape_dims(const shape& sym_in,
                                                            const std::vector<sym::expr>& dims)
 {
-    std::vector<dim_like> resolved_dims;
-    resolved_dims.reserve(dims.size());
-    transform(dims, std::back_inserter(resolved_dims), [](const auto& expression) {
-        const auto value = sym::fixed_value(expression);
-        if(value.has_value())
-            return dim_like{sym::to<int64_t>(*value)};
-        return dim_like{shape::dynamic_dimension{expression}};
-    });
-    return resolve_reshape_dims(sym_in, resolved_dims);
+    return resolve_reshape_dims(sym_in, to_dim_like(dims));
 }
 
 void validate_reshape_dims(const std::string& name, const std::vector<dim_like>& dims)

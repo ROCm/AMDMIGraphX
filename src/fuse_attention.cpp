@@ -31,7 +31,11 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
+#include <migraphx/builtin.hpp>
+#include <algorithm>
+#include <iterator>
 #include <optional>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -399,7 +403,8 @@ struct find_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        module_ref mpm_attn =
+            mpm.create_module(mpm.get_module().name() + ":attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(
@@ -938,6 +943,29 @@ struct find_kv_cache_attention
 
     std::string get_count() const { return std::to_string((*counter)++); }
 
+    static bool feeds_where_condition(instruction_ref ins)
+    {
+        static const std::unordered_set<std::string> skip = {"convert",
+                                                             "multibroadcast",
+                                                             "broadcast",
+                                                             "unsqueeze",
+                                                             "squeeze",
+                                                             "reshape",
+                                                             "contiguous"};
+        return any_of(ins->outputs(), [&](instruction_ref out) {
+            if(out->name() == "where")
+                return out->inputs().front() == ins;
+            if(contains(skip, out->name()))
+                return feeds_where_condition(out);
+            return false;
+        });
+    }
+
+    static bool is_integer_mask_type(shape::type_t t)
+    {
+        return t == shape::int32_type or t == shape::int64_type;
+    }
+
     std::unordered_map<instruction_ref, instruction_ref>
     invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
     {
@@ -970,12 +998,27 @@ struct find_kv_cache_attention
                                                                        "squeeze"};
 
         auto is_valid_attn_op = [&](auto i) {
+            // split_sym_dim pad/extent arithmetic must stay outside the fused
+            // body; pulling those int32 pointwise ops in makes rocMLIR set
+            // firstGemmIndices on a linalg.generic add instead of the QK gemm.
+            if(contains({"fixed_pad", "eval_expr_from_shape"}, i->name()))
+                return false;
+            const auto t = i->get_shape().type();
+            if((t == shape::int32_type or t == shape::int64_type) and
+               i->get_operator().attributes().get("pointwise", false))
+                return false;
             return i->get_operator().attributes().get("pointwise", false) or
                    contains(valid_attn_ops, i->get_operator().name());
         };
 
         // Start with instructions on data-dependency paths from start to end.
         auto inss = find_instructions_between(start, end, &m);
+        std::unordered_set<instruction_ref> filtered;
+        std::copy_if(inss.begin(),
+                     inss.end(),
+                     std::inserter(filtered, filtered.end()),
+                     [&](auto i) { return i == start or i == end or is_valid_attn_op(i); });
+        inss = std::move(filtered);
         // Expand by walking inputs of instructions already in the set.
         // An input is added when it is a valid attention op and all of
         // its outputs are already in the set. This pulls in constants,
@@ -1067,8 +1110,33 @@ struct find_kv_cache_attention
         // Define inputs to m_attn
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
+        auto param_to_input  = m_attn.get_ins_param_map(new_inputs, true);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        // Precompute integer where-conditions as bool in the parent. rocMLIR's
+        // rock.attention extra kernel otherwise emits i32→i8 truncate as
+        // firstGemmIndices instead of the QK gemm.
+        auto new_shapes      = m_attn.get_parameter_shapes();
+        bool converted_mask = false;
+        for(auto param : m_attn.get_parameters())
+        {
+            if(not is_integer_mask_type(param->get_shape().type()) or
+               not feeds_where_condition(param))
+                continue;
+            auto parent = param_to_input.at(param);
+            auto as_bool = mpm.get_module().insert_instruction(
+                required_outputs.back(),
+                make_op("convert", {{"target_type", shape::bool_type}}),
+                parent);
+            std::replace(new_inputs.begin(), new_inputs.end(), parent, as_bool);
+            auto pname        = any_cast<builtin::param>(param->get_operator()).parameter;
+            new_shapes[pname] = param->get_shape().with_type(shape::bool_type);
+            converted_mask    = true;
+        }
+        if(converted_mask)
+            m_attn = m_attn.with_static_shapes(new_shapes);
+
+        module_ref mpm_attn =
+            mpm.create_module(mpm.get_module().name() + ":attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
         // Construct group op with the attention module

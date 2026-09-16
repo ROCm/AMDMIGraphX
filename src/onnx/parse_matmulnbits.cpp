@@ -29,6 +29,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/stringutils.hpp>
 
 namespace migraphx {
@@ -161,23 +162,16 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
     instruction_ref matmul(onnx_parser::node_info& info, instruction_ref a, instruction_ref b) const
     {
         const auto a_rank = a->get_shape().ndim();
-        // B is always rank 2:
-        // If A is rank 1, unsqueeze A to make it rank 2 to prepare for dot
-        // If A is rank 2, just a regular dot
-        // If A is rank > 2, broadcast B to match outer dims of A to prepare for dot
+        // B is always rank 2, so A must be at least rank 2 for the dot. If A is rank 1, unsqueeze
+        // it and squeeze the extra dimension back out of the result. The dot builder broadcasts
+        // the outer dimensions of A and B against each other, which keeps this working when A's
+        // dimensions are dynamic or symbolic.
         if(a_rank == 1)
         {
             a = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), a);
         }
-        else if(a_rank > 2)
-        {
-            auto b_lens    = b->get_shape().lens();
-            auto b_bc_lens = a->get_shape().lens();
-            std::copy(b_lens.begin(), b_lens.end(), b_bc_lens.end() - 2);
-            b = info.add_instruction(make_op("multibroadcast", {{"out_lens", b_bc_lens}}), b);
-        }
 
-        auto dot = info.add_instruction(make_op("dot"), a, b);
+        auto dot = op::builder::add("dot", *info.mod, {a, b}).at(0);
 
         if(a_rank == 1)
             dot = info.add_instruction(

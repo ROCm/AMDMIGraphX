@@ -22,6 +22,8 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
+#include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -40,6 +42,9 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_identity.hpp>
+#include <migraphx/memory_coloring.hpp>
 #include <test.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
@@ -894,6 +899,132 @@ module {
     auto mlir_output_with_attrs =
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
+}
+
+TEST_CASE(prefill_tuple_output)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 5, 4}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {1, 4, 3}};
+    migraphx::shape row_sum_shape{migraphx::shape::float_type, {1, 5, 1}};
+    migraphx::shape column_sum_shape{migraphx::shape::float_type, {1, 1, 3}};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto a   = mm->add_parameter("a", a_shape);
+    auto b   = mm->add_parameter("b", b_shape);
+
+    auto* sm = p.create_module("mlir_dot_mul_reduce_sum_reduce_sum");
+    sm->set_bypass();
+    auto sm_a       = sm->add_parameter("x0", a_shape);
+    auto sm_b       = sm->add_parameter("x1", b_shape);
+    auto dot        = sm->add_instruction(migraphx::make_op("dot"), sm_a, sm_b);
+    auto square     = sm->add_instruction(migraphx::make_op("mul"), dot, dot);
+    auto column_sum = sm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), dot);
+    auto row_square_sum =
+        sm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), square);
+    sm->add_return({row_square_sum, column_sum});
+
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(*sm).empty())
+        return;
+
+    auto mlir_op =
+        migraphx::make_op("gpu::mlir_op", {{"op", migraphx::to_value(dot->get_operator())}});
+    auto is_fill = [](const migraphx::operation& op) {
+        return op.name() == "gpu::code_object" and
+               migraphx::any_cast<migraphx::gpu::code_object_op>(op).symbol_name ==
+                   "hip_fill_kernel";
+    };
+    auto is_fill_instruction = [&](const auto& ins) { return is_fill(ins.get_operator()); };
+
+    // Compile one candidate directly to verify prefills are part of compiler_replace rather than
+    // inserted as device ops that would need serial compilation during benchmarking.
+    migraphx::module candidate;
+    auto candidate_a = candidate.add_parameter("a", a_shape);
+    auto candidate_b = candidate.add_parameter("b", b_shape);
+    migraphx::shape tuple_shape{std::vector<migraphx::shape>{row_sum_shape, column_sum_shape}};
+    auto candidate_output = candidate.add_parameter("output", tuple_shape);
+    auto precompile_op =
+        migraphx::make_op("gpu::precompile_op", {{"op", migraphx::to_value(mlir_op)}});
+    auto candidate_ins = candidate.add_instruction(
+        precompile_op, {candidate_a, candidate_b, candidate_output}, {sm});
+    candidate.add_return({candidate_ins});
+
+    migraphx::gpu::context ctx;
+    auto tuning = migraphx::gpu::get_tuning_config(ctx, candidate_ins, mlir_op, false);
+    CHECK(tuning.has_value());
+    CHECK(not tuning->solutions.empty());
+    auto replacement =
+        migraphx::gpu::compile(ctx, candidate_ins, mlir_op, tuning->solutions.front());
+    EXPECT(replacement.code_objects.size() == 3);
+    EXPECT(std::count_if(
+               replacement.code_objects.begin(), replacement.code_objects.end(), is_fill) == 2);
+
+    replacement.replace(candidate, candidate_ins);
+    EXPECT(std::none_of(candidate.begin(), candidate.end(), [](const auto& ins) {
+        return ins.name() == "hip::fill";
+    }));
+    EXPECT(std::count_if(candidate.begin(), candidate.end(), is_fill_instruction) == 2);
+    EXPECT(std::count_if(candidate.begin(), candidate.end(), [](const auto& ins) {
+               return ins.name() == "identity";
+           }) == 1);
+
+    // Match benchmark-program cleanup: preserve the identity until after DCE and memory coloring
+    // so both prefills remain in the timed instruction stream.
+    migraphx::run_passes(candidate,
+                         {migraphx::dead_code_elimination{},
+                          migraphx::memory_coloring{"hip::allocate"},
+                          migraphx::eliminate_identity{}});
+    EXPECT(std::count_if(candidate.begin(), candidate.end(), is_fill_instruction) == 2);
+    EXPECT(std::none_of(candidate.begin(), candidate.end(), [](const auto& ins) {
+        return ins.name() == "identity";
+    }));
+
+    auto output = mm->add_instruction(mlir_op, {a, b}, {sm});
+    auto row_square_sum_output =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), output);
+    auto column_sum_output =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), output);
+    mm->add_return({row_square_sum_output, column_sum_output});
+
+    migraphx::compile_options options;
+    options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), options);
+
+    auto* compiled_mm = p.get_main_module();
+    EXPECT(std::count_if(compiled_mm->begin(), compiled_mm->end(), is_fill_instruction) == 2);
+    EXPECT(std::count_if(compiled_mm->begin(), compiled_mm->end(), [&](const auto& ins) {
+               return is_fill_instruction(ins) and
+                      ins.inputs().front()->get_shape() == row_sum_shape;
+           }) == 1);
+    EXPECT(std::count_if(compiled_mm->begin(), compiled_mm->end(), [&](const auto& ins) {
+               return is_fill_instruction(ins) and
+                      ins.inputs().front()->get_shape() == column_sum_shape;
+           }) == 1);
+
+    migraphx::program ref;
+    auto* ref_mm    = ref.get_main_module();
+    auto ref_a      = ref_mm->add_parameter("a", a_shape);
+    auto ref_b      = ref_mm->add_parameter("b", b_shape);
+    auto ref_dot    = ref_mm->add_instruction(migraphx::make_op("dot"), ref_a, ref_b);
+    auto ref_square = ref_mm->add_instruction(migraphx::make_op("mul"), ref_dot, ref_dot);
+    auto ref_column_sum =
+        ref_mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), ref_dot);
+    auto ref_row_square_sum =
+        ref_mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), ref_square);
+    ref_mm->add_return({ref_row_square_sum, ref_column_sum});
+    ref.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map params{{"a", migraphx::generate_argument(a_shape, 1)},
+                                   {"b", migraphx::generate_argument(b_shape, 2)}};
+    auto results  = p.eval(params);
+    auto expected = ref.eval(params);
+    EXPECT(results.size() == 2);
+    EXPECT(expected.size() == 2);
+    EXPECT(migraphx::verify_args_with_tolerance(
+        "row_square_sum", results.at(0), migraphx::verify::expected{expected.at(0)}));
+    EXPECT(migraphx::verify_args_with_tolerance(
+        "column_sum", results.at(1), migraphx::verify::expected{expected.at(1)}));
 }
 
 // rocMLIR accumulates a reduction into its output buffer, so it asks for that buffer to be

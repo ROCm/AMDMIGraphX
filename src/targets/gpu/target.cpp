@@ -77,6 +77,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/fuse_int4_gemv.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -260,6 +261,8 @@ struct pipeline_factory
 #ifndef _WIN32
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
+            dead_code_elimination{},
+            fuse_int4_gemv{},
             dead_code_elimination{},
             enable_pass(mlir_enabled(),
                         fuse_mlir{.ctx              = get_context(),

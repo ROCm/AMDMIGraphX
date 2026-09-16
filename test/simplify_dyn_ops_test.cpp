@@ -612,6 +612,80 @@ TEST_CASE(static_dimensions_of_nonfixed)
     EXPECT(m0 == m1);
 }
 
+TEST_CASE(fixed_eval_expr_from_shape)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+
+    auto n       = migraphx::sym::var("n", {1, 4});
+    auto fixed_n = migraphx::sym::var("n", {4, 4});
+    migraphx::shape input_shape{
+        migraphx::shape::float_type, std::vector<dd>{dd{fixed_n}, dd{migraphx::sym::lit(3)}}};
+    std::vector<migraphx::sym::expr> expressions = {n + 1, n * 2};
+
+    migraphx::module m0;
+    auto input = m0.add_parameter("data", input_shape);
+    auto eval  = m0.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(expressions)}}),
+        input);
+    m0.add_return({eval});
+    run_pass(m0);
+
+    migraphx::module m1;
+    m1.add_parameter("data", input_shape);
+    auto result = m1.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, {5, 8}});
+    m1.add_return({result});
+
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(symbol_free_eval_expr_from_shape)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+
+    auto n = migraphx::sym::var("n", {1, 4});
+    migraphx::shape input_shape{
+        migraphx::shape::float_type, std::vector<dd>{dd{n}, dd{migraphx::sym::lit(3)}}};
+    std::vector<migraphx::sym::expr> expressions = {migraphx::sym::lit(0)};
+
+    migraphx::module m0;
+    auto input = m0.add_parameter("data", input_shape);
+    auto eval  = m0.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(expressions)}}),
+        input);
+    m0.add_return({eval});
+    auto expected = m0;
+
+    run_pass(m0);
+
+    EXPECT(m0 == expected);
+}
+
+TEST_CASE(nonfixed_eval_expr_from_shape)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+
+    auto n = migraphx::sym::var("n", {1, 4});
+    migraphx::shape input_shape{
+        migraphx::shape::float_type, std::vector<dd>{dd{n}, dd{migraphx::sym::lit(3)}}};
+    std::vector<migraphx::sym::expr> expressions = {n + 1, n * 2};
+
+    migraphx::module m0;
+    auto input = m0.add_parameter("data", input_shape);
+    auto eval  = m0.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(expressions)}}),
+        input);
+    m0.add_return({eval});
+    auto expected = m0;
+
+    run_pass(m0);
+
+    EXPECT(m0 == expected);
+}
+
 TEST_CASE(constant_alloc_reshape)
 {
     migraphx::module m0;

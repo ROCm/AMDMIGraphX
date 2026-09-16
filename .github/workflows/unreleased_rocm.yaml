@@ -17,11 +17,11 @@ on:
       performance_reports_repo:
         description: Repository where performance reports are stored
         required: true
-        default: 'ROCm/migraphx-reports'
+        default: 'AMD-ROCm-Internal/migraphx-reports'
       benchmark_utils_repo:
         description: Repository where benchmark utils are stored
         required: true
-        default: "ROCm/migraphx-benchmark-utils"
+        default: "AMD-ROCm-Internal/migraphx-benchmark-utils"
       organization:
         description: Organization based on which location of files will be different
         required: true
@@ -48,6 +48,7 @@ permissions:
 
 jobs:
   get_config:
+    if: github.repository == 'ROCm/AMDMIGraphX'
     runs-on: ubuntu-latest
     outputs:
       rocm_version: ${{ steps.read_config.outputs.rocm_version }}

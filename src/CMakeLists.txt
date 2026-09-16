@@ -117,6 +117,7 @@ add_library(migraphx
     propagate_constant.cpp
     propagate_precision.cpp
     promote_literals.cpp
+    promote_storage_type.cpp
     quantization.cpp
     quantize_int4.cpp
     quantize_8bits.cpp
@@ -146,6 +147,7 @@ add_library(migraphx
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
     sym.cpp
+    sym_argument.cpp
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp

@@ -554,6 +554,33 @@ TEST_CASE(horizontal_mutli_out_fused3)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(horizontal_mutli_out_shared_literal_not_fused)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto lit  = mm->add_literal(migraphx::literal{s, {1, 2, 3, 4, 5, 6}});
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, lit);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), y, lit);
+        mm->add_return({add1, add2});
+    }
+    run_pass(p1, {.enable_multi_output = true});
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto lit  = mm->add_literal(migraphx::literal{s, {1, 2, 3, 4, 5, 6}});
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, lit}, single_pointwise("add"));
+        auto add2 = add_pointwise(p2, "main:pointwise1", {y, lit}, single_pointwise("add"));
+        mm->add_return({add1, add2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(horizontal_mutli_out_fused_submodule)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

@@ -36,9 +36,9 @@
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 
-static void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m, migraphx::rewrite_reduce pass = {})
 {
-    migraphx::run_passes(m, {migraphx::rewrite_reduce{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {pass, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(softmax)
@@ -78,6 +78,23 @@ TEST_CASE(softmax_upcast)
     }));
 }
 
+// The skinny dot rewrite is off by default so the dot is left alone.
+TEST_CASE(dot_skinny_disabled_by_default)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {128, 4}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", a_shape);
+        auto b   = m1.add_parameter("b", b_shape);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // Skinny dot [M=1, K] @ [K, N] gets rewritten to mul + reduce_sum.
 TEST_CASE(dot_skinny_rewrite)
 {
@@ -90,7 +107,7 @@ TEST_CASE(dot_skinny_rewrite)
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         m1.add_return({dot});
     }
-    run_pass(m1);
+    run_pass(m1, {.enable_skinny_dot = true});
 
     migraphx::module m2;
     {
@@ -122,7 +139,7 @@ TEST_CASE(dot_skinny_m2_rewrite)
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         m1.add_return({dot});
     }
-    run_pass(m1);
+    run_pass(m1, {.enable_skinny_dot = true});
 
     migraphx::module m2;
     {
@@ -155,7 +172,7 @@ TEST_CASE(dot_wide_no_rewrite)
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         m1.add_return({dot});
     }
-    run_pass(m1);
+    run_pass(m1, {.enable_skinny_dot = true});
 
     migraphx::module m2;
     {
@@ -179,7 +196,7 @@ TEST_CASE(dot_batched_skinny_rewrite)
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         m1.add_return({dot});
     }
-    run_pass(m1);
+    run_pass(m1, {.enable_skinny_dot = true});
 
     migraphx::module m2;
     {
@@ -211,7 +228,7 @@ TEST_CASE(dot_batched_m2_rewrite)
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         m1.add_return({dot});
     }
-    run_pass(m1);
+    run_pass(m1, {.enable_skinny_dot = true});
 
     migraphx::module m2;
     {
@@ -248,7 +265,7 @@ TEST_CASE(dot_softmax_return_rewrite)
         auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), dot);
         m1.add_return({softmax});
     }
-    run_pass(m1);
+    run_pass(m1, {.enable_skinny_dot = true});
 
     migraphx::module m2;
     {
@@ -295,7 +312,7 @@ TEST_CASE(dot_mul_softmax_return_rewrite)
         auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mul);
         m1.add_return({softmax});
     }
-    run_pass(m1);
+    run_pass(m1, {.enable_skinny_dot = true});
 
     migraphx::module m2;
     {
@@ -352,7 +369,7 @@ TEST_CASE(dot_softmax_dot_projection_rewrite)
         auto proj = m1.add_instruction(migraphx::make_op("dot"), rsp, w);
         m1.add_return({proj});
     }
-    run_pass(m1);
+    run_pass(m1, {.enable_skinny_dot = true});
 
     migraphx::module m2;
     {

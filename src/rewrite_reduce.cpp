@@ -46,8 +46,8 @@ namespace {
 
 // Walk forward through single-consumer ops looking for an instruction with
 // the given name. Returns start itself if it already matches.
-static std::optional<instruction_ref> find_downstream_named(instruction_ref start,
-                                                            const std::string& target)
+std::optional<instruction_ref> find_downstream_named(instruction_ref start,
+                                                     const std::string& target)
 {
     auto path = get_output_path(start);
     auto it   = std::find_if(
@@ -61,8 +61,7 @@ static std::optional<instruction_ref> find_downstream_named(instruction_ref star
 // the given name. Returns start itself if it already matches. Single-input ops
 // are followed directly; multi-input ops follow the first non-constant,
 // non-bool input.
-static std::optional<instruction_ref> find_upstream_named(instruction_ref start,
-                                                          const std::string& target)
+std::optional<instruction_ref> find_upstream_named(instruction_ref start, const std::string& target)
 {
     auto path = unfold(start, [](instruction_ref current) -> std::optional<instruction_ref> {
         const auto& inputs = current->inputs();
@@ -89,7 +88,7 @@ static std::optional<instruction_ref> find_upstream_named(instruction_ref start,
 // reaches a dot upstream and whose output reaches another dot downstream
 // identifies the Q*K^T and softmax*V dots of attention; both are marked so
 // find_dot leaves them alone.
-static std::unordered_set<instruction_ref> collect_attention_dots(module& m)
+std::unordered_set<instruction_ref> collect_attention_dots(module& m)
 {
     std::unordered_set<instruction_ref> result;
     for(auto ins : iterator_for(m))
@@ -414,7 +413,8 @@ void rewrite_reduce::apply(module& m) const
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
     // Match the decomposed softmax pattern to identify dots participating in
     // attention (Q*K^T and softmax*V) so find_dot can skip them.
-    match::find_matches(m, find_dot{collect_attention_dots(m)});
+    if(enable_skinny_dot)
+        match::find_matches(m, find_dot{collect_attention_dots(m)});
 
     if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
     {

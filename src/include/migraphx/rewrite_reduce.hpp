@@ -35,6 +35,9 @@ struct module;
 
 struct MIGRAPHX_EXPORT rewrite_reduce
 {
+    // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with
+    // surrounding pointwise ops instead of launching a GEMM.
+    bool enable_skinny_dot = false;
     std::string name() const { return "rewrite_reduce"; }
     void apply(module& m) const;
 };

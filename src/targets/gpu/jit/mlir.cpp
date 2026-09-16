@@ -351,7 +351,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                         compile_copy(mod_splits[2].mod.get_output_shapes().front())}};
                 std::array<module_with_inputs, 2> mods = {std::move(mod_splits[0]),
                                                           std::move(mod_splits[1])};
-                return insert(cops, mods, ins, split_ins, std::move(mod_splits[2]));
+                return insert(ctx, cops, mods, ins, split_ins, std::move(mod_splits[2]));
             }
 
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});

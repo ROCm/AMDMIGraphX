@@ -473,6 +473,7 @@ struct compile_plan
         results.resize(size);
         compile_timings.resize(size);
     }
+
     template <class Vector>
     void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
     {
@@ -507,39 +508,41 @@ struct compile_plan
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
                 const auto& solution = sol.value();
-                // No solution yet until benchmarked so skip for now
+                // A null cache entry means this problem has been marked for benchmarking,
+                // but no winning solution has been recorded yet.
                 if(solution.is_null())
                     return;
                 source = compile_plan_source::problem_cache;
                 resize_results(1);
                 insert_compiles(compiles, solution, 0);
+                return;
+            }
+
+            // No usable cached solution: choose a configured solution directly or benchmark
+            // the candidates and cache the winner later.
+            const auto& solutions = config->solutions;
+            if(solutions.empty())
+                MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
+                               problem_string() + "\n\n" + print_modules());
+            const bool dump_mxr =
+                not string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}).empty();
+            if(skip_benchmark or enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
+               (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
+            {
+                ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
+                source = solutions.size() == 1 ? compile_plan_source::single_solution
+                                               : compile_plan_source::benchmark_skipped;
+                resize_results(1);
+                insert_compiles(compiles, solutions.front(), 0);
             }
             else
             {
-                const auto& solutions = config->solutions;
-                if(solutions.empty())
-                    MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
-                                   problem_string() + "\n\n" + print_modules());
-                const bool dump_mxr =
-                    not string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}).empty();
-                if(skip_benchmark or enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
-                   (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
+                source = compile_plan_source::tuning;
+                ctx->get_problem_cache().mark(preop.name(), problem);
+                resize_results(solutions.size());
+                for(auto i : range(solutions.size()))
                 {
-                    ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
-                    source = solutions.size() == 1 ? compile_plan_source::single_solution
-                                                   : compile_plan_source::benchmark_skipped;
-                    resize_results(1);
-                    insert_compiles(compiles, solutions.front(), 0);
-                }
-                else
-                {
-                    source = compile_plan_source::tuning;
-                    ctx->get_problem_cache().mark(preop.name(), problem);
-                    resize_results(solutions.size());
-                    for(auto i : range(solutions.size()))
-                    {
-                        insert_compiles(compiles, solutions[i], i);
-                    }
+                    insert_compiles(compiles, solutions[i], i);
                 }
             }
         }

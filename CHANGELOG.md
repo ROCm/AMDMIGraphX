@@ -34,6 +34,7 @@ Full documentation for MIGraphX is available at
 * Fixed the ONNX and TensorFlow DLLs leaking protobuf state when unloaded with `FreeLibrary` on Windows (#5157).
 * Fixed host conversion of a float32 NaN to `migraphx::half` or `migraphx::bf16` producing an infinity when the NaN payload did not survive the narrowing, such as `0x7f800001` (#5193).
 * Fixed `fuse_horizontal` creating cyclic graphs when a fusion group contained dependent operations (#5250).
+* Fixed `gpu::mlir_op` compilation failures for convolution and pointwise fusions followed by layout operations by splitting them into MLIR, pointwise, and layout-copy kernels when needed (#5064).
 
 ### Optimized
 

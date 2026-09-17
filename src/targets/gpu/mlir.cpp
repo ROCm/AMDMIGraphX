@@ -1435,10 +1435,7 @@ tuning_config get_tuning_config_mlir(const context&, module, const std::vector<s
 // Conservative "MLIR unavailable" default: the module cannot be MLIR-fused, so callers
 // take their non-MLIR path. Present so libmigraphx_gpu.so has no dangling MLIR symbols
 // when MIGRAPHX_MLIR is disabled.
-bool is_module_fusible(const module&, const context&, const value&)
-{
-    return false;
-}
+bool is_module_fusible(const module&, const context&, const value&) { return false; }
 
 void adjust_param_shapes(module&, const std::vector<shape>&) {}
 

@@ -1686,8 +1686,8 @@ struct find_splits
     {
         auto start = group.front();
         assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
-                   return i->name() == "slice";
-               }) and "one argument must be a split");
+            return i->name() == "slice";
+        }) and "one argument must be a split");
 
         auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
         assert(not slice_op.axes.empty());
@@ -1768,12 +1768,11 @@ struct find_splits
                                [](int64_t a, int64_t b) { return a - b; });
                 return out;
             };
-            m.replace_instruction(i,
-                                  make_op("slice",
-                                          {{"axes", s.axes},
-                                           {"starts", shift(s.starts)},
-                                           {"ends", shift(s.ends)}}),
-                                  c);
+            m.replace_instruction(
+                i,
+                make_op("slice",
+                        {{"axes", s.axes}, {"starts", shift(s.starts)}, {"ends", shift(s.ends)}}),
+                c);
         }
     }
 
@@ -1814,9 +1813,9 @@ struct find_splits
             {
                 base          = m.insert_instruction(std::next(ins),
                                             make_op("slice",
-                                                    {{"axes", front_slice.axes},
-                                                     {"starts", front_slice.starts},
-                                                     {"ends", back_slice.ends}}),
+                                                                    {{"axes", front_slice.axes},
+                                                              {"starts", front_slice.starts},
+                                                              {"ends", back_slice.ends}}),
                                             ins);
                 base_inserted = true;
             }

@@ -924,7 +924,7 @@ TEST_CASE(simplify_add_conv_no_fusion_mismatched_spatial)
         auto conv1 = m1.add_instruction(migraphx::make_op("convolution"), x, w);
         auto conv2 = m1.add_instruction(
             migraphx::make_op("convolution", {{"padding", {0, 0}}, {"stride", {3, 3}}}), y, v);
-        auto sum   = m1.add_instruction(migraphx::make_op("add"), conv1, conv2);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), conv1, conv2);
         m1.add_return({sum});
     }
     migraphx::module m2 = m1;

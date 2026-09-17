@@ -334,7 +334,6 @@ struct find_int4_gemv_op
         auto b_packed = info.unpack->inputs().front();
         auto K        = b_packed->get_shape().lens().back() * 2;
         auto N        = dot_ins->get_shape().lens().back();
-        auto batch    = a_shape.lens().front();
 
         // Check for a trailing bias-add: dot has a single user that is pointwise(add)
         bool fuse_bias = false;

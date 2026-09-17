@@ -141,7 +141,7 @@ pipeline {
                         cp -r '${ZOO_DIR}/logs/accuracy' '${ZOO_DIR}/logs/perf' \
                             '${ZOO_DIR}/logs/README.md' "\$dest"
                         cd '${REPORTS_CLONE}'
-                        git add '${REPORTS_SUBDIR}'
+                        git add '${REPORTS_SUBDIR}/${env.RUN_ID}'
                         if git diff --cached --quiet; then
                             echo "INFO: logs are identical to the last run, nothing to push"
                             exit 0

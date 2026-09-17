@@ -21,9 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-"""Zoo accuracy check. Imports tools/test_runner.py for archive I/O (that script
-is shared with other pipelines) and adds a range-relative tolerance, an optional
-ref reference, and driver flags for the perf run."""
+"""Check ONNX Model Zoo accuracy and optionally emit matching driver arguments."""
 import argparse
 import glob
 import os
@@ -52,23 +50,17 @@ def parse_args():
                    help='atol as a fraction of max(abs(expected))')
     p.add_argument('--gold', choices=['archive', 'ref'], default='archive')
     p.add_argument('--emit-driver-args')
-    p.add_argument('--emit-metrics',
-                   help='write the accuracy columns of the results row here')
 
     return p.parse_args()
 
 
 def deviation(gold, actual, atol, rtol):
-    """(max abs deviation, deviation as a fraction of the tolerance it was
-    graded against). The second value is <= 1 exactly when np.allclose passes,
-    so it stays comparable across models whose ranges differ by orders of
-    magnitude, and shows how much headroom a passing model has left."""
+    """Return maximum absolute deviation and error-to-tolerance ratio."""
     if gold.size == 0:
         return 0.0, 0.0
 
     dev = np.abs(gold.astype(np.float64) - actual.astype(np.float64))
-    # A NaN is never within tolerance; rank it as an outright miss rather than
-    # letting it propagate into a number that reads as a pass.
+    # Convert undefined deviations to infinity before computing maxima.
     dev = np.where(np.isnan(dev), np.inf, dev)
     tol = atol + rtol * np.abs(gold.astype(np.float64))
     frac = np.divide(dev,
@@ -123,8 +115,7 @@ def build(model_path, shapes, args, target=None):
 
 
 def write_driver_args(path, shapes, args):
-    """Driver flags reproducing what we just graded, so the timings in the
-    results row belong to the same program as the verdict beside them."""
+    """Write driver arguments matching the graded target, shapes, and precision."""
     # One argument per line so the shell can restore the exact argv with
     # mapfile. Dimensions must remain separate arguments for the driver parser.
     lines = ['--' + args.target]
@@ -135,22 +126,6 @@ def write_driver_args(path, shapes, args):
         lines.append('--fp16')
     with open(path, 'w') as pfile:
         pfile.write(''.join(line + '\n' for line in lines))
-
-
-def write_metrics(path,
-                  status,
-                  cases=0,
-                  passed=0,
-                  max_diff=None,
-                  tol_frac=None):
-    """The accuracy fields of one results.csv row, in the order test_models.sh
-    declares them. Blank rather than zero for the metrics when nothing was
-    graded, so aggregating the column cannot mistake a skip for a clean run."""
-    fields = [status, cases, passed] + [
-        '' if x is None else '{:.6g}'.format(x) for x in (max_diff, tol_frac)
-    ]
-    with open(path, 'w') as mfile:
-        mfile.write(','.join(str(f) for f in fields) + '\n')
 
 
 def load_cases(test_loc, params, outs):
@@ -168,10 +143,8 @@ def load_cases(test_loc, params, outs):
     for i, path in enumerate(
             sorted(glob.glob(os.path.join(test_loc, 'test_data_*.npz')))):
         inputs, gold = tr.load_npz_case(path)
-        # Positional mapping: the i-th stored tensor feeds the i-th model input.
-        cases.append(('test_data_{}'.format(i),
-                      {params[j]: inputs[j]
-                       for j in range(len(params))}, gold))
+        cases.append(('test_data_{}'.format(i), tr.map_inputs(params,
+                                                              inputs), gold))
     if not cases:
         return None, []
 
@@ -201,9 +174,6 @@ def main():
     if not cases:
         print("No test_data_set_* or test_data_*.npz found in {}".format(
             test_loc))
-        # Nothing to grade against is a gap in the archive, not a model defect.
-        if args.emit_metrics:
-            write_metrics(args.emit_metrics, 'skipped')
         sys.exit(1)
     for pname, dims in shapes.items():
         print("Input: {}, shape: {}".format(pname, tuple(dims)))
@@ -213,8 +183,7 @@ def main():
         write_driver_args(args.emit_driver_args, shapes, args)
 
     model = build(model_path, shapes, args)
-    # Quantized identically on both sides, so what remains is the target's doing
-    # rather than quantization error.
+    # Apply the same optional FP16 transform to reference gold so only the target differs.
     ref = build(model_path, shapes, args,
                 'ref') if args.gold == 'ref' else None
 
@@ -239,10 +208,6 @@ def main():
     print("\t Failed: {}".format(len(cases) - correct))
     print("\t Worst deviation: {:.6g} ({:.6g} of tolerance)".format(
         worst_dev, worst_frac))
-    if args.emit_metrics:
-        write_metrics(args.emit_metrics,
-                      'pass' if correct == len(cases) else 'fail', len(cases),
-                      correct, worst_dev, worst_frac)
     if correct < len(cases):
         print("{} cases failed!".format(len(cases) - correct))
         sys.exit(1)

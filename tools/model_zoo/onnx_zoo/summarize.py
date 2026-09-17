@@ -27,16 +27,13 @@ import argparse
 import html
 import math
 import re
+from collections import Counter
 from pathlib import Path
 from urllib.parse import quote
 
 DTYPES = ('fp32', 'fp16', 'int8')
 PERF_THRESHOLD = 5.0
 RUN_PATTERN = re.compile(r'^(\d{4}-\d{2}-\d{2})-(\d+)-[0-9a-f]{7}$')
-
-
-class RawMarkdown(str):
-    pass
 
 
 def parse_args():
@@ -130,13 +127,11 @@ def markdown_link(status, folder, stem, label=None, prefix=None):
         path = folder / (stem + ('.out' if suffix == '.err' else '.err'))
     if not path.exists():
         return label or status
-    return RawMarkdown('[{}]({}/{})'.format(label or status, prefix
-                                            or folder.name, quote(path.name)))
+    return '[{}]({}/{})'.format(label or status, prefix or folder.name,
+                                quote(path.name))
 
 
 def markdown_escape(value):
-    if isinstance(value, RawMarkdown):
-        return value
     value = ''.join(char if char >= ' ' else ' ' for char in str(value))
     value = html.escape(value, quote=False)
     for char in ('\\', '|', '`', '*', '_', '~', '[', ']'):
@@ -170,8 +165,7 @@ def accuracy_cell(result, folder, stem):
         details.append('max diff {}'.format(result['max_diff']))
     if result['tol_frac']:
         details.append('{}x tolerance'.format(result['tol_frac']))
-    return RawMarkdown('{}{}'.format(
-        link, ': ' + ', '.join(details) if details else ''))
+    return '{}{}'.format(link, ': ' + ', '.join(details) if details else '')
 
 
 def find_baseline(root, run_id):
@@ -282,26 +276,21 @@ def generate(args):
     if metadata:
         lines += [' · '.join(metadata), '']
 
-    accuracy_pass = sum(row['accuracy']['status'] == 'pass' for row in rows)
-    accuracy_fail = sum(row['accuracy']['status'] == 'fail' for row in rows)
-    accuracy_na = sum(row['accuracy']['status'] == 'skipped' for row in rows)
-    accuracy_error = len(rows) - accuracy_pass - accuracy_fail - accuracy_na
-    perf_pass = sum(row['comparison'] == 'pass' for row in rows)
-    perf_regress = sum(row['comparison'] == 'regress' for row in rows)
-    perf_na = sum(row['comparison'] == 'n/a' for row in rows)
-    perf_error = len(rows) - perf_pass - perf_regress - perf_na
+    accuracy_counts = Counter(row['accuracy']['status'] for row in rows)
+    perf_counts = Counter(row['comparison'] for row in rows)
 
     lines += [
         '## Summary',
         '',
         '| Check | Pass | Fail | Regress | Error | N/A |',
         '|:------|-----:|-----:|--------:|------:|----:|',
-        '| Accuracy | {} | {} | — | {} | {} |'.format(accuracy_pass,
-                                                      accuracy_fail,
-                                                      accuracy_error,
-                                                      accuracy_na),
+        '| Accuracy | {} | {} | — | {} | {} |'.format(
+            accuracy_counts['pass'], accuracy_counts['fail'],
+            accuracy_counts['error'] + accuracy_counts['missing'],
+            accuracy_counts['skipped']),
         '| Performance | {} | — | {} | {} | {} |'.format(
-            perf_pass, perf_regress, perf_error, perf_na),
+            perf_counts['pass'], perf_counts['regress'], perf_counts['error'],
+            perf_counts['n/a']),
         '',
         'Performance regressions are rate drops of at least {:.0f}%. '
         'Rate gains of at least {:.0f}% are highlighted :high_brightness:.'.

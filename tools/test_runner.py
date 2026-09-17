@@ -24,7 +24,6 @@
 import os, sys
 import codecs
 import glob
-import io
 import pickle
 import zipfile
 import numpy as np
@@ -103,18 +102,14 @@ def read_pb_file(filename):
 def wrapup_inputs(io_folder, param_names):
     param_map = {}
     data_array = []
-    name_array = []
     for i in range(len(param_names)):
         file_name = io_folder + '/input_' + str(i) + '.pb'
         name, data = read_pb_file(file_name)
         param_map[name] = data
         data_array.append(data)
-        if name:
-            name_array.append(name)
 
     # fall back to positional mapping (input_i.pb -> i-th model input)
-    if len(name_array) < len(data_array) or any(name not in param_map
-                                                for name in param_names):
+    if any(name not in param_map for name in param_names):
         return {param_names[i]: data_array[i] for i in range(len(param_names))}
 
     return param_map
@@ -132,8 +127,7 @@ def read_outputs(io_folder, out_names):
             name_array.append(name)
 
     # fall back to positional order when names are absent or do not match
-    if len(name_array) < len(data_array) or any(name not in name_array
-                                                for name in out_names):
+    if any(name not in name_array for name in out_names):
         return data_array
 
     for name in out_names:
@@ -168,19 +162,15 @@ def model_output_names(model_file_name):
 
 def get_input_shapes(sample_case, param_names):
     param_shape_map = {}
-    name_array = []
     shape_array = []
     for i in range(len(param_names)):
         file_name = sample_case + '/input_' + str(i) + '.pb'
         name, data = read_pb_file(file_name)
         param_shape_map[name] = data.shape
         shape_array.append(data.shape)
-        if name:
-            name_array.append(name)
 
     # fall back to positional mapping when names are absent or do not match
-    if len(name_array) < len(shape_array) or any(name not in param_shape_map
-                                                 for name in param_names):
+    if any(name not in param_shape_map for name in param_names):
         return {
             param_names[i]: shape_array[i]
             for i in range(len(param_names))
@@ -243,6 +233,13 @@ def tune_input_shape(model, input_data):
     return input_shapes if changed else {}
 
 
+def map_inputs(param_names, inputs):
+    if len(param_names) != len(inputs):
+        raise ValueError("Expected {} inputs, got {}".format(
+            len(param_names), len(inputs)))
+    return dict(zip(param_names, inputs))
+
+
 _NUMPY_GLOBALS = {
     ('_codecs', 'encode'): codecs.encode,
     ('numpy', 'ndarray'): np.ndarray,
@@ -265,20 +262,19 @@ class _NumpyUnpickler(pickle.Unpickler):
 
 
 def _load_npz_array(archive, name):
-    stream = io.BytesIO(archive.read(name + '.npy'))
-    version = np.lib.format.read_magic(stream)
-    shape, _, dtype = np.lib.format._read_array_header(stream, version)
-    if dtype.hasobject:
-        array = _NumpyUnpickler(stream, fix_imports=True,
-                                encoding='bytes').load()
-        if not isinstance(
-                array,
-                np.ndarray) or array.shape != shape or array.dtype != dtype:
-            raise ValueError(
-                "Invalid object array '{}' in legacy NPZ".format(name))
-        return array
-    stream.seek(0)
-    return np.load(stream, allow_pickle=False)
+    with archive.open(name + '.npy') as stream:
+        version = np.lib.format.read_magic(stream)
+        shape, _, dtype = np.lib.format._read_array_header(stream, version)
+        if dtype.hasobject:
+            array = _NumpyUnpickler(stream, fix_imports=True,
+                                    encoding='bytes').load()
+            if not (isinstance(array, np.ndarray) and array.shape == shape
+                    and array.dtype == dtype):
+                raise ValueError(
+                    "Invalid object array '{}' in legacy NPZ".format(name))
+            return array
+        stream.seek(0)
+        return np.load(stream, allow_pickle=False)
 
 
 def load_npz_case(npz_path):
@@ -300,10 +296,9 @@ def run_npz_cases(test_loc, model_path_name, param_names, npz_files, args):
     test_name = os.path.basename(os.path.normpath(test_loc))
     cases = [load_npz_case(f) for f in npz_files]
 
-    # Positional mapping: the i-th stored tensor feeds the i-th model input.
     param_shapes = {
-        param_names[i]: cases[0][0][i].shape
-        for i in range(len(param_names))
+        name: data.shape
+        for name, data in map_inputs(param_names, cases[0][0]).items()
     }
     for name, dims in param_shapes.items():
         print("Input: {}, shape: {}".format(name, dims))
@@ -316,12 +311,8 @@ def run_npz_cases(test_loc, model_path_name, param_names, npz_files, args):
 
     correct_num = 0
     for idx, (inputs, gold_outputs) in enumerate(cases):
-        input_data = {
-            param_names[i]: inputs[i]
-            for i in range(len(param_names))
-        }
+        input_data = map_inputs(param_names, inputs)
 
-        # if input shape is different from model shape, reload and recompile
         input_shapes = tune_input_shape(model, input_data)
         if not len(input_shapes) == 0:
             model = migraphx.parse_onnx(model_path_name,
@@ -368,11 +359,11 @@ def main():
     # get output names
     output_names = model_output_names(model_path_name)
 
-    # get test cases; fall back to legacy test_data_*.npz when there are no
-    # test_data_set_*/ folders (older caffe2-era zoo archives)
+    # Older caffe2-era archives use test_data_*.npz instead of test_data_set_*.
     cases = get_test_cases(test_loc)
     if not cases:
-        npz_files = sorted(glob.glob(test_loc + '/test_data_*.npz'))
+        npz_files = sorted(glob.glob(os.path.join(test_loc,
+                                                  'test_data_*.npz')))
         if npz_files:
             run_npz_cases(test_loc, model_path_name, param_names, npz_files,
                           args)

@@ -34,11 +34,15 @@ struct module_pass_manager;
 
 namespace gpu {
 
+struct context;
+
 /// Rewrite an M==1 dot whose B operand is an INT4 dequantize chain into the
 /// fused gpu::int4_gemv op.  Must run before fuse_mlir so that MLIR does not
 /// claim the dot first.  Opt-in via MIGRAPHX_ENABLE_INT4_GEMV=1.
 struct MIGRAPHX_GPU_EXPORT fuse_int4_gemv
 {
+    context* ctx = nullptr;
+
     std::string name() const { return "gpu::fuse_int4_gemv"; }
     void apply(module_pass_manager& mpm) const;
 };

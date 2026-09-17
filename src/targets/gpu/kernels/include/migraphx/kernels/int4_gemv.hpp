@@ -31,34 +31,15 @@ namespace migraphx {
 
 using half2_t = _Float16 __attribute__((ext_vector_type(2)));
 
-// Packed fp16 dot-product with fp32 accumulate.
+// Packed fp16 dot-product with fp32 accumulate: v_dot2_f32_f16.
 //
-// v_dot2_f32_f16 does not exist on every GPU target, and the builtin that emits it is
-// not declared on targets that lack it -- so this must be guarded at preprocessing
-// time, not left to instruction selection.  Where the builtin is unavailable the
-// scalar form below is the arithmetic it replaced.  The accumulator is fp32 in both
-// paths, but the fallback is two separate adds where the builtin fuses, so results may
-// differ in the last ulp -- it is the same computation, not a bit-identical one.
-#ifndef MIGRAPHX_INT4_GEMV_HAS_FDOT2
-#if defined(__has_builtin)
-#if __has_builtin(__builtin_amdgcn_fdot2)
-#define MIGRAPHX_INT4_GEMV_HAS_FDOT2 1
-#else
-#define MIGRAPHX_INT4_GEMV_HAS_FDOT2 0
-#endif
-#else
-#define MIGRAPHX_INT4_GEMV_HAS_FDOT2 0
-#endif
-#endif
-
+// The fusion pass declines to match on targets without this instruction (see
+// arch_has_fdot2 in fuse_int4_gemv.cpp), so the builtin is always available here.  A scalar
+// fallback existed previously but was never compiled and would have been slower than the
+// MLIR path it replaced, which makes declining the match the better behaviour.
 __device__ inline float int4_gemv_dot2(half2_t a, half2_t b, float acc)
 {
-#if MIGRAPHX_INT4_GEMV_HAS_FDOT2
     return __builtin_amdgcn_fdot2(a, b, acc, false);
-#else
-    return acc + static_cast<float>(a[0]) * static_cast<float>(b[0]) +
-           static_cast<float>(a[1]) * static_cast<float>(b[1]);
-#endif
 }
 
 // Branch-free nibble -> fp16 conversion by exponent injection.

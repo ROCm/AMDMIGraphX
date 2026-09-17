@@ -28,6 +28,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_op.hpp>
@@ -44,6 +45,18 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_INT4_GEMV);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT4_GEMV_TRACE);
+
+// The kernel's inner loop is built on __builtin_amdgcn_fdot2 (v_dot2_f32_f16).  Targets
+// without that instruction would need a scalar multiply-add pair per element instead, which
+// is slower than the MLIR path this fusion replaces -- so on those targets we decline the
+// match rather than emit a kernel that loses.  Verified present on gfx1151, gfx1201 and
+// gfx90a; absent on gfx900 and gfx1010.
+bool arch_has_fdot2(const std::string& gfx)
+{
+    static const std::set<std::string> without = {
+        "gfx900", "gfx902", "gfx904", "gfx906", "gfx1010", "gfx1011", "gfx1012", "gfx1013"};
+    return without.count(gfx) == 0;
+}
 
 struct int4_gemv_op
 {
@@ -406,6 +419,16 @@ void fuse_int4_gemv::apply(module_pass_manager& mpm) const
 {
     // INT4 M=1 GEMV: intercept before MLIR fuses the dot.
     // Controlled by MIGRAPHX_ENABLE_INT4_GEMV=1 (opt-in).
+    //
+    // Checked once here rather than per dot: without fdot2 the kernel would need a scalar
+    // multiply-add pair per element, which loses to the MLIR path this fusion replaces.
+    if(ctx == nullptr or not arch_has_fdot2(ctx->get_current_device().get_gfx_name()))
+    {
+        if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
+            std::cout << "[int4_gemv] skip: target lacks fdot2" << std::endl;
+        return;
+    }
+
     match::find_matches(mpm, find_int4_gemv_op{});
     mpm.run_pass(dead_code_elimination{});
 }

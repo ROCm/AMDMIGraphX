@@ -262,7 +262,7 @@ struct pipeline_factory
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
             dead_code_elimination{},
-            fuse_int4_gemv{},
+            fuse_int4_gemv{get_context()},
             dead_code_elimination{},
             enable_pass(mlir_enabled(),
                         fuse_mlir{.ctx              = get_context(),

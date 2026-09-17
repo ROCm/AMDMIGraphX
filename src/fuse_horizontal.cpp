@@ -55,9 +55,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 //       — fuse a group, return one replacement instruction per original op
 //
 // Then pass an instance to fuse_horizontal_ops().
-// The framework handles scanning, grouping independent instructions by key,
-// filtering inter-dependent instructions, dispatching to fuse(), and replacing
-// originals with results.
+// The framework handles scanning, grouping instructions by key, rejecting
+// inter-dependent groups, dispatching to fuse(), and replacing originals with
+// results.
 // ---------------------------------------------------------------------------
 
 template <class Finder>
@@ -78,14 +78,10 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
         pos[ins] = p++;
     }
 
+    // group_by partitions against one seed, so its predicate must be an equivalence
+    // relation. Dependency is not transitive and must be checked on the complete key group.
     auto pred = [&](instruction_ref x, instruction_ref y) {
-        if(x == y)
-            return true;
-        if(finder.group_key(x) != finder.group_key(y))
-            return false;
-        if(pos.at(x) < pos.at(y))
-            return not reaches(x, y);
-        return not reaches(y, x);
+        return finder.group_key(x) == finder.group_key(y);
     };
 
     auto each = [&](auto start, auto last) {

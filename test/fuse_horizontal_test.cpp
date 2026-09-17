@@ -1238,6 +1238,46 @@ TEST_CASE(dot_horiz_no_fusion_chained_groups)
     EXPECT(m == expected);
 }
 
+// An unrolled recurrent cell mixes independent input dots with dependent hidden-state dots.
+// All dots share a group key, so the dependency check must cover the complete key group.
+TEST_CASE(dot_horiz_no_fusion_unrolled_recurrent_cell)
+{
+    migraphx::module m;
+    {
+        auto wih =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 0));
+        auto whh =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 1));
+        auto h0 = m.add_parameter("h0", {migraphx::shape::float_type, {1, 4}});
+        auto x0 = m.add_parameter("x0", {migraphx::shape::float_type, {1, 4}});
+        auto x1 = m.add_parameter("x1", {migraphx::shape::float_type, {1, 4}});
+        auto x2 = m.add_parameter("x2", {migraphx::shape::float_type, {1, 4}});
+        auto x3 = m.add_parameter("x3", {migraphx::shape::float_type, {1, 4}});
+
+        auto dx0 = m.add_instruction(migraphx::make_op("dot"), x0, wih);
+        auto dh0 = m.add_instruction(migraphx::make_op("dot"), h0, whh);
+        auto s0  = m.add_instruction(migraphx::make_op("add"), dx0, dh0);
+        auto h1  = m.add_instruction(migraphx::make_op("sigmoid"), s0);
+        auto dx1 = m.add_instruction(migraphx::make_op("dot"), x1, wih);
+        auto dh1 = m.add_instruction(migraphx::make_op("dot"), h1, whh);
+        auto s1  = m.add_instruction(migraphx::make_op("add"), dx1, dh1);
+        auto h2  = m.add_instruction(migraphx::make_op("sigmoid"), s1);
+        auto dx2 = m.add_instruction(migraphx::make_op("dot"), x2, wih);
+        auto dh2 = m.add_instruction(migraphx::make_op("dot"), h2, whh);
+        auto s2  = m.add_instruction(migraphx::make_op("add"), dx2, dh2);
+        auto h3  = m.add_instruction(migraphx::make_op("sigmoid"), s2);
+        auto dx3 = m.add_instruction(migraphx::make_op("dot"), x3, wih);
+        auto dh3 = m.add_instruction(migraphx::make_op("dot"), h3, whh);
+        auto s3  = m.add_instruction(migraphx::make_op("add"), dx3, dh3);
+        auto h4  = m.add_instruction(migraphx::make_op("sigmoid"), s3);
+        m.add_return({h4});
+    }
+    auto expected = m;
+    run_pass(m);
+
+    EXPECT(m == expected);
+}
+
 // Dots whose weights are not compile-time constants are not candidates.
 TEST_CASE(dot_horiz_fusion_non_constant_weight_unchanged)
 {

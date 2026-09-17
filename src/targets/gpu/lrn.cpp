@@ -30,7 +30,7 @@ namespace gpu {
 #if MIGRAPHX_USE_MIOPEN
 shape miopen_lrn::compute_shape(const std::vector<shape>& inputs) const
 {
-    check_shapes{inputs, *this}.has(2).not_broadcasted();
+    check_shapes{inputs, *this}.has(2).standard();
     return inputs.at(1);
 }
 

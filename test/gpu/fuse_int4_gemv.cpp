@@ -57,8 +57,7 @@ const enable_int4_gemv_env enable_env{};
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(
-        p, {migraphx::gpu::fuse_int4_gemv{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::gpu::fuse_int4_gemv{}, migraphx::dead_code_elimination{}});
 }
 
 std::size_t count_op(const migraphx::program& p, const std::string& name)
@@ -72,8 +71,8 @@ std::size_t count_op(const migraphx::program& p, const std::string& name)
 // K and N default to Llama-3.2-1B's fused gate_up (16384x2048), the shape that dominates the
 // decode step in practice. `zp` selects the asymmetric form -- symmetry is the axis the matcher
 // branches on, so both are exercised below.
-migraphx::program make_int4_gemv_program(std::size_t k = 2048,
-                                         std::size_t n = 16384,
+migraphx::program make_int4_gemv_program(std::size_t k     = 2048,
+                                         std::size_t n     = 16384,
                                          std::size_t batch = 1,
                                          std::size_t m     = 1,
                                          bool zp           = true)

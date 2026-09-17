@@ -29,6 +29,8 @@
 #include <migraphx/time.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <chrono>
+#include <cmath>
+#include <limits>
 #include <thread>
 
 namespace migraphx {
@@ -157,13 +159,37 @@ double time_program(const context& ictx,
     return time_loop(gctx, bundle, nruns, run);
 }
 
+namespace {
+struct benchmark_program
+{
+    program p;
+    parameter_map param_map;
+
+    double time(std::vector<migraphx::context>& ctx_vec, int bundle, int nruns) const
+    {
+        auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
+        return time_loop(gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); });
+    }
+};
+} // namespace
+
+static benchmark_program make_benchmark_program(std::vector<migraphx::context>& ctx_vec,
+                                                const context& ictx,
+                                                const benchmark_candidate& candidate)
+{
+    auto p = candidate.make_program();
+    candidate.before_run(p);
+    p.get_main_module()->finalize(ctx_vec);
+    auto param_map = make_parameter_map(p, candidate.generate_arguments(ictx));
+    return {std::move(p), std::move(param_map)};
+}
+
 const benchmark_candidate&
 simple_benchmark::run(const context& ictx, const std::vector<benchmark_candidate>& candidates) const
 {
     if(candidates.empty())
         MIGRAPHX_THROW("simple_benchmark: no candidates to benchmark");
     std::vector<migraphx::context> ctx_vec = {ictx};
-    auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());
     std::vector<double> times;
     times.reserve(candidates.size());
     std::transform(candidates.begin(),
@@ -172,18 +198,116 @@ simple_benchmark::run(const context& ictx, const std::vector<benchmark_candidate
                    [&](const benchmark_candidate& candidate) {
                        auto trace = candidate.trace();
                        trace("Benchmarking solution: ", candidate.solution());
-                       auto p = candidate.make_program();
-                       candidate.before_run(p);
-                       p.get_main_module()->finalize(ctx_vec);
-                       auto param_map = make_parameter_map(p, candidate.generate_arguments(ictx));
-                       auto t         = time_loop(
-                           gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); });
+                       auto bp = make_benchmark_program(ctx_vec, ictx, candidate);
+                       auto t  = bp.time(ctx_vec, bundle, nruns);
                        trace(t, "ms");
                        return t;
                    });
     std::this_thread::sleep_for(std::chrono::milliseconds{50});
     auto fastest = std::min_element(times.begin(), times.end());
     return candidates.at(std::distance(times.begin(), fastest));
+}
+
+// Floor for measured times when sizing run counts; avoids dividing by zero and
+// unbounded bundles for kernels that time near zero.
+static constexpr double benchmark_min_time_ms = 1e-3;
+
+static std::size_t
+compute_nruns(std::size_t budget_ms, double t, std::size_t bundle, std::size_t max_runs)
+{
+    double n = budget_ms / (std::max(t, benchmark_min_time_ms) * bundle);
+    return static_cast<std::size_t>(std::clamp(n, 1.0, static_cast<double>(max_runs)));
+}
+
+const benchmark_candidate&
+adaptive_topk_benchmark::run(const context& ictx,
+                             const std::vector<benchmark_candidate>& candidates) const
+{
+    if(candidates.empty())
+        MIGRAPHX_THROW("adaptive_topk_benchmark: no candidates to benchmark");
+    std::vector<migraphx::context> ctx_vec = {ictx};
+
+    const double invalid = std::numeric_limits<double>::infinity();
+    // Coarse pass: warmup + single-run estimate, then a short bundle-of-1 measurement
+    std::vector<double> coarse(candidates.size(), invalid);
+    std::transform(candidates.begin(),
+                   candidates.end(),
+                   coarse.begin(),
+                   [&](const benchmark_candidate& candidate) {
+                       auto trace = candidate.trace();
+                       trace("Benchmarking solution: ", candidate.solution());
+                       try
+                       {
+                           auto bp       = make_benchmark_program(ctx_vec, ictx, candidate);
+                           auto estimate = bp.time(ctx_vec, 1, 1);
+                           auto nruns    = compute_nruns(coarse_ms, estimate, 1, max_runs);
+                           auto t        = bp.time(ctx_vec, 1, static_cast<int>(nruns));
+                           trace("Coarse time: ", t, "ms");
+                           return t;
+                       }
+                       catch(const std::exception& e)
+                       {
+                           trace("Benchmark failed: ", e.what());
+                           return invalid;
+                       }
+                       catch(...)
+                       {
+                           trace("Benchmark failed");
+                           return invalid;
+                       }
+                   });
+
+    // Order candidates from fastest to slowest coarse time; failed candidates sort last
+    std::vector<std::size_t> order(candidates.size());
+    std::iota(order.begin(), order.end(), 0);
+    std::sort(order.begin(), order.end(), [&](auto i, auto j) { return coarse[i] < coarse[j]; });
+    auto nvalid = static_cast<std::size_t>(
+        std::count_if(coarse.begin(), coarse.end(), [](double t) { return std::isfinite(t); }));
+    if(nvalid == 0)
+        MIGRAPHX_THROW("adaptive_topk_benchmark: all candidates failed to run");
+    std::size_t target = top_k == 0 ? nvalid : std::min(top_k, nvalid);
+
+    // Pick one bundle for all precise runs, sized so the fastest candidate can
+    // still fit max_runs measurements in the precise budget.
+    double t_ref = coarse[order.front()];
+    auto bundle  = static_cast<std::size_t>(
+        std::max(precise_ms / (std::max(t_ref, benchmark_min_time_ms) * max_runs),
+                 static_cast<double>(precise_min_bundle)));
+
+    // Precise pass over the fastest candidates until enough successful timings are collected
+    std::vector<double> precise(candidates.size(), invalid);
+    std::size_t successes = 0;
+    auto it               = order.begin();
+    const auto valid_last = order.begin() + nvalid;
+    while(successes < target and it != valid_last)
+    {
+        const auto& candidate = candidates[*it];
+        auto trace            = candidate.trace();
+        trace("Precise solution: ", candidate.solution());
+        try
+        {
+            auto bp    = make_benchmark_program(ctx_vec, ictx, candidate);
+            auto nruns = compute_nruns(precise_ms, coarse[*it], bundle, max_runs);
+            auto t     = bp.time(ctx_vec, static_cast<int>(bundle), static_cast<int>(nruns));
+            trace("Precise time: ", t, "ms");
+            precise[*it] = t;
+            ++successes;
+        }
+        catch(const std::exception& e)
+        {
+            trace("Benchmark failed: ", e.what());
+        }
+        catch(...)
+        {
+            trace("Benchmark failed");
+        }
+        ++it;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    if(successes == 0)
+        return candidates.at(order.front());
+    auto fastest = std::min_element(precise.begin(), precise.end());
+    return candidates.at(std::distance(precise.begin(), fastest));
 }
 
 } // namespace gpu

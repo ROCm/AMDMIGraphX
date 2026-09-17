@@ -52,6 +52,22 @@ struct MIGRAPHX_GPU_EXPORT simple_benchmark
                                    const std::vector<benchmark_candidate>& candidates) const;
 };
 
+/* Time every candidate with a quick coarse measurement, then precisely re-time
+   the top candidates with more iterations and return the fastest one */
+struct MIGRAPHX_GPU_EXPORT adaptive_topk_benchmark
+{
+    // Number of successful precise timings to collect. Zero precisely times every candidate.
+    std::size_t top_k = 10;
+    // How much time to spend on precise timing
+    std::size_t precise_ms         = 20;
+    std::size_t coarse_ms          = 10;
+    std::size_t precise_min_bundle = 4;
+    std::size_t max_runs           = 20;
+
+    const benchmark_candidate& run(const context& ictx,
+                                   const std::vector<benchmark_candidate>& candidates) const;
+};
+
 MIGRAPHX_GPU_EXPORT double time_op(const context& ictx,
                                    operation op,
                                    const std::vector<shape>& inputs,

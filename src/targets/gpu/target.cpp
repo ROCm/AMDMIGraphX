@@ -101,6 +101,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_INT4_GEMV)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
 
@@ -262,7 +263,7 @@ struct pipeline_factory
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
             dead_code_elimination{},
-            fuse_int4_gemv{get_context()},
+            enable_pass(enabled(MIGRAPHX_ENABLE_INT4_GEMV{}), fuse_int4_gemv{get_context()}),
             dead_code_elimination{},
             enable_pass(mlir_enabled(),
                         fuse_mlir{.ctx              = get_context(),

@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/fuse_int4_gemv.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
@@ -57,7 +58,11 @@ const enable_int4_gemv_env enable_env{};
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::gpu::fuse_int4_gemv{}, migraphx::dead_code_elimination{}});
+    // The pass declines when it has no context (it needs the gfx name to check for fdot2),
+    // so a real one is required here or every expectation below would trivially pass.
+    auto ctx = migraphx::gpu::context{};
+    migraphx::run_passes(p,
+                         {migraphx::gpu::fuse_int4_gemv{&ctx}, migraphx::dead_code_elimination{}});
 }
 
 std::size_t count_op(const migraphx::program& p, const std::string& name)

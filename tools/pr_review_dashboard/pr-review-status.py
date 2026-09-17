@@ -49,7 +49,8 @@ import requests
 OWNER = "ROCm"
 REPO = "AMDMIGraphX"
 API = "https://api.github.com"
-BUCKET_KEYS = ("needs_reviews", "in_review", "changes_requested", "approved", "ready_to_merge")
+BUCKET_KEYS = ("needs_reviews", "in_review", "changes_requested", "approved",
+               "ready_to_merge")
 
 
 def load_config() -> dict:
@@ -59,7 +60,8 @@ def load_config() -> dict:
             with open(config_path) as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            print(f"WARNING: Failed to load {config_path}: {e}", file=sys.stderr)
+            print(f"WARNING: Failed to load {config_path}: {e}",
+                  file=sys.stderr)
     return {}
 
 
@@ -69,21 +71,22 @@ IGNORE_USERS = set(load_config().get("ignore_users", []))
 def get_session() -> requests.Session:
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
-        print("ERROR: Set the GITHUB_TOKEN environment variable.", file=sys.stderr)
+        print("ERROR: Set the GITHUB_TOKEN environment variable.",
+              file=sys.stderr)
         sys.exit(1)
     s = requests.Session()
-    s.headers.update(
-        {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        }
-    )
+    s.headers.update({
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    })
     return s
 
 
 # ── helpers ──────────────────────────────────────────────────────────
-def paginate(session: requests.Session, url: str, params: Optional[dict] = None):
+def paginate(session: requests.Session,
+             url: str,
+             params: Optional[dict] = None):
     """Yield every item across all pages of a paginated GitHub response."""
     params = dict(params or {})
     params.setdefault("per_page", 100)
@@ -158,8 +161,13 @@ query($owner: String!, $repo: String!, $cursor: String) {
 """
 
 
-def graphql_query(session: requests.Session, query: str, variables: dict) -> dict:
-    resp = session.post(GRAPHQL_URL, json={"query": query, "variables": variables})
+def graphql_query(session: requests.Session, query: str,
+                  variables: dict) -> dict:
+    resp = session.post(GRAPHQL_URL,
+                        json={
+                            "query": query,
+                            "variables": variables
+                        })
     resp.raise_for_status()
     body = resp.json()
     if "errors" in body:
@@ -173,7 +181,9 @@ def fetch_all_prs(session: requests.Session) -> list[dict]:
     cursor = None
     while True:
         data = graphql_query(session, PR_QUERY, {
-            "owner": OWNER, "repo": REPO, "cursor": cursor,
+            "owner": OWNER,
+            "repo": REPO,
+            "cursor": cursor,
         })
         connection = data["repository"]["pullRequests"]
         for node in connection["nodes"]:
@@ -236,10 +246,10 @@ def sanitize_note(raw: str) -> str:
 
 
 def extract_reviews(
-    review_nodes: list[dict],
-    comment_nodes: list[dict],
-    pr_author: str,
-    members: set[str],
+        review_nodes: list[dict],
+        comment_nodes: list[dict],
+        pr_author: str,
+        members: set[str],
 ) -> tuple[list[str], list[str], bool]:
     """
     Process GraphQL review and comment nodes. 
@@ -248,17 +258,21 @@ def extract_reviews(
     """
     latest: dict[str, str] = {}
     for review in review_nodes:
-        author = sanitize_username((review.get("author") or {}).get("login", ""))
+        author = sanitize_username((review.get("author")
+                                    or {}).get("login", ""))
         state = review.get("state", "")
-        if not author or state not in ("APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"):
+        if not author or state not in ("APPROVED", "CHANGES_REQUESTED",
+                                       "COMMENTED", "DISMISSED"):
             continue
-        if state == "COMMENTED" and latest.get(author) in ("APPROVED", "CHANGES_REQUESTED"):
+        if state == "COMMENTED" and latest.get(author) in (
+                "APPROVED", "CHANGES_REQUESTED"):
             continue
         latest[author] = state
 
     commenters: set[str] = set()
     for comment in comment_nodes:
-        author = sanitize_username((comment.get("author") or {}).get("login", ""))
+        author = sanitize_username((comment.get("author")
+                                    or {}).get("login", ""))
         if author and author not in latest:
             commenters.add(author)
 
@@ -290,11 +304,7 @@ def extract_ci_status(commits_nodes: list[dict]) -> str:
     """Map statusCheckRollup.state to our status string."""
     if not commits_nodes:
         return "none"
-    rollup = (
-        commits_nodes[0]
-        .get("commit", {})
-        .get("statusCheckRollup")
-    )
+    rollup = (commits_nodes[0].get("commit", {}).get("statusCheckRollup"))
     if rollup is None:
         return "none"
     state = rollup.get("state", "").upper()
@@ -308,13 +318,14 @@ def extract_ci_status(commits_nodes: list[dict]) -> str:
 
 
 def extract_dash_note(
-    comment_nodes: list[dict],
-    members: set[str],
+        comment_nodes: list[dict],
+        members: set[str],
 ) -> Optional[dict]:
     """Find the most recent #dash_note from a member (comments are in chronological order)."""
     best: Optional[dict] = None
     for comment in comment_nodes:
-        user = sanitize_username((comment.get("author") or {}).get("login", ""))
+        user = sanitize_username((comment.get("author")
+                                  or {}).get("login", ""))
         if user not in members:
             continue
         body = (comment.get("body") or "").strip()
@@ -336,7 +347,8 @@ def gather_data(session: requests.Session) -> dict:
     members = get_members_with_write_access(session)
     print(f"  Found {len(members)} members with push access.", file=sys.stderr)
     if IGNORE_USERS:
-        print(f"  Ignoring users: {', '.join(sorted(IGNORE_USERS))}", file=sys.stderr)
+        print(f"  Ignoring users: {', '.join(sorted(IGNORE_USERS))}",
+              file=sys.stderr)
 
     print("Fetching open, non-draft PRs (GraphQL)…", file=sys.stderr)
     prs = fetch_all_prs(session)
@@ -347,15 +359,13 @@ def gather_data(session: requests.Session) -> dict:
     for i, pr in enumerate(prs, 1):
         number = int(pr["number"])
         author = sanitize_username((pr.get("author") or {}).get("login", ""))
-        author_avatar = sanitize_avatar_url(
-            (pr.get("author") or {}).get("avatarUrl", "")
-        )
+        author_avatar = sanitize_avatar_url((pr.get("author")
+                                             or {}).get("avatarUrl", ""))
 
         review_nodes = pr.get("reviews", {}).get("nodes", [])
         comment_nodes = pr.get("comments", {}).get("nodes", [])
-        reviewers, approvers, has_changes_requested = (
-            extract_reviews(review_nodes, comment_nodes, author, members)
-        )
+        reviewers, approvers, has_changes_requested = (extract_reviews(
+            review_nodes, comment_nodes, author, members))
 
         member_review_count = len(reviewers)
         approval_count = len(approvers)
@@ -363,41 +373,54 @@ def gather_data(session: requests.Session) -> dict:
         requested_reviewers = [
             sanitize_username(
                 (node.get("requestedReviewer") or {}).get("login", "")
-                or (node.get("requestedReviewer") or {}).get("name", "")
-            )
+                or (node.get("requestedReviewer") or {}).get("name", ""))
             for node in pr.get("reviewRequests", {}).get("nodes", [])
         ]
         requested_reviewers = [r for r in requested_reviewers if r]
 
         mergeable = pr.get("mergeable", "UNKNOWN")
 
-        ci_status = extract_ci_status(
-            pr.get("commits", {}).get("nodes", [])
-        )
+        ci_status = extract_ci_status(pr.get("commits", {}).get("nodes", []))
 
         dash_note = extract_dash_note(comment_nodes, members)
 
         entry = {
-            "number": number,
-            "title": sanitize_text(pr.get("title", "")),
-            "author": author,
-            "author_avatar": author_avatar,
-            "url": sanitize_url(pr.get("url", "")),
-            "created_at": sanitize_iso_date(pr.get("createdAt", "")),
-            "updated_at": sanitize_iso_date(pr.get("updatedAt", "")),
+            "number":
+            number,
+            "title":
+            sanitize_text(pr.get("title", "")),
+            "author":
+            author,
+            "author_avatar":
+            author_avatar,
+            "url":
+            sanitize_url(pr.get("url", "")),
+            "created_at":
+            sanitize_iso_date(pr.get("createdAt", "")),
+            "updated_at":
+            sanitize_iso_date(pr.get("updatedAt", "")),
             "labels": [
                 sanitize_text(n.get("name", ""), max_len=50)
                 for n in pr.get("labels", {}).get("nodes", [])
             ],
-            "member_reviews": member_review_count,
-            "reviewers": reviewers,
-            "requested_reviewers": requested_reviewers,
-            "member_approvals": approval_count,
-            "approvers": approvers,
-            "ci_status": ci_status,
-            "mergeable": mergeable,
-            "has_changes_requested": has_changes_requested,
-            "dash_note": dash_note,
+            "member_reviews":
+            member_review_count,
+            "reviewers":
+            reviewers,
+            "requested_reviewers":
+            requested_reviewers,
+            "member_approvals":
+            approval_count,
+            "approvers":
+            approvers,
+            "ci_status":
+            ci_status,
+            "mergeable":
+            mergeable,
+            "has_changes_requested":
+            has_changes_requested,
+            "dash_note":
+            dash_note,
         }
 
         if approval_count >= 2 and ci_status == "success" and not has_changes_requested and mergeable == "MERGEABLE":
@@ -424,7 +447,8 @@ def gather_data(session: requests.Session) -> dict:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "repo": f"{OWNER}/{REPO}",
         "total_prs": len(prs),
-        "counts": {k: len(v) for k, v in buckets.items()},
+        "counts": {k: len(v)
+                   for k, v in buckets.items()},
         "buckets": buckets,
     }
 
@@ -432,14 +456,15 @@ def gather_data(session: requests.Session) -> dict:
 # ── output formats ───────────────────────────────────────────────────
 CI_ICONS = {"success": "✅", "failure": "❌", "pending": "🟠", "none": "⚪"}
 
+
 def print_terminal(data: dict):
     divider = "=" * 80
     labels = {
-        "needs_reviews":     "🔴  Needs Reviews",
-        "in_review":         "🟡  Has 2+ Reviewers",
+        "needs_reviews": "🔴  Needs Reviews",
+        "in_review": "🟡  Has 2+ Reviewers",
         "changes_requested": "🟠  Changes Requested",
-        "approved":          "🟣  Has 2+ Approvals",
-        "ready_to_merge":    "🟢  Ready to Merge",
+        "approved": "🟣  Has 2+ Approvals",
+        "ready_to_merge": "🟢  Ready to Merge",
     }
     for key in BUCKET_KEYS:
         items = data["buckets"][key]
@@ -454,7 +479,9 @@ def print_terminal(data: dict):
             reviewers = ", ".join(pr["reviewers"]) if pr["reviewers"] else "—"
             requested = ", ".join(pr.get("requested_reviewers", [])) or "—"
             print(f"  #{pr['number']:>5}  [{pr['author']}]  {pr['title']}")
-            print(f"         Approvals: {approvals}/2  CI: {ci}  Reviewers: {reviewers}  Requested: {requested}")
+            print(
+                f"         Approvals: {approvals}/2  CI: {ci}  Reviewers: {reviewers}  Requested: {requested}"
+            )
             if pr.get("dash_note"):
                 note = pr["dash_note"]
                 print(f"         Note ({note['author']}): {note['body']}")
@@ -470,8 +497,7 @@ def print_terminal(data: dict):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PR review status report for ROCm/AMDMIGraphX"
-    )
+        description="PR review status report for ROCm/AMDMIGraphX")
     parser.add_argument(
         "--json",
         action="store_true",

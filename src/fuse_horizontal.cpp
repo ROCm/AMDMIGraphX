@@ -35,6 +35,7 @@
 #include <numeric>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <tuple>
 #include <iterator>
 
@@ -55,9 +56,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 //       — fuse a group, return one replacement instruction per original op
 //
 // Then pass an instance to fuse_horizontal_ops().
-// The framework handles scanning, grouping instructions by key, rejecting
-// inter-dependent groups, dispatching to fuse(), and replacing originals with
-// results.
+// The framework handles scanning, grouping instructions by key, excluding
+// candidates that participate in dependencies, dispatching to fuse(), and
+// replacing originals with results.
 // ---------------------------------------------------------------------------
 
 template <class Finder>
@@ -78,8 +79,7 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
         pos[ins] = p++;
     }
 
-    // group_by partitions against one seed, so its predicate must be an equivalence
-    // relation. Independence is not transitive and must be checked on the complete key group.
+    // group_by partitions against one seed, so its predicate must be an equivalence relation.
     auto pred = [&](instruction_ref x, instruction_ref y) {
         return finder.group_key(x) == finder.group_key(y);
     };
@@ -94,9 +94,24 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
         std::sort(
             group.begin(), group.end(), [&](auto a, auto b) { return pos.at(a) < pos.at(b); });
 
-        if(any_of(group, [&](auto x) {
-               return any_of(group, [&](auto y) { return x != y and reaches(x, y); });
-           }))
+        // Independence is not transitive. Check each pair in the complete key group and exclude
+        // only the instructions that participate in a dependency, leaving unrelated candidates
+        // available for fusion.
+        std::unordered_set<instruction_ref> dependent;
+        for_each_iterator(group.begin(), group.end(), [&](auto x) {
+            for_each_iterator(std::next(x), group.end(), [&](auto y) {
+                if(reaches(*x, *y))
+                {
+                    dependent.insert(*x);
+                    dependent.insert(*y);
+                }
+            });
+        });
+        group.erase(std::remove_if(group.begin(),
+                                   group.end(),
+                                   [&](auto ins) { return contains(dependent, ins); }),
+                    group.end());
+        if(group.size() < finder.min_group_size())
             return;
 
         auto insert_pt    = std::next(group.back());

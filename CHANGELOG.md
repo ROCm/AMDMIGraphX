@@ -36,6 +36,7 @@ Full documentation for MIGraphX is available at
 * Fixed host conversion of a float32 NaN to `migraphx::half` or `migraphx::bf16` producing an infinity when the NaN payload did not survive the narrowing, such as `0x7f800001` (#5193).
 * Fixed `fuse_horizontal` creating cyclic graphs when a fusion group contained dependent operations (#5250).
 * Fixed the `has_value` matcher matching a neighbouring representable value in narrow types, where its `float`-sized tolerance window spans several `fp8`/`bf16` values; the window is now scaled per literal type (#5190).
+* Fixed mixed `uint8` and `int8` quantization (#5075).
 
 ### Optimized
 
@@ -143,20 +144,9 @@ Full documentation for MIGraphX is available at
 * Fixed `scatternd_*` GPU JIT kernel and host reference op to read the `indices` tensor stride-aware (`begin_at`), so non-packed layouts produced by upstream `transpose`/`slice`/`concat` no longer collapse every write into the same output cell (#4919).
 * Fixed a regression in `simplify_reshapes` where `find_slice_shape_transforms` could trigger `same_dims: Dimensions do not match` when a slice's shape descriptor absorbed a `multibroadcast` on the sliced axis.
 * Fixed a crash in `simplify_reshapes` when a reshape splits an `argmax`/`argmin` reduction axis (#5013).
-<<<<<<< HEAD
-* Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
-* Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
-* Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
-* Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).
-* Fixed validation to report a clear error when splitting `gpu::mlir_op` produces a pointwise module containing unsupported non-pointwise instructions.
-* Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).
-* Fixed mixed `uint8` and `int8` quantization (#5075).
-=======
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing (#4969).
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE` (#4991).
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions (#5038).
-
->>>>>>> f7710d4f443888d1869b550e60811e2dd7442c2f
 
 ### Optimized
 

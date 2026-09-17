@@ -325,19 +325,33 @@ template <class F, class... Arguments>
 void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
     MIGRAPHX_TRACE_NARY_FUNCTION
-    const auto shapes   = make_array(args.get_shape()...);
-    const bool standard = all_of(shapes, [](const shape& s) { return s.standard(); });
-    const bool packed =
-        all_of(shapes, [](const shape& s) { return s.packed() and not s.broadcasted(); });
-    const bool same_shapes =
-        all_of(shapes, [&](const shape& s) { return s == result.get_shape(); });
-    const bool same_input_shapes = all_of(shapes, [&](const shape& s) { return s == shapes[0]; });
-    if((result.get_shape().standard() and standard) or (packed and same_shapes))
-        nary_standard_impl(stream, f, result, args...);
-    else if(packed and same_input_shapes)
-        nary_nonstandard_packed_impl(stream, f, result, args...);
+    if constexpr(sizeof...(Arguments) == 0)
+    {
+        // No inputs (e.g. fill): the input checks below are vacuously true, so
+        // dispatch on the result shape alone. Packed writes the same elements
+        // as standard, just in a different order.
+        if(result.get_shape().packed())
+            nary_standard_impl(stream, f, result);
+        else
+            nary_nonstandard_nonpacked_impl(stream, f, result);
+    }
     else
-        nary_nonstandard_nonpacked_impl(stream, f, result, args...);
+    {
+        const auto shapes   = make_array(args.get_shape()...);
+        const bool standard = all_of(shapes, [](const shape& s) { return s.standard(); });
+        const bool packed =
+            all_of(shapes, [](const shape& s) { return s.packed() and not s.broadcasted(); });
+        const bool same_shapes =
+            all_of(shapes, [&](const shape& s) { return s == result.get_shape(); });
+        const bool same_input_shapes =
+            all_of(shapes, [&](const shape& s) { return s == shapes[0]; });
+        if((result.get_shape().standard() and standard) or (packed and same_shapes))
+            nary_standard_impl(stream, f, result, args...);
+        else if(packed and same_input_shapes)
+            nary_nonstandard_packed_impl(stream, f, result, args...);
+        else
+            nary_nonstandard_nonpacked_impl(stream, f, result, args...);
+    }
 }
 
 template <class... Arguments>
@@ -396,7 +410,7 @@ inline bool broadcastable(bool& divisible_by_4, index_int, const argument&, cons
 // Nullary
 inline auto nary(hipStream_t stream, argument result)
 {
-    return [=](auto f) { nary_standard_impl(stream, f, result); };
+    return [=](auto f) { nary_impl(stream, f, result); };
 }
 
 // Unary

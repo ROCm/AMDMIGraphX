@@ -43,7 +43,37 @@
 #ifndef MIGRAPHX_GUARD_TEST_TEST_HPP
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
 
+#if defined(__has_builtin) && !defined(CPPCHECK)
+#if __has_builtin(__builtin_LINE) && __has_builtin(__builtin_FILE) && \
+    __has_builtin(__builtin_FUNCTION)
+// NOLINTNEXTLINE
+#define TEST_HAS_BUILT_IN_SOURCE_LOCATION 1
+#else
+// NOLINTNEXTLINE
+#define TEST_HAS_BUILT_IN_SOURCE_LOCATION 0
+#endif
+#else
+// NOLINTNEXTLINE
+#define TEST_HAS_BUILT_IN_SOURCE_LOCATION 0
+#endif
+
 namespace test {
+
+#if TEST_HAS_BUILT_IN_SOURCE_LOCATION
+struct source_location
+{
+    const char* function = __builtin_FUNCTION();
+    const char* file     = __builtin_FILE();
+    int line             = __builtin_LINE();
+};
+#else
+struct source_location
+{
+    const char* function = "";
+    const char* file     = "";
+    int line             = 0;
+};
+#endif
 
 template <int N>
 struct rank : rank<N - 1>
@@ -410,16 +440,42 @@ inline std::atomic<int>& failures()
 
 inline void report_failure(int n = 1) { failures() += n; }
 
+struct failed
+{
+    failed(source_location ploc = source_location{}) : loc(ploc) {}
+
+    failed(const failed&)            = delete;
+    failed& operator=(const failed&) = delete;
+
+    ~failed()
+    {
+        report_failure();
+        if(loc.function != nullptr and *loc.function != 0)
+            std::cout << loc.function << std::endl;
+        if(loc.file != nullptr and *loc.file != 0)
+            std::cout << loc.file << ":" << loc.line << ":" << std::endl;
+        std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset;
+        std::cout << ss.str() << std::endl;
+    }
+
+    source_location loc;
+    std::ostringstream ss;
+
+    template <class T>
+    failed& operator<<(const T& x)
+    {
+        ss << x;
+        return *this;
+    }
+};
+
 template <class T, class F>
-void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
+void check_predicate(const T& x, const char* msg, F f, source_location loc = source_location{})
 {
     if(not bool(x.value()))
     {
-        report_failure();
-        std::cout << func << std::endl;
-        std::cout << file << ":" << line << ":" << std::endl;
-        std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset << msg << " "
-                  << "[ " << x << " ]" << std::endl;
+        failed(loc) << msg << " "
+                    << "[ " << x << " ]";
         f();
     }
 }
@@ -574,6 +630,9 @@ struct driver
         add_flag({"--list", "-l"}, "List all test cases");
         add_flag({"--continue", "-c"}, "Continue after failure");
         add_flag({"--quiet", "-q"}, "Don't print out extra output");
+        add_arg({"--start-from", "-s"},
+                "Run all test cases starting from the given test case name (or glob) in "
+                "registration order, skipping the ones before it.");
     }
     struct argument
     {
@@ -714,6 +773,7 @@ struct driver
         std::string msg;
         args[""] = {name};
         args.erase("--continue");
+        args.erase("--start-from");
         args["--quiet"];
         auto cmd = create_command(args);
         auto r   = std::system(cmd.c_str()); // NOLINT
@@ -811,6 +871,7 @@ struct driver
             run_test_case(p.first, p.second, args);
     }
 
+    // NOLINTNEXTLINE(readability-function-size)
     void run(int argc, const char* argv[])
     {
         auto args = parse(argc, argv);
@@ -830,7 +891,24 @@ struct driver
             quiet = true;
 
         auto cases = args[""];
-        if(cases.empty())
+        if(args.count("--start-from") > 0 and not args.at("--start-from").empty())
+        {
+            const auto& start = args.at("--start-from").front();
+            auto&& all        = get_test_cases();
+            auto it           = std::find_if(all.begin(), all.end(), [&](const auto& tc) {
+                return tc.first == start or
+                       glob_match(tc.first.begin(), tc.first.end(), start.begin(), start.end());
+            });
+            if(it == all.end())
+            {
+                out() << color::fg_red << "[  ERROR   ] Start-from test case '" << start
+                      << "' not found." << color::reset << std::endl;
+                std::exit(1);
+            }
+            std::vector<std::pair<std::string, test_case>> resumed(it, all.end());
+            run_test_cases(resumed, args);
+        }
+        else if(cases.empty())
         {
             run_test_cases(get_test_cases(), args);
         }
@@ -918,18 +996,17 @@ inline void run(int argc, const char* argv[])
 #endif
 
 // NOLINTNEXTLINE
-#define CHECK(...) \
-    test::failed(  \
-        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, TEST_PRETTY_FUNCTION, __FILE__, __LINE__, [] {})
+#define TEST_SOURCE_LOCATION \
+    test::source_location { TEST_PRETTY_FUNCTION, __FILE__, __LINE__ }
 
 // NOLINTNEXTLINE
-#define EXPECT(...)                         \
-    test::failed(TEST_CAPTURE(__VA_ARGS__), \
-                 #__VA_ARGS__,              \
-                 TEST_PRETTY_FUNCTION,      \
-                 __FILE__,                  \
-                 __LINE__,                  \
-                 &test::fail)
+#define CHECK(...) \
+    test::check_predicate(TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, [] {}, TEST_SOURCE_LOCATION)
+
+// NOLINTNEXTLINE
+#define EXPECT(...)        \
+    test::check_predicate( \
+        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, &test::fail, TEST_SOURCE_LOCATION)
 
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)

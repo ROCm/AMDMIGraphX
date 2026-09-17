@@ -35,6 +35,7 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
@@ -70,6 +71,51 @@ inline migraphx::program read_onnx(const std::string& name,
         std::abort();
     }
     return migraphx::parse_onnx_buffer(std::string{onnx_files.at(name)}, options);
+}
+
+// e.g. sym_dims({var("n", {1, 4}), lit(3), lit(4), lit(5)})
+inline std::vector<migraphx::shape::dynamic_dimension>
+sym_dims(std::initializer_list<migraphx::sym::expr> exprs)
+{
+    return {exprs.begin(), exprs.end()};
+}
+
+// Adds the named parameters, derives parser options from their shapes (dynamic ->
+// map_dyn_input_dims, symbolic -> use_symbolic_shapes), lets `build` add the rest of the expected
+// program, then compares against the parsed model. Same call works for range-dynamic and symbolic
+// inputs.
+template <class Build>
+inline bool check_parse(const std::string& model,
+                        const std::vector<std::pair<std::string, migraphx::shape>>& params,
+                        Build build)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<migraphx::instruction_ref> args;
+    args.reserve(params.size());
+    migraphx::onnx_options options;
+    for(const auto& [name, s] : params)
+    {
+        args.push_back(mm->add_parameter(name, s));
+        if(s.dynamic())
+        {
+            options.map_dyn_input_dims[name] = s.dyn_dims();
+            if(s.symbolic())
+                options.use_symbolic_shapes = true;
+        }
+    }
+    build(*mm, args);
+    return p == read_onnx(model, options);
+}
+
+// Element-wise family: add_common_op emits the right broadcast form for either mode.
+inline bool check_common_op(const std::string& model,
+                            const migraphx::operation& op,
+                            const std::vector<std::pair<std::string, migraphx::shape>>& params)
+{
+    return check_parse(model, params, [&](migraphx::module& m, const auto& args) {
+        m.add_return({add_common_op(m, op, args)});
+    });
 }
 
 inline migraphx::program

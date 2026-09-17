@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,4 +42,24 @@ TEST_CASE(gemm_dyn_bias_test)
     options.default_dyn_dim_value = {1, 10};
     auto prog                     = read_onnx("gemm_dyn_bias_test.onnx", options);
     EXPECT(p == prog);
+}
+
+TEST_CASE(gemm_dyn_bias_sym_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    EXPECT(check_parse("gemm_dyn_bias_test.onnx",
+                       {{"A", {migraphx::shape::float_type, sym_dims({lit(8), var("n", {1, 10})})}},
+                        {"B", {migraphx::shape::float_type, {8, 7}}},
+                        {"C", {migraphx::shape::float_type, {1, 7}}}},
+                       [](migraphx::module& m, const auto& a) {
+                           auto x0_t = m.add_instruction(
+                               migraphx::make_op("transpose", {{"permutation", {1, 0}}}), a[0]);
+                           auto dot  = m.add_instruction(migraphx::make_op("dot"), x0_t, a[1]);
+                           auto dims = migraphx::to_value(dot->get_shape().dyn_dims());
+                           auto x2_b = m.add_instruction(
+                               migraphx::make_op("multibroadcast", {{"out_dyn_dims", dims}}), a[2]);
+                           auto ret = m.add_instruction(migraphx::make_op("add"), dot, x2_b);
+                           m.add_return({ret});
+                       }));
 }

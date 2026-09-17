@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,61 +36,20 @@
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par.hpp>
 
-/*
-https://github.com/onnx/onnx/blob/main/docs/Operators.md#NonMaxSuppression
-
-Filter out boxes that have high intersection-over-union (IOU) overlap with previously selected
-boxes. Bounding boxes with score less than score_threshold are removed. Bounding box format is
-indicated by attribute center_point_box. Note that this algorithm is agnostic to where the origin is
-in the coordinate system and more generally is invariant to orthogonal transformations and
-translations of the coordinate system; thus translating or reflections of the coordinate system
-result in the same boxes being selected by the algorithm. The selected_indices output is a set of
-integers indexing into the input collection of bounding boxes representing the selected boxes. The
-bounding box coordinates corresponding to the selected indices can then be obtained using the Gather
-or GatherND operation.
-
-Version
-This version of the operator has been available since version 11 of the default ONNX operator set.
-Other versions of this operator: 10
-
-Attributes
-center_point_box : int (default is 0)
-Integer indicate the format of the box data. The default is 0. 0 - the box data is supplied as [y1,
-x1, y2, x2] where (y1, x1) and (y2, x2) are the coordinates of any diagonal pair of box corners and
-the coordinates can be provided as normalized (i.e., lying in the interval [0, 1]) or absolute.
-Mostly used for TF models. 1 - the box data is supplied as [x_center, y_center, width, height].
-Mostly used for Pytorch models.
-
-Inputs (2 - 5)
----------------------------------------------------------------------------------------------------------------------
-boxes : tensor(float)
-An input tensor with shape [num_batches, spatial_dimension, 4].
-The single box data format is indicated by center_point_box.
-
-scores : tensor(float)
-An input tensor with shape [num_batches, num_classes, spatial_dimension]
-
-max_output_boxes_per_class (optional) : tensor(int64)
-Integer representing the maximum number of boxes to be selected per batch per class.
-It is a scalar. Default to 0, which means no output.
-
-iou_threshold (optional) : tensor(float)
-Float representing the threshold for deciding whether boxes overlap too much with respect to IOU.
-It is scalar. Value range [0, 1]. Default to 0.
-
-score_threshold (optional) : tensor(float)
-Float representing the threshold for deciding when to remove boxes based on score. It is a scalar.
-----------------------------------------------------------------------------------------------------------------------
-Outputs
-selected_indices : tensor(int64)
-selected indices from the boxes tensor. [num_selected_indices, 3],
-the selected index format is [batch_index, class_index, box_index].
-----------------------------------------------------------------------------------------------------------------------
-*/
+/**
+ *  nonmaxsuppression(boxes,
+ *                    scores,
+ *                    optional(max_output_boxes_per_class),
+ *                    optional(iou_threshold),
+ *                    optional(score_threshold));
+ *  Outputs tuple of {tensor with dims[max_num_boxes, 3]: selected_box_indices, scalar int64_t:
+ * num_selected_indices}
+ */
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
@@ -98,13 +57,11 @@ namespace op {
 struct nonmaxsuppression
 {
     bool center_point_box = false;
-    bool use_dyn_output   = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.center_point_box, "center_point_box"),
-                    f(self.use_dyn_output, "use_dyn_output"));
+        return pack(f(self.center_point_box, "center_point_box"));
     }
 
     std::string name() const { return "nonmaxsuppression"; }
@@ -113,9 +70,14 @@ struct nonmaxsuppression
     {
         // requires at least 2 inputs
         check_shapes{{inputs.at(0), inputs.at(1)}, *this, true}.only_dims(3).same_ndims();
-        auto boxes_max_lens = inputs.at(0).max_lens();
-        // num batches * num boxes
-        const auto max_num_boxes = boxes_max_lens.at(0) * boxes_max_lens.at(1);
+        auto max_batches           = inputs.at(0).max_lens().at(0);
+        auto max_classes           = inputs.at(1).max_lens().at(1);
+        auto max_spatial_dimension = inputs.at(0).max_lens().at(1);
+        // Per ONNX spec, output is [num_selected_indices, 3] where each row is
+        // [batch_index, class_index, box_index]. The maximum possible
+        // num_selected_indices = num_batches * num_classes * spatial_dimension.
+        // TODO: can also be limited by max_output_boxes_per_class
+        const auto max_num_boxes = max_batches * max_classes * max_spatial_dimension;
 
         auto fixed_shape_error_check = [&]() {
             auto lens = inputs.front().lens();
@@ -131,62 +93,14 @@ struct nonmaxsuppression
             }
         };
 
-        if(use_dyn_output)
+        if(not(inputs.at(0).dynamic() or inputs.at(1).dynamic()))
         {
-            if(inputs.at(0).dynamic())
-            {
-                // both boxes and scores should be dynamic
-                // check dynamic dimensions are consistent
-                const auto boxes_dims  = inputs.at(0).dyn_dims();
-                const auto scores_dims = inputs.at(1).dyn_dims();
-                if(boxes_dims.at(1) != scores_dims.at(2))
-                {
-                    MIGRAPHX_THROW("NonMaxSuppression: dynamic spatial dimension mismatch between "
-                                   "boxes and scores input");
-                }
-                if(boxes_dims.at(0) != scores_dims.at(0))
-                {
-                    MIGRAPHX_THROW("NonMaxSuppression: dynamic number of batches mismatch between "
-                                   "boxes and scores input");
-                }
-            }
-            else if(inputs.at(1).dynamic())
-            {
-                // scores has dynamic shape, boxes fixed shape
-                // check that it is only a dynamic number of classes
-                const auto scores_dims = inputs.at(1).dyn_dims();
-                const auto boxes_lens  = inputs.at(0).lens();
-                if(not scores_dims.at(0).is_fixed() or scores_dims.at(0).max != boxes_lens.at(0))
-                {
-                    MIGRAPHX_THROW("NonMaxSuppression: scores dynamic num_classes; num_batches not "
-                                   "fixed or mismatched");
-                }
-                if(not scores_dims.at(2).is_fixed() or scores_dims.at(2).max != boxes_lens.at(1))
-                {
-                    MIGRAPHX_THROW("NonMaxSuppression: scores dynamic num_classes; "
-                                   "spatial_dimension not fixed or mismatches");
-                }
-            }
-            else
-            {
-                fixed_shape_error_check();
-            }
-            std::vector<shape::dynamic_dimension> out_lens = {};
-            out_lens.push_back({0, max_num_boxes});
-            out_lens.push_back({3, 3});
-            return {shape::int64_type, out_lens};
-        }
-        else
-        {
-            if(inputs.at(0).dynamic() or inputs.at(1).dynamic())
-            {
-                MIGRAPHX_THROW(
-                    "NonMaxSuppression: dynamic input shape with use_dyn_output set to false");
-            }
             fixed_shape_error_check();
-            std::vector<std::size_t> out_lens = {max_num_boxes, 3};
-            return {shape::int64_type, out_lens};
         }
+        std::vector<std::size_t> out_lens = {max_num_boxes, 3};
+        shape s_ind{shape::int64_type, out_lens};
+        shape s_num_selected{shape::int64_type, {1}};
+        return shape({s_ind, s_num_selected});
     }
 
     struct box
@@ -275,7 +189,8 @@ struct nonmaxsuppression
         return intersection_over_union > iou_threshold;
     }
 
-    // filter boxes below score_threshold
+    // Filter boxes below score_threshold.
+    // Don't filter for score if score_threshold == 0.f
     template <class T>
     std::vector<std::pair<double, int64_t>>
     filter_boxes_by_score(T scores_start, std::size_t num_boxes, double score_threshold) const
@@ -317,15 +232,28 @@ struct nonmaxsuppression
     std::size_t compute_nms(Output output,
                             const Boxes& boxes,
                             const Scores& scores,
-                            std::size_t max_output_boxes_per_class,
+                            int64_t max_output_boxes_per_class,
                             double iou_threshold,
                             double score_threshold) const
     {
+        // NOTE: should not need to fill with 0
         std::fill(output.begin(), output.end(), 0);
         const auto& lens       = scores.get_shape().lens();
         const auto num_batches = lens[0];
         const auto num_classes = lens[1];
         const auto num_boxes   = lens[2];
+        // Runtime validation per ONNX spec: spatial_dimension must match
+        // between boxes (dim 1) and scores (dim 2).
+        if(boxes.get_shape().lens()[1] != num_boxes)
+        {
+            MIGRAPHX_THROW("NonMaxSuppression: runtime spatial dimension mismatch "
+                           "between boxes and scores input");
+        }
+        if(boxes.get_shape().lens()[0] != num_batches)
+        {
+            MIGRAPHX_THROW("NonMaxSuppression: runtime batch dimension mismatch "
+                           "between boxes and scores input");
+        }
         // boxes of a class with NMS applied [score, index]
         std::vector<int64_t> selected_indices;
         // iterate over batches and classes
@@ -375,14 +303,16 @@ struct nonmaxsuppression
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         // make buffer of maximum size
-        shape max_output_shape = {output_shape.type(), output_shape.max_lens()};
+        auto output_shapes     = flatten_tuple_shapes({output_shape});
+        shape max_output_shape = {output_shapes.at(0).type(), output_shapes.at(0).max_lens()};
         argument result{max_output_shape};
+        argument num_selected_result{output_shapes.at(1)};
 
-        std::size_t max_output_boxes_per_class =
-            (args.size() > 2) ? (args.at(2).at<std::size_t>()) : 0;
+        int64_t max_output_boxes_per_class = (args.size() > 2) ? (args.at(2).at<std::size_t>()) : 0;
         if(max_output_boxes_per_class == 0)
         {
-            return result;
+            num_selected_result.visit([&](auto output) { output[0] = 0; });
+            return {{result, num_selected_result}};
         }
         double iou_threshold     = (args.size() > 3) ? (args.at(3).at<double>()) : 0.0f;
         double score_threshold   = (args.size() > 4) ? (args.at(4).at<double>()) : 0.0f;
@@ -398,14 +328,8 @@ struct nonmaxsuppression
                                            score_threshold);
             });
         });
-        if(use_dyn_output)
-        {
-            return result.reshape({output_shape.type(), {num_selected, 3}});
-        }
-        else
-        {
-            return result;
-        }
+        num_selected_result.visit([&](auto output) { output[0] = num_selected; });
+        return {{result, num_selected_result}};
     }
 };
 

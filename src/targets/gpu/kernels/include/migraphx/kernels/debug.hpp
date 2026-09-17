@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -206,6 +206,14 @@ MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const source_l
 #define MIGRAPHX_CHECK(cond) \
     MIGRAPHX_ASSERT_FAIL(cond, #cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 
+#ifdef CPPCHECK
+// NOLINTNEXTLINE
+#define MIGRAPHX_CAPTURE_SOURCE_LOCATION(T) T
+#define MIGRAPHX_ASSUME assert(cond)
+#define MIGRAPHX_UNREACHABLE assert(false)
+#define MIGRAPHX_ASSERT(cond) assert(cond)
+#define MIGRAPHX_WARN(cond, ...) assert(cond)
+#else
 #ifdef MIGRAPHX_DEBUG
 // NOLINTNEXTLINE
 #define MIGRAPHX_CAPTURE_SOURCE_LOCATION(T) source_location_capture<T>
@@ -220,6 +228,7 @@ MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const source_l
 #define MIGRAPHX_UNREACHABLE __builtin_unreachable
 #define MIGRAPHX_ASSERT(cond)
 #define MIGRAPHX_WARN(...)
+#endif
 #endif
 
 #define MIGRAPHX_STATIC_ASSERT_FOR(...) \

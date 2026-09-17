@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,9 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/map_activation_functions.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
@@ -114,8 +116,8 @@ struct parse_rnn : op_parser<parse_rnn>
             vec_names.resize(1);
         }
 
-        auto num_actv_functions = dirct == op::rnn_direction::bidirectional ? 2 : 1;
-        if(vec_names.size() != static_cast<size_t>(num_actv_functions))
+        std::size_t num_actv_functions = dirct == op::rnn_direction::bidirectional ? 2 : 1;
+        if(vec_names.size() != num_actv_functions)
         {
             MIGRAPHX_THROW("RNN: Invalid activation functions number, should be: " +
                            to_string(num_actv_functions));
@@ -135,11 +137,11 @@ struct parse_rnn : op_parser<parse_rnn>
                        vec_actv_funcs.begin(),
                        [&](const auto& fn) { return map_activation_functions().at(fn); });
 
-        // To be added later
-        float clip = 0.0;
-        if(contains(info.attributes, "clip"))
+        // clip is not yet supported by the rnn builder
+        if(contains(info.attributes, "clip") and
+           not float_equal(parser.parse_value(info.attributes.at("clip")).at<float>(), 0.0f))
         {
-            clip = parser.parse_value(info.attributes.at("clip")).at<float>();
+            MIGRAPHX_THROW("RNN: clip attribute is not supported");
         }
 
         int layout = 0;
@@ -161,16 +163,13 @@ struct parse_rnn : op_parser<parse_rnn>
             rnn_transpose_inputs(info, args);
         }
 
-        // first output for the concatenation of hidden states
-        auto hidden_states = info.add_instruction(make_op("rnn",
-                                                          {{"hidden_size", hidden_size},
-                                                           {"actv_func", to_value(vec_actv_funcs)},
-                                                           {"direction", dirct},
-                                                           {"clip", clip}}),
-                                                  args);
-
-        // second output for the last hidden state
-        auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
+        auto results =
+            op::builder::add("rnn",
+                             *info.mod,
+                             args,
+                             {{"actv_func", to_value(vec_actv_funcs)}, {"direction", dirct}});
+        auto hidden_states = results.at(0);
+        auto last_output   = results.at(1);
 
         if(layout != 0)
         {

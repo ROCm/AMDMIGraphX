@@ -57,10 +57,13 @@ add_library(migraphx
     color.cpp
     common.cpp
     common_dims.cpp
+    compile_modes.cpp
     compile_src.cpp
     convert_to_json.cpp
+    convolution.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
+    dim_like.cpp
     dom_info.cpp
     dynamic_loader.cpp
     eliminate_allocation.cpp
@@ -94,10 +97,10 @@ add_library(migraphx
     load_save.cpp
     logger.cpp
     make_op.cpp
+    md5.cpp
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
-    netron_output.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp
@@ -114,6 +117,7 @@ add_library(migraphx
     propagate_constant.cpp
     propagate_precision.cpp
     promote_literals.cpp
+    promote_storage_type.cpp
     quantization.cpp
     quantize_int4.cpp
     quantize_8bits.cpp
@@ -121,6 +125,8 @@ add_library(migraphx
     register_op.cpp
     register_target.cpp
     replace_allocate.cpp
+    rewrite_broadcasts.cpp
+    rewrite_convolution.cpp
     rewrite_reduce.cpp
     rewrite_resize.cpp
     rewrite_dot.cpp
@@ -131,17 +137,18 @@ add_library(migraphx
     rewrite_low_precision.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
-    rewrite_rnn.cpp
+    reshape_dims.cpp
     rewrite_topk.cpp
     schedule.cpp
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
-    sym.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
+    sym.cpp
+    sym_argument.cpp
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp
@@ -149,16 +156,12 @@ add_library(migraphx
     verify_args.cpp
 )
 
-file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
+enable_static_init(migraphx)
+
+file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp op/builder/torch/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 
-if(WIN32)
-    # Due to compilation crashing, we need to use type-erased matchers on Windows.
-    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
-    target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
-    # Due to BinSkim errors EnableControlFlowGuard
-    target_compile_options(migraphx PUBLIC "SHELL:-Xclang -cfguard")
-endif()
+configure_file(config.h.in include/migraphx/config.h)
 
 configure_file(version.h.in include/migraphx/version.h)
 add_library(migraphx_version INTERFACE)
@@ -174,11 +177,15 @@ function(register_migraphx_ops)
         register_op(migraphx HEADER migraphx/op/${OP}.hpp OPERATORS op::${OP})
     endforeach()
 endfunction()
+
+rocm_add_version_resource(migraphx "AMD MIGraphX" "MIGraphX Core Library - AMD Graph Optimization Engine")
+
 register_migraphx_ops(
     abs
     acosh
     acos
     add
+    addressof
     allocate
     argmax
     argmin
@@ -204,12 +211,15 @@ register_migraphx_ops(
     cosh
     cos
     dequantizelinear
+    deref
     dimensions_of
     div
     dot
+    dyn_slice
     elu
     equal
     erf
+    eval_expr_from_shape
     exp
     fill
     fixed_pad
@@ -219,10 +229,8 @@ register_migraphx_ops(
     gather
     gathernd
     get_tuple_elem
-    gqa_rotary_embedding
     greater
     group
-    gru
     identity
     if_op
     im2col
@@ -240,7 +248,6 @@ register_migraphx_ops(
     logsoftmax
     loop
     lrn
-    lstm
     max
     min
     mod
@@ -280,9 +287,6 @@ register_migraphx_ops(
     reshape_lazy
     resize
     reverse
-    rnn
-    rnn_last_cell_output
-    rnn_last_hs_output
     rnn_var_sl_last_output
     roialign
     rsqrt
@@ -325,7 +329,7 @@ register_migraphx_ops(
     where
 )
 register_op(migraphx HEADER migraphx/op/rnn_variable_seq_lens.hpp OPERATORS op::rnn_var_sl_shift_output op::rnn_var_sl_shift_sequence)
-register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal builtin::param builtin::returns)
+register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal builtin::param builtin::returns builtin::comment)
 rocm_clang_tidy_check(migraphx)
 migraphx_generate_export_header(migraphx)
 rocm_install_targets(
@@ -348,7 +352,7 @@ endif()
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
 if(MIGRAPHX_USE_EIGEN)
-    find_package(Eigen3)
+    find_package(Eigen3 QUIET)
     if(Eigen3_FOUND)
         target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_EIGEN=1)
         target_compile_definitions(migraphx PRIVATE EIGEN_MPL2_ONLY)
@@ -382,7 +386,7 @@ target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
 # See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
 # Prefer 6.x (msgpack-cxx)
-find_package(msgpack-cxx)
+find_package(msgpack-cxx QUIET)
 if(msgpack-cxx_FOUND)
     message(STATUS "Found msgpack-cxx (>=6.x)")
 else()
@@ -395,12 +399,21 @@ target_link_libraries(migraphx PRIVATE msgpack-cxx)
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpack-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
+add_library(migraphx_all_frontends INTERFACE)
+# migraphx_c links this privately, and a static build records even private
+# dependencies in the interface, so it has to be exported alongside migraphx_c.
+rocm_install_targets(TARGETS migraphx_all_frontends)
 
 add_subdirectory(api)
 add_subdirectory(driver)
+if(MIGRAPHX_ENABLE_ONNX)
 add_subdirectory(onnx)
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_onnx)
+endif()
+if(MIGRAPHX_ENABLE_TENSORFLOW)
 add_subdirectory(tf)
-
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_tf)
+endif()
 if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
 endif()
@@ -450,5 +463,3 @@ rocm_export_targets(
     Threads
     ${MIGRAPHX_CONFIG_DEPENDS}
 )
-
-

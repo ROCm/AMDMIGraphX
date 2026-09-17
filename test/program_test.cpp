@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
+#include <memory>
 #include <sstream>
 #include <migraphx/apply_alpha_beta.hpp>
 #include "test.hpp"
@@ -194,6 +195,70 @@ TEST_CASE(program_copy)
         p2.compile(migraphx::make_target("ref"));
         EXPECT(p2 == p1);
     }
+}
+
+TEST_CASE(program_file_version_accessor_matches_serialized_value)
+{
+    // The new program::get_program_file_version() accessor is also what
+    // to_value() writes into the "version" field of a serialized program and
+    // what from_value() compares against on load.  Guard against silent drift
+    // between the accessor and the serialized form.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(1);
+    p.compile(migraphx::make_target("ref"));
+
+    auto v = p.get_program_file_version();
+    EXPECT(v > 0);
+    EXPECT(p.to_value().at("version").to<int>() == v);
+}
+
+TEST_CASE(program_submodules_capture_parent_teardown)
+{
+    // Submodules capture the main module's parameter. The program owns its modules
+    // in a map that is destroyed in an unspecified order, so tearing it down must not
+    // dereference a freed instruction.
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape cond_s{migraphx::shape::bool_type, {1}};
+
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto x    = mm->add_parameter("x", s);
+    auto cond = mm->add_parameter("cond", cond_s);
+
+    auto* then_mod = p.create_module("then_mod");
+    then_mod->add_return({then_mod->add_instruction(migraphx::make_op("neg"), x)});
+    auto* else_mod = p.create_module("else_mod");
+    else_mod->add_return({else_mod->add_instruction(migraphx::make_op("relu"), x)});
+
+    auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({if_ins});
+
+    // A copy carries the same cross-module references and must tear down the same way.
+    migraphx::program copy = p;
+    EXPECT(copy == p);
+}
+
+TEST_CASE(program_modules_destroyed_referenced_first)
+{
+    // Mirror the program teardown: after detaching cross-module references (as the
+    // program destructor does) the modules can be destroyed in any order, including
+    // the referenced module before the one that references it.
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+    auto parent = std::make_unique<migraphx::module>();
+    auto x      = parent->add_parameter("x", s);
+
+    auto child = std::make_unique<migraphx::module>();
+    child->add_return({child->add_instruction(migraphx::make_op("neg"), x)});
+
+    parent->clear_foreign_inputs_for_program();
+    child->clear_foreign_inputs_for_program();
+
+    parent.reset();
+    child.reset();
+    EXPECT(parent == nullptr);
+    EXPECT(child == nullptr);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

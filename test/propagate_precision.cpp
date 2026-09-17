@@ -270,4 +270,43 @@ TEST_CASE(propagate_no_crossover_through_bool_int_chain)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// fp8 is a quantization storage type; precision must not be propagated across
+// an fp8 <-> floating-point convert (doing so would undo the quantization).
+// Input direction: convert(fp8 -> float) with an upstream fp8 pointwise op.
+TEST_CASE(propagate_no_crossover_fp8_boundary_input)
+{
+    migraphx::shape s1{migraphx::shape::fp8e4m3fnuz_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        auto x        = m1.add_parameter("x", s1);
+        auto y        = m1.add_parameter("y", s2);
+        auto absx     = m1.add_instruction(migraphx::make_op("abs"), x);
+        auto convert1 = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), absx);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), convert1, y);
+        m1.add_return({mul});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Output direction: convert(float -> fp8) with a downstream fp8 pointwise op.
+TEST_CASE(propagate_no_crossover_fp8_boundary_output)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        auto x        = m1.add_parameter("x", s1);
+        auto convert1 = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}), x);
+        auto absx = m1.add_instruction(migraphx::make_op("abs"), convert1);
+        m1.add_return({absx});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

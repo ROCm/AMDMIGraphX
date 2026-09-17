@@ -30,6 +30,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/float_equal.hpp>
 
 namespace migraphx {
@@ -38,7 +39,7 @@ namespace op {
 
 struct argmin
 {
-    int64_t axis = 0;
+    int64_t axis           = 0;
     bool select_last_index = false;
 
     template <class Self, class F>
@@ -56,14 +57,33 @@ struct argmin
 
     std::string name() const { return "argmin"; }
 
+    // Range-based dynamic input: set the reduced axis to {1, 1}.
+    shape range_compute_shape(const shape& s0) const
+    {
+        auto dims  = s0.dyn_dims();
+        dims[axis] = {1, 1};
+        return {shape::int64_type, dims};
+    }
+
+    // Static or symbolic input: build the output symbolically with the reduced axis set to
+    // lit(1), then collapse to a static shape if the input was static.
+    shape symbolic_compute_shape(const shape& s0) const
+    {
+        auto dds  = s0.to_symbolic().dyn_dims();
+        dds[axis] = shape::dynamic_dimension{sym::lit(1)};
+        shape result{shape::int64_type, dds};
+        if(not s0.symbolic())
+            return result.to_static();
+        return result;
+    }
+
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
-        auto lens = inputs[0].lens();
-
-        lens[axis] = 1;
-
-        return {shape::int64_type, lens};
+        check_shapes{inputs, *this, true}.has(1);
+        const auto& s0 = inputs[0];
+        if(s0.dynamic() and not s0.symbolic())
+            return range_compute_shape(s0);
+        return symbolic_compute_shape(s0);
     }
 
     template <class T>
@@ -89,15 +109,15 @@ struct argmin
         return min_index;
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         std::size_t batch_item_num = args.front().get_shape().lens()[axis];
 
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
-                par_for(output_shape.elements(), [&](auto i) {
-                    auto data_idx = output_shape.multi(i);
+                par_for(dyn_out.computed_shape.elements(), [&](auto i) {
+                    auto data_idx = dyn_out.computed_shape.multi(i);
                     output[i]     = this->calc_argmin(input, data_idx, batch_item_num);
                 });
             });

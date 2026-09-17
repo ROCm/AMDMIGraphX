@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,8 @@
 #include <migraphx/value.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
+#include <cstdint>
+#include <limits>
 #include <unordered_set>
 #include <test.hpp>
 
@@ -1015,6 +1017,59 @@ TEST_CASE(value_object_as_hash_key2)
     EXPECT(migraphx::contains(set, v3));
     EXPECT(migraphx::contains(set, v4));
     EXPECT(set.size() == 3);
+}
+
+TEST_CASE(value_normalize_unsigned_to_signed)
+{
+    migraphx::value v = std::uint64_t{5};
+    auto n            = v.normalize();
+    EXPECT(n == migraphx::value(std::int64_t{5}));
+    // Original is unchanged (normalize returns a new value).
+    EXPECT(v.is_uint64());
+    EXPECT(v == migraphx::value(std::uint64_t{5}));
+}
+
+TEST_CASE(value_normalize_large_unsigned_unchanged)
+{
+    // A value that does not fit in int64 stays unsigned.
+    auto big          = std::numeric_limits<std::uint64_t>::max();
+    migraphx::value v = big;
+    auto n            = v.normalize();
+    EXPECT(n == migraphx::value(big));
+    EXPECT(n.is_uint64());
+}
+
+TEST_CASE(value_normalize_signed_unchanged)
+{
+    migraphx::value v = std::int64_t{-3};
+    EXPECT(v.normalize() == v);
+}
+
+TEST_CASE(value_normalize_non_integers_unchanged)
+{
+    migraphx::value d = 1.5;
+    EXPECT(d.normalize() == d);
+    migraphx::value s = "abc";
+    EXPECT(s.normalize() == s);
+}
+
+TEST_CASE(value_normalize_object_preserves_keys)
+{
+    migraphx::value obj;
+    obj["a"] = std::uint64_t{1};
+    obj["b"] = "x";
+    auto n   = obj.normalize();
+    EXPECT(n.at("a").get_key() == "a");
+    EXPECT(n.at("a").without_key() == migraphx::value(std::int64_t{1}));
+    EXPECT(n.at("b").to<std::string>() == "x");
+}
+
+TEST_CASE(value_normalize_nested_array)
+{
+    migraphx::value arr = {std::uint64_t{2}, std::uint64_t{3}};
+    auto n              = arr.normalize();
+    EXPECT(n[0] == migraphx::value(std::int64_t{2}));
+    EXPECT(n[1] == migraphx::value(std::int64_t{3}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

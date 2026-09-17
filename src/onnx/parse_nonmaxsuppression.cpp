@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,8 +22,12 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/env.hpp>
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_DYNAMIC_NMS)
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,9 +42,28 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        auto op = parser.load(opd.op_name, info);
-        op.from_value({{"use_dyn_output", parser.use_dyn_output}});
-        return info.add_instruction(op, args);
+        if(any_of(args, [](const auto& arg) {
+               const auto& s = arg->get_shape();
+               return not s.dynamic() and s.elements() == 0;
+           }))
+            return info.add_instruction(make_op("undefined"));
+
+        auto op      = parser.load(opd.op_name, info);
+        auto nms_ins = info.add_instruction(op, args);
+        // slice with variable ends to handle dynamic shape output.
+        auto indices = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nms_ins);
+        if(enabled(MIGRAPHX_USE_DYNAMIC_NMS{}))
+        {
+            // TODO: planning to make this the default behavior and removing the env var.
+            auto num_selected =
+                info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
+            return info.add_instruction(
+                make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
+        }
+        else
+        {
+            return indices;
+        }
     }
 };
 

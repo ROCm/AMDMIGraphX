@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -236,11 +236,14 @@ void rewrite_pooling::apply(module& m) const
             s.lens().cbegin() + 2, s.lens().cend(), op.lengths.cbegin(), op.lengths.cend());
         bool default_strides =
             std::all_of(op.stride.cbegin(), op.stride.cend(), [](auto i) { return i == 1; });
+        bool strides_equal_lengths = std::equal(
+            op.stride.cbegin(), op.stride.cend(), op.lengths.cbegin(), op.lengths.cend());
         bool default_padding =
             std::all_of(op.padding.cbegin(), op.padding.cend(), [](auto i) { return i == 0; });
         bool default_dilations =
             std::all_of(op.dilations.cbegin(), op.dilations.cend(), [](auto i) { return i == 1; });
-        if(same_kernel_as_shape and default_strides and default_padding and default_dilations)
+        if(same_kernel_as_shape and (default_strides or strides_equal_lengths) and
+           default_padding and default_dilations)
         {
             replace_with_reduce(m, ins);
         }

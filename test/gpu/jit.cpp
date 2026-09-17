@@ -25,9 +25,12 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -35,7 +38,7 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compiler.hpp>
-#include <migraphx_kernels.hpp>
+#include <migraphx/gpu/device_description.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
@@ -184,6 +187,8 @@ extern "C" {
 __global__ void kernel(${type}* p) 
 {
     auto x = *p;
+    auto y = migraphx::vec_at(x, 0);
+    (void)y;
     *p = migraphx::test_implicit_conversion(migraphx::${invoke});
     (void)(1.f + migraphx::vec_at(migraphx::${invoke}, 0));
 }
@@ -229,12 +234,40 @@ TEST_CASE(compile_target)
     EXPECT(not check_target("gfx906").empty());
 }
 
+TEST_CASE(cross_compile_gpu_target_gfx1101)
+{
+    // Verify a cross-compile gpu::context produces a code object for the requested arch.
+    migraphx::gpu::context ctx{migraphx::gpu::device_description{"gfx1101", 60, 1}};
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", add_2s_binary)}, {}, ctx.get_current_device().get_device_name());
+    EXPECT(binaries.size() == 1);
+    std::string_view bin{binaries.front().data(), binaries.front().size()};
+    EXPECT(bin.find("gfx1101") != std::string_view::npos);
+}
+
+TEST_CASE(cross_compile_wavefront_size)
+{
+    auto wavefront_size = [](const std::string& arch, std::size_t ws = 0) {
+        migraphx::gpu::device_description desc{arch, 1};
+        desc.wavefront_size = ws;
+        desc.normalize();
+        return desc.wavefront_size;
+    };
+    EXPECT(wavefront_size("gfx1101") == 32);
+    EXPECT(wavefront_size("gfx942") == 64);
+    EXPECT(wavefront_size("gfx942", 32) == 32);
+    EXPECT(wavefront_size("gfx12xx") == 32);
+    EXPECT(wavefront_size("gfx12xx", 64) == 64);
+    EXPECT(test::throws([&] { wavefront_size("gfx942", 16); }));
+}
+
 TEST_CASE(compile_errors)
 {
     EXPECT(test::throws([&] {
         migraphx::gpu::compile_hip_src({make_src_file("main.cpp", incorrect_program)},
                                        {},
                                        migraphx::gpu::get_device_name(),
+                                       false,
                                        true);
     }));
 }
@@ -245,6 +278,7 @@ TEST_CASE(compile_warnings)
         return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", unused_param)},
                                               params,
                                               migraphx::gpu::get_device_name(),
+                                              false,
                                               true);
     };
 
@@ -370,13 +404,23 @@ TEST_CASE(compile_math)
         "exp(x)",
         "floor(x)",
         "fmod(x, x)",
+        "fmod(x, y)",
+        "fmod(y, x)",
         "isnan(x)",
         "log(x)",
         "max(x, x)",
+        "max(x, y)",
+        "max(y, x)",
         "min(x, x)",
+        "min(x, y)",
+        "min(y, x)",
         "pow(x, 0)",
         "pow(x, x)",
+        "pow(x, y)",
+        "pow(y, x)",
         "remainder(x,x)",
+        "remainder(x,y)",
+        "remainder(y,x)",
         "round(x)",
         "rsqrt(x)",
         "sin(x)",
@@ -385,6 +429,8 @@ TEST_CASE(compile_math)
         "tan(x)",
         "tanh(x)",
         "where(true, x, x)",
+        "where(true, x, y)",
+        "where(true, y, x)",
         // clang-format on
     };
     std::vector<std::string> data_types;
@@ -491,6 +537,55 @@ TEST_CASE(assert_type_min_max)
             auto co = migraphx::gpu::compile_hip_code_object(ctx, src, options);
         });
     }
+}
+
+// Compile with disable_processes=true to force in-process hiprtc instead of spawning
+// migraphx-hiprtc-driver; the resulting binary must be valid and execute correctly.
+TEST_CASE(compile_hip_src_disable_processes)
+{
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, {}, migraphx::gpu::get_device_name(), true);
+    EXPECT(binaries.size() == 1);
+
+    migraphx::argument input{{migraphx::shape::int8_type, {5}}};
+    auto ginput = migraphx::gpu::to_gpu(input);
+    migraphx::gpu::kernel k{binaries.front(), "write"};
+    k.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int8_t>());
+    auto output = migraphx::gpu::from_gpu(ginput);
+
+    EXPECT(output != input);
+    auto data = output.get<std::int8_t>();
+    EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+// hiprtc_disable_processes set via backend_options must thread through the full GPU target
+// pass pipeline (backend_options -> context -> compile_hip_src) and still produce a correct result.
+// relu lowers to gpu::precompile_op so compile_ops::apply triggers hiprtc compilation,
+// exercising the disable_processes path end-to-end through the pass pipeline.
+TEST_CASE(compile_code_object_disable_processes_backend_option)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {5, 2}};
+    auto input_literal = migraphx::generate_literal(input_shape);
+
+    auto make_prog = [&] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        mm->add_return(
+            {mm->add_instruction(migraphx::make_op("relu"), mm->add_literal(input_literal))});
+        return p;
+    };
+
+    auto p_ref = make_prog();
+    p_ref.compile(migraphx::make_target("ref"), migraphx::compile_options{});
+    auto expected = p_ref.eval({}).front();
+
+    auto p_gpu = make_prog();
+    migraphx::compile_options options;
+    options.backend_options["hiprtc_disable_processes"] = migraphx::value(true);
+    p_gpu.compile(migraphx::make_target("gpu"), options);
+    auto result = migraphx::gpu::from_gpu(p_gpu.eval({}).front());
+
+    EXPECT(result == expected);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -593,8 +593,8 @@ TEST_CASE(precompile_copy_non_alloc)
         return p;
     };
 
-    // hip::copy is NOT merged into the precompile_op; instead
-    // find_contiguous_copy wraps the leftover hip::copy.
+    // hip::copy is NOT merged into the precompile_op and is left as-is (it is lowered later by
+    // lower_device_ops, not fuse_ops).
     auto create_expected_program = [=]() {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -609,12 +609,9 @@ TEST_CASE(precompile_copy_non_alloc)
         auto pre_comp_op = migraphx::make_op(
             "gpu::precompile_op",
             {{"op", migraphx::to_value(pw_op)}, {"output_shape", migraphx::to_value(slice_s)}});
-        auto pw      = mm->add_instruction(pre_comp_op, {x, slice}, {pw_mod});
-        auto dest    = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s)}}));
-        auto copy_op = migraphx::make_op("hip::copy");
-        auto copy_precompile = migraphx::make_op(
-            "gpu::precompile_op", {{"op", migraphx::to_value(copy_op)}, {"additional_args", 0}});
-        auto copy = mm->add_instruction(copy_precompile, pw, dest);
+        auto pw   = mm->add_instruction(pre_comp_op, {x, slice}, {pw_mod});
+        auto dest = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s)}}));
+        auto copy = mm->add_instruction(migraphx::make_op("hip::copy"), pw, dest);
         mm->add_return({copy});
         return p;
     };
@@ -674,15 +671,12 @@ TEST_CASE(precompile_copy_chained)
             "gpu::precompile_op",
             {{"op", migraphx::to_value(pw_op)}, {"output_shape", migraphx::to_value(slice_s)}});
         auto pw = mm->add_instruction(pre_comp_op, {x, slice1}, {pw_mod});
-        // Second copy is NOT merged — wrapped by find_contiguous_copy
+        // Second copy is NOT merged and is left as-is (lowered later by lower_device_ops).
         auto super2 =
             mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(super_s2)}}));
         auto slice2 = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), super2);
-        auto copy_op         = migraphx::make_op("hip::copy");
-        auto copy_precompile = migraphx::make_op(
-            "gpu::precompile_op", {{"op", migraphx::to_value(copy_op)}, {"additional_args", 0}});
-        auto copy2 = mm->add_instruction(copy_precompile, pw, slice2);
+        auto copy2 = mm->add_instruction(migraphx::make_op("hip::copy"), pw, slice2);
         mm->add_return({copy2});
         return p;
     };

@@ -32,7 +32,8 @@ TEST_CASE(debug_symbols_onnx_names)
     auto l1     = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto conv_t = mm->add_instruction(migraphx::make_op("convolution_backwards"), l0, l1);
     mm->add_debug_symbols(conv_t, {"conv1"});
-    mm->add_return({conv_t});
+    auto ret = mm->add_return({conv_t});
+    mm->add_debug_symbols(ret, {"@output_0:y"});
 
     migraphx::onnx_options options;
     options.use_debug_symbols = true;
@@ -50,16 +51,41 @@ TEST_CASE(debug_symbols_migx_names)
     auto l2       = mm->add_parameter("2", {migraphx::shape::float_type, {1}});
     uint64_t axis = 1;
     auto l3       = mm->add_instruction(migraphx::make_op("convolution"), l0, l1);
-    mm->add_debug_symbols(l3, {"migx_uid:Conv_3"});
+    mm->add_debug_symbols(l3, {"migx_uid:main_Conv_3"});
     auto l4 = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
-    mm->add_debug_symbols(l4, {"migx_uid:Conv_3"});
+    mm->add_debug_symbols(l4, {"migx_uid:main_Conv_3"});
     auto l5 = mm->add_instruction(migraphx::make_op("add"), l3, l4);
-    mm->add_debug_symbols(l5, {"migx_uid:Conv_3"});
-    mm->add_return({l5});
+    mm->add_debug_symbols(l5, {"migx_uid:main_Conv_3"});
+    auto ret = mm->add_return({l5});
+    mm->add_debug_symbols(ret, {"@output_0:3"});
 
     migraphx::onnx_options options;
     options.use_debug_symbols = true;
     auto prog                 = read_onnx("conv_bias_test.onnx", options);
     EXPECT(p == prog);
+}
+
+TEST_CASE(debug_symbols_return_single_output)
+{
+    migraphx::onnx_options options;
+    options.use_debug_symbols = true;
+    auto prog                 = read_onnx("conv_transpose_test.onnx", options);
+    auto* mm                  = prog.get_main_module();
+    auto ret_ins              = std::prev(mm->end());
+    EXPECT(ret_ins->name() == "@return");
+    std::set<std::string> expected = {"@output_0:y"};
+    EXPECT(ret_ins->get_debug_symbols() == expected);
+}
+
+TEST_CASE(debug_symbols_return_multi_output)
+{
+    migraphx::onnx_options options;
+    options.use_debug_symbols = true;
+    auto prog                 = read_onnx("topk_test.onnx", options);
+    auto* mm                  = prog.get_main_module();
+    auto ret_ins              = std::prev(mm->end());
+    EXPECT(ret_ins->name() == "@return");
+    std::set<std::string> expected = {"@output_0:val", "@output_1:indices"};
+    EXPECT(ret_ins->get_debug_symbols() == expected);
 }

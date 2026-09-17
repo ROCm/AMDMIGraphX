@@ -1,7 +1,7 @@
 # ####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@
 cmake_policy(SET CMP0057 NEW)
 
 find_package(Threads REQUIRED)
-rocm_test_link_libraries(Threads::Threads migraphx migraphx_onnx migraphx_tf)
+rocm_test_link_libraries(Threads::Threads migraphx migraphx_all_frontends)
 rocm_test_include_directories(include)
 
 set(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS Off CACHE BOOL "")
@@ -33,15 +33,32 @@ if(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
     add_compile_definitions(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
 endif()
 
-add_library(register_targets STATIC register_target.cpp)
-target_link_libraries(register_targets PRIVATE migraphx migraphx_all_targets)
+if(WIN32)
+    add_library(register_targets STATIC register_target.cpp)
+    target_link_libraries(register_targets PRIVATE migraphx migraphx_all_targets)
+    enable_static_init(register_targets)
+else()
+    add_library(register_targets INTERFACE)
+endif()
+
+add_library(migraphx_lazy_ref INTERFACE)
+if(BUILD_SHARED_LIBS)
+    add_dependencies(migraphx_lazy_ref migraphx_ref)
+else()
+    target_link_libraries(migraphx_lazy_ref INTERFACE migraphx_ref register_targets)
+endif()
 
 file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
 list(REMOVE_ITEM TESTS ${CMAKE_CURRENT_SOURCE_DIR}/register_target.cpp)
 
+# TODO: Theses tests cause duplicate symbols(caught by the odr checker in clang ASAN) since it uses onnx-proto directly.
+list(REMOVE_ITEM TESTS ${CMAKE_CURRENT_SOURCE_DIR}/netron_output_test.cpp)
+
 foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
     rocm_add_test_executable(test_${BASE_NAME} ${TEST})
+    # Some unit tests need the ref target
+    target_link_libraries(test_${BASE_NAME} migraphx_lazy_ref)
     rocm_clang_tidy_check(test_${BASE_NAME})
 endforeach()
 
@@ -60,7 +77,10 @@ if(MIGRAPHX_ENABLE_GPU)
         if(MIGRAPHX_USE_HIPRTC)
         target_compile_definitions(test_gpu_${BASE_NAME} PUBLIC -DMIGRAPHX_USE_HIPRTC)
         endif()
-        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels register_targets)
+        if(MIGRAPHX_USE_AMDMLSS)
+            target_compile_definitions(test_gpu_${BASE_NAME} PUBLIC -DMIGRAPHX_USE_AMDMLSS=1)
+        endif()
+        target_link_libraries(test_gpu_${BASE_NAME} migraphx_lazy_ref migraphx_gpu register_targets)
     endforeach()
     add_subdirectory(gpu/kernels)
 endif()
@@ -77,17 +97,21 @@ if(MIGRAPHX_ENABLE_FPGA)
             COST 10
             RESOURCE_LOCK fpga
         )
-        target_link_libraries(test_fpga_${BASE_NAME} migraphx_fpga)
+        target_link_libraries(test_fpga_${BASE_NAME} migraphx_lazy_ref migraphx_fpga)
     endforeach()
 endif()
 
 # Onnx test
+if(MIGRAPHX_ENABLE_ONNX)
 set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
 add_subdirectory(onnx)
+endif()
 
 # tf test
+if(MIGRAPHX_ENABLE_TENSORFLOW)
 set(TEST_TF_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tf)
 add_subdirectory(tf)
+endif()
 
 add_subdirectory(api)
 add_subdirectory(verify)
@@ -96,6 +120,9 @@ add_subdirectory(ref)
 if(MIGRAPHX_ENABLE_PYTHON)
     add_subdirectory(py)
 endif()
+
+# Install a pytest bridge next to the installed C++ tests
+rocm_install_test(FILES ${CMAKE_CURRENT_SOURCE_DIR}/test_pytest_bridge.py)
 
 # Op builder test
 set(TEST_OP_BUILDER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/op)
@@ -111,7 +138,7 @@ if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_CPU AND MIGRAPHX_ENABLE_FPGA)
         set(TEST_NAME test_${BASE_NAME})
         add_executable(${TEST_NAME} ${MULTI_TARGET_TEST})
         rocm_clang_tidy_check(${TEST_NAME})
-        target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets register_targets)
+        target_link_libraries(${TEST_NAME} migraphx migraphx_all_frontends migraphx_all_targets register_targets)
         target_include_directories(${TEST_NAME} PUBLIC include)
         add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_MULTI_TARGET_DIR})
         rocm_mark_as_test(${TEST_NAME})
@@ -144,12 +171,18 @@ function(test_headers PREFIX)
               ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/ck.hpp)
     endif()
     list(REMOVE_ITEM HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraphx/float8_impl.hpp)
+    if(NOT MIGRAPHX_ENABLE_TENSORFLOW)
+        list(REMOVE_ITEM HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraphx/tf.hpp)
+    endif()
+    if(NOT MIGRAPHX_ENABLE_ONNX)
+        list(REMOVE_ITEM HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraphx/onnx.hpp)
+    endif()
     foreach(HEADER ${HEADERS})
         file(RELATIVE_PATH HEADER_REL ${CMAKE_SOURCE_DIR} ${HEADER})
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
         get_filename_component(BASE_NAME ${HEADER} NAME_WE)
         test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
-        target_link_libraries(header_${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets register_targets)
+        target_link_libraries(header_${TEST_NAME} migraphx migraphx_all_frontends migraphx_all_targets register_targets)
     endforeach()
 endfunction()
 

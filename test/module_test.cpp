@@ -149,6 +149,28 @@ TEST_CASE(calc_implict_deps)
     }));
 }
 
+TEST_CASE(module_sort)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        m1.add_parameter("z", s);
+        auto x   = m1.add_parameter("x", s);
+        auto y   = m1.add_parameter("y", s);
+        auto add = m1.add_instruction(migraphx::make_op("add"), y, x);
+        m1.add_return({add});
+    }
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto y = m2.add_parameter("y", s);
+        m2.add_parameter("z", s);
+        auto add = m2.add_instruction(migraphx::make_op("add"), y, x);
+        m2.add_return({add});
+    }
+    EXPECT(m1.sort() == m2);
+}
+
 TEST_CASE(module_annotate)
 {
     migraphx::program p1 = create_program();
@@ -2229,6 +2251,59 @@ TEST_CASE(erase_range_all_debug_symbols)
     auto ret_ins = std::prev(m.end());
     m.remove_instructions(neg, ret_ins);
     EXPECT(not m.has_debug_symbols());
+}
+
+TEST_CASE(module_copy_destructor_detaches_from_referenced_module)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module parent;
+    auto x = parent.add_parameter("x", s);
+
+    migraphx::module child;
+    child.add_return({child.add_instruction(migraphx::make_op("neg"), x)});
+    const std::size_t base = x->outputs().size();
+
+    {
+        // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
+        migraphx::module copy = child;
+        EXPECT(x->outputs().size() == base + 1);
+    }
+    // The copy's back-reference on x is removed when it is destroyed.
+    EXPECT(x->outputs().size() == base);
+}
+
+TEST_CASE(module_copy_assign_detaches_from_referenced_module)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module parent;
+    auto x = parent.add_parameter("x", s);
+
+    migraphx::module child;
+    child.add_return({child.add_instruction(migraphx::make_op("neg"), x)});
+    const std::size_t base = x->outputs().size();
+
+    {
+        migraphx::module copy;
+        copy = child;
+        EXPECT(x->outputs().size() == base + 1);
+    }
+    EXPECT(x->outputs().size() == base);
+}
+
+TEST_CASE(module_assign_clears_previous_foreign_outputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module parent;
+    auto x = parent.add_parameter("x", s);
+    EXPECT(x->outputs().empty());
+
+    migraphx::module a;
+    a.add_return({a.add_instruction(migraphx::make_op("neg"), x)});
+    EXPECT(x->outputs().size() == 1);
+
+    // Assigning over a drops the instruction that referenced x.
+    a = migraphx::module{};
+    EXPECT(x->outputs().empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

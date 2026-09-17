@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,53 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+namespace {
+// A tensor whose layout matters. Broadcasts and scalars have no meaningful layout,
+// so they are never normalized.
+bool needs_standard(instruction_ref in)
+{
+    const shape& s = in->get_shape();
+    return not s.dynamic() and not s.broadcasted() and s.elements() > 1 and not s.standard();
+}
+
+// A reshape aliases its input, so a non-standard input yields a non-standard view.
+// Give it a standard input so the output is a standard shape.
+void contiguous_reshape_inputs(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "reshape" or ins->inputs().size() != 1)
+            continue;
+        auto input = ins->inputs().front();
+        if(not needs_standard(input))
+            continue;
+        m.replace_instruction(
+            ins, ins->get_operator(), {m.insert_instruction(ins, make_op("contiguous"), input)});
+    }
+}
+
+// When an op already has a contiguous input but its inputs are not all standard,
+// make the non-standard ones contiguous so they share the standard layout (backends
+// such as MIOpen require all inputs to match).
+void contiguous_mixed_layout_inputs(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        auto args           = ins->inputs();
+        bool has_contiguous = std::any_of(args.begin(), args.end(), [](instruction_ref in) {
+            return in->name() == "contiguous";
+        });
+        if(not has_contiguous or std::none_of(args.begin(), args.end(), needs_standard))
+            continue;
+        auto new_args = args;
+        std::transform(args.begin(), args.end(), new_args.begin(), [&](instruction_ref in) {
+            return needs_standard(in) ? m.insert_instruction(ins, make_op("contiguous"), in) : in;
+        });
+        m.replace_instruction(ins, ins->get_operator(), new_args, ins->module_inputs());
+    }
+}
+} // namespace
 
 void auto_contiguous::apply(module& m) const
 {
@@ -74,6 +121,11 @@ void auto_contiguous::apply(module& m) const
             m.replace_instruction(ins, c);
         }
     }
+
+    // Both run after the loop above: the mixed-layout pass keys off the contiguous
+    // instructions that loop inserts.
+    contiguous_reshape_inputs(m);
+    contiguous_mixed_layout_inputs(m);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

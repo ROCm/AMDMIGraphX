@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/version.h>
 
 namespace migraphx {
@@ -84,6 +85,28 @@ target make_target(const std::string& name)
         MIGRAPHX_THROW("Requested target '" + name + "' is not loaded or not supported");
     }
     return it->second;
+}
+
+target make_target(const std::string& name,
+                   const std::initializer_list<std::pair<std::string, value>>& options)
+{
+    target t = make_target(name);
+    value v;
+    for(auto&& [key, x] : options)
+        v[key] = x;
+    if(not v.is_null())
+        t.from_value(v);
+    return t;
+}
+
+target make_target_from_value(const std::string& name, const value& options)
+{
+    if(not(options.is_null() or options.is_object() or (options.empty() and options.is_array())))
+        MIGRAPHX_THROW("Value is not an object for make_target: " + name);
+    target t = make_target(name);
+    if(not options.is_null())
+        t.from_value(options);
+    return t;
 }
 
 std::vector<std::string> get_targets()

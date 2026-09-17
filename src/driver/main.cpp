@@ -34,13 +34,20 @@
 #include "trim.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
+#include "verbose_terminate.hpp"
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 #include <migraphx/tf.hpp>
+#endif
+#ifdef MIGRAPHX_ENABLE_ONNX
 #include <migraphx/onnx.hpp>
+#endif
 #ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
 #endif
+#include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
@@ -60,10 +67,12 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
 
+#include <migraphx/time.hpp>
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
 #include <optional>
+#include <set>
 #include <sstream>
 
 namespace {
@@ -93,6 +102,7 @@ struct logger_options
 {
     std::string log_level;
     std::vector<std::string> log_files;
+    bool log_to_cout = false;
 
     void parse(migraphx::driver::argument_parser& ap)
     {
@@ -116,11 +126,26 @@ struct logger_options
            ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
            ap.append(),
            ap.nargs(2));
+        ap(log_to_cout,
+           {"--log-stdout"},
+           ap.help("Send info logs to std::cout, keeping warnings and errors on std::cerr"),
+           ap.set_value(true));
         ap.post_action([this](auto&&) { this->apply(); });
     }
 
-    void apply() const
+    void add_cout_sink()
     {
+        migraphx::log::set_severity(
+            migraphx::log::severity::warn); // sets the severity of default (stderr) sink to warn
+        migraphx::log::add_sink(migraphx::log::make_io_sink(std::cout));
+    }
+
+    void apply()
+    {
+        if(log_to_cout)
+        {
+            add_cout_sink();
+        }
         if(not log_level.empty())
         {
             auto level = parse_log_level_string(log_level);
@@ -181,7 +206,9 @@ struct loader
     bool replace_literals       = false;
     bool brief                  = false;
     bool verbose                = false;
+    bool strip_context          = false;
     bool use_debug_symbols      = false;
+    bool use_symbolic           = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -199,8 +226,12 @@ struct loader
            ap.help("Run a single GEMM to test MIGraphX"),
            ap.set_value(true),
            ap.group("input"));
+#ifdef MIGRAPHX_ENABLE_ONNX
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
+#endif
         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
         ap(batch,
@@ -219,6 +250,14 @@ struct loader
            ap.help(
                "Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
            ap.set_value(true));
+        ap(use_symbolic,
+           {"--enable-symbolic"},
+           ap.help("Build input shapes with symbolic dimensions. Named dim_params (--dim-param) "
+                   "and unnamed dynamic dims (--default-dyn-dim) become symbolic dimensions. "
+                   "--dyn-input-dim entries that carry a \"name\" field are symbolic regardless "
+                   "of this flag. "
+                   "Example: --enable-symbolic --default-dyn-dim \"{min:1, max:1024}\""),
+           ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
@@ -228,21 +267,33 @@ struct loader
            ap.nargs(2));
         ap(dim_params,
            {"--dim-param"},
-           ap.help("Symbolic parameter dimension name (fixed / dynamic) - "
-                   "(fixed format): \"@dim_param_name\" \"x\" / "
-                   "(dynamic format): \"@dim_param_name\" \"{min:x, max:y, optimals:[o1,o2]}\""),
+           ap.help(
+               "Bind a named ONNX dim_param to a dimension (fixed or dynamic). "
+               "Fixed:   \"@dim_param_name\" \"x\". "
+               "Dynamic: \"@dim_param_name\" \"{min:x, max:y, optimals:[o1,o2]}\". "
+               "With --enable-symbolic the dim_param becomes a symbolic dimension over this range. "
+               "Example: --enable-symbolic --dim-param \"@seq\" "
+               "\"{min:1, max:128, optimals:[64, 128]}\""),
            ap.append(),
            ap.nargs(2));
         ap(dyn_param_dims,
            {"--dyn-input-dim"},
-           ap.help("Dynamic dimensions of a parameter (format: \"@name_1\" \"[{min:x, max:y, "
-                   "optimals:[o1,o2,...]}, dim2,dim3, ...]\", \"@name_2\", ... You can supply a "
-                   "single integer value for a dimension to specify it as fixed."),
+           ap.help(
+               "Dynamic dimensions of a parameter "
+               "(format: \"@name\" \"[{min:x, max:y, optimals:[o1,o2,...]}, dim2, dim3, ...]\"). "
+               "A single integer makes that dimension fixed. "
+               "Add a \"name\" key to make a dimension symbolic; this is symbolic "
+               "regardless of --enable-symbolic. "
+               "Example: --dyn-input-dim \"@x\" \"[{name:batch, min:1, max:64}, 3, 224, 224]\""),
            ap.append(),
            ap.nargs(2));
         ap(default_dyn_dim,
            {"--default-dyn-dim"},
-           ap.help("Default dynamic dimension (format: \"{min:x, max:y, optimals:[o1,o2]}\")."));
+           ap.help("Default dynamic dimension for dynamic input dims "
+                   "(format: \"{min:x, max:y, optimals:[o1,o2]}\"). "
+                   "With --enable-symbolic these become symbolic dimensions (named after the ONNX "
+                   "dim_param, or <input>_d<axis> when unnamed). "
+                   "Example: --enable-symbolic --default-dyn-dim \"{min:1, max:1024}\""));
         ap(output_names,
            {"--output-names"},
            ap.help("Names of node output (format: \"name_1 name_2 name_n\")"),
@@ -255,6 +306,10 @@ struct loader
            ap.help("Replace literals with parameters"),
            ap.set_value(true));
         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
+        ap(strip_context,
+           {"--strip-context"},
+           ap.help("Strip context from program"),
+           ap.set_value(true));
         ap(output_type,
            {"--graphviz", "-g"},
            ap.help("Print out a graphviz representation."),
@@ -279,7 +334,7 @@ struct loader
            ap.set_value("binary"));
         ap(output_type,
            {"--netron"},
-           ap.help("Print out program as Netron readable json."),
+           ap.help("Print out program as ONNX protobuf binary viewable in Netron."),
            ap.set_value("netron"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
@@ -303,6 +358,27 @@ struct loader
         return map_input_dims;
     }
 
+    static migraphx::shape::dynamic_dimension parse_dyn_dim_object(const migraphx::value& x)
+    {
+        // Accept the legacy JSON form {min, max, optimals:[...]}
+        if(x.contains("min") and x.contains("max"))
+        {
+            auto mn = x.at("min").to<std::size_t>();
+            auto mx = x.at("max").to<std::size_t>();
+            std::set<std::size_t> opt;
+            if(x.contains("optimals"))
+                opt = migraphx::from_value<std::set<std::size_t>>(x.at("optimals"));
+            if(x.contains("name"))
+            {
+                std::set<migraphx::sym::scalar> sym_optimals(opt.begin(), opt.end());
+                return migraphx::shape::dynamic_dimension{migraphx::sym::var(
+                    x.at("name").to<std::string>(), {mn, mx}, std::move(sym_optimals))};
+            }
+            return migraphx::shape::dynamic_dimension{mn, mx, opt};
+        }
+        return migraphx::from_value<migraphx::shape::dynamic_dimension>(x);
+    }
+
     static auto parse_dyn_dims_json(const std::string& dd_json)
     {
         // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
@@ -310,7 +386,7 @@ struct loader
         std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
         std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](const auto& x) {
             if(x.is_object())
-                return from_value<migraphx::shape::dynamic_dimension>(x);
+                return parse_dyn_dim_object(x);
             auto d = x.template to<std::size_t>();
             return migraphx::shape::dynamic_dimension{d, d};
         });
@@ -354,12 +430,8 @@ struct loader
                    }))
                     map_dim_params[name] = {std::stoul(x), std::stoul(x)};
                 else
-                {
-                    auto dyn_dim = parse_dyn_dims_json(x);
-                    if(dyn_dim.size() != 1)
-                        MIGRAPHX_THROW("dim_param must only specify one dimension");
-                    map_dim_params[name] = dyn_dim.front();
-                }
+                    map_dim_params[name] =
+                        parse_dyn_dim_object(from_json_string(convert_to_json(x)));
             }
         }
 
@@ -377,6 +449,7 @@ struct loader
         return output_node_names;
     }
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
     tf_options get_tf_options() const
     {
         auto map_input_dims    = parse_param_dims(param_dims);
@@ -388,7 +461,9 @@ struct loader
         options.output_node_names = output_node_names;
         return options;
     }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
     onnx_options get_onnx_options() const
     {
         auto map_input_dims     = parse_param_dims(param_dims);
@@ -402,27 +477,36 @@ struct loader
         else
         {
             auto v                        = from_json_string(convert_to_json(default_dyn_dim));
-            options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
+            options.default_dyn_dim_value = parse_dyn_dim_object(v);
+            options.default_set           = true;
         }
         options.skip_unknown_operators = skip_unknown_operators;
         options.print_program_on_error = true;
         options.use_debug_symbols      = use_debug_symbols;
+        options.use_symbolic_shapes    = use_symbolic;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;
         return options;
     }
+#endif
 
     static std::string get_file_type(const std::string& file)
     {
-        if(ends_with(file, ".onnx"))
+        if(ends_with(file, ".json"))
+            return "json";
+#ifdef MIGRAPHX_ENABLE_ONNX
+        else if(ends_with(file, ".onnx"))
             return "onnx";
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
         else if(ends_with(file, ".pb"))
             return "tf";
-        else if(ends_with(file, ".json"))
-            return "json";
+#endif
+#ifdef MIGRAPHX_ENABLE_PYTHON
         else if(ends_with(file, ".py"))
             return "py";
+#endif
         else
             return "migraphx";
     }
@@ -441,20 +525,24 @@ struct loader
                 file_type = get_file_type(file);
             }
             log::info() << "Reading: " << file;
-            if(file_type == "onnx")
-            {
-                p = parse_onnx(file, get_onnx_options());
-            }
-            else if(file_type == "tf")
-            {
-                p = parse_tf(file, get_tf_options());
-            }
-            else if(file_type == "json")
+            if(file_type == "json")
             {
                 file_options options;
                 options.format = "json";
                 p              = migraphx::load(file, options);
             }
+#ifdef MIGRAPHX_ENABLE_ONNX
+            else if(file_type == "onnx")
+            {
+                p = parse_onnx(file, get_onnx_options());
+            }
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+            else if(file_type == "tf")
+            {
+                p = parse_tf(file, get_tf_options());
+            }
+#endif
 #ifdef MIGRAPHX_ENABLE_PYTHON
             else if(file_type == "py")
             {
@@ -470,6 +558,8 @@ struct loader
         {
             trim_module(*p.get_main_module(), trim, trim_size);
         }
+        if(strip_context)
+            p.clear_context();
         if(replace_literals)
         {
             replace_literals_with_params(p);
@@ -543,7 +633,7 @@ struct loader
         else if(type == "binary")
             write(*os, save_buffer(p));
         else if(type == "netron")
-            *os << make_netron_output(p) << std::endl;
+            write_netron_output(p, *os);
     }
 };
 
@@ -586,6 +676,26 @@ struct program_params
         return map_load_args;
     }
 
+    void warn_unset_inputs(const std::unordered_map<std::string, shape>& param_shapes) const
+    {
+        std::set<std::string> load_arg_names;
+        for(auto&& x : load_args_info)
+            if(not x.empty() and x[0] == '@')
+                load_arg_names.insert(x.substr(1));
+        std::set<std::string> unset;
+        for(const auto& param : param_shapes)
+            if(shape::is_integral(param.second.type()) and not contains(param.first, "#output_") and
+               not contains(fill0, param.first) and not contains(fill1, param.first) and
+               not contains(load_arg_names, param.first))
+                unset.insert(param.first);
+        if(unset.empty())
+            return;
+        log::warn() << "Input(s) without explicit values: " << join_strings(std::move(unset), ", ")
+                    << ". These will be filled with random data and may cause unexpected behavior. "
+                       "Use `--fill0 <name>`, `--fill1 <name>`, or "
+                       "`--load-arg @<name> <file>` if the program fails to run.";
+    }
+
     auto generate(const program& p,
                   const target& t,
                   bool offload,
@@ -608,6 +718,9 @@ struct program_params
             m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
             m[s] = fill_argument(static_param_shapes.at(s), 1);
+
+        warn_unset_inputs(param_shapes);
+
         fill_param_map(m, static_param_shapes, t, offload);
         auto load_arg_map = program_params::parse_load_args(load_args_info, t, offload);
         for(auto&& arg : load_arg_map)
@@ -630,6 +743,15 @@ struct compiler_target
     std::string target_name = "ref";
 #endif
 
+    // GPU cross-compile options. When gpu_arch is non-empty, the GPU target is
+    // configured for cross-compilation against the given architecture without
+    // requiring a physical device.
+    std::string gpu_arch           = {};
+    std::size_t gpu_num_cu         = 120;
+    std::size_t gpu_num_chiplets   = 1;
+    std::size_t gpu_wavefront_size = 0;
+    std::string gpu_arch_params    = {};
+
     void parse(argument_parser& ap)
     {
         ap(target_name, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value("gpu"));
@@ -638,9 +760,75 @@ struct compiler_target
            {"--ref"},
            ap.help("Compile on the reference implementation"),
            ap.set_value("ref"));
+        ap(gpu_arch,
+           {"--gpu-arch"},
+           ap.help("Cross-compile for the given GPU architecture (e.g. gfx942) without "
+                   "requiring a physical device. Only applies to the gpu target."));
+        ap(gpu_num_cu,
+           {"--gpu-num-cus"},
+           ap.help("Number of compute units to assume for cross-compilation. "
+                   "Only used when --gpu-arch is set."));
+        ap(gpu_num_chiplets,
+           {"--gpu-num-chiplets"},
+           ap.help("Number of chiplets (XCCs) to assume for cross-compilation. "
+                   "Only used when --gpu-arch is set."));
+        ap(gpu_wavefront_size,
+           {"--gpu-wavefront-size"},
+           ap.help("Wavefront size to assume for cross-compilation (32 or 64; 0 = infer "
+                   "from architecture). Only used when --gpu-arch is set."));
+        ap(gpu_arch_params,
+           {"--gpu-arch-params"},
+           ap.help("Device properties to assume for cross-compilation, as a JSON object "
+                   "(format: \"{arch:gfx942, num_cu:120, num_chiplets:1, "
+                   "max_threads_per_cu:2048, max_threads_per_block:1024, wavefront_size:32}\"). "
+                   "Overrides --gpu-arch, --gpu-num-cus, --gpu-num-chiplets and "
+                   "--gpu-wavefront-size for any keys present."));
     }
 
-    target get_target() const { return make_target(target_name); }
+    static const std::unordered_map<std::string, std::string>& gpu_arch_param_keys()
+    {
+        static const std::unordered_map<std::string, std::string> key_map = {
+            {"arch", "gpu_arch"},
+            {"num_cu", "gpu_num_cu"},
+            {"num_chiplets", "gpu_num_chiplets"},
+            {"max_threads_per_cu", "gpu_max_threads_per_cu"},
+            {"max_threads_per_block", "gpu_max_threads_per_block"},
+            {"wavefront_size", "gpu_wavefront_size"}};
+        return key_map;
+    }
+
+    target get_target() const
+    {
+        if(target_name == "gpu")
+        {
+            migraphx::value opts = {{"gpu_arch", gpu_arch},
+                                    {"gpu_num_cu", gpu_num_cu},
+                                    {"gpu_num_chiplets", gpu_num_chiplets},
+                                    {"gpu_wavefront_size", gpu_wavefront_size}};
+            if(not gpu_arch_params.empty())
+            {
+                const auto& key_map = gpu_arch_param_keys();
+                auto parsed         = from_json_string(convert_to_json(gpu_arch_params));
+                if(not parsed.is_object())
+                    MIGRAPHX_THROW("--gpu-arch-params must be a JSON object");
+                for(const auto& param : parsed)
+                {
+                    auto it = key_map.find(param.get_key());
+                    if(it == key_map.end())
+                        MIGRAPHX_THROW("Unknown --gpu-arch-params key: " + param.get_key());
+                    if(it->second == "gpu_arch")
+                        opts[it->second] = param.without_key().to<std::string>();
+                    else
+                        opts[it->second] = param.without_key().to<std::size_t>();
+                }
+            }
+            // Cross-compile only when an arch is provided, via --gpu-arch or the
+            // arch key in --gpu-arch-params.
+            if(not opts.at("gpu_arch").to<std::string>().empty())
+                return make_target(target_name, opts);
+        }
+        return make_target(target_name);
+    }
 };
 
 struct compiler
@@ -655,6 +843,8 @@ struct compiler
     bool to_int8 = false;
     bool to_int4 = false;
 
+    std::string backend_options;
+
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
     void parse(argument_parser& ap)
@@ -662,6 +852,12 @@ struct compiler
         l.parse(ap);
         parameters.parse(ap);
         ct.parse(ap);
+        ap(backend_options,
+           {"--backend-options"},
+           ap.help("Target-specific compile options, as a JSON object (format: "
+                   "\"{convolution_layout:channels_last}\"). Options the target does not "
+                   "recognize are ignored."));
+        ap.post_action([this](auto&&) { this->apply_backend_options(); });
         ap(co.offload_copy,
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
@@ -674,11 +870,29 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+        ap(co.compile_mode,
+           {"--compile-mode"},
+           ap.help("Set compilation mode: eager, balanced, max, or an integer 0-100"),
+           ap.write_action([](auto&, auto& x, const auto& params) {
+               if(params.empty())
+                   throw std::runtime_error("Flag with no value.");
+               x = convert_to_compile_mode(params.back());
+           }));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
+    }
+
+    void apply_backend_options()
+    {
+        if(backend_options.empty())
+            return;
+        auto v = from_json_string(convert_to_json(backend_options));
+        if(not v.is_object())
+            MIGRAPHX_THROW("--backend-options must be a JSON object");
+        migraphx::set_backend_options(co, v);
     }
 
     auto params(const program& p)
@@ -753,7 +967,10 @@ struct compiler
             quantize_int4_weights(p);
         }
         log::info() << "Compiling ...";
+        timer c{};
         p.compile(t, co);
+        auto r = c.record<std::chrono::milliseconds>();
+        log::info() << "Compilation time: " << r << "ms";
         l.save(p);
         return p;
     }
@@ -793,6 +1010,7 @@ struct verify : command<verify>
     bool per_instruction = false;
     bool reduce          = false;
     bool bisect          = false;
+    bool layerwise       = false;
     verify_options vo;
     void parse(argument_parser& ap)
     {
@@ -806,6 +1024,11 @@ struct verify : command<verify>
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
         ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
+        ap(layerwise,
+           {"-l", "--layerwise"},
+           ap.help("Compare outputs layer by layer in a single run instead of recompiling for each "
+                   "step"),
+           ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
            ap.help(
@@ -853,6 +1076,10 @@ struct verify : command<verify>
         else if(bisect)
         {
             verify_bisected_program(p, t, c.co, vo, m, tols);
+        }
+        else if(layerwise)
+        {
+            verify_layerwise_program(p, t, c.co, vo, m, tols);
         }
         else
         {
@@ -974,6 +1201,8 @@ struct op : command<op>
     }
 };
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 struct onnx : command<onnx>
 {
     bool show_ops = false;
@@ -994,6 +1223,10 @@ struct onnx : command<onnx>
     }
 };
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 struct tf : command<tf>
 {
     bool show_ops = false;
@@ -1013,6 +1246,8 @@ struct tf : command<tf>
         }
     }
 };
+
+#endif
 
 struct main_command
 {
@@ -1082,6 +1317,9 @@ using namespace migraphx::driver; // NOLINT
 
 int main(int argc, const char* argv[], const char* envp[])
 {
+#ifdef _WIN32
+    install_verbose_terminate_handler();
+#endif
     std::vector<std::string> args(argv + 1, argv + argc);
     // Save original args for display purposes before they get modified
     const std::vector<std::string> original_args = args;
@@ -1113,18 +1351,11 @@ int main(int argc, const char* argv[], const char* envp[])
         logger_options log_opts;
         log_opts.parse(ap);
 
-        // Needed so that the first two lines printed follow the log level set
-        auto it = std::find(args.begin(), args.end(), "--log-level");
-        if(it != args.end() and std::next(it) != args.end())
-        {
-            auto level = logger_options::parse_log_level_string(*std::next(it));
-            if(level)
-                migraphx::log::set_severity(*level);
-        }
-
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
-        migraphx::log::info() << "Running [ " << get_version() << " ]: " << driver_invocation;
+        ap.post_action([driver_invocation](auto&&) {
+            migraphx::log::info() << "Running [ " << get_version() << " ]: " << driver_invocation;
+        });
 
         auto start_time = std::chrono::system_clock::now();
 

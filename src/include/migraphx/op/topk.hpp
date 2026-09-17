@@ -28,15 +28,22 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * TopK with constant `k` value. Significantly different from ONNX spec's TopK.
+ * arg[0]: input data
+ * arg[1]: optional indexing information used for rewrite_topk
+ */
 struct topk
 {
     int64_t k    = 1;
@@ -58,18 +65,46 @@ struct topk
 
     std::string name() const { return "topk"; }
 
+    /// Symbolic input: the sorted axis becomes min(k, dim), so every dimension stays symbolic.
+    shape symbolic_compute_shape(const shape& s0) const
+    {
+        auto dds  = s0.dyn_dims();
+        dds[axis] = shape::dynamic_dimension{sym::resolve_min(sym::lit(k), dds[axis].sym_expr)};
+        return shape({shape{s0.type(), dds}, shape{shape::int64_type, dds}});
+    }
+
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1, 2);
-        auto lens = inputs.at(0).lens();
+        check_shapes{inputs, *this, true}.has(1, 2);
         auto type = inputs.at(0).type();
 
-        lens[axis] = k;
+        if(inputs.at(0).symbolic())
+        {
+            return symbolic_compute_shape(inputs.at(0));
+        }
+        if(inputs.at(0).dynamic())
+        {
+            auto dyn_dims     = inputs.at(0).dyn_dims();
+            auto min_lens_vec = inputs.at(0).min_lens();
+            auto max_lens_vec = inputs.at(0).max_lens();
+            auto min_kk       = std::min<std::size_t>(k, min_lens_vec[axis]);
+            auto max_kk       = std::min<std::size_t>(k, max_lens_vec[axis]);
+            dyn_dims[axis]    = {min_kk, max_kk};
 
-        shape s_val{type, lens};
-        shape s_ind{shape::int64_type, lens};
+            shape s_val{type, dyn_dims};
+            shape s_ind{shape::int64_type, dyn_dims};
+            return shape({s_val, s_ind});
+        }
+        else
+        {
+            auto lens  = inputs.at(0).lens();
+            auto kk    = std::min<std::size_t>(k, lens[axis]);
+            lens[axis] = kk;
 
-        return shape({s_val, s_ind});
+            shape s_val{type, lens};
+            shape s_ind{shape::int64_type, lens};
+            return shape({s_val, s_ind});
+        }
     }
 
     template <class Compare>
@@ -84,13 +119,15 @@ struct topk
         };
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
+        const auto& output_shape = dyn_out.computed_shape;
         const auto& vec_ss = output_shape.sub_shapes();
         argument res_val{vec_ss.front()};
         argument res_ind{vec_ss.back()};
         auto in_val       = args.front();
         auto relements    = in_val.get_shape().lens()[axis];
+        auto actual_k     = std::min<std::size_t>(k, relements);
         auto make_indices = [&](const auto& m_idx) {
             return [&](int64_t i) {
                 if(args.size() < 2)
@@ -118,20 +155,20 @@ struct topk
                     });
                     if(this->largest)
                         std::partial_sort(data.begin(),
-                                          data.begin() + k,
+                                          data.begin() + actual_k,
                                           data.end(),
                                           compare_pair(std::greater<>{}));
                     else
                         std::partial_sort(data.begin(),
-                                          data.begin() + k,
+                                          data.begin() + actual_k,
                                           data.end(),
                                           compare_pair(std::less<>{}));
                     std::transform(data.begin(),
-                                   data.begin() + this->k,
+                                   data.begin() + actual_k,
                                    y.begin(),
                                    [](const auto& p) { return p.first; });
                     std::transform(data.begin(),
-                                   data.begin() + this->k,
+                                   data.begin() + actual_k,
                                    y_ind.begin(),
                                    [](const auto& p) { return p.second; });
                 });

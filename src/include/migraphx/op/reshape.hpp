@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,14 +24,16 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_RESHAPE_HPP
 #define MIGRAPHX_GUARD_OPERATORS_RESHAPE_HPP
 
-#include <numeric>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/sat_ops.hpp>
+#include <migraphx/reshape_dims.hpp>
 
+#include <migraphx/sym_argument.hpp>
 #include <algorithm>
 
 namespace migraphx {
@@ -56,7 +58,7 @@ namespace op {
  */
 struct reshape
 {
-    std::vector<int64_t> dims;
+    std::vector<dim_like> dims;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -70,9 +72,9 @@ struct reshape
     // Makes no checks for the validity of the `dims` attribute for the given input shape.
     shape dyn_1arg_compute_shape(shape s0) const
     {
-        auto input_dyn_dims = s0.dyn_dims();
-        const auto neg_dim_num =
-            std::distance(this->dims.begin(), std::find(this->dims.begin(), this->dims.end(), -1));
+        auto input_dyn_dims    = s0.dyn_dims();
+        const auto neg_dim_num = std::distance(
+            this->dims.begin(), std::find(this->dims.begin(), this->dims.end(), dim_like{-1}));
         const bool has_negative_dim_attr = neg_dim_num < dims.size();
         // construct output dynamic shape from dims attribute
         std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
@@ -80,17 +82,17 @@ struct reshape
         for(std::size_t i = 0; i < dims.size(); ++i)
         {
             auto d = dims.at(i);
-            if(d == 0)
+            if(d == dim_like{0})
             {
                 output_dyn_dims.at(i) = input_dyn_dims.at(i);
             }
-            else if(d == -1)
+            else if(d == dim_like{-1})
             {
                 output_dyn_dims.at(i) = {1, 1};
             }
             else
             {
-                std::size_t u_dim     = d;
+                std::size_t u_dim     = std::get<int64_t>(d);
                 output_dyn_dims.at(i) = {u_dim, u_dim};
             }
         }
@@ -104,16 +106,18 @@ struct reshape
             std::size_t max_cur_elements = 1;
             for(const auto& dd : output_dyn_dims)
             {
-                min_cur_elements = mul_sat(min_cur_elements, dd.min);
-                max_cur_elements = mul_sat(max_cur_elements, dd.max);
+                auto dd_interval = dd.get_interval();
+                min_cur_elements = mul_sat(min_cur_elements, dd_interval.min);
+                max_cur_elements = mul_sat(max_cur_elements, dd_interval.max);
             }
             // accumulate the elements in the input dimensions
             std::size_t min_input_elements = 1;
             std::size_t max_input_elements = 1;
             for(const auto& dd : input_dyn_dims)
             {
-                min_input_elements = mul_sat(min_input_elements, dd.min);
-                max_input_elements = mul_sat(max_input_elements, dd.max);
+                auto dd_interval   = dd.get_interval();
+                min_input_elements = mul_sat(min_input_elements, dd_interval.min);
+                max_input_elements = mul_sat(max_input_elements, dd_interval.max);
             }
 
             // maximum dimensions should never accumulate to zero
@@ -132,73 +136,82 @@ struct reshape
         return {s0.type(), output_dyn_dims};
     }
 
-    shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
+    // Resolves the output dims for static and symbolic input through one path.
+    shape symbolic_compute_shape(const shape& s0) const
     {
-        check_shapes{inputs, *this}.has(1);
-        auto&& idims = inputs.front().lens();
-        std::vector<std::size_t> rdims(dims.begin(), dims.end());
+        // Lift static input to symbolic literals so the same dd arithmetic resolves both.
+        auto sym_in          = s0.to_symbolic();
+        auto output_dyn_dims = resolve_reshape_dims(sym_in, dims);
+        const bool has_inferred_dim =
+            std::find(dims.begin(), dims.end(), dim_like{-1}) != dims.end();
+        const bool dims_have_symbolic = std::any_of(dims.begin(), dims.end(), is_symbolic);
 
-        for(std::size_t i = 0; i < dims.size(); i++)
+        // Preserve the input layout when reshape_dims can derive it; else standard.
+        std::vector<sym::expr> target(output_dyn_dims.size());
+        std::transform(output_dyn_dims.begin(),
+                       output_dyn_dims.end(),
+                       target.begin(),
+                       [](const auto& dd) { return dd.sym_expr; });
+        auto result = reshape_dims(sym_in, target, {.lazy = false})
+                          .value_or(shape{s0.type(), output_dyn_dims});
+
+        // An inferred -1 over a symbolic input is a floor division, so its element
+        // count is only resolvable at runtime; otherwise throw on a provably
+        // mismatched count (strict_less either way), letting indeterminate ones pass.
+        if(not(s0.symbolic() and has_inferred_dim))
         {
-            if(dims[i] == 0)
-                rdims[i] = idims[i];
-
-            // convert -1 to 1 for rdims since rdims uses size_t (-1 is max_int for size_t)
-            if(dims[i] == -1)
-                rdims[i] = 1;
+            auto out_elems = result.sym_elements();
+            auto in_elems  = s0.sym_elements();
+            if(sym::strict_less(out_elems, in_elems).value_or(false) or
+               sym::strict_less(in_elems, out_elems).value_or(false))
+                MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
+                               to_string(out_elems) + " elements whereas the input has " +
+                               to_string(in_elems));
         }
 
-        if(n_neg_dims > 0)
-        {
-            size_t missing_dim =
-                inputs.front().elements() /
-                std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
-            for(std::size_t i = 0; i < rdims.size(); i++)
-            {
-                if(dims[i] == -1)
-                    rdims[i] = missing_dim;
-            }
-        }
-
-        auto s = shape{inputs.front().type(), rdims};
-
-        if(s.elements() != inputs.front().elements())
-            MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
-                           std::to_string(s.elements()) + " elements whereas the input has " +
-                           std::to_string(inputs.front().elements()));
-
-        return s;
+        // Only a static input with integer dims is fully literal; evaluate it back to
+        // the concrete layout. Anything symbolic stays symbolic.
+        if(not s0.symbolic() and not dims_have_symbolic)
+            return result.to_static();
+        return result;
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2);
+        if(inputs.size() == 2)
+            return inputs.back();
 
-        auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
-        if(n_neg_dims > 1)
-            MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
+        validate_reshape_dims(name(), dims);
 
         const auto& s0 = inputs.front();
-        if(inputs.size() == 1)
+        if(s0.dynamic() and not s0.symbolic())
         {
-            if(s0.dynamic())
-            {
-                return dyn_1arg_compute_shape(s0);
-            }
-            else
-            {
-                return static_compute_shape(inputs, n_neg_dims);
-            }
+            // A symbolic dim has no range interpretation, so it cannot target a
+            // range-based input.
+            if(std::any_of(dims.begin(), dims.end(), is_symbolic))
+                MIGRAPHX_THROW("reshape: range-based input only supports int64 dim entries");
+            return dyn_1arg_compute_shape(s0);
         }
-        else
-        {
-            return inputs.back();
-        }
+        return symbolic_compute_shape(s0);
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.empty() or args.size() > 2 or args[0].empty() or
+           args[0].get_shape().elements() != output_shape.elements())
+            return {};
+
+        sym_argument result{output_shape};
+        const auto input = args[0].get();
+        auto output      = result.get();
+        std::copy(input.begin(), input.end(), output.begin());
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        assert(dyn_out.computed_shape.standard());
         if(args.size() == 1)
         {
             argument result{dyn_out.computed_shape};

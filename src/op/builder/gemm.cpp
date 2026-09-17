@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -92,7 +92,15 @@ struct gemm : op_builder<gemm>
             if(not float_equal(beta, 0.0f))
             {
                 auto c_arg = args[2];
-                if(dot_ins->get_shape().dynamic())
+                if(dot_ins->get_shape().symbolic())
+                {
+                    c_arg = m.insert_instruction(
+                        ins,
+                        make_op("multibroadcast",
+                                {{"out_dyn_dims", to_value(dot_ins->get_shape().dyn_dims())}}),
+                        args[2]);
+                }
+                else if(dot_ins->get_shape().dynamic())
                 {
                     c_arg = m.insert_instruction(ins, make_op("multibroadcast"), args[2], dot_ins);
                 }

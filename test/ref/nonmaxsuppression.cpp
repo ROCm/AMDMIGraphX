@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,15 @@
 
 #include <test.hpp>
 
+static migraphx::instruction_ref add_nms_dynamic_slice(migraphx::module* mm,
+                                                       migraphx::instruction_ref nms)
+{
+    auto idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto cnt = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    return mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), idx, cnt);
+}
+
 TEST_CASE(nms_dyn_out_test)
 {
     migraphx::program p;
@@ -47,14 +56,14 @@ TEST_CASE(nms_dyn_out_test)
     auto iou_threshold   = mm->add_literal(0.5f);
     auto score_threshold = mm->add_literal(0.0f);
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression",
-                          {{"center_point_box", true}, {"use_dyn_output", true}}),
-        boxes_l,
-        scores_l,
-        max_out_l,
-        iou_threshold,
-        score_threshold);
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes_l,
+                            scores_l,
+                            max_out_l,
+                            iou_threshold,
+                            score_threshold);
+    auto r = add_nms_dynamic_slice(mm, nms);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -83,12 +92,13 @@ TEST_CASE(nms_identical_all_dyn_out_test)
     auto iou_threshold   = mm->add_literal(0.1f);
     auto score_threshold = mm->add_literal(0.0f);
 
-    auto r = mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}),
-                                 boxes_l,
-                                 scores_l,
-                                 max_out_l,
-                                 iou_threshold,
-                                 score_threshold);
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                   boxes_l,
+                                   scores_l,
+                                   max_out_l,
+                                   iou_threshold,
+                                   score_threshold);
+    auto r   = add_nms_dynamic_slice(mm, nms);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -114,14 +124,14 @@ TEST_CASE(nms_dyn_batch_test)
     auto iou_threshold   = mm->add_literal(0.5f);
     auto score_threshold = mm->add_literal(0.0f);
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression",
-                          {{"center_point_box", true}, {"use_dyn_output", true}}),
-        boxes_p,
-        scores_p,
-        max_out_l,
-        iou_threshold,
-        score_threshold);
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes_p,
+                            scores_p,
+                            max_out_l,
+                            iou_threshold,
+                            score_threshold);
+    auto r = add_nms_dynamic_slice(mm, nms);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -160,14 +170,14 @@ TEST_CASE(nms_dyn_boxes_test)
     auto iou_threshold   = mm->add_literal(0.5f);
     auto score_threshold = mm->add_literal(0.0f);
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression",
-                          {{"center_point_box", true}, {"use_dyn_output", true}}),
-        boxes_p,
-        scores_p,
-        max_out_l,
-        iou_threshold,
-        score_threshold);
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes_p,
+                            scores_p,
+                            max_out_l,
+                            iou_threshold,
+                            score_threshold);
+    auto r = add_nms_dynamic_slice(mm, nms);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -203,14 +213,14 @@ TEST_CASE(nms_dyn_classes_test)
     auto iou_threshold   = mm->add_literal(0.5f);
     auto score_threshold = mm->add_literal(0.0f);
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression",
-                          {{"center_point_box", true}, {"use_dyn_output", true}}),
-        boxes_p,
-        scores_p,
-        max_out_l,
-        iou_threshold,
-        score_threshold);
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes_p,
+                            scores_p,
+                            max_out_l,
+                            iou_threshold,
+                            score_threshold);
+    auto r = add_nms_dynamic_slice(mm, nms);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -251,21 +261,20 @@ TEST_CASE(nms_not_center_test)
     auto iou_threshold   = mm->add_literal(0.5f);
     auto score_threshold = mm->add_literal(0.0f);
 
-    // set use_dyn_output back to false in operator map
-    auto r =
-        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", false}}),
-                            boxes_l,
-                            scores_l,
-                            max_out_l,
-                            iou_threshold,
-                            score_threshold);
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                   boxes_l,
+                                   scores_l,
+                                   max_out_l,
+                                   iou_threshold,
+                                   score_threshold);
+    auto r   = add_nms_dynamic_slice(mm, nms);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
     auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
@@ -286,20 +295,21 @@ TEST_CASE(nms_test)
     auto iou_threshold   = mm->add_literal(0.5f);
     auto score_threshold = mm->add_literal(0.0f);
 
-    auto r =
+    auto nms =
         mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                             boxes_l,
                             scores_l,
                             max_out_l,
                             iou_threshold,
                             score_threshold);
+    auto r = add_nms_dynamic_slice(mm, nms);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
     auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
@@ -324,20 +334,21 @@ TEST_CASE(nms_transpose1_test)
 
     auto transpose_boxes = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), t_boxes_l);
-    auto r =
+    auto nms =
         mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                             transpose_boxes,
                             scores_l,
                             max_out_l,
                             iou_threshold,
                             score_threshold);
+    auto r = add_nms_dynamic_slice(mm, nms);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
     auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
@@ -362,19 +373,104 @@ TEST_CASE(nms_transpose2_test)
 
     auto transpose_boxes = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), t_boxes_l);
-    auto r =
+    auto nms =
         mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                             transpose_boxes,
                             scores_l,
                             max_out_l,
                             iou_threshold,
                             score_threshold);
+    auto r = add_nms_dynamic_slice(mm, nms);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
     auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
+}
+
+// Test: dynamic inputs with different compile-time spatial ranges but matching runtime values.
+// Boxes spatial range {4,20} vs scores spatial range {6,10}: different compile-time ranges,
+// but at runtime both have spatial_dimension=6 so it should succeed.
+TEST_CASE(nms_dyn_different_spatial_ranges_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // boxes spatial: {4,20}, scores spatial: {6,10} non-overlapping compile-time ranges!
+    migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 1}, {4, 20}, {4, 4}}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {{1, 1}, {1, 1}, {6, 10}}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{4});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes_p,
+                            scores_p,
+                            max_out_l,
+                            iou_threshold,
+                            score_threshold);
+    auto r = add_nms_dynamic_slice(mm, nms);
+    mm->add_return({r});
+
+    p.compile(migraphx::make_target("ref"));
+
+    // At runtime, both have spatial_dimension=6
+    std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, 1, 6}};
+    migraphx::parameter_map params0;
+    params0["boxes"]  = migraphx::argument(input_fixed_shape0, boxes_vec.data());
+    params0["scores"] = migraphx::argument(input_fixed_shape1, scores_vec.data());
+    auto output       = p.eval(params0).back();
+
+    std::vector<int64_t> result;
+    output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
+}
+
+// The nonmaxsuppression op produces a tuple {selected_indices, num_selected}.
+// Returning the tuple directly without get_tuple_elem makes the program output
+// a tuple-typed argument, and visiting it throws "Invalid tuple type".
+TEST_CASE(nms_no_get_tuple_elem_fails_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+
+    auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
+    auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto max_out_l       = mm->add_literal(int64_t{4});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes_l,
+                            scores_l,
+                            max_out_l,
+                            iou_threshold,
+                            score_threshold);
+    mm->add_return({nms});
+
+    p.compile(migraphx::make_target("ref"));
+    auto output = p.eval({}).back();
+    EXPECT(test::throws([&] {
+        std::vector<int64_t> result;
+        output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+    }));
 }

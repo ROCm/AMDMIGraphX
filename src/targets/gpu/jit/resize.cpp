@@ -23,10 +23,13 @@
  */
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/transform_view.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/float_equal.hpp>
 #include <sstream>
 
 namespace migraphx {
@@ -47,7 +50,12 @@ extern "C" {
 MIGRAPHX_GLOBAL void resize(void* in_data, void* output)
 {
     make_tensors()(in_data, output)([](auto input, auto out) {
-        ${resize_func}<${coord_transform}, ${nearest_op}>(input, out, ${scales}${cubic_coeff_arg});
+        ${in_vectorize}(input)([&](auto inv) {
+            ${vectorize}(out)([&](auto outv) {
+                ${resize_func}<${coord_transform}, ${nearest_op}, ${axis}>(
+                    inv, out, outv, ${scales}${cubic_coeff_arg});
+            });
+        });
     });
 }
 
@@ -74,14 +82,25 @@ struct resize_compiler : compiler<resize_compiler>
 
         std::vector<int64_t> permutation;
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 1024));
         options.output         = inputs.back();
         options.inputs         = inputs;
         options.kernel_name    = "resize";
         options.virtual_inputs = normalize_permutation(inputs, &permutation);
 
+        std::string mode       = v.get("mode", "nearest");
+        std::string coord_mode = v.get("coordinate_transformation_mode", "half_pixel");
+
+        // Vectorize the output store along the fast axis, one thread per vectorized element.
+        // Width-4 beats the half2 default for resize, so request {4, 2} explicitly.
+        auto vec = gen::vectorize::elements(gen::find_fast_axis(options.virtual_inputs.back()),
+                                            {options.virtual_inputs.back()},
+                                            {4, 2});
+        options.set_launch_params(
+            v, compute_global_for(ctx, inputs.back().elements() / vec.size, 1024));
+
         // Compute scales from shapes
         const auto& in_lens       = options.virtual_inputs.front().lens();
+        const auto& in_strides    = options.virtual_inputs.front().strides();
         const auto& out_lens      = options.virtual_inputs.back().lens();
         std::vector<float> scales = v.at("scales").to_vector<float>();
         if(scales.size() != in_lens.size())
@@ -98,13 +117,25 @@ struct resize_compiler : compiler<resize_compiler>
             scales = reorder_dims(scales, permutation);
         }
 
-        // Get mode (nearest, linear, or cubic)
-        std::string mode        = v.get("mode", "nearest");
-        std::string resize_func = "resize_" + mode;
+        // The gathered input shares the output's vectorization only on a pass-through fast axis
+        // (input index == output index): equal length, unit scale, contiguous, and an
+        // identity-at-unit-scale coord transform. Otherwise the input gathers scalar-wise.
+        //
+        // The mode list is exactly the coord_transform_* objects mapping idx -> idx at unit scale
+        // (all but tf_half_pixel_for_nn); keep in sync. Omitting one is safe (scalar gather),
+        // listing a non-identity mode is not.
+        const bool axis_passthrough =
+            in_lens[vec.axis] == out_lens[vec.axis] and in_strides[vec.axis] == 1 and
+            float_equal(scales[vec.axis], 1.0f) and
+            contains({"half_pixel", "pytorch_half_pixel", "align_corners", "asymmetric"},
+                     coord_mode);
+        gen::vectorize in_vec =
+            axis_passthrough
+                ? gen::vectorize::elements(vec.axis, {options.virtual_inputs.front()}, {vec.size})
+                : gen::vectorize{1, vec.axis};
 
-        // Get coordinate transformation mode
-        std::string coord_transform =
-            "coord_transform_" + v.get("coordinate_transformation_mode", "half_pixel");
+        std::string resize_func     = "resize_" + mode;
+        std::string coord_transform = "coord_transform_" + coord_mode;
 
         // Get nearest mode (only used for nearest interpolation)
         std::string nearest_op = "nearest_" + v.get("nearest_mode", "floor");
@@ -122,6 +153,9 @@ struct resize_compiler : compiler<resize_compiler>
                                        {"nearest_op", nearest_op},
                                        {"scales", scales_to_string(scales)},
                                        {"resize_func", resize_func},
+                                       {"vectorize", vec.str()},
+                                       {"in_vectorize", in_vec.str()},
+                                       {"axis", std::to_string(vec.axis)},
                                        {"cubic_coeff_arg", cubic_coeff_arg}});
 
         return compile_hip_code_object(ctx, src, options);

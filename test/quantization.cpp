@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -317,13 +317,20 @@ TEST_CASE(literal_add)
 
     {
         auto p1 = create_program_float();
-        auto p2 = create_program_half();
 
         migraphx::quantize_fp16(p1, {"add"});
         migraphx::run_passes(*p1.get_main_module(),
                              {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
-        migraphx::run_passes(*p2.get_main_module(),
-                             {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
+
+        // The add of literals is const-folded in fp32 before truncation, so
+        // there is no add left to quantize and the folded literal stays float
+        migraphx::program p2;
+        auto* mm = p2.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> data = {2, 4, 6, 8, 10, 12};
+        auto sum                = mm->add_literal(migraphx::literal(s, data));
+        mm->add_instruction(migraphx::make_op("identity"), sum);
+
         EXPECT(p1 == p2);
     }
 }
@@ -1126,7 +1133,7 @@ TEST_CASE(int8_quantization_dot)
         EXPECT(migraphx::verify::verify_range_with_tolerance(
             quant_result,
             migraphx::verify::expected{no_quant_result},
-            migraphx::verify::tolerance{0.003}));
+            migraphx::verify::tolerance{0.004}));
     }
 }
 

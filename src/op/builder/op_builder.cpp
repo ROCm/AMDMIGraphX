@@ -48,6 +48,13 @@ void register_builder(const std::string& name, op_builder_if opb_if)
     builder_map()[name] = std::move(opb_if);
 }
 
+const op_builder_if& get_op_builder_if(const std::string& name)
+{
+    if(has_op_builder(name))
+        return builder_map().at(name);
+    MIGRAPHX_THROW("GET_OP_BUILDER_IF: OpBuilder not found: " + name);
+}
+
 value get_op_builder_value(const std::string& name)
 {
     if(has_op_builder(name))

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,6 +68,16 @@ any_ptr get_queue_context(T&)
 }
 
 template <class T>
+void set_queue_context(T&, any_ptr)
+{
+}
+
+template <class T>
+void restore_queue_context(T&)
+{
+}
+
+template <class T>
 void wait_for_context(T&, any_ptr)
 {
 }
@@ -75,19 +85,37 @@ void wait_for_context(T&, any_ptr)
 template <class T>
 void finish_on_context(T&, any_ptr){}
 
-<%
- interface('context',
-           virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
-           virtual('from_value', v = 'const value&', default = 'from_value_context'),
-           virtual('get_queue', returns = 'any_ptr', default = 'get_queue_context'),
-           virtual('wait_for', queue = 'any_ptr', returns = 'void', default = 'wait_for_context'),
-           virtual('finish_on', queue = 'any_ptr', returns = 'void', default = 'finish_on_context'),
-           virtual('finish', returns = 'void', const = True)) %>
-
-    inline void migraphx_to_value(value& v, const context& ctx)
+template <class T>
+bool is_cross_compile_context(const T&)
 {
-    v = ctx.to_value();
+    return false;
 }
+
+<%
+    interface(
+        'context',
+        virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
+        virtual('from_value', v = 'const value&', default = 'from_value_context'),
+        virtual('get_queue', returns = 'any_ptr', default = 'get_queue_context'),
+        virtual('set_queue', queue = 'any_ptr', returns = 'void', default = 'set_queue_context'),
+        virtual('restore_queue', returns = 'void', default = 'restore_queue_context'),
+        virtual('wait_for', queue = 'any_ptr', returns = 'void', default = 'wait_for_context'),
+        virtual('finish_on', queue = 'any_ptr', returns = 'void', default = 'finish_on_context'),
+        virtual('is_cross_compile',
+                returns = 'bool',
+                const   = True,
+                default = 'is_cross_compile_context'),
+        virtual('finish', returns = 'void', const = True))
+%>
+
+/// True iff `c` holds a concrete context impl and that impl reports cross-compiling.
+/// Safe to call on default-constructed (empty) contexts, unlike `c.is_cross_compile()`.
+inline bool is_cross_compiling(const context& c)
+{
+    return c.type_id() != typeid(std::nullptr_t) and c.is_cross_compile();
+}
+
+inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
 
 inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
 

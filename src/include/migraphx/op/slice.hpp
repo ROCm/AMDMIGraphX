@@ -31,6 +31,9 @@
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
+#include <migraphx/sym.hpp>
+#include <migraphx/sym_argument.hpp>
+#include <algorithm>
 #include <array>
 
 namespace migraphx {
@@ -58,7 +61,9 @@ namespace op {
  * ends: constant slice ending indices (optional)
  *
  * Parameters:
- * data: the input tensor to slice (dynamic or static shape)
+ * data: the input tensor to slice (static, range-based dynamic, or symbolic shape). A symbolic
+ * shape is only supported by the 1 input call and only when every sliced axis is fixed, since
+ * the integer bounds here cannot express a symbolic output extent; use dyn_slice otherwise
  * input_starts: starting indices of slice (optional, static shape)
  * input_ends: ending indices of slice (optional, static shape)
  * input_axes: axes to slice over (optional, static shape)
@@ -145,7 +150,11 @@ struct slice
     /// Helper function for normalize_compute_shape()
     shape compute_two_or_more(std::vector<shape> inputs) const
     {
-        auto input_shape    = inputs[0];
+        auto input_shape = inputs[0];
+        if(input_shape.symbolic())
+            MIGRAPHX_THROW("SLICE: symbolic input shapes are not supported with variable "
+                           "starts/ends/axes inputs, "
+                           "use dyn_slice");
         auto set_attributes = get_set_attributes();
         // check that inputs [1, end) are all 1D, have the same
         // dimension, and are static
@@ -163,10 +172,12 @@ struct slice
                 // attr ends and axes set; inputs are (data, input_starts)
                 if(inputs[1].lens().at(0) != axes.size())
                 {
-                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
+                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch: input_starts length (" +
+                                   to_string(inputs[1].lens().at(0)) + ") != number of axes (" +
+                                   to_string(axes.size()) + ")");
                 }
                 std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                    dds.at(axis) = {0, dds.at(axis).max};
+                    dds.at(axis) = {0, dds.at(axis).get_interval().max};
                 });
             }
             else if(set_attributes == starts_axes)
@@ -174,10 +185,12 @@ struct slice
                 // attr starts and axes set; inputs are (data, input_ends)
                 if(inputs[1].lens().at(0) != axes.size())
                 {
-                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
+                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch: input_ends length (" +
+                                   to_string(inputs[1].lens().at(0)) + ") != number of axes (" +
+                                   to_string(axes.size()) + ")");
                 }
                 std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                    dds.at(axis) = {0, dds.at(axis).max};
+                    dds.at(axis) = {0, dds.at(axis).get_interval().max};
                 });
             }
             else if(set_attributes == starts_ends)
@@ -185,10 +198,12 @@ struct slice
                 // attr starts and ends set; inputs are (data, input_axes)
                 if(inputs[1].lens().at(0) != starts.size())
                 {
-                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
+                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch: input_axes length (" +
+                                   to_string(inputs[1].lens().at(0)) + ") != number of starts (" +
+                                   to_string(starts.size()) + ")");
                 }
                 std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                    return shape::dynamic_dimension{0, dd.max};
+                    return shape::dynamic_dimension{0, dd.get_interval().max};
                 });
             }
             else
@@ -203,10 +218,12 @@ struct slice
                 // attr axes set; inputs are (data, input_starts, input_ends)
                 if(inputs[1].lens().at(0) != axes.size())
                 {
-                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
+                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch: input_starts length (" +
+                                   to_string(inputs[1].lens().at(0)) + ") != number of axes (" +
+                                   to_string(axes.size()) + ")");
                 }
                 std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                    dds.at(axis) = {0, dds.at(axis).max};
+                    dds.at(axis) = {0, dds.at(axis).get_interval().max};
                 });
             }
             else if(set_attributes == ends_only)
@@ -214,10 +231,12 @@ struct slice
                 // attr ends set; inputs are (data, input_starts, input_axes)
                 if(inputs[1].lens().at(0) != ends.size())
                 {
-                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
+                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch: input_starts length (" +
+                                   to_string(inputs[1].lens().at(0)) + ") != number of ends (" +
+                                   to_string(ends.size()) + ")");
                 }
                 std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                    return shape::dynamic_dimension{0, dd.max};
+                    return shape::dynamic_dimension{0, dd.get_interval().max};
                 });
             }
             else if(set_attributes == starts_only)
@@ -226,10 +245,12 @@ struct slice
                 // attr starts set; inputs are (data, input_ends, input_axes)
                 if(inputs[1].lens().at(0) != starts.size())
                 {
-                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
+                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch: input_ends length (" +
+                                   to_string(inputs[1].lens().at(0)) + ") != number of starts (" +
+                                   to_string(starts.size()) + ")");
                 }
                 std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                    return shape::dynamic_dimension{0, dd.max};
+                    return shape::dynamic_dimension{0, dd.get_interval().max};
                 });
             }
             else
@@ -241,7 +262,7 @@ struct slice
         {
             // all 4 inputs (data, inputs_starts, input_ends, input_axes)
             std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                return shape::dynamic_dimension{0, dd.max};
+                return shape::dynamic_dimension{0, dd.get_interval().max};
             });
         }
         return shape{input_shape.type(), dds};
@@ -251,42 +272,50 @@ struct slice
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
-        if(inputs.size() == 1)
-        {
-            auto input_shape    = inputs[0];
-            auto set_attributes = get_set_attributes();
-            if(set_attributes != all_set)
-            {
-                MIGRAPHX_THROW("SLICE 1_arg: Invalid 1 input and attributes configuration");
-            }
-            // NOTE: make sure to update how normalization works here if this type of slicing is
-            // changed to be allowed
-            if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-                   return not input_shape.dyn_dims()[axis].is_fixed();
-               }))
-            {
-                MIGRAPHX_THROW(
-                    "SLICE 1_arg: slicing is not allowed on non-fixed dynamic input axis ");
-            }
-            if(input_shape.dynamic())
-            {
-                return shape{
-                    input_shape.type(),
-                    lens_calc(input_shape.min_lens(), this->starts, this->ends, this->axes),
-                    lens_calc(input_shape.max_lens(), this->starts, this->ends, this->axes),
-                    {}};
-            }
-            else
-            {
-                return shape{input_shape.type(),
-                             lens_calc(input_shape.lens(), this->starts, this->ends, this->axes),
-                             input_shape.strides()};
-            }
-        }
-        else
-        {
+        if(inputs.size() != 1)
             return compute_two_or_more(inputs);
+
+        auto input_shape    = inputs[0];
+        auto set_attributes = get_set_attributes();
+        if(set_attributes != all_set)
+            MIGRAPHX_THROW("SLICE 1_arg: Invalid 1 input and attributes configuration");
+
+        if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+               return not input_shape.dyn_dims()[axis].is_fixed();
+           }))
+        {
+            // The extent would be a sym::expr derived from the bounds and the axis symbol, which
+            // the integer bounds here cannot express.
+            if(input_shape.symbolic())
+                MIGRAPHX_THROW("SLICE 1_arg: slicing is not allowed on a non-fixed symbolic "
+                               "input axis, use dyn_slice");
+            // Attributes are not normalized for this case, so they can be negative or
+            // out-of-bounds. Using a relaxed dimension bound for now instead of calculating the
+            // tightest possible bound.
+            auto dds = input_shape.dyn_dims();
+            for(auto axis : this->axes)
+            {
+                dds[axis] = {0, dds[axis].get_interval().max};
+            }
+            return shape{input_shape.type(), dds};
         }
+
+        auto new_lens = lens_calc(input_shape.max_lens(), this->starts, this->ends, this->axes);
+
+        if(not input_shape.dynamic())
+            return shape{input_shape.type(), new_lens, input_shape.strides()};
+
+        auto dds = input_shape.dyn_dims();
+        for(auto axis : this->axes)
+        {
+            dds[axis] = input_shape.symbolic()
+                            ? shape::dynamic_dimension{sym::lit(new_lens[axis])}
+                            : shape::dynamic_dimension{new_lens[axis], new_lens[axis]};
+        }
+        // A slice is a view, so the symbolic strides carry the input's layout through.
+        if(input_shape.symbolic())
+            return shape{input_shape.type(), dds, input_shape.dyn_strides()};
+        return shape{input_shape.type(), dds};
     }
 
     /**
@@ -394,6 +423,48 @@ struct slice
             norm_ends = this->ends;
         }
         return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.empty() or args[0].get_shape().dynamic() or args[0].get_shape().ndim() != 1 or
+           args[0].empty())
+            return {};
+
+        const auto set_attributes = get_set_attributes();
+        std::size_t input_index   = 1;
+        std::array<std::optional<std::vector<int64_t>>, 3> supplied;
+        for(std::size_t i = 0; i < supplied.size(); ++i)
+        {
+            if(set_attributes[i])
+                continue;
+            if(input_index >= args.size() or args[input_index].empty())
+                return {};
+            supplied[i] = sym::fixed_values<int64_t>(args[input_index++].get());
+            if(not supplied[i].has_value())
+                return {};
+        }
+        if(input_index != args.size())
+            return {};
+
+        const auto normalized =
+            normalize_starts_ends_axes(args[0].get_shape(), supplied[0], supplied[1], supplied[2]);
+        const auto& norm_starts = normalized.at("norm_starts");
+        const auto& norm_ends   = normalized.at("norm_ends");
+        const auto& norm_axes   = normalized.at("norm_axes");
+        if(norm_starts.size() != 1 or norm_ends.size() != 1 or norm_axes.size() != 1 or
+           norm_axes.front() != 0)
+            return {};
+        if(output_shape.lens() !=
+           lens_calc(args[0].get_shape().lens(), norm_starts, norm_ends, norm_axes))
+            return {};
+
+        const auto data = args[0].get();
+        sym_argument result{output_shape};
+        auto output = result.get();
+        std::copy_n(data.begin() + norm_starts.front(), output_shape.elements(), output.begin());
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

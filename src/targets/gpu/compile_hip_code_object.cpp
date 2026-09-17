@@ -110,14 +110,17 @@ static std::vector<std::string> get_compiler_warnings()
         "-Wno-c99-extensions",
     };
 
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}))
+        warnings.push_back("-Wno-lifetime-safety-intra-tu-suggestions");
+
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-cross-tu-suggestions"}))
+        warnings.push_back("-Wno-lifetime-safety-cross-tu-suggestions");
+
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
         warnings.push_back("-Wno-unsafe-buffer-usage");
 
     if(hip_has_flags({"-Werror", "-Wnrvo"}))
         warnings.push_back("-Wno-nrvo");
-
-    if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}))
-        warnings.push_back("-Wno-lifetime-safety-intra-tu-suggestions");
 
     return warnings;
 }
@@ -189,6 +192,8 @@ compute_global_for(const context& ctx, std::size_t n, std::size_t over)
     };
 }
 
+// `n`: The amount of parallel work within a block.
+// `max_block_size`: Upper limit on block size.
 std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size)
 {
     const std::size_t min_block_size = ctx.get_current_device().get_wavefront_size();
@@ -225,7 +230,10 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");
-    auto cos = compile_hip_src(srcs, options.params, ctx.get_current_device().get_device_name());
+    auto cos = compile_hip_src(srcs,
+                               options.params,
+                               ctx.get_current_device().get_device_name(),
+                               ctx.get_disable_processes());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
     return cos.front();

@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
@@ -78,6 +79,20 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
+
+    program_impl()                               = default;
+    program_impl(const program_impl&)            = default;
+    program_impl& operator=(const program_impl&) = default;
+    program_impl(program_impl&&)                 = default;
+    program_impl& operator=(program_impl&&)      = default;
+
+    ~program_impl()
+    {
+        // The map destroys modules in an unspecified order, so break cross-module
+        // references first while every module is still alive.
+        for(auto& p : modules)
+            p.second.clear_foreign_inputs_for_program();
+    }
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -161,6 +176,8 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
     return mm->get_parameter_shapes();
 }
 
+int program::get_program_file_version() const { return program_file_version; }
+
 std::size_t program::size() const { return impl->modules.size(); }
 
 std::vector<shape> program::get_output_shapes() const
@@ -173,6 +190,12 @@ context& program::get_context() const
 {
     assert(impl->contexts.size() == 1);
     return impl->contexts.front();
+}
+
+void program::clear_context()
+{
+    impl->contexts.clear();
+    impl->targets.clear();
 }
 
 instruction_ref program::validate() const
@@ -308,7 +331,11 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
             }
         }
     }
-    this->finalize();
+    auto& contexts = this->impl->contexts;
+
+    if(not std::any_of(
+           contexts.begin(), contexts.end(), [](const auto& c) { return is_cross_compiling(c); }))
+        this->finalize();
 }
 
 void program::compile(const target& t, compile_options options)
@@ -342,7 +369,8 @@ void program::compile(const target& t, compile_options options)
             MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
                            std::to_string(index));
         }
-        mod->finalize(this->impl->contexts);
+        if(not is_cross_compiling(this->impl->contexts.front()))
+            mod->finalize(this->impl->contexts);
     }
 }
 
@@ -350,6 +378,16 @@ void program::finalize()
 {
     auto* mm = this->get_main_module();
     mm->finalize(this->impl->contexts);
+}
+
+void program::finalize(const target& t)
+{
+    if(not this->is_compiled())
+    {
+        this->impl->targets  = {t};
+        this->impl->contexts = {t.get_context()};
+    }
+    this->finalize();
 }
 
 template <class T>
@@ -478,6 +516,7 @@ static std::vector<argument> generic_eval(const module* mod,
         results.emplace(ins, argument{});
 #endif
         const auto& name = ins->name();
+        auto guard       = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
         if(name == "@literal")
         {
             results.insert_or_assign(ins,
@@ -503,6 +542,11 @@ static std::vector<argument> generic_eval(const module* mod,
                 }));
         }
         else if(name == "@outline")
+        {
+            results.insert_or_assign(
+                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+        }
+        else if(name == "@comment")
         {
             results.insert_or_assign(
                 ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
@@ -586,69 +630,112 @@ std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
     return generic_eval(*this, ctx, params, [](auto&&, auto f) { return f(); });
 }
 
+static void print_trace_buffer(const argument& buffer, int trace_level)
+{
+    if(trace_level == 2)
+    {
+        std::cout << "Output has " << to_string_range(classify_argument(buffer)) << std::endl;
+        std::cout << "Output: ";
+        preview_argument(std::cout, buffer);
+        std::cout << std::endl;
+        print_statistics(std::cout, buffer);
+    }
+    else
+    {
+        std::cout << "Output: " << buffer << std::endl;
+    }
+}
+
+static bool is_inspectable(const std::string& op)
+{
+    if(op.empty())
+        return false;
+    if(op.front() == '@')
+        return op == "@param";
+    return op != "load";
+}
+
 std::vector<argument> program::eval(const parameter_map& params,
                                     execution_environment exec_env) const
 {
     auto& contexts = this->impl->contexts;
+    auto& targets  = this->impl->targets;
 
-    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
-    std::vector<argument> ret;
+    auto copy_to_host = [&](const argument& result, std::size_t target_id) -> migraphx::argument {
+        try
+        {
+            return targets.at(target_id).copy_from(result);
+        }
+        catch(const migraphx::exception&)
+        {
+            return result;
+        }
+        catch(...)
+        {
+            MIGRAPHX_THROW("Failed to copy result to host.\n");
+        }
+    };
 
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
-        contexts.front().wait_for(exec_env.queue);
+        contexts.front().set_queue(exec_env.queue);
     }
 
+    // When MIGRAPHX_TRACE_EVAL is set, overwrite any user-provided trace callback with our trace
+    // output
+    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+    std::unordered_map<instruction_ref, std::string> ins_out;
     if(trace_level > 0)
     {
-        std::unordered_map<instruction_ref, std::string> ins_out;
-        // get instruction names
         this->print([&](auto x, const auto& ins_names) {
             std::stringstream ss;
             instruction::print(ss, x, ins_names);
             ins_out[x] = ss.str();
         });
+        exec_env.trace = [trace_level](instruction_ref, const argument& output) {
+            if(trace_level > 1 and not output.empty())
+                print_trace_buffer(output, trace_level);
+        };
+    }
+
+    std::vector<argument> ret;
+
+    if(exec_env.trace or exec_env.substitute)
+    {
         ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
             const auto& ctx = contexts[ins->get_target_id()];
-            ctx.finish();
-            std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+            if(trace_level > 0)
+            {
+                ctx.finish();
+                // The ins_out map is populated from the main module's
+                // but when dynamic_code_object_op::compute recursively calls generic_eval
+                // on its runtime sub-module ins_out don't have it.
+                if(ins_out.find(ins) != ins_out.end())
+                    std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                else
+                    std::cout << "Run instruction: " << ins->name() << " (submodule)" << std::endl;
+            }
             timer t{};
             auto result = f();
             double t1   = t.record<milliseconds>();
             ctx.finish();
-            double t2 = t.record<milliseconds>();
-            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
-               not result.empty())
+            if(trace_level > 0)
             {
-                migraphx::argument buffer;
-                try
+                double t2 = t.record<milliseconds>();
+                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+            }
+            if(is_inspectable(ins->name()) and not result.empty())
+            {
+                auto host = copy_to_host(result, ins->get_target_id());
+                if(exec_env.trace)
+                    exec_env.trace(ins, host);
+                auto sub =
+                    exec_env.substitute ? exec_env.substitute(ins, host) : optional<argument>{};
+                if(sub)
                 {
-                    const target& tgt = this->impl->targets.at(ins->get_target_id());
-                    buffer            = tgt.copy_from(result);
-                }
-                catch(const migraphx::exception&)
-                {
-                    // instruction was run on host then no need to copy buffer from target
-                    buffer = result;
-                }
-                catch(...)
-                {
-                    MIGRAPHX_THROW("MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
-                }
-                if(trace_level == 2)
-                {
-                    std::cout << "Output has " << to_string_range(classify_argument(buffer))
-                              << std::endl;
-                    std::cout << "Output: ";
-                    preview_argument(std::cout, buffer);
-                    std::cout << std::endl;
-                    print_statistics(std::cout, buffer);
-                }
-                else
-                {
-                    std::cout << "Output: " << buffer << std::endl;
+                    assert(sub->get_shape() == result.get_shape());
+                    result = targets.at(ins->get_target_id()).copy_to(*sub);
                 }
             }
             return result;
@@ -662,7 +749,7 @@ std::vector<argument> program::eval(const parameter_map& params,
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
-        contexts.front().finish_on(exec_env.queue);
+        contexts.front().restore_queue();
     }
 
     return ret;
@@ -682,16 +769,10 @@ static std::string get_migraphx_version()
     return ss.str();
 }
 
-/*
-program file version is for the data structure or format of the MXR file. Version should be bumped
-if any changes occur to the format of the MXR file.
-*/
-const int program_file_version = 8;
-
 value program::to_value() const
 {
     value result;
-    result["version"]          = program_file_version;
+    result["version"]          = get_program_file_version();
     result["migraphx_version"] = get_migraphx_version();
     result["targets"]          = migraphx::to_value(this->impl->targets);
     result["contexts"]         = migraphx::to_value(this->impl->contexts);

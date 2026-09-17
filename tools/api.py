@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
+import argparse
 import string
 import sys
 import re
@@ -191,9 +192,11 @@ class CFunction:
 
 
 class BadParam:
-    def __init__(self, cond: str, msg: str) -> None:
+    def __init__(self, cond: str, msg: str,
+                 name: Optional[str] = None) -> None:
         self.cond = cond
         self.msg = msg
+        self.name = name
 
 
 class Parameter:
@@ -219,7 +222,7 @@ class Parameter:
         self.virtual = virtual
         self.this = this
         self.hidden = hidden
-        self.bad_param_check: Optional[BadParam] = None
+        self.bad_param_checks: List[BadParam] = []
         self.virtual_read: Optional[List[str]] = None
         self.virtual_write: Optional[str] = None
 
@@ -267,8 +270,9 @@ class Parameter:
         else:
             self.add_param('size_t', self.size_name)
 
-    def bad_param(self, cond: str, msg: str) -> None:
-        self.bad_param_check = BadParam(cond, msg)
+    def bad_param(self, cond: str, msg: str,
+                  name: Optional[str] = None) -> None:
+        self.bad_param_checks.append(BadParam(cond, msg, name))
 
     def remove_size_param(self, name):
         p = None
@@ -395,11 +399,12 @@ class Parameter:
                 cfunction.add_vlist(name)
             else:
                 cfunction.add_param(self.substitute(t), self.substitute(name))
-        if self.bad_param_check:
-            msg = 'Bad parameter {name}: {msg}'.format(
-                name=self.name, msg=self.bad_param_check.msg)
+        for bad_param_check in self.bad_param_checks:
+            msg = 'Bad parameter {name}: {msg}'.format(name=self.substitute(
+                bad_param_check.name or self.name),
+                                                       msg=bad_param_check.msg)
             cfunction.add_statement('if ({cond}) {body}'.format(
-                cond=self.substitute(self.bad_param_check.cond),
+                cond=self.substitute(bad_param_check.cond),
                 body=bad_param_error(msg)))
 
 
@@ -677,6 +682,15 @@ def add_function(name: str, *args, **kwargs) -> Function:
     f = Function(name, *args, **kwargs)
     functions.append(f)
     return f
+
+
+def add_callback(name: str,
+                 params: Optional[List[Parameter]] = None,
+                 returns: Optional[str] = None,
+                 **kwargs) -> None:
+    f = Function(name, params=params, returns=returns, virtual=True, **kwargs)
+    f.update()
+    c_header_preamble.append(f.get_cfunction().generate_function_pointer())
 
 
 def once(f: Callable) -> Any:
@@ -993,6 +1007,8 @@ def vector_c_wrap(p: Parameter) -> None:
 @cwrap('std::string', 'char*')
 def string_c_wrap(p: Parameter) -> None:
     t = Type('char*')
+    if p.type.is_reference() and p.type.is_const():
+        t = t.add_const()
     if p.returns:
         if p.type.is_reference():
             p.add_param(t.add_pointer())
@@ -1001,6 +1017,7 @@ def string_c_wrap(p: Parameter) -> None:
             p.add_param(t)
             p.add_param('size_t', p.name + '_size')
             p.bad_param('${name} == nullptr', 'Null pointer')
+            p.bad_param('${name}_size == 0', 'zero', '${name}_size')
     else:
         p.add_param(t)
         p.bad_param('${name} == nullptr', 'Null pointer')
@@ -1286,12 +1303,45 @@ def run(path: Union[Path, str]) -> str:
     return template_eval(open(path).read())
 
 
+def parse_defines(defines: Optional[List[str]]) -> Dict[str, str]:
+    """Turn `-D` arguments of the form `name` or `name=value` into the globals
+    the api spec is run with. A bare `name` is defined as an empty string, so a
+    spec tests for it with `'name' in globals()` rather than for its value."""
+    result: Dict[str, str] = {}
+    for define in defines or []:
+        name, _, value = define.partition('=')
+        result[name] = value
+    return result
+
+
+def add_define_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        '-D',
+        '--define',
+        action='append',
+        metavar='NAME[=VALUE]',
+        help='Define NAME in the globals of the api spec, which it can use to '
+        'select which parts of the API to generate. Repeatable')
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    add_define_argument(parser)
+    parser.add_argument('spec',
+                        type=Path,
+                        help='Python file describing the API, such as '
+                        'src/api/migraphx.py')
+    parser.add_argument('template',
+                        type=Path,
+                        nargs='?',
+                        help='Template to render. When omitted, the C header '
+                        'and the C API body are written instead')
+    args = parser.parse_args()
+
     sys.modules['api'] = sys.modules['__main__']
-    runpy.run_path(sys.argv[1])
-    if len(sys.argv) > 2:
-        r = run(sys.argv[2])
-        sys.stdout.write(r)
+    runpy.run_path(str(args.spec), init_globals=parse_defines(args.define))
+    if args.template:
+        sys.stdout.write(run(args.template))
     else:
         sys.stdout.write(generate_c_header())
         sys.stdout.write(generate_c_api_body())

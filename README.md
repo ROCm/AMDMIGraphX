@@ -127,6 +127,17 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
     Otherwise, you need to set `-DCMAKE_PREFIX_PATH=$your_loc` to configure CMake.
 
+    The default build type is `Release`. To build MIGraphX in debug mode, pass
+    `-DCMAKE_BUILD_TYPE=Debug` when configuring CMake:
+
+    ```bash
+    CXX=/opt/rocm/llvm/bin/clang++ cmake .. \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+    ```
+
+    For optimized binaries with debug symbols, use `-DCMAKE_BUILD_TYPE=RelWithDebInfo`.
+
 5. Build MIGraphX source code:
 
     ```cpp
@@ -147,12 +158,23 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
 ### Use Docker
 
-The easiest way to set up the development environment is to use Docker.
+The easiest way to set up the development environment is to use Docker. ROCm's
+underlying drivers and libraries, known as "TheRock", now support multi-arch
+packaging, meaning it only installs device-code packages for the GPU architecture
+present on the system. Setting `GPU_ARCH` reduces the image size; leaving it
+unset installs device code for all supported architectures, which is useful when
+the same Docker image needs to run on different ROCm-supported GPUs.
 
 1. With the Dockerfile, build a Docker image:
 
     ```bash
         docker build -t migraphx .
+    ```
+
+    or
+
+    ```bash
+        docker build -t migraphx --build-arg GPU_ARCH=$(rocminfo | grep -o -m1 'gfx.*') .
     ```
 
 2. Enter the development environment using `docker run`:
@@ -200,6 +222,31 @@ target_link_libraries(myApp migraphx::c)
 ```
 
 Where `myApp` is the CMake target in your project.
+
+## Other Dockerfiles
+
+The default `Dockerfile` builds against ROCm 7.13 and newer using TheRock
+(`amdrocm-*`) packages.  To build against ROCm 7.2.x and older, use the legacy
+dockerfile instead:
+
+```bash
+docker build -t migraphx:legacy -f tools/docker/legacy.dockerfile .
+```
+
+Alternative Dockerfiles are available under `tools/docker/`:
+
+* `tools/docker/legacy.dockerfile` — ROCm 7.2.x and older (Ubuntu 22.04); use this when building against ROCm releases that predate TheRock packages
+* `tools/docker/ubuntu_2404.dockerfile` — Ubuntu 24.04 with ROCm 7.1.1
+* `tools/docker/ubuntu_2204.dockerfile` — Ubuntu 22.04 with ROCm 6.4.2
+
+To build with one of these, use the `-f` flag. For example:
+
+```bash
+docker build -t migraphx:2404 -f tools/docker/ubuntu_2404.dockerfile .
+```
+
+Then follow the same `docker run` and build steps described in the
+[Use Docker](#use-docker) section.
 
 ## Building for development
 
@@ -252,3 +299,7 @@ Also, githooks can be installed to format the code per-commit:
 ```bash
 ./.githooks/install
 ```
+
+## AI Tool Use Policy
+
+Follow the [LLVM AI Tool Use Policy](https://llvm.org/docs/AIToolPolicy.html) for contributions that use AI.

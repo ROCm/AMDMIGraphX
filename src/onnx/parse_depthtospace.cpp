@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -74,7 +74,7 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             {
                 MIGRAPHX_THROW("DepthToSpace: dynamic channels are not supported");
             }
-            int64_t c = dyn_dims1[1].max;
+            int64_t c = dyn_dims1[1].get_interval().max;
             auto h =
                 info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), args[0]);
             auto w =
@@ -82,9 +82,10 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
 
             auto c_div = info.add_literal({c / divisor});
 
-            dyn_dims2[1] = {dyn_dims2[1].min / divisor, dyn_dims2[1].max / divisor};
-            dyn_dims2[2] = dyn_dims2[2] * blocksize_unsigned;
-            dyn_dims2[3] = dyn_dims2[3] * blocksize_unsigned;
+            auto chan_interval = dyn_dims2[1].get_interval();
+            dyn_dims2[1]       = {chan_interval.min / divisor, chan_interval.max / divisor};
+            dyn_dims2[2]       = dyn_dims2[2] * blocksize_unsigned;
+            dyn_dims2[3]       = dyn_dims2[3] * blocksize_unsigned;
             // push back h and w to expand the vector to 6d
             dyn_dims1.push_back(dyn_dims1[2]);
             dyn_dims1.push_back(dyn_dims1[3]);
@@ -96,10 +97,11 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             if(mode == "DCR")
             {
                 // expanded vector = n, blocksize, blocksize, c // (blocksize**2), h, w
-                dyn_dims1[3] = {dyn_dims1[1].min / divisor, dyn_dims1[1].max / divisor, {}};
-                dyn_dims1[1] = {blocksize_unsigned, blocksize_unsigned, {}};
-                perm         = {0, 3, 4, 1, 5, 2};
-                new_shape1   = info.add_instruction(
+                auto dcr_chan = dyn_dims1[1].get_interval();
+                dyn_dims1[3]  = {dcr_chan.min / divisor, dcr_chan.max / divisor, {}};
+                dyn_dims1[1]  = {blocksize_unsigned, blocksize_unsigned, {}};
+                perm          = {0, 3, 4, 1, 5, 2};
+                new_shape1    = info.add_instruction(
                     make_op("concat"), n, blocksize_literal, blocksize_literal, c_div, h, w);
                 new_shape_alloc1 = info.add_instruction(
                     make_op("allocate",
@@ -121,10 +123,11 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             else if(mode == "CRD")
             {
                 // expanded vector = b, c // (blocksize ** 2), blocksize, blocksize, h, w
-                dyn_dims1[1] = {dyn_dims1[1].min / divisor, dyn_dims1[1].max / divisor, {}};
-                dyn_dims1[3] = {blocksize_unsigned, blocksize_unsigned, {}};
-                perm         = {0, 1, 4, 2, 5, 3};
-                new_shape1   = info.add_instruction(
+                auto crd_chan = dyn_dims1[1].get_interval();
+                dyn_dims1[1]  = {crd_chan.min / divisor, crd_chan.max / divisor, {}};
+                dyn_dims1[3]  = {blocksize_unsigned, blocksize_unsigned, {}};
+                perm          = {0, 1, 4, 2, 5, 3};
+                new_shape1    = info.add_instruction(
                     make_op("concat"), n, c_div, blocksize_literal, blocksize_literal, h, w);
                 new_shape_alloc1 = info.add_instruction(
                     make_op("allocate",

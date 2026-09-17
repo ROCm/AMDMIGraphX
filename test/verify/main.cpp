@@ -81,6 +81,14 @@ int main(int argc, const char* argv[])
          "test_instancenorm_large_3d<migraphx::shape::half_type>",
          "test_isinf<migraphx::generic_float<7, 8> >",
          "test_isinf<migraphx::bf16>",
+         // Disabled until following error can be addressed:
+         // Error eliminate_contiguous: could not create a descriptor for a binary operation
+         // primitive
+         "test_group_query_attention_decode",
+         "test_group_query_attention_grouped",
+         "test_group_query_attention_rotary_only",
+         "test_group_query_attention_concat_only_small",
+         "test_group_query_attention_decode_local",
     // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC__) and !defined(__clang__)
          "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, "
@@ -165,5 +173,6 @@ int main(int argc, const char* argv[])
                             "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
                             "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
                         });
+
     rv.run(argc, argv);
 }

@@ -45,7 +45,8 @@ struct pointwise
         auto perm = find_permutation(inputs);
         std::transform(inputs.begin(), inputs.end(), std::back_inserter(result), [&](auto s) {
             if(s.broadcasted())
-                return shape::from_permutation(s.type(), s.lens(), perm);
+                return s.symbolic() ? shape::from_permutation(s.type(), s.dyn_dims(), perm)
+                                    : shape::from_permutation(s.type(), s.lens(), perm);
             return s;
         });
         return result;

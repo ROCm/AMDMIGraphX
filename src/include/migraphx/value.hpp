@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_VALUE_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/enum.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/type_name.hpp>
@@ -68,8 +69,23 @@ struct value_converter
 };
 
 template <class To>
-struct value_converter<To, MIGRAPHX_CLASS_REQUIRES(std::is_enum<To>{})>
+struct value_converter<To, MIGRAPHX_CLASS_REQUIRES(std::is_enum<To>{} and not is_named_enum<To>{})>
 {
+    template <class From>
+    static auto apply(const From& x)
+        -> decltype(static_cast<To>(value_converter<std::underlying_type_t<To>>::apply(x)))
+    {
+        return static_cast<To>(value_converter<std::underlying_type_t<To>>::apply(x));
+    }
+};
+
+// A named enum (declared with MIGRAPHX_ENUM) is retrieved from its name when the value holds a
+// string, and from its integer value otherwise.
+template <class To>
+struct value_converter<To, MIGRAPHX_CLASS_REQUIRES(is_named_enum<To>{})>
+{
+    static To apply(const std::string& x) { return from_string<To>(x); }
+
     template <class From>
     static auto apply(const From& x)
         -> decltype(static_cast<To>(value_converter<std::underlying_type_t<To>>::apply(x)))
@@ -143,7 +159,7 @@ To try_convert_value(const From& x)
 
 struct MIGRAPHX_EXPORT value
 {
-// clang-format off
+    // clang-format off
 #define MIGRAPHX_VISIT_VALUE_TYPES(m) \
     m(int64, std::int64_t) \
     m(uint64, std::uint64_t) \
@@ -239,8 +255,8 @@ struct MIGRAPHX_EXPORT value
                                                           std::enable_if<true, T>>::type>;
 
     template <class T>
-    using is_pickable =
-        bool_c<((std::is_arithmetic<T>{} or std::is_enum<T>{}) and not std::is_pointer<T>{})>;
+    using is_pickable = bool_c<((std::is_arithmetic<T>{} or std::is_enum<T>{}) and
+                                not std::is_pointer<T>{} and not is_named_enum<T>{})>;
 
     template <class T>
     using range_value = std::decay_t<decltype(std::declval<T>().end(), *std::declval<T>().begin())>;
@@ -268,6 +284,15 @@ struct MIGRAPHX_EXPORT value
     value(const std::string& pkey, T i) : value(pkey, static_cast<pick<T>>(i))
     {
     }
+    // A named enum (declared with MIGRAPHX_ENUM) is stored as its name.
+    template <class T, MIGRAPHX_REQUIRES(is_named_enum<T>{})>
+    value(T e) : value(to_string(e))
+    {
+    }
+    template <class T, MIGRAPHX_REQUIRES(is_named_enum<T>{})>
+    value(const std::string& pkey, T e) : value(pkey, to_string(e))
+    {
+    }
     template <class T, class U, class = decltype(value(T{}, U{}))>
     value(const std::pair<T, U>& p) : value(p.first, p.second)
     {
@@ -277,8 +302,13 @@ struct MIGRAPHX_EXPORT value
     {
         return *this = static_cast<pick<T>>(rhs); // NOLINT
     }
+    template <class T, MIGRAPHX_REQUIRES(is_named_enum<T>{})>
+    value& operator=(T rhs)
+    {
+        return *this = to_string(rhs); // NOLINT
+    }
     template <class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
-    value& operator=(const T& rhs)
+    value& operator=(const T & rhs)
     {
         return *this = from_values(std::move(rhs)); // NOLINT
     }
@@ -347,6 +377,8 @@ struct MIGRAPHX_EXPORT value
 
     value with_key(const std::string& pkey) const;
     value without_key() const;
+
+    value normalize() const;
 
     template <class Visitor>
     void visit(Visitor v) const

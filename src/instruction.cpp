@@ -24,14 +24,21 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/erase.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/logger.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/pmr/unordered_map.hpp>
+#include <array>
 #include <bitset>
 #include <queue>
+#include <type_traits>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -95,6 +102,7 @@ void instruction::replace(const shape& r)
             instruction_ref ins = q.top();
             q.pop();
             assert(ins->name() == "@return" or ins->name().front() != '@');
+            auto guard  = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
             shape new_r = compute_shape(ins->op, ins->arguments, ins->module_args);
             if(new_r != ins->result)
             {
@@ -112,7 +120,11 @@ void instruction::replace(operation o)
     recompute_shape();
 }
 
-void instruction::recompute_shape() { replace(compute_shape(op, arguments, module_args)); }
+void instruction::recompute_shape()
+{
+    auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*this); });
+    replace(compute_shape(op, arguments, module_args));
+}
 
 void instruction::clear_arguments()
 {
@@ -365,38 +377,132 @@ bool instruction::is_undefined() const
 bool instruction::can_eval() const
 {
     if(op.name() == "@literal")
-    {
         return true;
-    }
-    else if(is_context_free(op))
-    {
-        return std::all_of(
-            this->inputs().begin(), this->inputs().end(), [](auto arg) { return arg->can_eval(); });
-    }
-    else
-    {
+    if(not is_context_free(op))
         return false;
-    }
+    // Finalize-dependent ops cannot be evaluated during pre-finalization constant folding.
+    if(has_finalize(op))
+        return false;
+#if MIGRAPHX_HAS_PMR
+    std::array<char, 1024> storage;
+    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+    pmr::unordered_map<const instruction*, bool> cache(&resource);
+#else
+    pmr::unordered_map<const instruction*, bool> cache;
+#endif
+    return fix<bool>([&](auto self, const instruction& ins) -> bool {
+        auto it = cache.find(&ins);
+        if(it != cache.end())
+            return it->second;
+        bool evaluable = false;
+        if(ins.name() == "@literal")
+            evaluable = true;
+        else if(is_context_free(ins.get_operator()) and not has_finalize(ins.get_operator()))
+            evaluable = std::all_of(
+                ins.inputs().begin(), ins.inputs().end(), [&](auto arg) { return self(*arg); });
+        cache.emplace(&ins, evaluable);
+        return evaluable;
+    })(*this);
 }
 
 argument instruction::eval(bool check_eval) const
 {
     if(op.name() == "@literal")
-    {
         return this->get_literal().get_argument();
-    }
-    if(is_context_free(op))
-    {
-        if(check_eval and not this->can_eval())
+    if(not is_context_free(op))
+        return {};
+    if(check_eval and not this->can_eval())
+        return {};
+#if MIGRAPHX_HAS_PMR
+    std::array<char, 1024> storage;
+    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+    pmr::unordered_map<const instruction*, argument> cache(&resource);
+#else
+    pmr::unordered_map<const instruction*, argument> cache;
+#endif
+    return fix<argument>([&](auto self, const instruction& ins) -> argument {
+        if(ins.name() == "@literal")
+            return ins.get_literal().get_argument();
+        if(not is_context_free(ins.get_operator()))
             return {};
+        auto it = cache.find(&ins);
+        if(it != cache.end())
+            return it->second;
         std::vector<argument> args;
-        std::transform(this->inputs().begin(),
-                       this->inputs().end(),
+        std::transform(ins.inputs().begin(),
+                       ins.inputs().end(),
                        std::back_inserter(args),
-                       [](auto arg) { return arg->eval(false); });
-        return normalized_operator().compute(result, args);
-    }
-    return {};
+                       [&](auto arg) { return self(*arg); });
+        auto value = ins.normalized_operator().compute(ins.get_shape(), args);
+        cache.emplace(&ins, value);
+        return value;
+    })(*this);
+}
+
+static sym_argument lift_sym_argument(const argument& value)
+{
+    if(value.empty() or value.get_shape().type() == shape::tuple_type or
+       not value.get_shape().computable())
+        return {};
+
+    sym_argument result;
+    value.visit([&](auto input) {
+        result      = sym_argument{value.get_shape()};
+        auto output = result.get();
+        transform(input, output.begin(), [](auto x) {
+            if constexpr(std::is_arithmetic<decltype(x)>{})
+                return sym::lit(x);
+            else
+                return sym::lit(static_cast<double>(x));
+        });
+    });
+    if(result.empty())
+        return {};
+    return result;
+}
+
+// Symbolic analog of eval(). Computes each element as an expression over the shape's symbols, so
+// values depending on a symbolic dimension remain computable. Returns empty unless every element
+// resolves.
+sym_argument instruction::sym_eval() const
+{
+#if MIGRAPHX_HAS_PMR
+    std::array<char, 1024> storage;
+    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+    pmr::unordered_map<const instruction*, sym_argument> cache(&resource);
+#else
+    pmr::unordered_map<const instruction*, sym_argument> cache;
+#endif
+    return fix<sym_argument>([&](auto self, const instruction& ins) -> sym_argument {
+        auto found = cache.find(&ins);
+        if(found != cache.end())
+            return found->second;
+
+        sym_argument result;
+        const auto& output_shape = ins.get_shape();
+        if(output_shape.type() != shape::tuple_type and output_shape.computable() and
+           not output_shape.dynamic())
+        {
+            if(ins.can_eval())
+            {
+                result = lift_sym_argument(ins.eval(false));
+            }
+            else
+            {
+                std::vector<sym_argument> args;
+                transform(ins.inputs(), std::back_inserter(args), [&](auto input) {
+                    auto input_value = self(*input);
+                    return input_value.empty() ? sym_argument{{}, input->get_shape()}
+                                               : std::move(input_value);
+                });
+                result = ins.normalized_operator().symbolic_compute(output_shape, args);
+            }
+            if(not result.empty() and (result.get_shape() != output_shape or not result.valid()))
+                result = {};
+        }
+        cache.emplace(&ins, result);
+        return result;
+    })(*this);
 }
 
 void instruction::finalize(context& ctx)
@@ -582,6 +688,41 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
         return {};
     }
     return {new_shape};
+}
+
+std::vector<instruction_ref> get_added_instructions(const std::vector<instruction_ref>& starts,
+                                                    const std::vector<instruction_ref>& ends)
+{
+    std::vector<instruction_ref> added;
+    std::unordered_set<instruction_ref> visited;
+    fix([&](auto self, const auto& frontier) {
+        for(auto ins : frontier)
+        {
+            if(contains(starts, ins))
+                continue;
+            if(not visited.insert(ins).second)
+                continue;
+            self(ins->inputs());
+            added.push_back(ins);
+        }
+    })(ends);
+    return added;
+}
+
+void log_debug_symbols_on_exception(const instruction& ins) noexcept
+{
+    try
+    {
+        const auto& symbols = ins.get_debug_symbols();
+        if(symbols.empty())
+            return;
+        log::debug() << "Exception thrown for instruction '" << ins.name()
+                     << "' with debug symbols: " << join_strings(symbols, ", ");
+    }
+    // cppcheck-suppress migraphx-EmptyCatchStatement
+    catch(...) // logging must not replace the original exception
+    {
+    }
 }
 
 migraphx::instruction* as_address(const std::list<instruction>::iterator& ins) noexcept

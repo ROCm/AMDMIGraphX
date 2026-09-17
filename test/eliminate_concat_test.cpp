@@ -203,7 +203,7 @@ static migraphx::shape create_shape(Ts... xs)
         return migraphx::shape{migraphx::shape::float_type, {std::size_t(xs)...}};
     else
         return migraphx::shape::from_permutation(
-            migraphx::shape::float_type, {std::size_t(xs)...}, {Is...});
+            migraphx::shape::float_type, std::vector<std::size_t>{std::size_t(xs)...}, {Is...});
 }
 
 template <std::size_t... Is, class... Ts>

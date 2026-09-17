@@ -106,6 +106,31 @@ static std::vector<int64_t> run_strided_view(const migraphx::shape& s, std::int6
     return l.get_argument().reshape(s).to_vector<int64_t>();
 }
 
+static std::vector<std::size_t> compute_dims(const std::vector<std::size_t>& dims,
+                                             const std::vector<migraphx::operation>& ops)
+{
+    migraphx::shape s{migraphx::shape::int64_type, dims};
+    for(const auto& op : ops)
+        s = op.compute_shape({s});
+    return s.lens();
+}
+
+// Generate the operators that invert `ops`, and check that applying them afterwards gives back
+// the original tensor
+static std::vector<migraphx::operation> check_invert(const std::vector<std::size_t>& dims,
+                                                     const std::vector<migraphx::operation>& ops)
+{
+    auto inverse = migraphx::shape_transform_descriptor::create(dims, ops).invert();
+    if(inverse.empty())
+        return {};
+    auto result = inverse.generate();
+    auto all    = ops;
+    all.insert(all.end(), result.begin(), result.end());
+    CHECK(compute_dims(dims, all) == dims);
+    CHECK(run_shape_transforms(dims, all) == run_shape_transforms(dims, {}));
+    return result;
+}
+
 static std::vector<migraphx::operation>
 check_optimize_shape_transforms(const std::vector<std::size_t>& dims,
                                 const std::vector<migraphx::operation>& ops)
@@ -197,6 +222,61 @@ TEST_CASE(record_reshape_split)
     EXPECT(get_final_lens(desc) == final_lens{3, 4, 5});
     EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {5}});
     EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}});
+}
+
+TEST_CASE(record_reshape_lazy_split)
+{
+    auto desc = make_descriptor({3, 20}, make_op("reshape_lazy", {{"dims", {3, 4, 5}}}));
+    EXPECT(get_final_lens(desc) == final_lens{3, 4, 5});
+    EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {5}});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}});
+}
+
+TEST_CASE(slice_axis_outer_split)
+{
+    auto desc     = make_descriptor({10},
+                                    make_op("reshape", {{"dims", {5, 2}}}),
+                                    make_op("transpose", {{"permutation", {1, 0}}}));
+    auto selected = desc.slice_axis(0, {1}, {0}, {3});
+    EXPECT(selected.has_value());
+    EXPECT(*selected == std::make_pair(std::size_t{0}, std::size_t{6}));
+    EXPECT(get_final_lens(desc) == final_lens{2, 3});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0, 1}}, d_axes{{0, 0}}});
+}
+
+TEST_CASE(slice_axis_single_index)
+{
+    auto desc     = make_descriptor({10},
+                                    make_op("reshape", {{"dims", {5, 2}}}),
+                                    make_op("transpose", {{"permutation", {1, 0}}}));
+    auto selected = desc.slice_axis(0, {1}, {3}, {4});
+    EXPECT(selected.has_value());
+    EXPECT(*selected == std::make_pair(std::size_t{6}, std::size_t{8}));
+    EXPECT(get_final_lens(desc) == final_lens{2, 1});
+    // The unit subdimension is renumbered to output order so no transpose is
+    // generated
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0, 0}}, d_axes{{0, 1}}});
+}
+
+TEST_CASE(slice_axis_not_contiguous)
+{
+    auto desc = make_descriptor({10}, make_op("reshape", {{"dims", {5, 2}}}));
+    // Slicing the inner split selects a strided range of the axis
+    EXPECT(not desc.slice_axis(0, {1}, {0}, {1}).has_value());
+}
+
+TEST_CASE(slice_axis_different_axis)
+{
+    auto desc = make_descriptor({4, 6}, make_op("transpose", {{"permutation", {1, 0}}}));
+    // Output axis 0 comes from axis 1
+    EXPECT(not desc.slice_axis(0, {0}, {0}, {2}).has_value());
+}
+
+TEST_CASE(slice_axis_merged)
+{
+    auto desc = make_descriptor({4, 6}, make_op("reshape", {{"dims", {24}}}));
+    // The sliced output axis merges axis 1 with axis 0
+    EXPECT(not desc.slice_axis(1, {0}, {0}, {6}).has_value());
 }
 
 TEST_CASE(record_reshape_merge_split)
@@ -328,6 +408,17 @@ TEST_CASE(optimize_reshape_reshape2)
                                                make_op("reshape", {{"dims", {15, 2, 2}}}),
                                            }) == ops{
                                                      make_op("reshape", {{"dims", {15, 2, 2}}}),
+                                                 });
+}
+
+TEST_CASE(optimize_reshape_lazy_reshape)
+{
+    EXPECT(check_optimize_shape_transforms({3, 5, 2},
+                                           {
+                                               make_op("reshape_lazy", {{"dims", {30}}}),
+                                               make_op("reshape", {{"dims", {3, 10}}}),
+                                           }) == ops{
+                                                     make_op("reshape", {{"dims", {3, 10}}}),
                                                  });
 }
 
@@ -1273,6 +1364,74 @@ TEST_CASE(rebase_adjust_squeeze_unsqueeze_broadcast)
         EXPECT(desc.generate() == ops{});
     }
 }
+
+TEST_CASE(invert_squeeze)
+{
+    EXPECT(check_invert({2, 8, 1}, {make_op("squeeze", {{"axes", {2}}})}) ==
+           ops{make_op("unsqueeze", {{"axes", {2}}})});
+    EXPECT(check_invert({1, 2, 8}, {make_op("squeeze", {{"axes", {0}}})}) ==
+           ops{make_op("unsqueeze", {{"axes", {0}}})});
+    EXPECT(check_invert({2, 8}, {make_op("unsqueeze", {{"axes", {1}}})}) ==
+           ops{make_op("squeeze", {{"axes", {1}}})});
+}
+
+TEST_CASE(invert_reshape)
+{
+    EXPECT(check_invert({2, 4, 3}, {make_op("reshape", {{"dims", {8, 3}}})}) ==
+           ops{make_op("reshape", {{"dims", {2, 4, 3}}})});
+    EXPECT(check_invert({8, 3}, {make_op("reshape", {{"dims", {2, 4, 3}}})}) ==
+           ops{make_op("reshape", {{"dims", {8, 3}}})});
+    // Splitting an axis and then merging it needs two reshapes
+    EXPECT(check_invert({2, 32, 2560}, {make_op("reshape", {{"dims", {2, 1280, 8, 8}}})}) ==
+           ops{make_op("reshape", {{"dims", {2, 32, 40, 8, 8}}}),
+               make_op("reshape", {{"dims", {2, 32, 2560}}})});
+}
+
+TEST_CASE(invert_transpose)
+{
+    EXPECT(check_invert({2, 4}, {make_op("transpose", {{"permutation", {1, 0}}})}) ==
+           ops{make_op("transpose", {{"permutation", {1, 0}}})});
+    EXPECT(check_invert({2, 4, 8}, {make_op("transpose", {{"permutation", {1, 2, 0}}})}) ==
+           ops{make_op("transpose", {{"permutation", {2, 0, 1}}})});
+}
+
+TEST_CASE(invert_multiple)
+{
+    EXPECT(check_invert({2, 4, 3},
+                        {make_op("reshape", {{"dims", {8, 3}}}),
+                         make_op("transpose", {{"permutation", {1, 0}}})}) ==
+           ops{make_op("reshape", {{"dims", {3, 2, 4}}}),
+               make_op("transpose", {{"permutation", {1, 2, 0}}})});
+    EXPECT(check_invert({2, 4, 1},
+                        {make_op("squeeze", {{"axes", {2}}}),
+                         make_op("transpose", {{"permutation", {1, 0}}})}) ==
+           ops{make_op("unsqueeze", {{"axes", {1}}}),
+               make_op("transpose", {{"permutation", {2, 0, 1}}})});
+}
+
+TEST_CASE(invert_contiguous)
+{
+    // A contiguous does not change the dimensions so it is ignored
+    EXPECT(check_invert({2, 8, 1},
+                        {make_op("contiguous"),
+                         make_op("squeeze", {{"axes", {2}}}),
+                         make_op("contiguous")}) == ops{make_op("unsqueeze", {{"axes", {2}}})});
+}
+
+TEST_CASE(invert_broadcast)
+{
+    // A broadcast duplicates elements so it has no inverse
+    EXPECT(migraphx::shape_transform_descriptor::create(
+               {2, 1}, {make_op("multibroadcast", {{"out_lens", {2, 4}}})})
+               .invert()
+               .empty());
+    EXPECT(migraphx::shape_transform_descriptor::create(
+               {2}, {make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 4}}})})
+               .invert()
+               .empty());
+}
+
+TEST_CASE(invert_empty) { EXPECT(migraphx::shape_transform_descriptor{}.invert().empty()); }
 
 TEST_CASE(generate_shape_transforms_for)
 {

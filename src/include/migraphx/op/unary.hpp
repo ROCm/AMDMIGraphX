@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/par.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,6 +41,9 @@ namespace op {
 template <class Derived>
 struct unary : op_name<Derived>
 {
+    // The inherited symbolic_compute is opt-in because not every Derived::apply supports sym::expr.
+    static constexpr bool enable_symbolic_compute = false;
+
     std::string point_function() const { return this->name(); }
     std::string point_op() const
     {
@@ -64,22 +68,48 @@ struct unary : op_name<Derived>
                 {"fillcolor", "#CD5C5C" /* indianred */}};
     }
     value attributes() const { return base_attributes(); }
+
+    bool supports_symbolic_compute(const shape& output_shape,
+                                   const std::vector<sym_argument>&) const
+    {
+        return output_shape.type() == shape::int64_type;
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        const auto& self = static_cast<const Derived&>(*this);
+        if constexpr(Derived::enable_symbolic_compute)
+        {
+            if(not self.supports_symbolic_compute(output_shape, args))
+                return {};
+            if(args.size() != 1 or args[0].empty() or
+               args[0].get_shape().lens() != output_shape.lens())
+                return {};
+
+            sym_argument result{output_shape};
+            const auto input = args[0].get();
+            auto output      = result.get();
+            par_transform(input.begin(), input.end(), output.begin(), self.apply());
+            return result;
+        }
+        else
+        {
+            return {};
+        }
+    }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, static_cast<const Derived&>(*this), true}.has(1);
         auto s = inputs.at(0);
-        if(s.dynamic() or s.scalar())
-        {
+        // scalar and range-based dynamic pass through; static and symbolic re-pack the
+        // same way (drop broadcast strides, otherwise preserve permutation via with_lens).
+        if(s.scalar() or (s.dynamic() and not s.symbolic()))
             return s;
-        }
-        else if(s.broadcasted())
-        {
-            return {s.type(), s.lens()};
-        }
-        else
-        {
-            return s.with_lens(s.lens());
-        }
+        if(s.broadcasted())
+            return s.symbolic() ? shape{s.type(), s.dyn_dims()} : shape{s.type(), s.lens()};
+        return s.symbolic() ? s.with_lens(s.dyn_dims()) : s.with_lens(s.lens());
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

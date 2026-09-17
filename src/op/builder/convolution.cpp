@@ -1,6 +1,6 @@
 /* The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -162,8 +162,15 @@ struct convolution : convolution_base<convolution>
         if(args.size() == 3)
         {
             instruction_ref bias_bcast;
+            // symbolic output: broadcast to the symbolic dims with a single-input broadcast
+            if(curr_ins->get_shape().symbolic())
+            {
+                auto dims  = to_value(curr_ins->get_shape().dyn_dims());
+                bias_bcast = m.insert_instruction(
+                    ins, make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", dims}}), args[2]);
+            }
             // if curr_ins has a dynamic output shape use 2 input broadcast
-            if(curr_ins->get_shape().dynamic())
+            else if(curr_ins->get_shape().dynamic())
             {
                 bias_bcast = m.insert_instruction(
                     ins, make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);

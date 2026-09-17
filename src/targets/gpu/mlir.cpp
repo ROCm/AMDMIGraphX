@@ -23,20 +23,23 @@
  */
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
-#include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
+#include <tuple>
 
 #ifdef MIGRAPHX_MLIR
+#include <mlir-c/Dialect/RockEnums.h>
 #include <mlir-c/IR.h>
 #include <mlir-c/BuiltinAttributes.h>
 #include <mlir-c/BuiltinTypes.h>
@@ -47,7 +50,7 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 4
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 6
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK
@@ -912,10 +915,14 @@ struct mlir_program
         }
     }
 
-    void run_backend_pipeline()
+    void run_backend_pipeline(const std::string& solution)
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
-        mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+        MlirMIGraphXBackendOptions opts{};
+        opts.arch       = target_arch.c_str();
+        opts.perfConfig = solution.c_str();
+        opts.optLevel   = 3;
+        mlirMIGraphXAddBackendPipeline(pm_back.get(), &opts);
         logger.clear();
         const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
         static std::mutex mutex;
@@ -944,15 +951,17 @@ struct mlir_program
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(not tuning_cfg_path.empty())
             get_module_tuned();
-        if(not solution.is_null())
-            set_tuning(solution);
+        if(solution.is_null())
+            MIGRAPHX_THROW("MLIR backend pipeline requires a tuning solution");
+        set_tuning(solution);
         // 2nd pipeline to call
-        run_backend_pipeline();
+        run_backend_pipeline(solution.to<std::string>());
 
         code_object_op op{};
-        op.symbol_name                = sym_name;
-        op.code_object                = get_binary();
-        std::tie(op.global, op.local) = get_launch_params();
+        op.symbol_name = sym_name;
+        op.code_object = get_binary();
+        // TODO: update code_object_op to use cluster size
+        std::tie(std::ignore, op.global, op.local) = get_launch_params();
         return op;
     }
 
@@ -964,14 +973,15 @@ struct mlir_program
         num_chiplets       = device.get_chiplet_count();
     }
 
-    std::pair<std::size_t, std::size_t> get_launch_params() const
+    std::tuple<std::size_t, std::size_t, std::size_t> get_launch_params() const
     {
-        uint32_t attrs[2];
-        // returns block and grid sizes
+        uint32_t attrs[3];
+        // returns block, grid and cluster sizes
         mlirGetKernelAttrs(mmodule.get(), attrs);
-        std::size_t local  = attrs[0];
-        std::size_t global = local * attrs[1];
-        return {global, local};
+        std::size_t local   = attrs[0];
+        std::size_t global  = local * attrs[1];
+        std::size_t cluster = attrs[2];
+        return {cluster, global, local};
     }
 
     value::binary get_binary() const
@@ -1126,8 +1136,8 @@ struct mlir_program
     mlir_logger logger;
     problem_params pp;
     std::deque<std::string> strings{};
-    std::string target_arch = "";
-    std::size_t num_cu      = 0;
+    std::string target_arch  = "";
+    std::size_t num_cu       = 0;
     std::size_t num_chiplets = 0;
     std::string sym_name;
 };
@@ -1309,12 +1319,23 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::transform(prefill_mlir_values.begin(),
                        prefill_mlir_values.end(),
                        prefill_values.begin(),
-                       [](const auto& v) {
-                           // mlir sets fill attribute as float but migx hip::fill operator only
-                           // supports integer type.
-                           // TODO: Need to add checks that it is indeed an integer.
-                           double dv = mlirFloatAttrGetValueDouble(v);
-                           return static_cast<int>(dv);
+                       [](const auto& v) -> value {
+                           // migx hip::fill only supports integer type. rocMLIR types the
+                           // prefill after the element type of the buffer being filled, so a
+                           // kernel writing an integer output (an int8 convolution
+                           // accumulating into i32, say) hands back an integer attribute
+                           // rather than a float one.
+                           if(mlirAttributeIsAInteger(v))
+                               return static_cast<int>(mlirIntegerAttrGetValueInt(v));
+                           if(mlirAttributeIsAFloat(v))
+                           {
+                               auto d = mlirFloatAttrGetValueDouble(v);
+                               if(not float_equal(std::trunc(d), d))
+                                   MIGRAPHX_THROW("rock.prefill value " + std::to_string(d) +
+                                                  " is not representable as an integer");
+                               return static_cast<int>(d);
+                           }
+                           MIGRAPHX_THROW("Unsupported rock.prefill attribute type");
                        });
         mco.prefill_indices = prefill_indices;
         mco.prefill_values  = prefill_values;
@@ -1364,6 +1385,23 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     return tc;
+}
+
+bool mlir_lds_usage_fits_arch(int64_t gemm_o,
+                              const std::string& arch,
+                              shape::type_t elem_type,
+                              const module* m)
+{
+    mlir_program prog;
+    if(m != nullptr)
+    {
+        prog.parse(*m);
+        return mlirMIGraphXLDSUsageFitsArch(
+            0, nullptr, prog.make_type(elem_type), prog.mmodule.get());
+    }
+
+    return mlirMIGraphXLDSUsageFitsArch(
+        gemm_o, arch.c_str(), prog.make_type(elem_type), MlirModule{});
 }
 
 void dump_mlir_to_mxr(module m,
@@ -1423,6 +1461,22 @@ tuning_config get_tuning_config_mlir(const context&, module, const std::vector<s
 {
     return {};
 }
+
+bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const module*)
+{
+    return false;
+}
+
+// Conservative "MLIR unavailable" default: the module cannot be MLIR-fused, so callers
+// take their non-MLIR path. Present so libmigraphx_gpu.so has no dangling MLIR symbols
+// when MIGRAPHX_MLIR is disabled.
+bool is_module_fusible(const module&, const context&, const value&) { return false; }
+
+void adjust_param_shapes(module&, const std::vector<shape>&) {}
+
+void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
+
+void dump_mlir_to_mxr(module, const std::vector<instruction_ref>&, const fs::path&) {}
 // NOLINTEND(performance-unnecessary-value-param)
 
 #endif

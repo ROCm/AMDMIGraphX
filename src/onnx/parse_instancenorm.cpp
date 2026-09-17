@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -127,14 +127,23 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         // both scale and bias.
         instruction_ref scale_bcast;
         instruction_ref bias_bcast;
-        if(x->get_shape().dynamic())
+        const auto& xs = x->get_shape();
+        if(xs.symbolic())
+        {
+            auto dims   = to_value(xs.dyn_dims());
+            scale_bcast = info.add_instruction(
+                make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), scale);
+            bias_bcast = info.add_instruction(
+                make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), bias);
+        }
+        else if(xs.dynamic())
         {
             scale_bcast = info.add_instruction(make_op("broadcast", {{"axis", 1}}), scale, x);
             bias_bcast  = info.add_instruction(make_op("broadcast", {{"axis", 1}}), bias, x);
         }
         else
         {
-            auto dims   = x->get_shape().lens();
+            auto dims   = xs.lens();
             scale_bcast = info.add_instruction(
                 make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
             bias_bcast =

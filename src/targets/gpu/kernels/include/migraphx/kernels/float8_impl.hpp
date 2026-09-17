@@ -118,6 +118,7 @@ __device__ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng 
     if(x == 0)
         return 0;
     // handle negative zero
+    // cppcheck-suppress compareValueOutOfTypeRangeError
     else if((sizeof(T) == 4 and x == 0x80000000) or (sizeof(T) == 2 and x == 0x8000))
     {
         return NegativeZeroNan ? 0 : 0x80; // For FNUZ types neg zero is just positive zero

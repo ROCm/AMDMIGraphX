@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,6 +75,79 @@ TEST_CASE(qlinearconv_test)
     mm->add_return({y});
 
     auto prog = read_onnx("qlinearconv_test.onnx");
+
+    EXPECT(p.sort() == prog.sort());
+}
+
+TEST_CASE(qlinearconv_pertensor_weightbias_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x = mm->add_parameter("X", {migraphx::shape::uint8_type, {1, 1, 2, 2}});
+
+    auto sc_x   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto z_pt_x = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {0}});
+
+    auto w = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::uint8_type, {2, 1, 1, 1}}, {1, 2}});
+
+    auto sc_w   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.25}});
+    auto z_pt_w = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {0}});
+
+    auto sc_y   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.125}});
+    auto z_pt_y = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {0}});
+
+    auto b = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {2}}, {10, 20}});
+
+    auto scale_x_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2}}}), sc_x);
+
+    auto z_pt_x_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2}}}), z_pt_x);
+
+    auto fp_x =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale_x_bcast, z_pt_x_bcast);
+
+    auto scale_w_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 1, 1}}}), sc_w);
+
+    auto z_pt_w_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 1, 1}}}), z_pt_w);
+
+    auto fp_w =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), w, scale_w_bcast, z_pt_w_bcast);
+
+    auto fp_y = mm->add_instruction(migraphx::make_op("convolution"), fp_x, fp_w);
+
+    auto bias_scale = mm->add_instruction(migraphx::make_op("mul"), sc_x, sc_w);
+
+    auto bias_scale_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), bias_scale);
+
+    auto fp_bias = mm->add_instruction(migraphx::make_op("dequantizelinear"), b, bias_scale_bcast);
+
+    auto bias_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 2, 2}}}), fp_bias);
+
+    auto f_bias = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bias_bcast);
+
+    auto conv_bias = mm->add_instruction(migraphx::make_op("add"), fp_y, f_bias);
+
+    auto scale_y_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2}}}), sc_y);
+
+    auto z_pt_y_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2}}}), z_pt_y);
+
+    auto y = mm->add_instruction(
+        migraphx::make_op("quantizelinear"), conv_bias, scale_y_bcast, z_pt_y_bcast);
+
+    mm->add_return({y});
+
+    auto prog = read_onnx("qlinearconv_pertensor_weightbias_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
 }

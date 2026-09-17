@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -99,7 +99,9 @@ static void insert_convert_to_supported_type(module& m,
 
 void eliminate_data_type::apply(module& m) const
 {
-    static const std::vector<std::string> skip_op_names = {"convert",
+    static const std::vector<std::string> skip_op_names = {"addressof",
+                                                           "convert",
+                                                           "deref",
                                                            "get_tuple_elem",
                                                            "if",
                                                            "loop",

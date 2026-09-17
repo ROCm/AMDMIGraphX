@@ -2,7 +2,7 @@ DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 DOCKER_IMAGE_ORT = 'rocm/migraphx-ci-jenkins-ubuntu-ort'
 
 def getgputargets() {
-    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1201"
+    targets="gfx908;gfx90a;gfx942;gfx950;gfx1030;gfx1100;gfx1101;gfx1201"
     return targets
 }
 
@@ -26,15 +26,17 @@ def rocmnodename(name) {
     } else if(name == "navi21") {
         node_name = "${rocmtest_name} && navi21";
     } else if(name == "mi100+") {
-        node_name = "${rocmtest_name} && (gfx908 || gfx90a) && !vm";
+        node_name = "${rocmtest_name} && (gfx908 || gfx90a || gfx942 || gfx950) && !vm";
     } else if(name == "mi200+") {
-        node_name = "${rocmtest_name} && (gfx90a || gfx942) && !vm";
+        node_name = "${rocmtest_name} && (gfx90a || gfx942 || gfx950) && !vm";
+    } else if(name == "mi300+") {
+        node_name = "${rocmtest_name} && (gfx942 || gfx950) && !vm";
     } else if(name == "cdna") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega20) && !vm";
     } else if(name == "navi32") {
         node_name = "${rocmtest_name} && gfx1101 && !vm";
     } else if(name == "navi4x") {
-        node_name = "gfx1201 && !vm";
+        node_name = "${rocmtest_name} && gfx1201 && !vm";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
     } else if(name == "onnxrt") {
@@ -71,50 +73,186 @@ def cmake_build = { bconf ->
     def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
     def flags = bconf.get("flags", "")
     def gpu_debug = bconf.get("gpu_debug", "0")
+    def skip_package = bconf.get("skip_package", false)
+    def targets =  "all package check"
+    if(skip_package)
+        targets = "all check"
     def cmd = """
         ulimit -c unlimited
         echo "leak:dnnl::impl::malloc" > suppressions.txt
         echo "leak:libtbb.so" >> suppressions.txt
         cat suppressions.txt
         export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
-        export ASAN_OPTIONS="detect_container_overflow=0"
+        export ASAN_OPTIONS="detect_container_overflow=0:detect_odr_violation=0"
         export MIGRAPHX_GPU_DEBUG=${gpu_debug}
         export CXX=${compiler}
         export CXXFLAGS='-Werror'
-        rocminfo
+        /opt/rocm/bin/rocminfo
         env
         rm -rf build
         mkdir build
         cd build
-        cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
+        # Pin the package's per-GPU dependency to the arch of the GPU in this node
+        # so the generated .deb is installable here (empty on nogpu -> device-all deps).
+        THEROCK_GPU_ARCH=\$(/opt/rocm/bin/rocminfo 2>/dev/null | grep -o -m1 'gfx[0-9a-z]*' || true)
+        cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON -DMIGRAPHX_THEROCK_GPU_ARCH="\${THEROCK_GPU_ARCH}" ${flags} ..
         git diff
         git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
         make -j\$(nproc) generate VERBOSE=1
         git diff
         git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-        make -j\$(nproc) all package check VERBOSE=1
-        md5sum ./*.deb
+        make -j\$(nproc) ${targets} VERBOSE=1
+        if [ -n "\$(ls ./*.deb 2>/dev/null)" ]; then md5sum ./*.deb; fi
     """
     echo cmd
     sh cmd
     // Only archive from master or develop
-    if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+    if (!skip_package && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
+}
+
+def setCommitStatus(String sha, String state, String context, String description = '') {
+    def GITHUB_API_URL="https://api.github.com/repos/ROCm/AMDMIGraphX/statuses/${sha}"
+    withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+        sh """curl -L \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer \$TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -d '{"state":"${state}", \
+                   "description":"${description}", \
+                   "context":"${context}", \
+                   "target_url":"${env.BUILD_URL}"}' \
+              ${GITHUB_API_URL} \
+        """
+    }
+}
+
+@NonCPS
+def shaFromSCMRevisionAction() {
+    def action = currentBuild.rawBuild.getAction(jenkins.scm.api.SCMRevisionAction.class)
+    if (action == null) return null
+    def rev = action.revision
+
+    // GitSCMSource branch builds:
+    //   jenkins.plugins.git.AbstractGitSCMSource$SCMRevisionImpl  -> .hash
+    // GitHub Branch Source PR builds (merge strategy):
+    //   org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision -> .pullHash / .mergeHash
+    if (rev.hasProperty('pullHash')) return rev.pullHash   // PR head — what you want for status
+    if (rev.hasProperty('hash'))     return rev.hash       // plain branch
+    return rev.toString()
+}
+
+def resolveSha() {
+    if (env.GIT_COMMIT) return env.GIT_COMMIT
+
+    if (env.CHANGE_ID) {
+        try { return pullRequest.head } catch (ignored) { /* plugin missing */ }
+    }
+
+    def sha = shaFromSCMRevisionAction()
+    if (sha) return sha
+
+    if (fileExists('.git')) {
+        return sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+    }
+    return null
+}
+
+def autoSetGitStatus = { Map conf = [:], Closure body ->
+    def statusContext = conf.get("gitHubContext", "Unknown")
+    def description = conf.get("description", "Building")
+    def failureDescription = conf.get("failureDescription", "Failed")
+    def successDescription = conf.get("successDescription", "Succeeded")
+    def commitSha = resolveSha()
+    try {
+        setCommitStatus(commitSha, 'pending', statusContext, description)
+        body()
+    }
+    catch (Exception ex) {
+        setCommitStatus(commitSha, 'failure', statusContext, failureDescription)
+        throw ex
+    }
+    setCommitStatus(commitSha, 'success', statusContext, successDescription)
+}
+
+@NonCPS
+def parseStageSuccess(String jsonText, String context) {
+    def json = new groovy.json.JsonSlurper().parseText(jsonText)
+    // Statuses are returned newest-first; only the latest for this context is authoritative.
+    def latest = json.statuses?.find { it.context == context }
+    return latest?.state == "success"
+}
+
+def isStageCompleted(String stageName) {
+    if (params.FORCE_REBUILD) {
+        return false
+    }
+    def commitSha = resolveSha()
+    if (!commitSha) {
+        return false
+    }
+    def context = "Jenkins - ${stageName}"
+    def result = false
+    try {
+        withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+            def response = ''
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                response = sh(
+                    script: """
+                        curl -s -L \
+                            -H "Accept: application/vnd.github+json" \
+                            -H "Authorization: Bearer \$TOKEN" \
+                            -H "X-GitHub-Api-Version: 2022-11-28" \
+                            "https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${commitSha}/status"
+                    """,
+                    returnStdout: true
+                ).trim()
+                if (response) {
+                    break
+                }
+                echo "Warning: empty response from GitHub API for '${stageName}' (attempt ${attempt}/3)"
+                sleep(time: 5 * attempt, unit: 'SECONDS')
+            }
+            if (!response) {
+                echo "Warning: GitHub API returned empty response for '${stageName}' after 3 attempts"
+                return false
+            }
+            result = parseStageSuccess(response, context)
+        }
+    } catch (Exception e) {
+        echo "Warning: could not query GitHub status for '${stageName}': ${e.message}"
+        return false
+    }
+    if (result) {
+        echo "Stage '${stageName}' already succeeded for commit ${commitSha}. Skipping."
+    }
+    return result
 }
 
 def rocmtest = { Map conf = [:], Closure body ->
     def variant = conf.get("variant", env.STAGE_NAME)
     def setup = conf.get("setup", {})
+    def skip_also_requires = conf.get("skip_also_requires", [])
+
+    if (isStageCompleted(variant) && skip_also_requires.every { isStageCompleted(it) }) {
+        return
+    }
 
     def docker_args = conf.get("docker_args", "")
     def image = conf.get("image", DOCKER_IMAGE)
     def imageTag = conf.get("imageTag", env.IMAGE_TAG)
     def ccache = "/workspaces/.cache/ccache"
+    def comgr_cache = "/workspaces/.cache/comgr_cache"
+    
+    env.AMD_COMGR_CACHE = 1
+    env.AMD_COMGR_CACHE_DIR = comgr_cache
     env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache
     env.HSA_ENABLE_SDMA = 0
-    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+
+    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'AMDMIGraphX') {
         def docker_opts
         stage("setup ${variant}") {
             sh 'printenv'
@@ -134,10 +272,19 @@ def rocmtest = { Map conf = [:], Closure body ->
         }
 
         stage("build ${variant}") {
-            withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
-                timeout(time: 4, unit: 'HOURS') {
-                    body()
+            try {
+                sh "mkdir -p '${env.WORKSPACE}/../.cache/ccache' '${env.WORKSPACE}/../.cache/comgr_cache'"
+                withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
+                    timeout(time: 4, unit: 'HOURS') {
+                        sh """
+                            ls -l /workspaces/
+                            ls -l /workspaces/.cache/
+                        """
+                        body()
+                    }
                 }
+            } finally {
+                sh 'rm -rf build'
             }
         }
     }
@@ -159,20 +306,21 @@ pipeline {
 
     parameters {
         booleanParam(name: 'FORCE_DOCKER_IMAGE_BUILD', defaultValue: false)
+        booleanParam(name: 'FORCE_REBUILD', defaultValue: false)
     }
 
     stages {
         stage('Check image') {
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking image', failureDescription: 'Failed to check image', successDescription: 'Image check succeeded') {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check image", account: 'ROCm', repo: 'AMDMIGraphX', description: 'Checking image', failureDescription: 'Failed to check image', successDescription: 'Image check succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             sh 'printenv'
                             checkout scm
                             def calculateImageTagScript = """
                                 shopt -s globstar
-                                sha256sum Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
+                                sha256sum Dockerfile **/*requirements.txt tools/requirements-py.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
                             """
                             env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
                             env.IMAGE_EXISTS = sh(script: "docker manifest inspect ${DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
@@ -189,7 +337,7 @@ pipeline {
             }
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building image', failureDescription: 'Failed to build image', successDescription: 'Image build succeeded') {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build image", account: 'ROCm', repo: 'AMDMIGraphX', description: 'Building image', failureDescription: 'Failed to build image', successDescription: 'Image build succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             checkout scm
@@ -214,7 +362,7 @@ pipeline {
             parallel {
                 stage('All Targets Release') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {
@@ -234,7 +382,7 @@ pipeline {
                             rocmtest([:]) {
                                 def sanitizers = "undefined,address"
                                 def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
                             }
                         }
                     }
@@ -249,7 +397,7 @@ pipeline {
                             rocmtest([:]) {
                                 def sanitizers = "undefined"
                                 def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
-                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
                             }
                         }
                     }
@@ -257,13 +405,26 @@ pipeline {
 
                 stage('HIP Clang Release') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
+                    }
+                    steps {
+                        script {
+                            rocmtest(skip_also_requires: ['ONNX Runtime Tests']) {
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                                stash includes: 'build/*.deb', name: 'migraphx-package'
+                            }
+                        }
+                    }
+                }
+
+                stage('HIP Clang Static') {
+                    agent {
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {
                             rocmtest([:]) {
-                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
-                                stash includes: 'build/*.deb', name: 'migraphx-package'
+                                cmake_build(skip_package: true, flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
                     }
@@ -297,17 +458,13 @@ pipeline {
 
                 stage('HIP RTC Debug') {
                     agent {
-                        label rocmnodename('mi200+')
-                    }
-                    environment {
-                        // Disable MLIR since it doesnt work with all ub sanitizers
-                        MIGRAPHX_DISABLE_MLIR = '1'
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {
                             rocmtest([:]) {
                                 def sanitizers = "undefined"
-                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+                                def debug_flags = "-g -O2 -Xarch_host -fsanitize=${sanitizers} -Xarch_host -fno-sanitize=vptr,function -Xarch_host -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", gpu_debug: '1')
                             }
                         }
@@ -316,7 +473,7 @@ pipeline {
 
                 stage('MLIR Debug') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
                     }
                     environment {
                         // Since the purpose of this run is to verify all things MLIR supports,
@@ -326,7 +483,7 @@ pipeline {
                         MIGRAPHX_ENABLE_MLIR_INPUT_FUSION = '1'
                         MIGRAPHX_MLIR_ENABLE_SPLITK = '1'
                         MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION = '1'
-                        MIGRAPHX_ENABLE_MLIR_GEG_FUSION = '1'
+                        MIGRAPHX_ENABLE_MLIR_CEG_FUSION = '1'
                         MIGRAPHX_ENABLE_SPLIT_REDUCE = '1'
                         MIGRAPHX_DISABLE_LAYERNORM_FUSION = '1'
                     }
@@ -335,7 +492,7 @@ pipeline {
                             rocmtest([:]) {
                                 // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
                                 def sanitizers = "undefined"
-                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+                                def debug_flags = "-g -O2 -Xarch_host -fsanitize=${sanitizers} -Xarch_host -fno-sanitize=vptr,function -Xarch_host -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
@@ -346,7 +503,7 @@ pipeline {
         stage('Check ORT image') {
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking ORT image', failureDescription: 'Failed to check ORT image', successDescription: 'ORT image check succeeded') {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check ORT image", account: 'ROCm', repo: 'AMDMIGraphX', description: 'Checking ORT image', failureDescription: 'Failed to check ORT image', successDescription: 'ORT image check succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             sh 'printenv'
@@ -368,7 +525,7 @@ pipeline {
             }
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building ORT image', failureDescription: 'Failed to build ORT image', successDescription: 'ORT image build succeeded') {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build ORT image", account: 'ROCm', repo: 'AMDMIGraphX', description: 'Building ORT image', failureDescription: 'Failed to build ORT image', successDescription: 'ORT image build succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             checkout scm
@@ -398,10 +555,9 @@ pipeline {
                         script {
                             rocmtest(setup: setuppackage, docker_args: '-u root', image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
                                 sh '''
-                                    apt install half
-                                    #ls -lR
+                                    apt-get update
                                     md5sum ./build/*.deb
-                                    apt install -y --allow-unauthenticated ./build/*.deb
+                                    apt-get install -y --allow-unauthenticated ./build/*.deb
                                     env
                                     cd /onnxruntime && ./build_and_test_onnxrt.sh
                                 '''
@@ -410,6 +566,12 @@ pipeline {
                     }
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
         }
     }
 }

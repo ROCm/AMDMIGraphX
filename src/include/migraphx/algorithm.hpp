@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <numeric>
 #include <string>
 #include <utility>
@@ -75,6 +76,25 @@ OutputIterator transform_partial_sum(
     }
 
     return ++d_first;
+}
+
+/// Like std::unique but removes all duplicates instead of only adjacent ones, so the
+/// input need not be sorted. The order of first appearance is preserved. Returns the
+/// new logical end; elements in [result, last) are left in a moved-from state.
+template <class ForwardIterator, class BinaryPredicate = std::equal_to<>>
+ForwardIterator distinct(ForwardIterator first, ForwardIterator last, BinaryPredicate eq = {})
+{
+    auto out = first;
+    for(auto it = first; it != last; ++it)
+    {
+        if(std::none_of(first, out, [&](const auto& kept) { return eq(kept, *it); }))
+        {
+            if(out != it)
+                *out = std::move(*it);
+            ++out;
+        }
+    }
+    return out;
 }
 
 template <class Iterator, class Predicate, class Compare>
@@ -160,6 +180,20 @@ Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
     return first;
 }
 
+/// Similiar to std::transform but instead pass adjacent pairs to the function. Unlike
+/// std::adjacent_difference, the first element is not copied to the output, so one less element is
+/// written and the output can have a different type than the input.
+template <class Iterator, class Output, class F>
+Output adjacent_transform(Iterator first, Iterator last, Output out, F f)
+{
+    if(first == last)
+        return out;
+    // Transform the range offset by one with the original range to get the adjacent pairs
+    return std::transform(std::next(first), last, first, out, [&](auto&& after, auto&& before) {
+        return f(before, after);
+    });
+}
+
 /// Similiar to std::for_each but instead pass adjacent pairs to the function
 template <class Iterator, class F>
 Iterator adjacent_for_each(Iterator first, Iterator last, F f)
@@ -176,12 +210,36 @@ Iterator adjacent_for_each(Iterator first, Iterator last, F f)
     return last;
 }
 
+template <class Iterator, class F>
+F for_each_iterator(Iterator first, Iterator last, F f)
+{
+    while(first != last)
+    {
+        auto it = first;
+        first++;
+        f(it);
+    }
+    return f;
+}
+
 /// Like std::for_each but can pass in another range like std::transform
 template <class Iterator1, class Iterator2, class F>
 F for_each(Iterator1 first1, Iterator1 last1, Iterator2 first2, F f)
 {
     for(; first1 != last1; ++first1, ++first2)
         f(*first1, *first2);
+    return f;
+}
+
+template <class Iterator1, class Iterator2, class F>
+F for_each(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterator2 last2, F f)
+{
+    while(first1 != last1 and first2 != last2)
+    {
+        f(*first1, *first2);
+        ++first1;
+        ++first2;
+    }
     return f;
 }
 

@@ -70,7 +70,7 @@ void dead_code_elimination::apply(module& m) const
                 leaf->clear_arguments();
                 assert(std::distance(m.begin(), leaf) < std::distance(m.begin(), last));
                 assert(leaf != ins);
-                if(leaf->name() != "@param")
+                if(leaf->name() != "@param" and leaf->name() != "@comment")
                     m.move_instruction(leaf, m.end());
                 for(auto arg : args)
                     self(arg);

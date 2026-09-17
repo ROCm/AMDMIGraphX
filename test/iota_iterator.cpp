@@ -340,7 +340,7 @@ TEST_CASE(iota_iterator_large_values)
     }
 
     // Test with larger than int32_t offsets
-    const std::ptrdiff_t large_offset = static_cast<std::ptrdiff_t>(3) * uint32_max;
+    const std::ptrdiff_t large_offset = 3 * uint32_max;
 
     // Test with + operator
     migraphx::iota_iterator it_large{1};

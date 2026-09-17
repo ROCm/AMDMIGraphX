@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,6 +68,35 @@ struct quantizelinear
         return inputs[0].with_lens(out_type.value_or(shape::uint8_type), inputs[0].lens());
     }
 
+    template <class Output, class Input, class Scales, class ZeroPoints>
+    static void
+    quantize_tensor(Output output, Input input, Scales scales, ZeroPoints zero_pts, std::size_t n)
+    {
+        using quant_type = typename Output::value_type;
+        auto min_value   = std::numeric_limits<quant_type>::lowest();
+        auto max_value   = std::numeric_limits<quant_type>::max();
+        par_for(n, [&](auto i) {
+            double quantized;
+            if constexpr(std::is_integral<quant_type>{})
+            {
+                if(std::isnan(static_cast<double>(input[i])))
+                {
+                    output[i] = min_value;
+                    return;
+                }
+                quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
+                            static_cast<double>(zero_pts[i]);
+            }
+            else
+            {
+                quantized = static_cast<double>(input[i]) / static_cast<double>(scales[i]) +
+                            static_cast<double>(zero_pts[i]);
+            }
+            output[i] = std::max(static_cast<double>(min_value),
+                                 std::min(static_cast<double>(max_value), quantized));
+        });
+    }
+
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto x       = args.at(0);
@@ -83,24 +112,7 @@ struct quantizelinear
         fesetround(FE_TONEAREST);
         visit_all(result, y_zero_point)([&](auto output, auto zero_pts) {
             visit_all(x, y_scale)([&](auto input, auto scales) {
-                using quant_type = typename decltype(output)::value_type;
-                auto min_value   = std::numeric_limits<quant_type>::lowest();
-                auto max_value   = std::numeric_limits<quant_type>::max();
-                par_for(output_shape.elements(), [&](auto i) {
-                    double quantized;
-                    if constexpr(std::is_integral<quant_type>{})
-                    {
-                        quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
-                                    static_cast<double>(zero_pts[i]);
-                    }
-                    else
-                    {
-                        quantized = static_cast<double>(input[i]) / static_cast<double>(scales[i]) +
-                                    static_cast<double>(zero_pts[i]);
-                    }
-                    output[i] = std::max(static_cast<double>(min_value),
-                                         std::min(static_cast<double>(max_value), quantized));
-                });
+                quantize_tensor(output, input, scales, zero_pts, output_shape.elements());
             });
         });
         fesetround(rounding_mode);

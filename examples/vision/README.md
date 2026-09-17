@@ -6,3 +6,5 @@
 - [Python NFNet](./python_nfnet)
 - [Python U-Net](./python_unet)
 - [Python 3D-UNet](./python_3dunet)
+- [Python YOLOv4](./python_yolov4)
+- [Python YOLO26](./python_yolo26)

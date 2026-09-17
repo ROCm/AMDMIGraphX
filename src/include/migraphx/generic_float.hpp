@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/bit_cast.hpp>
 #include <migraphx/bit.hpp>
+#include <migraphx/math.hpp>
 #include <algorithm>
 #include <limits>
 #include <iostream>
@@ -36,18 +37,6 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
-{
-    return (x + y - std::size_t{1}) / y;
-}
-
-// compute the smallest multiple of y that is greater than or equal to x
-// this is equivalent to y * ceil(x / y)
-constexpr std::size_t ceil_mul_of(std::size_t x, std::size_t y)
-{
-    return y * integer_divide_ceil(x, y);
-}
 
 template <unsigned int Bytes>
 struct unsigned_type
@@ -111,9 +100,10 @@ struct __attribute__((packed, may_alias)) generic_float
 
     explicit constexpr generic_float(float f = 0.0) noexcept { from_float(get_parts(f)); }
 
-    constexpr generic_float& operator=(float f) noexcept
+    template <class U, MIGRAPHX_REQUIRES(std::is_convertible<U, float>{})>
+    constexpr generic_float& operator=(U f) noexcept
     {
-        from_float(get_parts(f));
+        *this = generic_float(f);
         return *this;
     }
 
@@ -169,55 +159,60 @@ struct __attribute__((packed, may_alias)) generic_float
         return f.to_float();
     }
 
+    // Shift `significand` right by `drop` bits, rounding to nearest with ties to even.
+    // This is the rounding the hardware conversions use.
+    static constexpr std::uint32_t rne_shift(std::uint32_t significand, int drop) noexcept
+    {
+        if(drop <= 0)
+            return significand;
+        if(drop >= int(sizeof(std::uint32_t) * 8))
+            return 0;
+        const auto lsb = (significand >> drop) & 1u;
+        return (significand + (1u << (drop - 1u)) - 1u + lsb) >> drop;
+    }
+
     constexpr void from_float(float32_parts f) noexcept
     {
+        constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
+        constexpr const int drop = int(float32_parts::mantissa_width() - MantissaSize);
+
         sign = f.sign;
 
-        if(f.exponent == 0)
-        {
-            exponent = 0;
-            mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
-        }
-        else if(f.exponent == float32_parts::max_exponent())
+        if(f.exponent == float32_parts::max_exponent())
         {
             exponent = all_ones<ExponentSize>();
-            mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
+            // Narrowing the payload must not turn a nan into an infinity.
+            std::uint32_t payload = f.mantissa >> drop;
+            if(f.mantissa != 0 and payload == 0)
+                payload = 1u << (MantissaSize - 1);
+            mantissa = payload;
+            return;
+        }
+
+        // A float32 subnormal has no implicit leading one, but it shares the exponent of the
+        // smallest float32 normal.
+        const bool subnormal = f.exponent == 0;
+        const int e          = int(subnormal ? 1u : f.exponent) - diff;
+        const std::uint32_t significand =
+            f.mantissa | (subnormal ? 0u : 1u << float32_parts::mantissa_width());
+
+        // Every exponent step below the target's minimum drops one more significand bit.
+        const auto m = rne_shift(significand, drop + std::max(0, 1 - e));
+        // The significand's leading one lands in the exponent field, so a rounding carry out of
+        // the significand bumps the exponent for free, and a result that is subnormal in the
+        // target just leaves the exponent field at zero.
+        const std::uint32_t bits = (std::uint32_t(std::max(e, 1) - 1) << MantissaSize) + m;
+
+        if((bits >> MantissaSize) >= all_ones<ExponentSize>())
+        {
+            exponent = all_ones<ExponentSize>();
+            mantissa = 0;
         }
         else
         {
-            constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
-            auto e                   = int(f.exponent) - diff;
-
-            if(e >= static_cast<int>(all_ones<ExponentSize>()))
-            {
-                exponent = all_ones<ExponentSize>();
-                mantissa = 0;
-            }
-            else if(e < 1)
-            {
-                exponent = 0;
-
-                auto shift        = diff - int(f.exponent);
-                auto shift_amount = shift + (float32_parts::mantissa_width() - MantissaSize) + 1;
-
-                if(shift_amount < (sizeof(unsigned int) * 8))
-                {
-                    mantissa = (f.mantissa | (1u << float32_parts::mantissa_width())) >>
-                               (shift + (float32_parts::mantissa_width() - MantissaSize) + 1);
-                }
-                else
-                {
-                    mantissa = 0;
-                }
-            }
-            else
-            {
-                exponent = int(f.exponent) - diff;
-                mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
-            }
+            exponent = bits >> MantissaSize;
+            mantissa = bits & all_ones<MantissaSize>();
         }
-
-        exponent = std::min<type>(exponent, all_ones<ExponentSize>());
     }
 
     constexpr bool is_normal() const noexcept
@@ -304,14 +299,14 @@ struct __attribute__((packed, may_alias)) generic_float
         return generic_float{x.to_float() - 1.0f};
     }
 // NOLINTNEXTLINE
-#define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                        \
-    constexpr generic_float& operator op(const generic_float & rhs) \
-    {                                                               \
-        float self = *this;                                         \
-        float frhs = rhs;                                           \
-        self op frhs;                                               \
-        *this = generic_float(self);                                \
-        return *this;                                               \
+#define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                       \
+    constexpr generic_float& operator op(const generic_float& rhs) \
+    {                                                              \
+        float self = *this;                                        \
+        float frhs = rhs;                                          \
+        self op frhs;                                              \
+        *this = generic_float(self);                               \
+        return *this;                                              \
     }
     MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(*=)
     MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(-=)

@@ -322,7 +322,7 @@ void nary_standard_impl(hipStream_t stream, F f, argument result, Arguments... a
 }
 
 template <class F, class... Arguments>
-void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
+void nary_impl(hipStream_t stream, F f, const argument& result, Arguments... args)
 {
     MIGRAPHX_TRACE_NARY_FUNCTION
     if constexpr(sizeof...(Arguments) == 0)

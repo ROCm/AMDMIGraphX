@@ -29,6 +29,7 @@
 #else
 #define MIGRAPHX_WORKAROUND_RESHAPE_CONT_NONSTANDARD 0
 #endif
+#endif
 
 #if MIGRAPHX_WORKAROUND_RESHAPE_CONT_NONSTANDARD
 #include <migraphx/reshape_dims.hpp>

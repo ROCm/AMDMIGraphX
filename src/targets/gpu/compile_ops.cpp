@@ -56,6 +56,15 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_USE_SIMPLE);
+
+static const benchmark_candidate& run_benchmark(context& ctx,
+                                                const std::vector<benchmark_candidate>& candidates)
+{
+    if(enabled(MIGRAPHX_BENCHMARKING_USE_SIMPLE{}))
+        return simple_benchmark{/* bundle */ 10, /* nruns */ 20}.run(ctx, candidates);
+    return adaptive_topk_benchmark{}.run(ctx, candidates);
+}
 
 struct precompile_op
 {
@@ -481,8 +490,7 @@ struct compile_plan
         if(candidates.empty())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                            problem_string() + "\n\n" + print_modules());
-        simple_benchmark bench{/* bundle */ 10, /* nruns */ 20};
-        const auto& best = bench.run(*ctx, candidates);
+        const auto& best = run_benchmark(*ctx, candidates);
         ctx->get_problem_cache().insert(preop.name(), config->problem, best.solution());
         if(trace_level > 0)
         {

@@ -971,6 +971,77 @@ TEST_CASE(conv_asymmetric_input)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(conv_uint8_input)
+{
+    migraphx::shape s4{migraphx::shape::int8_type, {1280, 320, 1, 1}};
+    migraphx::shape s7{migraphx::shape::float_type, {1, 320, 7, 7}};
+
+    migraphx::module m1;
+    {
+        auto input   = m1.add_parameter("input", s7);
+        auto weights = m1.add_parameter("weights", s4);
+        auto a_scale = m1.add_literal(0.5f);
+        auto a_zp    = m1.add_literal(std::uint8_t{129});
+        auto w_scale = m1.add_literal(0.25f);
+        auto w_zp    = m1.add_literal(std::int8_t{0});
+
+        auto d1 = add_quantize_op(m1, "dequantizelinear", weights, w_scale, w_zp);
+        auto q1 = add_quantize_op(m1, "quantizelinear", input, a_scale, a_zp);
+        auto d5 = add_quantize_op(m1, "dequantizelinear", q1, a_scale, a_zp);
+        auto c1 = m1.add_instruction(migraphx::make_op("convolution",
+                                                       {{"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1},
+                                                        {"padding_mode", 0}}),
+                                     d5,
+                                     d1);
+        m1.add_return({c1});
+    }
+
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s7);
+        auto weights = m2.add_parameter("weights", s4);
+        auto a_scale = m2.add_literal(0.5f);
+        auto a_zp    = m2.add_literal(std::uint8_t{129});
+        auto w_scale = m2.add_literal(0.25f);
+
+        auto q1 = add_quantize_op(m2, "quantizelinear", input, a_scale, a_zp);
+
+        // Only the activation is uint8, so the int8 weights pass through unrebiased and their
+        // symmetric zero point contributes no correction term.
+        auto zp1 = add_uint8_rebias(m2, a_zp);
+        auto a1  = add_uint8_rebias(m2, q1);
+
+        auto c1        = m2.add_instruction(migraphx::make_op("quant_convolution",
+                                                              {{"padding", {0, 0, 0, 0}},
+                                                               {"stride", {1, 1}},
+                                                               {"dilation", {1, 1}},
+                                                               {"group", 1},
+                                                               {"padding_mode", 0}}),
+                                     a1,
+                                     weights);
+        auto out_scale = add_scale_mul(m2, a_scale, w_scale, 1, 1, c1->get_shape().lens());
+        auto out_zp    = init_zero_point(m2, c1);
+        auto zp1_bc    = broadcast_shift(m2, zp1, input->get_shape().lens());
+        auto zp_term   = m2.add_instruction(migraphx::make_op("quant_convolution",
+                                                              {{"padding", {0, 0, 0, 0}},
+                                                               {"stride", {1, 1}},
+                                                               {"dilation", {1, 1}},
+                                                               {"group", 1},
+                                                               {"padding_mode", 0}}),
+                                          zp1_bc,
+                                          weights);
+        out_zp         = m2.add_instruction(migraphx::make_op("add"), out_zp, zp_term);
+        auto d6        = add_quantize_op(m2, "dequantizelinear", c1, out_scale, out_zp);
+        m2.add_return({d6});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(conv_multi_scale)
 {
     migraphx::shape s4{migraphx::shape::int8_type, {1280, 320, 1, 1}};

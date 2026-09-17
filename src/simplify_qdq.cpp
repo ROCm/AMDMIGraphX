@@ -190,8 +190,6 @@ struct match_find_quantizable_ops
         qop_args.at(0) = rebias_uint8_to_int8(m, qop, qop_args.at(0), zp1);
         qop_args.at(1) = rebias_uint8_to_int8(m, qop, qop_args.at(1), zp2);
 
-        // Types are admitted per operand above, so a pair the rebias could not unify (e.g. uint8
-        // with fp8) is still mixed here and would trip the op's same_type() check.
         if(qop_args.at(0)->get_shape().type() != qop_args.at(1)->get_shape().type())
             return;
 

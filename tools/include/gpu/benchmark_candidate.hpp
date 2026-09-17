@@ -53,9 +53,9 @@ namespace gpu {
 #ifdef DOXYGEN
 
 /// Type-erased interface for a tuning candidate that can be timed by a
-/// benchmarker (see simple_benchmark in <migraphx/gpu/time_op.hpp>). A
-/// candidate knows how to build a runnable program for itself and how to
-/// generate the input data used to run it.
+/// benchmarker (see simple_benchmark and adaptive_topk_benchmark in
+/// <migraphx/gpu/time_op.hpp>). A candidate knows how to build a runnable
+/// program for itself and how to generate the input data used to run it.
 struct benchmark_candidate
 {
     /// Generate one input argument per parameter of the program returned by

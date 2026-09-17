@@ -34,9 +34,14 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+/* Build a parameter map for the module by pairing its parameters, in parameter
+   order, with the given arguments */
+MIGRAPHX_GPU_EXPORT parameter_map make_parameter_map(const_module_ref mod,
+                                                     const std::vector<argument>& args);
+
 /* Generate an input argument for each parameter of the program in parameter
-   order. Inputs found in fill_map are filled with the given value on the host;
-   the rest are filled with random data generated on the GPU. */
+   order. Parameters whose shape id (type + dims) is in fill_map are filled with
+   that value on the host; the rest get random data generated on the GPU. */
 MIGRAPHX_GPU_EXPORT std::vector<argument>
 generate_program_arguments(const context& ictx,
                            const program& p,
@@ -58,7 +63,7 @@ struct MIGRAPHX_GPU_EXPORT adaptive_topk_benchmark
 {
     // Number of successful precise timings to collect. Zero precisely times every candidate.
     std::size_t top_k = 10;
-    // How much time to spend on precise timing
+    // Per-candidate time budgets (ms) for the precise and coarse measurements
     std::size_t precise_ms         = 20;
     std::size_t coarse_ms          = 10;
     std::size_t precise_min_bundle = 4;

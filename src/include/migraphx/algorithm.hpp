@@ -50,6 +50,7 @@ void transform_if(Iterator start, Iterator last, Output out, Predicate pred, F f
     }
 }
 
+/// Two-range overload; the second range must have at least as many elements as [first1, last1)
 template <class Iterator1, class Iterator2, class Output, class Predicate, class F>
 void transform_if(
     Iterator1 first1, Iterator1 last1, Iterator2 first2, Output out, Predicate pred, F f)

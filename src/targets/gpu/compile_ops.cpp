@@ -45,8 +45,10 @@
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <functional>
+#include <thread>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,9 +63,15 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_USE_SIMPLE);
 static const benchmark_candidate& run_benchmark(context& ctx,
                                                 const std::vector<benchmark_candidate>& candidates)
 {
-    if(enabled(MIGRAPHX_BENCHMARKING_USE_SIMPLE{}))
-        return simple_benchmark{/* bundle */ 10, /* nruns */ 20}.run(ctx, candidates);
-    return adaptive_topk_benchmark{}.run(ctx, candidates);
+    // A single candidate is already the winner, so skip timing it
+    if(candidates.size() == 1)
+        return candidates.front();
+    const auto& best = enabled(MIGRAPHX_BENCHMARKING_USE_SIMPLE{})
+                           ? simple_benchmark{/* bundle */ 10, /* nruns */ 20}.run(ctx, candidates)
+                           : adaptive_topk_benchmark{}.run(ctx, candidates);
+    // Let the GPU settle before the next tuning problem
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    return best;
 }
 
 struct precompile_op
@@ -141,15 +149,7 @@ struct dynamic_code_object_op
     std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,
                                                               const_module_ref mod) const
     {
-        auto pnames = mod->get_parameter_names();
-        assert(pnames.size() == args.size());
-        std::unordered_map<std::string, argument> param_map;
-        std::transform(pnames.begin(),
-                       pnames.end(),
-                       args.begin(),
-                       std::inserter(param_map, param_map.end()),
-                       [](const auto& name, const auto& arg) { return std::make_pair(name, arg); });
-        return param_map;
+        return make_parameter_map(mod, args);
     }
     argument compute(context& ctx,
                      const shape&,
@@ -276,11 +276,16 @@ struct compiled_result
 
         std::vector<argument> generate_arguments(const context& ictx) const
         {
+            assert(parent != nullptr);
             return generate_program_arguments(
                 ictx, parent->make_program(), parent->replace.fill_map);
         }
 
-        program make_program() const { return parent->make_program(); }
+        program make_program() const
+        {
+            assert(parent != nullptr);
+            return parent->make_program();
+        }
 
         // Set based on trace level
         tracer trace() const
@@ -295,6 +300,7 @@ struct compiled_result
         // Used to print the program and other info on higher trace levels
         void before_run(const program& p) const
         {
+            assert(parent != nullptr);
             if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 2)
                 std::cout << *parent << "\n" << p << std::endl;
         }
@@ -475,6 +481,7 @@ struct compile_plan
             std::cout << "Problem: " << config->problem << std::endl;
         std::vector<benchmark_candidate> candidates;
         candidates.reserve(results.size());
+        assert(config->solutions.size() == results.size());
         transform_if(
             results.begin(),
             results.end(),

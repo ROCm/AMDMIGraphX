@@ -79,7 +79,7 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
     }
 
     // group_by partitions against one seed, so its predicate must be an equivalence
-    // relation. Dependency is not transitive and must be checked on the complete key group.
+    // relation. Independence is not transitive and must be checked on the complete key group.
     auto pred = [&](instruction_ref x, instruction_ref y) {
         return finder.group_key(x) == finder.group_key(y);
     };

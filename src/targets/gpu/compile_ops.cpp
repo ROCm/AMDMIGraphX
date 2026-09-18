@@ -454,7 +454,8 @@ struct compile_plan
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
                 const auto& solution = sol.value();
-                // No solution yet until benchmarked so skip for now
+                // A null is a mark() sentinel: already being benchmarked, so skip it
+                // here and take the winning solution on the second pass.
                 if(solution.is_null())
                     return;
                 results.resize(1);
@@ -589,6 +590,7 @@ struct compile_plan
          * and prefill required by the candidate, so split-k is timed end to end.
          */
         auto bench_prog = results[i]->make_program();
+        replace_inserted_device_ops(*ctx, *bench_prog.get_main_module());
         if(trace_level > 2)
             std::cout << bench_prog << std::endl;
         const auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());

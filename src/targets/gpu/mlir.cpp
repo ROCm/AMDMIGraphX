@@ -50,7 +50,7 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 6
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 7
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK
@@ -650,6 +650,10 @@ struct mlir_program
         {
             ops.add_attributes({{"rock.enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
         }
+        if(max_lds > 0)
+        {
+            ops.add_attributes({{"rock.max_lds", max_lds}});
+        }
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 
@@ -960,8 +964,10 @@ struct mlir_program
         code_object_op op{};
         op.symbol_name = sym_name;
         op.code_object = get_binary();
+        auto params    = get_launch_params();
         // TODO: update code_object_op to use cluster size
-        std::tie(std::ignore, op.global, op.local) = get_launch_params();
+        op.global = params.global;
+        op.local  = params.local;
         return op;
     }
 
@@ -973,15 +979,25 @@ struct mlir_program
         num_chiplets       = device.get_chiplet_count();
     }
 
-    std::tuple<std::size_t, std::size_t, std::size_t> get_launch_params() const
+    struct launch_params
     {
-        uint32_t attrs[3];
-        // returns block, grid and cluster sizes
-        mlirGetKernelAttrs(mmodule.get(), attrs);
-        std::size_t local   = attrs[0];
-        std::size_t global  = local * attrs[1];
-        std::size_t cluster = attrs[2];
-        return {cluster, global, local};
+        std::size_t cluster   = 0;
+        std::size_t global    = 0;
+        std::size_t local     = 0;
+        std::size_t lds_bytes = 0;
+    };
+
+    launch_params get_launch_params() const
+    {
+        // returns block, grid and cluster sizes, then the LDS the kernel allocates
+        std::array<uint32_t, 4> attrs{};
+        mlirGetKernelAttrs(mmodule.get(), attrs.data());
+        launch_params params;
+        params.local     = attrs[0];
+        params.global    = params.local * attrs[1];
+        params.cluster   = attrs[2];
+        params.lds_bytes = attrs[3];
+        return params;
     }
 
     value::binary get_binary() const
@@ -1139,6 +1155,9 @@ struct mlir_program
     std::string target_arch  = "";
     std::size_t num_cu       = 0;
     std::size_t num_chiplets = 0;
+    // LDS budget the kernel is compiled under, replayed from a cached solution. Zero emits no
+    // rock.max_lds and lets rocMLIR pick the budget itself.
+    std::size_t max_lds = 0;
     std::string sym_name;
 };
 
@@ -1146,13 +1165,15 @@ static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
-    auto mm = m;
+    auto cached = unpack_cached_solution(solution);
+    auto mm     = m;
     prepare(mm);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(mm);
     mp.run_high_level_pipeline();
-    return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
+    const auto perf_config = cached.solution.to<std::string>();
+    return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(perf_config));
 }
 
 void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
@@ -1293,7 +1314,11 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
 
     mlir_program mp;
 
+    // A solution carrying an LDS budget came back from the problem cache, so this kernel was
+    // already tuned and is rebuilt under the budget that its binary used.
+    auto cached = unpack_cached_solution(solution);
     mp.set_gpu_properties(migraphx_ctx);
+    mp.max_lds = cached.max_lds;
     mp.parse(m, in_shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
@@ -1302,12 +1327,13 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
-    auto co            = mp.compile(solution);
+    auto co            = mp.compile(cached.solution);
     co.expected_inputs = in_shapes;
     co.output          = in_shapes.back();
 
     mlir_code_object mco;
     mco.cop                 = co;
+    mco.lds_bytes           = mp.get_launch_params().lds_bytes;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
     if(num_prefill_args > 0)
     {

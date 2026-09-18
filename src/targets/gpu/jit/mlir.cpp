@@ -277,9 +277,15 @@ struct mlir_compiler : compiler<mlir_compiler>
             pw_shapes.push_back(ins->get_shape());
             auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
             std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
-            return insert(cops, mod_splits, ins, split_ins);
+            auto split_cr                      = insert(cops, mod_splits, ins, split_ins);
+            // The pointwise half is not compiled through MLIR, so the gemm kernel is the only
+            // one whose LDS budget can be replayed.
+            split_cr.lds_bytes = cop1.lds_bytes;
+            return split_cr;
         }
-        auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
+        auto mco     = compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution);
+        auto cr      = insert(mco);
+        cr.lds_bytes = mco.lds_bytes;
         set_fill_map(cr, *smod);
         return cr;
     }

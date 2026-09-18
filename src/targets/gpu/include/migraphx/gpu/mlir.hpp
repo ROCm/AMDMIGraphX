@@ -58,6 +58,9 @@ struct MIGRAPHX_GPU_EXPORT mlir_code_object
     code_object_op cop;
     std::vector<size_t> prefill_indices = {};
     std::vector<value> prefill_values   = {};
+    // LDS the kernel allocates, as reported by rocMLIR. Zero for a code object that was not
+    // compiled through MLIR.
+    std::size_t lds_bytes = 0;
 };
 
 MIGRAPHX_GPU_EXPORT void adjust_param_shapes(module& m, const std::vector<shape>& inputs);

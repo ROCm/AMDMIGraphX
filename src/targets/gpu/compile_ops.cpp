@@ -650,7 +650,10 @@ struct compile_plan
         if(valid_indices.size() == 1)
         {
             const auto i = valid_indices.front();
-            ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
+            ctx->get_problem_cache().insert(
+                preop.name(),
+                config->problem,
+                pack_cached_solution(config->solutions.at(i), results[i]->replace.lds_bytes));
             return *results[i];
         }
 
@@ -667,14 +670,17 @@ struct compile_plan
         if(not winner.has_value())
             MIGRAPHX_THROW(no_valid_benchmark_message());
         const auto i = *winner;
-        ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
+        if(not results[i].has_value())
+            MIGRAPHX_THROW(no_valid_compilation_message());
+        ctx->get_problem_cache().insert(
+            preop.name(),
+            config->problem,
+            pack_cached_solution(config->solutions.at(i), results[i]->replace.lds_bytes));
         if(trace_level > 0)
         {
             std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
             ctx->get_problem_cache().save();
         }
-        if(not results[i].has_value())
-            MIGRAPHX_THROW(no_valid_compilation_message());
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)

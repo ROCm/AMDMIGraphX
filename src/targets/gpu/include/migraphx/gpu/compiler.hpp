@@ -77,6 +77,10 @@ struct compiler_replace
         nullptr;
     std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
     std::unordered_map<std::string, double> fill_map                    = {};
+    // LDS the compiled kernel allocates, stored with the solution in the problem cache so a
+    // rebuild from that cache compiles under the same budget. Zero when the compiler does not
+    // report it.
+    std::size_t lds_bytes = 0;
 
     template <class F>
     static auto make_replace(F f)

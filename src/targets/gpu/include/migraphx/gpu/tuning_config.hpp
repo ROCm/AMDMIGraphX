@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <cstddef>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,6 +38,37 @@ struct tuning_config
     std::vector<value> solutions;
     std::string detailed_problem_info;
 };
+
+/// A tuned solution as it is stored in the problem cache. Once a solution has been benchmarked
+/// the entry also records the LDS its binary allocated, so rebuilding the kernel from the cache
+/// can be pinned to the same budget. Entries stored before any binary exists, entries from
+/// compilers that report no LDS, and entries from older caches are the bare solution value.
+struct cached_solution
+{
+    value solution      = {};
+    std::size_t max_lds = 0;
+};
+
+inline value pack_cached_solution(const value& solution, std::size_t max_lds)
+{
+    if(max_lds == 0)
+        return solution;
+    return {{"solution", solution}, {"max_lds", max_lds}};
+}
+
+inline cached_solution unpack_cached_solution(const value& entry)
+{
+    // Bare solutions are strings or numbers, so an object with a "solution" key is what
+    // pack_cached_solution wrote and anything else is the solution itself.
+    if(not entry.is_object() or not entry.contains("solution"))
+        return {entry, 0};
+    cached_solution result;
+    result.solution     = entry.at("solution");
+    const auto* max_lds = entry.find("max_lds");
+    if(max_lds != entry.end())
+        result.max_lds = max_lds->to<std::size_t>();
+    return result;
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

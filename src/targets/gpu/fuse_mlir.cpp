@@ -36,6 +36,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -1459,6 +1460,23 @@ struct find_mlir_output_reshape_ops
         return match::name("gpu::mlir_op")(atleast_one_reshape);
     }
 
+    // Only fuse the trailing view ops when the simplified transformation
+    // collapses dimensions or requires a transpose; other views can be
+    // handled outside the kernel.
+    static bool requires_output_fusion(instruction_ref mlir_op_ins,
+                                       const std::vector<instruction_ref>& view_instructions)
+    {
+        std::vector<operation> ops;
+        std::transform(view_instructions.begin(),
+                       view_instructions.end(),
+                       std::back_inserter(ops),
+                       [](instruction_ref ins) { return ins->get_operator(); });
+        auto td = shape_transform_descriptor::create(mlir_op_ins->get_shape().lens(), ops);
+        if(td.empty())
+            return true;
+        return td.is_collapsing() or td.is_transposed();
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto mlir_op_ins     = r.result;
@@ -1476,6 +1494,8 @@ struct find_mlir_output_reshape_ops
         }
 
         assert(not reshape_instructions.empty());
+        if(not requires_output_fusion(mlir_op_ins, reshape_instructions))
+            return;
         std::string module_name = mlir_op_module->name();
         std::transform(reshape_instructions.begin(),
                        reshape_instructions.end(),

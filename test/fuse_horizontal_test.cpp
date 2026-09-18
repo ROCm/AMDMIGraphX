@@ -483,8 +483,8 @@ TEST_CASE(gather_horiz_fusion_shared_index)
     EXPECT(m1 == m2);
 }
 
-// Dependent gathers: g2 depends on g1's output, so both are excluded.
-// The two remaining independent gathers are below min_group_size=4.
+// Dependent gathers: g2 depends on g1, so it lands in its own subgroup. The remaining
+// independent subgroup {g1, g3, g4} is below min_group_size=4, so nothing fuses.
 TEST_CASE(gather_horiz_no_fusion_dependent)
 {
     migraphx::module m1;
@@ -1197,48 +1197,116 @@ TEST_CASE(dot_horiz_fusion_basic)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Dependent dots with the same group key must not be fused together.
-TEST_CASE(dot_horiz_no_fusion_chained_groups)
+// Three parallel dot->add->dot chains share one group key. Dependent dots must not fuse
+// together, but each level forms an independent subgroup that fuses on its own.
+TEST_CASE(dot_horiz_fusion_chained_groups)
 {
-    migraphx::module m;
+    migraphx::module m1;
     {
-        auto x0 = m.add_parameter("x0", {migraphx::shape::float_type, {2, 4}});
-        auto x1 = m.add_parameter("x1", {migraphx::shape::float_type, {2, 4}});
-        auto x2 = m.add_parameter("x2", {migraphx::shape::float_type, {2, 4}});
-        auto b0 = m.add_parameter("b0", {migraphx::shape::float_type, {2, 4}});
-        auto b1 = m.add_parameter("b1", {migraphx::shape::float_type, {2, 4}});
-        auto b2 = m.add_parameter("b2", {migraphx::shape::float_type, {2, 4}});
+        auto x0 = m1.add_parameter("x0", {migraphx::shape::float_type, {2, 4}});
+        auto x1 = m1.add_parameter("x1", {migraphx::shape::float_type, {2, 4}});
+        auto x2 = m1.add_parameter("x2", {migraphx::shape::float_type, {2, 4}});
+        auto b0 = m1.add_parameter("b0", {migraphx::shape::float_type, {2, 4}});
+        auto b1 = m1.add_parameter("b1", {migraphx::shape::float_type, {2, 4}});
+        auto b2 = m1.add_parameter("b2", {migraphx::shape::float_type, {2, 4}});
         auto w00 =
-            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 0));
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 0));
         auto w01 =
-            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 1));
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 1));
         auto w02 =
-            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 2));
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 2));
         auto w10 =
-            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 3));
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 3));
         auto w11 =
-            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 4));
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 4));
         auto w12 =
-            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 5));
-        auto d00 = m.add_instruction(migraphx::make_op("dot"), x0, w00);
-        auto a0  = m.add_instruction(migraphx::make_op("add"), d00, b0);
-        auto d10 = m.add_instruction(migraphx::make_op("dot"), a0, w10);
-        auto d01 = m.add_instruction(migraphx::make_op("dot"), x1, w01);
-        auto a1  = m.add_instruction(migraphx::make_op("add"), d01, b1);
-        auto d11 = m.add_instruction(migraphx::make_op("dot"), a1, w11);
-        auto d02 = m.add_instruction(migraphx::make_op("dot"), x2, w02);
-        auto a2  = m.add_instruction(migraphx::make_op("add"), d02, b2);
-        auto d12 = m.add_instruction(migraphx::make_op("dot"), a2, w12);
-        m.add_return({d10, d11, d12});
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 5));
+        auto d00 = m1.add_instruction(migraphx::make_op("dot"), x0, w00);
+        auto a0  = m1.add_instruction(migraphx::make_op("add"), d00, b0);
+        auto d10 = m1.add_instruction(migraphx::make_op("dot"), a0, w10);
+        auto d01 = m1.add_instruction(migraphx::make_op("dot"), x1, w01);
+        auto a1  = m1.add_instruction(migraphx::make_op("add"), d01, b1);
+        auto d11 = m1.add_instruction(migraphx::make_op("dot"), a1, w11);
+        auto d02 = m1.add_instruction(migraphx::make_op("dot"), x2, w02);
+        auto a2  = m1.add_instruction(migraphx::make_op("add"), d02, b2);
+        auto d12 = m1.add_instruction(migraphx::make_op("dot"), a2, w12);
+        m1.add_return({d10, d11, d12});
     }
-    auto expected = m;
-    run_pass(m);
+    run_pass(m1);
 
-    EXPECT(m == expected);
+    migraphx::module m2;
+    {
+        auto x0 = m2.add_parameter("x0", {migraphx::shape::float_type, {2, 4}});
+        auto x1 = m2.add_parameter("x1", {migraphx::shape::float_type, {2, 4}});
+        auto x2 = m2.add_parameter("x2", {migraphx::shape::float_type, {2, 4}});
+        auto b0 = m2.add_parameter("b0", {migraphx::shape::float_type, {2, 4}});
+        auto b1 = m2.add_parameter("b1", {migraphx::shape::float_type, {2, 4}});
+        auto b2 = m2.add_parameter("b2", {migraphx::shape::float_type, {2, 4}});
+        auto w00 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 0));
+        auto w01 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 1));
+        auto w02 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 2));
+        auto w10 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 3));
+        auto w11 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 4));
+        auto w12 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 5));
+
+        auto ux0   = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x0);
+        auto ux1   = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x1);
+        auto ux2   = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x2);
+        auto bact0 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ux0, ux1, ux2);
+        auto uw00  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w00);
+        auto uw01  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w01);
+        auto uw02  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w02);
+        auto bwt0 =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw00, uw01, uw02);
+        auto bd0 = m2.add_instruction(migraphx::make_op("dot"), bact0, bwt0);
+        auto s00 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), bd0);
+        auto sq00 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s00);
+        auto s01  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bd0);
+        auto sq01 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s01);
+        auto s02  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), bd0);
+        auto sq02 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s02);
+
+        auto a0 = m2.add_instruction(migraphx::make_op("add"), sq00, b0);
+        auto a1 = m2.add_instruction(migraphx::make_op("add"), sq01, b1);
+        auto a2 = m2.add_instruction(migraphx::make_op("add"), sq02, b2);
+
+        auto ua0   = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a0);
+        auto ua1   = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a1);
+        auto ua2   = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a2);
+        auto bact1 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua0, ua1, ua2);
+        auto uw10  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w10);
+        auto uw11  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w11);
+        auto uw12  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w12);
+        auto bwt1 =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw10, uw11, uw12);
+        auto bd1 = m2.add_instruction(migraphx::make_op("dot"), bact1, bwt1);
+        auto s10 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), bd1);
+        auto sq10 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s10);
+        auto s11  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bd1);
+        auto sq11 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s11);
+        auto s12  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), bd1);
+        auto sq12 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s12);
+        m2.add_return({sq10, sq11, sq12});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
-// Candidates that participate in dependencies are excluded without blocking unrelated candidates
-// in the same key group from being fused.
+// A dependent chain in the same key group does not block fusion: the chain's first dot is
+// independent of the other candidates and fuses with them, while the downstream dot lands
+// in its own subgroup below min_group_size.
 TEST_CASE(dot_horiz_fusion_independent_subset)
 {
     migraphx::module m1;
@@ -1287,73 +1355,284 @@ TEST_CASE(dot_horiz_fusion_independent_subset)
         auto wi2 =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 4));
 
-        auto dependent0 = m2.add_instruction(migraphx::make_op("dot"), x, w0);
-        auto add        = m2.add_instruction(migraphx::make_op("add"), dependent0, b);
-        auto dependent1 = m2.add_instruction(migraphx::make_op("dot"), add, w1);
+        auto ux  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
+        auto ua0 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a0);
+        auto ua1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a1);
+        auto ua2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a2);
+        auto bact =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ux, ua0, ua1, ua2);
+        auto uw0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w0);
+        auto uwi0 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wi0);
+        auto uwi1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wi1);
+        auto uwi2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wi2);
+        auto bwt =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw0, uwi0, uwi1, uwi2);
+        auto bd = m2.add_instruction(migraphx::make_op("dot"), bact, bwt);
 
-        auto ua0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a0);
-        auto ua1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a1);
-        auto ua2  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a2);
-        auto bact = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua0, ua1, ua2);
-        auto uw0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wi0);
-        auto uw1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wi1);
-        auto uw2  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wi2);
-        auto bwt  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw0, uw1, uw2);
-        auto bd   = m2.add_instruction(migraphx::make_op("dot"), bact, bwt);
-
-        auto s0 = m2.add_instruction(
+        auto sx = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), bd);
+        auto sqx = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sx);
+        auto s0  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bd);
         auto sq0 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
         auto s1  = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bd);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), bd);
         auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
         auto s2  = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), bd);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), bd);
         auto sq2 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s2);
+
+        auto add        = m2.add_instruction(migraphx::make_op("add"), sqx, b);
+        auto dependent1 = m2.add_instruction(migraphx::make_op("dot"), add, w1);
         m2.add_return({dependent1, sq0, sq1, sq2});
     }
 
     EXPECT(m1.sort() == m2.sort());
 }
 
-// An unrolled recurrent cell mixes independent input dots with dependent hidden-state dots.
-// The complete key-group check excludes the recurrent dots and leaves too few candidates to fuse.
-TEST_CASE(dot_horiz_no_fusion_unrolled_recurrent_cell)
+// An unrolled recurrent cell mixes independent input dots with chained hidden-state dots.
+// The input dots and the initial hidden dot form one independent subgroup and fuse; each
+// chained hidden dot lands in its own subgroup below min_group_size.
+TEST_CASE(dot_horiz_fusion_unrolled_recurrent_cell)
 {
-    migraphx::module m;
+    migraphx::module m1;
     {
         auto wih =
-            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 0));
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 0));
         auto whh =
-            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 1));
-        auto h0 = m.add_parameter("h0", {migraphx::shape::float_type, {1, 4}});
-        auto x0 = m.add_parameter("x0", {migraphx::shape::float_type, {1, 4}});
-        auto x1 = m.add_parameter("x1", {migraphx::shape::float_type, {1, 4}});
-        auto x2 = m.add_parameter("x2", {migraphx::shape::float_type, {1, 4}});
-        auto x3 = m.add_parameter("x3", {migraphx::shape::float_type, {1, 4}});
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 1));
+        auto h0 = m1.add_parameter("h0", {migraphx::shape::float_type, {1, 4}});
+        auto x0 = m1.add_parameter("x0", {migraphx::shape::float_type, {1, 4}});
+        auto x1 = m1.add_parameter("x1", {migraphx::shape::float_type, {1, 4}});
+        auto x2 = m1.add_parameter("x2", {migraphx::shape::float_type, {1, 4}});
+        auto x3 = m1.add_parameter("x3", {migraphx::shape::float_type, {1, 4}});
 
-        auto dx0 = m.add_instruction(migraphx::make_op("dot"), x0, wih);
-        auto dh0 = m.add_instruction(migraphx::make_op("dot"), h0, whh);
-        auto s0  = m.add_instruction(migraphx::make_op("add"), dx0, dh0);
-        auto h1  = m.add_instruction(migraphx::make_op("sigmoid"), s0);
-        auto dx1 = m.add_instruction(migraphx::make_op("dot"), x1, wih);
-        auto dh1 = m.add_instruction(migraphx::make_op("dot"), h1, whh);
-        auto s1  = m.add_instruction(migraphx::make_op("add"), dx1, dh1);
-        auto h2  = m.add_instruction(migraphx::make_op("sigmoid"), s1);
-        auto dx2 = m.add_instruction(migraphx::make_op("dot"), x2, wih);
-        auto dh2 = m.add_instruction(migraphx::make_op("dot"), h2, whh);
-        auto s2  = m.add_instruction(migraphx::make_op("add"), dx2, dh2);
-        auto h3  = m.add_instruction(migraphx::make_op("sigmoid"), s2);
-        auto dx3 = m.add_instruction(migraphx::make_op("dot"), x3, wih);
-        auto dh3 = m.add_instruction(migraphx::make_op("dot"), h3, whh);
-        auto s3  = m.add_instruction(migraphx::make_op("add"), dx3, dh3);
-        auto h4  = m.add_instruction(migraphx::make_op("sigmoid"), s3);
-        m.add_return({h4});
+        auto dx0 = m1.add_instruction(migraphx::make_op("dot"), x0, wih);
+        auto dh0 = m1.add_instruction(migraphx::make_op("dot"), h0, whh);
+        auto s0  = m1.add_instruction(migraphx::make_op("add"), dx0, dh0);
+        auto h1  = m1.add_instruction(migraphx::make_op("sigmoid"), s0);
+        auto dx1 = m1.add_instruction(migraphx::make_op("dot"), x1, wih);
+        auto dh1 = m1.add_instruction(migraphx::make_op("dot"), h1, whh);
+        auto s1  = m1.add_instruction(migraphx::make_op("add"), dx1, dh1);
+        auto h2  = m1.add_instruction(migraphx::make_op("sigmoid"), s1);
+        auto dx2 = m1.add_instruction(migraphx::make_op("dot"), x2, wih);
+        auto dh2 = m1.add_instruction(migraphx::make_op("dot"), h2, whh);
+        auto s2  = m1.add_instruction(migraphx::make_op("add"), dx2, dh2);
+        auto h3  = m1.add_instruction(migraphx::make_op("sigmoid"), s2);
+        auto dx3 = m1.add_instruction(migraphx::make_op("dot"), x3, wih);
+        auto dh3 = m1.add_instruction(migraphx::make_op("dot"), h3, whh);
+        auto s3  = m1.add_instruction(migraphx::make_op("add"), dx3, dh3);
+        auto h4  = m1.add_instruction(migraphx::make_op("sigmoid"), s3);
+        m1.add_return({h4});
     }
-    auto expected = m;
-    run_pass(m);
+    run_pass(m1);
 
-    EXPECT(m == expected);
+    migraphx::module m2;
+    {
+        auto wih =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 0));
+        auto whh =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 1));
+        auto h0 = m2.add_parameter("h0", {migraphx::shape::float_type, {1, 4}});
+        auto x0 = m2.add_parameter("x0", {migraphx::shape::float_type, {1, 4}});
+        auto x1 = m2.add_parameter("x1", {migraphx::shape::float_type, {1, 4}});
+        auto x2 = m2.add_parameter("x2", {migraphx::shape::float_type, {1, 4}});
+        auto x3 = m2.add_parameter("x3", {migraphx::shape::float_type, {1, 4}});
+
+        // Independent subgroup in position order: dx0, dh0, dx1, dx2, dx3
+        auto ux0 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x0);
+        auto uh0 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), h0);
+        auto ux1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x1);
+        auto ux2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x2);
+        auto ux3 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x3);
+        auto bact =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ux0, uh0, ux1, ux2, ux3);
+        auto uw0 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wih);
+        auto uw1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), whh);
+        auto uw2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wih);
+        auto uw3 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wih);
+        auto uw4 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wih);
+        auto bwt =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw0, uw1, uw2, uw3, uw4);
+        auto bd = m2.add_instruction(migraphx::make_op("dot"), bact, bwt);
+
+        std::vector<migraphx::instruction_ref> sq(5);
+        for(std::size_t i = 0; i < 5; i++)
+        {
+            auto s = m2.add_instruction(
+                migraphx::make_op(
+                    "slice", {{"axes", {0}}, {"starts", {int64_t(i)}}, {"ends", {int64_t(i + 1)}}}),
+                bd);
+            sq[i] = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s);
+        }
+
+        auto s0  = m2.add_instruction(migraphx::make_op("add"), sq[0], sq[1]);
+        auto h1  = m2.add_instruction(migraphx::make_op("sigmoid"), s0);
+        auto dh1 = m2.add_instruction(migraphx::make_op("dot"), h1, whh);
+        auto s1  = m2.add_instruction(migraphx::make_op("add"), sq[2], dh1);
+        auto h2  = m2.add_instruction(migraphx::make_op("sigmoid"), s1);
+        auto dh2 = m2.add_instruction(migraphx::make_op("dot"), h2, whh);
+        auto s2  = m2.add_instruction(migraphx::make_op("add"), sq[3], dh2);
+        auto h3  = m2.add_instruction(migraphx::make_op("sigmoid"), s2);
+        auto dh3 = m2.add_instruction(migraphx::make_op("dot"), h3, whh);
+        auto s3  = m2.add_instruction(migraphx::make_op("add"), sq[4], dh3);
+        auto h4  = m2.add_instruction(migraphx::make_op("sigmoid"), s3);
+        m2.add_return({h4});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Expected form of one fused level in dot_horiz_fusion_layered_independent_groups: batch the
+// three dots of `act` against w0..w2, slice each result back out, and join them with adds.
+static migraphx::instruction_ref add_batched_dot_level(migraphx::module& m,
+                                                       migraphx::instruction_ref act,
+                                                       migraphx::instruction_ref w0,
+                                                       migraphx::instruction_ref w1,
+                                                       migraphx::instruction_ref w2)
+{
+    auto ua0  = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), act);
+    auto ua1  = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), act);
+    auto ua2  = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), act);
+    auto bact = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua0, ua1, ua2);
+    auto uw0  = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w0);
+    auto uw1  = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
+    auto uw2  = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
+    auto bwt  = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw0, uw1, uw2);
+    auto bd   = m.add_instruction(migraphx::make_op("dot"), bact, bwt);
+
+    std::vector<migraphx::instruction_ref> sq(3);
+    for(std::size_t i = 0; i < 3; i++)
+    {
+        auto s = m.add_instruction(
+            migraphx::make_op(
+                "slice", {{"axes", {0}}, {"starts", {int64_t(i)}}, {"ends", {int64_t(i + 1)}}}),
+            bd);
+        sq[i] = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s);
+    }
+    auto s01 = m.add_instruction(migraphx::make_op("add"), sq[0], sq[1]);
+    return m.add_instruction(migraphx::make_op("add"), s01, sq[2]);
+}
+
+// Layered graph where every level is joined before the next:
+//   node1 -> {A1,A2,A3} -> node2 -> {B1,B2,B3} -> node3 -> {C1,C2,C3} -> node4
+// All nine dots share one group key; each level is an independent subgroup and fuses.
+TEST_CASE(dot_horiz_fusion_layered_independent_groups)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 4}};
+
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", xs);
+        auto wa0 = m1.add_literal(migraphx::generate_literal(ws, 0));
+        auto wa1 = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto wa2 = m1.add_literal(migraphx::generate_literal(ws, 2));
+        auto wb0 = m1.add_literal(migraphx::generate_literal(ws, 3));
+        auto wb1 = m1.add_literal(migraphx::generate_literal(ws, 4));
+        auto wb2 = m1.add_literal(migraphx::generate_literal(ws, 5));
+        auto wc0 = m1.add_literal(migraphx::generate_literal(ws, 6));
+        auto wc1 = m1.add_literal(migraphx::generate_literal(ws, 7));
+        auto wc2 = m1.add_literal(migraphx::generate_literal(ws, 8));
+
+        auto a0    = m1.add_instruction(migraphx::make_op("dot"), x, wa0);
+        auto a1    = m1.add_instruction(migraphx::make_op("dot"), x, wa1);
+        auto a2    = m1.add_instruction(migraphx::make_op("dot"), x, wa2);
+        auto a01   = m1.add_instruction(migraphx::make_op("add"), a0, a1);
+        auto node2 = m1.add_instruction(migraphx::make_op("add"), a01, a2);
+
+        auto b0    = m1.add_instruction(migraphx::make_op("dot"), node2, wb0);
+        auto b1    = m1.add_instruction(migraphx::make_op("dot"), node2, wb1);
+        auto b2    = m1.add_instruction(migraphx::make_op("dot"), node2, wb2);
+        auto b01   = m1.add_instruction(migraphx::make_op("add"), b0, b1);
+        auto node3 = m1.add_instruction(migraphx::make_op("add"), b01, b2);
+
+        auto c0    = m1.add_instruction(migraphx::make_op("dot"), node3, wc0);
+        auto c1    = m1.add_instruction(migraphx::make_op("dot"), node3, wc1);
+        auto c2    = m1.add_instruction(migraphx::make_op("dot"), node3, wc2);
+        auto c01   = m1.add_instruction(migraphx::make_op("add"), c0, c1);
+        auto node4 = m1.add_instruction(migraphx::make_op("add"), c01, c2);
+        m1.add_return({node4});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", xs);
+        auto wa0 = m2.add_literal(migraphx::generate_literal(ws, 0));
+        auto wa1 = m2.add_literal(migraphx::generate_literal(ws, 1));
+        auto wa2 = m2.add_literal(migraphx::generate_literal(ws, 2));
+        auto wb0 = m2.add_literal(migraphx::generate_literal(ws, 3));
+        auto wb1 = m2.add_literal(migraphx::generate_literal(ws, 4));
+        auto wb2 = m2.add_literal(migraphx::generate_literal(ws, 5));
+        auto wc0 = m2.add_literal(migraphx::generate_literal(ws, 6));
+        auto wc1 = m2.add_literal(migraphx::generate_literal(ws, 7));
+        auto wc2 = m2.add_literal(migraphx::generate_literal(ws, 8));
+
+        auto node2 = add_batched_dot_level(m2, x, wa0, wa1, wa2);
+        auto node3 = add_batched_dot_level(m2, node2, wb0, wb1, wb2);
+        auto node4 = add_batched_dot_level(m2, node3, wc0, wc1, wc2);
+        m2.add_return({node4});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Two levels of same-table gathers where the second level's indices derive from the first
+// level's outputs: each level is an independent subgroup and fuses on its own.
+TEST_CASE(same_table_gathers_layered_independent_groups)
+{
+    migraphx::shape ts{migraphx::shape::float_type, {8, 2}};
+    migraphx::shape is{migraphx::shape::int32_type, {4}};
+
+    migraphx::module m1;
+    {
+        auto tbl = m1.add_literal(migraphx::generate_literal(ts, 0));
+        auto ia  = m1.add_parameter("ia", is);
+        auto ib  = m1.add_parameter("ib", is);
+
+        auto ga0 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), tbl, ia);
+        auto ga1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), tbl, ib);
+
+        auto cvt0 = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), ga0);
+        auto cvt1 = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), ga1);
+
+        auto gb0 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), tbl, cvt0);
+        auto gb1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), tbl, cvt1);
+        m1.add_return({gb0, gb1});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto tbl = m2.add_literal(migraphx::generate_literal(ts, 0));
+        auto ia  = m2.add_parameter("ia", is);
+        auto ib  = m2.add_parameter("ib", is);
+
+        auto cidx0 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ia, ib);
+        auto bg0   = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), tbl, cidx0);
+        auto sa0   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg0);
+        auto sa1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), bg0);
+
+        auto cvt0 = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), sa0);
+        auto cvt1 = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), sa1);
+
+        auto cidx1 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), cvt0, cvt1);
+        auto bg1   = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), tbl, cidx1);
+        auto sb0   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg1);
+        auto sb1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), bg1);
+        m2.add_return({sb0, sb1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Dots whose weights are not compile-time constants are not candidates.

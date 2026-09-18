@@ -56,10 +56,45 @@ inline namespace MIGRAPHX_INLINE_NS {
 //       — fuse a group, return one replacement instruction per original op
 //
 // Then pass an instance to fuse_horizontal_ops().
-// The framework handles scanning, grouping instructions by key, excluding
-// candidates that participate in dependencies, dispatching to fuse(), and
+// The framework handles scanning, grouping instructions by key, partitioning
+// each key group into independent subgroups, dispatching to fuse(), and
 // replacing originals with results.
 // ---------------------------------------------------------------------------
+
+// Fuse one group of mutually-independent candidates and replace the originals.
+template <class Finder>
+static void fuse_group(module& m, const Finder& finder, const std::vector<instruction_ref>& group)
+{
+    if(group.size() < finder.min_group_size())
+        return;
+
+    // Earlier fusions can move dependent instructions past this group's last
+    // member, so locate the insertion point from the current module order.
+    std::unordered_set<instruction_ref> remaining(group.begin(), group.end());
+    auto r    = iterator_for(m);
+    auto last = std::find_if(r.begin(), r.end(), [&](instruction_ref ins) {
+        remaining.erase(ins);
+        return remaining.empty();
+    });
+    assert(last != r.end());
+
+    auto insert_pt    = std::next(*last);
+    auto replacements = finder.fuse(m, group, insert_pt);
+    if(replacements.empty())
+        return;
+
+    assert(replacements.size() == group.size());
+
+    // Move outputs of the original instructions to after the new instructions
+    // so that replace_instruction's validity assertions hold.
+    std::for_each(group.begin(), group.end(), [&](auto g) {
+        m.move_output_instructions_after(g, replacements.back());
+    });
+
+    migraphx::for_each(group.begin(), group.end(), replacements.begin(), [&](auto g, auto rep) {
+        m.replace_instruction(g, rep);
+    });
+}
 
 template <class Finder>
 static void apply_horizontal_finder(module& m, const Finder& finder)
@@ -94,42 +129,26 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
         std::sort(
             group.begin(), group.end(), [&](auto a, auto b) { return pos.at(a) < pos.at(b); });
 
-        // Independence is not transitive. Check each pair in the complete key group and exclude
-        // only the instructions that participate in a dependency, leaving unrelated candidates
-        // available for fusion.
-        std::unordered_set<instruction_ref> dependent;
-        for_each_iterator(group.begin(), group.end(), [&](auto x) {
-            for_each_iterator(std::next(x), group.end(), [&](auto y) {
-                if(reaches(*x, *y))
-                {
-                    dependent.insert(*x);
-                    dependent.insert(*y);
-                }
+        // Independence is not transitive: one key group can span several dependency
+        // levels (e.g. the per-step dots of an unrolled recurrent network). Partition
+        // the topologically-ordered candidates into independent subgroups by placing
+        // each one into the first subgroup none of whose members reaches it. First-fit
+        // keeps dependencies flowing only from earlier subgroups to later ones, so
+        // fusing each subgroup in order cannot create a cycle.
+        std::vector<std::vector<instruction_ref>> subgroups;
+        std::for_each(group.begin(), group.end(), [&](instruction_ref ins) {
+            auto it = std::find_if(subgroups.begin(), subgroups.end(), [&](const auto& sg) {
+                return std::none_of(
+                    sg.begin(), sg.end(), [&](instruction_ref x) { return reaches(x, ins); });
             });
-        });
-        group.erase(std::remove_if(group.begin(),
-                                   group.end(),
-                                   [&](auto ins) { return contains(dependent, ins); }),
-                    group.end());
-        if(group.size() < finder.min_group_size())
-            return;
-
-        auto insert_pt    = std::next(group.back());
-        auto replacements = finder.fuse(m, group, insert_pt);
-        if(replacements.empty())
-            return;
-
-        assert(replacements.size() == group.size());
-
-        // Move outputs of the original instructions to after the new instructions
-        // so that replace_instruction's validity assertions hold.
-        std::for_each(group.begin(), group.end(), [&](auto g) {
-            m.move_output_instructions_after(g, replacements.back());
+            if(it == subgroups.end())
+                subgroups.push_back({ins});
+            else
+                it->push_back(ins);
         });
 
-        migraphx::for_each(group.begin(), group.end(), replacements.begin(), [&](auto g, auto r) {
-            m.replace_instruction(g, r);
-        });
+        std::for_each(
+            subgroups.begin(), subgroups.end(), [&](const auto& sg) { fuse_group(m, finder, sg); });
     };
 
     group_by(candidates.begin(), candidates.end(), each, pred);

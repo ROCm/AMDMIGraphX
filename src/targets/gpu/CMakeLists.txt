@@ -232,7 +232,7 @@ add_library(migraphx_gpu
     lowering.cpp
     loop.cpp
     lrn.cpp
-    mlir.cpp
+    mlir_backend_loader.cpp
     nms_ops.cpp
     no_device.cpp
     pack_args.cpp
@@ -314,16 +314,9 @@ rocm_clang_tidy_check(migraphx_gpu)
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
 
 if(MIGRAPHX_ENABLE_MLIR)
-    # Find package rocMLIR
-    find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
-    message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
+    # rocMLIR is linked into runtime-loadable backend plugins rather than
+    # directly into migraphx_gpu.
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
-    # Make this private to avoid multiple inclusions of LLVM symbols.
-    target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
-    # Hide LLVM internals that come from rocMLIR.
-    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
-        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
-    endif()
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
@@ -484,6 +477,12 @@ if(MIGRAPHX_USE_AMDMLSS)
         install(FILES "$<PATH:REPLACE_EXTENSION,LAST_ONLY,$<TARGET_FILE:amdmlss::amdmlss>,.pdb>"
              DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
     endif()
+endif()
+
+if(MIGRAPHX_ENABLE_MLIR)
+    set(MIGRAPHX_GPU_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+    set(MIGRAPHX_GPU_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+    add_subdirectory(mlir_plugins)
 endif()
 
 add_subdirectory(driver)

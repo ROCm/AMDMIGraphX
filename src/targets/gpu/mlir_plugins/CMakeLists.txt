@@ -1,0 +1,89 @@
+# ####################################################################################
+# The MIT License (MIT)
+#
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+# ####################################################################################
+
+if(NOT BUILD_SHARED_LIBS)
+    message(FATAL_ERROR "MLIR backend plugins require BUILD_SHARED_LIBS=ON")
+endif()
+
+set(MIGRAPHX_MLIR_LEGACY_ROCMLIR_DIR "" CACHE PATH
+    "Legacy rocMLIR package config directory")
+set(MIGRAPHX_MLIR_TRITON_ROCMLIR_DIR "" CACHE PATH
+    "rocmlirTriton package config directory")
+
+# Build each plugin in a separate directory scope because both package
+# installations export a target named rocMLIR::rockCompiler.
+function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
+    if(NOT ROCMLIR_CONFIG_DIR)
+        string(TOUPPER "${BACKEND_NAME}" _backend_var)
+        message(FATAL_ERROR
+            "MIGRAPHX_MLIR_${_backend_var}_ROCMLIR_DIR must name a rocMLIR config directory")
+    endif()
+
+    set(_plugin migraphx_mlir_${BACKEND_NAME})
+    set(rocMLIR_DIR "${ROCMLIR_CONFIG_DIR}")
+    find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
+    message(STATUS
+        "MLIR backend plugin '${BACKEND_NAME}' using rocMLIR from ${ROCMLIR_CONFIG_DIR}")
+
+    add_library(${_plugin} MODULE
+        ${MIGRAPHX_GPU_DIR}/mlir.cpp
+        ${MIGRAPHX_GPU_DIR}/prepare_mlir.cpp
+        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/plugin_helpers.cpp
+        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/plugin_export.cpp)
+
+    target_include_directories(${_plugin} PRIVATE
+        ${MIGRAPHX_GPU_DIR}/include
+        ${MIGRAPHX_GPU_BINARY_DIR}/include)
+
+    target_compile_definitions(${_plugin} PRIVATE
+        MIGRAPHX_GPU_STATIC_DEFINE
+        MIGRAPHX_MLIR
+        $<TARGET_PROPERTY:migraphx_gpu,INTERFACE_COMPILE_DEFINITIONS>)
+
+    target_link_libraries(${_plugin} PRIVATE
+        migraphx
+        hip::host
+        rocMLIR::rockCompiler)
+    if(WIN32)
+        target_link_libraries(${_plugin} PRIVATE ntdll)
+    endif()
+
+    # Put the backend beside migraphx_gpu so the loader can resolve it without
+    # requiring an additional runtime search path.
+    set_target_properties(${_plugin} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:migraphx_gpu>
+        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:migraphx_gpu>
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES)
+
+    if(NOT WIN32 AND NOT APPLE)
+        target_link_options(${_plugin} PRIVATE "LINKER:--exclude-libs,ALL")
+    endif()
+
+    add_dependencies(${_plugin} migraphx_gpu)
+endfunction()
+
+add_subdirectory(legacy)
+add_subdirectory(triton)

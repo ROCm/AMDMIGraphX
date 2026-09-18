@@ -485,6 +485,23 @@ TEST_CASE(gather_horiz_fusion_shared_index)
 
 // Dependent gathers: g2 depends on g1, so it lands in its own subgroup. The remaining
 // independent subgroup {g1, g3, g4} is below min_group_size=4, so nothing fuses.
+//
+// Before (== after, unchanged):
+//
+//   ┌────────┐ ┌────────┐ ┌────────┐
+//   │g1[emb1]│ │g3[emb3]│ │g4[emb4]│
+//   └┬──┬────┘ └───┬────┘ └───┬────┘
+//    │ ┌▽──────┐   │          │
+//    │ │reshape│   │          │
+//    │ └┬──────┘   │          │
+//    │ ┌▽───────┐  │          │
+//    │ │g2[emb2]│  │          │
+//    │ └┬───────┘  │          │
+//   ┌▽──▽──────────▽──────────▽┐
+//   │concat                    │
+//   └──────────────────────────┘
+//
+// Subgroups: {g1, g3, g4} (size 3 < 4) and {g2} (size 1).
 TEST_CASE(gather_horiz_no_fusion_dependent)
 {
     migraphx::module m1;
@@ -1199,6 +1216,36 @@ TEST_CASE(dot_horiz_fusion_basic)
 
 // Three parallel dot->add->dot chains share one group key. Dependent dots must not fuse
 // together, but each level forms an independent subgroup that fuses on its own.
+//
+// Before:
+//
+//   ┌────────┐ ┌────────┐ ┌────────┐
+//   │d00[w00]│ │d01[w01]│ │d02[w02]│     (inputs x0, x1, x2)
+//   └┬───────┘ └┬───────┘ └┬───────┘
+//   ┌▽──────┐  ┌▽──────┐  ┌▽──────┐
+//   │add(b0)│  │add(b1)│  │add(b2)│
+//   └┬──────┘  └┬──────┘  └┬──────┘
+//   ┌▽───────┐ ┌▽───────┐ ┌▽───────┐
+//   │d10[w10]│ │d11[w11]│ │d12[w12]│
+//   └┬───────┘ └┬───────┘ └┬───────┘
+//   ┌▽──────────▽──────────▽┐
+//   │return                 │
+//   └───────────────────────┘
+//
+// After (subgroups {d00,d01,d02} and {d10,d11,d12} each become one batched dot):
+//
+//   ┌─────────────────────────┐
+//   │batched_dot[w00|w01|w02] │      in: [x0|x1|x2] (unsqueeze + concat)
+//   └┬────────┬────────┬──────┘      out: slice + squeeze each
+//   ┌▽──────┐┌▽──────┐┌▽──────┐
+//   │add(b0)││add(b1)││add(b2)│
+//   └┬──────┘└┬──────┘└┬──────┘
+//   ┌▽────────▽────────▽──────┐
+//   │batched_dot[w10|w11|w12] │      in: [a0|a1|a2] (unsqueeze + concat)
+//   └┬────────┬────────┬──────┘      out: slice + squeeze each
+//   ┌▽────────▽────────▽┐
+//   │return             │
+//   └───────────────────┘
 TEST_CASE(dot_horiz_fusion_chained_groups)
 {
     migraphx::module m1;
@@ -1307,6 +1354,36 @@ TEST_CASE(dot_horiz_fusion_chained_groups)
 // A dependent chain in the same key group does not block fusion: the chain's first dot is
 // independent of the other candidates and fuses with them, while the downstream dot lands
 // in its own subgroup below min_group_size.
+//
+// Before:
+//
+//   ┌──────────────┐ ┌───────┐ ┌───────┐ ┌───────┐
+//   │dependent0[w0]│ │d0[wi0]│ │d1[wi1]│ │d2[wi2]│     (inputs x, a0, a1, a2)
+//   └┬─────────────┘ └┬──────┘ └┬──────┘ └┬──────┘
+//   ┌▽─────┐          │         │         │
+//   │add(b)│          │         │         │
+//   └┬─────┘          │         │         │
+//   ┌▽─────────────┐  │         │         │
+//   │dependent1[w1]│  │         │         │
+//   └┬─────────────┘  │         │         │
+//   ┌▽────────────────▽─────────▽─────────▽┐
+//   │return                                │
+//   └──────────────────────────────────────┘
+//
+// After (subgroup {dependent0, d0, d1, d2} fuses; {dependent1} is size 1):
+//
+//   ┌───────────────────────────┐
+//   │batched_dot[w0|wi0|wi1|wi2]│    in: [x|a0|a1|a2] (unsqueeze + concat)
+//   └┬───────────────┬────┬────┬┘    out: sqx, sq0..sq2 (slice + squeeze)
+//   ┌▽─────┐         │    │    │
+//   │add(b)│         │    │    │
+//   └┬─────┘         │    │    │
+//   ┌▽─────────────┐ │    │    │
+//   │dependent1[w1]│ │    │    │
+//   └┬─────────────┘ │    │    │
+//   ┌▽───────────────▽────▽────▽┐
+//   │return                     │
+//   └───────────────────────────┘
 TEST_CASE(dot_horiz_fusion_independent_subset)
 {
     migraphx::module m1;
@@ -1393,6 +1470,41 @@ TEST_CASE(dot_horiz_fusion_independent_subset)
 // An unrolled recurrent cell mixes independent input dots with chained hidden-state dots.
 // The input dots and the initial hidden dot form one independent subgroup and fuse; each
 // chained hidden dot lands in its own subgroup below min_group_size.
+//
+// Before:
+//
+//   ┌────────┐ ┌────────┐
+//   │dx0[wih]│ │dh0[whh]│      (inputs x0, h0)
+//   └┬───────┘ └┬───────┘
+//   ┌▽──────────▽┐
+//   │add, sigmoid│ h1
+//   └┬───────────┘
+//   ┌▽───────┐ ┌────────┐
+//   │dh1[whh]│ │dx1[wih]│      (input x1)
+//   └┬───────┘ └┬───────┘
+//   ┌▽──────────▽┐
+//   │add, sigmoid│ h2
+//   └┬───────────┘
+//    ⋮  (dh2/dx2 and dh3/dx3 repeat the same step)
+//   h4 → return
+//
+// After (subgroup {dx0, dh0, dx1, dx2, dx3} fuses; the chained {dh1}, {dh2}, {dh3}
+// are singleton subgroups and stay unfused):
+//
+//   ┌────────────────────────────────┐
+//   │batched_dot[wih|whh|wih|wih|wih]│   in: [x0|h0|x1|x2|x3] (unsqueeze + concat)
+//   └┬───────────────────────────────┘   out: sq0..sq4 (slice + squeeze)
+//   ┌▽─────────────────────┐
+//   │add(sq0, sq1), sigmoid│ h1
+//   └┬─────────────────────┘
+//   ┌▽───────┐
+//   │dh1[whh]│
+//   └┬───────┘
+//   ┌▽─────────────────────┐
+//   │add(sq2, dh1), sigmoid│ h2
+//   └┬─────────────────────┘
+//    ⋮  (dh2 with sq3, dh3 with sq4 likewise)
+//   h4 → return
 TEST_CASE(dot_horiz_fusion_unrolled_recurrent_cell)
 {
     migraphx::module m1;
@@ -1514,9 +1626,53 @@ static migraphx::instruction_ref add_batched_dot_level(migraphx::module& m,
     return m.add_instruction(migraphx::make_op("add"), s01, sq[2]);
 }
 
-// Layered graph where every level is joined before the next:
-//   node1 -> {A1,A2,A3} -> node2 -> {B1,B2,B3} -> node3 -> {C1,C2,C3} -> node4
-// All nine dots share one group key; each level is an independent subgroup and fuses.
+// Layered graph where every level is joined before the next. All nine dots share one
+// group key; each level is an independent subgroup and fuses.
+//
+// Before:
+//
+//   ┌───────────────────┐
+//   │x                  │
+//   └┬────────┬────────┬┘
+//   ┌▽──────┐┌▽──────┐┌▽──────┐
+//   │a0[wa0]││a1[wa1]││a2[wa2]│
+//   └┬──────┘└┬──────┘└┬──────┘
+//   ┌▽────────▽────────▽┐
+//   │node2 (adds)       │
+//   └┬────────┬────────┬┘
+//   ┌▽──────┐┌▽──────┐┌▽──────┐
+//   │b0[wb0]││b1[wb1]││b2[wb2]│
+//   └┬──────┘└┬──────┘└┬──────┘
+//   ┌▽────────▽────────▽┐
+//   │node3 (adds)       │
+//   └┬────────┬────────┬┘
+//   ┌▽──────┐┌▽──────┐┌▽──────┐
+//   │c0[wc0]││c1[wc1]││c2[wc2]│
+//   └┬──────┘└┬──────┘└┬──────┘
+//   ┌▽────────▽────────▽┐
+//   │node4 (adds)       │
+//   └───────────────────┘
+//
+// After (subgroups {a0,a1,a2}, {b0,b1,b2}, {c0,c1,c2} each become one batched dot):
+//
+//   ┌────────────────────────┐
+//   │batched_dot[wa0|wa1|wa2]│   in: [x|x|x] (unsqueeze + concat)
+//   └┬───┬───┬───────────────┘   out: slice + squeeze x3
+//   ┌▽───▽───▽┐
+//   │node2    │  (adds)
+//   └┬────────┘
+//   ┌▽───────────────────────┐
+//   │batched_dot[wb0|wb1|wb2]│   in: [node2|node2|node2]
+//   └┬───┬───┬───────────────┘
+//   ┌▽───▽───▽┐
+//   │node3    │  (adds)
+//   └┬────────┘
+//   ┌▽───────────────────────┐
+//   │batched_dot[wc0|wc1|wc2]│   in: [node3|node3|node3]
+//   └┬───┬───┬───────────────┘
+//   ┌▽───▽───▽┐
+//   │node4    │  (adds)
+//   └─────────┘
 TEST_CASE(dot_horiz_fusion_layered_independent_groups)
 {
     migraphx::shape xs{migraphx::shape::float_type, {2, 4}};
@@ -1580,6 +1736,36 @@ TEST_CASE(dot_horiz_fusion_layered_independent_groups)
 
 // Two levels of same-table gathers where the second level's indices derive from the first
 // level's outputs: each level is an independent subgroup and fuses on its own.
+//
+// Before:
+//
+//   ┌────────┐ ┌────────┐
+//   │ga0[tbl]│ │ga1[tbl]│      (indices ia, ib)
+//   └┬───────┘ └┬───────┘
+//   ┌▽──────┐  ┌▽──────┐
+//   │convert│  │convert│
+//   └┬──────┘  └┬──────┘
+//   ┌▽───────┐ ┌▽───────┐
+//   │gb0[tbl]│ │gb1[tbl]│
+//   └┬───────┘ └┬───────┘
+//   ┌▽──────────▽┐
+//   │return      │
+//   └────────────┘
+//
+// After (subgroups {ga0, ga1} and {gb0, gb1} each become one batched gather):
+//
+//   ┌─────────────────────────┐
+//   │gather[tbl]              │      index: concat(ia, ib)
+//   └┬───────────┬────────────┘      (slice rows 0:4 and 4:8)
+//   ┌▽──────┐   ┌▽──────┐
+//   │convert│   │convert│
+//   └┬──────┘   └┬──────┘           (concat on axis 0)
+//   ┌▽───────────▽────────────┐
+//   │gather[tbl]              │
+//   └┬───────────┬────────────┘      (slice rows 0:4 and 4:8)
+//   ┌▽───────────▽┐
+//   │return       │
+//   └─────────────┘
 TEST_CASE(same_table_gathers_layered_independent_groups)
 {
     migraphx::shape ts{migraphx::shape::float_type, {8, 2}};

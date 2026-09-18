@@ -21,12 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
-#define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
+#ifndef MIGRAPHX_GUARD_GPU_FUSE_INT4_GEMV_HPP
+#define MIGRAPHX_GUARD_GPU_FUSE_INT4_GEMV_HPP
 
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/config.hpp>
 #include <string>
-#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,24 +34,21 @@ struct module_pass_manager;
 
 namespace gpu {
 
-MIGRAPHX_GPU_EXPORT bool mlir_enabled();
-MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx,
-                                                const std::vector<std::string>& use_specific_ops);
-MIGRAPHX_GPU_EXPORT bool mlir_flash_decoding_enabled();
+struct context;
 
-struct MIGRAPHX_GPU_EXPORT fuse_mlir
+/// Rewrite an M==1 dot whose B operand is an INT4 dequantize chain into the
+/// fused gpu::int4_gemv op.  Must run before fuse_mlir so that MLIR does not
+/// claim the dot first.  Opt-in via MIGRAPHX_ENABLE_INT4_GEMV=1.
+struct MIGRAPHX_GPU_EXPORT fuse_int4_gemv
 {
     context* ctx = nullptr;
-    // List of ops to force onto MLIR ('!'/'~' prefix forces off), supplied via compile_options.
-    // Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes priority over this.
-    std::vector<std::string> use_specific_ops = {};
-    bool enable_extra                         = false;
-    std::string name() const { return "gpu::fuse_mlir"; }
+
+    std::string name() const { return "gpu::fuse_int4_gemv"; }
     void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
+
+#endif // MIGRAPHX_GUARD_GPU_FUSE_INT4_GEMV_HPP

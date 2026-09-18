@@ -77,6 +77,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/fuse_int4_gemv.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -100,6 +101,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_INT4_GEMV)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
 
@@ -109,6 +111,11 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
+    // prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
+    // priority over this. The architecture and build-config defaults only force ops on, so a
+    // '!' entry cannot disable an op those defaults enable (e.g. attention on gfx94/gfx95).
+    std::vector<std::string> mlir_use_specific_ops = {};
     // Read/write problem caches (the common case: a user tuning a model). New
     // tuning solutions are saved back to these files.
     std::vector<std::string> problem_cache_files = {};
@@ -126,6 +133,7 @@ struct backend_options
     {
         return pack_join(
             pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                 f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
                  f(self.convolution_layout, "convolution_layout"),
                  f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                  f(self.problem_cache_files, "problem_cache_files"),
@@ -243,7 +251,8 @@ struct pipeline_factory
     {
         return {
             enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
-                        fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
+                        fuse_attention{.attn_enabled = mlir_attention_enabled(
+                                           get_context(), backend_opts.mlir_use_specific_ops),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
@@ -254,7 +263,11 @@ struct pipeline_factory
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
             dead_code_elimination{},
-            enable_pass(mlir_enabled(), fuse_mlir{get_context()}),
+            enable_pass(enabled(MIGRAPHX_ENABLE_INT4_GEMV{}), fuse_int4_gemv{get_context()}),
+            dead_code_elimination{},
+            enable_pass(mlir_enabled(),
+                        fuse_mlir{.ctx              = get_context(),
+                                  .use_specific_ops = backend_opts.mlir_use_specific_ops}),
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},

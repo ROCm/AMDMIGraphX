@@ -216,6 +216,7 @@ add_library(migraphx_gpu
     eliminate_data_type_for_gpu.cpp
     fixed_pad.cpp
     fuse_ck.cpp
+    fuse_int4_gemv.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gemm_impl.cpp

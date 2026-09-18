@@ -127,8 +127,8 @@ TEST_CASE(variable_batch_symbolic_test)
     using migraphx::sym::var;
     migraphx::program p;
     auto* mm = p.get_main_module();
-    // The unnamed batch dim has no map_dyn_input_dims override, so parse_type synthesizes a
-    // symbol from the input name and axis; the fixed dims become literals. The input is named
+    // The unnamed batch dim has no map_dyn_input_dims override, so parse_param_shape synthesizes
+    // a symbol from the input name and axis; the fixed dims become literals. The input is named
     // "0", and a symbol name has to be an identifier, so it is sanitized to "_0_d0".
     auto l0 = mm->add_parameter(
         "0",

@@ -389,6 +389,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                         t,
                         dims.to_vector<std::string>(),
                         v.get("dyn_strides", std::vector<std::string>{}));
+                if(v.contains("dyn_strides") and not v.at("dyn_strides").empty())
+                    MIGRAPHX_THROW("python api: shape: incorrect usage of object array `dyn_dims` and string array `dyn_strides`.");
                 return migraphx::shape(
                     t, migraphx::from_value<std::vector<migraphx::shape::dynamic_dimension>>(dims));
             }

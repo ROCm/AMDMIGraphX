@@ -114,9 +114,9 @@ double time_op(const context& ictx, operation op, int bundle, int nruns)
 std::vector<argument> generate_program_arguments(
     const context& ictx, const program& p, const std::unordered_map<std::string, double>& fill_map)
 {
-    auto gctx             = ictx;
-    const auto* mm        = p.get_main_module();
-    auto names            = mm->get_parameter_names();
+    auto gctx      = ictx;
+    const auto* mm = p.get_main_module();
+    auto names     = mm->get_parameter_names();
     std::vector<argument> args;
     args.reserve(names.size());
     unsigned long seed = 0;
@@ -287,8 +287,8 @@ adaptive_topk_benchmark::run(const context& ictx,
     // Pick one bundle for all precise runs, sized so the fastest candidate can
     // still fit max_runs measurements in the precise budget.
     double t_ref = coarse[selected.front()];
-    int bundle   = std::max<double>(precise_ms / (std::max(t_ref, benchmark_min_time_ms) * max_runs),
-                            precise_min_bundle);
+    int bundle = std::max<double>(precise_ms / (std::max(t_ref, benchmark_min_time_ms) * max_runs),
+                                  precise_min_bundle);
 
     // Let the GPU cool down after the coarse pass so thermal throttling
     // doesn't skew the precise measurements

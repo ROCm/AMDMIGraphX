@@ -79,9 +79,9 @@ def generate_all(defines=None, do_format=True):
     gpu_include_dir = include_dir / 'gpu'
     if gpu_include_dir.is_dir():
         for f in [f for f in gpu_include_dir.iterdir() if f.is_file()]:
-            te_generate(
-                f, src_dir / f'targets/gpu/include/migraphx/gpu/{f.name}',
-                do_format)
+            te_generate(f,
+                        src_dir / f'targets/gpu/include/migraphx/gpu/{f.name}',
+                        do_format)
     generate_api(src_dir / 'api', defines, do_format)
 
 

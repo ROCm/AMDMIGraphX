@@ -29,8 +29,10 @@
 #include <migraphx/time.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <chrono>
 #include <cmath>
 #include <limits>
+#include <thread>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -287,6 +289,10 @@ adaptive_topk_benchmark::run(const context& ictx,
     double t_ref = coarse[selected.front()];
     int bundle   = std::max(precise_ms / (std::max(t_ref, benchmark_min_time_ms) * max_runs),
                             static_cast<double>(precise_min_bundle));
+
+    // Let the GPU cool down after the coarse pass so thermal throttling
+    // doesn't skew the precise measurements
+    std::this_thread::sleep_for(std::chrono::milliseconds{10});
 
     // Precise pass over the selected candidates
     std::vector<double> precise(selected.size(), invalid);

@@ -60,7 +60,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_USE_SIMPLE);
 
-static const benchmark_candidate& run_benchmark(context& ctx,
+static const benchmark_candidate& run_benchmark(const context& ctx,
                                                 const std::vector<benchmark_candidate>& candidates)
 {
     // A single candidate is already the winner, so skip timing it

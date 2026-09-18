@@ -114,9 +114,9 @@ double time_op(const context& ictx, operation op, int bundle, int nruns)
 std::vector<argument> generate_program_arguments(
     const context& ictx, const program& p, const std::unordered_map<std::string, double>& fill_map)
 {
-    auto gctx             = ictx;
-    const auto* mm        = p.get_main_module();
-    auto names            = mm->get_parameter_names();
+    auto gctx      = ictx;
+    const auto* mm = p.get_main_module();
+    auto names     = mm->get_parameter_names();
     std::vector<argument> args;
     args.reserve(names.size());
     unsigned long seed = 0;

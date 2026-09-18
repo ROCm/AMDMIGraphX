@@ -61,7 +61,7 @@ struct MIGRAPHX_GPU_EXPORT simple_benchmark
    the top candidates with more iterations and return the fastest one */
 struct MIGRAPHX_GPU_EXPORT adaptive_topk_benchmark
 {
-    // Number of successful precise timings to collect. Zero precisely times every candidate.
+    // Number of top candidates to precisely time. Zero precisely times every candidate.
     std::size_t top_k = 10;
     // Per-candidate time budgets (ms) for the precise and coarse measurements
     std::size_t precise_ms         = 20;

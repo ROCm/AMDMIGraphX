@@ -267,50 +267,46 @@ adaptive_topk_benchmark::run(const context& ictx,
                        return t.value_or(invalid);
                    });
 
-    // Order candidates from fastest to slowest coarse time; failed candidates sort last
-    std::vector<std::size_t> order(candidates.size());
-    std::iota(order.begin(), order.end(), 0);
-    std::sort(order.begin(), order.end(), [&](auto i, auto j) { return coarse[i] < coarse[j]; });
-    auto nvalid = static_cast<std::size_t>(
-        std::count_if(coarse.begin(), coarse.end(), [](double t) { return std::isfinite(t); }));
-    if(nvalid == 0)
+    // Select the candidates that measured successfully, keep the top_k fastest
+    std::vector<std::size_t> indices(candidates.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    std::vector<std::size_t> selected;
+    selected.reserve(candidates.size());
+    std::copy_if(indices.begin(), indices.end(), std::back_inserter(selected), [&](auto i) {
+        return std::isfinite(coarse[i]);
+    });
+    if(selected.empty())
         MIGRAPHX_THROW("adaptive_topk_benchmark: all candidates failed to run");
-    std::size_t target = top_k == 0 ? nvalid : std::min(top_k, nvalid);
+    std::sort(
+        selected.begin(), selected.end(), [&](auto i, auto j) { return coarse[i] < coarse[j]; });
+    if(top_k > 0 and selected.size() > top_k)
+        selected.resize(top_k);
 
     // Pick one bundle for all precise runs, sized so the fastest candidate can
     // still fit max_runs measurements in the precise budget.
-    double t_ref = coarse[order.front()];
+    double t_ref = coarse[selected.front()];
     int bundle   = std::max(precise_ms / (std::max(t_ref, benchmark_min_time_ms) * max_runs),
                             static_cast<double>(precise_min_bundle));
 
-    // Precise pass over the fastest candidates until enough successful timings are collected
-    std::vector<double> precise(candidates.size(), invalid);
-    std::size_t successes = 0;
-    auto it               = order.begin();
-    const auto valid_last = order.begin() + nvalid;
-    while(successes < target and it != valid_last)
-    {
-        const auto& candidate = candidates[*it];
-        assert(std::isfinite(coarse[*it]));
-        auto trace = candidate.trace();
+    // Precise pass over the selected candidates
+    std::vector<double> precise(selected.size(), invalid);
+    std::transform(selected.begin(), selected.end(), precise.begin(), [&](auto i) {
+        const auto& candidate = candidates[i];
+        auto trace            = candidate.trace();
         trace("Precise solution: ", candidate.solution());
         auto t = try_benchmark(trace, [&] {
             auto bp = make_benchmark_program(ctx_vec, candidate);
-            return bp.time(
-                ctx_vec, bundle, compute_nruns(precise_ms, coarse[*it], bundle, max_runs));
+            return bp.time(ctx_vec, bundle, compute_nruns(precise_ms, coarse[i], bundle, max_runs));
         });
         if(t.has_value())
-        {
             trace("Precise time: ", *t, "ms");
-            precise[*it] = *t;
-            ++successes;
-        }
-        ++it;
-    }
-    if(successes == 0)
-        return candidates.at(order.front());
+        return t.value_or(invalid);
+    });
     auto fastest = std::min_element(precise.begin(), precise.end());
-    return candidates.at(std::distance(precise.begin(), fastest));
+    // Fall back to the best coarse candidate when every precise timing failed
+    if(not std::isfinite(*fastest))
+        return candidates.at(selected.front());
+    return candidates.at(selected.at(std::distance(precise.begin(), fastest)));
 }
 
 } // namespace gpu

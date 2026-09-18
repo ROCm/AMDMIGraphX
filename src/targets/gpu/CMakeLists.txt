@@ -290,7 +290,7 @@ add_library(migraphx_gpu
     lowering.cpp
     loop.cpp
     lrn.cpp
-    mlir.cpp
+    mlir_backend_loader.cpp
     nms_ops.cpp
     no_device.cpp
     pack_args.cpp
@@ -371,42 +371,9 @@ rocm_clang_tidy_check(migraphx_gpu)
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
 
 if(MIGRAPHX_ENABLE_MLIR)
-    # Find package rocMLIR
-    find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
-    message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
+    # rocMLIR is linked into runtime-loadable backend plugins rather than
+    # directly into migraphx_gpu.
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
-
-    # Identify the rocMLIR build for the binary cache by hashing the libraries that get linked.
-    # That covers a locally built or substituted rocMLIR, which a recorded version or commit
-    # would not.
-    get_target_property(MIGRAPHX_ROCKCOMPILER_LIBS rocMLIR::rockCompiler IMPORTED_LOCATION)
-    if(NOT MIGRAPHX_ROCKCOMPILER_LIBS)
-        # rockCompiler is an interface target that names its archives as link dependencies:
-        # the fat librockCompiler.a on Linux, many smaller archives on Windows.
-        get_target_property(MIGRAPHX_ROCKCOMPILER_LIBS rocMLIR::rockCompiler
-                            INTERFACE_LINK_LIBRARIES)
-    endif()
-    # Only rocMLIR's own archives identify the build, so skip the upstream LLVM/MLIR archives
-    # also linked on Windows. Match the file name alone since paths can contain these names.
-    set(MIGRAPHX_ROCMLIR_LIBS "")
-    foreach(MIGRAPHX_ROCKCOMPILER_LIB IN LISTS MIGRAPHX_ROCKCOMPILER_LIBS)
-        get_filename_component(MIGRAPHX_ROCKCOMPILER_LIB_NAME "${MIGRAPHX_ROCKCOMPILER_LIB}"
-                               NAME)
-        string(TOLOWER "${MIGRAPHX_ROCKCOMPILER_LIB_NAME}" MIGRAPHX_ROCKCOMPILER_LIB_NAME)
-        if(MIGRAPHX_ROCKCOMPILER_LIB_NAME MATCHES "rock|roctarget|rocmlir|migraphx|mhal")
-            list(APPEND MIGRAPHX_ROCMLIR_LIBS "${MIGRAPHX_ROCKCOMPILER_LIB}")
-        endif()
-    endforeach()
-    migraphx_hash_libraries("${MIGRAPHX_ROCMLIR_LIBS}" MIGRAPHX_ROCMLIR_ID)
-    message(STATUS "rocMLIR binary cache id: ${MIGRAPHX_ROCMLIR_ID}")
-    target_compile_definitions(migraphx_gpu
-                               PRIVATE "-DMIGRAPHX_ROCMLIR_ID=\"${MIGRAPHX_ROCMLIR_ID}\"")
-    # Make this private to avoid multiple inclusions of LLVM symbols.
-    target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
-    # Hide LLVM internals that come from rocMLIR.
-    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
-        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
-    endif()
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
@@ -563,6 +530,12 @@ if(MIGRAPHX_USE_AMDMLSS)
             COMMENT "Copying amdmlss.dll to $<TARGET_FILE_DIR:migraphx_gpu>"
             VERBATIM)
     endif()
+endif()
+
+if(MIGRAPHX_ENABLE_MLIR)
+    set(MIGRAPHX_GPU_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+    set(MIGRAPHX_GPU_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+    add_subdirectory(mlir_plugins)
 endif()
 
 add_subdirectory(driver)

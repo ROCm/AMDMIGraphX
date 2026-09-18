@@ -24,6 +24,7 @@
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
@@ -204,7 +205,11 @@ struct gpu_literal
         // contiguous.
         if(enabled(MIGRAPHX_SHARE_LITERALS{}) and not host and data.get_shape().packed())
         {
+            // Keyed by DEVICE, not just architecture. Two GPUs of the same model in
+            // one process share a gfx name, so keying on that alone would hand a
+            // buffer allocated on one device to a program running on another.
             const std::string key = ctx.get_current_device().get_gfx_name() + ":" +
+                                    std::to_string(get_device_id()) + ":" +
                                     std::to_string(literal_fingerprint(data));
             auto& pool = shared_literal_pool::instance();
             std::lock_guard<std::mutex> lock(pool.mtx);

@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/tensor_view.hpp>
 
 namespace migraphx {
@@ -347,6 +348,60 @@ struct find_static_dimensions_of : match::supports_dynamic_shapes
     }
 };
 
+struct find_fixed_eval_expr_from_shape : match::supports_dynamic_shapes
+{
+    auto matcher() const { return match::name("eval_expr_from_shape")(); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins         = mr.result;
+        auto expressions = from_value<std::vector<sym::expr>>(
+            ins->get_operator().to_value().at("expressions"));
+
+        std::unordered_set<sym::expr> required;
+        for(const auto& expression : expressions)
+        {
+            auto variables = sym::find_variables(expression);
+            required.merge(variables);
+        }
+        if(required.empty())
+            return;
+
+        std::unordered_map<sym::expr, std::size_t> values;
+        for(auto input : ins->inputs())
+        {
+            if(not input->get_shape().symbolic())
+                continue;
+            for(const auto& dim : input->get_shape().dyn_dims())
+            {
+                if(dim.sym_expr.name() != "variable")
+                    continue;
+                const auto variable = sym::as_symbol(dim.sym_expr);
+                if(required.count(variable) == 0)
+                    continue;
+                const auto value = sym::fixed_value(dim.sym_expr);
+                if(not value.has_value())
+                    return;
+                const auto fixed  = sym::to<std::size_t>(*value);
+                const auto result = values.emplace(variable, fixed);
+                if(not result.second and result.first->second != fixed)
+                    return;
+            }
+        }
+        if(values.size() != required.size())
+            return;
+
+        std::vector<int64_t> result;
+        result.reserve(expressions.size());
+        std::transform(expressions.begin(),
+                       expressions.end(),
+                       std::back_inserter(result),
+                       [&](const auto& expression) { return expression.eval_uint(values); });
+        m.replace_instruction(
+            ins, m.add_literal(literal{shape{shape::int64_type, {result.size()}}, result}));
+    }
+};
+
 /**
  * Simplify allocate into 2 argument reshape that has constant output dimensions into a static 1
  * argument reshape. Intended to simplify what ONNX parse_reshape creates for dynamic reshapes.
@@ -531,7 +586,7 @@ struct find_static_onehot : match::supports_dynamic_shapes
 /**
  * Go through `select_module` instructions and update the `output_dyn_shapes` attribute.
  * Checks the submodule output shapes and determines an appropriate `output_dyn_shapes` attribute.
- * This version ignores dynamic_dimension opt values.
+ * Compatible symbolic output shapes are preserved; inferred range shapes ignore opt values.
  * Intended to be run after the other simplify_dyn_ops passes.
  */
 struct simplify_select_module_output_shape : match::supports_dynamic_shapes
@@ -562,7 +617,8 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
         }
         auto num_out_shapes = shapes_ndim.size();
         std::vector<shape> dyn_shapes(num_out_shapes);
-        auto num_submod = sm_module_inputs.size();
+        const auto& current_shapes = sm_ins->get_shape().sub_shapes();
+        auto num_submod            = sm_module_inputs.size();
         // compare respective output shapes from each submodule to get a range for the output shape
         for(int i : range(num_out_shapes))
         {
@@ -571,7 +627,19 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
                            all_output_shapes.end(),
                            shapes_at_index.begin(),
                            [&](auto output_shapes) { return output_shapes.at(i); });
-            dyn_shapes.at(i) = dyn_shape_from_shapes(shapes_at_index);
+            if(current_shapes.size() == num_out_shapes and current_shapes.at(i).symbolic() and
+               std::all_of(
+                   shapes_at_index.begin(), shapes_at_index.end(), [&](const auto& output_shape) {
+                       return output_shape.type() == current_shapes.at(i).type() and
+                              shape::is_compatible_lens(output_shape, current_shapes.at(i));
+                   }))
+            {
+                dyn_shapes.at(i) = current_shapes.at(i);
+            }
+            else
+            {
+                dyn_shapes.at(i) = dyn_shape_from_shapes(shapes_at_index);
+            }
         }
         auto tuple_shape = shape{dyn_shapes};
         m.replace_instruction(
@@ -667,6 +735,7 @@ void simplify_dyn_ops::apply(module& m) const
                         find_broadcast_with_dims_static{},
                         find_resize_static{},
                         find_static_dimensions_of{},
+                        find_fixed_eval_expr_from_shape{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},
                         find_const_2in_slice{},

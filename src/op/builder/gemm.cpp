@@ -98,7 +98,8 @@ struct gemm : op_builder<gemm>
                         ins,
                         make_op("multibroadcast",
                                 {{"out_dyn_dims", to_value(dot_ins->get_shape().dyn_dims())}}),
-                        args[2]);
+                        args[2],
+                        dot_ins);
                 }
                 else if(dot_ins->get_shape().dynamic())
                 {

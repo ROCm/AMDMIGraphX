@@ -2089,6 +2089,33 @@ TEST_CASE(dot_add_dot_square)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_add_dot_batched_n1)
+{
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+
+    migraphx::shape sa{migraphx::shape::half_type, {1, 4, 1, 4}};
+    migraphx::shape sb{migraphx::shape::half_type, {1, 4, 4, 1}};
+    migraphx::shape sx{migraphx::shape::half_type, {1, 4, 1, 1}};
+    migraphx::shape sy{migraphx::shape::half_type, {1, 4, 1, 4}};
+
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto a    = mm->add_parameter("a", sa);
+    auto b    = mm->add_parameter("b", sb);
+    auto x    = mm->add_parameter("x", sx);
+    auto y    = mm->add_parameter("y", sy);
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+    auto add  = add_pointwise(p, "main:pointwise0", {dot1, x}, single_pointwise("add"));
+    auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);
+    mm->add_return({dot2});
+
+    run_pass(p);
+    std::stringstream ss;
+    ss << p;
+    EXPECT(ss.str().find("geg") == std::string::npos);
+}
+
 TEST_CASE(dot_mul_dot)
 {
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))

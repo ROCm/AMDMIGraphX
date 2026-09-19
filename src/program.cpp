@@ -46,6 +46,7 @@
 #include <migraphx/logger.hpp>
 
 #include <iostream>
+#include <functional>
 #include <queue>
 #include <sstream>
 #include <fstream>
@@ -79,7 +80,6 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
-
     program_impl()                               = default;
     program_impl(const program_impl&)            = default;
     program_impl& operator=(const program_impl&) = default;
@@ -93,6 +93,13 @@ struct program_impl
         for(auto& p : modules)
             p.second.clear_foreign_inputs_for_program();
     }
+
+    // E1b hipGraph POC: cached output args per key from the capture pass,
+    // returned on replay. Keyed because decode double-buffers I/O (KV/logits
+    // ping-pong) -> a single slot would return the wrong buffer's pointers on
+    // replay. Output device buffers are stable per key (the key includes param
+    // addresses, and outputs bind deterministically to them).
+    std::unordered_map<std::size_t, std::vector<argument>> hip_graph_outputs_by_key{};
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -700,6 +707,59 @@ std::vector<argument> program::eval(const parameter_map& params,
     }
 
     std::vector<argument> ret;
+
+    // E1b hipGraph POC: on the async (EP decode) path, offer the context a
+    // chance to capture/replay the whole eval body as a hipGraph, collapsing
+    // the ~1946 per-op host dispatches into one launch. Gated inside the
+    // context by MIGRAPHX_HIP_GRAPH (default off -> byte-identical eager path).
+    // Only engages when there is no trace callback (capture must be sync-free).
+    if(exec_env.async and not exec_env.trace and not exec_env.substitute and contexts.size() == 1)
+    {
+        // Key = hash of sorted (param name, device ptr, shape) + queue ptr.
+        // Identical key => same buffers/shapes/stream => safe to replay.
+        std::size_t key = 0;
+        auto mix        = [&](std::size_t h) {
+            key ^= h + 0x9e3779b97f4a7c15ULL + (key << 6) + (key >> 2);
+        };
+        std::vector<const std::string*> names;
+        names.reserve(params.size());
+        for(const auto& p : params)
+            names.push_back(&p.first);
+        std::sort(names.begin(), names.end(), [](auto* a, auto* b) { return *a < *b; });
+        for(const auto* np : names)
+        {
+            const auto& arg = params.at(*np);
+            const auto& s   = arg.get_shape();
+            mix(std::hash<std::string>{}(*np));
+            mix(reinterpret_cast<std::size_t>(arg.data()));
+            mix(static_cast<std::size_t>(s.type()));
+            for(auto l : s.lens())
+                mix(l);
+            for(auto st : s.strides())
+                mix(st);
+        }
+        mix(reinterpret_cast<std::size_t>(exec_env.queue.unsafe_get()));
+
+        bool handled = contexts.front().capture_replay(exec_env.queue, key, [&] {
+            this->impl->hip_graph_outputs_by_key[key] =
+                generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
+        });
+        if(handled)
+        {
+            // Captured-and-replayed (or eager-recovered inside capture_replay).
+            // Output device buffers are key-stable, so the cached args for THIS
+            // key are valid. (Warmup/capture passes populated the map.)
+            auto oit = this->impl->hip_graph_outputs_by_key.find(key);
+            if(oit != this->impl->hip_graph_outputs_by_key.end())
+            {
+                ret = oit->second;
+                contexts.front().restore_queue();
+                return ret;
+            }
+            // Defensive: handled but no cached outputs (should not happen) ->
+            // fall through to eager below.
+        }
+    }
 
     if(exec_env.trace or exec_env.substitute)
     {

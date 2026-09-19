@@ -44,6 +44,7 @@
 #include <unordered_map>
 #include <memory>
 #include <optional>
+#include <cstdio>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,6 +52,8 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_HIP_GRAPH)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_HIP_GRAPH_DEBUG)
 
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
@@ -268,6 +271,38 @@ struct hip_device
     std::unordered_map<std::string, argument> preallocations{};
 };
 
+// E1b hipGraph POC: per-program capture/replay cache. Shared across context
+// clones so the captured executables survive the per-token context copies.
+// Decode double-buffers I/O (KV/logits ping-pong), so a single key is NOT
+// stable -- the param-address key cycles among a SMALL fixed set (observed: 2
+// at full-moe). We therefore keep one captured graph PER key in a bounded map:
+// first sight of a key -> warm eagerly (force lazy allocs); second sight ->
+// capture; thereafter -> replay.
+struct hip_graph_entry
+{
+    hipGraphExec_t exec = nullptr;
+    bool warmed         = false; // ran once eagerly (lazy allocs done) for this key
+    bool valid          = false; // exec captured & instantiated
+    std::size_t replay_count = 0;
+};
+
+struct hip_graph_cache
+{
+    std::unordered_map<std::size_t, hip_graph_entry> entries{};
+    bool disabled             = false; // any capture failure -> permanent eager fallback
+    std::size_t capture_count = 0;
+    // Cap distinct captured graphs to avoid unbounded growth if the key churns
+    // more than expected (each entry holds a hipGraphExec). Beyond this, fall
+    // back to eager for unseen keys.
+    static constexpr std::size_t max_entries = 8;
+    ~hip_graph_cache()
+    {
+        for(auto& kv : entries)
+            if(kv.second.exec != nullptr)
+                hipGraphExecDestroy(kv.second.exec);
+    }
+};
+
 struct context
 {
     struct auto_save_problem_cache : problem_cache
@@ -433,6 +468,133 @@ struct context
             MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
     }
 
+    // E1b hipGraph POC. Capture the eval body `run` into a hipGraph keyed on
+    // `key` (param device-ptrs + shapes + stream, computed by the caller) and
+    // replay it, collapsing the ~1946 per-op host dispatches into one launch.
+    // Returns true iff handled here (caller must NOT also run the body).
+    // Opt-in via MIGRAPHX_HIP_GRAPH; correctness preserved on any failure by
+    // disabling the cache and falling back to eager.
+    bool capture_replay(any_ptr queue, std::size_t key, const std::function<void()>& run)
+    {
+        if(not enabled(MIGRAPHX_HIP_GRAPH{}))
+            return false;
+        if(is_cross_compile())
+            return false;
+        if(graph_cache == nullptr)
+            graph_cache = std::make_shared<hip_graph_cache>();
+        auto& gc = *graph_cache;
+        if(gc.disabled)
+            return false;
+
+        hipStream_t s = queue.unsafe_get() == nullptr ? nullptr : queue.get<hipStream_t>();
+        if(s == nullptr) // hipGraph requires a non-default stream for capture
+        {
+            gc.disabled = true;
+            return false;
+        }
+
+        const bool dbg = enabled(MIGRAPHX_HIP_GRAPH_DEBUG{});
+
+        auto it = gc.entries.find(key);
+
+        // Replay path: this key already captured.
+        if(it != gc.entries.end() and it->second.valid)
+        {
+            auto& e = it->second;
+            if(dbg)
+            {
+                e.replay_count++;
+                if(e.replay_count <= 2 or e.replay_count % 64 == 0)
+                    fprintf(stderr,
+                            "[hipgraph] REPLAY #%zu key=%zu stream=%p\n",
+                            e.replay_count,
+                            key,
+                            (void*)s);
+            }
+            auto st = hipGraphLaunch(e.exec, s);
+            if(st != hipSuccess)
+            {
+                gc.disabled = true;
+                return false; // fall back to eager this token
+            }
+            return true;
+        }
+
+        // New key: bound the number of distinct captured graphs.
+        if(it == gc.entries.end() and gc.entries.size() >= hip_graph_cache::max_entries)
+            return false; // too many distinct keys -> eager fallback
+
+        auto& e = gc.entries[key];
+
+        // Warm-up gate: the eval body lazily grows scratch (e.g. the fused MoE
+        // op hipMalloc's its per-shape scratch on first decode-shape token).
+        // hipMalloc mid-capture is illegal and fails capture. So for each new
+        // key, run ONCE eagerly to force all lazy allocations, then capture on
+        // the next call with the same key.
+        if(not e.warmed)
+        {
+            if(dbg)
+                fprintf(stderr,
+                        "[hipgraph] WARMUP (eager) key=%zu stream=%p\n",
+                        key,
+                        (void*)s);
+            e.warmed = true;
+            run(); // eager: performs lazy allocs, normal output
+            return true;
+        }
+
+        if(dbg)
+        {
+            gc.capture_count++;
+            fprintf(stderr,
+                    "[hipgraph] CAPTURE #%zu key=%zu nkeys=%zu stream=%p\n",
+                    gc.capture_count,
+                    key,
+                    gc.entries.size(),
+                    (void*)s);
+        }
+
+        // Capture: record the eval body onto the stream, instantiate, launch.
+        auto st = hipStreamBeginCapture(s, hipStreamCaptureModeThreadLocal);
+        if(st != hipSuccess)
+        {
+            gc.disabled = true;
+            return false;
+        }
+        run(); // generic_eval enqueues all GPU work onto s (must be sync-free)
+        hipGraph_t g = nullptr;
+        st           = hipStreamEndCapture(s, &g);
+        if(st != hipSuccess or g == nullptr)
+        {
+            // Capture failed mid-stream (e.g. a hidden host sync). The body's
+            // work was recorded-not-run; the stream is recovered by EndCapture.
+            // Permanently disable and re-run eagerly for correctness.
+            gc.disabled = true;
+            run();
+            return true;
+        }
+        if(e.exec != nullptr)
+            hipGraphExecDestroy(e.exec);
+        st = hipGraphInstantiate(&e.exec, g, nullptr, nullptr, 0);
+        hipGraphDestroy(g);
+        if(st != hipSuccess)
+        {
+            e.exec      = nullptr;
+            gc.disabled = true;
+            run(); // instantiate failed: body was captured-not-run -> run eagerly
+            return true;
+        }
+        e.valid = true;
+        st      = hipGraphLaunch(e.exec, s);
+        if(st != hipSuccess)
+        {
+            gc.disabled = true;
+            run();
+            return true;
+        }
+        return true;
+    }
+
     any_ptr get_queue()
     {
         if(is_cross_compile())
@@ -500,6 +662,8 @@ struct context
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = std::make_shared<auto_save_problem_cache>();
+    // E1b hipGraph POC: shared so per-token context clones reuse the capture.
+    std::shared_ptr<hip_graph_cache> graph_cache = nullptr;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

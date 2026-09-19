@@ -87,6 +87,14 @@ void finish_on_context(T&, any_ptr)
 {
 }
 
+// Optional capture/replay customization point (E1b hipGraph POC).
+// Default: not handled -> caller runs the body eagerly.
+template <class T>
+bool capture_replay_context(T&, any_ptr, std::size_t, const std::function<void()>&)
+{
+    return false;
+}
+
 template <class T>
 bool is_cross_compile_context(const T&)
 {
@@ -112,6 +120,8 @@ struct MIGRAPHX_EXPORT context
     void wait_for(any_ptr queue);
     // (optional)
     void finish_on(any_ptr queue);
+    // (optional)
+    bool capture_replay(any_ptr queue, std::size_t key, const std::function<void()>& run);
     // (optional)
     bool is_cross_compile() const;
     //
@@ -219,6 +229,27 @@ struct context
     }
 
     template <class T>
+    static auto private_detail_te_default_capture_replay(char,
+                                                         T&& private_detail_te_self,
+                                                         any_ptr queue,
+                                                         std::size_t key,
+                                                         const std::function<void()>& run)
+        -> decltype(private_detail_te_self.capture_replay(queue, key, run))
+    {
+        return private_detail_te_self.capture_replay(queue, key, run);
+    }
+
+    template <class T>
+    static bool private_detail_te_default_capture_replay(float,
+                                                         T&& private_detail_te_self,
+                                                         any_ptr queue,
+                                                         std::size_t key,
+                                                         const std::function<void()>& run)
+    {
+        return capture_replay_context(private_detail_te_self, queue, key, run);
+    }
+
+    template <class T>
     static auto private_detail_te_default_is_cross_compile(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.is_cross_compile())
     {
@@ -262,6 +293,12 @@ struct context
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
                  private_detail_te_default_finish_on(
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
+                 private_detail_te_default_capture_replay(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<any_ptr>(),
+                     std::declval<std::size_t>(),
+                     std::declval<const std::function<void()>&>()),
                  private_detail_te_default_is_cross_compile(
                      char(0), std::declval<PrivateDetailTypeErasedT>()),
                  std::declval<PrivateDetailTypeErasedT>().finish(),
@@ -292,7 +329,7 @@ struct context
               typename = private_te_constraints<PrivateDetailTypeErasedT>,
               typename = typename std::enable_if<
                   not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, context>{}>::type>
-    context& operator=(PrivateDetailTypeErasedT && value)
+    context& operator=(PrivateDetailTypeErasedT&& value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -381,6 +418,12 @@ struct context
         (*this).private_detail_te_get_handle().finish_on(queue);
     }
 
+    bool capture_replay(any_ptr queue, std::size_t key, const std::function<void()>& run)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().capture_replay(queue, key, run);
+    }
+
     bool is_cross_compile() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -413,8 +456,10 @@ struct context
         virtual void restore_queue()            = 0;
         virtual void wait_for(any_ptr queue)    = 0;
         virtual void finish_on(any_ptr queue)   = 0;
-        virtual bool is_cross_compile() const   = 0;
-        virtual void finish() const             = 0;
+        virtual bool
+        capture_replay(any_ptr queue, std::size_t key, const std::function<void()>& run) = 0;
+        virtual bool is_cross_compile() const                                            = 0;
+        virtual void finish() const                                                      = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -484,6 +529,14 @@ struct context
         {
 
             private_detail_te_default_finish_on(char(0), private_detail_te_value, queue);
+        }
+
+        bool
+        capture_replay(any_ptr queue, std::size_t key, const std::function<void()>& run) override
+        {
+
+            return private_detail_te_default_capture_replay(
+                char(0), private_detail_te_value, queue, key, run);
         }
 
         bool is_cross_compile() const override

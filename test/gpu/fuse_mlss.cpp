@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/bit_cast.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
@@ -35,8 +36,9 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
+#include <algorithm>
+#include <array>
 #include <cstdint>
-#include <cstring>
 #include <vector>
 #include <test.hpp>
 
@@ -212,10 +214,12 @@ static void check_ngroups_matches_dispatch(std::size_t batch)
     EXPECT(cop.global % cop.local == 0);
     const std::size_t workgroups = cop.global / cop.local;
 
+    // Unpack the argument the way kernel_argument_value packed it.
     const auto& ng_arg = cop.kernel_args.at(5);
     EXPECT(ng_arg.data.size() == sizeof(std::int32_t));
-    std::int32_t ng = 0;
-    std::memcpy(&ng, ng_arg.data.data(), sizeof(ng));
+    std::array<char, sizeof(std::int32_t)> ng_bytes{};
+    std::copy(ng_arg.data.begin(), ng_arg.data.end(), ng_bytes.begin());
+    auto ng = migraphx::bit_cast<std::int32_t>(ng_bytes);
 
     EXPECT(ng > 0);
     // group == 1 for this conv, so the workgroup count is nGroups exactly.

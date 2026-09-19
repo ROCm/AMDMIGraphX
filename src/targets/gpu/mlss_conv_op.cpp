@@ -275,7 +275,7 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     // launch actually dispatches, and the surplus workgroups would stride their
     // tile loop past the end of their assignment and write out of bounds.
     std::size_t grid_x = bin->m_grid.m_x;
-    info.n_groups      = grid_x / static_cast<std::size_t>(groups);
+    info.n_groups      = grid_x / groups;
     if(info.n_groups == 0)
         info.n_groups = 64;
 

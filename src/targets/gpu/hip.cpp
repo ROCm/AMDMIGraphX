@@ -32,6 +32,7 @@
 #if MIGRAPHX_USE_MIOPEN
 #include <miopen/miopen.h>
 #endif
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -127,7 +128,18 @@ static std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
     }
     auto status = hipHostRegister(ptr, sz, hipHostRegisterMapped);
     if(status != hipSuccess)
-        MIGRAPHX_THROW("Gpu register failed: " + hip_error(status));
+    {
+        // hipHostRegister pins an existing pageable buffer in place. On some platforms
+        // (observed: Windows/gfx1151 for multi-GB literals such as a large embedding
+        // table) it fails with an invalid-argument error when the region is too large
+        // to pin. Fall back to allocating a fresh mapped host buffer and copying into
+        // it -- the same device->host spill that allocate_gpu() already performs -- so
+        // an oversized literal spills to shared memory instead of hard-failing.
+        result = allocate_gpu(sz, /*host=*/true);
+        std::memcpy(result.get(), ptr, sz);
+        get_host_ptr_cache().put(result);
+        return result;
+    }
     result = share(hip_host_ptr{ptr});
     get_host_ptr_cache().put(result);
     return result;

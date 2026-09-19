@@ -32,7 +32,7 @@ TEST_CASE(matmulnbits_mm_test)
     auto a      = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {2, 16}});
     auto b      = mm->add_parameter("b", migraphx::shape{migraphx::shape::uint8_type, {4, 1, 8}});
     auto scales = mm->add_parameter("scales", migraphx::shape{migraphx::shape::float_type, {4}});
-    auto zp     = mm->add_parameter("zp", migraphx::shape{migraphx::shape::uint8_type, {4}});
+    auto zp     = mm->add_parameter("zp", migraphx::shape{migraphx::shape::uint8_type, {4, 1}});
 
     scales = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), scales);
     scales = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scales);

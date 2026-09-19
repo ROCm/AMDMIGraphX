@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <migraphx/kernels/args.hpp>
 #include <migraphx/kernels/tile.hpp>
 #include <migraphx/kernels/tuple.hpp>
+#include <migraphx/kernels/nontemporal.hpp>
 
 namespace migraphx {
 
@@ -39,7 +40,7 @@ template <class Stride, class F, class Output, class T, class... Ts>
 __device__ void pointwise_tensor(Stride stride, F f, Output out, T x, Ts... xs)
 {
     stride(x.get_shape().elements(), [&](auto i) {
-        auto r = f(x[i], xs[i]...);
+        auto r = f(stream_load(x, i), stream_load(xs, i)...);
         out([&](auto... outs) {
             r([&](auto... rs) {
                 static_assert(sizeof...(outs) == sizeof...(rs));

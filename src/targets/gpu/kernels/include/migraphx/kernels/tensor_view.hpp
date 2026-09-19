@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -118,6 +118,13 @@ template <class T, class Shape>
 constexpr tensor_view<T, Shape> make_tensor_view(T* x, Shape)
 {
     return {x};
+}
+
+/// View the same elements as read-only
+template <class T, class Shape>
+constexpr tensor_view<const T, Shape> as_const(tensor_view<T, Shape> x)
+{
+    return {x.data()};
 }
 
 template <class T, class Permutation>

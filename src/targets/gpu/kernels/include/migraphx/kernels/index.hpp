@@ -133,7 +133,7 @@ struct index
     }
 #endif
 
-    constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
+    constexpr auto ngroup() const { return (nglobal() + max_nlocal() - _c<1>) / max_nlocal(); }
 
     template <unsigned int SubWaveSize>
     constexpr index_constant<SubWaveSize> nlocal_subwave() const
@@ -296,6 +296,12 @@ struct index
     {
         for_stride<true>(local_wave(), n, nlocal_wave(), f);
     }
+
+    template <class F, class N>
+    __device__ void wave_stride(N n, F f) const
+    {
+        for_stride<false>(wave(), n, nwave(), f);
+    }
 };
 
 #ifdef MIGRAPHX_NLOCAL
@@ -310,6 +316,40 @@ inline __device__ __attribute__((const)) index make_index()
         blockIdx.x * compute_max_local_size() + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
 }
 
+struct per_wave
+{
+    index idx;
+
+    constexpr auto local() const
+    {
+        return idx.local_wave();
+    }
+
+    constexpr auto nlocal() const
+    {
+        return idx.nlocal_wave();
+    }
+
+    constexpr auto size() const
+    {
+        return idx.nwave();
+    }
+
+    constexpr auto group() const { return idx.wave(); }
+
+    template<class N, class F>
+    constexpr void group_stride(N n, F f) const
+    {
+        return idx.wave_stride(n, f);
+    }
+
+    template<class N, class F>
+    constexpr void local_stride(N n, F f) const
+    {
+        return idx.local_wave_stride(n, f);
+    }
+};
+
 struct per_block
 {
     index idx;
@@ -319,6 +359,8 @@ struct per_block
     constexpr auto nlocal() const { return idx.nlocal(); }
 
     constexpr auto size() const { return idx.ngroup(); }
+
+    constexpr auto group() const { return idx.group; }
 
     template <class N, class F>
     constexpr void group_stride(N n, F f) const
@@ -332,6 +374,38 @@ struct per_block
         return idx.local_stride(n, f);
     }
 };
+
+template <class Base>
+struct single_group : Base
+{
+    template <class N, class F>
+    constexpr void group_stride(N n, F f) const
+    {
+        // MIGRAPHX_ASSERT(this->size() >= n);
+        return this->idx.group_stride(n, f);
+    }
+};
+
+template <class Group, index_int Block, class N>
+constexpr auto block_stride(index idx, N n)
+{
+    return [=](auto f) {
+        const auto m = n / _c<Block>;
+        Group{idx}.local_stride(m, [&](auto j) {
+            const auto jblock = j * Block;
+            repeat_c<Block>([&](auto k) { f(jblock + k); });
+        });
+        const auto mblock = m * _c<Block>;
+        if(mblock < n)
+        {
+            repeat_c<Block>([&](auto k) {
+                const auto i = m + k;
+                if(i < n)
+                    f(i);
+            });
+        }
+    };
+}
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_INDEX_HPP

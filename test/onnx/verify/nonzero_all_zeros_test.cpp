@@ -23,25 +23,17 @@
  */
 
 #include <migraphx/register_target.hpp>
-#include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-// Regression: the original GPU JIT NonZero kernel used a uint8_t accumulator
-// inside block_scan, which wrapped at >255 set bits and silently produced
-// out-of-bounds writes. 32x32 = 1024 elements, all true, comfortably exceeds
-// that historical limit. On ref this just exercises the dense path; the
-// matching test_nonzero_large in test/verify/ catches the GPU kernel.
-TEST_CASE(nonzero_large_test)
+// An all-zero mask drives the parser's trim to a zero-length slice, which is the one bound
+// sym::var(name, {0, max}) allows that no other test reaches.
+TEST_CASE(nonzero_all_zeros_test)
 {
-    migraphx::program p = read_onnx("nonzero_large_test.onnx");
+    migraphx::program p = read_onnx("nonzero_dynamic_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
-    constexpr std::size_t rows = 32;
-    constexpr std::size_t cols = 32;
-    constexpr std::size_t n    = rows * cols;
-
-    migraphx::shape s{migraphx::shape::bool_type, {rows, cols}};
-    std::vector<char> data(n, 1);
+    migraphx::shape s{migraphx::shape::bool_type, {2, 2}};
+    std::vector<char> data = {0, 0, 0, 0};
 
     migraphx::parameter_map pp;
     pp["data"] = migraphx::argument(s, data.data());
@@ -50,14 +42,8 @@ TEST_CASE(nonzero_large_test)
     std::vector<int64_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<int64_t> gold(2 * n, 0);
-    for(std::size_t i = 0; i < n; ++i)
-    {
-        gold[i]     = static_cast<int64_t>(i / cols);
-        gold[n + i] = static_cast<int64_t>(i % cols);
-    }
-
-    EXPECT(result_vector == gold);
-    // Every element is nonzero, so the parser's trim keeps all n columns.
-    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {2, n}});
+    // np.nonzero(np.zeros((2, 2))) is ((), ()), so the ONNX specification's output is [rank, 0].
+    EXPECT(result_vector.empty());
+    // Only the sliced axis collapses; the trim still keeps the padded buffer's row stride.
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {2, 0}, {4, 1}});
 }

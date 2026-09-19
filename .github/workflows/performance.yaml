@@ -62,5 +62,6 @@ jobs:
       model_path: ${{ github.event.inputs.model_path || '/migraphx-models' }}
       perf_workspace: ${{ github.event.inputs.perf_workspace || '/mnt/migraphx-perf-work' }}
       runs_on: ${{ github.event.inputs.runner_label || 'linux-migraphx-mi250-1' }}
+      gh_app_client_id: ${{ vars.GH_APP_MIGRAPHX_BOT_PR_WRITE_CLIENT_ID }}
     secrets:
-      BENCHMARK_UTILS_READ_TOKEN: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_MIGRAPHX_BOT_PR_WRITE_PRIVATE_KEY }}

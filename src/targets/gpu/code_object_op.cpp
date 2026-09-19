@@ -99,7 +99,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         }
 
         auto [start, stop] = ctx.get_perf_events();
-        k.launch(ctx.get_stream().get(), global, local, buf.data(), sz, start, stop);
+        k.launch(ctx.get_stream().get(), global.dims, local.dims, buf.data(), sz, start, stop);
     }
     else
     {
@@ -118,7 +118,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
                            [](const argument& a) { return a.data(); });
         });
         auto [start, stop] = ctx.get_perf_events();
-        k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+        k.launch(ctx.get_stream().get(), global.dims, local.dims, kargs, start, stop);
     }
     return args[get_output_arg(args.size())];
 }

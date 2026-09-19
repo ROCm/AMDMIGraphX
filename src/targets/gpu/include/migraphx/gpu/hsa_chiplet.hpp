@@ -37,6 +37,10 @@ namespace gpu {
 /// or 0 if the query fails.
 MIGRAPHX_GPU_EXPORT std::size_t get_hsa_chiplet_count(std::size_t device_id);
 
+/// Query the last-level data cache size in bytes for a given HIP device ID.
+/// Returns 0 if HSA is not available (Windows) or the query fails.
+MIGRAPHX_GPU_EXPORT std::size_t get_hsa_last_level_cache_size(std::size_t device_id);
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

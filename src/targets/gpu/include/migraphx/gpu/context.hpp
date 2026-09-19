@@ -38,6 +38,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/device_description.hpp>
@@ -257,12 +258,15 @@ struct hip_device
 
     std::size_t get_wavefront_size() const { return desc.wavefront_size; }
 
+    hip_compile_cache& get_compile_cache() { return compile_cache; }
+
     private:
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;
     bool cross_compile_mode    = false;
     std::vector<stream> streams;
     device_description desc = {};
+    hip_compile_cache compile_cache{};
 
     public:
     std::unordered_map<std::string, argument> preallocations{};
@@ -338,6 +342,8 @@ struct context
     bool get_disable_processes() const { return disable_processes; }
 
     void set_disable_processes(bool v) { disable_processes = v; }
+
+    hip_compile_cache& get_hip_compile_cache() { return get_current_device().get_compile_cache(); }
 
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }

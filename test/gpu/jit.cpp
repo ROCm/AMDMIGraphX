@@ -39,6 +39,10 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/device_description.hpp>
+#include <atomic>
+#include <chrono>
+#include <stdexcept>
+#include <thread>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
@@ -219,6 +223,80 @@ TEST_CASE(simple_compile_hip)
     EXPECT(output != input);
     auto data = output.get<std::int8_t>();
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+TEST_CASE(hip_compile_cache)
+{
+    migraphx::gpu::hip_compile_cache cache{1024, 16};
+    std::atomic<std::size_t> compile_count{0};
+    const migraphx::gpu::hip_compile_cache::result expected{{'c', 'o'}};
+    std::vector<migraphx::gpu::hip_compile_cache::result> results(8);
+    migraphx::par_for(results.size(), 1, [&](auto i) {
+        results[i] = cache.get_or_compile("k", [&] {
+            compile_count++;
+            std::this_thread::sleep_for(std::chrono::milliseconds{50});
+            return expected;
+        });
+    });
+
+    EXPECT(compile_count == 1);
+    EXPECT(std::all_of(
+        results.begin(), results.end(), [&](const auto& result) { return result == expected; }));
+
+    EXPECT(test::throws([&] {
+        cache.get_or_compile("e", []() -> migraphx::gpu::hip_compile_cache::result {
+            throw std::runtime_error{"compile failed"};
+        });
+    }));
+    auto retry = cache.get_or_compile("e", [&] {
+        compile_count++;
+        return expected;
+    });
+    EXPECT(retry == expected);
+    EXPECT(compile_count == 2);
+
+    migraphx::gpu::hip_compile_cache bounded_cache{2, 2};
+    std::size_t bounded_compile_count = 0;
+    auto first                        = bounded_cache.get_or_compile("first", [&] {
+        bounded_compile_count++;
+        return expected;
+    });
+    auto second                       = bounded_cache.get_or_compile("second", [&] {
+        bounded_compile_count++;
+        return expected;
+    });
+    auto first_again                  = bounded_cache.get_or_compile("first", [&] {
+        bounded_compile_count++;
+        return expected;
+    });
+    EXPECT(first == expected);
+    EXPECT(second == expected);
+    EXPECT(first_again == expected);
+    EXPECT(bounded_compile_count == 3);
+
+    migraphx::gpu::hip_compile_cache entry_bounded_cache{1024, 2};
+    std::size_t entry_bounded_compile_count = 0;
+    entry_bounded_cache.get_or_compile("first", [&] {
+        entry_bounded_compile_count++;
+        return expected;
+    });
+    entry_bounded_cache.get_or_compile("second", [&] {
+        entry_bounded_compile_count++;
+        return expected;
+    });
+    entry_bounded_cache.get_or_compile("first", [&] {
+        entry_bounded_compile_count++;
+        return expected;
+    });
+    entry_bounded_cache.get_or_compile("third", [&] {
+        entry_bounded_compile_count++;
+        return expected;
+    });
+    entry_bounded_cache.get_or_compile("second", [&] {
+        entry_bounded_compile_count++;
+        return expected;
+    });
+    EXPECT(entry_bounded_compile_count == 4);
 }
 
 static auto check_target(const std::string& arch)

@@ -309,4 +309,27 @@ TEST_CASE(propagate_no_crossover_fp8_boundary_output)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(propagate_no_crossover_mixed_category_quantizelinear_output)
+{
+    migraphx::shape s1{migraphx::shape::int32_type, {4}};
+    migraphx::module m1;
+    {
+        auto zp    = m1.add_parameter("zp", s1);
+        auto zp_u8 = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::uint8_type}}), zp);
+        auto x     = m1.add_literal(migraphx::literal{{migraphx::shape::float_type}, {2.0f}});
+        auto scale = m1.add_literal(migraphx::literal{{migraphx::shape::float_type}, {0.05f}});
+        auto x_b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}), x);
+        auto scale_b =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}), scale);
+        auto q   = m1.add_instruction(migraphx::make_op("quantizelinear"), x_b, scale_b, zp_u8);
+        auto out = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), q);
+        m1.add_return({out});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

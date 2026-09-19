@@ -167,6 +167,33 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Exhaustive hipBLASLt tuning isn't used.
 
+  * - | ``MIGRAPHX_ENABLE_INT4_GEMV``
+      | Turns on the fused INT4 GEMV kernel for M=1 dot operations whose
+      | B input is a block-quantized INT4 weight.
+
+    - | ``1``: The INT4 GEMV fusion is applied to eligible dot operations.
+      | ``0``: Returns to default behavior.
+
+      | Default: The INT4 GEMV fusion isn't applied and eligible dot operations
+      | keep their default lowering.
+
+  * - | ``MIGRAPHX_INT4_GEMV_CONFIG``
+      | Overrides the ``(block_size, tile_n)`` configuration the INT4 GEMV kernel
+      | is compiled with, bypassing the table of measured configurations and the
+      | heuristic. Only used when ``MIGRAPHX_ENABLE_INT4_GEMV`` is set.
+
+    - | ``BS,TN``: Use this configuration for every shape. For example: ``256,4``.
+
+      | ``N:K=BS,TN;...``: A semicolon-separated list that sets the configuration
+      | per output shape, where ``N`` and ``K`` are the GEMV dimensions. An entry
+      | with the key ``*`` sets the configuration for shapes that aren't named.
+      | For example: ``16384:2048=64,4;*=256,4``.
+
+      | Unparseable entries are ignored.
+
+      | Default: The configuration comes from a table of measured configurations,
+      | or from a heuristic when the shape isn't in the table.
+
   * - | ``MIGRAPHX_ENABLE_MLIR_INPUT_FUSION``
       | Turns on input fusions in MLIR.
       
@@ -544,6 +571,15 @@ Compilation tracing
     - | ``1``: Print the run instructions and the time taken to complete the evaluation.
       | ``2``: Print the run instructions, time taken, a snippet of the output, and some statistics.
       | ``3``: Print the run instructions, time taken, a snippet of the output, and statistics for all output buffers.
+
+  * - | ``MIGRAPHX_INT4_GEMV_TRACE``
+      | Turns on printing of the INT4 GEMV fusion matcher decisions and the
+      | ``(block_size, tile_n)`` configuration each fused shape is compiled with.
+
+    - | ``1``: The matcher decisions and the selected configurations are printed.
+      | ``0``: Returns to default behavior.
+
+      | Default: The INT4 GEMV matcher decisions and configurations aren't printed.
 
   * - | ``MIGRAPHX_TRACE_QUANTIZATION``
       | Turns on the printing of the traces for passes run during quantization.  

@@ -37,17 +37,12 @@ TEST_CASE(qmoe_test)
 
     using migraphx::half;
     migraphx::shape x_shape{migraphx::shape::half_type, {1, 2, 4}};
-    std::vector<half> x_data{half{1.0f},
-                             half{-1.0f},
-                             half{2.0f},
-                             half{0.5f},
-                             half{-0.5f},
-                             half{1.5f},
-                             half{0.25f},
-                             half{-2.0f}};
+    std::vector<float> x_float = {1.0f, -1.0f, 2.0f, 0.5f, -0.5f, 1.5f, 0.25f, -2.0f};
+    std::vector<half> x_data{x_float.begin(), x_float.end()};
 
     migraphx::shape router_shape{migraphx::shape::half_type, {2, 2}};
-    std::vector<half> router_data{half{1.0f}, half{-1.0f}, half{-0.5f}, half{0.5f}};
+    std::vector<float> router_float = {1.0f, -1.0f, -0.5f, 0.5f};
+    std::vector<half> router_data{router_float.begin(), router_float.end()};
 
     migraphx::shape w1_shape{migraphx::shape::uint8_type, {2, 4, 2}};
     std::vector<uint8_t> w1_data = {

@@ -41,42 +41,32 @@ TEST_CASE(moe_test)
                             "moe",
                             m,
                             {args[0], args[1], args[2], u, args[3], args[4], u, args[5], u, u, u},
-                            {{"activation_type", "relu"},
-                             {"activation_alpha", 1.0f},
-                             {"activation_beta", 0.0f},
-                             {"k", 2},
-                             {"normalize_routing_weights", true},
-                             {"swiglu_fusion", 0}});
+                            {{"k", 2}, {"normalize_routing_weights", true}});
                         m.add_return({r.at(0)});
                     }));
 }
 
 TEST_CASE(moe_gated_test)
 {
-    EXPECT(
-        check_parse("moe_gated_test.onnx",
-                    {{"input", {migraphx::shape::float_type, {1, 2, 4}}},
-                     {"router_probs", {migraphx::shape::float_type, {2, 3}}},
-                     {"fc1_experts_weights", {migraphx::shape::float_type, {3, 2, 4}}},
-                     {"fc2_experts_weights", {migraphx::shape::float_type, {3, 4, 2}}},
-                     {"fc3_experts_weights", {migraphx::shape::float_type, {3, 2, 4}}}},
-                    [](migraphx::module& m, const auto& args) {
-                        // The empty optional bias inputs share one undefined instruction and
-                        // the parser adds another one for the unset scale and bias slots
-                        auto ug = m.add_instruction(migraphx::make_op("undefined"));
-                        auto up = m.add_instruction(migraphx::make_op("undefined"));
-                        auto r  = migraphx::op::builder::add(
-                            "moe",
-                            m,
-                            {args[0], args[1], args[2], up, ug, args[3], up, ug, args[4], up, up},
-                            {{"activation_type", "silu"},
-                             {"activation_alpha", 1.0f},
-                             {"activation_beta", 0.0f},
-                             {"k", 2},
-                             {"normalize_routing_weights", true},
-                             {"swiglu_fusion", 0}});
-                        m.add_return({r.at(0)});
-                    }));
+    EXPECT(check_parse(
+        "moe_gated_test.onnx",
+        {{"input", {migraphx::shape::float_type, {1, 2, 4}}},
+         {"router_probs", {migraphx::shape::float_type, {2, 3}}},
+         {"fc1_experts_weights", {migraphx::shape::float_type, {3, 2, 4}}},
+         {"fc2_experts_weights", {migraphx::shape::float_type, {3, 4, 2}}},
+         {"fc3_experts_weights", {migraphx::shape::float_type, {3, 2, 4}}}},
+        [](migraphx::module& m, const auto& args) {
+            // ug is the onnx parser's shared undefined for the '' bias inputs;
+            // up is the one parse_moe adds for the scale and trailing slots
+            auto ug = m.add_instruction(migraphx::make_op("undefined"));
+            auto up = m.add_instruction(migraphx::make_op("undefined"));
+            auto r  = migraphx::op::builder::add(
+                "moe",
+                m,
+                {args[0], args[1], args[2], up, ug, args[3], up, ug, args[4], up, up},
+                {{"activation_type", "silu"}, {"k", 2}, {"normalize_routing_weights", true}});
+            m.add_return({r.at(0)});
+        }));
 }
 
 TEST_CASE(moe_swiglu_test)

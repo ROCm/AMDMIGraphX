@@ -29,6 +29,7 @@
 #include <migraphx/ranges.hpp>
 
 #include <algorithm>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,24 +41,15 @@ struct parse_moe : op_parser<parse_moe>
 {
     std::vector<op_desc> operators() const { return {{"MoE"}, {"QMoE"}}; }
 
-    static int64_t attr_int(const onnx_parser& parser,
-                            const onnx_parser::node_info& info,
-                            const std::string& name,
-                            int64_t def)
+    template <class T>
+    static T attr(const onnx_parser& parser,
+                  const onnx_parser::node_info& info,
+                  const std::string& name,
+                  T def)
     {
         if(not contains(info.attributes, name))
             return def;
-        return parser.parse_value(info.attributes.at(name)).at<int64_t>();
-    }
-
-    static float attr_float(const onnx_parser& parser,
-                            const onnx_parser::node_info& info,
-                            const std::string& name,
-                            float def)
-    {
-        if(not contains(info.attributes, name))
-            return def;
-        return parser.parse_value(info.attributes.at(name)).at<float>();
+        return parser.parse_value(info.attributes.at(name)).at<T>();
     }
 
     static std::string
@@ -73,18 +65,19 @@ struct parse_moe : op_parser<parse_moe>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        if(attr_int(parser, info, "use_sparse_mixer", 0) != 0)
+        if(attr<int64_t>(parser, info, "use_sparse_mixer", 0) != 0)
             MIGRAPHX_THROW(opd.onnx_name + ": use_sparse_mixer is not supported");
 
-        value options = {{"activation_type", attr_string(info, "activation_type", "relu")},
-                         {"activation_alpha", attr_float(parser, info, "activation_alpha", 1.0f)},
-                         {"activation_beta", attr_float(parser, info, "activation_beta", 0.0f)},
-                         {"k", attr_int(parser, info, "k", 1)},
-                         {"normalize_routing_weights",
-                          attr_int(parser, info, "normalize_routing_weights", 0) != 0},
-                         {"swiglu_fusion", attr_int(parser, info, "swiglu_fusion", 0)}};
-        if(contains(info.attributes, "swiglu_limit"))
-            options["swiglu_limit"] = attr_float(parser, info, "swiglu_limit", 0.0f);
+        value options = {
+            {"activation_type", attr_string(info, "activation_type", "relu")},
+            {"activation_alpha", attr<float>(parser, info, "activation_alpha", 1.0f)},
+            {"activation_beta", attr<float>(parser, info, "activation_beta", 0.0f)},
+            {"k", attr<int64_t>(parser, info, "k", 1)},
+            {"normalize_routing_weights",
+             attr<int64_t>(parser, info, "normalize_routing_weights", 0) != 0},
+            {"swiglu_fusion", attr<int64_t>(parser, info, "swiglu_fusion", 0)},
+            {"swiglu_limit",
+             attr<float>(parser, info, "swiglu_limit", std::numeric_limits<float>::infinity())}};
 
         std::vector<instruction_ref> builder_args;
         if(opd.onnx_name == "QMoE")
@@ -93,7 +86,7 @@ struct parse_moe : op_parser<parse_moe>
             if(quant_type != "int")
                 MIGRAPHX_THROW("QMoE: quant_type " + quant_type +
                                " is not supported, only integer quantization");
-            const auto bits = attr_int(parser, info, "expert_weight_bits", 4);
+            const auto bits = attr<int64_t>(parser, info, "expert_weight_bits", 4);
             if(bits != 4 and bits != 8)
                 MIGRAPHX_THROW("QMoE: expert_weight_bits must be 4 or 8, got " +
                                std::to_string(bits));
@@ -101,19 +94,18 @@ struct parse_moe : op_parser<parse_moe>
 
             if(args.size() < 6)
                 MIGRAPHX_THROW("QMoE: expected at least 6 inputs");
+            // The QMoE input order matches the builder's argument layout
+            constexpr std::size_t builder_slots = 14;
+            const auto n                        = std::min(args.size(), builder_slots);
             // Inputs beyond the fc weights/scales/biases/zero points:
             // router_weights and the fp4/fp8 global and activation scales
-            if(std::any_of(args.begin() + std::min<std::size_t>(14, args.size()),
-                           args.end(),
-                           [](instruction_ref a) { return a->name() != "undefined"; }))
+            if(std::any_of(args.begin() + n, args.end(), [](instruction_ref a) {
+                   return not a->is_undefined();
+               }))
                 MIGRAPHX_THROW("QMoE: router_weights and global/activation scale inputs "
                                "are not supported");
-            // The QMoE input order already matches the builder layout:
-            // {input, router_probs, fc1_weights, fc1_scales, fc1_bias, fc2_weights,
-            //  fc2_scales, fc2_bias, fc3_weights, fc3_scales, fc3_bias,
-            //  fc1_zero_points, fc2_zero_points, fc3_zero_points}
-            builder_args.assign(args.begin(),
-                                args.begin() + std::min<std::size_t>(args.size(), 14));
+            args.resize(n);
+            builder_args = std::move(args);
         }
         else
         {

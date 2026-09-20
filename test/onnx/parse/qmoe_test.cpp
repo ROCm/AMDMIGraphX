@@ -62,8 +62,7 @@ TEST_CASE(qmoe_test)
                                                                 {"k", 2},
                                                                 {"normalize_routing_weights", true},
                                                                 {"swiglu_fusion", 1},
-                                                                {"swiglu_limit", 7.0f},
-                                                                {"expert_weight_bits", 4}});
+                                                                {"swiglu_limit", 7.0f}});
                            m.add_return({r.at(0)});
                        }));
 }

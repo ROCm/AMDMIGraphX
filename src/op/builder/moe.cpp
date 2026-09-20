@@ -90,7 +90,6 @@ struct moe : op_builder<moe>
                     f(self.expert_weight_bits, "expert_weight_bits"));
     }
 
-    // Argument slots
     enum arg_slot : std::size_t
     {
         slot_input = 0,
@@ -112,7 +111,7 @@ struct moe : op_builder<moe>
     static std::optional<instruction_ref> arg(const std::vector<instruction_ref>& args,
                                               std::size_t i)
     {
-        if(i >= args.size() or args[i]->name() == "undefined")
+        if(i >= args.size() or args[i]->is_undefined())
             return std::nullopt;
         return args[i];
     }
@@ -132,21 +131,28 @@ struct moe : op_builder<moe>
         auto x      = required(args, slot_input, "input");
         auto router = required(args, slot_router, "router_probs");
         auto fc1_w  = required(args, slot_fc1_weights, "fc1_weights");
-        auto fc2_w  = required(args, slot_fc2_weights, "fc2_weights");
 
         if(std::any_of(args.begin(), args.end(), [](instruction_ref a) {
                return a->get_shape().dynamic();
            }))
             MIGRAPHX_THROW("moe: dynamic shapes are not supported");
 
-        const auto in_lens            = x->get_shape().lens();
-        const std::size_t hidden      = in_lens.back();
-        const std::size_t tokens      = x->get_shape().elements() / hidden;
+        const auto in_lens       = x->get_shape().lens();
+        const std::size_t hidden = in_lens.back();
+        if(hidden == 0)
+            MIGRAPHX_THROW("moe: input hidden dimension must be non-zero");
+        const std::size_t tokens = x->get_shape().elements() / hidden;
+        if(fc1_w->get_shape().ndim() != 3)
+            MIGRAPHX_THROW(
+                "moe: fc1_weights must have shape [num_experts, out_features, in_features]");
         const std::size_t num_experts = fc1_w->get_shape().lens().front();
         const std::size_t fc1_out     = fc1_w->get_shape().lens().at(1);
-        const bool is_swiglu          = activation_type == "swiglu";
-        const std::size_t fusion_size = (is_swiglu and swiglu_fusion != 0) ? 2 : 1;
+        const std::size_t fusion_size =
+            (activation_type == "swiglu" and swiglu_fusion != 0) ? 2 : 1;
 
+        if(expert_weight_bits != 4 and expert_weight_bits != 8)
+            MIGRAPHX_THROW("moe: only 4 and 8 bit expert weights are supported, got " +
+                           std::to_string(expert_weight_bits));
         if(swiglu_fusion < 0 or swiglu_fusion > 2)
             MIGRAPHX_THROW("moe: invalid swiglu_fusion value " + std::to_string(swiglu_fusion));
         if(fc1_out % fusion_size != 0)
@@ -186,41 +192,15 @@ struct moe : op_builder<moe>
             ins, make_op("multibroadcast", {{"out_lens", {tokens, top_k, hidden}}}), xr);
         xr = m.insert_instruction(ins, make_op("reshape", {{"dims", {rows, 1, hidden}}}), xr);
 
-        auto h1 = fc(m,
-                     ins,
-                     xr,
-                     selected,
-                     fc1_w,
-                     arg(args, slot_fc1_scales),
-                     arg(args, slot_fc1_zero_points),
-                     arg(args, slot_fc1_bias),
-                     hidden);
+        auto h1 = fc(m, ins, xr, selected, args, 0, hidden, fc1_out);
 
         std::optional<instruction_ref> h3;
-        if(auto fc3_w = arg(args, slot_fc3_weights))
-        {
-            h3 = fc(m,
-                    ins,
-                    xr,
-                    selected,
-                    *fc3_w,
-                    arg(args, slot_fc3_scales),
-                    arg(args, slot_fc3_zero_points),
-                    arg(args, slot_fc3_bias),
-                    hidden);
-        }
+        if(arg(args, slot_fc3_weights).has_value())
+            h3 = fc(m, ins, xr, selected, args, 2, hidden, inter);
 
         auto activated = apply_activation(m, ins, h1, h3, inter);
 
-        auto h2 = fc(m,
-                     ins,
-                     activated,
-                     selected,
-                     fc2_w,
-                     arg(args, slot_fc2_scales),
-                     arg(args, slot_fc2_zero_points),
-                     arg(args, slot_fc2_bias),
-                     inter);
+        auto h2 = fc(m, ins, activated, selected, args, 1, inter, hidden);
 
         // Weight each expert output by its routing weight and sum per token
         auto wr = m.insert_instruction(
@@ -232,25 +212,47 @@ struct moe : op_builder<moe>
         weighted      = m.insert_instruction(
             ins, make_op("reshape", {{"dims", {tokens, top_k, hidden}}}), weighted);
         auto summed = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {1}}}), weighted);
-        std::vector<int64_t> out_dims(in_lens.begin(), in_lens.end());
-        auto out = m.insert_instruction(ins, make_op("reshape", {{"dims", out_dims}}), summed);
+        auto out    = m.insert_instruction(ins, make_op("reshape", {{"dims", in_lens}}), summed);
         return {out};
     }
 
     private:
-    // Gathered expert GEMM: x_rows is [rows, 1, in_features], returns [rows, 1, out_features]
+    // Gathered expert GEMM for fc(n + 1): x_rows is [rows, 1, in_features],
+    // returns [rows, 1, out_features]. Fetches the fc's weight/scale/bias/zero
+    // point slots from args.
     instruction_ref fc(module& m,
                        instruction_ref ins,
                        instruction_ref x_rows,
                        instruction_ref selected,
-                       instruction_ref w,
-                       const std::optional<instruction_ref>& scales,
-                       const std::optional<instruction_ref>& zero_points,
-                       const std::optional<instruction_ref>& bias,
-                       std::size_t in_features) const
+                       const std::vector<instruction_ref>& args,
+                       std::size_t n,
+                       std::size_t in_features,
+                       std::size_t out_features) const
     {
+        const auto name  = "fc" + std::to_string(n + 1);
+        auto w           = required(args, slot_fc1_weights + 3 * n, name + "_weights");
+        auto scales      = arg(args, slot_fc1_scales + 3 * n);
+        auto bias        = arg(args, slot_fc1_bias + 3 * n);
+        auto zero_points = arg(args, slot_fc1_zero_points + n);
+
+        const bool quantized = scales.has_value();
+        const auto w_lens    = w->get_shape().lens();
+        if(w_lens.size() != 3)
+            MIGRAPHX_THROW("moe: " + name +
+                           "_weights must have shape [num_experts, out_features, in_features]");
+        if(w_lens.at(1) != out_features)
+            MIGRAPHX_THROW("moe: " + name + "_weights out_features must be " +
+                           std::to_string(out_features));
+        const std::size_t packed_in =
+            (quantized and expert_weight_bits == 4) ? (in_features + 1) / 2 : in_features;
+        if(w_lens.back() != packed_in)
+            MIGRAPHX_THROW("moe: " + name + "_weights in_features must be " +
+                           std::to_string(packed_in));
+        if(quantized and w->get_shape().type() != shape::uint8_type)
+            MIGRAPHX_THROW("moe: quantized " + name + "_weights must be uint8");
+
         auto wg = m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), w, selected);
-        if(scales.has_value())
+        if(quantized)
         {
             auto sg =
                 m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), *scales, selected);
@@ -263,8 +265,6 @@ struct moe : op_builder<moe>
         auto x_type = x_rows->get_shape().type();
         if(wg->get_shape().type() != x_type)
             wg = m.insert_instruction(ins, make_op("convert", {{"target_type", x_type}}), wg);
-        if(wg->get_shape().lens().back() != in_features)
-            MIGRAPHX_THROW("moe: weight in_features does not match input");
         wg = m.insert_instruction(ins, make_op("transpose", {{"permutation", {0, 2, 1}}}), wg);
         auto out = m.insert_instruction(ins, make_op("dot"), x_rows, wg);
         if(bias.has_value())
@@ -286,9 +286,6 @@ struct moe : op_builder<moe>
                                const std::optional<instruction_ref>& zero_points,
                                std::size_t in_features) const
     {
-        if(expert_weight_bits != 4 and expert_weight_bits != 8)
-            MIGRAPHX_THROW("moe: only 4 and 8 bit expert weights are supported, got " +
-                           std::to_string(expert_weight_bits));
         if(expert_weight_bits == 4)
             w = unpack(m, ins, w, in_features);
 
@@ -300,6 +297,8 @@ struct moe : op_builder<moe>
             if(expert_weight_bits == 4)
             {
                 auto z_lens = z->get_shape().lens();
+                if(z_lens.size() == 3 and scales->get_shape().ndim() != 3)
+                    MIGRAPHX_THROW("moe: blockwise zero points require blockwise scales");
                 // 2D zero points are packed along the columns, 3D along the blocks
                 auto expected = z_lens.size() == 3 ? scales->get_shape().lens().at(2)
                                                    : w->get_shape().lens().at(1);
@@ -341,6 +340,8 @@ struct moe : op_builder<moe>
                                                  std::size_t in_features)
     {
         auto lens = s->get_shape().lens();
+        if(lens.size() != 2 and lens.size() != 3)
+            MIGRAPHX_THROW("moe: quantization scales and zero points must be rank 2 or 3");
         if(lens.size() == 2)
         {
             s = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {2}}}), s);
@@ -350,7 +351,7 @@ struct moe : op_builder<moe>
         auto nblocks = lens.at(2);
         if(nblocks == in_features)
             return s;
-        if(in_features % nblocks != 0)
+        if(nblocks == 0 or in_features % nblocks != 0)
             MIGRAPHX_THROW("moe: in_features must be divisible by the number of "
                            "quantization blocks");
         auto block_size = in_features / nblocks;
@@ -432,7 +433,8 @@ struct moe : op_builder<moe>
         return m.add_literal(literal{shape{t}, {v}});
     }
 
-    // swiglu = clamp(g) * sigmoid(alpha * clamp(g)) * (clamp(l) + beta)
+    // swiglu = gc * sigmoid(alpha * gc) * (lc + beta), where gc = min(g, limit) and
+    // lc = clamp(l, -limit, limit); g is only clamped from above, per onnxruntime
     instruction_ref
     swiglu(module& m, instruction_ref ins, instruction_ref g, instruction_ref l) const
     {
@@ -441,8 +443,8 @@ struct moe : op_builder<moe>
         {
             auto limit = scalar_literal(m, dtype, swiglu_limit);
             g          = insert_common_op(m, ins, "min", g, limit);
-            l          = insert_common_op(m, ins, "min", l, limit);
-            l = insert_common_op(m, ins, "max", l, scalar_literal(m, dtype, -swiglu_limit));
+            l          = insert_common_op(
+                m, ins, make_op("clip"), {l, scalar_literal(m, dtype, -swiglu_limit), limit});
         }
         auto ag  = insert_common_op(m, ins, "mul", g, scalar_literal(m, dtype, activation_alpha));
         auto sig = m.insert_instruction(ins, make_op("sigmoid"), ag);

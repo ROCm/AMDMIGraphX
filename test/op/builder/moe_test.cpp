@@ -24,6 +24,7 @@
 
 #include <op_builder_test_utils.hpp>
 
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
@@ -38,22 +39,19 @@ struct moe_runner
 {
     migraphx::module mm;
     migraphx::parameter_map params;
-    std::vector<std::vector<float>> float_data;
-    std::vector<std::vector<uint8_t>> uint8_data;
 
     migraphx::instruction_ref
-    add_input(const std::string& name, const migraphx::shape& s, std::vector<float> data)
+    add_input(const std::string& name, const migraphx::shape& s, const std::vector<float>& data)
     {
-        float_data.push_back(std::move(data));
-        params[name] = migraphx::argument(s, float_data.back().data());
+        params[name] = migraphx::literal{s, data}.get_argument();
         return mm.add_parameter(name, s);
     }
 
-    migraphx::instruction_ref
-    add_quant_input(const std::string& name, const migraphx::shape& s, std::vector<uint8_t> data)
+    migraphx::instruction_ref add_quant_input(const std::string& name,
+                                              const migraphx::shape& s,
+                                              const std::vector<uint8_t>& data)
     {
-        uint8_data.push_back(std::move(data));
-        params[name] = migraphx::argument(s, uint8_data.back().data());
+        params[name] = migraphx::literal{s, data}.get_argument();
         return mm.add_parameter(name, s);
     }
 

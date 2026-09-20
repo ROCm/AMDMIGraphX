@@ -205,6 +205,7 @@ make_attention_program(const uint64_t batch,
     return p;
 }
 
+// NOLINTNEXTLINE(readability-function-size)
 inline migraphx::program create_gqa_program(const size_t batch_size,
                                             const size_t num_heads,
                                             const size_t kv_num_heads,

@@ -55,10 +55,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
     }
 
-    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
-                                       const onnx_parser& parser,
-                                       const onnx_parser::node_info& info,
-                                       const std::vector<instruction_ref>& args) const
+    struct gqa_attributes
     {
         bool do_rotary           = false;
         std::size_t kv_num_heads = 0;
@@ -66,6 +63,14 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         std::size_t num_heads    = 0;
         bool rotary_interleaved  = false;
         float scale              = 0.0;
+    };
+
+    static gqa_attributes parse_attributes(const onnx_parser& parser,
+                                           const onnx_parser::node_info& info)
+    {
+        gqa_attributes attrs;
+        auto& [do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale] =
+            attrs;
         if(contains(info.attributes, "do_rotary"))
         {
             do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();
@@ -109,7 +114,11 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                 MIGRAPHX_THROW("GroupQueryAttention: non-zero softcap is not yet supported.");
             }
         }
+        return attrs;
+    }
 
+    static void validate_inputs(const std::vector<instruction_ref>& args)
+    {
         if(args.size() < 7 or args.size() > 12)
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
@@ -122,6 +131,43 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         {
             MIGRAPHX_THROW("GroupQueryAttention: attention_bias input is not yet supported.");
         }
+    }
+
+    // head_sink adds a per-head logit to the softmax denominator only (attention sinks):
+    // append it as an extra score column, then drop that column after the softmax
+    static instruction_ref insert_softmax_with_head_sink(const onnx_parser::node_info& info,
+                                                         instruction_ref scores,
+                                                         instruction_ref sink)
+    {
+        const auto lens            = scores->get_shape().lens();
+        const std::size_t nheads   = lens.at(1);
+        const std::int64_t columns = lens.at(3);
+        if(sink->get_shape().elements() != nheads)
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: head_sink must have num_heads elements");
+        }
+        if(sink->get_shape().type() != scores->get_shape().type())
+        {
+            sink = info.add_instruction(
+                make_op("convert", {{"target_type", scores->get_shape().type()}}), sink);
+        }
+        sink = info.add_instruction(make_op("reshape", {{"dims", {1, nheads, 1, 1}}}), sink);
+        sink = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", {lens.at(0), nheads, lens.at(2), 1}}}), sink);
+        auto padded  = info.add_instruction(make_op("concat", {{"axis", 3}}), scores, sink);
+        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), padded);
+        return info.add_instruction(
+            make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {columns}}}), softmax);
+    }
+
+    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
+                                       const onnx_parser& parser,
+                                       const onnx_parser::node_info& info,
+                                       const std::vector<instruction_ref>& args) const
+    {
+        auto [do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale] =
+            parse_attributes(parser, info);
+        validate_inputs(args);
 
         auto qkv = args.at(0);
         if(args.at(1)->get_shape().lens().size() > 1)
@@ -268,36 +314,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
-        auto where = info.add_instruction(make_op("where"), mask, ninf, mul);
-        // head_sink adds a per-head logit to the softmax denominator only (attention sinks):
-        // append it as an extra score column, then drop that column after the softmax
-        const bool has_head_sink = has_input(args, 11);
-        if(has_head_sink)
-        {
-            auto sink = args.at(11);
-            if(sink->get_shape().elements() != num_heads)
-            {
-                MIGRAPHX_THROW("GroupQueryAttention: head_sink must have num_heads elements");
-            }
-            if(sink->get_shape().type() != q_shape.type())
-            {
-                sink = info.add_instruction(make_op("convert", {{"target_type", q_shape.type()}}),
-                                            sink);
-            }
-            sink = info.add_instruction(make_op("reshape", {{"dims", {1, num_heads, 1, 1}}}), sink);
-            sink = info.add_instruction(
-                make_op("multibroadcast",
-                        {{"out_lens", {batch_size, num_heads, sequence_length, 1}}}),
-                sink);
-            where = info.add_instruction(make_op("concat", {{"axis", 3}}), where, sink);
-        }
-        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
-        if(has_head_sink)
-        {
-            softmax = info.add_instruction(
-                make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {max_seq_len}}}),
-                softmax);
-        }
+        auto where   = info.add_instruction(make_op("where"), mask, ninf, mul);
+        auto softmax = has_input(args, 11)
+                           ? insert_softmax_with_head_sink(info, where, args.at(11))
+                           : info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
         auto scores  = info.add_instruction(make_op("dot"), softmax, v);
         auto out =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);

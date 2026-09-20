@@ -28,16 +28,16 @@
 TEST_CASE(group_query_attention_head_sink_test)
 {
     auto p    = create_gqa_program(/* batch_size=           */ 1,
-                                /* num_heads=            */ 32,
-                                /* kv_num_heads=         */ 32,
-                                /* sequence_length=      */ 1,
-                                /* head_size=            */ 128,
-                                /* past_sequence_length= */ 1,
-                                /* max_sequence_length=  */ 4096,
-                                /* do_rotary=            */ true,
-                                /* scale=                */ 1.0,
-                                /* non_packed=           */ false,
-                                /* use_head_sink=        */ true);
+                                   /* num_heads=            */ 32,
+                                   /* kv_num_heads=         */ 32,
+                                   /* sequence_length=      */ 1,
+                                   /* head_size=            */ 128,
+                                   /* past_sequence_length= */ 1,
+                                   /* max_sequence_length=  */ 4096,
+                                   /* do_rotary=            */ true,
+                                   /* scale=                */ 1.0,
+                                   /* non_packed=           */ false,
+                                   /* use_head_sink=        */ true);
     auto prog = optimize_onnx("group_query_attention_head_sink_test.onnx");
     EXPECT(p == prog);
 }

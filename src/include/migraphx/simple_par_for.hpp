@@ -69,7 +69,7 @@ template <class F>
 void thread_invoke_range(std::size_t start,
                          std::size_t last,
                          std::size_t tid,
-                         F f,
+                         const F& f,
                          std::exception_ptr& eptr,
                          std::mutex& eptr_mutex)
 {

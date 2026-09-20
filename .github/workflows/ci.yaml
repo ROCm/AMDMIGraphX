@@ -654,7 +654,7 @@ jobs:
       - name: Check out code.
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: misspell
-        uses: reviewdog/action-misspell@d6429416b12b09b4e2768307d53bef58d172e962  # v1
+        uses: reviewdog/action-misspell@ba7ac4030fa6812f8c8b2d4e516af8bc99553c32 # v1.28
         with:
           locale: "US"
           reporter: github-pr-check

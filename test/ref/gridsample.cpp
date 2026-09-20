@@ -53,7 +53,7 @@ static std::vector<float> run_ref_gridsample(const migraphx::shape& xs,
         grid);
 
     p.compile(migraphx::make_target("ref"));
-    auto result = p.eval({}).back();
+    migraphx::argument result = p.eval({}).back();
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -68,7 +68,8 @@ TEST_CASE(gridsample_nearest_align_corners_corners)
     std::vector<float> x_data{1, 2, 3, 4};
     std::vector<float> grid_data{-1, -1, 1, -1, -1, 1, 1, 1};
 
-    auto results = run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "zeros", true);
+    std::vector<float> results =
+        run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "zeros", true);
 
     std::vector<float> gold{1, 2, 3, 4};
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
@@ -83,8 +84,8 @@ TEST_CASE(gridsample_multi_channel)
     std::vector<float> x_data{1, 2, 3, 4, 5, 6, 7, 8};
     std::vector<float> grid_data{-1, -1, 1, -1, -1, 1, 1, 1};
 
-    auto results = run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "zeros", true);
-
+    std::vector<float> results =
+        run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "zeros", true);
 
     std::vector<float> gold{1, 2, 3, 4, 5, 6, 7, 8};
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
@@ -99,7 +100,8 @@ TEST_CASE(gridsample_multi_batch)
     std::vector<float> x_data{1, 2, 3, 4, 5, 6, 7, 8};
     std::vector<float> grid_data{-1, -1, 1, -1, -1, 1, 1, 1, 1, 1, -1, 1, 1, -1, -1, -1};
 
-    auto results = run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "zeros", true);
+    std::vector<float> results =
+        run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "zeros", true);
 
     std::vector<float> gold{1, 2, 3, 4, 8, 7, 6, 5};
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
@@ -112,7 +114,8 @@ TEST_CASE(gridsample_padding_zeros)
 
     std::vector<float> x_data{1, 2, 3, 4};
     std::vector<float> grid_data{-3, -3, 3, -3, -3, 3, 3, 3};
-    auto results = run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "zeros", true);
+    std::vector<float> results =
+        run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "zeros", true);
     std::vector<float> gold{0, 0, 0, 0};
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }
@@ -125,8 +128,8 @@ TEST_CASE(gridsample_padding_border)
     std::vector<float> x_data{1, 2, 3, 4};
     std::vector<float> grid_data{-3, -3, 3, -3, -3, 3, 3, 3};
 
-    auto results = run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "border", true);
-
+    std::vector<float> results =
+        run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "border", true);
 
     std::vector<float> gold{1, 2, 3, 4};
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
@@ -140,7 +143,8 @@ TEST_CASE(gridsample_padding_reflection)
     std::vector<float> x_data{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
     std::vector<float> grid_data{-1.5, -1.5, 1.5, -1.5, -1.5, 1.5, 1.5, 1.5};
 
-    auto results = run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "reflection", true);
+    std::vector<float> results =
+        run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "reflection", true);
 
     std::vector<float> gold{6, 7, 10, 11};
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
@@ -154,7 +158,8 @@ TEST_CASE(gridsample_align_corners_false)
     std::vector<float> x_data{1, 2, 3, 4};
     std::vector<float> grid_data{-1, -1, 1, -1, -1, 1, 1, 1};
 
-    auto results = run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "zeros", false);
+    std::vector<float> results =
+        run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "zeros", false);
 
     std::vector<float> gold{1, 0, 0, 0};
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
@@ -168,7 +173,8 @@ TEST_CASE(gridsample_linear_midpoint)
     std::vector<float> x_data{1, 2, 3, 4};
     std::vector<float> grid_data{0, 0};
 
-    auto results = run_ref_gridsample(xs, x_data, gs, grid_data, "linear", "zeros", true);
+    std::vector<float> results =
+        run_ref_gridsample(xs, x_data, gs, grid_data, "linear", "zeros", true);
 
     std::vector<float> gold{2.5};
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
@@ -182,7 +188,8 @@ TEST_CASE(gridsample_cubic_midpoint)
     std::vector<float> x_data{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
     std::vector<float> grid_data{0, 0};
 
-    auto results = run_ref_gridsample(xs, x_data, gs, grid_data, "cubic", "zeros", true);
+    std::vector<float> results =
+        run_ref_gridsample(xs, x_data, gs, grid_data, "cubic", "zeros", true);
 
     std::vector<float> gold{8.5};
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
@@ -196,7 +203,8 @@ TEST_CASE(gridsample_singleton_dim_reflection)
     std::vector<float> x_data{7};
     std::vector<float> grid_data{-1, -1, 1, -1, -1, 1, 1, 1};
 
-    auto results = run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "reflection", true);
+    std::vector<float> results =
+        run_ref_gridsample(xs, x_data, gs, grid_data, "nearest", "reflection", true);
 
     // There is only one pixel to reach, so all four taps return it.
     std::vector<float> gold{7, 7, 7, 7};

@@ -55,7 +55,7 @@ static std::vector<float> run_gpu_gridsample(migraphx::program p,
             gpu_params[x.first] = t.allocate(x.second);
     }
 
-    auto result = t.copy_from(p.eval(gpu_params).back());
+    migraphx::argument result = t.copy_from(p.eval(gpu_params).back());
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -67,7 +67,7 @@ static std::vector<float> run_gpu_gridsample(migraphx::program p,
 static std::vector<float> run_ref_program(migraphx::program p)
 {
     p.compile(migraphx::make_target("ref"));
-    auto result = p.eval({}).back();
+    migraphx::argument result = p.eval({}).back();
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -92,7 +92,7 @@ TEST_CASE(gridsample_gpu_nearest_align_corners_corners)
         x,
         grid);
 
-    auto results = run_gpu_gridsample(p);
+    std::vector<float> results = run_gpu_gridsample(p);
 
     std::vector<float> gold{1, 2, 3, 4};
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
@@ -120,7 +120,7 @@ TEST_CASE(gridsample_gpu_linear)
         x,
         grid);
 
-    auto results = run_gpu_gridsample(p);
+    std::vector<float> results = run_gpu_gridsample(p);
 
     // The grid point sits at the image centre: 0 unnormalizes to 0.5 on both
     // axes, so each pixel carries a weight of 0.25 -- (1 + 2 + 3 + 4) / 4.
@@ -147,7 +147,7 @@ TEST_CASE(gridsample_gpu_cubic)
         x,
         grid);
 
-    auto results = run_gpu_gridsample(p);
+    std::vector<float> results = run_gpu_gridsample(p);
 
     // x[row][col] = 4 * row + col + 1 is linear in both axes and cubic
     // reproduces a linear ramp exactly, so the sixteen weights need not be
@@ -176,7 +176,7 @@ TEST_CASE(gridsample_gpu_padding_border)
         x,
         grid);
 
-    auto results = run_gpu_gridsample(p);
+    std::vector<float> results = run_gpu_gridsample(p);
 
     // -3 unnormalizes to -1.0 and 3 to 2.0; each axis clamps independently
     // into [0, 1], landing back on the four corners.
@@ -206,7 +206,7 @@ TEST_CASE(gridsample_gpu_padding_reflection)
         x,
         grid);
 
-    auto results = run_gpu_gridsample(p);
+    std::vector<float> results = run_gpu_gridsample(p);
 
     // -0.75 mirrors about 0 to +0.75 -> pixel 1; 3.75 overshoots the far edge
     // by 0.75 and bounces back to 2.25 -> pixel 2. Wrapping would give 0.
@@ -243,7 +243,7 @@ TEST_CASE(gridsample_gpu_half)
     std::vector<float> gold{1, 2, 3, 4};
     for(const auto& mode : {"nearest", "linear", "cubic"})
     {
-        auto results = run_gpu_gridsample(make(mode));
+        std::vector<float> results = run_gpu_gridsample(make(mode));
         EXPECT(migraphx::verify::verify_rms_range(results, gold));
     }
 }
@@ -271,7 +271,7 @@ TEST_CASE(gridsample_gpu_nonstandard_input)
         xt,
         grid);
 
-    auto results = run_gpu_gridsample(p);
+    std::vector<float> results = run_gpu_gridsample(p);
 
     // The transpose rearranges {1,2,3,4} back into [[1,2],[3,4]], so sampling
     // the four corners returns them in order -- same answer as the standard
@@ -313,8 +313,8 @@ TEST_CASE(gridsample_gpu_large)
         return p;
     };
 
-    auto gpu_results = run_gpu_gridsample(make());
-    auto ref_results = run_ref_program(make());
+    std::vector<float> gpu_results = run_gpu_gridsample(make());
+    std::vector<float> ref_results = run_ref_program(make());
 
     EXPECT(gpu_results.size() == 2 * 3 * 32 * 32);
     EXPECT(migraphx::verify::verify_rms_range(gpu_results, ref_results));

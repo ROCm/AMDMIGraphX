@@ -35,11 +35,11 @@ struct test_reduce_multi_out : verify_program<test_reduce_multi_out>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {4, 8, 16}};
-        auto x         = mm->add_parameter("x", s);
-        auto x2        = mm->add_instruction(migraphx::make_op("mul"), x, x);
-        auto rsum1     = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
-        auto rsum2     = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x2);
-        auto rsum1_bc  = mm->add_instruction(
+        auto x        = mm->add_parameter("x", s);
+        auto x2       = mm->add_instruction(migraphx::make_op("mul"), x, x);
+        auto rsum1    = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsum2    = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x2);
+        auto rsum1_bc = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {4, 8, 1}}}), rsum1);
         auto rsum2_bc = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {4, 8, 1}}}), rsum2);

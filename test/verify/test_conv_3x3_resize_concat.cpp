@@ -37,8 +37,7 @@
 // inputs. The ragged tail (Cb % 8 != 0) and K tail (K % 8 != 0) cover the
 // partial-block masking; batch 2 covers the n-offset addressing.
 template <std::size_t Ca, std::size_t Cb, std::size_t K, std::size_t H, std::size_t W>
-struct test_conv_3x3_resize_concat
-    : verify_program<test_conv_3x3_resize_concat<Ca, Cb, K, H, W>>
+struct test_conv_3x3_resize_concat : verify_program<test_conv_3x3_resize_concat<Ca, Cb, K, H, W>>
 {
     migraphx::program create_program() const
     {

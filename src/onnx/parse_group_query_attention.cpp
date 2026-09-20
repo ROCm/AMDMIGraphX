@@ -36,6 +36,11 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
 
+    static bool has_input(const std::vector<instruction_ref>& args, std::size_t index)
+    {
+        return args.size() > index and args.at(index)->name() != "undefined";
+    }
+
     static instruction_ref insert_rotary(module& m,
                                          bool interleaved,
                                          std::size_t sequence_length,
@@ -105,9 +110,17 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             }
         }
 
-        if(args.size() < 7 or args.size() > 11)
+        if(args.size() < 7 or args.size() > 12)
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
+        }
+        if(has_input(args, 9))
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: position_ids input is not yet supported.");
+        }
+        if(has_input(args, 10))
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: attention_bias input is not yet supported.");
         }
 
         auto qkv = args.at(0);
@@ -255,8 +268,36 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
-        auto where   = info.add_instruction(make_op("where"), mask, ninf, mul);
+        auto where = info.add_instruction(make_op("where"), mask, ninf, mul);
+        // head_sink adds a per-head logit to the softmax denominator only (attention sinks):
+        // append it as an extra score column, then drop that column after the softmax
+        const bool has_head_sink = has_input(args, 11);
+        if(has_head_sink)
+        {
+            auto sink = args.at(11);
+            if(sink->get_shape().elements() != num_heads)
+            {
+                MIGRAPHX_THROW("GroupQueryAttention: head_sink must have num_heads elements");
+            }
+            if(sink->get_shape().type() != q_shape.type())
+            {
+                sink = info.add_instruction(make_op("convert", {{"target_type", q_shape.type()}}),
+                                            sink);
+            }
+            sink = info.add_instruction(make_op("reshape", {{"dims", {1, num_heads, 1, 1}}}), sink);
+            sink = info.add_instruction(
+                make_op("multibroadcast",
+                        {{"out_lens", {batch_size, num_heads, sequence_length, 1}}}),
+                sink);
+            where = info.add_instruction(make_op("concat", {{"axis", 3}}), where, sink);
+        }
         auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+        if(has_head_sink)
+        {
+            softmax = info.add_instruction(
+                make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {max_seq_len}}}),
+                softmax);
+        }
         auto scores  = info.add_instruction(make_op("dot"), softmax, v);
         auto out =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);

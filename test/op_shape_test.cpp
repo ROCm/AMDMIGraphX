@@ -2323,56 +2323,47 @@ TEST_CASE(get_tuple_elem_test)
     throws_shape(migraphx::make_op("get_tuple_elem", {{"index", 0}}), s2);
 }
 
-
-TEST_CASE(gridsample_shape){
+TEST_CASE(gridsample_shape)
+{
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
     migraphx::shape grid{migraphx::shape::float_type, {2, 6, 7, 2}};
     expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 6, 7}},
-                    migraphx::make_op("gridsample"),
-                    input,
-                    grid);
-
+                 migraphx::make_op("gridsample"),
+                 input,
+                 grid);
 }
 
-TEST_CASE(gridsample_shape_modes){
+TEST_CASE(gridsample_shape_modes)
+{
     migraphx::shape input{migraphx::shape::float_type, {2, 4, 3, 7}};
     migraphx::shape grid{migraphx::shape::float_type, {2, 5, 6, 2}};
     migraphx::shape output{migraphx::shape::float_type, {2, 4, 5, 6}};
-    //it isnt supposed to change... 
+    // it isnt supposed to change...
     expect_shape(output, migraphx::make_op("gridsample", {{"mode", "nearest"}}), input, grid);
     expect_shape(output, migraphx::make_op("gridsample", {{"mode", "linear"}}), input, grid);
     expect_shape(output, migraphx::make_op("gridsample", {{"mode", "cubic"}}), input, grid);
-    
-    //Opset 16 Legacy
+
+    // Opset 16 Legacy
     expect_shape(output, migraphx::make_op("gridsample", {{"mode", "bilinear"}}), input, grid);
     expect_shape(output, migraphx::make_op("gridsample", {{"mode", "bicubic"}}), input, grid);
-
-
 }
 
-TEST_CASE(gridsample_shape_invalid_mode){
-    // TODO an unknown mode throws.  Note the current check is substring based
-    // (contains(mode, "linear")), so "nonlinear" and "trilinear" are wrongly
-    // accepted -- decide whether to assert the bug or tighten compute_shape to
-    // exact comparisons first.  Exact comparison is the better fix now that the
-    // parser normalizes the spelling.
-
-    migraphx::shape input{migraphx::shape::float_type, {2, 4, 3, 7}};
-    migraphx::shape grid{migraphx::shape::float_type, {2, 5, 6, 2}};
-    throws_shape(migraphx::make_op("gridsample", {{"mode", "error"}}), input, grid);
-    throws_shape(migraphx::make_op("gridsample", {{"mode", "linearbanana"}}), input, grid);
-    throws_shape(migraphx::make_op("gridsample", {{"mode", ""}}), input, grid);
-   
-    
+TEST_CASE(gridsample_shape_invalid_mode)
+{
+    // mode is an enum, so an unknown spelling is rejected when the operator is
+    // constructed rather than during shape inference -- make_op throws before
+    // throws_shape would ever see it. "linearbanana" pins the old substring
+    // behaviour shut: contains(mode, "linear") used to accept it.
+    for(const std::string& mode : {"error", "linearbanana", "nonlinear", ""})
+        EXPECT(test::throws([&] { migraphx::make_op("gridsample", {{"mode", mode}}); }));
 }
 
-
-TEST_CASE(gridsample_shape_invalid_padding_mode){
-    migraphx::shape input{migraphx::shape::float_type, {2, 4, 3, 7}};
-    migraphx::shape grid{migraphx::shape::float_type, {2, 5, 6, 2}};
-    throws_shape(migraphx::make_op("gridsample", {{"padding_mode", "nozeros"}}), input, grid);
-    throws_shape(migraphx::make_op("gridsample", {{"padding_mode", "zerosbanana"}}), input, grid);
-    throws_shape(migraphx::make_op("gridsample", {{"padding_mode", ""}}), input, grid);
+TEST_CASE(gridsample_shape_invalid_padding_mode)
+{
+    // As above, padding_mode is an enum and rejects unknown names at
+    // construction time.
+    for(const std::string& padding : {"nozeros", "zerosbanana", ""})
+        EXPECT(test::throws([&] { migraphx::make_op("gridsample", {{"padding_mode", padding}}); }));
 }
 
 TEST_CASE(gridsample_shape_bad_input_rank)
@@ -2381,13 +2372,12 @@ TEST_CASE(gridsample_shape_bad_input_rank)
     migraphx::shape input_one{migraphx::shape::float_type, {1}};
     migraphx::shape input_three{migraphx::shape::float_type, {1, 2, 3}};
     migraphx::shape input_too_many{migraphx::shape::float_type, {1, 2, 3, 4, 5}};
-    
+
     migraphx::shape grid{migraphx::shape::float_type, {2, 6, 7, 2}};
     throws_shape(migraphx::make_op("gridsample"), input_zero, grid);
     throws_shape(migraphx::make_op("gridsample"), input_one, grid);
     throws_shape(migraphx::make_op("gridsample"), input_three, grid);
     throws_shape(migraphx::make_op("gridsample"), input_too_many, grid);
-  
 }
 
 TEST_CASE(gridsample_shape_bad_grid)
@@ -2438,8 +2428,7 @@ TEST_CASE(gridsample_shape_nonstandard)
     // declares attributes() = {{"require_std_shape", true}} so auto_contiguous
     // inserts the contiguous instead.  Assert a transposed or broadcast x still
     // computes the expected shape rather than throwing, so the two mechanisms
-    // do not silently drift apart. 
-
+    // do not silently drift apart.
 }
 
 TEST_CASE(gridsample_shape_dynamic)

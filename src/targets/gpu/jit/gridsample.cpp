@@ -25,6 +25,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/op/gridsample.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -67,30 +68,29 @@ struct gridsample_compiler : compiler<gridsample_compiler>
         options.emplace_param("-DALIGN_CORNERS=" +
                               std::string(v.at("align_corners").to<bool>() ? "true" : "false"));
 
-        // must match enum gridsample_padding
-        auto padding     = v.at("padding_mode").to<std::string>();
+        // must match enum gridsample_padding in kernels/gridsample.hpp, which is
+        // device-only text and so not visible here
         int padding_mode = 0;
-        if(padding == "border")
-            padding_mode = 1;
-        else if(padding == "reflection")
-            padding_mode = 2;
-        else if(padding != "zeros")
-            MIGRAPHX_THROW("gridsample: invalid padding_mode: " + padding);
+        switch(v.at("padding_mode").to<op::gridsample::padding>())
+        {
+        case op::gridsample::padding::zeros: padding_mode = 0; break;
+        case op::gridsample::padding::border: padding_mode = 1; break;
+        case op::gridsample::padding::reflection: padding_mode = 2; break;
+        }
 
         options.emplace_param("-DPADDING_MODE=" + std::to_string(padding_mode));
 
-        // must match enum gridsample_mode in kernels/gridsample.hpp. Accepts
-        // both opset-16 ("bilinear"/"bicubic") and opset-20+
-        // ("linear"/"cubic") spellings; "cubic" is a substring of "bicubic"
-        // so a single check covers both.
-        auto mode     = v.at("mode").to<std::string>();
-        int grid_mode = 1;
-        if(contains(mode, "nearest"))
-            grid_mode = 0;
-        else if(contains(mode, "cubic"))
-            grid_mode = 2;
-        else if(not(contains(mode, "linear") or contains(mode, "bilinear")))
-            MIGRAPHX_THROW("gridsample: invalid mode: " + mode);
+        // must match enum gridsample_mode in kernels/gridsample.hpp. The opset-16
+        // spellings select the same kernel as their opset-20 names.
+        int grid_mode = 0;
+        switch(v.at("mode").to<op::gridsample::sample_mode>())
+        {
+        case op::gridsample::sample_mode::nearest: grid_mode = 0; break;
+        case op::gridsample::sample_mode::linear:
+        case op::gridsample::sample_mode::bilinear: grid_mode = 1; break;
+        case op::gridsample::sample_mode::cubic:
+        case op::gridsample::sample_mode::bicubic: grid_mode = 2; break;
+        }
 
         options.emplace_param("-DGRID_MODE=" + std::to_string(grid_mode));
 

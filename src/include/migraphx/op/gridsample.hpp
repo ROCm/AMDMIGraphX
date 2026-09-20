@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_GRIDSAMPLE_HPP
 
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/enum.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
@@ -53,10 +54,21 @@ namespace op {
  */
 struct gridsample
 {
-    std::string mode = "linear";
+    // Nested so the generated to_string/from_string are hidden friends: declared
+    // at namespace scope they would hide migraphx::to_string for every other
+    // header in namespace op.
+    //
+    // Both opset spellings are kept. Opset 16 uses "bilinear"/"bicubic" and
+    // opset 20 renamed them to "linear"/"cubic"; the ONNX parser normalizes the
+    // legacy names away, but the operator still accepts them when constructed
+    // directly.
+    MIGRAPHX_NESTED_ENUM_CLASS(sample_mode, nearest, linear, cubic, bilinear, bicubic)
+    MIGRAPHX_NESTED_ENUM_CLASS(padding, zeros, border, reflection)
 
-    std::string padding_mode = "zeros";
-    bool align_corners       = false;
+    sample_mode mode = sample_mode::linear;
+
+    padding padding_mode = padding::zeros;
+    bool align_corners   = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -70,15 +82,9 @@ struct gridsample
 
     shape compute_shape(std::vector<shape> inputs) const
     {
+        // mode and padding_mode are enums, so an unknown spelling is rejected when
+        // the operator is constructed rather than here.
         check_shapes{inputs, *this}.has(2).same_type();
-        bool supported_modes = mode == "nearest" or mode == "linear" or mode == "bilinear" or
-                               mode == "cubic" or mode == "bicubic";
-        if(not supported_modes)
-            MIGRAPHX_THROW("GRIDSAMPLE: only modes \"nearest\", \"linear\" and \"cubic\" are "
-                           "supported or its legacy variants, got \"" +
-                           mode + "\"");
-        if(padding_mode != "zeros" and padding_mode != "border" and padding_mode != "reflection")
-            MIGRAPHX_THROW("GRIDSAMPLE: unknown padding_mode \"" + padding_mode + "\"");
 
         const auto& x_s = inputs.at(0);
         const auto& g_s = inputs.at(1);
@@ -115,11 +121,11 @@ struct gridsample
 
     float pad_coord(float c, float size) const
     {
-        if(padding_mode == "reflection")
+        if(padding_mode == padding::reflection)
         {
             c = reflect_coord(c, align_corners ? size - 1.0f : size, align_corners ? 0.0f : -0.5f);
         }
-        if(padding_mode != "zeros")
+        if(padding_mode != padding::zeros)
         {
             c = std::min(std::max(c, 0.0f), size - 1.0f);
         }
@@ -291,25 +297,17 @@ struct gridsample
                                        in_w,
                                        in_h};
 
-                if(contains(mode, "linear"))
+                if(mode == sample_mode::linear or mode == sample_mode::bilinear)
                 {
                     sample_linear(output, x, site);
                 }
-                else if(contains(mode, "nearest"))
+                else if(mode == sample_mode::nearest)
                 {
                     sample_nearest(output, x, site);
                 }
-                else if(contains(mode, "cubic"))
-                {
-                    sample_cubic(output, x, site);
-                }
                 else
                 {
-                    // compute_shape rejects every other spelling, so this is
-                    // unreachable unless the two validations drift apart.
-                    MIGRAPHX_THROW("GRIDSAMPLE: only modes \"nearest\", \"linear\" and \"cubic\" "
-                                   "are supported or its legacy variants, got \"" +
-                                   mode + "\"");
+                    sample_cubic(output, x, site);
                 }
             });
         });

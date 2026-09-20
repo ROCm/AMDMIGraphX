@@ -109,7 +109,7 @@ TEST_CASE(unpack_int4_as_values)
     EXPECT(migraphx::float_equal(s[0], -6.0f));
     EXPECT(migraphx::float_equal(s[1], 7.0f));
     migraphx::vec<uint8_t, 16> w{};
-    w[5] = 0x7a;
+    w[5]   = 0x7a;
     auto v = migraphx::unpack_int4_as<float>(w, -8.0f);
     EXPECT(migraphx::float_equal(v[10], 2.0f));
     EXPECT(migraphx::float_equal(v[11], -1.0f));

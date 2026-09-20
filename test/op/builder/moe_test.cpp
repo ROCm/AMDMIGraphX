@@ -326,10 +326,8 @@ TEST_CASE(moe_zero_points_shape_mismatch_test)
     auto u  = mm.add_instruction(migraphx::make_op("undefined"));
     EXPECT(test::throws<migraphx::exception>(
         [&] {
-            migraphx::op::builder::add("moe",
-                                       mm,
-                                       {x, r, w1, s1, u, w2, s2, u, u, u, u, z1},
-                                       {{"expert_weight_bits", 8}});
+            migraphx::op::builder::add(
+                "moe", mm, {x, r, w1, s1, u, w2, s2, u, u, u, u, z1}, {{"expert_weight_bits", 8}});
         },
         "fc1_zero_points columns must be 2 with 3 experts"));
 }
@@ -344,9 +342,6 @@ TEST_CASE(moe_zero_points_without_scales_test)
     auto z1 = mm.add_parameter("z1", {migraphx::shape::uint8_type, {3, 2}});
     auto u  = mm.add_instruction(migraphx::make_op("undefined"));
     EXPECT(test::throws<migraphx::exception>(
-        [&] {
-            migraphx::op::builder::add(
-                "moe", mm, {x, r, w1, u, u, w2, u, u, u, u, u, z1});
-        },
+        [&] { migraphx::op::builder::add("moe", mm, {x, r, w1, u, u, w2, u, u, u, u, u, z1}); },
         "fc1_zero_points require fc1_scales"));
 }

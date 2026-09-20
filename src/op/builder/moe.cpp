@@ -263,8 +263,8 @@ struct moe : op_builder<moe>
                                "_scales must have shape [num_experts, out_features] or "
                                "[num_experts, out_features, nblocks]");
         }
-        if(bias.has_value() and (*bias)->get_shape().lens() !=
-                                    std::vector<std::size_t>{num_experts, out_features})
+        if(bias.has_value() and
+           (*bias)->get_shape().lens() != std::vector<std::size_t>{num_experts, out_features})
             MIGRAPHX_THROW("moe: " + name + "_bias must have shape [num_experts, out_features]");
         if(zero_points.has_value())
         {
@@ -278,8 +278,8 @@ struct moe : op_builder<moe>
             if((z_lens.size() != 2 and z_lens.size() != 3) or z_lens.front() != num_experts or
                z_lens.at(1) != z_cols)
                 MIGRAPHX_THROW("moe: " + name + "_zero_points columns must be " +
-                               std::to_string(z_cols) + " with " +
-                               std::to_string(num_experts) + " experts");
+                               std::to_string(z_cols) + " with " + std::to_string(num_experts) +
+                               " experts");
         }
 
         auto wg = m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), w, selected);

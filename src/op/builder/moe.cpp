@@ -192,15 +192,15 @@ struct moe : op_builder<moe>
             ins, make_op("multibroadcast", {{"out_lens", {tokens, top_k, hidden}}}), xr);
         xr = m.insert_instruction(ins, make_op("reshape", {{"dims", {rows, 1, hidden}}}), xr);
 
-        auto h1 = fc(m, ins, xr, selected, args, 0, hidden, fc1_out);
+        auto h1 = fc(m, ins, xr, selected, args, 0, num_experts, hidden, fc1_out);
 
         std::optional<instruction_ref> h3;
         if(arg(args, slot_fc3_weights).has_value())
-            h3 = fc(m, ins, xr, selected, args, 2, hidden, inter);
+            h3 = fc(m, ins, xr, selected, args, 2, num_experts, hidden, inter);
 
         auto activated = apply_activation(m, ins, h1, h3, inter);
 
-        auto h2 = fc(m, ins, activated, selected, args, 1, inter, hidden);
+        auto h2 = fc(m, ins, activated, selected, args, 1, num_experts, inter, hidden);
 
         // Weight each expert output by its routing weight and sum per token
         auto wr = m.insert_instruction(
@@ -226,6 +226,7 @@ struct moe : op_builder<moe>
                        instruction_ref selected,
                        const std::vector<instruction_ref>& args,
                        std::size_t n,
+                       std::size_t num_experts,
                        std::size_t in_features,
                        std::size_t out_features) const
     {
@@ -240,6 +241,9 @@ struct moe : op_builder<moe>
         if(w_lens.size() != 3)
             MIGRAPHX_THROW("moe: " + name +
                            "_weights must have shape [num_experts, out_features, in_features]");
+        if(w_lens.front() != num_experts)
+            MIGRAPHX_THROW("moe: " + name + "_weights num_experts must be " +
+                           std::to_string(num_experts));
         if(w_lens.at(1) != out_features)
             MIGRAPHX_THROW("moe: " + name + "_weights out_features must be " +
                            std::to_string(out_features));
@@ -250,6 +254,33 @@ struct moe : op_builder<moe>
                            std::to_string(packed_in));
         if(quantized and w->get_shape().type() != shape::uint8_type)
             MIGRAPHX_THROW("moe: quantized " + name + "_weights must be uint8");
+        if(scales.has_value())
+        {
+            const auto s_lens = (*scales)->get_shape().lens();
+            if((s_lens.size() != 2 and s_lens.size() != 3) or s_lens.front() != num_experts or
+               s_lens.at(1) != out_features)
+                MIGRAPHX_THROW("moe: " + name +
+                               "_scales must have shape [num_experts, out_features] or "
+                               "[num_experts, out_features, nblocks]");
+        }
+        if(bias.has_value() and (*bias)->get_shape().lens() !=
+                                    std::vector<std::size_t>{num_experts, out_features})
+            MIGRAPHX_THROW("moe: " + name + "_bias must have shape [num_experts, out_features]");
+        if(zero_points.has_value())
+        {
+            if(not quantized)
+                MIGRAPHX_THROW("moe: " + name + "_zero_points require " + name + "_scales");
+            const auto z_lens = (*zero_points)->get_shape().lens();
+            // 2D zero points pack the columns, 3D pack the blocks
+            const std::size_t z_cols = (expert_weight_bits == 4 and z_lens.size() == 2)
+                                           ? (out_features + 1) / 2
+                                           : out_features;
+            if((z_lens.size() != 2 and z_lens.size() != 3) or z_lens.front() != num_experts or
+               z_lens.at(1) != z_cols)
+                MIGRAPHX_THROW("moe: " + name + "_zero_points columns must be " +
+                               std::to_string(z_cols) + " with " +
+                               std::to_string(num_experts) + " experts");
+        }
 
         auto wg = m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), w, selected);
         if(quantized)

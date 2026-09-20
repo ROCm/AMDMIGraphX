@@ -267,3 +267,86 @@ TEST_CASE(moe_int8_per_column_scales_test)
                                    -0.149735503f};
     EXPECT(migraphx::verify::verify_rms_range(result, expected));
 }
+
+TEST_CASE(moe_fc2_weights_expert_mismatch_test)
+{
+    migraphx::module mm;
+    auto x  = mm.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto r  = mm.add_parameter("router", {migraphx::shape::float_type, {2, 3}});
+    auto w1 = mm.add_parameter("w1", {migraphx::shape::float_type, {3, 2, 2}});
+    auto w2 = mm.add_parameter("w2", {migraphx::shape::float_type, {2, 2, 2}});
+    auto u  = mm.add_instruction(migraphx::make_op("undefined"));
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::op::builder::add("moe", mm, {x, r, w1, u, u, w2}); },
+        "fc2_weights num_experts must be 3"));
+}
+
+TEST_CASE(moe_fc2_bias_shape_mismatch_test)
+{
+    migraphx::module mm;
+    auto x  = mm.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto r  = mm.add_parameter("router", {migraphx::shape::float_type, {2, 3}});
+    auto w1 = mm.add_parameter("w1", {migraphx::shape::float_type, {3, 2, 2}});
+    auto w2 = mm.add_parameter("w2", {migraphx::shape::float_type, {3, 2, 2}});
+    auto b2 = mm.add_parameter("b2", {migraphx::shape::float_type, {2, 2}});
+    auto u  = mm.add_instruction(migraphx::make_op("undefined"));
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::op::builder::add("moe", mm, {x, r, w1, u, u, w2, u, b2}); },
+        "fc2_bias must have shape [num_experts, out_features]"));
+}
+
+TEST_CASE(moe_scales_expert_mismatch_test)
+{
+    migraphx::module mm;
+    auto x  = mm.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto r  = mm.add_parameter("router", {migraphx::shape::float_type, {2, 3}});
+    auto w1 = mm.add_parameter("w1", {migraphx::shape::uint8_type, {3, 2, 2}});
+    auto s1 = mm.add_parameter("s1", {migraphx::shape::float_type, {2, 2}});
+    auto w2 = mm.add_parameter("w2", {migraphx::shape::uint8_type, {3, 2, 2}});
+    auto s2 = mm.add_parameter("s2", {migraphx::shape::float_type, {3, 2}});
+    auto u  = mm.add_instruction(migraphx::make_op("undefined"));
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            migraphx::op::builder::add(
+                "moe", mm, {x, r, w1, s1, u, w2, s2}, {{"expert_weight_bits", 8}});
+        },
+        "fc1_scales must have shape"));
+}
+
+TEST_CASE(moe_zero_points_shape_mismatch_test)
+{
+    migraphx::module mm;
+    auto x  = mm.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto r  = mm.add_parameter("router", {migraphx::shape::float_type, {2, 3}});
+    auto w1 = mm.add_parameter("w1", {migraphx::shape::uint8_type, {3, 2, 2}});
+    auto s1 = mm.add_parameter("s1", {migraphx::shape::float_type, {3, 2}});
+    auto w2 = mm.add_parameter("w2", {migraphx::shape::uint8_type, {3, 2, 2}});
+    auto s2 = mm.add_parameter("s2", {migraphx::shape::float_type, {3, 2}});
+    auto z1 = mm.add_parameter("z1", {migraphx::shape::uint8_type, {2, 2}});
+    auto u  = mm.add_instruction(migraphx::make_op("undefined"));
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            migraphx::op::builder::add("moe",
+                                       mm,
+                                       {x, r, w1, s1, u, w2, s2, u, u, u, u, z1},
+                                       {{"expert_weight_bits", 8}});
+        },
+        "fc1_zero_points columns must be 2 with 3 experts"));
+}
+
+TEST_CASE(moe_zero_points_without_scales_test)
+{
+    migraphx::module mm;
+    auto x  = mm.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto r  = mm.add_parameter("router", {migraphx::shape::float_type, {2, 3}});
+    auto w1 = mm.add_parameter("w1", {migraphx::shape::float_type, {3, 2, 2}});
+    auto w2 = mm.add_parameter("w2", {migraphx::shape::float_type, {3, 2, 2}});
+    auto z1 = mm.add_parameter("z1", {migraphx::shape::uint8_type, {3, 2}});
+    auto u  = mm.add_instruction(migraphx::make_op("undefined"));
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            migraphx::op::builder::add(
+                "moe", mm, {x, r, w1, u, u, w2, u, u, u, u, u, z1});
+        },
+        "fc1_zero_points require fc1_scales"));
+}

@@ -26,7 +26,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/dfor.hpp>
-#include <migraphx/env.hpp>
 #include <array>
 #include <string>
 #include <vector>
@@ -34,10 +33,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
-
-// Set to fall back to the op-decomposition below for bilinear sampling instead
-// of emitting the gridsample operator. Kept for A/B testing the two paths.
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_GRIDSAMPLE_OP)
 
 struct grid_sampler
 {
@@ -723,8 +718,7 @@ struct parse_gridsample : op_parser<parse_gridsample>
             contains(mode, "nearest") or contains(mode, "linear") or contains(mode, "cubic");
         bool is_dynamic = x->get_shape().dynamic() or grid_shape.dynamic();
 
-        if(not enabled(MIGRAPHX_DISABLE_GRIDSAMPLE_OP{}) and supported_modes and
-           x->get_shape().type() == grid_shape.type() and not is_dynamic)
+        if(supported_modes and x->get_shape().type() == grid_shape.type() and not is_dynamic)
         {
             return info.add_instruction(make_op("gridsample",
                                                 {{"mode", mode},

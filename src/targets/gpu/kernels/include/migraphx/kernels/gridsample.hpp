@@ -68,6 +68,12 @@ MIGRAPHX_DEVICE_CONSTEXPR float gridsample_unnormalize(float c, float size)
 
 MIGRAPHX_DEVICE_CONSTEXPR float gridsample_reflect(float c, float size, float corner_start)
 {
+    // A single-pixel dimension has a zero-width reflection span (align_corners
+    // makes this size - 1 == 0). Every coordinate reflects onto the only pixel,
+    // so short-circuit before the division below. Mirrors
+    // op::gridsample::reflect_coord().
+    if(size == 0.0f)
+        return corner_start;
     float idx        = migraphx::abs(corner_start - c);
     float size_times = migraphx::floor(migraphx::floor(idx) / size);
     float extra      = idx - size_times * size;
@@ -131,8 +137,14 @@ __device__ void gridsample(const T& x_t, const G& grid_t, U& y_t)
             const index_int xi = valid ? rx : 0.0f;
             const index_int yi = valid ? ry : 0.0f;
 
-            y_t[idx] = valid ? implicit_conversion(x_t[migraphx::array<index_int, 4>{n, c, yi, xi}])
-                             : implicit_conversion(0.0f);
+            // Accumulate through float before the single implicit_conversion, as the
+            // other two modes do. Wrapping both ternary arms instead makes the
+            // conditional ambiguous whenever the tensor type is not float.
+            float sampled = 0.0f;
+            if(valid)
+                sampled = x_t[migraphx::array<index_int, 4>{n, c, yi, xi}];
+
+            y_t[idx] = implicit_conversion(sampled);
         }
         else if constexpr(Mode == gridsample_mode_cubic)
         {

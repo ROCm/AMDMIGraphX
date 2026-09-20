@@ -101,6 +101,11 @@ struct gridsample
 
     static float reflect_coord(float c, float size, float corner_start)
     {
+        // A single-pixel dimension has a zero-width reflection span (align_corners
+        // makes this size - 1 == 0). Every coordinate reflects onto the only pixel,
+        // so short-circuit before the division below.
+        if(float_equal(size, 0.0f))
+            return corner_start;
         float idx        = std::abs(corner_start - c);
         float size_times = std::floor(std::floor(idx) / size);
         float extra      = idx - size_times * size;

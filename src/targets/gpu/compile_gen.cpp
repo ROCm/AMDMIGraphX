@@ -82,13 +82,17 @@ vectorize vectorize::elements(std::size_t axis,
                        if(len == 1 and input.elements() > sizes.front())
                            return sizes.front();
                        auto it = std::find_if(sizes.begin(), sizes.end(), [&](auto vsize) {
-                           // The len is divisible by the size and all the strides are divisible by
-                           // the size
-                           return (len % vsize) == 0 and
-                                  std::all_of(
-                                      input.strides().begin(), input.strides().end(), [&](auto i) {
-                                          return contains({0, 1}, i) or i % vsize == 0;
-                                      });
+                           if((len % vsize) != 0)
+                               return false;
+                           // An input broadcast along the axis is stepped rather than
+                           // vectorized, which leaves its other strides unchanged
+                           if(stride == 0)
+                               return true;
+                           // All the strides are divisible by the size
+                           return std::all_of(
+                               input.strides().begin(), input.strides().end(), [&](auto i) {
+                                   return contains({0, 1}, i) or i % vsize == 0;
+                               });
                        });
                        if(it != sizes.end())
                            return *it;

@@ -626,7 +626,7 @@ struct find_reduce_slice
         auto reduce_axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
         if(contains(reduce_axes, raxis))
             return;
-        auto len = static_cast<std::int64_t>(rlens[raxis]);
+        std::int64_t len = rlens[raxis];
         if(start < 0 or end <= start or end > len or end - start == len)
             return;
         if(not all_of(reduce->inputs(), [&](instruction_ref x) {
@@ -639,9 +639,9 @@ struct find_reduce_slice
             return m.insert_instruction(slice, slice_op, x);
         });
         // Broadcasts inside the submodule expand to the full axis
-        auto new_len     = static_cast<std::size_t>(end - start);
-        const auto* oldm = reduce->module_inputs().front();
-        auto* sm         = mpm.create_module(oldm->name() + "_slice" + std::to_string(start));
+        std::size_t new_len = end - start;
+        const auto* oldm    = reduce->module_inputs().front();
+        auto* sm            = mpm.create_module(oldm->name() + "_slice" + std::to_string(start));
         sm->set_bypass();
         auto outs = sm->fuse(
             *oldm, inputs, nullptr, reduce_reshape::transform_op([&](const operation& sop) {

@@ -22,59 +22,16 @@
  * THE SOFTWARE.
  */
 
-// Keep this POC plugin independent of migraphx_gpu while supplying the small
-// helper and unreachable code_object_op definitions pulled in by mlir.cpp.
+// Keep this POC plugin independent of migraphx_gpu while supplying the
+// unreachable code_object_op definitions pulled in by mlir.cpp.
 
-#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/errors.hpp>
-#include <string>
 #include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-namespace gen {
-
-namespace {
-std::vector<std::string> plugin_get_op_names(const module& m)
-{
-    std::vector<std::string> result;
-    for(auto& ins : m)
-    {
-        if(starts_with(ins.name(), "@"))
-            continue;
-        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
-            continue;
-        if(ins.name() == "pointwise")
-        {
-            auto names = plugin_get_op_names(*ins.module_inputs().front());
-            result.insert(result.end(), names.begin(), names.end());
-        }
-        else
-        {
-            result.push_back(ins.name());
-        }
-    }
-    return result;
-}
-} // namespace
-
-std::string generate_name_from_ops(const module& m, const std::string& postname)
-{
-    auto op_names = plugin_get_op_names(m);
-    if(not postname.empty())
-        op_names.push_back(postname);
-    if(op_names.empty())
-        return "noop";
-    return join_strings(op_names, "_");
-}
-
-} // namespace gen
 
 // The plugin returns code_object_op as data; migraphx_gpu owns its insertion
 // and execution. The full mlir.cpp still instantiates these unreachable calls,

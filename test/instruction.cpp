@@ -28,6 +28,39 @@
 #include "test.hpp"
 #include "rob.hpp"
 
+struct can_eval_finalize_passthrough
+{
+    std::string name() const { return "can_eval_finalize_passthrough"; }
+
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+    {
+        return inputs.at(0);
+    }
+
+    migraphx::argument compute(const migraphx::shape&,
+                               const std::vector<migraphx::argument>& args) const
+    {
+        return args.at(0);
+    }
+
+    void finalize(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::shape>&)
+    {
+    }
+};
+
+TEST_CASE(can_eval_rejects_finalize_op)
+{
+    migraphx::module m;
+    auto one       = m.add_literal(1);
+    auto evaluable = m.add_instruction(migraphx::make_op("identity"), one);
+    auto finalized = m.add_instruction(can_eval_finalize_passthrough{}, one);
+    auto dependent = m.add_instruction(migraphx::make_op("identity"), finalized);
+
+    EXPECT(evaluable->can_eval());
+    EXPECT(not finalized->can_eval());
+    EXPECT(not dependent->can_eval());
+}
+
 TEST_CASE(check_undefined)
 {
     migraphx::module m;

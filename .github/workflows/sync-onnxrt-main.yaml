@@ -4,10 +4,16 @@ on:
   schedule:
     - cron: '07 17 * * 5'
 
+permissions:
+  contents: read
+
 jobs:
   createPullRequest:
     name: Update and create pull request
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: get_date
         run: echo todays_date="$(date +'%Y-%m-%d')" >> $GITHUB_ENV
@@ -18,7 +24,7 @@ jobs:
       - name: echo_sha1
         run: echo ${{ env.onnxsha }}
 
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with: 
           ref: develop
 
@@ -26,7 +32,7 @@ jobs:
         run:  echo ${{ env.onnxsha }} > test/onnx/.onnxrt-commit
 
       - name: Make changes to pull request
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@38e0b6e68b4c852a5500a94740f0e535e0d7ba54  # v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Update onnxruntime main ${{ env.onnxsha }}

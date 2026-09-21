@@ -28,8 +28,6 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/onnx.hpp>
-#include <migraphx/tf.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
@@ -46,6 +44,13 @@
 #include <algorithm>
 #include <cstdarg>
 #include <sstream>
+
+#ifdef MIGRAPHX_ENABLE_ONNX
+#include <migraphx/onnx.hpp>
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+#include <migraphx/tf.hpp>
+#endif
 
 namespace migraphx {
 
@@ -190,6 +195,11 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+static void set_compile_mode(compile_options& options, int8_t value)
+{
+    options.compile_mode = convert_to_compile_mode(value);
+}
+
 // Parse the backend options from `options_json` and merge them into the
 // compile options. See migraphx::set_backend_options for the merge semantics.
 static void set_backend_options(compile_options& options, const char* options_json, va_list vlist)
@@ -209,6 +219,8 @@ static shape::dynamic_dimension make_symbolic_dynamic_dimension(
 {
     return shape::make_symbolic_dynamic_dimension(expression, symbols);
 }
+
+#ifdef MIGRAPHX_ENABLE_ONNX
 
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
@@ -248,9 +260,17 @@ set_dim_param(onnx_options& options, const char* name, const shape::dynamic_dime
     options.dim_params[std::string(name)] = dd;
 }
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 static void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
+
+#endif
+
+#ifdef MIGRAPHX_ENABLE_ONNX
 
 static void
 set_input_parameter_shape(onnx_options& options, const char* name, std::vector<std::size_t> dims)
@@ -265,6 +285,10 @@ static void set_dyn_input_parameter_shape(onnx_options& options,
     options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 static void
 set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
 {
@@ -275,6 +299,8 @@ static void set_output_names(tf_options& options, std::vector<const char*> names
 {
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
+
+#endif
 
 static std::vector<argument>
 run_async(program& p, const parameter_map& params, void* s, std::string_view name)
@@ -359,12 +385,16 @@ static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_optio
     migraphx::quantize_fp8(prog, t, options.calibration);
 }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 static size_t get_onnx_operators_size() { return migraphx::get_onnx_operators().size(); }
 
 static char* get_onnx_operator_name_at_index(std::size_t index)
 {
     return const_cast<char*>(get_onnx_operators().at(index).c_str()); // NOLINT
 }
+
+#endif
 
 #ifdef __clang__
 #pragma clang diagnostic push
@@ -2282,6 +2312,31 @@ extern "C" migraphx_status migraphx_onnx_options_set_dim_param(
     return api_error_result;
 }
 
+extern "C" migraphx_status
+migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_t>(migraphx::parse_onnx((name), (options->object)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
+                                                      const void* data,
+                                                      size_t size,
+                                                      migraphx_onnx_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_t>(
+            migraphx::parse_onnx_buffer((data), (size), (options->object)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_file_options_destroy(migraphx_file_options_t file_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((file_options)); });
@@ -2376,6 +2431,18 @@ migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t com
     return api_error_result;
 }
 
+extern "C" migraphx_status
+migraphx_compile_options_set_compile_mode(migraphx_compile_options_t compile_options, int8_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_compile_mode((compile_options->object), (value));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_compile_options_set_advance_backend_options(
     migraphx_compile_options_t compile_options, const char* options_json, ...)
 {
@@ -2388,31 +2455,6 @@ extern "C" migraphx_status migraphx_compile_options_set_advance_backend_options(
         migraphx::set_backend_options((compile_options->object), (options_json), (vlist));
     });
     va_end(vlist);
-    return api_error_result;
-}
-
-extern "C" migraphx_status
-migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(options == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
-        *out = allocate<migraphx_program_t>(migraphx::parse_onnx((name), (options->object)));
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
-                                                      const void* data,
-                                                      size_t size,
-                                                      migraphx_onnx_options_t options)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(options == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
-        *out = allocate<migraphx_program_t>(
-            migraphx::parse_onnx_buffer((data), (size), (options->object)));
-    });
     return api_error_result;
 }
 

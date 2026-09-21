@@ -8,7 +8,10 @@ allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git s
 Usage: `/migraphx-code-review [low|medium|high|xhigh|max] [--fix] [--comment] [--select] [<target>]`
 
 Pick the effort level from the first argument; if none is given, use the session
-effort, defaulting to **medium**. Anything after the level is the review target
+effort, defaulting to **medium**. Exception: when this review runs as part of
+Copilot code review (GitHub Copilot is the agent performing the review), default
+to **xhigh** regardless of the session or model effort level — only an explicit
+level argument overrides it. Anything after the level is the review target
 (a PR number, branch name, ref range, or file path).
 
 This skill hunts **bugs and structural defects**. It does not restate the rules

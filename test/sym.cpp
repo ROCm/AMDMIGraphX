@@ -1621,6 +1621,22 @@ TEST_CASE(to_string_literal_double)
 
 TEST_CASE(to_string_variable) { EXPECT(var("x").to_string() == "x"); }
 
+TEST_CASE(to_string_variable_metadata)
+{
+    auto n = var("n",
+                 std::vector<interval>{{int64_t{2}, int64_t{6}}, {int64_t{1}, int64_t{4}}},
+                 std::set<scalar>{int64_t{4}, int64_t{2}});
+    EXPECT(n.to_string() == "n({[1..4], [2..6]}, {2, 4})");
+}
+
+TEST_CASE(to_string_variable_optional_metadata)
+{
+    EXPECT(var("n", interval{int64_t{1}, int64_t{4}}).to_string() == "n({[1..4]})");
+    EXPECT(
+        var("n", std::vector<interval>{}, std::set<scalar>{int64_t{2}, int64_t{4}}).to_string() ==
+        "n({}, {2, 4})");
+}
+
 TEST_CASE(to_string_add)
 {
     auto x = var("x");
@@ -2811,6 +2827,59 @@ TEST_CASE(parse_variable)
     EXPECT(e == var("x"));
 }
 
+TEST_CASE(parse_variable_metadata)
+{
+    auto expected = var("n",
+                        std::vector<interval>{{int64_t{1}, int64_t{4}}, {int64_t{2}, int64_t{6}}},
+                        std::set<scalar>{int64_t{2}, int64_t{4}});
+    EXPECT(parse("n({[1..4], [2..6]}, {2, 4})") == expected);
+}
+
+TEST_CASE(parse_variable_metadata_optional)
+{
+    EXPECT(parse("n({[1..4]})") == var("n", interval{int64_t{1}, int64_t{4}}));
+    EXPECT(parse("n({}, {2, 4})") ==
+           var("n", std::vector<interval>{}, std::set<scalar>{int64_t{2}, int64_t{4}}));
+    EXPECT(parse("n({[1..4], [2..6]}, {2, 4})") ==
+           var("n",
+               std::vector<interval>{{int64_t{1}, int64_t{4}}, {int64_t{2}, int64_t{6}}},
+               std::set<scalar>{int64_t{2}, int64_t{4}}));
+}
+
+TEST_CASE(parse_variable_metadata_scalars)
+{
+    EXPECT(parse("n({[-4..1], [2e0..6.0]}, {-2, 1.5})") ==
+           var("n",
+               std::vector<interval>{{int64_t{-4}, int64_t{1}}, {2.0, 6.0}},
+               std::set<scalar>{int64_t{-2}, 1.5}));
+}
+
+TEST_CASE(parse_variable_metadata_in_expression)
+{
+    auto n = var("n",
+                 std::vector<interval>{{int64_t{1}, int64_t{4}}, {int64_t{2}, int64_t{6}}},
+                 std::set<scalar>{int64_t{2}, int64_t{4}});
+    auto e = sin(n * 3) + 1;
+    EXPECT(parse(to_string(e)) == e);
+}
+
+TEST_CASE(parse_variable_metadata_disambiguates_function_name)
+{
+    auto sin_variable = var("sin", interval{int64_t{1}, int64_t{4}});
+    EXPECT(parse(to_string(sin_variable)) == sin_variable);
+    EXPECT(parse("sin(x)") == sin(var("x")));
+}
+
+TEST_CASE(parse_variable_metadata_errors)
+{
+    EXPECT(test::throws([] { parse("n(constraints={[1..4]})"); }));
+    EXPECT(test::throws([] { parse("n(optimals={2, 4})"); }));
+    EXPECT(test::throws([] { parse("n({[1..4]}, {2}, {4})"); }));
+    EXPECT(test::throws([] { parse("n({2, 4})"); }));
+    EXPECT(test::throws([] { parse("n({[4..1]})"); }));
+    EXPECT(test::throws([] { parse("n({[1, 4]})"); }));
+}
+
 TEST_CASE(parse_add)
 {
     auto e = parse("x + y");
@@ -3145,6 +3214,89 @@ TEST_CASE(var_with_constraint_and_optimals)
     auto x = var("x", interval{int64_t{0}, int64_t{10}}, std::set<scalar>{int64_t{1}, int64_t{5}});
     EXPECT(x.name() == "variable");
     EXPECT(x.eval({{x, int64_t{3}}}) == scalar{int64_t{3}});
+}
+
+// A name has to round trip through parse, since that is how a symbolic shape is spelled in
+// generated code.
+TEST_CASE(var_name_must_be_an_identifier)
+{
+    EXPECT(test::throws([] { return var("input.1_d0"); }));
+    EXPECT(test::throws([] { return var("0_d0"); }));
+    EXPECT(test::throws([] { return var("has space"); }));
+    // The check applies to every overload, not just the bare one.
+    EXPECT(test::throws([] { return var("input.1", interval{int64_t{1}, int64_t{8}}); }));
+    EXPECT(test::throws(
+        [] { return var("input.1", std::vector<interval>{interval{int64_t{1}, int64_t{8}}}); }));
+    EXPECT(parse(to_string(var("_n0"))) == var("_n0"));
+}
+
+TEST_CASE(symbol_name_registry_sanitizes_external_names)
+{
+    migraphx::sym::symbol_name_registry names;
+    EXPECT(names.resolve("input.1") == "input_1");
+    EXPECT(names.resolve("2d") == "_2d");
+    EXPECT(names.resolve("") == "_");
+
+    migraphx::sym::symbol_name_registry canonical_names;
+    EXPECT(canonical_names.resolve("batch_size") == "batch_size");
+}
+
+TEST_CASE(symbol_name_registry_resolves_collisions_stably)
+{
+    migraphx::sym::symbol_name_registry names;
+    EXPECT(names.resolve("batch.size") == "batch_size");
+    EXPECT(names.resolve("batch.size") == "batch_size");
+    EXPECT(names.resolve("batch_size") == "batch_size_2");
+    EXPECT(names.resolve("batch-size") == "batch_size_3");
+}
+
+// A double has to read back as the same value, which the six significant digits a stream
+// defaults to cannot promise.
+TEST_CASE(scalar_to_string_round_trips)
+{
+    EXPECT(to_string(lit(int64_t{42})) == "42");
+    EXPECT(to_string(lit(3.14)) == "3.14");
+    for(double d : {3.14, 0.1, 1.0 / 3.0, 1e-9, 1.7976931348623157})
+    {
+        auto e = lit(d);
+        EXPECT(parse(to_string(e)) == e);
+    }
+}
+
+// Adding two same-named variables merges their metadata by unioning the constraint sets, so this
+// is the only spelling for the result.
+TEST_CASE(var_with_multiple_constraints_matches_merge)
+{
+    auto c1 = interval{int64_t{1}, int64_t{20}};
+    auto c2 = interval{int64_t{2}, int64_t{10}};
+    // x{1,20} + x{2,10} folds to 2*x, where x asserts both intervals.
+    auto merged = var("x", c1) + var("x", c2);
+    EXPECT(merged == lit(2) * var("x", std::vector<interval>{c1, c2}));
+}
+
+// The constraint set is canonicalized, so the order it is given in does not change the variable.
+TEST_CASE(var_with_multiple_constraints_normalized)
+{
+    auto c1 = interval{int64_t{1}, int64_t{20}};
+    auto c2 = interval{int64_t{2}, int64_t{10}};
+    EXPECT(var("x", std::vector<interval>{c2, c1}) == var("x", std::vector<interval>{c1, c2}));
+    // A repeated assertion is the same as stating it once.
+    EXPECT(var("x", std::vector<interval>{c1, c1}) == var("x", c1));
+}
+
+TEST_CASE(var_with_multiple_constraints_serializes)
+{
+    auto x = var(
+        "x",
+        std::vector<interval>{interval{int64_t{1}, int64_t{20}}, interval{int64_t{2}, int64_t{10}}},
+        std::set<scalar>{int64_t{4}});
+    EXPECT(migraphx::from_value<expr>(migraphx::to_value(x)) == x);
+}
+
+TEST_CASE(var_with_invalid_constraint_throws)
+{
+    EXPECT(test::throws(
+        [] { return var("x", std::vector<interval>{interval{int64_t{10}, int64_t{1}}}); }));
 }
 
 TEST_CASE(eval_optimals_literal)

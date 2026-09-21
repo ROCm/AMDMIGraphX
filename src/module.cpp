@@ -43,7 +43,6 @@
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/logger.hpp>
 #include <iostream>
-#include <sstream>
 #include <algorithm>
 #include <array>
 #include <set>
@@ -1629,47 +1628,57 @@ static void print_make_op(std::ostream& os, const operation& op)
     os << ")";
 }
 
-// A range-based dynamic dimension is fully described by its bounds, so it is printed as those
-// bounds. A symbolic dimension is not: see print_json_shape.
-static std::string
-dyn_dims_string(const migraphx::shape& s, const std::string& open, const std::string& close)
+static std::string expr_string(const migraphx::sym::expr& e) { return enclose_name(e.to_string()); }
+
+static std::string expr_string(const migraphx::shape::dynamic_dimension& d)
+{
+    return expr_string(d.sym_expr);
+}
+
+template <class Range>
+static std::string expr_list_string(const Range& exprs)
+{
+    std::vector<std::string> strings;
+    strings.reserve(exprs.size());
+    std::transform(exprs.begin(), exprs.end(), std::back_inserter(strings), [](const auto& e) {
+        return expr_string(e);
+    });
+    return join_strings(std::move(strings), ", ");
+}
+
+// All-symbolic shapes are handled separately, so a remaining dynamic shape is range-based.
+static std::string range_dims_string(const migraphx::shape& s, bool cpp)
 {
     std::vector<std::string> dims;
+    dims.reserve(s.dyn_dims().size());
     std::transform(
         s.dyn_dims().begin(), s.dyn_dims().end(), std::back_inserter(dims), [&](const auto& d) {
-            auto i = d.get_interval();
-            return open + std::to_string(i.min) + ", " + std::to_string(i.max) + close;
+            auto i        = d.get_interval();
+            auto optimals = d.get_optimals();
+            auto result   = std::to_string(i.min) + ", " + std::to_string(i.max);
+            if(not optimals.empty())
+                result += ", {" + to_string_range(optimals) + "}";
+            return cpp ? "migraphx::shape::dynamic_dimension{" + result + "}"
+                       : "migraphx.shape.dynamic_dimension(" + result + ")";
         });
-    return join_strings(dims, ", ");
-}
-
-static bool has_symbolic_dim(const migraphx::shape& s)
-{
-    return s.dynamic() and std::any_of(s.dyn_dims().begin(), s.dyn_dims().end(), [](const auto& d) {
-               return d.is_symbolic();
-           });
-}
-
-// A symbolic dimension carries an expression that no constructor argument can spell, so the shape
-// is instead rebuilt from the json form of its value representation. That is the same codec used
-// for serialization, so the expression, its per-variable bounds and optimals, and any symbolic
-// strides all survive the round trip.
-static void print_json_shape(std::ostream& os, const std::string& factory, const migraphx::shape& s)
-{
-    os << factory << "(" << enclose_name(to_json_string(migraphx::to_value(s))) << ")";
+    return join_strings(std::move(dims), ", ");
 }
 
 static void print_py_shape(std::ostream& os, const migraphx::shape& s)
 {
-    if(has_symbolic_dim(s))
+    if(s.symbolic())
     {
-        print_json_shape(os, "migraphx.shape.from_json", s);
+        os << "migraphx.shape(type=" << to_json_string(s.type_string()) << ", dyn_dims=["
+           << expr_list_string(s.dyn_dims()) << "]";
+        if(not s.standard())
+            os << ", dyn_strides=[" << expr_list_string(s.dyn_strides()) << "]";
+        os << ")";
         return;
     }
     os << "migraphx.shape(type=" << to_json_string(s.type_string());
     if(s.dynamic())
     {
-        os << ", dyn_dims=[" << dyn_dims_string(s, "migraphx.shape.dynamic_dimension(", ")") << "]";
+        os << ", dyn_dims=[" << range_dims_string(s, false) << "]";
     }
     else
     {
@@ -1682,15 +1691,19 @@ static void print_py_shape(std::ostream& os, const migraphx::shape& s)
 
 static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
 {
-    if(has_symbolic_dim(s))
+    if(s.symbolic())
     {
-        print_json_shape(os, "migraphx::make_json_shape", s);
+        os << "migraphx::shape::make_symbolic_shape(migraphx::shape::" << s.type_string() << ", {"
+           << expr_list_string(s.dyn_dims()) << "}";
+        if(not s.standard())
+            os << ", {" << expr_list_string(s.dyn_strides()) << "}";
+        os << ")";
         return;
     }
     os << "migraphx::shape{migraphx::shape::" << s.type_string();
     if(s.dynamic())
     {
-        os << ", {" << dyn_dims_string(s, "{", "}") << "}";
+        os << ", {" << range_dims_string(s, true) << "}";
     }
     else
     {
@@ -1782,10 +1795,9 @@ module::print_py(std::ostream& os,
                 os << mname << ".add_instruction(";
                 print_py_op(os, ins->get_operator());
                 os << ", [" << join_strings(input_vars, ", ") << "]";
-                // A comment does not have to be constructible, so use the readable shape form
-                // rather than the json a symbolic shape would otherwise print as.
-                os << ") # " << ins->get_shape();
-                os << std::endl;
+                // The trailing shape is only a comment in the generated code, so it need not be
+                // constructible: print the readable form rather than the constructor spelling.
+                os << ") # " << ins->get_shape() << std::endl;
             }
         },
         names);

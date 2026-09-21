@@ -28,7 +28,6 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/json.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/sym.hpp>
 #include <random>
@@ -2309,31 +2308,33 @@ TEST_CASE(module_assign_clears_previous_foreign_outputs)
     EXPECT(x->outputs().empty());
 }
 
-// The printers spell a shape carrying a symbolic dimension as its json value form, so build the
-// expected call the same way the printers do and check it appears verbatim.
-static std::string json_shape_call(const std::string& factory, const migraphx::shape& s)
-{
-    auto json = migraphx::to_json_string(migraphx::to_value(s));
-    return factory + "(\"" + migraphx::replace_string(json, "\"", "\\\"") + "\")";
-}
-
-static migraphx::module symbolic_param_module(const migraphx::shape& s)
+static std::string printed_cpp(const migraphx::shape& s)
 {
     migraphx::module m;
     m.add_return({m.add_instruction(migraphx::make_op("neg"), m.add_parameter("x", s))});
-    return m;
+    std::stringstream ss;
+    m.print_cpp(ss);
+    return ss.str();
 }
 
+static std::string printed_py(const migraphx::shape& s)
+{
+    migraphx::module m;
+    m.add_return({m.add_instruction(migraphx::make_op("neg"), m.add_parameter("x", s))});
+    std::stringstream ss;
+    m.print_py(ss);
+    return ss.str();
+}
+
+// These pin the emitted C++ and Python shape spelling.
 TEST_CASE(module_print_symbolic_shape_cpp)
 {
     migraphx::shape s{migraphx::shape::float_type,
                       {migraphx::shape::dynamic_dimension{migraphx::sym::var("n", {1, 8})},
                        migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}}};
-    auto m = symbolic_param_module(s);
-
-    std::stringstream ss;
-    m.print_cpp(ss);
-    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx::make_json_shape", s)));
+    EXPECT(migraphx::contains(
+        printed_cpp(s),
+        R"code(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n({[1..8]})", "3"}))code"));
 }
 
 TEST_CASE(module_print_symbolic_shape_py)
@@ -2341,40 +2342,93 @@ TEST_CASE(module_print_symbolic_shape_py)
     migraphx::shape s{migraphx::shape::float_type,
                       {migraphx::shape::dynamic_dimension{migraphx::sym::var("n", {1, 8})},
                        migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}}};
-    auto m = symbolic_param_module(s);
-
-    std::stringstream ss;
-    m.print_py(ss);
-    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx.shape.from_json", s)));
+    EXPECT(migraphx::contains(
+        printed_py(s),
+        R"code(migraphx.shape(type="float_type", dyn_dims=["n({[1..8]})", "3"]))code"));
 }
 
-// A symbol name that sym::parse would reject must not need any escaping beyond the json quoting.
-TEST_CASE(module_print_symbolic_shape_name_not_an_identifier)
+TEST_CASE(module_print_symbolic_shape_compound_expression)
 {
-    migraphx::shape s{
-        migraphx::shape::float_type,
-        {migraphx::shape::dynamic_dimension{migraphx::sym::var("input.1_d0", {1, 8})}}};
-    auto m = symbolic_param_module(s);
-
-    std::stringstream ss;
-    m.print_cpp(ss);
-    EXPECT(migraphx::contains(ss.str(), json_shape_call("migraphx::make_json_shape", s)));
+    auto n = migraphx::sym::var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {migraphx::shape::dynamic_dimension{n * 3 + 1}}};
+    EXPECT(migraphx::contains(printed_cpp(s), R"code({"3*n({[1..8]}) + 1"})code"));
+    EXPECT(migraphx::contains(printed_py(s), R"code(dyn_dims=["3*n({[1..8]}) + 1"])code"));
 }
 
-// Only symbolic dimensions need the json form; a range-based dynamic shape keeps the readable one.
+TEST_CASE(module_print_symbolic_shape_optimals)
+{
+    migraphx::shape s{migraphx::shape::float_type,
+                      {migraphx::shape::dynamic_dimension{
+                          migraphx::sym::var("n", {2, 16}, {std::int64_t{4}, std::int64_t{8}})}}};
+    EXPECT(migraphx::contains(printed_cpp(s), R"code("n({[2..16]}, {4, 8})")code"));
+    EXPECT(migraphx::contains(printed_py(s), R"code("n({[2..16]}, {4, 8})")code"));
+}
+
+TEST_CASE(module_print_symbolic_shape_multiple_constraints)
+{
+    migraphx::shape s{migraphx::shape::float_type,
+                      {migraphx::shape::dynamic_dimension{
+                          migraphx::sym::var("n", {{1, 20}, {2, 10}}, {std::int64_t{4}})}}};
+    EXPECT(migraphx::contains(printed_cpp(s), R"code("n({[1..20], [2..10]}, {4})")code"));
+    EXPECT(migraphx::contains(printed_py(s), R"code("n({[1..20], [2..10]}, {4})")code"));
+}
+
+// make_symbolic_shape recomputes packed standard strides when none are given.
+TEST_CASE(module_print_symbolic_shape_standard_omits_strides)
+{
+    migraphx::shape s{migraphx::shape::float_type,
+                      {migraphx::shape::dynamic_dimension{migraphx::sym::var("n", {1, 8})},
+                       migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}}};
+    EXPECT(s.standard());
+    EXPECT(not migraphx::contains(printed_cpp(s), R"({"3", "1"})"));
+    EXPECT(not migraphx::contains(printed_py(s), "dyn_strides"));
+}
+
+// A stride carries the same self-contained symbolic variable as the dimension.
+TEST_CASE(module_print_symbolic_shape_strides)
+{
+    auto n = migraphx::sym::var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type,
+                      {migraphx::shape::dynamic_dimension{n},
+                       migraphx::shape::dynamic_dimension{migraphx::sym::lit(3)}},
+                      {migraphx::sym::lit(1), n}};
+    EXPECT(not s.standard());
+    EXPECT(migraphx::contains(printed_cpp(s), R"code(, {"1", "n({[1..8]})"})code"));
+    EXPECT(migraphx::contains(printed_py(s), R"code(, dyn_strides=["1", "n({[1..8]})"])code"));
+}
+
+// A range-based dynamic shape has no expression, so it keeps the bounds spelling.
 TEST_CASE(module_print_dyn_range_shape_stays_readable)
 {
-    auto m = symbolic_param_module({migraphx::shape::float_type, {{1, 4}, {3, 3}}});
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    EXPECT(migraphx::contains(printed_cpp(s), "migraphx::shape{migraphx::shape::float_type"));
+    EXPECT(not migraphx::contains(printed_cpp(s), "migraphx::sym::"));
+    EXPECT(migraphx::contains(printed_py(s), "migraphx.shape.dynamic_dimension(1, 4)"));
+    EXPECT(not migraphx::contains(printed_py(s), "migraphx.sym."));
+}
 
-    std::stringstream ss_cpp;
-    m.print_cpp(ss_cpp);
-    EXPECT(migraphx::contains(ss_cpp.str(), "migraphx::shape{migraphx::shape::float_type"));
-    EXPECT(not migraphx::contains(ss_cpp.str(), "make_json_shape"));
+TEST_CASE(module_print_dyn_dim_optimals)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {2, 4}}, {3, 3}}};
+    EXPECT(migraphx::contains(printed_cpp(s), "migraphx::shape::dynamic_dimension{1, 4, {2, 4}}"));
+    EXPECT(migraphx::contains(printed_py(s), "migraphx.shape.dynamic_dimension(1, 4, {2, 4})"));
+}
 
-    std::stringstream ss_py;
-    m.print_py(ss_py);
-    EXPECT(migraphx::contains(ss_py.str(), "migraphx.shape.dynamic_dimension(1, 4)"));
-    EXPECT(not migraphx::contains(ss_py.str(), "from_json"));
+// A single dimension is the case where a bare brace pair would be an ambiguous constructor call,
+// because it is also viable as the lens vector.
+TEST_CASE(module_print_dyn_range_shape_single_dim)
+{
+    migraphx::shape s{migraphx::shape::float_type, {migraphx::shape::dynamic_dimension{1, 4}}};
+    EXPECT(migraphx::contains(printed_cpp(s), "{migraphx::shape::dynamic_dimension{1, 4}}"));
+}
+
+TEST_CASE(module_print_static_shape)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}, {1, 8, 2}};
+    EXPECT(migraphx::contains(
+        printed_cpp(s), "migraphx::shape{migraphx::shape::float_type, {2, 3, 4}, {1, 8, 2}}"));
+    EXPECT(migraphx::contains(
+        printed_py(s), R"(migraphx.shape(type="float_type", lens=[2, 3, 4], strides=[1, 8, 2]))"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

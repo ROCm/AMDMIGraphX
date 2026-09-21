@@ -54,38 +54,147 @@ def test_create_symbolic_dyn_shape():
     dds = [
         migraphx.shape.dynamic_dimension(
             "n", {"n": migraphx.shape.dynamic_dimension(1, 4)}),
-        migraphx.shape.dynamic_dimension(3, 3)
+        migraphx.shape.dynamic_dimension("3")
     ]
     s = migraphx.shape(type='float', dyn_dims=dds)
     assert s.dynamic()
     assert s.dyn_dims()[0].is_symbolic()
-    assert not s.dyn_dims()[1].is_symbolic()
+    assert s.dyn_dims()[1].is_symbolic()
 
 
-def _symbolic_program():
+def test_create_mixed_dyn_shape_raises():
+    dds = [
+        migraphx.shape.dynamic_dimension(
+            "n", {"n": migraphx.shape.dynamic_dimension(1, 4)}),
+        migraphx.shape.dynamic_dimension(3, 3)
+    ]
+    try:
+        migraphx.shape(type='float', dyn_dims=dds)
+    except RuntimeError:
+        pass
+    else:
+        assert False, "expected mixed dynamic dimensions to be rejected"
+
+
+def test_create_symbolic_shape_from_strings():
+    dd = migraphx.shape.dynamic_dimension
+    s = migraphx.shape(type='float', dyn_dims=["n({[1..8]}, {2, 4})", "3"])
+    assert s.symbolic()
+    dims = s.dyn_dims()
+    assert dims[0].expression == "n({[1..8]}, {2, 4})"
+    assert dims[0].min == 1
+    assert dims[0].max == 8
+    assert dims[0].optimals == {2, 4}
+    # An all-symbolic shape gets packed standard strides when none are given.
+    assert s.standard()
+    assert s.dyn_strides() == ["3", "1"]
+
+    # A range-based dimension carries no expression.
+    r = migraphx.shape(type='float', dyn_dims=[dd(1, 4)])
+    assert r.dyn_dims()[0].expression is None
+
+
+def test_create_symbolic_shape_compound_expression():
+    s = migraphx.shape(type='float', dyn_dims=["3*n({[1..8]}) + 1"])
+    assert s.dyn_dims()[0].expression == "3*n({[1..8]}) + 1"
+    assert (s.dyn_dims()[0].min, s.dyn_dims()[0].max) == (4, 25)
+
+
+def test_create_symbolic_shape_with_strides():
+    s = migraphx.shape(type='float',
+                       dyn_dims=["n({[1..8]})", "3"],
+                       dyn_strides=["1", "n({[1..8]})"])
+    assert not s.standard()
+    assert s.dyn_strides() == ["1", "n({[1..8]})"]
+
+
+def test_create_symbolic_shape_multiple_constraints():
+    s = migraphx.shape(type='float', dyn_dims=["n({[1..20], [2..10]}, {4})"])
+    assert s.dyn_dims()[0].is_symbolic()
+    assert s.dyn_dims()[0].optimals == {4}
+
+
+def test_expression_strings_round_trip():
+    s = migraphx.shape(type='float',
+                       dyn_dims=["3*n({[1..8]}, {2, 4}) + 1", "m({[2..16]})"])
+    dims = [d.expression for d in s.dyn_dims()]
+    assert migraphx.shape(type='float', dyn_dims=dims) == s
+
+    strided = migraphx.shape(type='float',
+                             dyn_dims=["n({[1..8]})", "3"],
+                             dyn_strides=["1", "n({[1..8]})"])
+    dims = [d.expression for d in strided.dyn_dims()]
+    assert migraphx.shape(type='float',
+                          dyn_dims=dims,
+                          dyn_strides=strided.dyn_strides()) == strided
+
+
+def test_symbol_name_must_be_an_identifier():
+    # A symbolic shape is spelled as an expression string, so a name has to survive parsing.
+    try:
+        migraphx.shape(type='float', dyn_dims=["input.1({[1..8]})"])
+    except RuntimeError:
+        pass
+    else:
+        assert False, "expected a non-identifier symbol name to be rejected"
+
+
+def test_to_py_preserves_symbolic_expression():
+    p = migraphx.program()
+    m = p.get_main_module()
+    s = migraphx.shape(
+        type='float',
+        dyn_dims=[
+            migraphx.shape.dynamic_dimension("n({[1..8]}) * 3 + 1"),
+            migraphx.shape.dynamic_dimension("3")
+        ])
+    m.add_return(
+        [m.add_instruction(migraphx.op("neg"), [m.add_parameter("x", s)])])
+
+    code = p.to_py()
+    assert s.symbolic()
+    assert '"3*n({[1..8]}) + 1"' in code
+
+    # The generated code has to rebuild an equal program, expression included; sort() normalizes
+    # instruction order.
+    scope = {"migraphx": migraphx}
+    exec(code, scope)
+    assert scope["p"].sort() == p.sort()
+
+    # Explicitly guard the complete symbolic shape, including variable metadata.
+    assert scope["p"].get_parameter_shapes()["x"] == s
+
+
+def test_to_py_preserves_symbolic_strides():
+    p = migraphx.program()
+    m = p.get_main_module()
+    s = migraphx.shape(type='float',
+                       dyn_dims=["n({[1..8]})", "3"],
+                       dyn_strides=["1", "n({[1..8]})"])
+    m.add_return(
+        [m.add_instruction(migraphx.op("neg"), [m.add_parameter("x", s)])])
+
+    code = p.to_py()
+    assert "dyn_strides" in code
+    scope = {"migraphx": migraphx}
+    exec(code, scope)
+    assert scope["p"].get_parameter_shapes()["x"] == s
+
+
+def test_to_py_preserves_dyn_dim_optimals():
     p = migraphx.program()
     m = p.get_main_module()
     s = migraphx.shape(type='float',
                        dyn_dims=[
-                           migraphx.shape.dynamic_dimension(
-                               "n * 3 + 1",
-                               {"n": migraphx.shape.dynamic_dimension(1, 8)}),
+                           migraphx.shape.dynamic_dimension(1, 4, {2, 4}),
                            migraphx.shape.dynamic_dimension(3, 3)
                        ])
     m.add_return(
         [m.add_instruction(migraphx.op("neg"), [m.add_parameter("x", s)])])
-    return p
 
-
-def test_to_py_preserves_symbolic_expression():
-    p = _symbolic_program()
-    assert "migraphx.shape.from_json" in p.to_py()
-
-    # The generated code has to rebuild an equal program, expression included. Sorting first
-    # because to_py does not preserve the declaration order of parameters.
     scope = {"migraphx": migraphx}
     exec(p.to_py(), scope)
-    assert scope["p"].sort() == p.sort()
+    assert scope["p"].get_parameter_shapes()["x"] == s
 
 
 def test_parse_onnx_symbolic_dyn_input():
@@ -110,5 +219,14 @@ if __name__ == "__main__":
     test_create_symbolic_dyn_dims()
     test_create_symbolic_compound_expr()
     test_create_symbolic_dyn_shape()
+    test_create_mixed_dyn_shape_raises()
+    test_create_symbolic_shape_from_strings()
+    test_create_symbolic_shape_compound_expression()
+    test_create_symbolic_shape_with_strides()
+    test_create_symbolic_shape_multiple_constraints()
+    test_expression_strings_round_trip()
+    test_symbol_name_must_be_an_identifier()
     test_to_py_preserves_symbolic_expression()
+    test_to_py_preserves_symbolic_strides()
+    test_to_py_preserves_dyn_dim_optimals()
     test_parse_onnx_symbolic_dyn_input()

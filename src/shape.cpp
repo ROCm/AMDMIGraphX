@@ -25,9 +25,8 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/streamutils.hpp>
 #include <migraphx/serialize.hpp>
-#include <migraphx/json.hpp>
-#include <migraphx/convert_to_json.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
 #include <numeric>
@@ -81,7 +80,13 @@ struct shape_impl
     shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)
         : m_type(t), m_dyn_dims(std::move(dims))
     {
-        if(all_dims_symbolic())
+        const bool all_symbolic = all_dims_symbolic();
+        if(not all_symbolic and std::any_of(m_dyn_dims.begin(),
+                                            m_dyn_dims.end(),
+                                            [](const auto& d) { return d.is_symbolic(); }))
+            MIGRAPHX_THROW(
+                "SHAPE: dynamic dimensions must be either all symbolic or all range-based");
+        if(all_symbolic)
         {
             calculate_dyn_strides();
             m_standard = true;
@@ -94,6 +99,8 @@ struct shape_impl
         : m_type(t), m_dyn_dims(std::move(dims)), m_dyn_strides(std::move(dstrides))
     {
         assert(m_dyn_strides.size() == m_dyn_dims.size());
+        if(not m_dyn_dims.empty() and not all_dims_symbolic())
+            MIGRAPHX_THROW("SHAPE: dynamic strides require all dimensions to be symbolic");
         assert(std::all_of(m_dyn_strides.begin(), m_dyn_strides.end(), [](const auto& s) {
             return sym::to<int64_t>(s.eval_interval().min) >= 0;
         }));
@@ -896,26 +903,58 @@ shape shape::to_dynamic() const
     return {type(), lens(), lens(), {}};
 }
 
+static sym::expr parse_bound(const std::string& expression, const std::string& what)
+{
+    auto e = sym::parse(expression);
+    if(e.empty())
+        MIGRAPHX_THROW("SHAPE: " + what + " expression is empty");
+    return e;
+}
+
 shape::dynamic_dimension shape::make_symbolic_dynamic_dimension(
     const std::string& expression,
     const std::unordered_map<std::string, dynamic_dimension>& symbols)
 {
-    auto e = sym::parse(expression);
-    if(e.empty())
-        MIGRAPHX_THROW("MAKE_SYMBOLIC_DYNAMIC_DIMENSION: symbolic expression is empty");
+    auto e = parse_bound(expression, "MAKE_SYMBOLIC_DYNAMIC_DIMENSION: symbolic");
+    if(symbols.empty())
+        return dynamic_dimension{std::move(e)};
+
     std::unordered_map<sym::expr, sym::expr> bindings;
     std::transform(symbols.begin(),
                    symbols.end(),
                    std::inserter(bindings, bindings.end()),
                    [](const auto& kv) {
-                       const auto& [name, dd] = kv;
-                       auto iv                = dd.get_interval();
-                       auto opts              = dd.get_optimals();
+                       const auto& [name, bound] = kv;
+                       auto opts                 = bound.get_optimals();
                        std::set<sym::scalar> optimals(opts.begin(), opts.end());
+                       auto iv = bound.get_interval();
                        return std::pair<sym::expr, sym::expr>{
                            sym::parse(name), sym::var(name, {iv.min, iv.max}, std::move(optimals))};
                    });
     return dynamic_dimension{e.subs(bindings)};
+}
+
+shape shape::make_symbolic_shape(type_t t,
+                                 const std::vector<std::string>& dims,
+                                 const std::vector<std::string>& strides)
+{
+    std::vector<dynamic_dimension> dyn_dims;
+    std::transform(
+        dims.begin(), dims.end(), std::back_inserter(dyn_dims), [&](const std::string& d) {
+            return dynamic_dimension{parse_bound(d, "MAKE_SYMBOLIC_SHAPE: dimension")};
+        });
+    if(strides.empty())
+        return {t, std::move(dyn_dims)};
+    if(strides.size() != dims.size())
+        MIGRAPHX_THROW(
+            "MAKE_SYMBOLIC_SHAPE: number of strides does not match number of dimensions");
+    // Stride expressions are self-contained and parsed independently of dimension expressions.
+    std::vector<sym::expr> dyn_strides;
+    std::transform(
+        strides.begin(), strides.end(), std::back_inserter(dyn_strides), [&](const std::string& s) {
+            return parse_bound(s, "MAKE_SYMBOLIC_SHAPE: stride");
+        });
+    return {t, std::move(dyn_dims), std::move(dyn_strides)};
 }
 
 static bool any_non_sym_dynamic(const shape& s)
@@ -1335,16 +1374,7 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
         if(x.symbolic())
         {
             os << x.type_string() << ", {";
-            const auto& dd = x.dyn_dims();
-            for(std::size_t i = 0; i < dd.size(); ++i)
-            {
-                if(i > 0)
-                    os << ", ";
-                if(dd[i].is_symbolic())
-                    os << dd[i];
-                else
-                    os << dd[i].get_interval().min;
-            }
+            os << stream_range(x.dyn_dims());
             os << "}, ";
             os << "{" << to_string_range(x.dyn_strides()) << "}";
         }
@@ -1495,11 +1525,6 @@ void migraphx_from_value(const value& v, shape& s)
             }
         }
     }
-}
-
-shape make_json_shape(const std::string& s)
-{
-    return from_value<shape>(from_json_string(convert_to_json(s)));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

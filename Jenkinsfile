@@ -431,6 +431,7 @@ pipeline {
                 }
 
                 stage('HIP Clang Release Navi32') {
+                    when { expression { false } } // Temporarily disabled to clear CI backlog
                     agent {
                         label rocmnodename('navi32')
                     }

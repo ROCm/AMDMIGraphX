@@ -84,11 +84,14 @@ auto propagate_quantized_ins(module& m,
 // helper function to subtract 128 from a uint8 or int8 operand
 static instruction_ref subtract_128(module& m, instruction_ref pos, instruction_ref x)
 {
-    auto x_i32 = m.insert_instruction(pos, make_op("convert", {{"target_type", migraphx::shape::int32_type}}), x);
+    auto x_i32 = m.insert_instruction(
+        pos, make_op("convert", {{"target_type", migraphx::shape::int32_type}}), x);
     auto lit   = m.add_literal(literal{shape{migraphx::shape::int32_type}, {128}});
-    auto lit_b = m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lit);
+    auto lit_b = m.insert_instruction(
+        pos, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lit);
     auto diff = m.insert_instruction(pos, make_op("sub"), x_i32, lit_b);
-    return m.insert_instruction(pos, make_op("convert", {{"target_type", migraphx::shape::int8_type}}), diff);
+    return m.insert_instruction(
+        pos, make_op("convert", {{"target_type", migraphx::shape::int8_type}}), diff);
 }
 
 // Rebias a uint8 operand and its zero point to int8 by subtracting 128 from both: (q - 128) -

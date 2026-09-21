@@ -27,6 +27,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
@@ -249,10 +250,102 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
     }
 };
 
+// Split a pointwise op along the segments of a concat input whose inputs are
+// all non-pointwise views (such as the two slices of a rotate-half). Each
+// segment becomes a pointwise on sliced inputs, so the resulting concat of
+// pointwise ops can then fuse into a single fused_concat kernel.
+struct find_pointwise_concat_split
+{
+    auto matcher() const
+    {
+        auto concat = match::name("concat")(
+            match::used_once(), match::none_of[match::inputs()](match::name("pointwise")));
+        return fusable_pointwise(match::used_once(),
+                                 match::any_of[match::inputs()](concat.bind("concat")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins        = r.result;
+        auto concat_ins = r.instructions["concat"];
+        if(concat_ins->inputs().size() < 2)
+            return;
+        if(std::count(ins->inputs().begin(), ins->inputs().end(), concat_ins) != 1)
+            return;
+        auto concat_op = concat_ins->normalized_operator();
+        auto axis      = concat_op.to_value()["axis"].to<int64_t>();
+        auto* pm       = ins->module_inputs().front();
+        auto& m        = mpm.get_module();
+        std::vector<instruction_ref> segments;
+        int64_t offset = 0;
+        for(auto seg : concat_ins->inputs())
+        {
+            int64_t len = seg->get_shape().lens()[axis];
+            std::vector<instruction_ref> inputs;
+            std::transform(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                std::back_inserter(inputs),
+                [&](instruction_ref input) {
+                    if(input == concat_ins)
+                        return seg;
+                    return m.insert_instruction(
+                        ins,
+                        make_op("slice",
+                                {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
+                        input);
+                });
+            module pm_copy = *pm;
+            auto* seg_pm   = mpm.create_module(
+                pm->name() + ":split" + std::to_string(segments.size()), std::move(pm_copy));
+            seg_pm->set_bypass();
+            segments.push_back(m.insert_instruction(ins, ins->get_operator(), inputs, {seg_pm}));
+            offset += len;
+        }
+        m.replace_instruction(ins, concat_op, segments);
+    }
+};
+
+// Merge a same-axis concat that feeds directly into another concat
+struct find_nested_concat
+{
+    auto matcher() const
+    {
+        auto concat_used_once = match::name("concat")(match::used_once());
+        return match::name("concat")(match::any_of[match::inputs()](concat_used_once));
+    }
+
+    static int64_t get_axis(instruction_ref ins)
+    {
+        return ins->normalized_operator().to_value()["axis"].to<int64_t>();
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto axis = get_axis(ins);
+        std::vector<instruction_ref> args;
+        fix([&](auto self, auto&& inputs) {
+            for(auto&& i : inputs)
+            {
+                if(i->name() == "concat" and get_axis(i) == axis and i->outputs().size() == 1)
+                    self(i->inputs());
+                else
+                    args.push_back(i);
+            }
+        })(ins->inputs());
+        mpm.get_module().replace_instruction(ins, ins->normalized_operator(), args);
+    }
+};
+
 } // namespace
 
 void fuse_concat::apply(module_pass_manager& mpm) const
 {
+    match::find_matches(mpm, find_pointwise_concat_split{});
+    mpm.run_pass(migraphx::dead_code_elimination{});
+    match::find_matches(mpm, find_nested_concat{});
+    mpm.run_pass(migraphx::dead_code_elimination{});
     match::find_matches(mpm, find_pointwise_concat_pointwise{});
     mpm.run_pass(migraphx::dead_code_elimination{});
     match::find_matches(mpm, find_concat_pointwise{});

@@ -268,9 +268,14 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     info.code_object = value::binary(raw, bin->m_binarySize);
     info.symbol_name = (bin->m_pKernelName != nullptr) ? bin->m_pKernelName : "main";
 
-    // Derive n_groups from the producer-chosen grid
+    // Derive n_groups from the producer-chosen grid. AMDMLSS reports m_grid.m_x
+    // already in workgroups, as nGroups * groups — it does not scale with the
+    // batch size, so only the group count is divided back out. Dividing by n as
+    // well would tell the kernel there are fewer groups than the workgroups the
+    // launch actually dispatches, and the surplus workgroups would stride their
+    // tile loop past the end of their assignment and write out of bounds.
     std::size_t grid_x = bin->m_grid.m_x;
-    info.n_groups      = grid_x / (static_cast<std::size_t>(n) * static_cast<std::size_t>(groups));
+    info.n_groups      = grid_x / groups;
     if(info.n_groups == 0)
         info.n_groups = 64;
 

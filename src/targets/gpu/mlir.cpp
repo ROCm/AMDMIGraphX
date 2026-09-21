@@ -1160,9 +1160,25 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*tuning));
 }
 
-void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
+// rocMLIR can only map a layout with a unit stride to memory
+static bool has_unit_stride(const shape& s)
 {
-    auto names = m.get_parameter_names();
+    return s.type() == shape::tuple_type or s.standard() or contains(s.strides(), 1);
+}
+
+static shape append_unit_dim(const shape& s)
+{
+    auto lens    = s.lens();
+    auto strides = s.strides();
+    lens.push_back(1);
+    strides.push_back(1);
+    return {s.type(), lens, strides};
+}
+
+std::vector<shape> adjust_param_shapes(module& m, const std::vector<shape>& inputs)
+{
+    auto result = inputs;
+    auto names  = m.get_parameter_names();
     std::sort(names.begin(), names.end());
     for(auto i : range(names.size()))
     {
@@ -1172,10 +1188,33 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
         assert(param->get_shape().standard());
         if(input.standard())
             continue;
-        auto new_param = m.add_parameter(name + ".0", input);
+        instruction_ref new_param;
+        if(has_unit_stride(input))
+        {
+            new_param = m.add_parameter(name + ".0", input);
+        }
+        else
+        {
+            // Give the buffer a trailing unit dimension and squeeze it away
+            // inside the kernel so the layout stays expressible
+            auto unit_param = m.add_parameter(name + ".0", append_unit_dim(input));
+            new_param       = m.insert_instruction(
+                std::next(unit_param), make_op("squeeze", {{"axes", {input.ndim()}}}), unit_param);
+        }
         m.replace_instruction(param, new_param);
         m.remove_instruction(param);
     }
+    // The output buffer is handled the same way with an unsqueeze before the return
+    const auto& output = inputs.back();
+    if(has_unit_stride(output))
+        return result;
+    auto ret = std::prev(m.end());
+    assert(ret->name() == "@return" and ret->inputs().size() == 1);
+    auto unit_ret = m.insert_instruction(
+        ret, make_op("unsqueeze", {{"axes", {output.ndim()}}}), ret->inputs().front());
+    m.replace_return({unit_ret});
+    result.back() = append_unit_dim(output);
+    return result;
 }
 
 static void replace_params_with_literals(module& m, const std::vector<instruction_ref>& inputs)
@@ -1198,13 +1237,14 @@ static void replace_params_with_literals(module& m, const std::vector<instructio
 std::string dump_mlir(module m, const std::vector<shape>& inputs)
 {
     const_module_ref mr = &m;
+    auto shapes         = inputs;
     if(not inputs.empty())
     {
-        adjust_param_shapes(m, inputs);
+        shapes = adjust_param_shapes(m, inputs);
     }
     prepare(m);
     mlir_program mp;
-    mp.parse(*mr, inputs);
+    mp.parse(*mr, shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     return mlir_print(&mlirOperationPrint, mod_op);
 }
@@ -1259,9 +1299,10 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     static std::mutex mutex;
     const std::lock_guard<std::mutex> lock(mutex);
 
+    auto shapes = inputs;
     if(not inputs.empty())
     {
-        adjust_param_shapes(m, inputs);
+        shapes = adjust_param_shapes(m, inputs);
     }
     prepare(m);
 
@@ -1270,7 +1311,7 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     log::info() << "Dumping MLIR file to: " << f;
 
     mlir_program mp;
-    mp.parse(m, inputs);
+    mp.parse(m, shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
 
     std::string mlir_str = mlir_print(&mlirOperationPrint, mod_op);
@@ -1285,7 +1326,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               const std::vector<shape>& in_shapes,
                               const value& solution)
 {
-    adjust_param_shapes(m, in_shapes);
+    auto shapes = adjust_param_shapes(m, in_shapes);
     prepare(m);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
@@ -1299,7 +1340,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     mlir_program mp;
 
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m, in_shapes);
+    mp.parse(m, shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1369,11 +1410,11 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      const std::vector<shape>& inputs,
                                      bool exhaustive)
 {
-    adjust_param_shapes(m, inputs);
+    auto shapes = adjust_param_shapes(m, inputs);
     prepare(m);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m, inputs);
+    mp.parse(m, shapes);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
     {
@@ -1477,7 +1518,7 @@ bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const 
 // when MIGRAPHX_MLIR is disabled.
 bool is_module_fusible(const module&, const context&, const value&) { return false; }
 
-void adjust_param_shapes(module&, const std::vector<shape>&) {}
+std::vector<shape> adjust_param_shapes(module&, const std::vector<shape>&) { return {}; }
 
 void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
 

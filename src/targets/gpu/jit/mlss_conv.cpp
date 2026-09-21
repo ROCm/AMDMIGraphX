@@ -94,7 +94,18 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         int32_t out_w = out_lens[3];
         int32_t g     = 1;
         // AMDMLSS picked this in computeBestNGroups()
-        int32_t ng = info.n_groups;
+        int32_t ng    = info.n_groups;
+
+        // Cap ng to prevent idle workgroups from writing out-of-bounds.
+        {
+            const int32_t kg_per_workgroup = 128;
+            int32_t k_groups               = (kg + kg_per_workgroup - 1) / kg_per_workgroup;
+            int32_t h_tiles                = (out_h + 1) / 2;
+            int32_t w_tiles                = (out_w + 1) / 2;
+            int32_t total_tiles            = n * g * h_tiles * w_tiles * k_groups;
+            if(ng > total_tiles)
+                ng = total_tiles;
+        }
 
         // flags64 encoding from documentation:
         //   no-bias path: bit10 = fast tile-index division

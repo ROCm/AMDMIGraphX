@@ -29,7 +29,6 @@
 #include <migraphx/gpu/mlir_backend.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
-#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -39,36 +38,13 @@ extern "C" MIGRAPHX_MLIR_PLUGIN_EXPORT const mlir_backend_v2*
 migraphx_gpu_get_mlir_backend_v2()
 {
     static const mlir_backend_v2 backend = {
-        +[](module m, const std::vector<shape>& inputs) -> std::string {
-            return dump_mlir(std::move(m), inputs);
-        },
-        +[](module m, const std::vector<shape>& inputs, const fs::path& location) {
-            dump_mlir_to_file(std::move(m), inputs, location);
-        },
-        +[](const module& m, const context& migraphx_ctx, const value& solution) -> bool {
-            return is_module_fusible(m, migraphx_ctx, solution);
-        },
-        +[](const context& migraphx_ctx,
-            module m,
-            const std::vector<shape>& in_shapes,
-            const value& solution) -> mlir_code_object {
-            return compile_mlir(migraphx_ctx, std::move(m), in_shapes, solution);
-        },
-        +[](const context& migraphx_ctx,
-            module m,
-            const std::vector<shape>& inputs,
-            bool exhaustive) -> tuning_config {
-            return get_tuning_config_mlir(migraphx_ctx, std::move(m), inputs, exhaustive);
-        },
-        +[](module m, const std::vector<instruction_ref>& inputs, const fs::path& location) {
-            dump_mlir_to_mxr(std::move(m), inputs, location);
-        },
-        +[](int64_t gemm_o,
-            const std::string& arch,
-            shape::type_t elem_type,
-            const module* m) -> bool {
-            return mlir_lds_usage_fits_arch(gemm_o, arch, elem_type, m);
-        },
+        static_cast<std::string (*)(module, const std::vector<shape>&)>(&dump_mlir),
+        &dump_mlir_to_file,
+        &is_module_fusible,
+        &compile_mlir,
+        &get_tuning_config_mlir,
+        &dump_mlir_to_mxr,
+        &mlir_lds_usage_fits_arch,
     };
     return &backend;
 }

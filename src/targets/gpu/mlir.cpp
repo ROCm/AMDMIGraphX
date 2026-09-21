@@ -1155,24 +1155,6 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
 }
 
-void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
-{
-    auto names = m.get_parameter_names();
-    std::sort(names.begin(), names.end());
-    for(auto i : range(names.size()))
-    {
-        const auto& name  = names[i];
-        const auto& input = inputs[i];
-        auto param        = m.get_parameter(name);
-        assert(param->get_shape().standard());
-        if(input.standard())
-            continue;
-        auto new_param = m.add_parameter(name + ".0", input);
-        m.replace_instruction(param, new_param);
-        m.remove_instruction(param);
-    }
-}
-
 static void replace_params_with_literals(module& m, const std::vector<instruction_ref>& inputs)
 {
     auto names = m.get_parameter_names();
@@ -1343,22 +1325,6 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     return mco;
 }
 
-instruction_ref insert_mlir(module& m,
-                            instruction_ref ins,
-                            code_object_op co,
-                            const std::vector<instruction_ref>& inputs)
-{
-
-    std::vector<instruction_ref> refs;
-    std::size_t last = 0;
-    refs.reserve(inputs.size());
-    std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
-    last               = refs.size() - 1;
-    co.expected_inputs = to_shapes(refs);
-    co.output_arg      = last;
-    return m.insert_instruction(ins, co, refs);
-}
-
 tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      module m,
                                      const std::vector<shape>& inputs,
@@ -1448,15 +1414,6 @@ mlir_code_object compile_mlir(const context&, module, const std::vector<shape>&,
     return {};
 }
 
-instruction_ref
-// cppcheck-suppress funcArgNamesDifferent
-insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<instruction_ref>&)
-{
-    use(co);
-    use(m);
-    return m.end();
-}
-
 tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
 {
     return {};
@@ -1471,8 +1428,6 @@ bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const 
 // take their non-MLIR path. Present so libmigraphx_gpu.so has no dangling MLIR symbols
 // when MIGRAPHX_MLIR is disabled.
 bool is_module_fusible(const module&, const context&, const value&) { return false; }
-
-void adjust_param_shapes(module&, const std::vector<shape>&) {}
 
 void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
 

@@ -26,13 +26,11 @@
 // rocMLIR-dependent work to the selected backend plugin.
 
 #include <migraphx/gpu/mlir.hpp>
-#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
-#include <algorithm>
+#include <migraphx/fileutils.hpp>
 #include <utility>
 
 #ifdef MIGRAPHX_MLIR
@@ -51,58 +49,16 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
 
 #ifdef MIGRAPHX_MLIR
 
-// These helpers do not use rocMLIR and remain in migraphx_gpu.
-void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
-{
-    auto names = m.get_parameter_names();
-    std::sort(names.begin(), names.end());
-    for(auto i : range(names.size()))
-    {
-        const auto& name  = names[i];
-        const auto& input = inputs[i];
-        auto param        = m.get_parameter(name);
-        assert(param->get_shape().standard());
-        if(input.standard())
-            continue;
-        auto new_param = m.add_parameter(name + ".0", input);
-        m.replace_instruction(param, new_param);
-        m.remove_instruction(param);
-    }
-}
-
-instruction_ref insert_mlir(module& m,
-                            instruction_ref ins,
-                            code_object_op co,
-                            const std::vector<instruction_ref>& inputs)
-{
-    std::vector<instruction_ref> refs;
-    refs.reserve(inputs.size());
-    std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
-    co.expected_inputs = to_shapes(refs);
-    co.output_arg      = refs.size() - 1;
-    return m.insert_instruction(ins, co, refs);
-}
-
-static std::string plugin_file_name(const std::string& backend)
-{
-    const std::string base = "migraphx_mlir_" + backend;
-#ifdef _WIN32
-    return base + ".dll";
-#else
-    return "lib" + base + ".so";
-#endif
-}
-
 // Load one backend for the process and retain the DLL for as long as its
 // function table can be used.
 static const mlir_backend_v2* load_mlir_backend()
 {
     static dynamic_loader loader;
-    static const mlir_backend_v2* vtable = [&]() -> const mlir_backend_v2* {
+    static const mlir_backend_v2* vtable = []() -> const mlir_backend_v2* {
         auto backend = string_value_of(MIGRAPHX_MLIR_BACKEND{}, "legacy");
         if(backend.empty())
             backend = "legacy";
-        const auto file = plugin_file_name(backend);
+        const auto file = make_shared_object_filename("migraphx_mlir_" + backend);
 
         std::vector<fs::path> candidates;
         try
@@ -228,15 +184,6 @@ mlir_code_object compile_mlir(const context&, module, const std::vector<shape>&,
     return {};
 }
 
-instruction_ref
-// cppcheck-suppress funcArgNamesDifferent
-insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<instruction_ref>&)
-{
-    use(co);
-    use(m);
-    return m.end();
-}
-
 tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
 {
     return {};
@@ -248,8 +195,6 @@ bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const 
 }
 
 bool is_module_fusible(const module&, const context&, const value&) { return false; }
-
-void adjust_param_shapes(module&, const std::vector<shape>&) {}
 
 void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
 

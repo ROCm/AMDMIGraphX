@@ -262,6 +262,7 @@ add_library(migraphx_gpu
     compiled_code.cpp
     compile_ops.cpp
     compile_gen.cpp
+    compile_gen_name.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
     compile_hipblaslt.cpp
@@ -291,6 +292,7 @@ add_library(migraphx_gpu
     loop.cpp
     lrn.cpp
     mlir_backend_loader.cpp
+    mlir_common.cpp
     nms_ops.cpp
     no_device.cpp
     pack_args.cpp

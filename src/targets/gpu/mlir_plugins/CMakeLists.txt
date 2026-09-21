@@ -47,7 +47,9 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
         "MLIR backend plugin '${BACKEND_NAME}' using rocMLIR from ${ROCMLIR_CONFIG_DIR}")
 
     add_library(${_plugin} MODULE
+        ${MIGRAPHX_GPU_DIR}/compile_gen_name.cpp
         ${MIGRAPHX_GPU_DIR}/mlir.cpp
+        ${MIGRAPHX_GPU_DIR}/mlir_common.cpp
         ${MIGRAPHX_GPU_DIR}/prepare_mlir.cpp
         ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/plugin_helpers.cpp
         ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/plugin_export.cpp)

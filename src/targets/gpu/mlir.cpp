@@ -1163,83 +1163,6 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*tuning));
 }
 
-// rocMLIR can only map a layout with a unit stride to memory
-static bool has_unit_stride(const shape& s) { return s.standard() or contains(s.strides(), 1); }
-
-static shape append_unit_dim(const shape& s)
-{
-    auto lens    = s.lens();
-    auto strides = s.strides();
-    lens.push_back(1);
-    strides.push_back(1);
-    return {s.type(), lens, strides};
-}
-
-// Unsqueeze the return values whose output layout has no unit stride
-static std::vector<shape> adjust_return_shapes(module& m, const std::vector<shape>& outputs)
-{
-    auto ret = std::prev(m.end());
-    assert(ret->name() == "@return");
-    auto returns = ret->inputs();
-    assert(returns.size() == outputs.size());
-    std::vector<instruction_ref> new_returns;
-    std::transform(returns.begin(),
-                   returns.end(),
-                   outputs.begin(),
-                   std::back_inserter(new_returns),
-                   [&](instruction_ref ins, const shape& s) {
-                       if(has_unit_stride(s))
-                           return ins;
-                       return m.insert_instruction(
-                           ret, make_op("unsqueeze", {{"axes", {s.ndim()}}}), ins);
-                   });
-    if(new_returns != returns)
-        m.replace_return(new_returns);
-    std::vector<shape> result;
-    std::transform(outputs.begin(), outputs.end(), std::back_inserter(result), [](const shape& s) {
-        return has_unit_stride(s) ? s : append_unit_dim(s);
-    });
-    return result;
-}
-
-std::vector<shape> adjust_param_shapes(module& m, const std::vector<shape>& inputs)
-{
-    auto result = inputs;
-    auto names  = m.get_parameter_names();
-    std::sort(names.begin(), names.end());
-    for(auto i : range(names.size()))
-    {
-        const auto& name  = names[i];
-        const auto& input = inputs[i];
-        auto param        = m.get_parameter(name);
-        assert(param->get_shape().standard());
-        if(input.standard())
-            continue;
-        instruction_ref new_param;
-        if(has_unit_stride(input))
-        {
-            new_param = m.add_parameter(name + ".0", input);
-        }
-        else
-        {
-            // Give the buffer a trailing unit dimension and squeeze it away
-            // inside the kernel so the layout stays expressible
-            auto unit_param = m.add_parameter(name + ".0", append_unit_dim(input));
-            new_param       = m.insert_instruction(
-                std::next(unit_param), make_op("squeeze", {{"axes", {input.ndim()}}}), unit_param);
-        }
-        m.replace_instruction(param, new_param);
-        m.remove_instruction(param);
-    }
-    // The output buffers are handled the same way with an unsqueeze before the return
-    const auto& output = inputs.back();
-    if(output.type() == shape::tuple_type)
-        result.back() = shape{adjust_return_shapes(m, output.sub_shapes())};
-    else
-        result.back() = adjust_return_shapes(m, {output}).front();
-    return result;
-}
-
 static void replace_params_with_literals(module& m, const std::vector<instruction_ref>& inputs)
 {
     auto names = m.get_parameter_names();
@@ -1435,22 +1358,6 @@ std::string mlir_compile_key(const context& migraphx_ctx,
     return ss.str();
 }
 
-instruction_ref insert_mlir(module& m,
-                            instruction_ref ins,
-                            code_object_op co,
-                            const std::vector<instruction_ref>& inputs)
-{
-
-    std::vector<instruction_ref> refs;
-    std::size_t last = 0;
-    refs.reserve(inputs.size());
-    std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
-    last               = refs.size() - 1;
-    co.expected_inputs = to_shapes(refs);
-    co.output_arg      = last;
-    return m.insert_instruction(ins, co, refs);
-}
-
 tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      module m,
                                      const std::vector<shape>& inputs,
@@ -1545,15 +1452,6 @@ std::string mlir_compile_key(const context&, module, const std::vector<shape>&, 
     return {};
 }
 
-instruction_ref
-// cppcheck-suppress funcArgNamesDifferent
-insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<instruction_ref>&)
-{
-    use(co);
-    use(m);
-    return m.end();
-}
-
 tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
 {
     return {};
@@ -1568,8 +1466,6 @@ bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const 
 // take their non-MLIR path. Present so libmigraphx_gpu.so has no dangling MLIR symbols
 // when MIGRAPHX_MLIR is disabled.
 bool is_module_fusible(const module&, const context&, const value&) { return false; }
-
-std::vector<shape> adjust_param_shapes(module&, const std::vector<shape>&) { return {}; }
 
 void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
 

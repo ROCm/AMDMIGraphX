@@ -55,6 +55,10 @@ struct mlir_backend_v2
                                      module m,
                                      const std::vector<shape>& in_shapes,
                                      const value& solution);
+    std::string (*mlir_compile_key)(const context& migraphx_ctx,
+                                    module m,
+                                    const std::vector<shape>& in_shapes,
+                                    const value& solution);
     tuning_config (*get_tuning_config_mlir)(const context& migraphx_ctx,
                                             module m,
                                             const std::vector<shape>& inputs,
@@ -65,8 +69,6 @@ struct mlir_backend_v2
     bool (*mlir_lds_usage_fits_arch)(
         int64_t gemm_o, const std::string& arch, shape::type_t elem_type, const module* m);
 };
-
-using mlir_backend_get_fn = const mlir_backend_v2* (*)();
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

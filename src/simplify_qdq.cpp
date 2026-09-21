@@ -81,6 +81,16 @@ auto propagate_quantized_ins(module& m,
     return input_ins;
 }
 
+// helper function to subtract 128 from a uint8 or int8 operand
+static instruction_ref subtract_128(module& m, instruction_ref pos, instruction_ref x)
+{
+    auto x_i32 = m.insert_instruction(pos, make_op("convert", {{"target_type", migraphx::shape::int32_type}}), x);
+    auto lit   = m.add_literal(literal{shape{migraphx::shape::int32_type}, {128}});
+    auto lit_b = m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lit);
+    auto diff = m.insert_instruction(pos, make_op("sub"), x_i32, lit_b);
+    return m.insert_instruction(pos, make_op("convert", {{"target_type", migraphx::shape::int8_type}}), diff);
+}
+
 // Rebias a uint8 operand and its zero point to int8 by subtracting 128 from both: (q - 128) -
 // (zp - 128) == q - zp, so the dequantized value is unchanged. Done via int32 to avoid wrap-around.
 instruction_ref
@@ -88,18 +98,8 @@ rebias_uint8_to_int8(module& m, instruction_ref pos, instruction_ref qdata, inst
 {
     if(qdata->get_shape().type() != migraphx::shape::uint8_type)
         return qdata;
-    auto subtract_128 = [&](instruction_ref x) {
-        auto x_i32 = m.insert_instruction(
-            pos, make_op("convert", {{"target_type", migraphx::shape::int32_type}}), x);
-        auto lit   = m.add_literal(literal{shape{migraphx::shape::int32_type}, {128}});
-        auto lit_b = m.insert_instruction(
-            pos, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lit);
-        auto diff = m.insert_instruction(pos, make_op("sub"), x_i32, lit_b);
-        return m.insert_instruction(
-            pos, make_op("convert", {{"target_type", migraphx::shape::int8_type}}), diff);
-    };
-    zp = subtract_128(zp);
-    return subtract_128(qdata);
+    zp = subtract_128(m, pos, zp);
+    return subtract_128(m, pos, qdata);
 }
 
 struct match_find_quantizable_ops

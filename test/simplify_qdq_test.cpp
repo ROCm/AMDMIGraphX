@@ -41,7 +41,6 @@ namespace match = migraphx::match;
 
 static bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
 static bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
-static bool is_quant_dot(const migraphx::instruction& ins) { return ins.name() == "quant_dot"; }
 
 static void run_pass(migraphx::module& m)
 {
@@ -384,9 +383,28 @@ TEST_CASE(dot_uint8_input)
         m1.add_return({dot});
     }
 
+    migraphx::module m2;
+    {
+        auto t1      = m2.add_parameter("t1", sh1);
+        auto t2      = m2.add_parameter("t2", sh2);
+        auto a_scale = m2.add_literal(0.5f);
+        auto a_zp    = m2.add_literal(std::uint8_t{128});
+        auto w_scale = m2.add_literal(0.25f);
+        auto w_zp    = m2.add_literal(std::int8_t{0});
+
+        auto q1    = add_quantize_op(m2, "quantizelinear", t1, a_scale, a_zp);
+        auto q2    = add_quantize_op(m2, "quantizelinear", t2, w_scale, w_zp);
+        auto q1_i8 = add_uint8_rebias(m2, q1);
+
+        // The uint8 zero point of 128 rebiases to int8 0, so no zero-point correction is needed.
+        auto dot       = m2.add_instruction(migraphx::make_op("quant_dot"), q1_i8, q2);
+        auto out_scale = add_scale_mul(m2, a_scale, w_scale, 1, 1, dot->get_shape().lens());
+        auto d3        = add_quantize_op(m2, "dequantizelinear", dot, out_scale);
+        m2.add_return({d3});
+    }
+
     run_pass(m1);
-    EXPECT(any_of(m1, &is_quant_dot));
-    EXPECT(none_of(m1, &is_dot));
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(qdq_reshape_unquantized_dot)

@@ -91,7 +91,6 @@ def update_copyright_year(content: str, year: int) -> str:
     Returns:
         str: Content with the copyright year updated.
     """
-
     def replacer(match):
         start_year = match.group(1)
         if int(start_year) == year:

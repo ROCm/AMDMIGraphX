@@ -43,7 +43,9 @@ extern "C" {
 MIGRAPHX_GLOBAL void gridsample_kernel(void* in_x, void* in_grid, void* y)
 {
     make_tensors()(in_x, in_grid, y)([](auto&&... xs) {
-        gridsample<bool{ALIGN_CORNERS}, int{PADDING_MODE}, int{GRID_MODE}>(xs...);
+        gridsample<bool{ALIGN_CORNERS},
+                   gridsample_padding::PADDING_MODE,
+                   gridsample_mode::GRID_MODE>(xs...);
     });
 }
 
@@ -68,31 +70,21 @@ struct gridsample_compiler : compiler<gridsample_compiler>
         options.emplace_param("-DALIGN_CORNERS=" +
                               std::string(v.at("align_corners").to<bool>() ? "true" : "false"));
 
-        // must match enum gridsample_padding in kernels/gridsample.hpp, which is
-        // device-only text and so not visible here
-        int padding_mode = 0;
-        switch(v.at("padding_mode").to<op::gridsample::padding>())
-        {
-        case op::gridsample::padding::zeros: padding_mode = 0; break;
-        case op::gridsample::padding::border: padding_mode = 1; break;
-        case op::gridsample::padding::reflection: padding_mode = 2; break;
-        }
+        // enum gridsample_padding in kernels/gridsample.hpp repeats these
+        // enumerator names, so the name is what gets pasted onto its scope.
+        options.emplace_param("-DPADDING_MODE=" +
+                              to_string(v.at("padding_mode").to<op::gridsample::padding>()));
 
-        options.emplace_param("-DPADDING_MODE=" + std::to_string(padding_mode));
+        // The opset-16 spellings select the same kernel as their opset-20 names,
+        // so they are folded here; enum gridsample_mode carries only the three
+        // opset-20 names.
+        op::gridsample::sample_mode mode = v.at("mode").to<op::gridsample::sample_mode>();
+        if(mode == op::gridsample::sample_mode::bilinear)
+            mode = op::gridsample::sample_mode::linear;
+        else if(mode == op::gridsample::sample_mode::bicubic)
+            mode = op::gridsample::sample_mode::cubic;
 
-        // must match enum gridsample_mode in kernels/gridsample.hpp. The opset-16
-        // spellings select the same kernel as their opset-20 names.
-        int grid_mode = 0;
-        switch(v.at("mode").to<op::gridsample::sample_mode>())
-        {
-        case op::gridsample::sample_mode::nearest: grid_mode = 0; break;
-        case op::gridsample::sample_mode::linear:
-        case op::gridsample::sample_mode::bilinear: grid_mode = 1; break;
-        case op::gridsample::sample_mode::cubic:
-        case op::gridsample::sample_mode::bicubic: grid_mode = 2; break;
-        }
-
-        options.emplace_param("-DGRID_MODE=" + std::to_string(grid_mode));
+        options.emplace_param("-DGRID_MODE=" + to_string(mode));
 
         return compile_hip_code_object(ctx, gridsample_kernel, options);
     }

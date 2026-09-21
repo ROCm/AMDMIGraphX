@@ -31,18 +31,22 @@
 
 namespace migraphx {
 
-enum gridsample_padding : int
+// The enumerator names must match op::gridsample::padding and
+// op::gridsample::sample_mode. The JIT compiler passes the name -- not the
+// value -- through -DPADDING_MODE / -DGRID_MODE, and the kernel entry point
+// pastes it onto these scopes.
+enum class gridsample_padding
 {
-    gridsample_zeros      = 0,
-    gridsample_border     = 1,
-    gridsample_reflection = 2
+    zeros,
+    border,
+    reflection
 };
 
-enum gridsample_mode : int
+enum class gridsample_mode
 {
-    gridsample_mode_nearest = 0,
-    gridsample_mode_linear  = 1,
-    gridsample_mode_cubic   = 2
+    nearest,
+    linear,
+    cubic
 };
 
 MIGRAPHX_DEVICE_CONSTEXPR float gridsample_cubic_weight_1(float t)
@@ -81,14 +85,14 @@ MIGRAPHX_DEVICE_CONSTEXPR float gridsample_reflect(float c, float size, float co
     return even ? extra + corner_start : (size - extra) + corner_start;
 }
 
-template <bool AlignCorners, int PaddingMode>
+template <bool AlignCorners, gridsample_padding PaddingMode>
 MIGRAPHX_DEVICE_CONSTEXPR float gridsample_pad(float c, float size)
 {
-    if constexpr(PaddingMode == gridsample_reflection)
+    if constexpr(PaddingMode == gridsample_padding::reflection)
     {
         c = gridsample_reflect(c, AlignCorners ? size - 1.0f : size, AlignCorners ? 0.0f : -0.5f);
     }
-    if constexpr(PaddingMode != gridsample_zeros)
+    if constexpr(PaddingMode != gridsample_padding::zeros)
     {
         c = migraphx::min(migraphx::max(c, 0.0f), size - 1.0f);
     }
@@ -97,7 +101,12 @@ MIGRAPHX_DEVICE_CONSTEXPR float gridsample_pad(float c, float size)
 
 // One thread per output element. Taps are computed inline from the grid
 // coordinate; no index tensors are materialized.
-template <bool AlignCorners, int PaddingMode, int Mode, class T, class G, class U>
+template <bool AlignCorners,
+          gridsample_padding PaddingMode,
+          gridsample_mode Mode,
+          class T,
+          class G,
+          class U>
 __device__ void gridsample(const T& x_t, const G& grid_t, U& y_t)
 {
     auto index       = make_index();
@@ -124,7 +133,7 @@ __device__ void gridsample(const T& x_t, const G& grid_t, U& y_t)
         const float py = gridsample_pad<AlignCorners, PaddingMode>(
             gridsample_unnormalize<AlignCorners>(gy, in_h), in_h);
 
-        if constexpr(Mode == gridsample_mode_nearest)
+        if constexpr(Mode == gridsample_mode::nearest)
         {
             // Bounds-checked on the rounded float value, matching
             // nearest_sampler in the ONNX parser (round -> clip ->
@@ -146,7 +155,7 @@ __device__ void gridsample(const T& x_t, const G& grid_t, U& y_t)
 
             y_t[idx] = implicit_conversion(sampled);
         }
-        else if constexpr(Mode == gridsample_mode_cubic)
+        else if constexpr(Mode == gridsample_mode::cubic)
         {
             // 4x4 tap cubic convolution, mirrors bicubic_sampler in the ONNX
             // parser and op::gridsample::compute(): gridsample_pad() is
@@ -159,13 +168,13 @@ __device__ void gridsample(const T& x_t, const G& grid_t, U& y_t)
             const float fy      = py - floor_y;
 
             const migraphx::array<float, 4> x_weight = {gridsample_cubic_weight_2(fx + 1.0f),
-                                                       gridsample_cubic_weight_1(fx),
-                                                       gridsample_cubic_weight_1(1.0f - fx),
-                                                       gridsample_cubic_weight_2(2.0f - fx)};
+                                                        gridsample_cubic_weight_1(fx),
+                                                        gridsample_cubic_weight_1(1.0f - fx),
+                                                        gridsample_cubic_weight_2(2.0f - fx)};
             const migraphx::array<float, 4> y_weight = {gridsample_cubic_weight_2(fy + 1.0f),
-                                                       gridsample_cubic_weight_1(fy),
-                                              gridsample_cubic_weight_1(1.0f - fy),
-                                              gridsample_cubic_weight_2(2.0f - fy)};
+                                                        gridsample_cubic_weight_1(fy),
+                                                        gridsample_cubic_weight_1(1.0f - fy),
+                                                        gridsample_cubic_weight_2(2.0f - fy)};
 
             migraphx::array<index_int, 4> x_idx;
             migraphx::array<index_int, 4> y_idx;
@@ -216,7 +225,8 @@ __device__ void gridsample(const T& x_t, const G& grid_t, U& y_t)
             // Accumulated in the same order as the parser: (x0,y0), (x1,y0), (x0,y1), (x1,y1)
             float acc = 0.0f;
             if(x0_ok and y0_ok)
-                acc += x_t[migraphx::array<index_int, 4>{n, c, y0, x0}] * ((1.0f - fy) * (1.0f - fx));
+                acc +=
+                    x_t[migraphx::array<index_int, 4>{n, c, y0, x0}] * ((1.0f - fy) * (1.0f - fx));
             if(x1_ok and y0_ok)
                 acc += x_t[migraphx::array<index_int, 4>{n, c, y0, x1}] * ((1.0f - fy) * fx);
             if(x0_ok and y1_ok)

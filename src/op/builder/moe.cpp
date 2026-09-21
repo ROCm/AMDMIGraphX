@@ -217,25 +217,16 @@ struct moe : op_builder<moe>
     }
 
     private:
-    // Gathered expert GEMM for fc(n + 1): x_rows is [rows, 1, in_features],
-    // returns [rows, 1, out_features]. Fetches the fc's weight/scale/bias/zero
-    // point slots from args.
-    instruction_ref fc(module& m,
-                       instruction_ref ins,
-                       instruction_ref x_rows,
-                       instruction_ref selected,
-                       const std::vector<instruction_ref>& args,
-                       std::size_t n,
-                       std::size_t num_experts,
-                       std::size_t in_features,
-                       std::size_t out_features) const
+    // Validate the shapes and types of one fc's weight/scale/bias/zero point arguments
+    void validate_fc(const std::string& name,
+                     instruction_ref w,
+                     const std::optional<instruction_ref>& scales,
+                     const std::optional<instruction_ref>& bias,
+                     const std::optional<instruction_ref>& zero_points,
+                     std::size_t num_experts,
+                     std::size_t in_features,
+                     std::size_t out_features) const
     {
-        const auto name  = "fc" + std::to_string(n + 1);
-        auto w           = required(args, slot_fc1_weights + 3 * n, name + "_weights");
-        auto scales      = arg(args, slot_fc1_scales + 3 * n);
-        auto bias        = arg(args, slot_fc1_bias + 3 * n);
-        auto zero_points = arg(args, slot_fc1_zero_points + n);
-
         const bool quantized = scales.has_value();
         const auto w_lens    = w->get_shape().lens();
         if(w_lens.size() != 3)
@@ -281,6 +272,29 @@ struct moe : op_builder<moe>
                                std::to_string(z_cols) + " with " + std::to_string(num_experts) +
                                " experts");
         }
+    }
+
+    // Gathered expert GEMM for fc(n + 1): x_rows is [rows, 1, in_features],
+    // returns [rows, 1, out_features]. Fetches the fc's weight/scale/bias/zero
+    // point slots from args.
+    instruction_ref fc(module& m,
+                       instruction_ref ins,
+                       instruction_ref x_rows,
+                       instruction_ref selected,
+                       const std::vector<instruction_ref>& args,
+                       std::size_t n,
+                       std::size_t num_experts,
+                       std::size_t in_features,
+                       std::size_t out_features) const
+    {
+        const auto name  = "fc" + std::to_string(n + 1);
+        auto w           = required(args, slot_fc1_weights + 3 * n, name + "_weights");
+        auto scales      = arg(args, slot_fc1_scales + 3 * n);
+        auto bias        = arg(args, slot_fc1_bias + 3 * n);
+        auto zero_points = arg(args, slot_fc1_zero_points + n);
+
+        const bool quantized = scales.has_value();
+        validate_fc(name, w, scales, bias, zero_points, num_experts, in_features, out_features);
 
         auto wg = m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), w, selected);
         if(quantized)

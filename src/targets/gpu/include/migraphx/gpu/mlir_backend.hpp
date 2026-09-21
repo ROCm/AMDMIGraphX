@@ -66,8 +66,6 @@ struct mlir_backend_v2
         int64_t gemm_o, const std::string& arch, shape::type_t elem_type, const module* m);
 };
 
-using mlir_backend_get_fn = const mlir_backend_v2* (*)();
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

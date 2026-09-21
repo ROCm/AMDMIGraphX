@@ -22,35 +22,52 @@
  * THE SOFTWARE.
  */
 
-// Keep this POC plugin independent of migraphx_gpu while supplying the
-// unreachable code_object_op definitions pulled in by mlir.cpp.
-
-#include <migraphx/gpu/code_object_op.hpp>
-#include <migraphx/errors.hpp>
-#include <vector>
+#include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+namespace gen {
 
-// The plugin returns code_object_op as data; migraphx_gpu owns its insertion
-// and execution. The full mlir.cpp still instantiates these unreachable calls,
-// so this POC supplies traps until host-only code is split from the backend.
-shape code_object_op::compute_shape(std::vector<shape>) const
+namespace {
+std::vector<std::string> get_op_names(const module& m)
 {
-    MIGRAPHX_THROW("code_object_op::compute_shape must not be called inside an MLIR backend plugin");
+    std::vector<std::string> result;
+    for(auto& ins : m)
+    {
+        if(starts_with(ins.name(), "@"))
+            continue;
+        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
+            continue;
+        if(ins.name() == "pointwise")
+        {
+            auto names = get_op_names(*ins.module_inputs().front());
+            result.insert(result.end(), names.begin(), names.end());
+        }
+        else
+        {
+            result.push_back(ins.name());
+        }
+    }
+    return result;
+}
+} // namespace
+
+std::string generate_name_from_ops(const module& m, const std::string& postname)
+{
+    auto op_names = get_op_names(m);
+    if(not postname.empty())
+        op_names.push_back(postname);
+    if(op_names.empty())
+        return "noop";
+    return join_strings(op_names, "_");
 }
 
-argument code_object_op::compute(context&, const shape&, const std::vector<argument>&) const
-{
-    MIGRAPHX_THROW("code_object_op::compute must not be called inside an MLIR backend plugin");
-}
-
-void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
-{
-    MIGRAPHX_THROW("code_object_op::finalize must not be called inside an MLIR backend plugin");
-}
-
+} // namespace gen
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

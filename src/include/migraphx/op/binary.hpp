@@ -122,9 +122,10 @@ struct binary : op_name<Derived>
         {
             return s0.packed() ? s0 : s1;
         }
-        else if(s0.broadcasted() == s1.broadcasted() and s0.scalar() != s1.scalar())
+        else if(s0.broadcasted() == s1.broadcasted() and
+                (s0.element_space() == 1) != (s1.element_space() == 1))
         {
-            return s0.scalar() ? s1 : s0;
+            return s0.element_space() == 1 ? s1 : s0;
         }
         else if(s0.broadcasted() != s1.broadcasted())
         {

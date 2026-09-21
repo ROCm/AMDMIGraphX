@@ -199,7 +199,7 @@ static void check_ngroups_matches_dispatch(std::size_t batch)
     // AMDMLSS has no kernel for this configuration on this device, so there is
     // no dispatch to check.
     if(mlss_ins == mm->end())
-        return;
+        test::skip("AMDMLSS has no kernel for the nGroups regression configuration");
 
     // compile_op() expects [input, weight, output_buffer]; the output buffer is
     // only appended once lowering runs, which is after this pass.

@@ -252,14 +252,16 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - name: Check formatting
+    - name: Check license stamps and formatting
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKER_IMAGE_UBUNTU:$DOCKER_TAG_UBUNTU bash < {0}"
       run: |
         set -e
         git config --global --add safe.directory /data
         if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.pull_request.head.repo.fork }}" != "true" ]; then
+          python3 tools/license_stamper.py --exit-zero origin/${{ github.base_ref }}
           python3 tools/format.py -i --exit-zero origin/${{ github.base_ref }}
         else
+          python3 tools/check_stamped.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
           python3 tools/format.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
         fi
 
@@ -364,32 +366,6 @@ jobs:
         pyflakes examples/ tools/ src/ test/ docs/
         mypy --version
         mypy tools/api.py
-
-  licensing:
-    runs-on: ubuntu-24.04
-
-    steps:
-    - name: Free space
-      uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be  # v1.3.1
-      continue-on-error: true
-      with:
-        tool-cache: true
-        android: true
-        dotnet: true
-        haskell: true
-        large-packages: true
-        swap-storage: true
-        docker-images: true
-
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-      with:
-        fetch-depth: 0 # Fetch the entire repository history and all branches
-    - name: Set up Python
-      uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4
-      with:
-        python-version: 3.12
-    - name: Run License Check
-      run: python3 tools/check_stamped.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
 
   linux:
 

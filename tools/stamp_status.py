@@ -79,6 +79,30 @@ def current_year():
     return datetime.datetime.now().date().year
 
 
+def update_copyright_year(content: str, year: int) -> str:
+    """
+    Rewrite the copyright line in the given content to end at the given year,
+    keeping the original start year.
+
+    Args:
+        content (str): Text containing a license copyright line.
+        year (int): Year to update the license to.
+
+    Returns:
+        str: Content with the copyright year updated.
+    """
+
+    def replacer(match):
+        start_year = match.group(1)
+        if int(start_year) == year:
+            return f"Copyright (c) {year} Advanced Micro Devices"
+        return f"Copyright (c) {start_year}-{year} Advanced Micro Devices"
+
+    return re.sub(
+        r"Copyright \(c\) (\d{4})(?:\s*-\s*\d{4})? Advanced Micro Devices",
+        replacer, content)
+
+
 def update_year(filename: str, year: int):
     """
     Update the license year in the specified file to match the latest Git commit year.
@@ -90,13 +114,5 @@ def update_year(filename: str, year: int):
     with open(filename, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    def replacer(match):
-        start_year = match.group(1)
-        return f"Copyright (c) {start_year}-{year} Advanced Micro Devices"
-
-    new_content = re.sub(
-        r"Copyright \(c\) (\d{4})(?:\s*-\s*\d{4})? Advanced Micro Devices",
-        replacer, content)
-
     with open(filename, 'w', encoding='utf-8') as f:
-        f.write(new_content)
+        f.write(update_copyright_year(content, year))

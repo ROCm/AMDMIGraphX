@@ -1756,8 +1756,9 @@ struct find_unary_shape_transforms
             match::args(match::skip(match::name("contiguous"))(shape_transform));
         auto not_layout = match::none_of(match::name("layout"));
         // Fused pointwise modules are unary when they have one input and one output
-        auto unary = match::any_of(
-            match::pointwise(), match::name("pointwise")(match::not_tuple()));
+        auto unary =
+            match::any_of(match::pointwise(), match::name("pointwise")(match::not_tuple()));
+        return unary(
             match::used_once(), not_layout, input_has_shape_transform, output_not_pointwise);
     }
 

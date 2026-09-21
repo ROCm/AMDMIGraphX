@@ -25,11 +25,15 @@
 #define MIGRAPHX_GUARD_GPU_MLIR_BACKEND_HPP
 
 // Private same-build interface between migraphx_gpu and its MLIR backend
-// plugins. Version 2 adds the LDS-usage query required by the 2611 MLIR fusion
-// pipeline. Rich C++ types may cross this boundary only because the plugins are
-// built and shipped with the matching shared MIGraphX build.
+// plugins. Inputs are borrowed for each call. Results stay owned by the plugin
+// until the host copies their data and calls result_destroy; pointers in result
+// views are only valid until that call.
 
-#include <migraphx/gpu/mlir.hpp>
+#include <migraphx/filesystem.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/shape.hpp>
+#include <cstddef>
+#include <cstdint>
 
 #ifdef _WIN32
 #define MIGRAPHX_MLIR_PLUGIN_EXPORT __declspec(dllexport)
@@ -43,35 +47,93 @@ struct module;
 namespace gpu {
 
 struct context;
+struct mlir_backend_result;
 
-struct mlir_backend_v2
+constexpr std::uint32_t mlir_backend_abi_version = 3;
+
+struct mlir_backend_string_view
 {
-    std::string (*dump_mlir)(module m, const std::vector<shape>& inputs);
-    void (*dump_mlir_to_file)(module m,
-                              const std::vector<shape>& inputs,
-                              const fs::path& location);
-    bool (*is_module_fusible)(const module& m, const context& migraphx_ctx, const value& solution);
-    mlir_code_object (*compile_mlir)(const context& migraphx_ctx,
-                                     module m,
-                                     const std::vector<shape>& in_shapes,
-                                     const value& solution);
-    tuning_config (*get_tuning_config_mlir)(const context& migraphx_ctx,
-                                            module m,
-                                            const std::vector<shape>& inputs,
-                                            bool exhaustive);
-    void (*dump_mlir_to_mxr)(module m,
-                             const std::vector<instruction_ref>& inputs,
-                             const fs::path& location);
-    bool (*mlir_lds_usage_fits_arch)(
-        int64_t gemm_o, const std::string& arch, shape::type_t elem_type, const module* m);
+    const char* data;
+    std::size_t size;
+};
+
+struct mlir_backend_code_object_view
+{
+    const std::uint8_t* code_object;
+    std::size_t code_object_size;
+    mlir_backend_string_view symbol_name;
+    std::size_t global;
+    std::size_t local;
+    const shape* expected_inputs;
+    std::size_t expected_input_count;
+    const shape* output;
+    const std::size_t* prefill_indices;
+    const std::int64_t* prefill_values;
+    std::size_t prefill_count;
+};
+
+struct mlir_backend_tuning_config_view
+{
+    mlir_backend_string_view problem;
+    const mlir_backend_string_view* solutions;
+    std::size_t solution_count;
+    mlir_backend_string_view detailed_problem_info;
+};
+
+struct mlir_backend_v3
+{
+    std::uint32_t abi_version;
+    std::size_t struct_size;
+
+    mlir_backend_result* (*dump_mlir)(
+        const module* m, const shape* inputs, std::size_t input_count) noexcept;
+    mlir_backend_result* (*dump_mlir_to_file)(const module* m,
+                                              const shape* inputs,
+                                              std::size_t input_count,
+                                              const fs::path::value_type* location,
+                                              std::size_t location_size) noexcept;
+    mlir_backend_result* (*is_module_fusible)(const module* m,
+                                              const context* migraphx_ctx,
+                                              const char* solution,
+                                              std::size_t solution_size) noexcept;
+    mlir_backend_result* (*compile_mlir)(const context* migraphx_ctx,
+                                        const module* m,
+                                        const shape* in_shapes,
+                                        std::size_t in_shape_count,
+                                        const char* solution,
+                                        std::size_t solution_size) noexcept;
+    mlir_backend_result* (*get_tuning_config_mlir)(const context* migraphx_ctx,
+                                                   const module* m,
+                                                   const shape* inputs,
+                                                   std::size_t input_count,
+                                                   bool exhaustive) noexcept;
+    mlir_backend_result* (*dump_mlir_to_mxr)(const module* m,
+                                             const instruction_ref* inputs,
+                                             std::size_t input_count,
+                                             const fs::path::value_type* location,
+                                             std::size_t location_size) noexcept;
+    mlir_backend_result* (*mlir_lds_usage_fits_arch)(std::int64_t gemm_o,
+                                                     const char* arch,
+                                                     std::size_t arch_size,
+                                                     shape::type_t elem_type,
+                                                     const module* m) noexcept;
+
+    mlir_backend_string_view (*result_error)(const mlir_backend_result* result) noexcept;
+    mlir_backend_string_view (*result_string)(const mlir_backend_result* result) noexcept;
+    bool (*result_bool)(const mlir_backend_result* result) noexcept;
+    mlir_backend_code_object_view (*result_code_object)(
+        const mlir_backend_result* result) noexcept;
+    mlir_backend_tuning_config_view (*result_tuning_config)(
+        const mlir_backend_result* result) noexcept;
+    void (*result_destroy)(mlir_backend_result* result) noexcept;
 };
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-// Version the exported symbol so a plugin from the original POC cannot be
-// interpreted as the larger 2611 function table.
-#define MIGRAPHX_GPU_MLIR_BACKEND_FACTORY_NAME "migraphx_gpu_get_mlir_backend_v2"
+// Version the exported symbol so older plugins cannot be interpreted as this
+// ownership-safe function table.
+#define MIGRAPHX_GPU_MLIR_BACKEND_FACTORY_NAME "migraphx_gpu_get_mlir_backend_v3"
 
 #endif // MIGRAPHX_GUARD_GPU_MLIR_BACKEND_HPP

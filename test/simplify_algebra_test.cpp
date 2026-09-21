@@ -5123,11 +5123,12 @@ TEST_CASE(conv_concat_group)
 // conv_a(X) and conv_b(concat(X, extra)) can be horizontally fused:
 // fused = conv(X, concat(w_a, slice(w_b, prefix)))
 // conv_b = slice(fused, b_part) + conv(extra, slice(w_b, suffix))
-TEST_CASE(conv_horizontal_fuse)
+TEST_CASE(conv_horizontal_fuse_different_output_channels)
 {
+    // K/C differ between the weights, but their 3x3 kernel spatial dimensions match.
     migraphx::shape xs{migraphx::shape::float_type, {1, 8, 4, 4}};
     migraphx::shape w1s{migraphx::shape::float_type, {4, 8, 3, 3}};
-    migraphx::shape w2s{migraphx::shape::float_type, {4, 12, 3, 3}};
+    migraphx::shape w2s{migraphx::shape::float_type, {6, 12, 3, 3}};
     migraphx::module m1;
     {
         auto x  = m1.add_parameter("x", xs);
@@ -5162,7 +5163,7 @@ TEST_CASE(conv_horizontal_fuse)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}),
             fused_conv);
         auto conv2_prefix = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}),
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {10}}}),
             fused_conv);
         auto act1      = m2.add_instruction(migraphx::make_op("relu"), conv1_out);
         auto w2_suffix = m2.add_instruction(

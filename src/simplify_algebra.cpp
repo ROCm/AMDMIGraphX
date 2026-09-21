@@ -41,6 +41,7 @@
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
+#include <initializer_list>
 #include <unordered_set>
 
 namespace migraphx {
@@ -1251,18 +1252,24 @@ struct find_concat_conv
     }
 };
 
-static bool
-axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
+static bool axes_equal(const std::vector<std::size_t>& x,
+                       const std::vector<std::size_t>& y,
+                       std::initializer_list<std::size_t> ignored_axes)
 {
-    return x.size() == y.size() and x.size() > axis and
-           std::equal(x.begin(), x.begin() + axis, y.begin()) and
-           std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
+    if(x.size() != y.size() or std::any_of(ignored_axes.begin(),
+                                           ignored_axes.end(),
+                                           [&](auto axis) { return axis >= x.size(); }))
+        return false;
+
+    return all_of(range(x.size()),
+                  [&](auto i) { return contains(ignored_axes, i) or x[i] == y[i]; });
 }
 
-static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
+static bool
+axes_shape_equal(const shape& x, const shape& y, std::initializer_list<std::size_t> ignored_axes)
 {
     // TODO: Check strides
-    return axis_equal(x.lens(), y.lens(), axis);
+    return axes_equal(x.lens(), y.lens(), ignored_axes);
 }
 
 // Horizontal fusion for convolutions through concat decomposition.
@@ -1368,11 +1375,11 @@ struct find_conv_concat_split_fuse
             return;
 
         if(not std::all_of(concat_inputs.begin(), concat_inputs.end(), [&](auto inp) {
-               return axis_shape_equal(input_a->get_shape(), inp->get_shape(), concat_axis);
+               return axes_shape_equal(input_a->get_shape(), inp->get_shape(), {concat_axis});
            }))
             return;
 
-        if(not axis_shape_equal(weight_a->get_shape(), weight_b->get_shape(), 1))
+        if(not axes_shape_equal(weight_a->get_shape(), weight_b->get_shape(), {0, 1}))
             return;
 
         auto out_a = weight_a->get_shape().lens()[0];
@@ -2015,7 +2022,7 @@ struct find_add_convs
         auto b_input   = b_conv->inputs().at(0);
         auto b_weights = b_conv->inputs().at(1);
 
-        if(not axis_shape_equal(a_weights->get_shape(), b_weights->get_shape(), 1))
+        if(not axes_shape_equal(a_weights->get_shape(), b_weights->get_shape(), {1}))
             return;
 
         auto a_op   = any_cast<op::convolution>(a_conv->get_operator());
@@ -2053,7 +2060,7 @@ struct find_add_convs
                 return;
         }
 
-        if(not axis_shape_equal(a_input->get_shape(), b_input->get_shape(), 1))
+        if(not axes_shape_equal(a_input->get_shape(), b_input->get_shape(), {1}))
             return;
 
         auto concat_input =
@@ -2103,12 +2110,12 @@ struct find_conv_dot_horiz_fusion
             if(x.size() != y.size())
                 return false;
             // Check that non-axes match
-            int axis = 1;
+            std::size_t axis = 1;
             if(i->name() == "dot" or i->name() == "quant_dot")
             {
                 axis = x.size() - 1;
             }
-            return axis_equal(x, y, axis);
+            return axes_equal(x, y, {axis});
         };
 
         auto each = [&](auto start, auto last) {

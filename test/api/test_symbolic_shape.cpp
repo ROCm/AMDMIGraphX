@@ -54,11 +54,48 @@ TEST_CASE(create_symbolic_dynamic_shape)
 {
     migraphx::dynamic_dimensions dyn_dims(
         migraphx::dynamic_dimension{"n", {{"n", migraphx::dynamic_dimension{1, 4}}}},
-        migraphx::dynamic_dimension{3, 3});
+        migraphx::dynamic_dimension{"3"});
     migraphx::shape s{migraphx_shape_float_type, dyn_dims};
     EXPECT(s.dynamic());
     EXPECT(s.dyn_dims()[0].is_symbolic());
-    EXPECT(not s.dyn_dims()[1].is_symbolic());
+    EXPECT(s.dyn_dims()[1].is_symbolic());
+}
+
+TEST_CASE(create_mixed_dynamic_shape_throws)
+{
+    migraphx::dynamic_dimensions dyn_dims(
+        migraphx::dynamic_dimension{"n", {{"n", migraphx::dynamic_dimension{1, 4}}}},
+        migraphx::dynamic_dimension{3, 3});
+    EXPECT(test::throws([&] { return migraphx::shape{migraphx_shape_float_type, dyn_dims}; }));
+}
+
+TEST_CASE(make_symbolic_shape)
+{
+    migraphx::shape s{migraphx_shape_float_type, {"n({[1..8]}, {2, 4})", "3"}};
+
+    EXPECT(s.dynamic());
+    EXPECT(s.dyn_dims()[0].is_symbolic());
+    EXPECT(s.dyn_dims()[1].is_symbolic());
+    EXPECT(s.standard());
+
+    // The same shape built one dimension at a time.
+    migraphx::dynamic_dimensions dyn_dims(migraphx::dynamic_dimension{"n({[1..8]}, {2, 4})"},
+                                          migraphx::dynamic_dimension{"3"});
+    EXPECT(s == (migraphx::shape{migraphx_shape_float_type, dyn_dims}));
+}
+
+TEST_CASE(make_symbolic_shape_with_strides)
+{
+    migraphx::shape s{migraphx_shape_float_type, {"n({[1..8]})", "3"}, {"1", "n({[1..8]})"}};
+    EXPECT(s.dynamic());
+    EXPECT(not s.standard());
+}
+
+TEST_CASE(make_symbolic_shape_multiple_constraints)
+{
+    migraphx::shape s{migraphx_shape_float_type, {"n({[1..20], [2..10]}, {4})"}};
+    EXPECT(s.dynamic());
+    EXPECT(s.dyn_dims()[0].is_symbolic());
 }
 
 TEST_CASE(parse_onnx_symbolic_dyn_input)

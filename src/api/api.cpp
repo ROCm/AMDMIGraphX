@@ -220,6 +220,33 @@ static shape::dynamic_dimension make_symbolic_dynamic_dimension(
     return shape::make_symbolic_dynamic_dimension(expression, symbols);
 }
 
+// Build a symbolic shape from self-contained expression strings. The C API takes explicit string
+// arrays and sizes because declaring std::vector<std::string> in the API generator would select
+// its global migraphx_quantize_op_names_t mapping and expose that unrelated opaque handle here.
+static std::vector<std::string>
+make_expression_strings(const char* const* expressions, std::size_t size, const std::string& name)
+{
+    if(size == 0)
+        return {};
+    if(expressions == nullptr or
+       std::any_of(expressions, expressions + size, [](const char* expression) {
+           return expression == nullptr;
+       }))
+        MIGRAPHX_THROW("CREATE_SYMBOLIC_SHAPE: Null " + name + " expression");
+    return {expressions, expressions + size};
+}
+
+static shape create_symbolic_shape(shape::type_t t,
+                                   const char* const* dims,
+                                   std::size_t ndims,
+                                   const char* const* strides,
+                                   std::size_t nstrides)
+{
+    return shape::make_symbolic_shape(t,
+                                      make_expression_strings(dims, ndims, "dimension"),
+                                      make_expression_strings(strides, nstrides, "stride"));
+}
+
 #ifdef MIGRAPHX_ENABLE_ONNX
 
 static void set_default_dim_value(onnx_options& options, size_t value)
@@ -1259,6 +1286,21 @@ extern "C" migraphx_status migraphx_shape_create_dynamic(migraphx_shape_t* shape
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
         *shape = object_cast<migraphx_shape_t>(
             allocate<migraphx::shape>((migraphx::to_shape_type(type)), (dims->object)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_create_symbolic(migraphx_shape_t* shape,
+                                                          migraphx_shape_datatype_t type,
+                                                          const char* const* dims,
+                                                          size_t ndims,
+                                                          const char* const* strides,
+                                                          size_t nstrides)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *shape =
+            object_cast<migraphx_shape_t>(allocate<migraphx::shape>(migraphx::create_symbolic_shape(
+                (migraphx::to_shape_type(type)), (dims), (ndims), (strides), (nstrides))));
     });
     return api_error_result;
 }

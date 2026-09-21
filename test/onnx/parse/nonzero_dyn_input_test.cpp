@@ -36,7 +36,7 @@ TEST_CASE(nonzero_dyn_input_test)
         auto num_nonzero =
             m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
         auto starts = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
-        auto ends   = migraphx::value::array{migraphx::to_value(var("NonZero_1", {0, 8}))};
+        auto ends   = migraphx::value::array{migraphx::to_value(var("main_NonZero_1", {0, 8}))};
         auto r      = m.add_instruction(
             migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", ends}}),
             indices,

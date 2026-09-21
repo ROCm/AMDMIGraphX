@@ -1130,7 +1130,8 @@ TEST_CASE(flash_decoding_3d_with_attention_literal)
 TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
 {
     // Broadcastable mask literal {1,1,M,N} is multibroadcast to score shape, then consumed
-    // in where. Flash decoding splits the literal's own layout at compile time.
+    // in where. find_attention only inlines scalar and iota literals, so this one stays in the
+    // main module and reaches the submodule as a parameter.
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 384, 384}};
     migraphx::shape s_mask{migraphx::shape::bool_type, {1, 1, 384, 384}};
     const std::size_t num_splits = 2;
@@ -1172,17 +1173,15 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
               .flash_decoding_enabled    = true,
               .flash_decoding_num_splits = num_splits});
 
-    // The mask literal is split on its own layout at compile time, so the rebuilt
-    // multibroadcast can target the split score shape directly.
-    migraphx::shape s_mask_split{migraphx::shape::bool_type, {1, 1, num_splits, 384, 192}};
-    std::vector<uint8_t> mask_split_data(s_mask_split.elements(), 1);
-
+    // The mask parameter cannot multibroadcast to the split score shape, so rebuild broadcasts
+    // to the original score shape and splits that with a reshape and transpose.
     migraphx::program p2;
     {
         auto* mm      = p2.get_main_module();
         auto q        = mm->add_parameter("q", s1);
         auto k        = mm->add_parameter("k", s1);
         auto v        = mm->add_parameter("v", s1);
+        auto mask     = mm->add_literal(migraphx::literal{s_mask, mask_data});
         size_t g_axis = 2;
 
         const std::vector<size_t> q_split = {1, 12, num_splits, 384, 384};
@@ -1213,20 +1212,25 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
             p2,
             "attn0_flash_decoding",
             "attention",
-            {q_broadcast, k_split_ins, v_reshape},
-            {"x0", "x1", "x2"},
+            {mask, q_broadcast, k_split_ins, v_reshape},
+            {"x0", "x1", "x2", "x3"},
             [&](auto* gm, const auto& inputs) {
-                auto mask   = gm->add_literal(migraphx::literal{s_mask_split, mask_split_data});
+                auto mask_bc = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), inputs[0]);
+                auto mask_reshape = gm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 12, 384, num_splits, 192}}}),
+                    mask_bc);
+                auto mask_split = gm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2, 4}}}),
+                    mask_reshape);
                 auto ninf   = gm->add_literal(-std::numeric_limits<float>::infinity());
                 auto ninf_h = gm->add_instruction(
                     migraphx::make_op("convert", {{"target_type", s1.type()}}), ninf);
-                auto mask_bc = gm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", k_split}}), mask);
                 auto ninf_bc = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", k_split}}), ninf_h);
-                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
                 auto masked =
-                    gm->add_instruction(migraphx::make_op("where"), mask_bc, gemm1, ninf_bc);
+                    gm->add_instruction(migraphx::make_op("where"), mask_split, gemm1, ninf_bc);
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), masked);
                 auto rmax_broad = gm->add_instruction(
@@ -1238,7 +1242,7 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
                 auto rsum_broad = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", k_split}}), rsum);
                 auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum_broad);
-                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[3]);
                 auto log   = gm->add_instruction(migraphx::make_op("log"), rsum);
                 auto add   = gm->add_instruction(migraphx::make_op("add"), rmax, log);
                 return std::vector<migraphx::instruction_ref>{gemm2, add};

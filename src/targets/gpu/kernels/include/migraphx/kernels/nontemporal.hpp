@@ -30,6 +30,11 @@
 #include <migraphx/kernels/bit_cast.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 
+// Set to 0 (via MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS) to fall back to cached loads.
+#ifndef MIGRAPHX_NONTEMPORAL_LOADS
+#define MIGRAPHX_NONTEMPORAL_LOADS 1
+#endif
+
 namespace migraphx {
 
 // Load with a nontemporal (streaming) hint: the value is not expected to be reused.
@@ -38,6 +43,7 @@ namespace migraphx {
 template <class T>
 __device__ T nontemporal_load(const T* ptr)
 {
+#if MIGRAPHX_NONTEMPORAL_LOADS
     if constexpr(is_integral<T>{} or is_floating_point<T>{} or is_any_vec<T>())
     {
         return __builtin_nontemporal_load(ptr);
@@ -48,6 +54,9 @@ __device__ T nontemporal_load(const T* ptr)
         static_assert(alignof(T) >= alignof(storage));
         return bit_cast<T>(__builtin_nontemporal_load(reinterpret_cast<const storage*>(ptr)));
     }
+#else
+    return *ptr;
+#endif
 }
 
 // Non-broadcasted inputs are streamed with no reuse expected, so use a nontemporal load.

@@ -38,7 +38,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
     static bool has_input(const std::vector<instruction_ref>& args, std::size_t index)
     {
-return args.size() > index and not args.at(index)->is_undefined();
+        return args.size() > index and not args.at(index)->is_undefined();
     }
 
     static instruction_ref insert_rotary(module& m,

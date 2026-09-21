@@ -31,6 +31,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -174,6 +175,15 @@ struct unsqueeze
         }
         return symbolic_compute_shape(input_shape);
     }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.size() != 1)
+            return {};
+        return args[0].reshape(output_shape);
+    }
+
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         return args[0].reshape(dyn_out.computed_shape);

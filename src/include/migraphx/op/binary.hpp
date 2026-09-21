@@ -30,6 +30,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/par.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,6 +39,9 @@ namespace op {
 template <class Derived>
 struct binary : op_name<Derived>
 {
+    // The inherited symbolic_compute is opt-in because not every Derived::apply supports sym::expr.
+    static constexpr bool enable_symbolic_compute = false;
+
     std::string point_function() const { return this->name(); }
     std::string point_op() const
     {
@@ -62,6 +66,39 @@ struct binary : op_name<Derived>
                 {"fillcolor", "#008080" /* teal */}};
     }
     value attributes() const { return base_attributes(); }
+
+    bool supports_symbolic_compute(const shape& output_shape,
+                                   const std::vector<sym_argument>&) const
+    {
+        return output_shape.type() == shape::int64_type;
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        const auto& self = static_cast<const Derived&>(*this);
+        if constexpr(Derived::enable_symbolic_compute)
+        {
+            if(not self.supports_symbolic_compute(output_shape, args))
+                return {};
+            if(args.size() != 2 or args[0].empty() or args[1].empty() or
+               args[0].get_shape().lens() != output_shape.lens() or
+               args[1].get_shape().lens() != output_shape.lens())
+                return {};
+
+            sym_argument result{output_shape};
+            const auto x = args[0].get();
+            const auto y = args[1].get();
+            auto output  = result.get();
+            par_transform(x.begin(), x.end(), y.begin(), output.begin(), self.apply());
+            return result;
+        }
+        else
+        {
+            return {};
+        }
+    }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, static_cast<const Derived&>(*this), true}

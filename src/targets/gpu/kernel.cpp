@@ -31,7 +31,7 @@
 #include <hip/hip_ext.h>
 #else
 // extern declare the function since hip/hip_ext.h header is broken
-extern hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT
+extern "C" hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT
                                            uint32_t,
                                            uint32_t,
                                            uint32_t,

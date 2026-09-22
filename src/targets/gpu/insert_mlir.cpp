@@ -22,33 +22,24 @@
  * THE SOFTWARE.
  */
 
-// Keep this POC plugin independent of migraphx_gpu while supplying the
-// unreachable code_object_op definitions pulled in by mlir.cpp.
-
-#include <migraphx/gpu/code_object_op.hpp>
-#include <migraphx/errors.hpp>
-#include <vector>
+#include <migraphx/gpu/mlir.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// The plugin returns code_object_op as data; migraphx_gpu owns its insertion
-// and execution. The full mlir.cpp still instantiates these unreachable calls,
-// so this POC supplies traps until host-only code is split from the backend.
-shape code_object_op::compute_shape(std::vector<shape>) const
+instruction_ref insert_mlir(module& m,
+                            instruction_ref ins,
+                            code_object_op co,
+                            const std::vector<instruction_ref>& inputs)
 {
-    MIGRAPHX_THROW("code_object_op::compute_shape must not be called inside an MLIR backend plugin");
-}
-
-argument code_object_op::compute(context&, const shape&, const std::vector<argument>&) const
-{
-    MIGRAPHX_THROW("code_object_op::compute must not be called inside an MLIR backend plugin");
-}
-
-void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
-{
-    MIGRAPHX_THROW("code_object_op::finalize must not be called inside an MLIR backend plugin");
+    auto refs          = inputs;
+    co.expected_inputs = to_shapes(refs);
+    co.output_arg      = refs.size() - 1;
+    return m.insert_instruction(ins, co, refs);
 }
 
 } // namespace gpu

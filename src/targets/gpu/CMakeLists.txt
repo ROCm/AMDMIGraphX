@@ -224,6 +224,7 @@ add_library(migraphx_gpu
     hipblaslt.cpp
     hip_gemm_impl.cpp
     hsa_chiplet.cpp
+    insert_mlir.cpp
     json_problem_cache.cpp
     kernel.cpp
     lower_device_ops.cpp

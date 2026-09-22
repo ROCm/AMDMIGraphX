@@ -51,7 +51,6 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
         ${MIGRAPHX_GPU_DIR}/mlir.cpp
         ${MIGRAPHX_GPU_DIR}/mlir_common.cpp
         ${MIGRAPHX_GPU_DIR}/prepare_mlir.cpp
-        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/plugin_helpers.cpp
         ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/plugin_export.cpp)
 
     target_include_directories(${_plugin} PRIVATE

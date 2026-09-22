@@ -23,8 +23,6 @@
  */
 
 #include <migraphx/gpu/mlir.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
 #include <algorithm>
@@ -50,17 +48,6 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
         m.replace_instruction(param, new_param);
         m.remove_instruction(param);
     }
-}
-
-instruction_ref insert_mlir(module& m,
-                            instruction_ref ins,
-                            code_object_op co,
-                            const std::vector<instruction_ref>& inputs)
-{
-    auto refs          = inputs;
-    co.expected_inputs = to_shapes(refs);
-    co.output_arg      = refs.size() - 1;
-    return m.insert_instruction(ins, co, refs);
 }
 
 } // namespace gpu

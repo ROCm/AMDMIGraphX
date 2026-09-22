@@ -79,7 +79,7 @@ std::pair<std::string, std::errc> format_floating_point(T value)
     });
     if(it == precisions.end())
         return {{}, std::errc::invalid_argument};
-    return {std::move(result), {}};
+    return {result, {}};
 }
 
 template <class T>

@@ -82,7 +82,7 @@ auto propagate_quantized_ins(module& m,
 }
 
 // helper function to subtract 128 from a uint8 or int8 operand
-static instruction_ref subtract_128(module& m, instruction_ref pos, instruction_ref x)
+instruction_ref subtract_128(module& m, instruction_ref pos, instruction_ref x)
 {
     auto x_i32 = m.insert_instruction(
         pos, make_op("convert", {{"target_type", migraphx::shape::int32_type}}), x);

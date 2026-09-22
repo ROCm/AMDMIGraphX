@@ -30,6 +30,16 @@ set(MIGRAPHX_MLIR_LEGACY_ROCMLIR_DIR "" CACHE PATH
     "Legacy rocMLIR package config directory")
 set(MIGRAPHX_MLIR_TRITON_ROCMLIR_DIR "" CACHE PATH
     "rocmlirTriton package config directory")
+set(MIGRAPHX_MLIR_BACKENDS "both" CACHE STRING
+    "MLIR backend plugins to build: legacy, triton, or both")
+set_property(CACHE MIGRAPHX_MLIR_BACKENDS PROPERTY STRINGS legacy triton both)
+
+if(NOT MIGRAPHX_MLIR_BACKENDS STREQUAL "legacy" AND
+   NOT MIGRAPHX_MLIR_BACKENDS STREQUAL "triton" AND
+   NOT MIGRAPHX_MLIR_BACKENDS STREQUAL "both")
+    message(FATAL_ERROR
+        "MIGRAPHX_MLIR_BACKENDS must be 'legacy', 'triton', or 'both'")
+endif()
 
 # Build each plugin in a separate directory scope because both package
 # installations export a target named rocMLIR::rockCompiler.
@@ -84,7 +94,21 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
     endif()
 
     add_dependencies(${_plugin} migraphx_gpu)
+    if(WIN32)
+        set(_plugin_install_dir ${CMAKE_INSTALL_BINDIR})
+    else()
+        set(_plugin_install_dir ${CMAKE_INSTALL_LIBDIR})
+    endif()
+    install(TARGETS ${_plugin}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${_plugin_install_dir})
 endfunction()
 
-add_subdirectory(legacy)
-add_subdirectory(triton)
+if(MIGRAPHX_MLIR_BACKENDS STREQUAL "legacy" OR
+   MIGRAPHX_MLIR_BACKENDS STREQUAL "both")
+    add_subdirectory(legacy)
+endif()
+if(MIGRAPHX_MLIR_BACKENDS STREQUAL "triton" OR
+   MIGRAPHX_MLIR_BACKENDS STREQUAL "both")
+    add_subdirectory(triton)
+endif()

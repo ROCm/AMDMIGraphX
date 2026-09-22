@@ -74,7 +74,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_maxpool_with_argmax_2d_precomputed_pads_cpu')
     backend_test.exclude(
         r'test_maxpool_with_argmax_2d_precomputed_strides_cpu')
-    backend_test.exclude(r'test_nonzero_example_cpu')
 
     # from OnnxBackendPyTorchConvertedModelTest
     backend_test.exclude(r'test_ConvTranspose2d_cpu')

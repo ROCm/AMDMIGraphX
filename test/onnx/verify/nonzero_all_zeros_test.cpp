@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,27 +22,28 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/register_target.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(nonzero_dynamic_test)
+// An all-zero mask drives the parser's trim to a zero-length slice, which is the one bound
+// sym::var(name, {0, max}) allows that no other test reaches.
+TEST_CASE(nonzero_all_zeros_test)
 {
-    using migraphx::sym::var;
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::bool_type, {2, 2}};
-    auto data        = mm->add_parameter("data", s);
-    auto nz          = mm->add_instruction(migraphx::make_op("nonzero"), data);
-    auto indices     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
-    auto num_nonzero = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
-    auto starts      = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
-    auto ends        = migraphx::value::array{migraphx::to_value(var("main_NonZero_1", {0, 4}))};
-    auto r           = mm->add_instruction(
-        migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", ends}}),
-        indices,
-        starts,
-        num_nonzero);
-    mm->add_return({r});
+    migraphx::program p = read_onnx("nonzero_dynamic_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-    auto prog = read_onnx("nonzero_dynamic_test.onnx");
-    EXPECT(p == prog);
+    migraphx::shape s{migraphx::shape::bool_type, {2, 2}};
+    std::vector<char> data = {0, 0, 0, 0};
+
+    migraphx::parameter_map pp;
+    pp["data"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<int64_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // np.nonzero(np.zeros((2, 2))) is ((), ()), so the ONNX specification's output is [rank, 0].
+    EXPECT(result_vector.empty());
+    // Only the sliced axis collapses; the trim still keeps the padded buffer's row stride.
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {2, 0}, {4, 1}});
 }

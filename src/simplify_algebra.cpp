@@ -1378,7 +1378,11 @@ struct find_conv_concat_split_fuse
            }))
             return;
 
-        if(not axis_shape_equal(weight_a->get_shape(), weight_b->get_shape(), 1))
+        auto weight_b_prefix_lens = weight_b->get_shape().lens();
+        if(weight_b_prefix_lens.size() < 2 or weight_b_prefix_lens[1] < prefix_chans)
+            return;
+        weight_b_prefix_lens[1] = prefix_chans;
+        if(not axis_equal(weight_a->get_shape().lens(), weight_b_prefix_lens, 0))
             return;
 
         auto out_a = weight_a->get_shape().lens()[0];

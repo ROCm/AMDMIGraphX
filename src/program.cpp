@@ -96,29 +96,48 @@ struct program_impl
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
-static void replace_module_refs(module& m,
-                                const std::unordered_map<module_ref, module_ref>& mod_map)
+// Build an old-to-new instruction map across the copied modules, then remap
+// the copies' instruction and module references onto the new program
+static void remap_copied_refs(const std::vector<std::pair<const_module_ref, module_ref>>& copies,
+                              const std::unordered_map<module_ref, module_ref>& mod_map)
 {
-    for(auto ins : iterator_for(m))
-        instruction::replace_refs(ins, {}, mod_map);
+    // Module copies preserve instruction order, so pair the instructions positionally
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    for(const auto& [src, copy] : copies)
+    {
+        auto src_range  = iterator_for(*src);
+        auto copy_range = iterator_for(*copy);
+        std::transform(src_range.begin(),
+                       src_range.end(),
+                       copy_range.begin(),
+                       std::inserter(ins_map, ins_map.begin()),
+                       [](auto x, auto y) { return std::make_pair(x, y); });
+    }
+    for(const auto& pp : copies)
+    {
+        for(auto ins : iterator_for(*pp.second))
+            instruction::replace_refs(ins, ins_map, mod_map);
+    }
 }
 
-program::program(module m) : impl(std::make_unique<program_impl>())
+// Must take the module by const ref: submodules capture instructions of the
+// source root, so remapping them needs the source's instructions as map keys.
+// A by-value parameter would copy at the call site and discard that mapping.
+program::program(const module& m) : impl(std::make_unique<program_impl>())
 {
-    auto sub_mods = m.get_sub_modules();
-    auto* root    = this->create_module("main", std::move(m));
-    // Copy the submodules the instructions reference so the program owns
+    // Copy the module and the submodules it references so the program owns
     // every module it uses
+    auto* root = this->create_module("main", m);
     std::unordered_map<module_ref, module_ref> mod_map;
-    for(auto* sm : sub_mods)
+    std::vector<std::pair<const_module_ref, module_ref>> copies = {{&m, root}};
+    for(auto* sm : m.get_sub_modules())
     {
         if(contains(mod_map, sm))
             continue;
         mod_map[sm] = this->create_module(sm->name(), *sm);
+        copies.emplace_back(sm, mod_map.at(sm));
     }
-    replace_module_refs(*root, mod_map);
-    for(const auto& pp : mod_map)
-        replace_module_refs(*pp.second, mod_map);
+    remap_copied_refs(copies, mod_map);
 }
 
 program::program(program&&) noexcept = default;
@@ -143,7 +162,6 @@ void program::assign(const program& p)
 
     *impl = *p.impl;
 
-    // build a map from old ins to new ins
     // Build a map from old module to new module
     std::unordered_map<module_ref, module_ref> mod_map;
     std::transform(
@@ -152,24 +170,7 @@ void program::assign(const program& p)
         std::inserter(mod_map, mod_map.begin()),
         [&](auto&& xp) { return std::make_pair(&p.impl->modules.at(xp.first), &xp.second); });
 
-    std::unordered_map<instruction_ref, instruction_ref> ins_map;
-    for(auto&& pp : mod_map)
-    {
-        auto old_ins = iterator_for(*pp.first);
-        auto new_ins = iterator_for(*pp.second);
-        std::transform(old_ins.begin(),
-                       old_ins.end(),
-                       new_ins.begin(),
-                       std::inserter(ins_map, ins_map.begin()),
-                       [](auto x, auto y) { return std::make_pair(x, y); });
-    }
-
-    // Update all references from all modules
-    for(auto&& mp : impl->modules)
-    {
-        for(auto ins : iterator_for(mp.second))
-            instruction::replace_refs(ins, ins_map, mod_map);
-    }
+    remap_copied_refs({mod_map.begin(), mod_map.end()}, mod_map);
 }
 
 shape program::get_parameter_shape(std::string name) const

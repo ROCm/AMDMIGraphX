@@ -1409,7 +1409,7 @@ void dump_mlir_to_mxr(module m,
     auto name = compute_dump_name(m, ".mxr");
     auto f    = location / name;
     log::info() << "Dumping MXR file to: " << f;
-    save(program{std::move(m)}, f.string());
+    save(program{m}, f.string());
 }
 
 #else

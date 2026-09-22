@@ -1094,6 +1094,12 @@ struct find_concat_op
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
 
+        // A matcher can select a concat even when none of its input groups are eligible for
+        // fusion. Avoid replacing it with an equivalent concat, which would report a change and
+        // keep the surrounding fixed-point passes running.
+        if(args == ins->inputs())
+            return;
+
         for(const auto& p : replacements)
         {
             m.move_output_instructions_after(p.first, ins);

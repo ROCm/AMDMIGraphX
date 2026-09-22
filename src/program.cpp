@@ -648,7 +648,11 @@ static void print_trace_buffer(const argument& buffer, int trace_level)
 
 static bool is_inspectable(const std::string& op)
 {
-    return not op.empty() and op.front() != '@' and op != "load";
+    if(op.empty())
+        return false;
+    if(op.front() == '@')
+        return op == "@param";
+    return op != "load";
 }
 
 std::vector<argument> program::eval(const parameter_map& params,
@@ -697,7 +701,7 @@ std::vector<argument> program::eval(const parameter_map& params,
 
     std::vector<argument> ret;
 
-    if(exec_env.trace)
+    if(exec_env.trace or exec_env.substitute)
     {
         ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
             const auto& ctx = contexts[ins->get_target_id()];
@@ -722,7 +726,18 @@ std::vector<argument> program::eval(const parameter_map& params,
                 std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
             }
             if(is_inspectable(ins->name()) and not result.empty())
-                exec_env.trace(ins, copy_to_host(result, ins->get_target_id()));
+            {
+                auto host = copy_to_host(result, ins->get_target_id());
+                if(exec_env.trace)
+                    exec_env.trace(ins, host);
+                auto sub =
+                    exec_env.substitute ? exec_env.substitute(ins, host) : optional<argument>{};
+                if(sub)
+                {
+                    assert(sub->get_shape() == result.get_shape());
+                    result = targets.at(ins->get_target_id()).copy_to(*sub);
+                }
+            }
             return result;
         });
     }

@@ -38,6 +38,7 @@
 #include <algorithm>
 #include <iterator>
 #include <numeric>
+#include <optional>
 #include <unordered_set>
 
 namespace migraphx {
@@ -717,9 +718,9 @@ struct find_flash_decoding
 
         // Rebuild the rest, transforming operators that depend on tensor shape/rank. The inserter
         // is never called for @param, @outline, or @return; add_instructions handles those.
-        auto max_ins     = target_mod.end();
-        auto sum_exp_ins = target_mod.end();
-        auto outputs     = target_mod.add_instructions(
+        std::optional<instruction_ref> max_ins;
+        std::optional<instruction_ref> sum_exp_ins;
+        auto outputs = target_mod.add_instructions(
             &source_mod,
             &map_old_to_new,
             [&](module& m,
@@ -765,10 +766,10 @@ struct find_flash_decoding
         auto partial_output_o_prime = outputs.front();
 
         // calculate LSE = max(S) + log(sum(exp(S - max(S))))
-        assert(max_ins != target_mod.end() and sum_exp_ins != target_mod.end() and
+        assert(max_ins.has_value() and sum_exp_ins.has_value() and
                "Softmax max and sum must be rebuilt");
-        auto log_sum_exp = target_mod.add_instruction(make_op("log"), sum_exp_ins);
-        auto lse         = target_mod.add_instruction(make_op("add"), max_ins, log_sum_exp);
+        auto log_sum_exp = target_mod.add_instruction(make_op("log"), *sum_exp_ins);
+        auto lse         = target_mod.add_instruction(make_op("add"), *max_ins, log_sum_exp);
 
         // return a tuple of {O', LSE}
         target_mod.add_return({partial_output_o_prime, lse});

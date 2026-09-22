@@ -18,6 +18,9 @@ Full documentation for MIGraphX is available at
 * Added find_concat_same_broadcast matcher to convert concat of identical broadcasts into a single multibroadcast to reduce hipCopy() (#5179).
 * Added a `find_slice_reshaped_concat` matcher to `simplify_reshapes` that forwards a slice reading exactly one segment of a concat through intervening reshape/transpose view ops, removing the concat entirely (#5183).
 * Added a `--layerwise` mode to `verify` that compares the reference and target layer by layer without recompiling (#5067).
+* Added symbolic shapes to the Python API: dimensions as self-contained expression strings with optional `dyn_strides`, plus `shape.dyn_strides()`, `shape.symbolic()` and `dynamic_dimension.expression` (#5205).
+* Added `migraphx::shape::make_symbolic_shape` and `migraphx_shape_create_symbolic` for building symbolic shapes from self-contained dimension and stride expressions, with a matching `migraphx::shape` constructor in `migraphx.hpp` (#5205).
+* Added positional constraint and optimal lists to the symbolic variable text format, plus an overload of `migraphx::sym::var` taking a list of intervals (#5205).
 
 
 ### Changed

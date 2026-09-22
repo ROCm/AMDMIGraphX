@@ -25,6 +25,7 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/simple_parser.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/charconv.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/utility_operators.hpp>
@@ -36,14 +37,12 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <charconv>
 #include <cstdint>
 #include <iterator>
 #include <functional>
 #include <limits>
 #include <numeric>
 #include <optional>
-#include <sstream>
 #include <unordered_set>
 #include <utility>
 
@@ -2095,7 +2094,7 @@ static std::string scalar_to_string(const scalar& v)
     return visit(
         [](auto x) -> std::string {
             std::array<char, 32> buffer{};
-            auto result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), x);
+            auto result = to_chars(buffer.data(), buffer.data() + buffer.size(), x);
             if(result.ec != std::errc{})
                 MIGRAPHX_THROW("Failed to format scalar");
             return std::string(buffer.data(), result.ptr);
@@ -2119,7 +2118,7 @@ static std::string variable_to_string(const variable_node& variable)
                    variable.constraints.end(),
                    std::back_inserter(constraints),
                    &constraint_to_string);
-    std::string result = variable.name + "({" + join_strings(std::move(constraints), ", ") + "}";
+    std::string result = variable.name + join_strings(std::move(constraints), "");
     if(not variable.optimals.empty())
     {
         std::vector<std::string> optimals;
@@ -2128,9 +2127,9 @@ static std::string variable_to_string(const variable_node& variable)
                        variable.optimals.end(),
                        std::back_inserter(optimals),
                        [](const scalar& optimal) { return scalar_to_string(optimal); });
-        result += ", {" + join_strings(std::move(optimals), ", ") + "}";
+        result += "{" + join_strings(std::move(optimals), ", ") + "}";
     }
-    return result + ")";
+    return result;
 }
 
 struct string_prec
@@ -2426,7 +2425,7 @@ static interval parse_constraint(sym_parser& p)
     p.expect(std::string_view{".."});
     auto max = parse_variable_scalar(p);
     p.expect(std::string_view{"]"});
-    return {std::move(min), std::move(max)};
+    return {min, max};
 }
 
 template <class F>
@@ -2453,14 +2452,16 @@ static std::string_view parse_identifier(sym_parser& p)
 
 static expr parse_variable_metadata(sym_parser& p, std::string name)
 {
-    auto constraints = parse_braced_list(p, &parse_constraint);
+    std::vector<interval> constraints;
+    while(p.peek_char() == '[')
+        constraints.push_back(parse_constraint(p));
+
     std::set<scalar> optimals;
-    if(p.match(std::string_view{","}))
+    if(p.peek_char() == '{')
     {
         auto values = parse_braced_list(p, &parse_variable_scalar);
         optimals.insert(values.begin(), values.end());
     }
-    p.expect(std::string_view{")"});
     return var(std::move(name), std::move(constraints), std::move(optimals));
 }
 
@@ -2470,11 +2471,11 @@ static expr parse_func_or_var(sym_parser& p)
     if(name.empty())
         return {};
     std::string sname(name);
+    if(p.peek_char() == '[' or p.peek_char() == '{')
+        return parse_variable_metadata(p, std::move(sname));
     if(p.peek_char() != '(')
         return var(sname);
     p.advance(1);
-    if(p.peek_char() == '{')
-        return parse_variable_metadata(p, std::move(sname));
     std::vector<expr> args;
     if(p.peek_char() != ')')
     {

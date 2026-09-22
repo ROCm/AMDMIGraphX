@@ -7,6 +7,9 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added symbolic shapes to the Python API: dimensions as self-contained expression strings with optional `dyn_strides`, plus `shape.dyn_strides()`, `shape.symbolic()` and `dynamic_dimension.expression` (#5205).
+* Added `migraphx::shape::make_symbolic_shape` and `migraphx_shape_create_symbolic` for building symbolic shapes from self-contained dimension and stride expressions, with a matching `migraphx::shape` constructor in `migraphx.hpp` (#5205).
+* Added positional constraint and optimal lists to the symbolic variable text format, plus an overload of `migraphx::sym::var` taking a list of intervals (#5205).
 * Added a layered problem-cache priority list (searched in order, first hit wins), delivered to the GPU target through the `problem_cache_files` backend option (#5117).
 * Added a `promote_storage_type` pass that treats the given types as storage-only, computing elementwise and reduction instructions of those types in float instead, and enabled it on the GPU target for `bf16` on architectures without native bf16 arithmetic instructions (#5138).
 * Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, whose symbolic `starts`/`ends` attributes describe the run-time bound inputs so a data-dependent slice keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5112).
@@ -15,20 +18,27 @@ Full documentation for MIGraphX is available at
 * Added find_concat_same_broadcast matcher to convert concat of identical broadcasts into a single multibroadcast to reduce hipCopy() (#5179).
 * Added a `find_slice_reshaped_concat` matcher to `simplify_reshapes` that forwards a slice reading exactly one segment of a concat through intervening reshape/transpose view ops, removing the concat entirely (#5183).
 * Added a `--layerwise` mode to `verify` that compares the reference and target layer by layer without recompiling (#5067).
+* Added symbolic shapes to the Python API: dimensions as self-contained expression strings with optional `dyn_strides`, plus `shape.dyn_strides()`, `shape.symbolic()` and `dynamic_dimension.expression` (#5205).
+* Added `migraphx::shape::make_symbolic_shape` and `migraphx_shape_create_symbolic` for building symbolic shapes from self-contained dimension and stride expressions, with a matching `migraphx::shape` constructor in `migraphx.hpp` (#5205).
+* Added positional constraint and optimal lists to the symbolic variable text format, plus an overload of `migraphx::sym::var` taking a list of intervals (#5205).
 
 
 ### Changed
 
+* `migraphx::sym::var` now requires valid identifier names. The ONNX parser sanitizes external names and disambiguates collisions; for example, unnamed axis 0 of input `0` becomes `_0_d0`, while a `dim_param` of `batch.size` becomes `batch_size` (#5205).
 * Changed `propagate_constant` to skip folding a `convert` to a wider type, since that would enlarge the literal and lose the smaller storage type (#5138).
 * The 1 arg `slice` operator accepts symbolic input shapes when every sliced axis has a fixed length. Slicing a non-fixed symbolic axis, or supplying the bounds as inputs, needs `dyn_slice` since the integer bounds cannot express a symbolic output extent (#5112).
 * Rejected symbolic input shapes in the multi-input `slice` calls, and pointed both symbolic `slice` errors at `dyn_slice` (#5112).
 * Updated `find_concat_reshape` matcher to fuse concats of reshapes whose inputs differ along the concat axis, as long as the non-axis dimensions match (#5181).
+* Changed the ONNX `NonMaxSuppression` parser to trim its zero-padded indices output down to the number of selected boxes with a `dyn_slice`, so a parsed model now returns the ONNX specification's `[num_selected_indices, 3]` output instead of a fixed padded size. This removes the `MIGRAPHX_USE_DYNAMIC_NMS` environment variable that previously gated the trim (#5150).
 * Parsed ONNX `TopK` with a run-time `k` into `dyn_slice`, so the output shape carries `k` as a symbol instead of the widest possible dimension. A range-based dynamic input shape is now rejected; parse with symbolic shapes instead (#5150).
 * Made the ONNX parser's per-node identifier unique across modules by prefixing it with the module name, which also renames parsed subgraph modules (for example `If_5_if` is now `main_If_5_if`) (#5150).
 * The 1 arg `slice` operator accepts symbolic input shapes when every sliced axis has a fixed length. Slicing a non-fixed symbolic axis, or supplying the bounds as inputs, needs `dyn_slice` since the integer bounds cannot express a symbolic output extent (#5112).
 
 ### Resolved issues
 
+* Fixed `migraphx::sym::expr::to_string` rounding double literals to six significant digits, which prevented some expressions from round-tripping exactly through `migraphx::sym::parse` (#5205).
+* Fixed the `--py` and `--cpp` program printers throwing `SHAPE: lens() called on a dynamic shape` for any program holding a dynamic shape (#5205).
 * Fixed a regression in `simplify_algebra` where `find_add_convs` and `find_conv_concat_split_fuse` could fuse parallel convolutions with mismatched spatial dimensions after `rewrite_convolution`, causing `CONCAT: all input dimensions should match` failures when compiling U-Net-style models (#5167).
 * Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).

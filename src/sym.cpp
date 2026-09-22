@@ -25,6 +25,7 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/simple_parser.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/charconv.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/utility_operators.hpp>
@@ -34,13 +35,14 @@
 #include <migraphx/sat_ops.hpp>
 
 #include <algorithm>
+#include <array>
+#include <cctype>
 #include <cstdint>
 #include <iterator>
 #include <functional>
 #include <limits>
 #include <numeric>
 #include <optional>
-#include <sstream>
 #include <unordered_set>
 #include <utility>
 
@@ -466,20 +468,77 @@ template std::shared_ptr<const expr::impl> expr::make_impl(op_node, std::vector<
 
 expr lit(scalar v) { return expr(literal_node{v}); }
 
-expr var(std::string name)
+static void normalize_constraints(std::vector<interval>& cs);
+
+static bool is_identifier_start(unsigned char c) { return std::isalpha(c) != 0 or c == '_'; }
+
+static bool is_identifier_char(unsigned char c) { return std::isalnum(c) != 0 or c == '_'; }
+
+// A symbolic shape is spelled in generated code as an expression string, so every symbol has to
+// survive a round trip through parse. That means a name must be an identifier by the same rule
+// parse_func_or_var accepts.
+static void check_var_name(const std::string& name)
 {
     if(name.empty())
         MIGRAPHX_THROW("Variable name must not be empty");
+    auto first = static_cast<unsigned char>(name.front());
+    if(not is_identifier_start(first))
+        MIGRAPHX_THROW("Variable name must start with a letter or an underscore: " + name);
+    if(not std::all_of(name.begin(), name.end(), &is_identifier_char))
+        MIGRAPHX_THROW("Variable name must only contain letters, digits and underscores: " + name);
+}
+
+expr var(std::string name)
+{
+    check_var_name(name);
     return expr(variable_node{std::move(name), {}, {}});
 }
 
 expr var(std::string name, interval constraint, std::set<scalar> optimals)
 {
-    if(name.empty())
-        MIGRAPHX_THROW("Variable name must not be empty");
-    if(not constraint.valid())
+    return var(std::move(name), std::vector<interval>{constraint}, std::move(optimals));
+}
+
+expr var(std::string name, std::vector<interval> constraints, std::set<scalar> optimals)
+{
+    check_var_name(name);
+    if(std::any_of(
+           constraints.begin(), constraints.end(), [](const interval& c) { return not c.valid(); }))
         MIGRAPHX_THROW("Invalid interval");
-    return expr(variable_node{std::move(name), {constraint}, std::move(optimals)});
+    // Canonicalize here as well as on merge, so a variable built from a constraint
+    // set compares equal to the same one obtained by merging or deserializing.
+    normalize_constraints(constraints);
+    return expr(variable_node{std::move(name), std::move(constraints), std::move(optimals)});
+}
+
+static std::string sanitize_symbol_name(std::string_view external_name)
+{
+    std::string result{external_name};
+    std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) {
+        return is_identifier_char(c) ? static_cast<char>(c) : '_';
+    });
+    if(result.empty())
+        return "_";
+    if(not is_identifier_start(static_cast<unsigned char>(result.front())))
+        result.insert(result.begin(), '_');
+    return result;
+}
+
+std::string symbol_name_registry::resolve(std::string_view external_name)
+{
+    std::string name{external_name};
+    auto it = resolved_names.find(name);
+    if(it != resolved_names.end())
+        return it->second;
+
+    auto base      = sanitize_symbol_name(external_name);
+    auto candidate = base;
+    for(std::size_t i = 2; contains(used_names, candidate); i++)
+        candidate = base + "_" + std::to_string(i);
+
+    resolved_names.emplace(std::move(name), candidate);
+    used_names.insert(candidate);
+    return candidate;
 }
 
 expr arg(expr x) { return x; }
@@ -2028,15 +2087,49 @@ std::set<std::size_t> expr::eval_optimals_uint() const
     return result;
 }
 
+// Format doubles with the shortest representation that round-trips through parse(); a stream's
+// default six significant digits can change values that require more precision.
 static std::string scalar_to_string(const scalar& v)
 {
     return visit(
         [](auto x) -> std::string {
-            std::ostringstream ss;
-            ss << x;
-            return ss.str();
+            std::array<char, 32> buffer{};
+            auto result = to_chars(buffer.data(), buffer.data() + buffer.size(), x);
+            if(result.ec != std::errc{})
+                MIGRAPHX_THROW("Failed to format scalar");
+            return std::string(buffer.data(), result.ptr);
         },
         v);
+}
+
+static std::string constraint_to_string(const interval& constraint)
+{
+    return "[" + scalar_to_string(constraint.min) + ".." + scalar_to_string(constraint.max) + "]";
+}
+
+static std::string variable_to_string(const variable_node& variable)
+{
+    if(variable.constraints.empty() and variable.optimals.empty())
+        return variable.name;
+
+    std::vector<std::string> constraints;
+    constraints.reserve(variable.constraints.size());
+    std::transform(variable.constraints.begin(),
+                   variable.constraints.end(),
+                   std::back_inserter(constraints),
+                   &constraint_to_string);
+    std::string result = variable.name + join_strings(std::move(constraints), "");
+    if(not variable.optimals.empty())
+    {
+        std::vector<std::string> optimals;
+        optimals.reserve(variable.optimals.size());
+        std::transform(variable.optimals.begin(),
+                       variable.optimals.end(),
+                       std::back_inserter(optimals),
+                       [](const scalar& optimal) { return scalar_to_string(optimal); });
+        result += "{" + join_strings(std::move(optimals), ", ") + "}";
+    }
+    return result;
 }
 
 struct string_prec
@@ -2075,7 +2168,7 @@ std::string expr::to_string() const
                                       return string_prec{scalar_to_string(n.val)};
                                   },
                                   [](const variable_node& n) -> std::optional<string_prec> {
-                                      return string_prec{n.name};
+                                      return string_prec{variable_to_string(n)};
                                   },
                                   [](const op_node&) -> std::optional<string_prec> {
                                       return std::nullopt;
@@ -2255,24 +2348,131 @@ static expr call_function(const std::string& name, const std::vector<expr>& args
     return it->second(args);
 }
 
+static std::optional<scalar> parse_scalar(sym_parser& p, bool allow_sign = false)
+{
+    auto q = p;
+    std::string token;
+    if(allow_sign and (q.peek_char() == '-' or q.peek_char() == '+'))
+    {
+        token += q.peek_char();
+        q.advance(1);
+    }
+
+    auto whole = q.parse_while([](unsigned char c) { return std::isdigit(c) != 0; });
+    token += std::string{whole};
+    bool has_digits = not whole.empty();
+
+    // Do not consume the first dot of an interval delimiter such as "1..4".
+    if(q.peek_char() == '.' and not q.starts_with(std::string_view{".."}))
+    {
+        token += '.';
+        q.advance(1);
+        auto fraction = q.parse_while([](unsigned char c) { return std::isdigit(c) != 0; });
+        token += std::string{fraction};
+        has_digits = has_digits or not fraction.empty();
+    }
+    if(not has_digits)
+        return std::nullopt;
+
+    // An exponent only counts when digits actually follow it. to_string emits this form for very
+    // large and very small doubles, and without it those cannot be read back.
+    if(q.peek_char() == 'e' or q.peek_char() == 'E')
+    {
+        auto exponent_parser = q;
+        std::string exponent{exponent_parser.peek_char()};
+        exponent_parser.advance(1);
+        if(exponent_parser.peek_char() == '+' or exponent_parser.peek_char() == '-')
+        {
+            exponent += exponent_parser.peek_char();
+            exponent_parser.advance(1);
+        }
+        auto digits =
+            exponent_parser.parse_while([](unsigned char c) { return std::isdigit(c) != 0; });
+        if(not digits.empty())
+        {
+            exponent += std::string{digits};
+            token += exponent;
+            q = exponent_parser;
+        }
+    }
+
+    p = q;
+    if(token.find_first_of(".eE") != std::string::npos)
+        return scalar{std::stod(token)};
+    return scalar{std::stoll(token)};
+}
+
 static expr parse_number(sym_parser& p)
 {
-    if((std::isdigit(p.peek_char()) == 0) and p.peek_char() != '.')
+    auto value = parse_scalar(p);
+    if(not value.has_value())
         return {};
-    auto token    = p.parse_while([](unsigned char c) { return std::isdigit(c) or c == '.'; });
-    bool is_float = token.find('.') != std::string_view::npos;
-    if(is_float)
-        return lit(std::stod(std::string(token)));
-    return lit(std::stoll(std::string(token)));
+    return lit(*value);
+}
+
+static scalar parse_variable_scalar(sym_parser& p)
+{
+    auto value = parse_scalar(p, true);
+    if(not value.has_value())
+        MIGRAPHX_THROW(p.error_message("number"));
+    return *value;
+}
+
+static interval parse_constraint(sym_parser& p)
+{
+    p.expect(std::string_view{"["});
+    auto min = parse_variable_scalar(p);
+    p.expect(std::string_view{".."});
+    auto max = parse_variable_scalar(p);
+    p.expect(std::string_view{"]"});
+    return {min, max};
+}
+
+template <class F>
+static auto parse_braced_list(sym_parser& p, F parse_element)
+{
+    using value_type = decltype(parse_element(p));
+    std::vector<value_type> result;
+    p.expect(std::string_view{"{"});
+    if(p.match(std::string_view{"}"}))
+        return result;
+    result.push_back(parse_element(p));
+    while(p.match(std::string_view{","}))
+        result.push_back(parse_element(p));
+    p.expect(std::string_view{"}"});
+    return result;
+}
+
+static std::string_view parse_identifier(sym_parser& p)
+{
+    if(not is_identifier_start(static_cast<unsigned char>(p.peek_char())))
+        return {};
+    return p.parse_while(&is_identifier_char);
+}
+
+static expr parse_variable_metadata(sym_parser& p, std::string name)
+{
+    std::vector<interval> constraints;
+    while(p.peek_char() == '[')
+        constraints.push_back(parse_constraint(p));
+
+    std::set<scalar> optimals;
+    if(p.peek_char() == '{')
+    {
+        auto values = parse_braced_list(p, &parse_variable_scalar);
+        optimals.insert(values.begin(), values.end());
+    }
+    return var(std::move(name), std::move(constraints), std::move(optimals));
 }
 
 static expr parse_func_or_var(sym_parser& p)
 {
-    char c = p.peek_char();
-    if((std::isalpha(c) == 0) and c != '_')
+    auto name = parse_identifier(p);
+    if(name.empty())
         return {};
-    auto name = p.parse_while([](unsigned char ch) { return std::isalnum(ch) or ch == '_'; });
     std::string sname(name);
+    if(p.peek_char() == '[' or p.peek_char() == '{')
+        return parse_variable_metadata(p, std::move(sname));
     if(p.peek_char() != '(')
         return var(sname);
     p.advance(1);

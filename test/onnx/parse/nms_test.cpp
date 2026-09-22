@@ -26,6 +26,7 @@
 
 TEST_CASE(nms_test)
 {
+    using migraphx::sym::var;
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape sb{migraphx::shape::float_type, {1, 6, 4}};
@@ -45,7 +46,17 @@ TEST_CASE(nms_test)
 
     auto nms = mm->add_instruction(
         migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}), b, s, mo, iou, st);
-    auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto num_selected =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    auto starts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto num_selected_var = var("main_NonMaxSuppression_5", {0, 6});
+    auto ends             = migraphx::value::array{migraphx::to_value(num_selected_var)};
+    auto ret              = mm->add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", ends}}),
+        indices,
+        starts,
+        num_selected);
     mm->add_return({ret});
 
     auto prog = read_onnx("nms_test.onnx");

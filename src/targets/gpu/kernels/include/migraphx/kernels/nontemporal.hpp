@@ -31,6 +31,7 @@
 #include <migraphx/kernels/tensor_view.hpp>
 
 // Set to 0 (via MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS) to fall back to cached loads.
+// NOLINTNEXTLINE([cppcoreguidelines-macro-usage)
 #ifndef MIGRAPHX_NONTEMPORAL_LOADS
 #define MIGRAPHX_NONTEMPORAL_LOADS 1
 #endif

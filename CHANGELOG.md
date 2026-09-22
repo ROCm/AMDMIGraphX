@@ -29,6 +29,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `find_conv_concat_split_fuse` skipping valid horizontal convolution fusion when the convolutions have different output-channel counts, which regressed Topaz trf/trfn performance on gfx1151 after #5167.
 * Fixed a regression in `simplify_algebra` where `find_add_convs` and `find_conv_concat_split_fuse` could fuse parallel convolutions with mismatched spatial dimensions after `rewrite_convolution`, causing `CONCAT: all input dimensions should match` failures when compiling U-Net-style models (#5167).
 * Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).
 * Fixed a parse failure in `Softplus` and `Softsign` when an input has a dynamic shape (#5136).

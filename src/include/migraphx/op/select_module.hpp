@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,6 +44,8 @@ struct select_module
     }
 
     std::string name() const { return "select_module"; }
+
+    std::size_t num_outputs() const { return output_dyn_shapes.sub_shapes().size(); }
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
     {
@@ -117,13 +120,19 @@ struct select_module
                        std::inserter(p_map, p_map.end()),
                        [&](auto&& name, auto&& a) { return std::make_pair(name, a); });
 
-        // One tuple output parameter in main module to multiple output parameters in submodule
-        auto out_param_names    = get_output_parameter_names(module_to_run);
-        auto param_shapes       = module_to_run->get_parameter_shapes();
-        auto output_sub_objects = args.back().get_sub_objects();
-        auto module_outputs     = module_to_run->get_returns();
-        if(not out_param_names.empty() and module_outputs.size() != output_sub_objects.size())
-            MIGRAPHX_THROW("SELECT_MODULE: output allocation count does not match module outputs");
+        // Each output of the submodule writes into the caller's buffer for that output
+        auto out_param_names = get_output_parameter_names(module_to_run);
+        auto param_shapes    = module_to_run->get_parameter_shapes();
+        auto module_outputs  = module_to_run->get_returns();
+        if(not out_param_names.empty())
+        {
+            if(args.size() != in_param_names.size() + num_outputs())
+                MIGRAPHX_THROW("SELECT_MODULE: missing output allocations");
+            if(module_outputs.size() != num_outputs())
+                MIGRAPHX_THROW(
+                    "SELECT_MODULE: output allocation count does not match module outputs");
+        }
+        auto output_start = args.size() - num_outputs();
         for(const auto& name : out_param_names)
         {
             auto parameter = module_to_run->get_parameter(name);
@@ -133,8 +142,9 @@ struct select_module
                 });
             if(output == module_outputs.end())
                 MIGRAPHX_THROW("SELECT_MODULE: output parameter does not alias a module output");
-            auto& allocation = output_sub_objects.at(std::distance(module_outputs.begin(), output));
-            auto ps          = param_shapes.at(name);
+            const auto& allocation =
+                args.at(output_start + std::distance(module_outputs.begin(), output));
+            auto ps = param_shapes.at(name);
             if(ps.bytes() > allocation.get_shape().bytes())
                 MIGRAPHX_THROW("SELECT_MODULE: output allocation is too small");
             p_map.emplace(name, allocation.get_shape() == ps ? allocation : allocation.reshape(ps));
@@ -143,9 +153,14 @@ struct select_module
         return argument{results};
     }
 
+    // The caller's output buffers are appended after the input arguments during lowering.
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return {shapes.size() - 1};
+        if(shapes.size() <= num_outputs())
+            return {};
+        std::vector<std::size_t> result(num_outputs());
+        std::iota(result.begin(), result.end(), shapes.size() - num_outputs());
+        return result;
     }
 };
 

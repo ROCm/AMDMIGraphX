@@ -2062,6 +2062,16 @@ find_cloned_input(const sliced_value& input,
     return found->second;
 }
 
+bool only_used_as_slice_metadata(instruction_ref ins)
+{
+    const auto& outputs = ins->outputs();
+    return not outputs.empty() and
+           std::all_of(outputs.begin(), outputs.end(), [&](auto output) {
+               return contains({"slice", "dyn_slice"}, output->name()) and
+                      output->inputs().front() != ins;
+           });
+}
+
 struct clone_context
 {
     module& clone_module;
@@ -2157,6 +2167,45 @@ struct clone_context
     }
 };
 
+struct fold_fixed_clone_evaluations : match::supports_dynamic_shapes
+{
+    const std::unordered_map<sym::expr, std::size_t>& fixed_runtime_values;
+
+    auto matcher() const { return match::name("eval_expr_from_shape")(); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        if(only_used_as_slice_metadata(ins))
+            return;
+
+        auto expressions = from_value<std::vector<sym::expr>>(
+            ins->get_operator().to_value().at("expressions"));
+        std::unordered_set<sym::expr> required;
+        for(const auto& expression : expressions)
+        {
+            auto variables = sym::find_variables(expression);
+            required.merge(variables);
+        }
+        if(required.empty() or any_of(required, [&](const auto& variable) {
+               return not contains(fixed_runtime_values, variable);
+           }))
+            return;
+
+        std::vector<int64_t> values;
+        values.reserve(expressions.size());
+        std::transform(expressions.begin(),
+                       expressions.end(),
+                       std::back_inserter(values),
+                       [&](const auto& expression) {
+                           return static_cast<int64_t>(
+                               expression.eval_uint(fixed_runtime_values));
+                       });
+        m.replace_instruction(
+            ins, m.add_literal(literal{shape{shape::int64_type, {values.size()}}, values}));
+    }
+};
+
 struct clone_build
 {
     module clone;
@@ -2191,6 +2240,11 @@ clone_build build_clone(
         clone_map[source] = clone_module.add_literal(source->get_literal());
     }
 
+    std::unordered_map<sym::expr, std::size_t> fixed_runtime_values;
+    for(const auto& [root, interval] : subranges)
+        if(interval.min == interval.max)
+            fixed_runtime_values.emplace(root, interval.min);
+
     std::vector<instruction_ref> runtime_extent_sources;
     std::transform(frame.extent_sources.begin(),
                    frame.extent_sources.end(),
@@ -2208,6 +2262,8 @@ clone_build build_clone(
                           fixed_substitutions};
     for(auto source : frame.body)
         context.emit(source);
+    match::find_matches(clone_module,
+                        fold_fixed_clone_evaluations{.fixed_runtime_values = fixed_runtime_values});
 
     std::vector<instruction_ref> clone_outputs;
     std::transform(frame.outputs.begin(),
@@ -2222,6 +2278,24 @@ clone_build build_clone(
                    std::back_inserter(output_shapes),
                    [](instruction_ref output) { return output->get_shape(); });
     clone_module.add_return(clone_outputs);
+    run_passes(clone_module, {dead_code_elimination{}});
+    if(none_of(clone_module, [](const auto& ins) {
+           return ins.name() == "eval_expr_from_shape" and not ins.outputs().empty();
+       }))
+    {
+        auto static_clone = clone_module;
+        for(auto parameter : static_clone.get_parameters())
+        {
+            const auto& s = parameter->get_shape();
+            if(s.symbolic() and s.is_fixed() and all_of(s.dyn_strides(), [](const auto& stride) {
+                   return sym::fixed_value(stride).has_value();
+               }))
+                instruction::replace(
+                    parameter, parameter->get_operator(), s.to_static(), parameter->inputs());
+        }
+        if(static_clone.get_output_shapes() == output_shapes)
+            clone_module = std::move(static_clone);
+    }
     return {std::move(clone_module), {freeze, std::move(output_shapes)}};
 }
 

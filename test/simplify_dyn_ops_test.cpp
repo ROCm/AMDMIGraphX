@@ -612,80 +612,6 @@ TEST_CASE(static_dimensions_of_nonfixed)
     EXPECT(m0 == m1);
 }
 
-TEST_CASE(fixed_eval_expr_from_shape)
-{
-    using dd = migraphx::shape::dynamic_dimension;
-
-    auto n       = migraphx::sym::var("n", {1, 4});
-    auto fixed_n = migraphx::sym::var("n", {4, 4});
-    migraphx::shape input_shape{
-        migraphx::shape::float_type, std::vector<dd>{dd{fixed_n}, dd{migraphx::sym::lit(3)}}};
-    std::vector<migraphx::sym::expr> expressions = {n + 1, n * 2};
-
-    migraphx::module m0;
-    auto input = m0.add_parameter("data", input_shape);
-    auto eval  = m0.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(expressions)}}),
-        input);
-    m0.add_return({eval});
-    run_pass(m0);
-
-    migraphx::module m1;
-    m1.add_parameter("data", input_shape);
-    auto result = m1.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, {5, 8}});
-    m1.add_return({result});
-
-    EXPECT(m0 == m1);
-}
-
-TEST_CASE(symbol_free_eval_expr_from_shape)
-{
-    using dd = migraphx::shape::dynamic_dimension;
-
-    auto n = migraphx::sym::var("n", {1, 4});
-    migraphx::shape input_shape{
-        migraphx::shape::float_type, std::vector<dd>{dd{n}, dd{migraphx::sym::lit(3)}}};
-    std::vector<migraphx::sym::expr> expressions = {migraphx::sym::lit(0)};
-
-    migraphx::module m0;
-    auto input = m0.add_parameter("data", input_shape);
-    auto eval  = m0.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(expressions)}}),
-        input);
-    m0.add_return({eval});
-    auto expected = m0;
-
-    run_pass(m0);
-
-    EXPECT(m0 == expected);
-}
-
-TEST_CASE(nonfixed_eval_expr_from_shape)
-{
-    using dd = migraphx::shape::dynamic_dimension;
-
-    auto n = migraphx::sym::var("n", {1, 4});
-    migraphx::shape input_shape{
-        migraphx::shape::float_type, std::vector<dd>{dd{n}, dd{migraphx::sym::lit(3)}}};
-    std::vector<migraphx::sym::expr> expressions = {n + 1, n * 2};
-
-    migraphx::module m0;
-    auto input = m0.add_parameter("data", input_shape);
-    auto eval  = m0.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(expressions)}}),
-        input);
-    m0.add_return({eval});
-    auto expected = m0;
-
-    run_pass(m0);
-
-    EXPECT(m0 == expected);
-}
-
 TEST_CASE(constant_alloc_reshape)
 {
     migraphx::module m0;
@@ -946,54 +872,9 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
                                end0);
     main0->add_return({result0});
 
+    auto expected = p0;
     migraphx::run_passes(p0, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
-
-    migraphx::program p1;
-    auto create_submodule1 = [&](const std::string& name, const dd::interval& subrange) {
-        auto* submod         = p1.create_module(name);
-        std::vector<dd> dims = {{migraphx::sym::var("n", {subrange.min, subrange.max})},
-                                {migraphx::sym::lit(4)}};
-        auto input =
-            submod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims});
-        auto output = submod->add_instruction(migraphx::make_op("fixed_pad"), input);
-        submod->add_return({output});
-        return submod;
-    };
-    auto* first1                = create_submodule1("main:split_sym_dim_0_0", {1, 1});
-    auto* second1               = create_submodule1("main:split_sym_dim_0_1", {2, 4});
-    auto* main1                 = p1.get_main_module();
-    std::vector<dd> input_dims1 = {{n}, {migraphx::sym::lit(4)}};
-    auto input1 =
-        main1->add_parameter("data", migraphx::shape{migraphx::shape::float_type, input_dims1});
-    std::vector<dd> output_dims1 = {{target_n}, {migraphx::sym::lit(4)}};
-    migraphx::shape output_shape1{
-        std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type, output_dims1}}};
-    auto select1 = main1->add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes", migraphx::to_value(output_shape1)}}),
-        {input1},
-        {first1, second1});
-    auto selected1 =
-        main1->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select1);
-    std::vector<se> starts1 = {migraphx::sym::lit(0)};
-    std::vector<se> ends1   = {n};
-    auto start1             = main1->add_instruction(
-        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(starts1)}}),
-        input1);
-    auto end1 = main1->add_instruction(
-        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(ends1)}}),
-        input1);
-    auto result1 =
-        main1->add_instruction(migraphx::make_op("dyn_slice",
-                                                 {{"axes", {0}},
-                                                  {"starts", migraphx::to_value(starts1)},
-                                                  {"ends", migraphx::to_value(ends1)}}),
-                               selected1,
-                               start1,
-                               end1);
-    main1->add_return({result1});
-
-    EXPECT(p0 == p1);
+    EXPECT(p0 == expected);
 }
 
 // Test case with static output shape in the submodules (look at `sm_shape`)

@@ -69,10 +69,19 @@ migraphx::operation fixed_pad(float value = 0.0f)
     return migraphx::make_op("fixed_pad", {{"value", value}});
 }
 
-migraphx::operation symbolic_multibroadcast(std::initializer_list<se> dims)
+migraphx::instruction_ref add_symbolic_multibroadcast(
+    migraphx::module& m,
+    std::initializer_list<se> dims,
+    migraphx::instruction_ref input,
+    migraphx::instruction_ref shape_input,
+    std::initializer_list<migraphx::instruction_ref> additional_shape_inputs = {})
 {
     std::vector<dd> output_dims(dims.begin(), dims.end());
-    return migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}});
+    std::vector<migraphx::instruction_ref> inputs = {input, shape_input};
+    inputs.insert(inputs.end(), additional_shape_inputs);
+    return m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+        inputs);
 }
 
 migraphx::operation symbolic_broadcast(std::size_t axis, std::initializer_list<se> dims)
@@ -146,6 +155,22 @@ migraphx::instruction_ref add_fill(migraphx::module& m, float value)
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {value}});
 }
 
+migraphx::instruction_ref add_expected_clone_extent(migraphx::module& m,
+                                                    const se& expression,
+                                                    const se& root,
+                                                    const clone_spec& clone,
+                                                    migraphx::instruction_ref input)
+{
+    if(clone.min != clone.max)
+        return m.add_instruction(
+            migraphx::make_op("eval_expr_from_shape",
+                              {{"expressions", migraphx::to_value(std::vector<se>{expression})}}),
+            input);
+    auto value = expression.eval_uint({{migraphx::sym::as_symbol(root), clone.min}});
+    return m.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {int64_t(value)}});
+}
+
 migraphx::instruction_ref add_mask(migraphx::module& m,
                                    migraphx::instruction_ref input,
                                    migraphx::instruction_ref indices,
@@ -176,6 +201,24 @@ add_clones(migraphx::program& p, std::size_t block, const std::vector<Spec>& spe
         auto* sm = p.create_module("main:split_sym_dim_" + std::to_string(block) + "_" +
                                    std::to_string(i));
         f(*sm, specs.at(i));
+        // Fixed parameters stay symbolic if shape evaluations need them or output layouts change.
+        if(migraphx::none_of(*sm,
+                             [](const auto& ins) { return ins.name() == "eval_expr_from_shape"; }))
+        {
+            auto static_clone = *sm;
+            for(auto parameter : static_clone.get_parameters())
+            {
+                const auto& s = parameter->get_shape();
+                if(s.symbolic() and s.is_fixed() and
+                   migraphx::all_of(s.dyn_strides(), [](const auto& stride) {
+                       return migraphx::sym::fixed_value(stride).has_value();
+                   }))
+                    migraphx::instruction::replace(
+                        parameter, parameter->get_operator(), s.to_static(), {});
+            }
+            if(static_clone.get_output_shapes() == sm->get_output_shapes())
+                *sm = std::move(static_clone);
+        }
         modules.push_back(sm);
     }
     return modules;
@@ -231,11 +274,10 @@ migraphx::program make_transformer_program()
     return p;
 }
 
-migraphx::program make_transformer_core_program()
+migraphx::program make_transformer_core_program(const se& sequence)
 {
-    auto sequence = var("sequence", {4, 16}, {8});
-    auto c2       = lit(2);
-    auto c8       = lit(8);
+    auto c2 = lit(2);
+    auto c8 = lit(8);
 
     migraphx::program p;
     auto& m       = *p.get_main_module();
@@ -388,7 +430,7 @@ TEST_CASE(split_sym_dim_materializes_symbolic_multibroadcast)
     auto& m     = *p.get_main_module();
     auto data   = m.add_parameter("data", symbolic_shape({n, lit(3)}));
     auto bias   = m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
-    auto bcast  = m.add_instruction(symbolic_multibroadcast({n, lit(3)}), bias, data);
+    auto bcast  = add_symbolic_multibroadcast(m, {n, lit(3)}, bias, data);
     auto output = m.add_instruction(migraphx::make_op("add"), data, bcast);
     m.add_return({output});
 
@@ -435,7 +477,7 @@ TEST_CASE(split_sym_dim_materializes_symbolic_multibroadcast_with_multiple_shape
     auto shape_input =
         m.add_parameter("shape_input", migraphx::shape{migraphx::shape::float_type, {1, 3}});
     auto bias   = m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
-    auto bcast  = m.add_instruction(symbolic_multibroadcast({n, lit(3)}), bias, data, shape_input);
+    auto bcast  = add_symbolic_multibroadcast(m, {n, lit(3)}, bias, data, {shape_input});
     auto output = m.add_instruction(migraphx::make_op("add"), data, bcast);
     m.add_return({output});
 
@@ -461,9 +503,8 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_multibroadcast)
     auto data    = m.add_parameter("data", symbolic_shape({fixed_batch, sequence, lit(4)}));
     auto weights = m.add_parameter("weights", migraphx::shape{migraphx::shape::float_type, {4, 4}});
     auto target  = m.add_parameter("target", symbolic_shape({fixed_batch, lit(4), lit(4)}));
-    auto broadcast =
-        m.add_instruction(symbolic_multibroadcast({fixed_batch, lit(4), lit(4)}), weights, target);
-    auto output = m.add_instruction(migraphx::make_op("dot"), data, broadcast);
+    auto broadcast = add_symbolic_multibroadcast(m, {fixed_batch, lit(4), lit(4)}, weights, target);
+    auto output    = m.add_instruction(migraphx::make_op("dot"), data, broadcast);
     m.add_return({output});
 
     run_pass(p);
@@ -834,7 +875,7 @@ TEST_CASE(split_sym_dim_retries_affected_connected_edge)
     auto reduced  = main.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), before);
     auto expanded =
         main.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reduced);
-    expanded    = main.add_instruction(symbolic_multibroadcast({lit(4), q}), expanded, q_source);
+    expanded    = add_symbolic_multibroadcast(main, {lit(4), q}, expanded, q_source);
     auto packed = main.add_instruction(migraphx::make_op("contiguous"), expanded);
     auto output = main.add_instruction(migraphx::make_op("dot"), before, packed);
     main.add_return({output, other});
@@ -902,47 +943,49 @@ TEST_CASE(split_sym_dim_preserves_routed_symbolic_parameter_strides)
 
     run_pass(p);
 
-    std::vector<std::pair<int64_t, int64_t>> data_stride_ranges;
-    std::vector<std::pair<int64_t, int64_t>> weights_stride_ranges;
-    std::size_t static_dots = 0;
-    for(auto* mod : p.get_modules())
-    {
-        if(mod == p.get_main_module())
-            continue;
-        const auto& parameters = mod->get_parameter_shapes();
-        const auto& data_s     = parameters.at("data");
-        EXPECT(data_s.symbolic());
-        auto data_stride = data_s.dyn_strides().back().eval_interval();
-        data_stride_ranges.emplace_back(migraphx::sym::to<int64_t>(data_stride.min),
-                                        migraphx::sym::to<int64_t>(data_stride.max));
-
-        const auto& weights_s = parameters.at("weights");
-        if(weights_s.symbolic())
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        migraphx::shape clone_data_shape;
+        migraphx::shape clone_weights_shape;
+        if(clone.min == clone.max)
         {
-            auto weights_stride = weights_s.dyn_strides().front().eval_interval();
-            weights_stride_ranges.emplace_back(migraphx::sym::to<int64_t>(weights_stride.min),
-                                               migraphx::sym::to<int64_t>(weights_stride.max));
+            clone_data_shape    = {migraphx::shape::float_type, {clone.min, 4}, {1, clone.min}};
+            clone_weights_shape = {migraphx::shape::float_type, {4, 4}, {clone.min + 4, 1}};
         }
         else
         {
-            auto weights_stride = weights_s.strides().front();
-            weights_stride_ranges.emplace_back(weights_stride, weights_stride);
+            auto clone_n     = var("n", {clone.min, clone.max});
+            clone_data_shape = {
+                migraphx::shape::float_type, {dd{clone_n}, dd{lit(4)}}, {lit(1), clone_n}};
+            clone_weights_shape = {
+                migraphx::shape::float_type, {dd{lit(4)}, dd{lit(4)}}, {clone_n + 4, lit(1)}};
         }
 
-        for(auto&& ins : *mod)
-        {
-            if(ins.name() != "dot")
-                continue;
-            EXPECT(not ins.get_shape().dynamic());
-            ++static_dots;
-        }
-    }
-    std::sort(data_stride_ranges.begin(), data_stride_ranges.end());
-    std::sort(weights_stride_ranges.begin(), weights_stride_ranges.end());
-    EXPECT(data_stride_ranges == std::vector<std::pair<int64_t, int64_t>>{{1, 1}, {2, 2}, {3, 4}});
-    EXPECT(weights_stride_ranges ==
-           std::vector<std::pair<int64_t, int64_t>>{{5, 5}, {6, 6}, {7, 8}});
-    EXPECT(static_dots == 3);
+        auto clone_weights  = sm.add_parameter("weights", clone_weights_shape);
+        auto clone_data     = sm.add_parameter("data", clone_data_shape);
+        auto padded_data    = sm.add_instruction(fixed_pad(), clone_data);
+        auto padded_weights = sm.add_instruction(fixed_pad(), clone_weights);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("dot"), padded_data, padded_weights);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main   = *expected.get_main_module();
+    auto expected_data    = expected_main.add_parameter("data", data_shape);
+    auto expected_weights = expected_main.add_parameter("weights", weights_shape);
+    auto target_n         = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto select           = add_select_module(expected_main,
+                                              {expected_data, expected_weights},
+                                    modules,
+                                              {symbolic_shape({target_n, lit(4)})});
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_output =
+        add_back_slice(expected_main, expected_output, {expected_weights, expected_data}, {0}, {n});
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
 }
 
 TEST_CASE(split_sym_dim_keeps_variable_stride_dependency_at_boundary)
@@ -1777,8 +1820,8 @@ TEST_CASE(split_sym_dim_staticizes_llama_attention_chain)
     auto mask_data = m.add_instruction(migraphx::make_op("fill"), zero, mask_buffer);
     auto updates   = m.add_instruction(migraphx::make_op("fill"), one, update_buffer);
     auto mask = m.add_instruction(migraphx::make_op("scatternd_none"), mask_data, indices, updates);
-    mask   = m.add_instruction(symbolic_multibroadcast({lit(1), sequence, sequence}), mask, scores);
-    scores = m.add_instruction(migraphx::make_op("add"), scores, mask);
+    mask      = add_symbolic_multibroadcast(m, {lit(1), sequence, sequence}, mask, scores);
+    scores    = m.add_instruction(migraphx::make_op("add"), scores, mask);
     auto probs   = m.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), scores);
     auto context = m.add_instruction(migraphx::make_op("dot"), probs, hidden);
     auto output  = m.add_instruction(migraphx::make_op("relu"), context);
@@ -1822,7 +1865,7 @@ TEST_CASE(split_sym_dim_clones_fixed_shape_dependencies_into_cases)
     auto extent = m.add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dims);
     auto scale  = m.add_instruction(migraphx::make_op("sqrt"), extent);
-    scale       = m.add_instruction(symbolic_multibroadcast({sequence, lit(4)}), scale, input);
+    scale       = add_symbolic_multibroadcast(m, {sequence, lit(4)}, scale, input);
     auto output = m.add_instruction(migraphx::make_op("mul"), input, scale);
     m.add_return({output});
 
@@ -2111,10 +2154,7 @@ TEST_CASE(split_sym_dim_preserves_compound_mask_extent)
                                 {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
             pad,
             clone_weights);
-        auto extent = sm.add_instruction(
-            migraphx::make_op("eval_expr_from_shape",
-                              {{"expressions", migraphx::to_value(std::vector<se>{sequence - 2})}}),
-            input);
+        auto extent       = add_expected_clone_extent(sm, sequence - 2, sequence, clone, input);
         auto masked       = add_mask(sm, convolution, indices, extent, negative_infinity, 2);
         auto clone_output = sm.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), masked);
         sm.add_return({clone_output});
@@ -2155,38 +2195,71 @@ TEST_CASE(split_sym_dim_freezes_fixed_roots_in_mask_extents)
 
     run_pass(p);
 
-    std::size_t static_softmaxes = 0;
-    std::size_t runtime_extents  = 0;
-    for(auto* mod : p.get_modules())
-    {
-        if(mod == p.get_main_module())
-            continue;
-        EXPECT(not mod->get_parameter_shapes().at("weights").dynamic());
-        for(auto&& ins : *mod)
+    migraphx::program expected;
+    migraphx::shape weights_shape{migraphx::shape::float_type, {1, 1, 3}};
+    std::vector<clone_spec> clones = {{4, 4}, {5, 6}, {7, 8}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto negative_infinity = add_fill(sm, -std::numeric_limits<float>::infinity());
+        auto indices           = add_iota(sm, clone.max - 2);
+        auto clone_sequence    = var("sequence", {clone.min, clone.max});
+        auto clone_weights     = sm.add_parameter("weights", weights_shape);
+        auto clone_input =
+            sm.add_parameter("input", symbolic_shape({lit(1), lit(1), clone_sequence}));
+        auto padded_input   = sm.add_instruction(fixed_pad(), clone_input);
+        auto padded_weights = sm.add_instruction(fixed_pad(), clone_weights);
+        auto convolution    = sm.add_instruction(
+            migraphx::make_op("convolution",
+                                 {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+            padded_input,
+            padded_weights);
+
+        migraphx::instruction_ref extent;
+        if(clone.min == clone.max)
         {
-            if(ins.name() == "softmax")
-            {
-                EXPECT(not ins.get_shape().dynamic());
-                ++static_softmaxes;
-            }
-            if(ins.name() != "eval_expr_from_shape")
-                continue;
-            auto expressions = migraphx::from_value<std::vector<se>>(
-                ins.get_operator().to_value().at("expressions"));
-            for(const auto& expression : expressions)
-                EXPECT(not migraphx::contains(migraphx::sym::find_variables(expression),
-                                              migraphx::sym::as_symbol(kernel)));
-            ++runtime_extents;
+            extent = sm.add_literal(migraphx::literal{
+                migraphx::shape{migraphx::shape::int64_type, {1}}, {int64_t(clone.min - 2)}});
         }
-    }
-    EXPECT(static_softmaxes == 3);
-    EXPECT(runtime_extents == 3);
+        else
+        {
+            extent = sm.add_instruction(
+                migraphx::make_op(
+                    "eval_expr_from_shape",
+                    {{"expressions", migraphx::to_value(std::vector<se>{sequence - 2})}}),
+                clone_weights,
+                clone_input);
+        }
+        auto masked       = add_mask(sm, convolution, indices, extent, negative_infinity, 2);
+        auto clone_output = sm.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), masked);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_input =
+        expected_main.add_parameter("input", symbolic_shape({lit(1), lit(1), sequence}));
+    auto expected_weights =
+        expected_main.add_parameter("weights", symbolic_shape({lit(1), lit(1), kernel}));
+    auto target_sequence = var("#split_sym_dim_sequence_target", {4, 8}, {4, 6, 8});
+    auto target_extent   = target_sequence - 2;
+    auto select          = add_select_module(expected_main,
+                                             {expected_input, expected_weights},
+                                    modules,
+                                             {symbolic_shape({lit(1), lit(1), target_extent})});
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_output = add_back_slice(expected_main,
+                                     expected_output,
+                                     {expected_weights, expected_input},
+                                     {2},
+                                     {-kernel + sequence + 1});
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
 }
 
 TEST_CASE(split_sym_dim_specializes_transformer_core)
 {
     auto sequence = var("sequence", {4, 16}, {8});
-    auto p        = make_transformer_core_program();
+    auto p        = make_transformer_core_program(sequence);
     run_pass(p);
 
     migraphx::program expected;
@@ -2200,14 +2273,11 @@ TEST_CASE(split_sym_dim_specializes_transformer_core)
         auto key =
             sm.add_parameter("key_transposed", symbolic_shape({lit(2), lit(8), clone_sequence}));
 
-        auto padded_query = sm.add_instruction(fixed_pad(), query);
-        auto padded_key   = sm.add_instruction(fixed_pad(), key);
-        auto scores       = sm.add_instruction(migraphx::make_op("dot"), padded_query, padded_key);
-        auto padded_value = sm.add_instruction(fixed_pad(), value);
-        auto extent       = sm.add_instruction(
-            migraphx::make_op("eval_expr_from_shape",
-                                    {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-            query);
+        auto padded_query  = sm.add_instruction(fixed_pad(), query);
+        auto padded_key    = sm.add_instruction(fixed_pad(), key);
+        auto scores        = sm.add_instruction(migraphx::make_op("dot"), padded_query, padded_key);
+        auto padded_value  = sm.add_instruction(fixed_pad(), value);
+        auto extent        = add_expected_clone_extent(sm, sequence, sequence, clone, query);
         auto masked_scores = add_mask(sm, scores, indices, extent, zero, 2);
         auto masked_value  = add_mask(sm, padded_value, indices, extent, zero, 1);
         auto context  = sm.add_instruction(migraphx::make_op("dot"), masked_scores, masked_value);
@@ -2259,11 +2329,8 @@ TEST_CASE(split_sym_dim_specializes_transformer)
         auto value  = sm.add_instruction(migraphx::make_op("dot"), padded, wv);
         auto key_transposed =
             sm.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), key);
-        auto scores = sm.add_instruction(migraphx::make_op("dot"), query, key_transposed);
-        auto extent = sm.add_instruction(
-            migraphx::make_op("eval_expr_from_shape",
-                              {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-            input);
+        auto scores        = sm.add_instruction(migraphx::make_op("dot"), query, key_transposed);
+        auto extent        = add_expected_clone_extent(sm, sequence, sequence, clone, input);
         auto masked_scores = add_mask(sm, scores, indices, extent, negative_infinity, 2);
         auto probabilities =
             sm.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), masked_scores);
@@ -2304,10 +2371,7 @@ TEST_CASE(split_sym_dim_keeps_softmax_mask_off_contract_axis)
         auto value = sm.add_parameter("value", symbolic_shape({lit(2), clone_sequence, lit(8)}));
 
         auto padded_input = sm.add_instruction(fixed_pad(), input);
-        auto extent       = sm.add_instruction(
-            migraphx::make_op("eval_expr_from_shape",
-                                    {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-            input);
+        auto extent       = add_expected_clone_extent(sm, sequence, sequence, clone, input);
         auto masked_input = add_mask(sm, padded_input, indices, extent, negative_infinity, 1);
         auto probabilities =
             sm.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), masked_input);

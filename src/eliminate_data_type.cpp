@@ -103,6 +103,7 @@ void eliminate_data_type::apply(module& m) const
                                                            "convert",
                                                            "deref",
                                                            "dyn_slice",
+                                                           "eval_expr_from_shape",
                                                            "get_tuple_elem",
                                                            "if",
                                                            "loop",

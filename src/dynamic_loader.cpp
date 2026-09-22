@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/tmp_dir.hpp>
+#include <limits>
 #include <utility>
 
 #ifdef _WIN32
@@ -96,11 +97,11 @@ struct dynamic_loader_impl
 {
     dynamic_loader_impl() = default;
     dynamic_loader_impl(const fs::path& p, tmp_dir t = {})
-        : handle{LoadLibrary(p.string().c_str())}, temp{std::move(t)}
+        : handle{LoadLibraryW(p.c_str())}, temp{std::move(t)}
     {
         if(handle == nullptr)
         {
-            MIGRAPHX_THROW("Error loading DLL: " + p.string() + " (" +
+            MIGRAPHX_THROW("Error loading DLL: " + p.u8string() + " (" +
                            std::to_string(GetLastError()) + ")");
         }
     }
@@ -133,25 +134,30 @@ struct dynamic_loader_impl
 fs::path dynamic_loader::path(void* address)
 {
     HMODULE module = nullptr;
-    if(GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+    if(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                              GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                         static_cast<LPCSTR>(address),
+                         static_cast<LPCWSTR>(address),
                          &module) == 0)
     {
         auto err = GetLastError();
         MIGRAPHX_THROW("Unable to obtain module handle, error = " + std::to_string(err));
     }
-    TCHAR buffer[MAX_PATH];
-    if(GetModuleFileName(module, buffer, sizeof(buffer)) == 0)
+    DWORD buffer_size = MAX_PATH;
+    while(true)
     {
-        auto err = GetLastError();
-        MIGRAPHX_THROW("Unable to read module file path, error = " + std::to_string(err));
+        std::vector<wchar_t> buffer(buffer_size);
+        const auto size = GetModuleFileNameW(module, buffer.data(), buffer_size);
+        if(size == 0)
+        {
+            auto err = GetLastError();
+            MIGRAPHX_THROW("Unable to read module file path, error = " + std::to_string(err));
+        }
+        if(size < buffer_size)
+            return fs::path{std::wstring{buffer.data(), size}};
+        if(buffer_size > (std::numeric_limits<DWORD>::max)() / 2)
+            MIGRAPHX_THROW("Module file path is too long");
+        buffer_size *= 2;
     }
-    if(GetLastError() == ERROR_INSUFFICIENT_BUFFER)
-    {
-        MIGRAPHX_THROW("Buffer too small (" + std::to_string(MAX_PATH) + ") to hold the path");
-    }
-    return {buffer};
 }
 
 #endif

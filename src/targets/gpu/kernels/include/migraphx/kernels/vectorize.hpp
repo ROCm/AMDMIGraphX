@@ -79,8 +79,7 @@ __device__ __host__ auto as_vec(T x, Axis axis)
     if constexpr(N < 2)
         return x;
     else
-        return make_tensor_view(as_vec<N>(remove_bool(x.data())),
-                                shape_step<N>(x.get_shape(), axis));
+        return x.with(as_vec<N>(remove_bool(x.data())), shape_step<N>(x.get_shape(), axis));
 }
 
 template <index_int N, class T, class Axis>
@@ -94,7 +93,7 @@ constexpr auto tensor_step(T x, Axis axis)
     {
         constexpr auto s = decltype(x.get_shape()){};
         MIGRAPHX_ASSERT(s.strides[axis] == 0);
-        return make_tensor_view(x.data(), shape_step<N>(s, axis));
+        return x.with(x.data(), shape_step<N>(s, axis));
     }
 }
 

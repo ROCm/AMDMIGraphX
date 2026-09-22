@@ -25,29 +25,35 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_COPY_HPP
 #define MIGRAPHX_GUARD_KERNELS_COPY_HPP
 
+#include <migraphx/kernels/nontemporal.hpp>
 #include <migraphx/kernels/vectorize.hpp>
 
 namespace migraphx {
 
-template <class Index, class T, class U, class Size>
-__device__ void local_vector_copy(Index idx, T* src, U* dst, Size size)
+template <class Index, class T, class U, class Size, class Load = cached_load>
+__device__ void local_vector_copy(Index idx, T* src, U* dst, Size size, Load load = {})
 {
     constexpr auto n = find_vectorize_size([&](auto i) { return (size % i) == 0; });
     auto vsrc        = as_vec<n>(remove_bool(src));
     auto vdst        = as_vec<n>(remove_bool(dst));
     index_int vsize  = size / n;
-    idx.local_stride(vsize, [&](auto i) { vdst[i] = vsrc[i]; });
+    idx.local_stride(vsize, [&](auto i) { vdst[i] = load(vsrc, i); });
 }
 
-template <class Index, class T, class U>
-__device__ void local_tensor_copy(Index idx, T src, U dst)
+template <class Index, class T, class U, class Load = cached_load>
+__device__ void local_tensor_copy(Index idx, T src, U dst, Load load = {})
 {
     constexpr auto src_shape = get_shape_c<T>{};
     constexpr auto dst_shape = get_shape_c<U>{};
     static_assert(src_shape.lens == dst_shape.lens);
     if constexpr(src_shape == dst_shape and (src_shape.packed() or src_shape.broadcasted()))
     {
-        local_vector_copy(idx, src.data(), dst.data(), src_shape.element_space());
+        // The shape is erased for the vector copy, so a broadcasted source, which is
+        // re-read by every workgroup, must not be streamed
+        if constexpr(src_shape.broadcasted())
+            local_vector_copy(idx, src.data(), dst.data(), src_shape.element_space());
+        else
+            local_vector_copy(idx, src.data(), dst.data(), src_shape.element_space(), load);
     }
     else
     {
@@ -56,7 +62,7 @@ __device__ void local_tensor_copy(Index idx, T src, U dst)
         auto new_dst        = reorder_tensor_view(dst, perm);
         auto_vectorize()(new_src, new_dst)([&](auto vsrc, auto vdst) {
             index_int size = vsrc.get_shape().elements();
-            idx.local_stride(size, [&](auto i) { vdst[i] = vsrc[i]; });
+            idx.local_stride(size, [&](auto i) { vdst[i] = load(vsrc, i); });
         });
     }
 }

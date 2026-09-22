@@ -26,13 +26,14 @@
 #define MIGRAPHX_GUARD_KERNELS_NONTEMPORAL_HPP
 
 #include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/bit_cast.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 
 // Set to 0 (via MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS) to fall back to cached loads.
-// NOLINTNEXTLINE([cppcoreguidelines-macro-usage)
 #ifndef MIGRAPHX_NONTEMPORAL_LOADS
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define MIGRAPHX_NONTEMPORAL_LOADS 1
 #endif
 
@@ -60,16 +61,38 @@ __device__ T nontemporal_load(const T* ptr)
 #endif
 }
 
-// Non-broadcasted inputs are streamed with no reuse expected, so use a nontemporal load.
-// Broadcasted inputs are re-read by other threads or workgroups, so keep a cached load.
+// Non-broadcasted global inputs are streamed with no reuse expected, so use a nontemporal
+// load. Broadcasted inputs are re-read by other threads or workgroups, and LDS tiles have
+// no cache to bypass, so those keep a plain load.
 template <class T, class I>
 __device__ auto stream_load(const T& x, I i)
 {
-    if constexpr(get_shape_c<T>{}.broadcasted())
+    if constexpr(is_same<typename T::memory_tag, lds_memory_tag>{} or
+                 get_shape_c<T>{}.broadcasted())
         return x[i];
     else
         return nontemporal_load(&x[i]);
 }
+
+// Overload for raw pointers where the shape has been erased; the caller is responsible
+// for only streaming data with no reuse.
+template <class T, class I>
+__device__ T stream_load(const T* x, I i)
+{
+    return nontemporal_load(x + i);
+}
+
+// Function objects selecting the load used when copying a tensor
+struct cached_load
+{
+    template <class T, class I>
+    constexpr auto operator()(const T& x, I i) const
+    {
+        return x[i];
+    }
+};
+
+MIGRAPHX_LIFT_CLASS(streaming_load, stream_load);
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_NONTEMPORAL_HPP

@@ -158,13 +158,17 @@ static loaded_mlir_backend load_mlir_backend(const std::string& backend)
 static const mlir_backend_v3& mlir_backend(const std::string& arch)
 {
     const auto backend = select_mlir_backend(arch);
+    // Keep plugins loaded for the process lifetime. Unloading one from a static
+    // destructor can call FreeLibrary while Windows is unloading migraphx_gpu.
     if(backend == "legacy")
     {
-        static const auto loaded = load_mlir_backend(backend);
-        return *loaded.vtable;
+        static const auto* loaded =
+            std::make_unique<loaded_mlir_backend>(load_mlir_backend(backend)).release();
+        return *loaded->vtable;
     }
-    static const auto loaded = load_mlir_backend(backend);
-    return *loaded.vtable;
+    static const auto* loaded =
+        std::make_unique<loaded_mlir_backend>(load_mlir_backend(backend)).release();
+    return *loaded->vtable;
 }
 
 static const mlir_backend_v3& mlir_backend(const context& ctx)

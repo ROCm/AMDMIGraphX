@@ -79,6 +79,7 @@
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
@@ -109,6 +110,8 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
+    bool hip_graph = false;
     // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
     // prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
     // priority over this. The architecture and build-config defaults only force ops on, so a
@@ -134,6 +137,7 @@ struct backend_options
         return pack_join(
             pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
                  f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
+                 f(self.hip_graph, "hip_graph"),
                  f(self.convolution_layout, "convolution_layout"),
                  f(self.enable_skinny_dot, "enable_skinny_dot"),
                  f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
@@ -312,6 +316,8 @@ struct pipeline_factory
             promote_literals{},
             dead_code_elimination{},
             write_literals{.max_memory = max_memory},
+            enable_pass(backend_opts.hip_graph, hipgraphify{}),
+            dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},

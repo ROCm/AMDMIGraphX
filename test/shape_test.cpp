@@ -1284,6 +1284,38 @@ TEST_CASE(from_4d_permutation)
     EXPECT(migraphx::find_permutation(out_shape) == permutation);
 }
 
+TEST_CASE(find_permutation_multi_singleton_ambiguous)
+{
+    // A standard shape with a singleton channel is layout-ambiguous, so the
+    // NHWC shape decides the layout.
+    auto nhwc = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {1, 511, 32, 32}, {0, 2, 3, 1});
+    migraphx::shape single{migraphx::shape::float_type, {1, 1, 32, 32}};
+    std::vector<int64_t> permutation = {0, 2, 3, 1};
+    EXPECT(migraphx::find_permutation({nhwc, single}) == permutation);
+    EXPECT(migraphx::find_permutation({single, nhwc}) == permutation);
+}
+
+TEST_CASE(find_permutation_multi_singleton_only)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 32, 32}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 1, 32, 32}};
+    std::vector<int64_t> permutation = {0, 1, 2, 3};
+    EXPECT(migraphx::find_permutation({s1, s2}) == permutation);
+}
+
+TEST_CASE(find_permutation_multi_majority)
+{
+    // Shapes without singleton dims keep one vote each, so the majority layout
+    // still wins.
+    auto nhwc =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {2, 8, 4, 4}, {0, 2, 3, 1});
+    migraphx::shape nchw1{migraphx::shape::float_type, {2, 8, 4, 4}};
+    migraphx::shape nchw2{migraphx::shape::float_type, {2, 8, 4, 4}};
+    std::vector<int64_t> permutation = {0, 1, 2, 3};
+    EXPECT(migraphx::find_permutation({nchw1, nhwc, nchw2}) == permutation);
+}
+
 TEST_CASE(multi_within_bounds)
 {
     migraphx::shape in_shape{migraphx::shape::float_type, {3, 2, 2}};
@@ -2579,8 +2611,8 @@ TEST_CASE(non_symbolic_dynamic_dimensions_with_strides_throw)
 
 TEST_CASE(make_symbolic_shape_dims)
 {
-    auto s = migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
-                                                  {"n({[1..8]}, {2, 4})", "3"});
+    auto s =
+        migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n[1..8]{2, 4}", "3"});
     EXPECT(s == (migraphx::shape{
                     migraphx::shape::float_type,
                     {dd{var("n", {1, 8}, {std::int64_t{2}, std::int64_t{4}})}, dd{lit(3)}}}));
@@ -2590,9 +2622,8 @@ TEST_CASE(make_symbolic_shape_dims)
 TEST_CASE(make_symbolic_shape_compound_expression)
 {
     auto n = var("n", {1, 8});
-    EXPECT(
-        migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"3*n({[1..8]}) + 1"}) ==
-        (migraphx::shape{migraphx::shape::float_type, {dd{n * 3 + 1}}}));
+    EXPECT(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"3*n[1..8] + 1"}) ==
+           (migraphx::shape{migraphx::shape::float_type, {dd{n * 3 + 1}}}));
 }
 
 // A stride carries the same self-contained symbolic variable as the dimension.
@@ -2600,15 +2631,15 @@ TEST_CASE(make_symbolic_shape_strides)
 {
     auto n = var("n", {1, 8});
     auto s = migraphx::shape::make_symbolic_shape(
-        migraphx::shape::float_type, {"n({[1..8]})", "3"}, {"1", "n({[1..8]})"});
+        migraphx::shape::float_type, {"n[1..8]", "3"}, {"1", "n[1..8]"});
     EXPECT(s == (migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(1), n}}));
     EXPECT(not s.standard());
 }
 
 TEST_CASE(make_symbolic_shape_multiple_constraints)
 {
-    auto s = migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
-                                                  {"n({[1..20], [2..10]}, {4})"});
+    auto s =
+        migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n[1..20][2..10]{4}"});
     EXPECT(s.dyn_dims().front() ==
            dd{var("n", std::vector<migraphx::sym::interval>{{1, 20}, {2, 10}}, {std::int64_t{4}})});
 }
@@ -2675,7 +2706,7 @@ TEST_CASE(make_symbolic_shape_errors)
     // One stride per dimension or none at all.
     EXPECT(test::throws([] {
         return migraphx::shape::make_symbolic_shape(
-            migraphx::shape::float_type, {"n({[1..8]})", "3"}, {"1"});
+            migraphx::shape::float_type, {"n[1..8]", "3"}, {"1"});
     }));
 }
 

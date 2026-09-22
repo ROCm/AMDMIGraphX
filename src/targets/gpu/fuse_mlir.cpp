@@ -75,15 +75,6 @@ bool mlir_enabled()
 #endif
 }
 
-namespace {
-struct requested
-{
-};
-struct rejected
-{
-};
-} // namespace
-
 static bool is_negated_op(const std::string& s)
 {
     if(s.empty())
@@ -91,24 +82,24 @@ static bool is_negated_op(const std::string& s)
     return contains({'!', '~'}, s[0]);
 }
 
-template <class Action>
-static std::vector<std::string> get_usage()
+static std::string remove_not_symbol(const std::string& s)
 {
-    static const auto options =
-        split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ',');
-    static const bool enabled = std::is_same<Action, requested>{};
+    if(is_negated_op(s))
+        return s.substr(1);
+    return s;
+}
+
+// Keeps the plain entries of an op list (`enabled`), or the '!'/'~'-prefixed ones with the
+// prefix stripped (not `enabled`). Entries that name no op, such as a bare '!', are dropped.
+static std::vector<std::string> get_usage(const std::vector<std::string>& options, bool enabled)
+{
     std::vector<std::string> result;
-    auto remove_not_symbol = [&](const std::string& s) {
-        if(is_negated_op(s))
-            return s.substr(1);
-        return s;
-    };
     transform_if(
         options.begin(),
         options.end(),
         std::back_inserter(result),
         [&](const std::string& option) {
-            if(option.empty())
+            if(remove_not_symbol(option).empty())
                 return false;
             if(is_negated_op(option))
                 return not enabled;
@@ -118,23 +109,50 @@ static std::vector<std::string> get_usage()
     return result;
 }
 
-template <class Action>
-static bool specific_op(std::string_view option, bool fallback = false)
+// True when `option` is listed; a "fused" entry matches any op with "fused" in its name.
+static bool has_op(const std::vector<std::string>& options, std::string_view option)
 {
-    static const auto options = get_usage<Action>();
-    if(options.empty())
-        return fallback;
     if(contains(option, "fused") and contains(options, "fused"))
         return true;
     return contains(options, option);
 }
 
-bool mlir_attention_enabled(context* ctx)
+namespace {
+// An op list in the MIGRAPHX_MLIR_USE_SPECIFIC_OPS format, split into ops forced on and forced
+// off.
+struct op_usage
+{
+    std::vector<std::string> requested_ops = {};
+    std::vector<std::string> rejected_ops  = {};
+
+    bool is_requested(std::string_view option) const { return has_op(requested_ops, option); }
+    bool is_rejected(std::string_view option) const { return has_op(rejected_ops, option); }
+};
+} // namespace
+
+static op_usage parse_op_usage(std::vector<std::string> list)
+{
+    // The env var "conv, !dot" splits into " !dot", whose '!' is no longer at index 0 and so
+    // would not negate; trimming also tolerates stray spaces in hand-written JSON entries.
+    std::transform(
+        list.begin(), list.end(), list.begin(), [](const std::string& s) { return trim(s); });
+    return {.requested_ops = get_usage(list, true), .rejected_ops = get_usage(list, false)};
+}
+
+// Ops forced on or off by MIGRAPHX_MLIR_USE_SPECIFIC_OPS. Parsed on first use.
+static const op_usage& env_op_usage()
+{
+    static const auto ops =
+        parse_op_usage(split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ','));
+    return ops;
+}
+
+bool mlir_attention_enabled(context* ctx, const std::vector<std::string>& use_specific_ops)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
         return false;
-    if(specific_op<rejected>("attention"))
+    if(env_op_usage().is_rejected("attention"))
         return false;
     if(ctx != nullptr)
     {
@@ -146,7 +164,14 @@ bool mlir_attention_enabled(context* ctx)
                        [&](const char* prefix) { return starts_with(device_name, prefix); }))
             return true;
     }
-    return specific_op<requested>("attention");
+    if(env_op_usage().is_requested("attention"))
+        return true;
+    // compile_options is checked last: unlike the env var rejection above, a rejection here
+    // runs after the gfx94/gfx95 default and so cannot switch attention off on those chips.
+    const auto ops = parse_op_usage(use_specific_ops);
+    if(ops.is_rejected("attention"))
+        return false;
+    return ops.is_requested("attention");
 #else
     return false;
 #endif
@@ -1593,11 +1618,12 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
+    const auto ops          = parse_op_usage(use_specific_ops);
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
-        if(specific_op<rejected>(option))
+        if(env_op_usage().is_rejected(option))
             return mlir_mode::none;
-        if(specific_op<requested>(option))
+        if(env_op_usage().is_requested(option))
             return mlir_mode::all;
         if(is_navi)
             return mlir_mode::all;
@@ -1609,6 +1635,12 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         if(contains(option, "dot") or contains(option, "fused_dot"))
             return mlir_mode::all;
 #endif
+        // compile_options is checked last: the env var and the navi/build-config forcing above
+        // win, but this still overrides the m1/m2 default.
+        if(ops.is_rejected(option))
+            return mlir_mode::none;
+        if(ops.is_requested(option))
+            return mlir_mode::all;
         return std::max(m1, m2);
     };
 

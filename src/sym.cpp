@@ -2426,7 +2426,7 @@ static interval parse_constraint(sym_parser& p)
     p.expect(std::string_view{".."});
     auto max = parse_variable_scalar(p);
     p.expect(std::string_view{"]"});
-    return {std::move(min), std::move(max)};
+    return {min, max};
 }
 
 template <class F>

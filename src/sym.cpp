@@ -25,6 +25,7 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/simple_parser.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/bit_cast.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/utility_operators.hpp>
@@ -34,9 +35,7 @@
 #include <migraphx/sat_ops.hpp>
 
 #include <algorithm>
-#include <array>
 #include <cctype>
-#include <charconv>
 #include <cstdint>
 #include <iterator>
 #include <functional>
@@ -2094,11 +2093,26 @@ static std::string scalar_to_string(const scalar& v)
 {
     return visit(
         [](auto x) -> std::string {
-            std::array<char, 32> buffer{};
-            auto result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), x);
-            if(result.ec != std::errc{})
-                MIGRAPHX_THROW("Failed to format scalar");
-            return std::string(buffer.data(), result.ptr);
+            using type = decltype(x);
+            if constexpr(std::is_integral<type>{})
+            {
+                return std::to_string(x);
+            }
+            else
+            {
+                std::string result;
+                auto precisions = range(1, std::numeric_limits<type>::max_digits10 + 1);
+                auto it = std::find_if(precisions.begin(), precisions.end(), [&](auto precision) {
+                    std::stringstream ss;
+                    ss.precision(precision);
+                    ss << x;
+                    result = ss.str();
+                    return bit_cast<std::uint64_t>(std::stod(result)) == bit_cast<std::uint64_t>(x);
+                });
+                if(it == precisions.end())
+                    MIGRAPHX_THROW("Failed to format scalar");
+                return result;
+            }
         },
         v);
 }

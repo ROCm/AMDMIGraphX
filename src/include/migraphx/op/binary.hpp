@@ -114,13 +114,18 @@ struct binary : op_name<Derived>
                 return s0;
             MIGRAPHX_THROW("BINARY: " + point_function() + ": fixed-dyn shape for inputs");
         }
-        else if(s0 == s1 and s0.packed())
+        else if(s0 == s1 and (s0.packed() or s0.broadcasted()))
         {
             return s0;
         }
         else if(s0.packed() != s1.packed())
         {
             return s0.packed() ? s0 : s1;
+        }
+        else if(s0.broadcasted() == s1.broadcasted() and
+                (s0.element_space() == 1) != (s1.element_space() == 1))
+        {
+            return s0.element_space() == 1 ? s1 : s0;
         }
         else if(s0.broadcasted() != s1.broadcasted())
         {

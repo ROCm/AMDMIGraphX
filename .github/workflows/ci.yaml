@@ -231,6 +231,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      checks: write
     env:
       DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
 
@@ -274,6 +275,7 @@ jobs:
       with:
         tool_name: format.py
         fail_level: error
+        filter_mode: file
 
   sles:
     runs-on: ROCM-Ubuntu

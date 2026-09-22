@@ -1038,8 +1038,8 @@ TEST_CASE(conv_uint8_input)
                                                                {"dilation", {1, 1}},
                                                                {"group", 1},
                                                                {"padding_mode", 0}}),
-                                     a1,
-                                     weights);
+                                            a1,
+                                            weights);
         auto out_scale = add_scale_mul(m2, a_scale, w_scale, 1, 1, c1->get_shape().lens());
         auto out_zp    = init_zero_point(m2, c1);
         auto zp1_bc    = broadcast_shift(m2, zp1, input->get_shape().lens());
@@ -1049,8 +1049,8 @@ TEST_CASE(conv_uint8_input)
                                                                {"dilation", {1, 1}},
                                                                {"group", 1},
                                                                {"padding_mode", 0}}),
-                                          zp1_bc,
-                                          weights);
+                                            zp1_bc,
+                                            weights);
         out_zp         = m2.add_instruction(migraphx::make_op("add"), out_zp, zp_term);
         auto d6        = add_quantize_op(m2, "dequantizelinear", c1, out_scale, out_zp);
         m2.add_return({d6});

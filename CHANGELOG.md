@@ -36,6 +36,7 @@ Full documentation for MIGraphX is available at
 * Fixed the reference `convolution_backwards` operator to use type-appropriate accumulator storage: double for floating-point tensors and `int64_t` or `uint64_t` for integral tensors (#5248).
 * Fixed host conversion of a float32 NaN to `migraphx::half` or `migraphx::bf16` producing an infinity when the NaN payload did not survive the narrowing, such as `0x7f800001` (#5193).
 * Fixed `fuse_horizontal` creating cyclic graphs when a fusion group contained dependent operations (#5250).
+* Fixed a GPU accuracy regression in unrolled GRU/LSTM graphs by partitioning `fuse_horizontal` key groups into independent subgroups, so dependent operations never fuse together while each independent subgroup still fuses (#5276).
 * Fixed the `has_value` matcher matching a neighbouring representable value in narrow types, where its `float`-sized tolerance window spans several `fp8`/`bf16` values; the window is now scaled per literal type (#5190).
 * Fixed accuracy issues resulting from LRN inputs being non-standard shapes (#5277).
 

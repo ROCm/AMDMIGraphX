@@ -6292,8 +6292,13 @@ TEST_CASE(simplify_concat_unsqueeze_same_axis)
         m1.add_return({concat});
     }
     auto m2 = m1;
-    run_pass(m1);
+    std::size_t pass_runs = 0;
+    m1.repeat_while_changes(2, [&] {
+        pass_runs++;
+        run_pass(m1);
+    });
 
+    EXPECT(pass_runs == 1);
     EXPECT(m1 == m2);
 }
 

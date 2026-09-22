@@ -122,6 +122,8 @@ struct backend_options
     std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
+    // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with pointwise ops.
+    bool enable_skinny_dot = false;
     // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
     bool hiprtc_disable_processes = false;
     compile_ops_tuning_overrides tuning{};
@@ -133,6 +135,7 @@ struct backend_options
             pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
                  f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
                  f(self.convolution_layout, "convolution_layout"),
+                 f(self.enable_skinny_dot, "enable_skinny_dot"),
                  f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                  f(self.problem_cache_files, "problem_cache_files"),
                  f(self.read_only_problem_cache_files, "read_only_problem_cache_files")),
@@ -231,7 +234,7 @@ struct pipeline_factory
             prefuse_ops{get_context()},
             dead_code_elimination{},
             dead_code_elimination{},
-            rewrite_reduce{},
+            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
             rewrite_topk{},
             rewrite_low_precision{},
             enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
@@ -352,7 +355,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             p.required_pipeline(),
             {optimize_module{},
              dead_code_elimination{},
-             rewrite_reduce{},
+             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
              rewrite_topk{},
              dead_code_elimination{}},
             p.fusion_pipeline(),

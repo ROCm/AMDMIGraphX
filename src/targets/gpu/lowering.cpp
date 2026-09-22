@@ -642,15 +642,24 @@ struct miopen_apply
     }
 
     /**
-     * Adds dynamic allocation for submodule output parameter.
+     * Adds one allocation per submodule output so each output is written in place. A ranged
+     * submodule writes the whole range, so a dynamic output is allocated at its maximum extent.
      */
     void add_select_module_op()
     {
         apply_map.emplace("select_module", [=](instruction_ref ins) {
-            auto s                              = ins->get_shape();
-            auto output                         = insert_allocation(ins, s);
+            const auto& sub_shapes = ins->get_shape().sub_shapes();
+            std::vector<instruction_ref> outputs;
+            std::transform(sub_shapes.begin(),
+                           sub_shapes.end(),
+                           std::back_inserter(outputs),
+                           [&](const shape& s) {
+                               return insert_allocation(
+                                   ins, s.dynamic() ? shape{s.type(), s.max_lens()} : s);
+                           });
+
             std::vector<instruction_ref> inputs = ins->inputs();
-            inputs.push_back(output);
+            inputs.insert(inputs.end(), outputs.begin(), outputs.end());
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });
     }

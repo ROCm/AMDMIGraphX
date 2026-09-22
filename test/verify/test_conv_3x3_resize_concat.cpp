@@ -90,5 +90,5 @@ struct test_conv_3x3_resize_concat : verify_program<test_conv_3x3_resize_concat<
     std::string section() const { return "conv"; }
 };
 
-template struct test_conv_3x3_resize_concat<16, 24, 17, 8, 8>;
+template struct test_conv_3x3_resize_concat<16, 23, 17, 8, 8>;
 template struct test_conv_3x3_resize_concat<32, 16, 32, 12, 10>;

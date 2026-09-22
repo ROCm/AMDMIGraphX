@@ -78,7 +78,7 @@ def addn_test(g1):
         g2_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='1')
         g3_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='2')
 
-        tf.math.add_n([g1_input, g2_input, g3_input], name='addn1')        
+        tf.math.add_n([g1_input, g2_input, g3_input], name='addn1')
 
 
 @tf_test
@@ -88,12 +88,16 @@ def addn_single_test(g1):
 
         tf.math.add_n([g1_input], name='addn1')
 
+
 @tf_test
 def addn_with_many_elements_test(g1):
     with g1.as_default():
         input_list = []
         for i in range(10):
-            input_list.append(tf.compat.v1.placeholder(tf.float32, shape=(1, 1648), name=str(i)))
+            input_list.append(
+                tf.compat.v1.placeholder(tf.float32,
+                                         shape=(1, 1648),
+                                         name=str(i)))
         tf.math.add_n(input_list, name='addn1')
 
 

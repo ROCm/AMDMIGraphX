@@ -61,7 +61,8 @@ static mlir_backend_result* make_error_result(const char* message) noexcept
     try
     {
         auto result   = std::make_unique<mlir_backend_result>();
-        result->error = message;
+        result->error =
+            message == nullptr or *message == '\0' ? "MLIR backend plugin error" : message;
         return result.release();
     }
     catch(...)

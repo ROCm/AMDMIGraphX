@@ -30,7 +30,9 @@
 #include <migraphx/requires.hpp>
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstddef>
+#include <map>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -38,6 +40,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+// Padding inserted before an argument at buffer position `pos` to reach
+// `align`; the single definition of the kernarg alignment rule.
+constexpr std::size_t pack_padding(std::size_t pos, std::size_t align)
+{
+    assert(align > 0);
+    return (align - (pos % align)) % align;
+}
 
 struct kernel_argument
 {
@@ -87,6 +97,23 @@ struct kernel_argument_value
 
 MIGRAPHX_GPU_EXPORT std::vector<char> pack_args(const std::vector<kernel_argument>& args);
 MIGRAPHX_GPU_EXPORT std::vector<char> pack_args(const std::vector<kernel_argument_value>& args);
+
+// Walk the packed-buffer layout of `kernel_args` in index order, calling
+// f(offset, is_pointer) for each argument; the single definition of how a
+// code_object_op's kernel_args map onto packed bytes (a pointer slot has empty
+// data and takes 8 bytes at align 8, a scalar its own bytes and alignment).
+template <class F>
+void for_each_kernarg_slot(const std::map<std::size_t, kernel_argument_value>& kernel_args, F f)
+{
+    std::size_t pos = 0;
+    for(const auto& [idx, v] : kernel_args)
+    {
+        bool is_pointer = v.data.empty();
+        pos += pack_padding(pos, is_pointer ? sizeof(char*) : v.align);
+        f(pos, is_pointer);
+        pos += is_pointer ? sizeof(char*) : v.data.size();
+    }
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

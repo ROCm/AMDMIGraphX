@@ -26,7 +26,9 @@
 #include <test.hpp>
 
 #ifdef HAVE_GPU
+#include <migraphx/errors.hpp>
 #include <migraphx/gpu/analyze_streams.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/target.hpp>
 #endif
 #ifdef HAVE_CPU
@@ -173,6 +175,23 @@ int main(int argc, const char* argv[])
                             "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
                             "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
                         });
+#if defined(HAVE_GPU) && defined(MIGRAPHX_QUARANTINE_CK_GEMM_SOFTMAX_GEMM)
+    // gfx942/gfx950 debug hipRTC builds fault inside the CK fused attention
+    // kernel. Skip it on those devices so unrelated PRs are not failed by CI.
+    try
+    {
+        const auto gfx = migraphx::gpu::get_gfx_name(migraphx::gpu::get_device_name());
+        if(gfx == "gfx942" or gfx == "gfx950")
+        {
+            rv.disable_test_for("gpu",
+                                {"test_ck_gemm_softmax_gemm_0<migraphx::shape::half_type>"});
+        }
+    }
+    catch(const migraphx::exception&)
+    {
+        // No HIP device in this process; leave the case enabled.
+    }
+#endif
 
     rv.run(argc, argv);
 }

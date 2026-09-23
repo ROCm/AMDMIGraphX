@@ -1094,6 +1094,12 @@ struct find_concat_op
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
 
+        // A matcher can select a concat even when none of its input groups are eligible for
+        // fusion. Avoid replacing it with an equivalent concat, which would report a change and
+        // keep the surrounding fixed-point passes running.
+        if(args == ins->inputs())
+            return;
+
         for(const auto& p : replacements)
         {
             m.move_output_instructions_after(p.first, ins);
@@ -1372,7 +1378,11 @@ struct find_conv_concat_split_fuse
            }))
             return;
 
-        if(not axis_shape_equal(weight_a->get_shape(), weight_b->get_shape(), 1))
+        auto weight_b_prefix_lens = weight_b->get_shape().lens();
+        if(weight_b_prefix_lens.size() < 2 or weight_b_prefix_lens[1] < prefix_chans)
+            return;
+        weight_b_prefix_lens[1] = prefix_chans;
+        if(not axis_equal(weight_a->get_shape().lens(), weight_b_prefix_lens, 0))
             return;
 
         auto out_a = weight_a->get_shape().lens()[0];

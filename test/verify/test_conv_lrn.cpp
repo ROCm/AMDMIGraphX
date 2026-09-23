@@ -21,45 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/pack_args.hpp>
-#include <migraphx/requires.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace {
-std::size_t get_size(const kernel_argument& k) { return k.size; }
-std::size_t get_size(const kernel_argument_value& k) { return k.data.size(); }
-
-const char* get_data(const kernel_argument& k) { return static_cast<const char*>(k.data); }
-const char* get_data(const kernel_argument_value& k) { return k.data.data(); }
-
-template <class PackArgs>
-std::vector<char> pack_args_impl(const PackArgs& args)
+// The convolution output is channels-last, so lrn still has to normalize across channels rather
+// than across the axis a packed reading of the buffer would imply.
+struct test_conv_lrn : verify_program<test_conv_lrn>
 {
-    std::vector<char> kernargs;
-    for(auto&& arg : args)
+    migraphx::program create_program() const
     {
-        std::size_t n = get_size(arg);
-        const auto* p = get_data(arg);
-        kernargs.insert(kernargs.end(), pack_padding(kernargs.size(), arg.align), 0);
-        kernargs.insert(kernargs.end(), p, p + n);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 8, 8, 8}});
+        auto w = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 3, 3}}, 1));
+        auto conv = mm->add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        mm->add_instruction(
+            migraphx::make_op("lrn",
+                              {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),
+            conv);
+        return p;
     }
-    return kernargs;
-}
-} // namespace
-
-std::vector<char> pack_args(const std::vector<kernel_argument>& args)
-{
-    return pack_args_impl(args);
-}
-
-std::vector<char> pack_args(const std::vector<kernel_argument_value>& args)
-{
-    return pack_args_impl(args);
-}
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+};

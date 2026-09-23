@@ -49,6 +49,7 @@ struct hip_compile_options
     std::vector<shape> virtual_inputs          = {};
     std::vector<src_file> additional_src_files = {};
     std::int64_t output_arg                    = -1;
+    std::string src_name                       = "main.cpp";
     // Overrides the C++ type used in the generated make_tensor for an input,
     // keyed by input index. Used for kernel-side-only types such as packed
     // int4 which have no shape::type_t equivalent.

@@ -79,6 +79,7 @@
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
@@ -109,6 +110,13 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
+    bool hip_graph = false;
+    // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
+    // prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
+    // priority over this. The architecture and build-config defaults only force ops on, so a
+    // '!' entry cannot disable an op those defaults enable (e.g. attention on gfx94/gfx95).
+    std::vector<std::string> mlir_use_specific_ops = {};
     // Read/write problem caches (the common case: a user tuning a model). New
     // tuning solutions are saved back to these files.
     std::vector<std::string> problem_cache_files = {};
@@ -117,14 +125,25 @@ struct backend_options
     std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
+    // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with pointwise ops.
+    bool enable_skinny_dot = false;
+    // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
+    bool hiprtc_disable_processes = false;
+    compile_ops_tuning_overrides tuning{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
-                    f(self.problem_cache_files, "problem_cache_files"),
-                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"),
-                    f(self.convolution_layout, "convolution_layout"));
+        return pack_join(
+            pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                 f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
+                 f(self.hip_graph, "hip_graph"),
+                 f(self.convolution_layout, "convolution_layout"),
+                 f(self.enable_skinny_dot, "enable_skinny_dot"),
+                 f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
+                 f(self.problem_cache_files, "problem_cache_files"),
+                 f(self.read_only_problem_cache_files, "read_only_problem_cache_files")),
+            migraphx::reflect(self.tuning, f));
     }
 };
 
@@ -219,7 +238,7 @@ struct pipeline_factory
             prefuse_ops{get_context()},
             dead_code_elimination{},
             dead_code_elimination{},
-            rewrite_reduce{},
+            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
             rewrite_topk{},
             rewrite_low_precision{},
             enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
@@ -237,7 +256,8 @@ struct pipeline_factory
     {
         return {
             enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
-                        fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
+                        fuse_attention{.attn_enabled = mlir_attention_enabled(
+                                           get_context(), backend_opts.mlir_use_specific_ops),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
@@ -248,7 +268,9 @@ struct pipeline_factory
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
             dead_code_elimination{},
-            enable_pass(mlir_enabled(), fuse_mlir{get_context()}),
+            enable_pass(mlir_enabled(),
+                        fuse_mlir{.ctx              = get_context(),
+                                  .use_specific_ops = backend_opts.mlir_use_specific_ops}),
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},
@@ -288,11 +310,14 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager},
+                        options.compile_mode == compile_modes::eager,
+                        backend_opts.tuning.resolve()},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
             write_literals{.max_memory = max_memory},
+            enable_pass(backend_opts.hip_graph, hipgraphify{}),
+            dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},
@@ -311,13 +336,13 @@ struct pipeline_factory
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto& ctx = any_cast<context>(gctx);
+    auto& ctx         = any_cast<context>(gctx);
+    auto backend_opts = get_backend_options(options);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
+    ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
-
-    auto backend_opts = get_backend_options(options);
 
     // Problem cache files arrive as GPU backend options. The writable caches
     // (problem_cache_files) save new tuning solutions back; the read-only caches
@@ -336,7 +361,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             p.required_pipeline(),
             {optimize_module{},
              dead_code_elimination{},
-             rewrite_reduce{},
+             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
              rewrite_topk{},
              dead_code_elimination{}},
             p.fusion_pipeline(),

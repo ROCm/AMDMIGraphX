@@ -5177,6 +5177,56 @@ TEST_CASE(conv_horizontal_fuse)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(conv_horizontal_fuse_diff_out_channels)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8, 4, 4}};
+    migraphx::shape w1s{migraphx::shape::float_type, {6, 8, 3, 3}};
+    migraphx::shape w2s{migraphx::shape::float_type, {4, 14, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", xs);
+        auto w1 = m1.add_literal(migraphx::generate_literal(w1s, 1));
+        auto w2 = m1.add_literal(migraphx::generate_literal(w2s, 2));
+        auto conv1 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, w1);
+        auto act1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
+        auto cat  = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, act1);
+        auto conv2 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), cat, w2);
+        m1.add_return({conv2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x         = m2.add_parameter("x", xs);
+        auto w1        = m2.add_literal(migraphx::generate_literal(w1s, 1));
+        auto w2        = m2.add_literal(migraphx::generate_literal(w2s, 2));
+        auto w2_prefix = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {8}}}), w2);
+        auto wcat   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), w1, w2_prefix);
+        auto wcat_c = m2.add_instruction(migraphx::make_op("contiguous"), wcat);
+        auto fused_conv =
+            m2.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, wcat_c);
+        auto conv1_out = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {6}}}),
+            fused_conv);
+        auto conv2_prefix = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {10}}}),
+            fused_conv);
+        auto act1      = m2.add_instruction(migraphx::make_op("relu"), conv1_out);
+        auto w2_suffix = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {8}}, {"ends", {14}}}), w2);
+        auto w2_suffix_c  = m2.add_instruction(migraphx::make_op("contiguous"), w2_suffix);
+        auto conv2_suffix = m2.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1}}}), act1, w2_suffix_c);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), conv2_prefix, conv2_suffix);
+        m2.add_return({sum});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(conv_concat_split_fuse_no_fusion_mismatched_weights)
 {
     migraphx::shape xs{migraphx::shape::float_type, {1, 8, 4, 4}};
@@ -6057,6 +6107,128 @@ TEST_CASE(simplify_concat_same_input_dynamic)
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x, x);
         m2.add_return({concat});
     }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_broadcast)
+{
+    migraphx::shape s{migraphx::shape::uint8_type, {1}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_literal(migraphx::literal{s, {8}});
+        auto b = m1.add_literal(migraphx::literal{s, {8}});
+        auto ab =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), a);
+        auto bb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ab, bb);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_literal(migraphx::literal{s, {8}});
+        auto bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 6}}}), a);
+        m2.add_return({bcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_broadcast_non_scalar)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto b = m1.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto ab =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), a);
+        auto bb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ab, bb);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 3}}}), a);
+        m2.add_return({bcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_broadcast_different_values)
+{
+    migraphx::shape s{migraphx::shape::uint8_type, {1}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_literal(migraphx::literal{s, {8}});
+        auto b = m1.add_literal(migraphx::literal{s, {7}});
+        auto ab =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), a);
+        auto bb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ab, bb);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_broadcast_nonzero_stride_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto b = m1.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto ab =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), a);
+        auto bb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), ab, bb);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    // The concat axis is not broadcasted, so find_concat_same_broadcast does
+    // not apply; find_concat_op moves the concat before the broadcast instead.
+    migraphx::module m2;
+    {
+        auto a      = m2.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto b      = m2.add_literal(migraphx::literal{s, {1, 2, 3}});
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), concat);
+        m2.add_return({bcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_broadcast_nonunit_axis_dim)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::module m1;
+    {
+        auto p = m1.add_parameter("p", s);
+        auto x = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), p);
+        auto xa =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), x);
+        auto xb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xa, xb);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
     EXPECT(m1 == m2);
 }
 

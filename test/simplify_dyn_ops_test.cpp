@@ -26,6 +26,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/sym.hpp>
@@ -894,6 +895,57 @@ TEST_CASE(onehot_cannot_simplify)
     EXPECT(m0 == m1);
 }
 
+TEST_CASE(const_eval_expr_from_shape_reshape)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    auto n   = migraphx::sym::var("n", {3, 3});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{migraphx::sym::lit(4)}}};
+    std::vector<migraphx::sym::expr> expressions = {n, migraphx::sym::lit(4)};
+    migraphx::shape reshaped_s{migraphx::shape::float_type, {3, 4}};
+
+    migraphx::module m0;
+    {
+        auto x    = m0.add_parameter("x", s);
+        auto dims = m0.add_instruction(
+            migraphx::make_op("eval_expr_from_shape",
+                              {{"expressions", migraphx::to_value(expressions)}}),
+            x);
+        auto alloc = m0.add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(reshaped_s)}}), dims);
+        auto reshaped = m0.add_instruction(migraphx::make_op("reshape"), x, alloc);
+        m0.add_return({reshaped});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        auto x        = m1.add_parameter("x", s);
+        auto reshaped = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{3, 4}}}), x);
+        m1.add_return({reshaped});
+    }
+
+    EXPECT(m0.sort() == m1.sort());
+}
+
+TEST_CASE(symbolic_eval_expr_from_shape_not_folded)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    auto n   = migraphx::sym::var("n", {1, 4});
+    migraphx::module m;
+    auto x = m.add_parameter("x",
+                             {migraphx::shape::float_type, {dd{n}, dd{migraphx::sym::lit(2)}}});
+    std::vector<migraphx::sym::expr> expressions = {n};
+    auto dims                                    = m.add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(expressions)}}),
+        x);
+    m.add_return({dims});
+    run_pass(m);
+    EXPECT(std::any_of(m.begin(), m.end(), [](const auto& ins) {
+        return ins.name() == "eval_expr_from_shape";
+    }));
+}
+
 TEST_CASE(select_module_preserves_symbolic_output_shape)
 {
     using dd = migraphx::shape::dynamic_dimension;
@@ -977,9 +1029,8 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
         main1->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select1);
     std::vector<se> starts1 = {migraphx::sym::lit(0)};
     std::vector<se> ends1   = {n};
-    auto start1             = main1->add_instruction(
-        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(starts1)}}),
-        input1);
+    auto start1             = main1->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
     auto end1 = main1->add_instruction(
         migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(ends1)}}),
         input1);
@@ -1251,6 +1302,44 @@ TEST_CASE(select_module_update2)
     }
 
     EXPECT(p0 == p1);
+}
+
+TEST_CASE(select_module_preserves_symbolic_output)
+{
+    migraphx::program p;
+    auto create_submodule = [&](std::size_t sequence_length, const std::string& name) {
+        auto* submodule = p.create_module(name);
+        migraphx::shape input_shape{migraphx::shape::float_type, {1, sequence_length, 2}};
+        auto input = submodule->add_parameter("data", input_shape);
+        submodule->add_return({input});
+        return submodule;
+    };
+    auto* decode  = create_submodule(1, "decode");
+    auto* prefill = create_submodule(4, "prefill");
+
+    using dd             = migraphx::shape::dynamic_dimension;
+    auto sequence_length = migraphx::sym::var("sequence_length", {1, 4});
+    migraphx::shape dynamic_shape{
+        migraphx::shape::float_type,
+        {dd{migraphx::sym::lit(1)}, dd{sequence_length}, dd{migraphx::sym::lit(2)}}};
+    auto* mm                                = p.get_main_module();
+    auto data                               = mm->add_parameter("data", dynamic_shape);
+    std::vector<migraphx::shape> sub_shapes = {dynamic_shape};
+    migraphx::shape output_shapes{sub_shapes};
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
+        {data},
+        {decode, prefill});
+    mm->add_return({select});
+
+    migraphx::run_passes(p, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
+
+    auto selected = std::find_if(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "select_module"; });
+    EXPECT(selected != mm->end());
+    EXPECT(selected->get_shape() == output_shapes);
+    EXPECT(selected->get_shape().sub_shapes().front().symbolic());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

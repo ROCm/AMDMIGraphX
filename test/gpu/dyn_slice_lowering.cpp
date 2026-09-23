@@ -147,6 +147,43 @@ TEST_CASE(dyn_slice_lowering_mixed_host_and_device_metadata)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(dyn_slice_lowering_literal_metadata_stays_on_host)
+{
+    auto n    = migraphx::sym::var("N", {1, 4});
+    auto zero = migraphx::sym::lit(0);
+    migraphx::shape data_shape{migraphx::shape::float_type, {4}};
+    migraphx::shape index_shape{migraphx::shape::int64_type, {1}};
+    auto slice_op =
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", migraphx::to_value(std::vector<migraphx::sym::expr>{zero})},
+                           {"ends", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}});
+
+    migraphx::module m1;
+    {
+        auto data   = m1.add_parameter("data", data_shape);
+        auto ends   = m1.add_parameter("ends", index_shape);
+        auto starts = m1.add_literal(
+            migraphx::literal{index_shape, {0}});
+        auto slice = m1.add_instruction(slice_op, data, starts, ends);
+        m1.add_return({slice});
+    }
+    run_lowering(m1);
+
+    migraphx::module m2;
+    {
+        auto data      = m2.add_parameter("data", data_shape);
+        auto ends      = m2.add_parameter("ends", index_shape);
+        auto starts    = m2.add_literal(
+            migraphx::literal{index_shape, {0}});
+        auto copy_ends = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
+        auto sync      = m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_ends);
+        auto slice     = m2.add_instruction(slice_op, data, starts, sync);
+        m2.add_return({slice});
+    }
+    EXPECT(m1 == m2);
+}
+
 // A slice with only 1 input (all attributes inline) should not be modified
 // by the dynamic slice lowering.
 TEST_CASE(dyn_slice_lowering_single_input)

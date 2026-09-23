@@ -1,6 +1,6 @@
 # Migration plan: adopting `split_sym_dim` for the symbolic specialization path
 
-**Created:** 2026-09-02 · **Last updated:** 2026-09-15 (paused)
+**Created:** 2026-09-02 · **Last updated:** 2026-09-17 (performance resume; 15% gate failed)
 **Status:** **Paused.** Do not merge into `unify-llm-refactor`. Scratch work is on
 `ssd-prefill-decode` (from `origin/split_sym_dim` @ `028ad54c1`). Push that branch when ready;
 this document is the handoff.
@@ -8,7 +8,8 @@ this document is the handoff.
 `origin/split_sym_dim` @ `028ad54c1` (theirs, PR [#5123](https://github.com/ROCm/AMDMIGraphX/pull/5123)) ·
 `ssd-prefill-decode` (this investigation) · `origin/develop` @ `76cde7026` (static baseline)
 **Evidence:** `tmp/ssd-plan/` · `tmp/ssd-perf/20260915-161142/` ·
-`tmp/ssd-rocmlir/20260915-174153/` · `tmp/ssd-develop/20260915-233856/`
+`tmp/ssd-rocmlir/20260915-174153/` · `tmp/ssd-develop/20260915-233856/` ·
+`tmp/ssd-perf/20260917-195553/` (M0) · `tmp/ssd-perf/20260917-210521/` (M6 gate)
 
 ## Where things stand (paused 2026-09-15)
 
@@ -99,7 +100,8 @@ static graph is legal for current develop fusion + the same rocMLIR pin; scratch
 3. **The pass still is not merge-ready as-is.** Blocker 2 is worked around in our fork
    (topo-order, export, 1-input freeze), not fixed upstream. 2-input reshape still never
    specializes; the parent keeps a large dynamic residue (`get_tuple_elem` / `dyn_slice` /
-   `reshape`). `select_module.hpp` still needs a hand-merge with our dispatch-metadata cache.
+   `reshape`). A `select_module` metadata-cache hand-merge landed on 2026-09-17 and is
+   **not** enough; see [Performance resume](#performance-resume-2026-09-17).
 4. **`unify-llm-refactor` remains the working unification path**
    (`split_single_dyn_dim` + `split_sizes`).
 
@@ -109,11 +111,101 @@ static graph is legal for current develop fusion + the same rocMLIR pin; scratch
   a long-lived fork of `split_sym_dim.cpp`.
 - Scratch/static: stop the mega `tosa.reduce_sum` fusion (or wait for a rocMLIR pin that
   legalizes it) so unified vs static can be timed on the *same* compiler.
-- Only then re-run the 15% gate, then Llama.
+- The 15% gate was re-run on 2026-09-17 and still fails (~3.6× decode; prefill abort).
+  Do not coalesce blocks and do not run Llama until that changes.
 
 Local artifacts stay under `tmp/` (not in git). `unify-llm-refactor` is clean of this work.
 
 ---
+
+## Performance resume (2026-09-17)
+
+Stay on `ssd-prefill-decode`. Do **not** coalesce blocks. Do **not** run Llama until Smol
+decode passes the gate. `unify-llm-refactor` was not edited.
+
+### M0 (no code) — `tmp/ssd-perf/20260917-195553/`
+
+gfx942, `MIGRAPHX_DISABLE_MLIR=1` (unified MLIR still aborts on `tosa.reduce_sum` / packed
+strides). Compare **Total time**, `-n 100`, `--fill1 attention_mask`, batch 1.
+
+| Workload | This branch unified | develop static (`tmp/ssd-wt-develop`) |
+|---|---|---|
+| Decode, `inputs_embeds {1,1,960}` | **33.73 ms** (instr. 57.21 ms) | **8.18 ms** (instr. 11.28 ms) |
+| Prefill, `inputs_embeds {1,64,960}` | not timed this pass | not re-run this pass |
+
+The 15% gate on this box is **8.18 × 1.15 ≈ 9.41 ms**. The older 2.64 ms develop-static
+number from 2026-09-15 did not reproduce (that run had MLIR attention fusion; this pass
+does not). Instruction time still overlaps the wall on MI300 (static 11.28 ms → 8.18 ms
+total). The comparison is trusted as a same-machine Total-time gate, not as “same fusion.”
+
+Diagnosis (agreed M1-first):
+
+- 4 `select_module`s in main; decode executes the `*_0` (seq=1) clones (`{1,1,1600}` gemms
+  timed, `{1,64,…}` gemms `-nan`).
+- `select_module` 20.47 ms / 4 (36% of instruction time) + `get_tuple_elem` 8.55 ms / 389.
+- Parent residue: 289 `dyn_slice`, 353 `get_tuple_elem` in main, 1251 main instructions.
+- Clones are mostly static; 4 leftover `dyn_slice`/`eval_expr_from_shape` in clone-like
+  modules. No `rock.attention` with MLIR off.
+
+### Ports that landed (M1–M5)
+
+- **M1** `select_module` metadata cache, discriminator indices, `argument::get_sub_object`,
+  positional inner eval. Kept `is_compatible_lens`. Did **not** port `try_fast_select_eval`.
+  Output routing is return-slot mapping, not unify’s name-order pack (needed for
+  `split_sym_dim`). Fused GPU tuple `#output_` params map each `get_tuple_elem` to its
+  return index rather than a consecutive run from the first alias.
+- **M2** `replace_allocate` skip for `get_tuple_elem` of aliased tuple allocations.
+- **M3** `find_const_eval_expr_from_shape`; leave symbolic `output_dyn_shapes` in place.
+- **M4** `fuse_attention` captured-literal order / inlinable constants / 1-D iota. Unique
+  attn names kept. No `rock.attention` in the nomlir histogram (MLIR off).
+- **M5** runtime identity skip in `dyn_slice::compute` when the output shape already
+  matches the input. Compile-time skip of `add_output_slice` was **not** taken (unsafe for
+  mixed clones).
+- Follow-on (not in the original milestone list, required to even eval): GPU lowering does
+  not `copy_from_gpu` host-resident slice bounds (`eval_expr_from_shape` or `can_eval()`).
+  Folding `starts={0}` to `@literal` without that skip was 289 GPU→host syncs and **212 ms**
+  decode.
+
+### M6 gate — `tmp/ssd-perf/20260917-210521/`
+
+Same protocol, same box, nomlir mxr.
+
+| Workload | Unified after M1–M5 | Gate (1.15 × 8.18 ms) | Result |
+|---|---|---|---|
+| Decode | **29.22 ms** (min 24.12, median 29.80; instr. 50.57 ms) | **9.41 ms** | **Fail** (~3.6×) |
+| Prefill seq=64 | abort | — | **Fail** |
+
+Decode vs M0 33.73 ms is a small win. `select_module` is still 18.05 ms / 4 (36%).
+`get_tuple_elem` 5.99 ms / 389. `dyn_slice` 2.17 ms / 289. `hip::copy_from_gpu` is gone.
+Main still has 1123 instructions, 289 `dyn_slice`, 353 `get_tuple_elem`.
+
+Prefill (`--input-dim @inputs_embeds 1 64 960`) selects `*_1` clones then throws:
+
+```
+SELECT_MODULE: output buffer for "main:split_sym_dim_3_1:#output_:00096"
+holds 98560 bytes but the selected submodule writes 6307840
+```
+
+`#output_:00096` is `{1,64,49280}` half (prefill logits). 98560 B is `{1,1,49280}`. The
+parent tuple slot is still the decode-sized shape even though `output_dyn_shapes` lists
+`{1, #split_sym_dim_sequence_length_target[1..64], 49280}`.
+
+### Consult (stop here)
+
+- **CPU vs GPU:** decode wall is still dominated by four `select_module` inner evals plus
+  hundreds of parent `get_tuple_elem` / `dyn_slice`. GPU gemm time (~5 ms) is not the gap
+  to 8.18 ms.
+- **Residual parent histogram:** 4 `select_module`, 289 `dyn_slice`, 353 `get_tuple_elem`,
+  128 `reshape`, 65 `gpu::dynamic_code_object_op`. Clones look static; the parent pad
+  contract is the leftover launches.
+- **Static baseline:** 8.18 ms Total / 11.28 ms instruction on this box is the gate, not
+  the 2.64 ms 2026-09-15 figure (that had MLIR). Unified nomlir vs static-with-MLIR is not
+  a same-compiler comparison; even so, 29 ms vs 9.41 ms is not close.
+- Next levers that are **out of scope** until you say otherwise: block coalescing; turning
+  MLIR back on; skipping parent `dyn_slice` at compile time; Llama.
+
+---
+
 
 ## 2026-09-15 addendum (investigation log)
 
@@ -583,5 +675,7 @@ Pipeline-wiring regression on their branch (informational — not a migration bl
 - `tmp/ssd-rocmlir/20260915-174153/` — rebuild of rocMLIR `@c35e77b`; did not fix static abort.
 - `tmp/ssd-develop/20260915-233856/` — develop static mxrs + perf (2.64 ms decode, 2.59 ms prefill).
 - `tmp/ssd_develop` — detached worktree at `origin/develop` @ `76cde7026`.
+- `tmp/ssd-perf/20260917-195553/` — M0 re-measure (33.73 ms unified decode nomlir, 8.18 ms develop static).
+- `tmp/ssd-perf/20260917-210521/` — M6 gate (29.22 ms unified decode; prefill abort).
 
 `unify-llm-refactor` was not modified at any point during this investigation.

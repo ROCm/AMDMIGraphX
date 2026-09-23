@@ -249,8 +249,15 @@ struct miopen_apply
     instruction_ref insert_dynamic_code_object_op(instruction_ref ins) const
     {
         assert(ins->get_operator().name() == "gpu::precompile_op");
-        // some op returns a tuple shape e.g. TopK
-        if(not ins->get_shape().any_of_dynamic())
+        // HIP kernels bake lens() into the launch. A static output is not
+        // enough: concat_past_present writes a static KV cache from a
+        // still-symbolic present, and compile_ops throws on that lens() call.
+        const bool dynamic_io =
+            ins->get_shape().any_of_dynamic() or
+            std::any_of(ins->inputs().begin(), ins->inputs().end(), [](instruction_ref input) {
+                return input->get_shape().any_of_dynamic();
+            });
+        if(not dynamic_io)
             return ins;
 
         return mod->replace_instruction(
@@ -643,11 +650,13 @@ struct miopen_apply
     void add_concat_past_present_op()
     {
         apply_map.emplace("concat_past_present", [=](instruction_ref ins) {
-            return mod->replace_instruction(ins,
-                                            make_op("gpu::precompile_op",
-                                                    {{"op", to_value(ins->get_operator())},
-                                                     {"output_shape", to_value(ins->get_shape())}}),
-                                            ins->inputs());
+            auto preop =
+                mod->replace_instruction(ins,
+                                         make_op("gpu::precompile_op",
+                                                 {{"op", to_value(ins->get_operator())},
+                                                  {"output_shape", to_value(ins->get_shape())}}),
+                                         ins->inputs());
+            return insert_dynamic_code_object_op(preop);
         });
     }
 
@@ -685,7 +694,10 @@ struct miopen_apply
                 // Copy only runtime metadata that was not already produced on the host.
                 for(std::size_t i = 1; i < inputs.size(); ++i)
                 {
-                    if(inputs[i]->name() == "eval_expr_from_shape")
+                    // Bounds that already live on the host (eval_expr_from_shape, folded
+                    // literals) must not be copied back from the GPU; a copy+sync per slice
+                    // dominates decode.
+                    if(inputs[i]->name() == "eval_expr_from_shape" or inputs[i]->can_eval())
                         continue;
                     inputs[i] =
                         mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[i]);

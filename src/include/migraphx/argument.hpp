@@ -90,6 +90,9 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
 
     std::vector<argument> get_sub_objects() const;
 
+    /// Return the indexed tuple subobject
+    argument get_sub_object(std::size_t index) const;
+
     /// Return the ith element
     argument element(std::size_t i) const;
 

@@ -39,6 +39,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/select_module.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
 #include <migraphx/pmr/unordered_map.hpp>
@@ -499,10 +500,78 @@ static bool is_compatible_shape(const shape& actual, const shape& expected)
 }
 #endif
 
-template <class F>
+static argument get_parameter_argument(const std::unordered_map<std::string, argument>& params,
+                                       const builtin::param& param)
+{
+    auto result = params.find(param.parameter);
+    if(result == params.end())
+        MIGRAPHX_THROW("Parameter not found: " + param.parameter);
+    return result->second;
+}
+
+template <class Params>
+static auto get_parameter_argument(const Params& params, const builtin::param& param)
+    -> decltype(params.get_parameter(param.order))
+{
+    return params.get_parameter(param.order);
+}
+
+template <class Params>
+static argument evaluate_parameter(instruction_ref ins, const Params& params)
+{
+    const auto& param_op = any_cast<builtin::param>(ins->get_operator());
+    auto result          = get_parameter_argument(params, param_op);
+    if(not ins->get_shape().any_of_dynamic() and result.get_shape() != ins->get_shape())
+        MIGRAPHX_THROW("Incorrect shape {" + to_string(result.get_shape()) + "} for parameter: " +
+                       param_op.parameter + " should be: " + to_string(ins->get_shape()));
+    return result;
+}
+
+struct instruction_argument_accessor
+{
+    const std::vector<instruction_ref>& inputs;
+    const pmr::unordered_map<instruction_ref, argument>& results;
+
+    const argument& operator()(std::size_t index) const
+    {
+        assert(index < inputs.size());
+        assert(results.find(inputs[index]) != results.end());
+        return results.at(inputs[index]);
+    }
+};
+
+template <class GetArgument, class Run>
+static argument evaluate_select_module(instruction_ref ins,
+                                       std::vector<context>& ctx,
+                                       GetArgument get_argument,
+                                       Run run)
+{
+    auto oper = ins->normalized_operator();
+    if(ins->get_target_id() >= ctx.size())
+        MIGRAPHX_THROW("No context available for " + oper.name());
+    const auto& select = any_cast<op::select_module>(oper);
+    return select.compute_with_positional_parameters(
+        ins->inputs().size(), get_argument, ins->module_inputs(), run);
+}
+
+static argument compute_leaf_instruction(instruction_ref ins, std::vector<context>& ctx)
+{
+    if(not ins->inputs().empty() or not ins->module_inputs().empty())
+        MIGRAPHX_THROW("Cannot lazily evaluate non-leaf foreign instruction: " + ins->name());
+    if(ins->name() == "@literal")
+        return ins->get_literal().get_argument();
+    auto oper = ins->normalized_operator();
+    if(oper.is_context_free())
+        return oper.compute(ins->get_shape(), {});
+    if(ins->get_target_id() >= ctx.size())
+        MIGRAPHX_THROW("No context available for " + oper.name());
+    return oper.compute(ctx[ins->get_target_id()], ins->get_shape(), {});
+}
+
+template <class Params, class F>
 static std::vector<argument> generic_eval(const module* mod,
                                           std::vector<context>& ctx,
-                                          const std::unordered_map<std::string, argument>& params,
+                                          const Params& params,
                                           pmr::unordered_map<instruction_ref, argument>& results,
                                           F trace)
 {
@@ -524,22 +593,8 @@ static std::vector<argument> generic_eval(const module* mod,
         }
         else if(name == "@param")
         {
-            results.insert_or_assign(
-                ins, trace(ins, [&] {
-                    auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
-                    if(not contains(params, param_name))
-                        MIGRAPHX_THROW("Parameter not found: " + param_name);
-                    auto param = params.at(param_name);
-                    // TODO: may want to check correct number of dimensions and/or was within bounds
-                    if(not ins->get_shape().any_of_dynamic() and
-                       param.get_shape() != ins->get_shape())
-                    {
-                        MIGRAPHX_THROW("Incorrect shape {" + to_string(param.get_shape()) +
-                                       "} for parameter: " + param_name +
-                                       " should be: " + to_string(ins->get_shape()));
-                    }
-                    return param;
-                }));
+            results.insert_or_assign(ins,
+                                     trace(ins, [&] { return evaluate_parameter(ins, params); }));
         }
         else if(name == "@outline")
         {
@@ -566,28 +621,52 @@ static std::vector<argument> generic_eval(const module* mod,
         }
         else
         {
-            values.resize(ins->inputs().size());
-            std::transform(
-                ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
-                    assert(results.find(i) != results.end());
-                    return results[i];
-                });
             const auto& mod_args = ins->module_inputs();
-            auto module_eval     = [&](module_ref smod,
-                                   const std::unordered_map<std::string, argument>& inputs) {
-                return generic_eval(smod, ctx, inputs, results, trace);
-            };
+            if(name == "select_module")
+            {
+                auto positional_module_eval = [&](module_ref smod, const auto& inputs) {
+                    return generic_eval(smod, ctx, inputs, results, trace);
+                };
+                results.insert_or_assign(ins, trace(ins, [&] {
+                                             const auto& inputs = ins->inputs();
+                                             auto get_argument =
+                                                 instruction_argument_accessor{inputs, results};
+                                             return evaluate_select_module(
+                                                 ins, ctx, get_argument, positional_module_eval);
+                                         }));
+            }
+            else
+            {
+                values.resize(ins->inputs().size());
+                std::transform(ins->inputs().begin(),
+                               ins->inputs().end(),
+                               values.begin(),
+                               [&](instruction_ref i) {
+                                   auto result = results.find(i);
+                                   if(result != results.end())
+                                       return result->second;
+                                   assert(not mod->has_instruction(i));
+                                   return compute_leaf_instruction(i, ctx);
+                               });
+                auto module_eval = [&](module_ref smod,
+                                       const std::unordered_map<std::string, argument>& inputs) {
+                    return generic_eval(smod, ctx, inputs, results, trace);
+                };
 
-            results.insert_or_assign(
-                ins, trace(ins, [&] {
-                    auto op = ins->normalized_operator();
-                    if(op.is_context_free())
-                        return op.compute(ins->get_shape(), values, mod_args, module_eval);
-                    if(ins->get_target_id() >= ctx.size())
-                        MIGRAPHX_THROW("No context available for " + op.name());
-                    return op.compute(
-                        ctx[ins->get_target_id()], ins->get_shape(), values, mod_args, module_eval);
-                }));
+                results.insert_or_assign(
+                    ins, trace(ins, [&] {
+                        auto oper = ins->normalized_operator();
+                        if(oper.is_context_free())
+                            return oper.compute(ins->get_shape(), values, mod_args, module_eval);
+                        if(ins->get_target_id() >= ctx.size())
+                            MIGRAPHX_THROW("No context available for " + oper.name());
+                        return oper.compute(ctx[ins->get_target_id()],
+                                            ins->get_shape(),
+                                            values,
+                                            mod_args,
+                                            module_eval);
+                    }));
+            }
         }
         assert(results.find(ins) != results.end());
         assert(is_compatible_shape(results.at(ins).get_shape(), ins->get_shape()));

@@ -32,6 +32,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/builtin.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <algorithm>
 #include <iterator>
 #include <optional>
@@ -41,6 +42,122 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+// Parent-captured literals live outside this module. Walk the module in order and
+// splice those captures in just before their first use so fuse() stays dependency-ordered.
+template <class Set>
+std::vector<instruction_ref> in_module_order(const module& m, const Set& inss)
+{
+    std::vector<instruction_ref> result;
+    result.reserve(inss.size());
+    std::unordered_set<instruction_ref> placed;
+    for(auto ins : iterator_for(m))
+    {
+        if(not contains(inss, ins))
+            continue;
+        for(auto input : ins->inputs())
+        {
+            if(contains(inss, input) and not m.has_instruction(input) and
+               placed.insert(input).second)
+                result.push_back(input);
+        }
+        placed.insert(ins);
+        result.push_back(ins);
+    }
+    return result;
+}
+
+// Whether an instruction feeds anything outside the given set. Consumers in another module are
+// ignored: a captured constant is still reachable there through the capture, so it does not need
+// to become an output of the fused group.
+template <class Set>
+bool escapes(const module& m, instruction_ref ins, const Set& inss)
+{
+    return not std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto out) {
+        return not m.has_instruction(out) or contains(inss, out);
+    });
+}
+
+bool is_range_literal(const literal& l)
+{
+    const auto& s = l.get_shape();
+    if(s.elements() < 2 or not shape::is_computable(s.type()))
+        return false;
+    bool result = false;
+    l.visit([&](auto x) {
+        result = std::adjacent_find(x.begin(), x.end(), [](auto cur, auto next) {
+                     return next <= cur or not float_equal(next - cur, 1);
+                 }) == x.end();
+    });
+    return result;
+}
+
+bool is_inlinable_constant(instruction_ref ins)
+{
+    if(ins->name() != "@literal")
+        return true;
+    return ins->get_shape().elements() == 1 or is_range_literal(ins->get_literal());
+}
+
+// rocMLIR AttentionRewritePattern::isConstantRange(x, 1) asserts when the
+// peeled constant range has rank < 2 (TosaToRock.cpp:1804). KV-cache causal
+// masks compare against a 1-D iota; store that iota as {1, N} so the
+// prefix-causal matcher sees rank 2. Unsqueeze wrapping is not enough:
+// rocMLIR skips tensor.expand_shape when looking up the constant.
+static void promote_1d_int_ranges(module& m)
+{
+    std::vector<instruction_ref> lits;
+    for(auto ins : iterator_for(m))
+    {
+        const auto& s = ins->get_shape();
+        if(ins->name() != "@literal" or s.ndim() != 1 or not shape::is_integral(s.type()))
+            continue;
+        lits.push_back(ins);
+    }
+    std::vector<instruction_ref> bcs;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "broadcast" and ins->inputs().size() == 1)
+            bcs.push_back(ins);
+    }
+    for(auto ins : bcs)
+    {
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), ins->inputs());
+    }
+    for(auto ins : lits)
+    {
+        auto n = ins->get_shape().lens().front();
+        auto new_lit =
+            m.add_literal(literal{shape{ins->get_shape().type(), {1, n}}, ins->eval().data()});
+        auto users = ins->outputs();
+        for(auto user : users)
+        {
+            if(user->name() == "broadcast" or user->name() == "multibroadcast")
+            {
+                m.replace_instruction(
+                    user,
+                    make_op("multibroadcast", {{"out_lens", user->get_shape().lens()}}),
+                    new_lit);
+                continue;
+            }
+            std::vector<instruction_ref> args;
+            std::transform(user->inputs().begin(),
+                           user->inputs().end(),
+                           std::back_inserter(args),
+                           [&](instruction_ref arg) -> instruction_ref {
+                               if(arg == ins)
+                                   return new_lit;
+                               if(arg->get_shape().ndim() == 1 and
+                                  shape::is_integral(arg->get_shape().type()))
+                                   return m.insert_instruction(
+                                       user, make_op("unsqueeze", {{"axes", {0}}}), arg);
+                               return arg;
+                           });
+            m.replace_instruction(user, user->get_operator(), args, user->module_inputs());
+        }
+    }
+}
 
 // env vars for flash decoding configuration
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
@@ -286,7 +403,8 @@ struct find_attention
         auto expand = fix([&](auto self, auto ins) {
             for(auto input : ins->inputs())
             {
-                if(not contains(attn_inss, input) and input->can_eval())
+                if(not contains(attn_inss, input) and input->can_eval() and
+                   is_inlinable_constant(input))
                 {
                     attn_inss.insert(input);
                     self(input);
@@ -297,13 +415,7 @@ struct find_attention
         for(auto ins : starts)
             expand(ins);
 
-        std::vector<instruction_ref> sorted_inss(attn_inss.begin(), attn_inss.end());
-        std::sort(
-            sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
-                return std::distance(m.begin(), x) < std::distance(m.begin(), y);
-            });
-
-        return sorted_inss;
+        return in_module_order(m, attn_inss);
     }
 
     static bool has_lse_out(std::vector<instruction_ref>& group_outs)
@@ -903,7 +1015,7 @@ struct find_kv_cache_attention
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k"));
         auto keys_transpose = match::opaque(match::name("transpose")(match::arg(0)(keys)));
         auto k_transpose    = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
-        auto queries = match::name("slice");
+        auto queries        = match::name("slice");
         auto gemm1 =
             match::opaque(match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose)));
         auto gemm1_maybe_cvt = match::opaque(match::skip(match::name("convert"))(gemm1));
@@ -1024,6 +1136,9 @@ struct find_kv_cache_attention
         // its outputs are already in the set. This pulls in constants,
         // broadcasts, and side inputs that feed exclusively into the
         // attention, while excluding ops with external consumers.
+        // Gemms that feed the scores path are included even when they also
+        // escape (split_sym_dim clone returns); otherwise the group is
+        // softmax+V only and rocMLIR aborts in getInputFusionElementType.
         auto expand = fix([&](auto self, auto ins) {
             for(auto input : ins->inputs())
             {
@@ -1031,9 +1146,11 @@ struct find_kv_cache_attention
                     continue;
                 if(not is_valid_attn_op(input))
                     continue;
-                if(input->can_eval() or std::all_of(input->outputs().begin(),
-                                                    input->outputs().end(),
-                                                    [&](auto o) { return contains(inss, o); }))
+                const bool extra_user_gemm = contains({"dot", "quant_dot"}, input->name());
+                if(input->can_eval() or extra_user_gemm or
+                   std::all_of(input->outputs().begin(), input->outputs().end(), [&](auto o) {
+                       return contains(inss, o);
+                   }))
                 {
                     inss.insert(input);
                     self(input);
@@ -1047,12 +1164,7 @@ struct find_kv_cache_attention
             expand(ins);
         }
 
-        std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());
-        std::sort(
-            sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
-                return std::distance(m.begin(), x) < std::distance(m.begin(), y);
-            });
-        return sorted_inss;
+        return in_module_order(m, inss);
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -1062,6 +1174,13 @@ struct find_kv_cache_attention
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
+        const auto n_gemms =
+            std::count_if(attn_inss.begin(), attn_inss.end(), [](instruction_ref ins) {
+                return contains({"dot", "quant_dot"}, ins->name());
+            });
+        // rock.attention needs QK and PV. A softmax+V group is not legal for rocMLIR.
+        if(n_gemms < 2)
+            return;
 
         // Add captured instructions to new submodule
         module m_attn;
@@ -1090,12 +1209,10 @@ struct find_kv_cache_attention
 
         // Define outputs based on instructions that are used elsewhere in the graph
         std::vector<instruction_ref> required_outputs;
-        std::copy_if(
-            attn_inss.begin(), attn_inss.end(), std::back_inserter(required_outputs), [&](auto i) {
-                return not std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
-                    return contains(attn_inss, o);
-                });
-            });
+        std::copy_if(attn_inss.begin(),
+                     attn_inss.end(),
+                     std::back_inserter(required_outputs),
+                     [&](auto i) { return escapes(mpm.get_module(), i, attn_inss); });
 
         assert(not required_outputs.empty());
 
@@ -1109,20 +1226,21 @@ struct find_kv_cache_attention
 
         // Define inputs to m_attn
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
-        auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
-        auto param_to_input  = m_attn.get_ins_param_map(new_inputs, true);
+        promote_1d_int_ranges(m_attn);
+        auto new_inputs     = m_attn.get_inputs(map_mattn_to_mm);
+        auto param_to_input = m_attn.get_ins_param_map(new_inputs, true);
 
         // Precompute integer where-conditions as bool in the parent. rocMLIR's
         // rock.attention extra kernel otherwise emits i32→i8 truncate as
         // firstGemmIndices instead of the QK gemm.
-        auto new_shapes      = m_attn.get_parameter_shapes();
+        auto new_shapes     = m_attn.get_parameter_shapes();
         bool converted_mask = false;
         for(auto param : m_attn.get_parameters())
         {
             if(not is_integer_mask_type(param->get_shape().type()) or
                not feeds_where_condition(param))
                 continue;
-            auto parent = param_to_input.at(param);
+            auto parent  = param_to_input.at(param);
             auto as_bool = mpm.get_module().insert_instruction(
                 required_outputs.back(),
                 make_op("convert", {{"target_type", shape::bool_type}}),

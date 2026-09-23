@@ -65,4 +65,62 @@ TEST_CASE(dynamic_code_object_op)
     EXPECT(found);
 }
 
+TEST_CASE(concat_past_present_dynamic_present_uses_dynamic_code_object)
+{
+    migraphx::shape present{migraphx::shape::half_type, {{1, 1}, {5, 5}, {1, 64}, {64, 64}}};
+    migraphx::shape seqlens{migraphx::shape::int32_type, {1}};
+    migraphx::shape past{migraphx::shape::half_type, {1, 5, 64, 64}};
+
+    migraphx::program p;
+    auto* mm       = p.get_main_module();
+    auto present_p = mm->add_parameter("present", present);
+    auto seqlens_p = mm->add_parameter("seqlens_k", seqlens);
+    auto past_p    = mm->add_parameter("past", past);
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", 5}}),
+                             present_p,
+                             seqlens_p,
+                             past_p)});
+    run_lowering(p);
+
+    bool found_dynamic    = false;
+    bool found_precompile = false;
+    for(auto ins : iterator_for(*p.get_main_module()))
+    {
+        found_dynamic |= ins->name() == "gpu::dynamic_code_object_op";
+        found_precompile |= ins->name() == "gpu::precompile_op";
+    }
+    EXPECT(found_dynamic);
+    EXPECT(not found_precompile);
+}
+
+TEST_CASE(concat_past_present_static_stays_precompile)
+{
+    migraphx::shape present{migraphx::shape::half_type, {1, 5, 1, 64}};
+    migraphx::shape seqlens{migraphx::shape::int32_type, {1}};
+    migraphx::shape past{migraphx::shape::half_type, {1, 5, 64, 64}};
+
+    migraphx::program p;
+    auto* mm       = p.get_main_module();
+    auto present_p = mm->add_parameter("present", present);
+    auto seqlens_p = mm->add_parameter("seqlens_k", seqlens);
+    auto past_p    = mm->add_parameter("past", past);
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", 5}}),
+                             present_p,
+                             seqlens_p,
+                             past_p)});
+    run_lowering(p);
+
+    bool found_dynamic    = false;
+    bool found_precompile = false;
+    for(auto ins : iterator_for(*p.get_main_module()))
+    {
+        found_dynamic |= ins->name() == "gpu::dynamic_code_object_op";
+        found_precompile |= ins->name() == "gpu::precompile_op";
+    }
+    EXPECT(found_precompile);
+    EXPECT(not found_dynamic);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

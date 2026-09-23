@@ -123,6 +123,9 @@ TEST_CASE(tuple)
     auto a3 = make_tuple(3, 4.0);
     EXPECT(a1 != a3);
     EXPECT(a1.to_string() != a3.to_string());
+
+    EXPECT(a1.get_sub_object(0) == as_argument(3));
+    EXPECT(a1.get_sub_object(1) == as_argument(3.0));
 }
 
 TEST_CASE(nested_tuple)

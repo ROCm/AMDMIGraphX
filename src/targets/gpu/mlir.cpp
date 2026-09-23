@@ -1142,8 +1142,23 @@ struct mlir_program
 
 static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 
+// rocMLIR's GridwiseGemmAccel lowering calls getInputFusionElementType and
+// aborts (OperandRange OOB) when a softmax reduce is fused as the input of a
+// single gemm. rock.attention is the legal form and has two gemms.
+static bool is_softmax_input_fused_gemm(const module& m)
+{
+    const auto n_gemms   = std::count_if(m.begin(), m.end(), [](const instruction& i) {
+        return contains({"dot", "quant_dot", "convolution", "quant_convolution"}, i.name());
+    });
+    const auto n_reduces = std::count_if(
+        m.begin(), m.end(), [](const instruction& i) { return contains(i.name(), "reduce"); });
+    return n_gemms == 1 and n_reduces > 0;
+}
+
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
+    if(is_softmax_input_fused_gemm(m))
+        return false;
     auto mm = m;
     prepare(mm);
     mlir_program mp;
@@ -1280,6 +1295,8 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
 {
     adjust_param_shapes(m, in_shapes);
     prepare(m);
+    if(is_softmax_input_fused_gemm(m))
+        MIGRAPHX_THROW("MLIR cannot compile softmax fused into a single gemm");
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;

@@ -36,6 +36,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <algorithm>
 #include <optional>
 
 namespace migraphx {
@@ -1133,6 +1134,12 @@ struct find_mlir_kv_cache_attention_op
     {
         auto group   = r.result;
         auto* m_attn = group->module_inputs()[0];
+        const auto n_gemms =
+            std::count_if(m_attn->begin(), m_attn->end(), [](const instruction& i) {
+                return contains({"dot", "quant_dot"}, i.name());
+            });
+        if(n_gemms < 2)
+            return;
         mpm.get_module().replace_instruction(
             group, mlir_op{group->get_operator()}, mlir_contiguous(mpm, group->inputs()), {m_attn});
     }

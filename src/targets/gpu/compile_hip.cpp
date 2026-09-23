@@ -271,8 +271,10 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         v["quiet"]  = quiet;
 
         // The msgpack request goes out on the driver's stdin and a msgpack reply comes back on its
-        // stdout; read_write throws if the driver fails, having let it log to our stderr. Both
-        // directions stream, so neither multi-megabyte payload is buffered a second time.
+        // stdout; read_write throws if the driver fails, having let it log to our stderr. Neither
+        // direction streams end to end: read_write serializes the whole request before spawning,
+        // and invokes the reader once, after stdout reaches EOF. Both payloads are therefore held
+        // in memory in full, but no temporary file is involved on either side.
         value response;
         process{driver}.read_write(
             [&](const auto& writer) { to_msgpack(v, writer); },

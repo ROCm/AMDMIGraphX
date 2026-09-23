@@ -27,17 +27,17 @@
 #ifdef _WIN32
 // STARTUPINFOEX and the process-thread attribute list are Vista+. Guarded rather than forced, so a
 // build that asks for a newer target keeps it.
-// cppcheck-suppress definePrefix
 #ifndef _WIN32_WINNT
+// cppcheck-suppress definePrefix
 #define _WIN32_WINNT 0x0600
 #endif
 // Windows.h defines min/max as macros, which breaks std::numeric_limits<int>::max().
-// cppcheck-suppress definePrefix
 #ifndef NOMINMAX
+// cppcheck-suppress definePrefix
 #define NOMINMAX
 #endif
-// cppcheck-suppress definePrefix
 #ifndef WIN32_LEAN_AND_MEAN
+// cppcheck-suppress definePrefix
 #define WIN32_LEAN_AND_MEAN
 #endif
 #endif
@@ -972,6 +972,8 @@ struct sigpipe_blocker
             sigemptyset(&wait_set);
             sigaddset(&wait_set, SIGPIPE);
             const struct timespec no_wait = {0, 0};
+            // Empty body is intentional: sigtimedwait does the work, we only retry on EINTR.
+            // cppcheck-suppress migraphx-EmptyWhileStatement
             while(sigtimedwait(&wait_set, nullptr, &no_wait) < 0 and errno == EINTR)
             {
             }

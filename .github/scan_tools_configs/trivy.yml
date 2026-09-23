@@ -15,5 +15,8 @@ scan:
     - venv
     - build
     - dist
+    - test
+    - examples
+    - tools
     - node_modules
     - __pycache__

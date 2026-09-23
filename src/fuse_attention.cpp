@@ -1016,8 +1016,8 @@ struct find_kv_cache_attention
         auto keys_transpose = match::opaque(match::name("transpose")(match::arg(0)(keys)));
         auto k_transpose    = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
         auto queries        = match::name("slice");
-        auto gemm1 =
-            match::opaque(match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose)));
+        auto gemm1          = match::opaque(
+            match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose)).bind("gemm1"));
         auto gemm1_maybe_cvt = match::opaque(match::skip(match::name("convert"))(gemm1));
         auto scale    = match::opaque(match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt)));
         auto constant = match::opaque(match::is_constant());
@@ -1090,8 +1090,10 @@ struct find_kv_cache_attention
         return inverse_map;
     }
 
-    std::vector<instruction_ref>
-    get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
+    std::vector<instruction_ref> get_attn_instructions(module& m,
+                                                       instruction_ref start,
+                                                       instruction_ref end,
+                                                       instruction_ref gemm1) const
     {
         static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
                                                                        "broadcast",
@@ -1125,20 +1127,33 @@ struct find_kv_cache_attention
 
         // Start with instructions on data-dependency paths from start to end.
         auto inss = find_instructions_between(start, end, &m);
+        // When start is shared across layers (one total_sl for the whole model), those paths
+        // also run through earlier layers into this layer's Q/K; drop everything upstream of
+        // the QK gemm.
+        std::unordered_set<instruction_ref> upstream_of_gemm1;
+        fix([&](auto self, instruction_ref ins) {
+            for(auto input : ins->inputs())
+            {
+                if(contains(inss, input) and upstream_of_gemm1.insert(input).second)
+                    self(input);
+            }
+        })(gemm1);
         std::unordered_set<instruction_ref> filtered;
-        std::copy_if(inss.begin(),
-                     inss.end(),
-                     std::inserter(filtered, filtered.end()),
-                     [&](auto i) { return i == start or i == end or is_valid_attn_op(i); });
+        std::copy_if(
+            inss.begin(), inss.end(), std::inserter(filtered, filtered.end()), [&](auto i) {
+                if(contains(upstream_of_gemm1, i))
+                    return false;
+                return i == start or i == end or is_valid_attn_op(i);
+            });
         inss = std::move(filtered);
+        // The QK gemm is not on a start->end path and may also escape (split_sym_dim clone
+        // returns); without it the group is softmax+V only, which rocMLIR cannot compile.
+        inss.insert(gemm1);
         // Expand by walking inputs of instructions already in the set.
         // An input is added when it is a valid attention op and all of
         // its outputs are already in the set. This pulls in constants,
         // broadcasts, and side inputs that feed exclusively into the
         // attention, while excluding ops with external consumers.
-        // Gemms that feed the scores path are included even when they also
-        // escape (split_sym_dim clone returns); otherwise the group is
-        // softmax+V only and rocMLIR aborts in getInputFusionElementType.
         auto expand = fix([&](auto self, auto ins) {
             for(auto input : ins->inputs())
             {
@@ -1146,11 +1161,9 @@ struct find_kv_cache_attention
                     continue;
                 if(not is_valid_attn_op(input))
                     continue;
-                const bool extra_user_gemm = contains({"dot", "quant_dot"}, input->name());
-                if(input->can_eval() or extra_user_gemm or
-                   std::all_of(input->outputs().begin(), input->outputs().end(), [&](auto o) {
-                       return contains(inss, o);
-                   }))
+                if(input->can_eval() or std::all_of(input->outputs().begin(),
+                                                    input->outputs().end(),
+                                                    [&](auto o) { return contains(inss, o); }))
                 {
                     inss.insert(input);
                     self(input);
@@ -1173,7 +1186,8 @@ struct find_kv_cache_attention
         auto reshape  = r.result;
 
         // Capture all instructions part of the attention op
-        auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
+        auto attn_inss =
+            get_attn_instructions(mpm.get_module(), total_sl, reshape, r.instructions["gemm1"]);
         const auto n_gemms =
             std::count_if(attn_inss.begin(), attn_inss.end(), [](instruction_ref ins) {
                 return contains({"dot", "quant_dot"}, ins->name());

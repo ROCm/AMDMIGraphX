@@ -25,6 +25,7 @@
 #include <migraphx/split_sym_dim.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/dim_like.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -500,8 +501,9 @@ struct analyze_shape_transform
         const auto& inputs = info.input_shapes;
         auto descriptor_op = op;
         const auto& output = info.output_shape;
-        if(op.name() == "reshape" and inputs.size() == 1)
-        {
+        // Only inserts or removes unit axes. The max_lens descriptor cannot tell a unit axis
+        // from a split of the symbolic axis, so these bypass it.
+        auto only_unit_axes_change = [&] {
             auto non_unit_dims = [](const shape& s) {
                 std::vector<sym::expr> result;
                 std::transform(s.dyn_dims().begin(),
@@ -511,11 +513,12 @@ struct analyze_shape_transform
                 result.erase(std::remove(result.begin(), result.end(), sym::lit(1)), result.end());
                 return result;
             };
-            if(non_unit_dims(inputs.front()) == non_unit_dims(output))
-            {
-                analyze_axes(info);
-                return;
-            }
+            return non_unit_dims(inputs.front()) == non_unit_dims(output);
+        };
+        if(op.name() == "reshape" and inputs.size() == 1 and only_unit_axes_change())
+        {
+            analyze_axes(info);
+            return;
         }
         if(op.name() == "reshape" and inputs.size() == 2 and inputs.back().symbolic())
         {
@@ -530,6 +533,11 @@ struct analyze_shape_transform
                 return;
             info.freezer             = freeze;
             info.shape_input_indices = {1};
+            if(only_unit_axes_change())
+            {
+                analyze_axes(info);
+                return;
+            }
         }
         else if(inputs.size() != 1)
             return;
@@ -606,6 +614,27 @@ struct analyze_gather
             if(input == 1)
                 return parallel_axis();
             return current_axis == axis ? axis_desc{} : parallel_axis();
+        });
+    }
+};
+
+struct analyze_gathernd
+{
+    bool matches(const operation& op) const { return op.name() == "gathernd"; }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& inputs = info.input_shapes;
+        if(inputs.size() != 2 or
+           info.ins->get_operator().to_value().at("batch_dims").to<int64_t>() != 0)
+            return;
+        // Leading index axes map one-to-one to output axes. The data axes and the index-tuple
+        // axis are addressed through the index values, so they cannot be padded.
+        const auto index_tuple_axis = inputs.back().ndim() - 1;
+        analyze_axes(info, [&](std::size_t input, std::size_t axis) {
+            if(input == 1 and axis < index_tuple_axis)
+                return parallel_axis();
+            return axis_desc{};
         });
     }
 };
@@ -975,9 +1004,9 @@ struct analyze_conv
         std::size_t spatial_dimensions = 0;
         if(op.name() == "convolution" or op.name() == "quant_convolution")
         {
-            auto attributes = op.to_value();
-            default_padding = attributes.at("padding_mode").to<op::padding_mode_t>() ==
-                              op::padding_mode_t::default_;
+            auto attributes    = op.to_value();
+            default_padding    = attributes.at("padding_mode").to<op::padding_mode_t>() ==
+                                 op::padding_mode_t::default_;
             group              = attributes.at("group").to<std::size_t>();
             padding            = attributes.at("padding").to_vector<std::size_t>();
             spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
@@ -1131,6 +1160,7 @@ symbolic_op_info analyze_instruction(instruction_ref ins)
     info.input_shapes = std::move(input_shapes);
     analyze_first(info,
                   analyze_gather{},
+                  analyze_gathernd{},
                   analyze_concat{},
                   analyze_slice{},
                   analyze_unit_axis_transform{},
@@ -1892,14 +1922,14 @@ add_runtime_mask(module& m,
     auto lens = s.lens();
 
     auto index  = m.add_instruction(make_op("broadcast", {{"axis", mask.axis}, {"out_lens", lens}}),
-                                   index_literal(m, lens[mask.axis], cache));
+                                    index_literal(m, lens[mask.axis], cache));
     auto extent = m.add_instruction(
         make_op("multibroadcast", {{"out_lens", lens}}),
         resolved_extent(m, mask.extent.subs(fixed_substitutions), sources, cache));
     auto valid = m.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
                                    m.add_instruction(make_op("less"), index, extent));
     auto fill  = m.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}),
-                                  fill_literal(m, s.type(), mask.fill, cache));
+                                   fill_literal(m, s.type(), mask.fill, cache));
     return m.add_instruction(make_op("where"), valid, input, fill);
 }
 
@@ -2526,8 +2556,8 @@ void specialize_blocks(
                 subranges[root->root]               = runtime_range;
             }
             assert(remaining == 0);
-            auto name = m.name() + ":split_sym_dim_" + std::to_string(block_number) + "_" +
-                        std::to_string(clone_index);
+            auto name  = m.name() + ":split_sym_dim_" + std::to_string(block_number) + "_" +
+                         std::to_string(clone_index);
             auto built = build_clone(
                 name, *frame, info_for_instruction, freeze, subranges, fixed_substitutions);
             clones.push_back(std::move(built.clone));
@@ -2589,7 +2619,11 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     resolve_symbolic_dimensions_of_match resolve_symbolic_dimensions{
         .root_sources = find_root_sources(m), .sources = m.get_parameters()};
     match::find_matches(m, resolve_symbolic_dimensions);
-    run_passes(m, {dead_code_elimination{}});
+    // Shape-derived chains built per consumer (e.g. per-layer rotary position
+    // ids) only become identical once dimensions_of is resolved; merge them
+    // before block planning or each copy is exported as its own block output.
+    run_passes(
+        m, {dead_code_elimination{}, eliminate_common_subexpression{}, dead_code_elimination{}});
     normalize_symbolic_reshapes(m);
 
     auto symbolic_instructions =

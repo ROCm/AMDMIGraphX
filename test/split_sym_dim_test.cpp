@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/dim_ops.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
@@ -122,9 +123,9 @@ migraphx::instruction_ref add_back_slice(migraphx::module& m,
                                                             {{"axes", axes},
                                                              {"starts", migraphx::to_value(starts)},
                                                              {"ends", migraphx::to_value(ends)}}),
-                                    input,
-                                    start,
-                                    end);
+                                          input,
+                                          start,
+                                          end);
     auto output_shape = migraphx::shape{
         input->get_shape().type(), output_dims, input->get_shape().to_symbolic().dyn_strides()};
     migraphx::instruction::replace(result, result->get_operator(), output_shape, result->inputs());
@@ -370,7 +371,7 @@ TEST_CASE(split_sym_dim_splits_at_nonparallel_symbolic_reshape)
     auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = add_select_module(expected_main,
                                       {expected_reshape, expected_data},
-                                    modules,
+                                      modules,
                                       {symbolic_shape({lit(4), target_n})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -415,7 +416,7 @@ TEST_CASE(split_sym_dim_materializes_symbolic_multibroadcast)
     auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = add_select_module(expected_main,
                                       {expected_bias, expected_data},
-                                    modules,
+                                      modules,
                                       {symbolic_shape({target_n, lit(3)})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -497,7 +498,7 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_multibroadcast)
     auto target_sequence = var("#split_sym_dim_sequence_target", {1, 4}, {1, 2, 4});
     auto select          = add_select_module(expected_main,
                                              {expected_data, expected_target, expected_weights},
-                                    modules,
+                                             modules,
                                              {symbolic_shape({lit(1), target_sequence, lit(4)})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -555,7 +556,7 @@ TEST_CASE(split_sym_dim_materializes_symbolic_broadcast)
     auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = add_select_module(expected_main,
                                       {expected_bias, expected_data},
-                                    modules,
+                                      modules,
                                       {symbolic_shape({target_n, lit(3), lit(4)})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -584,7 +585,7 @@ TEST_CASE(split_sym_dim_materializes_symbolic_broadcast_with_dims)
     std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
     auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
         auto clone_data   = sm.add_parameter("data",
-                                           symbolic_shape({lit(1),
+                                             symbolic_shape({lit(1),
                                                              lit(1),
                                                              var("n", {clone.min, clone.max}),
                                                              var("n", {clone.min, clone.max})}));
@@ -603,7 +604,7 @@ TEST_CASE(split_sym_dim_materializes_symbolic_broadcast_with_dims)
     auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = add_select_module(expected_main,
                                       {expected_data},
-                                    modules,
+                                      modules,
                                       {symbolic_shape({lit(1), lit(1), target_n, target_n})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -756,7 +757,7 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_reshape)
     auto target_sequence = var("#split_sym_dim_sequence_target", {1, 4}, {1, 2, 4});
     auto select          = add_select_module(expected_main,
                                              {expected_data, expected_target, expected_weights},
-                                    modules,
+                                             modules,
                                              {symbolic_shape({lit(1), target_sequence, lit(4)})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -777,6 +778,69 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_reshape)
     expected_main.add_return({expected_output});
 
     EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_coalesces_across_unit_axis_symbolic_reshape)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m      = *p.get_main_module();
+    auto data    = m.add_parameter("data", symbolic_shape({n}));
+    auto target  = m.add_parameter("target", symbolic_shape({lit(1), n, lit(1)}));
+    auto before  = m.add_instruction(migraphx::make_op("relu"), data);
+    auto reshape = m.add_instruction(migraphx::make_op("reshape"), before, target);
+    auto output  = m.add_instruction(migraphx::make_op("relu"), reshape);
+    m.add_return({output});
+
+    run_pass(p);
+
+    std::size_t selects         = 0;
+    std::size_t static_reshapes = 0;
+    for(auto* mod : p.get_modules())
+    {
+        for(auto&& ins : *mod)
+        {
+            if(mod == p.get_main_module())
+            {
+                EXPECT(not migraphx::contains({"reshape", "relu"}, ins.name()));
+                if(ins.name() == "select_module")
+                    ++selects;
+            }
+            else if(ins.name() == "reshape")
+            {
+                EXPECT(not ins.get_shape().dynamic());
+                ++static_reshapes;
+            }
+        }
+    }
+    EXPECT(selects == 1);
+    EXPECT(static_reshapes == 3);
+}
+
+TEST_CASE(split_sym_dim_materializes_gathernd_over_symbolic_indices)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m    = *p.get_main_module();
+    auto ids   = m.add_parameter("ids", symbolic_shape({n, lit(1)}, migraphx::shape::int64_type));
+    auto table = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}));
+    auto gathered = m.add_instruction(migraphx::make_op("gathernd"), table, ids);
+    auto output   = m.add_instruction(migraphx::make_op("relu"), gathered);
+    m.add_return({output});
+
+    run_pass(p);
+
+    for(auto&& ins : *p.get_main_module())
+        EXPECT(not migraphx::contains({"gathernd", "relu"}, ins.name()));
+
+    std::size_t static_gathers = 0;
+    for_each_clone_instruction(p, [&](auto& ins) {
+        if(ins.name() != "gathernd")
+            return;
+        EXPECT(not ins.get_shape().dynamic());
+        ++static_gathers;
+    });
+    EXPECT(static_gathers == 3);
 }
 
 TEST_CASE(split_sym_dim_coalesces_across_absorbable_symbolic_reshape)
@@ -817,6 +881,38 @@ TEST_CASE(split_sym_dim_coalesces_across_absorbable_symbolic_reshape)
     EXPECT(selects == 1);
     EXPECT(static_reshapes == 3);
     EXPECT(static_relus == 6);
+}
+
+TEST_CASE(split_sym_dim_merges_shape_derived_chains_from_different_consumers)
+{
+    auto n = var("n", {1, 4}, {2, 4});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto x  = m.add_parameter("x", symbolic_shape({n}));
+    auto y  = m.add_parameter("y", symbolic_shape({n}));
+    auto a  = m.add_instruction(migraphx::make_op("relu"), x);
+    auto b  = m.add_instruction(migraphx::make_op("relu"), y);
+    // Same iota read from two different tensors, as the ONNX GQA parser does per layer.
+    auto iota_a = migraphx::insert_iota(m, m.end(), {n}, 0, a, 0, migraphx::shape::float_type);
+    auto iota_b = migraphx::insert_iota(m, m.end(), {n}, 0, b, 0, migraphx::shape::float_type);
+    auto sum_a  = m.add_instruction(migraphx::make_op("add"), a, iota_a);
+    auto sum_b  = m.add_instruction(migraphx::make_op("add"), b, iota_b);
+    auto output = m.add_instruction(migraphx::make_op("add"), sum_a, sum_b);
+    m.add_return({output});
+
+    run_pass(p);
+
+    std::size_t clones = 0;
+    for(auto* mod : p.get_modules())
+    {
+        if(mod == p.get_main_module())
+            continue;
+        ++clones;
+        EXPECT(std::count_if(mod->begin(), mod->end(), [](const auto& ins) {
+                   return ins.name() == "convert";
+               }) == 1);
+    }
+    EXPECT(clones > 0);
 }
 
 TEST_CASE(split_sym_dim_retries_affected_connected_edge)
@@ -1282,9 +1378,9 @@ TEST_CASE(split_sym_dim_reduce_all_uses_one)
         {1, 1, 2, 2}, {2, 2, 2, 2}, {1, 1, 3, 4}, {2, 2, 3, 4}};
     auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
         auto input  = sm.add_parameter("data",
-                                      symbolic_shape({var("b", {clone.b_min, clone.b_max}),
+                                       symbolic_shape({var("b", {clone.b_min, clone.b_max}),
                                                        var("s", {clone.s_min, clone.s_max})},
-                                                     migraphx::shape::bool_type));
+                                                      migraphx::shape::bool_type));
         auto pad    = sm.add_instruction(fixed_pad(1.0f), input);
         auto output = sm.add_instruction(migraphx::make_op("reduce_all", {{"axes", {1}}}), pad);
         sm.add_return({output});
@@ -1556,7 +1652,7 @@ TEST_CASE(split_sym_dim_preserves_nonprefix_dyn_slice)
     auto start_expr = columns - 2;
     auto start      = m.add_instruction(
         migraphx::make_op("eval_expr_from_shape",
-                               {{"expressions", migraphx::to_value(std::vector<se>{start_expr})}}),
+                          {{"expressions", migraphx::to_value(std::vector<se>{start_expr})}}),
         data);
     auto end = m.add_instruction(
         migraphx::make_op("eval_expr_from_shape",
@@ -1640,7 +1736,7 @@ TEST_CASE(split_sym_dim_materializes_fill_range_and_scatter)
     auto delta =
         m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
     auto limit   = m.add_instruction(migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}),
-                                   data_buffer);
+                                     data_buffer);
     auto indices = m.add_instruction(
         migraphx::make_op("dynamic_range", {{"output_dim", migraphx::to_value(dd{n})}}),
         start,
@@ -1733,7 +1829,7 @@ TEST_CASE(split_sym_dim_rewrites_zero_depth_scatter_indices)
     std::vector<float> update_values{1.0f, 2.0f, 3.0f, 4.0f};
     migraphx::parameter_map params;
     params["data"]    = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {1, 2}},
-                                        data_values.data()};
+                                           data_values.data()};
     params["indices"] = migraphx::argument{migraphx::shape{migraphx::shape::int64_type, {2, 0}}};
     params["updates"] = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {2, 1, 2}},
                                            update_values.data()};
@@ -1747,8 +1843,8 @@ TEST_CASE(split_sym_dim_staticizes_llama_attention_chain)
 {
     auto sequence = var("sequence_length", {1, 4}, {2});
     migraphx::program p;
-    auto& m            = *p.get_main_module();
-    auto ids           = m.add_parameter("input_ids",
+    auto& m  = *p.get_main_module();
+    auto ids = m.add_parameter("input_ids",
                                symbolic_shape({lit(1), sequence}, migraphx::shape::int64_type));
     auto mask_buffer   = m.add_parameter("mask_buffer", symbolic_shape({sequence}));
     auto update_buffer = m.add_parameter("update_buffer", symbolic_shape({sequence}));
@@ -1996,7 +2092,7 @@ TEST_CASE(split_sym_dim_keeps_literals_in_clones)
     auto target_n = var("#split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = add_select_module(expected_main,
                                       {expected_input},
-                                    modules,
+                                      modules,
                                       {symbolic_shape({target_n, lit(1), lit(3), lit(3)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -2027,7 +2123,7 @@ TEST_CASE(split_sym_dim_coalesces_spatial_cnn)
                                                       {"padding", {0, 0}},
                                                       {"stride", {2, 2}},
                                                       {"lengths", {2, 2}}}),
-                                  relu1);
+                                   relu1);
     m.add_return({pool});
 
     run_pass(p);
@@ -2108,7 +2204,7 @@ TEST_CASE(split_sym_dim_preserves_compound_mask_extent)
         auto pad           = sm.add_instruction(fixed_pad(), input);
         auto convolution   = sm.add_instruction(
             migraphx::make_op("convolution",
-                                {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+                              {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
             pad,
             clone_weights);
         auto extent = sm.add_instruction(
@@ -2127,7 +2223,7 @@ TEST_CASE(split_sym_dim_preserves_compound_mask_extent)
     auto target_extent   = target_sequence - 2;
     auto select          = add_select_module(expected_main,
                                              {expected_input},
-                                    modules,
+                                             modules,
                                              {symbolic_shape({lit(1), lit(1), target_extent})});
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -2206,7 +2302,7 @@ TEST_CASE(split_sym_dim_specializes_transformer_core)
         auto padded_value = sm.add_instruction(fixed_pad(), value);
         auto extent       = sm.add_instruction(
             migraphx::make_op("eval_expr_from_shape",
-                                    {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
+                              {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
             query);
         auto masked_scores = add_mask(sm, scores, indices, extent, zero, 2);
         auto masked_value  = add_mask(sm, padded_value, indices, extent, zero, 1);
@@ -2224,7 +2320,7 @@ TEST_CASE(split_sym_dim_specializes_transformer_core)
     auto target_sequence = var("#split_sym_dim_sequence_target", {4, 16}, {4, 8, 16});
     auto select          = add_select_module(expected_main,
                                              {key, query, value},
-                                    modules,
+                                             modules,
                                              {symbolic_shape({lit(2), target_sequence, lit(8)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -2306,7 +2402,7 @@ TEST_CASE(split_sym_dim_keeps_softmax_mask_off_contract_axis)
         auto padded_input = sm.add_instruction(fixed_pad(), input);
         auto extent       = sm.add_instruction(
             migraphx::make_op("eval_expr_from_shape",
-                                    {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
+                              {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
             input);
         auto masked_input = add_mask(sm, padded_input, indices, extent, negative_infinity, 1);
         auto probabilities =
@@ -2325,7 +2421,7 @@ TEST_CASE(split_sym_dim_keeps_softmax_mask_off_contract_axis)
     auto target_sequence = var("#split_sym_dim_sequence_target", {4, 16}, {4, 8, 16});
     auto select          = add_select_module(expected_main,
                                              {value, input},
-                                    modules,
+                                             modules,
                                              {symbolic_shape({lit(2), target_sequence, lit(8)})});
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);

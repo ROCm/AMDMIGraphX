@@ -2426,7 +2426,7 @@ TEST_CASE(gridsample_shape_invalid_mode)
     // constructed rather than during shape inference -- make_op throws before
     // throws_shape would ever see it. "linearbanana" pins the old substring
     // behaviour shut: contains(mode, "linear") used to accept it.
-    for(const std::string& mode : {"error", "linearbanana", "nonlinear", ""})
+    for(const char* mode : {"error", "linearbanana", "nonlinear", ""})
         EXPECT(test::throws([&] { migraphx::make_op("gridsample", {{"mode", mode}}); }));
 }
 
@@ -2434,7 +2434,7 @@ TEST_CASE(gridsample_shape_invalid_padding_mode)
 {
     // As above, padding_mode is an enum and rejects unknown names at
     // construction time.
-    for(const std::string& padding : {"nozeros", "zerosbanana", ""})
+    for(const char* padding : {"nozeros", "zerosbanana", ""})
         EXPECT(test::throws([&] { migraphx::make_op("gridsample", {{"padding_mode", padding}}); }));
 }
 

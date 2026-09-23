@@ -32,7 +32,9 @@ from onnx.numpy_helper import from_array
 
 
 def onnx_test(external_data=False, opset_version=None):
+
     def create_onnx_test(op_test):
+
         def run_test():
             op_info = op_test()
             if len(op_info) > 3:
@@ -5140,6 +5142,7 @@ def gridsample_test():
 
     return ([node], [x, grid], [y])
 
+
 @onnx_test()
 def gridsample_channel_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 4, 4])
@@ -5157,6 +5160,7 @@ def gridsample_channel_test():
     )
 
     return ([node], [x, grid], [y])
+
 
 @onnx_test()
 def gridsample_512x512_test():

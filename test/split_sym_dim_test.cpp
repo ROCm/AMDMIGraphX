@@ -780,6 +780,44 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_reshape)
     EXPECT(p.sort() == expected.sort());
 }
 
+TEST_CASE(split_sym_dim_exports_absorbed_static_result)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m      = *p.get_main_module();
+    auto present = m.add_parameter("present", symbolic_shape({lit(1), lit(2), n, lit(4)}));
+    auto weights = m.add_parameter("weights", {migraphx::shape::float_type, {1, 2, 4, 4}});
+    auto seqlens = m.add_parameter("seqlens", {migraphx::shape::int32_type, {1}});
+    auto past    = m.add_parameter("past", {migraphx::shape::float_type, {1, 2, 8, 4}});
+    auto keys    = m.add_instruction(migraphx::make_op("dot"), present, weights);
+    auto cache   = m.add_instruction(
+        migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), keys, seqlens, past);
+    auto query  = m.add_parameter("query", symbolic_shape({lit(1), lit(2), n, lit(8)}));
+    auto scores = m.add_instruction(migraphx::make_op("dot"), query, cache);
+    m.add_return({scores, cache});
+
+    run_pass(p);
+
+    std::size_t selects = 0;
+    for(auto&& ins : *p.get_main_module())
+    {
+        EXPECT(not migraphx::contains({"concat_past_present", "dot"}, ins.name()));
+        if(ins.name() == "select_module")
+            ++selects;
+    }
+    EXPECT(selects == 1);
+    auto result = p.get_main_module()->get_returns().back();
+    EXPECT(result->name() == "get_tuple_elem");
+    EXPECT(result->get_shape() == past->get_shape());
+
+    std::size_t static_caches = 0;
+    for_each_clone_instruction(p, [&](auto& ins) {
+        if(ins.name() == "concat_past_present")
+            ++static_caches;
+    });
+    EXPECT(static_caches == 3);
+}
+
 TEST_CASE(split_sym_dim_coalesces_across_unit_axis_symbolic_reshape)
 {
     auto n = var("n", {1, 4}, {2});

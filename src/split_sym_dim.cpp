@@ -2011,6 +2011,20 @@ std::optional<block_frame> find_block_frame(
                                        }),
                         result.inputs.end());
 
+    // Absorbed static instructions fed by planned values. The clone already computes them, so
+    // the parent reads the clone result instead of recomputing them from sliced block outputs.
+    std::unordered_set<instruction_ref> static_block_results;
+    for(auto ins : result.body)
+    {
+        if(contains(planned_instructions, ins) or ins->get_shape().dynamic())
+            continue;
+        if(any_of(ins->inputs(), [&](auto input) {
+               return contains(planned_instructions, input) or
+                      contains(static_block_results, input);
+           }))
+            static_block_results.insert(ins);
+    }
+
     std::vector<sliced_value> required_outputs;
     auto add_required_output = [&](sliced_value output) {
         if(output.slice_axes.empty() and contains(planned_instructions, output.source))
@@ -2018,18 +2032,26 @@ std::optional<block_frame> find_block_frame(
         if(not contains(required_outputs, output))
             required_outputs.push_back(std::move(output));
     };
+    auto add_block_value = [&](instruction_ref ins) {
+        if(contains(planned_instructions, ins) or contains(static_block_results, ins))
+            add_required_output({ins, {}});
+    };
     auto add_planned_inputs = [&](instruction_ref ins) {
         for(auto input : clone_inputs_for(info_for_instruction, ins))
+        {
             if(contains(planned_instructions, input.source))
                 add_required_output(std::move(input));
+            else
+                add_block_value(input.source);
+        }
     };
     // Export only values the parent still reads. Force-exporting every planned op
     // makes clone returns use QK/softmax intermediates, so fuse_attention will not
     // capture both gemms and rocMLIR aborts on the leftover softmax+V gemm.
     for(auto output : m.get_returns())
     {
-        if(contains(planned_instructions, output))
-            add_required_output({output, {}});
+        if(contains(planned_instructions, output) or contains(static_block_results, output))
+            add_block_value(output);
         else if(contains(body_instructions, output))
             add_planned_inputs(output);
     }
@@ -2486,8 +2508,11 @@ void wire_select_module(
     for(std::size_t output_index = 0; output_index < frame.outputs.size(); ++output_index)
     {
         auto source = frame.outputs.at(output_index).source;
-        body_output_shapes.push_back(dispatch_shape_for_clones(
-            info_for_instruction.at(source)->dispatch_output, clone_outputs, output_index));
+        if(not source->get_shape().dynamic())
+            body_output_shapes.push_back(source->get_shape());
+        else
+            body_output_shapes.push_back(dispatch_shape_for_clones(
+                info_for_instruction.at(source)->dispatch_output, clone_outputs, output_index));
     }
     auto selection = m.add_instruction(
         make_op("select_module", {{"output_dyn_shapes", to_value(shape{body_output_shapes})}}),
@@ -2499,8 +2524,10 @@ void wire_select_module(
         const auto& output = frame.outputs.at(output_index);
         auto selected_output =
             m.add_instruction(make_op("get_tuple_elem", {{"index", output_index}}), selection);
-        auto sliced =
-            add_output_slice(m, output, selected_output, *info_for_instruction.at(output.source));
+        auto sliced = output.source->get_shape().dynamic()
+                          ? add_output_slice(
+                                m, output, selected_output, *info_for_instruction.at(output.source))
+                          : selected_output;
         output_values.emplace_back(output, sliced);
         replacements.emplace(output.source, sliced);
     }

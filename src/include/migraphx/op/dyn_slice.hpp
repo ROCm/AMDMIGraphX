@@ -52,6 +52,7 @@ namespace op {
 /// axes: axes to slice over
 /// starts: slice starting indices
 /// ends: slice ending indices
+/// always_leq: assert every end is non-negative and no greater than its input axis length
 ///
 /// Parameters:
 /// data: the input tensor to slice (static or symbolic shape)
@@ -62,27 +63,38 @@ struct dyn_slice
     std::vector<int64_t> axes{};
     std::vector<sym::expr> starts{};
     std::vector<sym::expr> ends{};
+    bool always_leq = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"), f(self.starts, "starts"), f(self.ends, "ends"));
+        return pack(f(self.axes, "axes"),
+                    f(self.starts, "starts"),
+                    f(self.ends, "ends"),
+                    f(self.always_leq, "always_leq"));
     }
 
     /// Ensure the axes attribute is within limits, and clip starts and ends to the sliced axis
     /// length. Symbolic bounds are clipped symbolically; see normalize_attribute.hpp.
     value attributes() const
     {
-        auto bound             = value::array{normalize_attribute::clip_max,
-                                              normalize_attribute::clip_min,
-                                              normalize_attribute::include_max,
-                                              normalize_attribute::use_len,
-                                              normalize_attribute::include_min};
+        auto bound     = value::array{normalize_attribute::clip_max,
+                                  normalize_attribute::clip_min,
+                                  normalize_attribute::include_max,
+                                  normalize_attribute::use_len,
+                                  normalize_attribute::include_min};
+        auto end_bound = bound;
+        if(always_leq)
+            end_bound = value::array{normalize_attribute::assume_max,
+                                     normalize_attribute::clip_min,
+                                     normalize_attribute::include_max,
+                                     normalize_attribute::use_len,
+                                     normalize_attribute::include_min};
         value normalize_axes   = value::object{};
         normalize_axes["axes"] = value::array{normalize_attribute::include_min};
-        // Both bounds normalize the same way, against the length of the axis they apply to.
+        // Starts are clipped normally. A proven end bound skips only the upper clip.
         normalize_axes["starts"] = bound;
-        normalize_axes["ends"]   = bound;
+        normalize_axes["ends"]   = end_bound;
         return {{"normalize_axes", normalize_axes}, {"fillcolor", "#FFA500" /* orange */}};
     }
 
@@ -122,7 +134,6 @@ struct dyn_slice
         const auto& input_shape = inputs.front();
         if(input_shape.dynamic() and not input_shape.symbolic())
             MIGRAPHX_THROW("DYN_SLICE: data input must have a static or symbolic shape");
-
         auto sym_in = input_shape.to_symbolic();
         auto dds    = sym_in.dyn_dims();
         std::vector<sym::expr> extents(axes.size());
@@ -154,6 +165,20 @@ struct dyn_slice
         const auto& input       = args.front();
         const auto& input_shape = input.get_shape();
         auto axes_attrs         = this->attributes().at("normalize_axes");
+        if(always_leq)
+        {
+            auto runtime_ends = args[2].to_vector<int64_t>();
+            migraphx::for_each(
+                axes.begin(), axes.end(), runtime_ends.begin(), [&](auto axis, auto end) {
+                    auto rank            = static_cast<int64_t>(input_shape.ndim());
+                    auto normalized_axis = axis < 0 ? axis + rank : axis;
+                    if(normalized_axis < 0 or normalized_axis >= rank)
+                        MIGRAPHX_THROW("DYN_SLICE: axis is out of range");
+                    if(end < 0 or
+                       static_cast<std::size_t>(end) > input_shape.lens().at(normalized_axis))
+                        MIGRAPHX_THROW("DYN_SLICE: always_leq end is outside the input axis");
+                });
+        }
         // The attributes only describe these inputs at compile time; slice by the inputs.
         auto norm_starts = normalize_indices(args[1].to_vector<int64_t>(),
                                              axes,
@@ -161,10 +186,10 @@ struct dyn_slice
                                              axes_attrs.at("starts"),
                                              "DYN_SLICE: starts input");
         auto norm_ends   = normalize_indices(args[2].to_vector<int64_t>(),
-                                             axes,
-                                             input_shape,
-                                             axes_attrs.at("ends"),
-                                             "DYN_SLICE: ends input");
+                                           axes,
+                                           input_shape,
+                                           axes_attrs.at("ends"),
+                                           "DYN_SLICE: ends input");
         // Guaranteed by check_inputs_and_attributes() when the shape was computed.
         assert(norm_starts.size() == axes.size() and norm_ends.size() == axes.size());
 

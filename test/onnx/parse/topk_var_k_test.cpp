@@ -38,16 +38,16 @@ TEST_CASE(topk_var_k_test)
     auto zero = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
     auto out  = mm->add_instruction(
         migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
-    auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
-    auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    auto ds  = migraphx::make_op(
-        "dyn_slice",
-        {{"axes", {1}},
-         {"starts", {0}},
-         {"ends",
-          migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", {0, 4}))}}});
-    val = mm->add_instruction(ds, val, zero, k);
-    ind = mm->add_instruction(ds, ind, zero, k);
+    auto val   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto ind   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    auto k_var = migraphx::sym::var("main_TopK_2", {0, 4});
+    auto ds    = migraphx::make_op("dyn_slice",
+                                   {{"axes", {1}},
+                                    {"starts", {0}},
+                                    {"ends", migraphx::value::array{migraphx::to_value(k_var)}},
+                                    {"always_leq", true}});
+    val        = mm->add_instruction(ds, val, zero, k);
+    ind        = mm->add_instruction(ds, ind, zero, k);
     mm->add_return({val, ind});
 
     auto prog = read_onnx("topk_var_k_test.onnx");
@@ -69,16 +69,16 @@ TEST_CASE(topk_var_k_symbolic_test)
     auto zero = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
     auto out  = mm->add_instruction(
         migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
-    auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
-    auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    auto ds  = migraphx::make_op(
-        "dyn_slice",
-        {{"axes", {1}},
-         {"starts", {0}},
-         {"ends",
-          migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", {0, 4}))}}});
-    val = mm->add_instruction(ds, val, zero, k);
-    ind = mm->add_instruction(ds, ind, zero, k);
+    auto val   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto ind   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    auto k_var = migraphx::sym::var("main_TopK_2", {0, 4});
+    auto ds    = migraphx::make_op("dyn_slice",
+                                   {{"axes", {1}},
+                                    {"starts", {0}},
+                                    {"ends", migraphx::value::array{migraphx::to_value(k_var)}},
+                                    {"always_leq", true}});
+    val        = mm->add_instruction(ds, val, zero, k);
+    ind        = mm->add_instruction(ds, ind, zero, k);
     mm->add_return({val, ind});
 
     migraphx::onnx_options options;

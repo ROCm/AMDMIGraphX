@@ -826,7 +826,7 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
     using se = migraphx::sym::expr;
 
     auto n        = migraphx::sym::var("n", {1, 4});
-    auto target_n = migraphx::sym::var("#split_sym_dim_n_target", {1, 4}, {1, 4});
+    auto target_n = migraphx::sym::var("_split_sym_dim_n_target", {1, 4}, {1, 4});
     migraphx::program p0;
     auto create_submodule0 = [&](const std::string& name, const dd::interval& subrange) {
         auto* submod         = p0.create_module(name);
@@ -847,9 +847,14 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
     std::vector<dd> output_dims0 = {{target_n}, {migraphx::sym::lit(4)}};
     migraphx::shape output_shape0{
         std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type, output_dims0}}};
+    std::vector<dd> logical_output_dims0 = {{n}, {migraphx::sym::lit(4)}};
+    migraphx::shape logical_output_shape0{std::vector<migraphx::shape>{
+        migraphx::shape{migraphx::shape::float_type, logical_output_dims0}}};
     auto select0 = main0->add_instruction(
         migraphx::make_op("select_module",
-                          {{"output_dyn_shapes", migraphx::to_value(output_shape0)}}),
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape0)},
+                           {"logical_output_dyn_shapes", migraphx::to_value(logical_output_shape0)},
+                           {"num_inputs", 1}}),
         {input0},
         {first0, second0});
     auto selected0 =

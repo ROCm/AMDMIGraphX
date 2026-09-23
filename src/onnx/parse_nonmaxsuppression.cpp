@@ -58,7 +58,8 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
         return info.add_instruction(make_op("dyn_slice",
                                             {{"axes", {0}},
                                              {"starts", {0}},
-                                             {"ends", value::array{to_value(num_selected_var)}}}),
+                                             {"ends", value::array{to_value(num_selected_var)}},
+                                             {"always_leq", true}}),
                                     indices,
                                     starts_lit,
                                     num_selected);

@@ -106,9 +106,11 @@ struct parse_topk : op_parser<parse_topk>
         // `k` is only known at run time, so it becomes a symbol bounded by the axis it slices.
         auto k_var      = sym::var(info.name, {0, max_k});
         auto starts_lit = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
-        auto dyn_slice  = make_op(
-            "dyn_slice",
-            {{"axes", {norm_axis}}, {"starts", {0}}, {"ends", value::array{to_value(k_var)}}});
+        auto dyn_slice  = make_op("dyn_slice",
+                                  {{"axes", {norm_axis}},
+                                   {"starts", {0}},
+                                   {"ends", value::array{to_value(k_var)}},
+                                   {"always_leq", true}});
         std::transform(outs.begin(), outs.end(), outs.begin(), [&](auto out) {
             return info.add_instruction(dyn_slice, out, starts_lit, k_ins);
         });

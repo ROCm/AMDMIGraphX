@@ -543,6 +543,8 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
     {
         auto sm_ins           = mr.result;
         auto sm_module_inputs = sm_ins->module_inputs();
+        if(sm_module_inputs.empty())
+            return;
         std::vector<std::vector<shape>> all_output_shapes(sm_module_inputs.size());
         std::transform(sm_module_inputs.begin(),
                        sm_module_inputs.end(),
@@ -587,12 +589,10 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
                 dyn_shapes.at(i) = dyn_shape_from_shapes(shapes_at_index);
             }
         }
-        auto tuple_shape = shape{dyn_shapes};
+        auto op_value                 = sm_ins->get_operator().to_value();
+        op_value["output_dyn_shapes"] = to_value(shape{dyn_shapes});
         m.replace_instruction(
-            sm_ins,
-            make_op("select_module", {{"output_dyn_shapes", to_value(tuple_shape)}}),
-            sm_ins->inputs(),
-            sm_module_inputs);
+            sm_ins, make_op("select_module", op_value), sm_ins->inputs(), sm_module_inputs);
     }
 
     std::vector<std::size_t> get_shapes_ndim(const std::vector<shape>& shapes) const

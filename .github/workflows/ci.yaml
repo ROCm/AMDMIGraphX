@@ -471,7 +471,7 @@ jobs:
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
         CCACHE_LOGFILE: /tmp/ccache.log
-        CXXFLAGS: -Werror -pthread -fdebug-prefix-map=$PWD=. -fdebug-types-section -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1 --param ggc-min-expand=5 --param ggc-min-heapsize=8192
+        CXXFLAGS: -Werror -pthread -fdebug-prefix-map=$PWD=. -fdebug-types-section --param ggc-min-expand=5 --param ggc-min-heapsize=8192
       run: |
         echo "leak:dnnl::impl::malloc" > suppressions.txt
         export LSAN_OPTIONS="suppressions=$(pwd)/suppressions.txt"
@@ -654,7 +654,7 @@ jobs:
       - name: Check out code.
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: misspell
-        uses: reviewdog/action-misspell@d6429416b12b09b4e2768307d53bef58d172e962  # v1
+        uses: reviewdog/action-misspell@ba7ac4030fa6812f8c8b2d4e516af8bc99553c32 # v1.28
         with:
           locale: "US"
           reporter: github-pr-check

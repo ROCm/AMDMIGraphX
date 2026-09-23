@@ -357,7 +357,7 @@ TEST_CASE(program_from_module_remaps_nested_submodule_captures)
     auto y2      = std::find_if(
         outer2->begin(), outer2->end(), [](const auto& i) { return i.name() == "@literal"; });
     EXPECT(y2 != outer2->end());
-    for(const std::string& name : {"inner_then", "inner_else"})
+    for(const auto* name : {"inner_then", "inner_else"})
     {
         auto* sm = p2.get_module(name);
         auto ins = std::find_if(sm->begin(), sm->end(), [](const auto& i) {

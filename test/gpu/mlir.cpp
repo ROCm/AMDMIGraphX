@@ -995,6 +995,40 @@ module {
     EXPECT(verify_mlir(m, shapes));
 }
 
+TEST_CASE(dot_add_outputs_without_unit_stride)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot_add_unsqueeze(%arg0: !migraphx.shaped<2x3xf32, 3x1>, %arg1: !migraphx.shaped<3x4xf32, 4x1>, %arg2: !migraphx.shaped<2x4xf32, 4x1>) -> (!migraphx.shaped<2x4xf32, 4x1>, !migraphx.shaped<2x4x1xf32, 8x2x1>) attributes ${attrs} {
+    %0 = migraphx.dot %arg0, %arg1 : <2x3xf32, 3x1>, <3x4xf32, 4x1> -> <2x4xf32, 4x1>
+    %1 = migraphx.add %0, %arg2 : <2x4xf32, 4x1>, <2x4xf32, 4x1> -> <2x4xf32, 4x1>
+    %2 = migraphx.reshape %1 {dims = [2, 4, 1]} : <2x4xf32, 4x1> -> <2x4x1xf32, 8x2x1>
+    return %0, %2 : !migraphx.shaped<2x4xf32, 4x1>, !migraphx.shaped<2x4x1xf32, 8x2x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+    auto y   = m.add_parameter("y", {migraphx::shape::float_type, {3, 4}});
+    auto z   = m.add_parameter("z", {migraphx::shape::float_type, {2, 4}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), x, y);
+    auto add = m.add_instruction(migraphx::make_op("add"), dot, z);
+    m.add_return({dot, add});
+    migraphx::shape out{
+        {{migraphx::shape::float_type, {2, 4}}, {migraphx::shape::float_type, {2, 4}, {8, 2}}}};
+    std::vector<migraphx::shape> shapes = {{migraphx::shape::float_type, {2, 3}},
+                                           {migraphx::shape::float_type, {3, 4}},
+                                           {migraphx::shape::float_type, {2, 4}},
+                                           out};
+    auto s                              = migraphx::gpu::dump_mlir(m, shapes);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+}
+
 // rocMLIR accumulates a reduction into its output buffer, so it asks for that buffer to be
 // zero-initialized through a rock.prefill attribute typed after the buffer's element type.
 // hip::fill only takes an integer value, so compile_mlir has to convert both the float

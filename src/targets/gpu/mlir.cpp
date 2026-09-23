@@ -1161,10 +1161,7 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
 }
 
 // rocMLIR can only map a layout with a unit stride to memory
-static bool has_unit_stride(const shape& s)
-{
-    return s.type() == shape::tuple_type or s.standard() or contains(s.strides(), 1);
-}
+static bool has_unit_stride(const shape& s) { return s.standard() or contains(s.strides(), 1); }
 
 static shape append_unit_dim(const shape& s)
 {
@@ -1173,6 +1170,33 @@ static shape append_unit_dim(const shape& s)
     lens.push_back(1);
     strides.push_back(1);
     return {s.type(), lens, strides};
+}
+
+// Unsqueeze the return values whose output layout has no unit stride
+static std::vector<shape> adjust_return_shapes(module& m, const std::vector<shape>& outputs)
+{
+    auto ret = std::prev(m.end());
+    assert(ret->name() == "@return");
+    auto returns = ret->inputs();
+    assert(returns.size() == outputs.size());
+    std::vector<instruction_ref> new_returns;
+    std::transform(returns.begin(),
+                   returns.end(),
+                   outputs.begin(),
+                   std::back_inserter(new_returns),
+                   [&](instruction_ref ins, const shape& s) {
+                       if(has_unit_stride(s))
+                           return ins;
+                       return m.insert_instruction(
+                           ret, make_op("unsqueeze", {{"axes", {s.ndim()}}}), ins);
+                   });
+    if(new_returns != returns)
+        m.replace_return(new_returns);
+    std::vector<shape> result;
+    std::transform(outputs.begin(), outputs.end(), std::back_inserter(result), [](const shape& s) {
+        return has_unit_stride(s) ? s : append_unit_dim(s);
+    });
+    return result;
 }
 
 std::vector<shape> adjust_param_shapes(module& m, const std::vector<shape>& inputs)
@@ -1204,16 +1228,12 @@ std::vector<shape> adjust_param_shapes(module& m, const std::vector<shape>& inpu
         m.replace_instruction(param, new_param);
         m.remove_instruction(param);
     }
-    // The output buffer is handled the same way with an unsqueeze before the return
+    // The output buffers are handled the same way with an unsqueeze before the return
     const auto& output = inputs.back();
-    if(has_unit_stride(output))
-        return result;
-    auto ret = std::prev(m.end());
-    assert(ret->name() == "@return" and ret->inputs().size() == 1);
-    auto unit_ret = m.insert_instruction(
-        ret, make_op("unsqueeze", {{"axes", {output.ndim()}}}), ret->inputs().front());
-    m.replace_return({unit_ret});
-    result.back() = append_unit_dim(output);
+    if(output.type() == shape::tuple_type)
+        result.back() = shape{adjust_return_shapes(m, output.sub_shapes())};
+    else
+        result.back() = adjust_return_shapes(m, {output}).front();
     return result;
 }
 

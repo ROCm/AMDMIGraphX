@@ -687,6 +687,8 @@ struct find_reduce_squeeze_pointwise
         auto& m   = mpm.get_module();
         auto pw   = r.result;
         auto axes = squeeze_axes(r.instructions["squeeze"]);
+        if(axes.empty())
+            return;
         if(pw->get_shape().type() == shape::tuple_type)
             return;
         auto is_squeezed_reduce = [&](instruction_ref input) {
@@ -696,10 +698,17 @@ struct find_reduce_squeeze_pointwise
                 return false;
             return squeeze_axes(input) == axes;
         };
-        auto inputs = pw->inputs();
+        const auto& rlens = r.instructions["squeeze"]->inputs().front()->get_shape().lens();
+        auto inputs       = pw->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](instruction_ref input) {
             if(is_squeezed_reduce(input))
                 return input->inputs().front();
+            // A {1} input cant be unsqueezed back to the reduce shape: squeezing all
+            // dims clamps the rank at 1 and unsqueeze is a no-op on scalars. The
+            // reduce shape is all ones then, so broadcast instead.
+            if(input->get_shape().lens() == std::vector<std::size_t>{1})
+                return m.insert_instruction(
+                    pw, make_op("multibroadcast", {{"out_lens", rlens}}), input);
             return m.insert_instruction(pw, make_op("unsqueeze", {{"axes", axes}}), input);
         });
         auto new_pw = m.insert_instruction(pw, pw->get_operator(), inputs, pw->module_inputs());

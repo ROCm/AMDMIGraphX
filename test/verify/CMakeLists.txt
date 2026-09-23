@@ -29,12 +29,6 @@ rocm_mark_as_test(test_verify)
 rocm_install_test(TARGETS test_verify)
 target_link_libraries(test_verify migraphx migraphx_all_targets)
 target_include_directories(test_verify PUBLIC ../include)
-# HIP RTC Debug (and other debug builds that use hipRTC) on mi300+ abort in
-# test_ck_gemm_softmax_gemm_0 with HSA_STATUS_ERROR_MEMORY_APERTURE_VIOLATION.
-# Quarantine that case until the kernel fault is fixed. Release builds stay enabled.
-if(MIGRAPHX_USE_HIPRTC AND CMAKE_BUILD_TYPE MATCHES "[Dd]ebug")
-    target_compile_definitions(test_verify PRIVATE MIGRAPHX_QUARANTINE_CK_GEMM_SOFTMAX_GEMM=1)
-endif()
 rocm_clang_tidy_check(test_verify)
 
 foreach(SECTION general reduce rnn conv gemm)

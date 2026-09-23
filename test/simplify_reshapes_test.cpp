@@ -4188,10 +4188,12 @@ TEST_CASE(transpose_contiguous_reshape_binary_packed)
             migraphx::make_op("reshape", {{"dims", {2, 2, 2, 128, 14, 14}}}), conv2);
         auto conv2_trans = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), conv2_rsp1);
-        auto conv2_rsp2 = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {2, 128, 28, 28}}}), conv2_trans);
-        auto add_ins = m2.add_instruction(migraphx::make_op("add"), conv2_rsp2, x);
-        m2.add_instruction(pass_op{}, add_ins);
+        auto x_rsp =
+              m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 128, 14, 2, 14, 2}}}), x);
+        auto add_ins = m2.add_instruction(migraphx::make_op("add"), conv2_trans, x_rsp);
+        auto add_rsp =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 128, 28, 28}}}), add_ins);
+        m2.add_instruction(pass_op{}, add_rsp);
     }
     EXPECT(m1 == m2);
 }

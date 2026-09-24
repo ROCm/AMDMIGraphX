@@ -39,6 +39,8 @@ MODEL_TIMEOUT="${MODEL_TIMEOUT:-20m}"
 DRIVER="${DRIVER:-migraphx-driver}"
 PERF_ITERATIONS="${PERF_ITERATIONS:-10}"
 KINDS="${KINDS:-accuracy perf}"
+TOTAL_CHECKS=0
+FAILED_CHECKS=0
 
 if [[ "${DEBUG:-0}" -eq 1 ]]; then
     PIPE=/dev/stdout
@@ -83,6 +85,8 @@ function mark_skipped() {
     local kind dt
     for kind in $KINDS; do
         for dt in $dtypes; do
+            TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
+            FAILED_CHECKS=$((FAILED_CHECKS + 1))
             echo "SKIPPED: $reason" > "$(log_stem "$file" "$kind" "$dt").out"
         done
     done
@@ -154,7 +158,9 @@ function run_logged() {
     local stem
     stem="$(log_stem "$file" "$kind" "$dtype")"
     echo "INFO: $kind $file ($dtype)"
+    TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
     if ! timeout --kill-after=30s "$MODEL_TIMEOUT" "$@" > "$stem.out" 2> "$stem.err"; then
+        FAILED_CHECKS=$((FAILED_CHECKS + 1))
         echo "WARNING: $kind failed for ${file} ($dtype)"
     fi
     [[ -s "$stem.err" ]] || rm -f "$stem.err"
@@ -226,3 +232,11 @@ rm -rf "${WORK_DIR:?}/tmp_model/"*
 for arg in "$@"; do
     iterate "$(readlink -e "$arg")"
 done
+
+PASSED_CHECKS=$((TOTAL_CHECKS - FAILED_CHECKS))
+echo "INFO: health check: ${PASSED_CHECKS}/${TOTAL_CHECKS} checks passed"
+# Do not publish a baseline when no checks ran or at least half failed.
+if (( TOTAL_CHECKS == 0 || FAILED_CHECKS * 2 >= TOTAL_CHECKS )); then
+    echo "ERROR: unhealthy run: ${FAILED_CHECKS}/${TOTAL_CHECKS} checks failed" >&2
+    exit 1
+fi

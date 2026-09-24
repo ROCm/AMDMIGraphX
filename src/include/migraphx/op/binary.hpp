@@ -171,6 +171,12 @@ struct binary : op_name<Derived>
                 return s0.broadcasted() ? s1.with_lens(s0.dyn_dims()) : s0.with_lens(s0.dyn_dims());
             return s0.broadcasted() ? s1.with_lens(s0.lens()) : s0.with_lens(s0.lens());
         }
+        else if(s0.broadcasted())
+        {
+            // Stay broadcasted over the axes neither input varies along so a
+            // materialized default layout cannot outvote a later non-broadcast input
+            return shape::merge_broadcasts(s0, s1);
+        }
         else
         {
             if(s0.symbolic())

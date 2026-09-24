@@ -362,6 +362,56 @@ TEST_CASE(binary_different_broadcasted)
     expect_shape(sout, migraphx::make_op("mul"), sx, sy);
 }
 
+// Both broadcasted over disjoint axes: the result is packed over the union of
+// the varying axes and still broadcast on the rest
+TEST_CASE(binary_different_broadcasted_partial)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 0, 8, 1}};
+    migraphx::shape sout{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 64, 8, 1}};
+    expect_shape(sout, migraphx::make_op("add"), sx, sy);
+    expect_shape(sout, migraphx::make_op("add"), sy, sx);
+}
+
+// Both broadcasted along the same axis but with different strides on a
+// length-1 axis (broadcast of {1, 64} vs of a {64} multibroadcast to {1, 64})
+TEST_CASE(binary_different_broadcasted_same_axes)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 64, 8, 8}, {64, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 1, 0, 0}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+    expect_shape(sx, migraphx::make_op("add"), sy, sx);
+}
+
+// The broadcast survives the merge, so a following channels-last input keeps
+// its layout instead of tying against a materialized default layout
+TEST_CASE(binary_different_broadcasted_keeps_layout)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 64, 8, 8}, {64, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 1, 0, 0}};
+    auto nhwc =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 64, 8, 8}, {0, 2, 3, 1});
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", sx);
+    auto y   = mm->add_parameter("y", sy);
+    auto z   = mm->add_parameter("z", nhwc);
+    auto xy  = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto out = mm->add_instruction(migraphx::make_op("add"), z, xy);
+    EXPECT(out->get_shape() == nhwc);
+}
+
+TEST_CASE(binary_sym_different_broadcasted_partial)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{n}, dd{lit(64)}, dd{lit(8)}, dd{lit(8)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims, {lit(0), lit(1), lit(0), lit(0)}};
+    migraphx::shape sy{migraphx::shape::float_type, dims, {lit(0), lit(0), lit(8), lit(1)}};
+    migraphx::shape sout{migraphx::shape::float_type, dims, {lit(0), lit(64), lit(8), lit(1)}};
+    expect_shape(sout, migraphx::make_op("add"), sx, sy);
+    expect_shape(sout, migraphx::make_op("add"), sy, sx);
+}
+
 TEST_CASE(binary_sym_with_range_dyn_error)
 {
     auto n = var("n", {2, 8});

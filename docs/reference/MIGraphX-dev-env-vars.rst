@@ -736,6 +736,23 @@ Advanced settings
 
       | Default: The compiler will not append any extra flags for compilation.
 
+  * - | ``MIGRAPHX_GPU_HIP_CACHE_MAX_BYTES``
+      | Sets the maximum total size, in bytes, of compiled binaries retained in each GPU context's HIP compilation cache.
+      | Least-recently-used binaries are evicted when the cache exceeds this limit.
+
+    - | Takes a non-negative integer. Setting the value to ``0`` disables the cache.
+
+      | Default: ``268435456`` (256 MiB).
+
+  * - | ``MIGRAPHX_GPU_HIP_CACHE_MAX_ENTRIES``
+      | Sets the maximum number of compiled binaries retained in each GPU context's HIP compilation cache.
+      | Least-recently-used binaries are evicted when the cache exceeds this limit. Active compilations aren't evicted,
+      | so the cache can temporarily exceed the limit.
+
+    - | Takes a non-negative integer. Setting the value to ``0`` disables the cache.
+
+      | Default: ``256``.
+
   * - | ``MIGRAPHX_GPU_OPTIMIZE``
       | Sets the GPU compiler optimization mode. 
   

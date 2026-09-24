@@ -93,6 +93,7 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         int32_t out_h = out_lens[2];
         int32_t out_w = out_lens[3];
         int32_t g     = 1;
+        // AMDMLSS picked this in computeBestNGroups()
         int32_t ng    = info.n_groups;
 
         // Cap ng to prevent idle workgroups from writing out-of-bounds.
@@ -205,8 +206,11 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         kernel_args[50] = kernel_argument_value(uint64_t{0});  // acc_addr
         kernel_args[51] = kernel_argument_value(uint64_t{0});  // a_offset
 
-        // Compute grid dimensions
-        std::size_t grid_blocks = static_cast<std::size_t>(n) * g * ng;
+        // Compute grid dimensions. ng is the nGroups the kernel is told about in
+        // kernel_args[5], so the dispatch must launch exactly ng * g workgroups;
+        // any extra ones run off the end of the work assignment. The batch is
+        // covered by the tile loop inside a workgroup, not by more workgroups.
+        std::size_t grid_blocks = static_cast<std::size_t>(g) * ng;
         std::size_t global_size = grid_blocks * info.block_size;
         std::size_t local_size  = info.block_size;
 

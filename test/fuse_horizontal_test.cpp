@@ -1198,6 +1198,46 @@ TEST_CASE(dot_horiz_fusion_basic)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Dependent dots with the same group key must not be fused together.
+TEST_CASE(dot_horiz_no_fusion_chained_groups)
+{
+    migraphx::module m;
+    {
+        auto x0 = m.add_parameter("x0", {migraphx::shape::float_type, {2, 4}});
+        auto x1 = m.add_parameter("x1", {migraphx::shape::float_type, {2, 4}});
+        auto x2 = m.add_parameter("x2", {migraphx::shape::float_type, {2, 4}});
+        auto b0 = m.add_parameter("b0", {migraphx::shape::float_type, {2, 4}});
+        auto b1 = m.add_parameter("b1", {migraphx::shape::float_type, {2, 4}});
+        auto b2 = m.add_parameter("b2", {migraphx::shape::float_type, {2, 4}});
+        auto w00 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 0));
+        auto w01 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 1));
+        auto w02 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 2));
+        auto w10 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 3));
+        auto w11 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 4));
+        auto w12 =
+            m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 4}}, 5));
+        auto d00 = m.add_instruction(migraphx::make_op("dot"), x0, w00);
+        auto a0  = m.add_instruction(migraphx::make_op("add"), d00, b0);
+        auto d10 = m.add_instruction(migraphx::make_op("dot"), a0, w10);
+        auto d01 = m.add_instruction(migraphx::make_op("dot"), x1, w01);
+        auto a1  = m.add_instruction(migraphx::make_op("add"), d01, b1);
+        auto d11 = m.add_instruction(migraphx::make_op("dot"), a1, w11);
+        auto d02 = m.add_instruction(migraphx::make_op("dot"), x2, w02);
+        auto a2  = m.add_instruction(migraphx::make_op("add"), d02, b2);
+        auto d12 = m.add_instruction(migraphx::make_op("dot"), a2, w12);
+        m.add_return({d10, d11, d12});
+    }
+    auto expected = m;
+    run_pass(m);
+
+    EXPECT(m == expected);
+}
+
 // Dots whose weights are not compile-time constants are not candidates.
 TEST_CASE(dot_horiz_fusion_non_constant_weight_unchanged)
 {
@@ -1303,6 +1343,73 @@ TEST_CASE(hoist_and_dot_fusion_end_to_end)
     // find_splits hoist then collapses into a single pointwise on the bounding
     // slice.
     EXPECT(n_pointwise == 1);
+}
+
+// Parallel SwiGLU expert heads -- add(dot(mul(x, sigmoid(x)), W), bias) -- batch
+// into a single GEMM via dot_horizontal_fusion even though each dot feeds an
+// elementwise epilogue.  Nothing is stranded: find_splits (simplify_algebra)
+// re-fuses the per-slice epilogue after the batched dot is sliced back out.
+TEST_CASE(expert_head_dots_batch_with_constant_epilogue)
+{
+    migraphx::module m;
+    {
+        auto add_head = [&](const std::string& name, int seed) {
+            auto x = m.add_parameter(name, {migraphx::shape::float_type, {2, 8}});
+            auto w = m.add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, seed));
+            auto b = m.add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {2, 8}}, 10 + seed));
+            auto sig = m.add_instruction(migraphx::make_op("sigmoid"), x);
+            auto mul = m.add_instruction(migraphx::make_op("mul"), x, sig);
+            auto d   = m.add_instruction(migraphx::make_op("dot"), mul, w);
+            return m.add_instruction(migraphx::make_op("add"), d, b);
+        };
+        m.add_return({add_head("x0", 0), add_head("x1", 1), add_head("x2", 2), add_head("x3", 3)});
+    }
+    run_pass(m);
+
+    std::size_t n_dot = 0;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "dot")
+            ++n_dot;
+    }
+    // The four per-head epilogue dots collapse into a single batched GEMM.
+    EXPECT(n_dot == 1);
+}
+
+// A runtime (non-constant) epilogue operand does not affect GEMM batching: only
+// the weight needs to be constant, so the dots still collapse into one batched
+// GEMM regardless of what feeds the epilogue.
+TEST_CASE(expert_head_dots_batch_with_runtime_epilogue)
+{
+    migraphx::module m;
+    {
+        auto add_head = [&](const std::string& xname, const std::string& vname, int seed) {
+            auto x = m.add_parameter(xname, {migraphx::shape::float_type, {2, 8}});
+            auto v = m.add_parameter(vname, {migraphx::shape::float_type, {2, 8}});
+            auto w = m.add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, seed));
+            auto sig = m.add_instruction(migraphx::make_op("sigmoid"), x);
+            auto mul = m.add_instruction(migraphx::make_op("mul"), x, sig);
+            auto d   = m.add_instruction(migraphx::make_op("dot"), mul, w);
+            return m.add_instruction(migraphx::make_op("add"), d, v);
+        };
+        m.add_return({add_head("x0", "v0", 0),
+                      add_head("x1", "v1", 1),
+                      add_head("x2", "v2", 2),
+                      add_head("x3", "v3", 3)});
+    }
+    run_pass(m);
+
+    std::size_t n_dot = 0;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "dot")
+            ++n_dot;
+    }
+    // Batching is independent of the epilogue operand; the dots still collapse.
+    EXPECT(n_dot == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -95,6 +95,40 @@ TEST_CASE(make_op_invalid_key)
     EXPECT(test::throws([] { migraphx::make_op("convolution", {{"paddings", {1, 1}}}); }));
 }
 
+TEST_CASE(binary_broadcast_compute)
+{
+    // Broadcasted output shape: each storage element is computed once
+    migraphx::shape bs{migraphx::shape::float_type, {2, 3}, {0, 1}};
+    auto op = migraphx::make_op("add");
+    EXPECT(op.compute_shape({bs, bs}) == bs);
+
+    std::vector<float> a = {0, 1, 2};
+    std::vector<float> b = {3, 4, 5};
+    auto result =
+        op.compute(bs, {migraphx::argument{bs, a.data()}, migraphx::argument{bs, b.data()}});
+    EXPECT(result.get_shape() == bs);
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector == std::vector<float>{3, 5, 7, 3, 5, 7});
+}
+
+TEST_CASE(binary_broadcast_scalar_compute)
+{
+    migraphx::shape bs{migraphx::shape::float_type, {2, 3}, {0, 1}};
+    migraphx::shape ss{migraphx::shape::float_type, {2, 3}, {0, 0}};
+    auto op = migraphx::make_op("add");
+    EXPECT(op.compute_shape({bs, ss}) == bs);
+
+    std::vector<float> a = {0, 1, 2};
+    std::vector<float> b = {10};
+    auto result =
+        op.compute(bs, {migraphx::argument{bs, a.data()}, migraphx::argument{ss, b.data()}});
+    EXPECT(result.get_shape() == bs);
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector == std::vector<float>{10, 11, 12, 10, 11, 12});
+}
+
 TEST_CASE(load_offset)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};

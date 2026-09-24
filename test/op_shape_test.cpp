@@ -330,6 +330,38 @@ TEST_CASE(binary_sym_nonpacked_permutation)
     expect_shape(sout, migraphx::make_op("mul"), sx, sy);
 }
 
+TEST_CASE(binary_same_broadcasted)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    expect_shape(s, migraphx::make_op("mul"), s, s);
+}
+
+TEST_CASE(binary_broadcasted_vs_scalar)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 96, 96, 96}, {0, 0, 0, 0}};
+    expect_shape(sx, migraphx::make_op("mul"), sx, sy);
+    expect_shape(sx, migraphx::make_op("mul"), sy, sx);
+}
+
+// A single-element shape whose only nonzero stride sits on a length-1 dim
+// (e.g. broadcast[axis=0] of a {1},{1} parameter) is still a scalar here.
+TEST_CASE(binary_broadcasted_vs_single_element)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 96, 96, 96}, {1, 0, 0, 0}};
+    expect_shape(sx, migraphx::make_op("mul"), sx, sy);
+    expect_shape(sx, migraphx::make_op("mul"), sy, sx);
+}
+
+TEST_CASE(binary_different_broadcasted)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 96, 96, 96}, {0, 0, 96, 1}};
+    migraphx::shape sout{migraphx::shape::float_type, {1, 96, 96, 96}};
+    expect_shape(sout, migraphx::make_op("mul"), sx, sy);
+}
+
 TEST_CASE(binary_sym_with_range_dyn_error)
 {
     auto n = var("n", {2, 8});

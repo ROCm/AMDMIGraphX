@@ -24,6 +24,8 @@
 #include <iterator>
 #include <functional>
 #include <algorithm>
+#include <cstdint>
+#include <limits>
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
@@ -459,8 +461,8 @@ struct miopen_apply
     }
 
     // Lowers `nonmaxsuppression` to the gpu::nms_sort -> nms_filter ->
-    // nms_compact pipeline, or to a host ref-op fallback when either input
-    // shape is dynamic (the kernels bake compile-time sizes).
+    // nms_compact pipeline, or to a host ref-op fallback when the input shape
+    // is dynamic or exceeds a kernel limit.
     void add_nms_op()
     {
         apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
@@ -473,7 +475,16 @@ struct miopen_apply
             // Route to ref (CPU) when:
             // - num_boxes < 2: Single box or no boxes, no sort or IoU comparison needed.
             // - num_bc > 8192: shared-memory limit on the compact kernel.
-            if(num_boxes < 2 or num_bc > 8192)
+            if(num_boxes < 2 or num_bc == 0 or num_bc > 8192)
+                return lower_tuple_op_to_ref(ins);
+
+            constexpr std::size_t mask_bits = std::numeric_limits<std::uint32_t>::digits;
+            const auto col_blocks           = num_boxes / mask_bits + (num_boxes % mask_bits != 0);
+            constexpr auto max_kernel_elements = std::numeric_limits<std::uint32_t>::max();
+            // GPU tensor views use 32-bit element indices. Check the packed mask without
+            // overflowing the host-side size calculation.
+            if(num_boxes > max_kernel_elements / col_blocks or
+               num_bc > max_kernel_elements / (num_boxes * col_blocks))
                 return lower_tuple_op_to_ref(ins);
             return lower_nms_to_gpu_pipeline(ins);
         });
@@ -504,7 +515,6 @@ struct miopen_apply
         const auto num_boxes   = boxes_s.lens()[1];
         const auto num_classes = scores_s.lens()[1];
         assert(num_boxes > 0);
-        const auto iou_packed = num_boxes * (num_boxes - 1) / 2;
 
         // Fill in missing optional scalar inputs with default literals.
         const shape default_max_s{shape::int64_type, {1}};
@@ -520,7 +530,9 @@ struct miopen_apply
         bool center_point_box = ins->get_operator().to_value().at("center_point_box").to<bool>();
 
         // Scratch mask; replace_allocate later turns it into hip::allocate.
-        shape mask_shape{shape::uint8_type, {num_batches * num_classes, iou_packed}};
+        constexpr std::size_t mask_bits = std::numeric_limits<std::uint32_t>::digits;
+        const auto col_blocks           = num_boxes / mask_bits + (num_boxes % mask_bits != 0);
+        shape mask_shape{shape::uint32_type, {num_batches * num_classes, num_boxes * col_blocks}};
         auto mask_alloc = insert_allocation(ins, mask_shape);
 
         auto sorted = mod->insert_instruction(

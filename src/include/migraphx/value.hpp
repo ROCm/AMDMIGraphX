@@ -497,6 +497,12 @@ struct MIGRAPHX_EXPORT value
 
     std::size_t hash() const;
 
+    /// Stable content digest as a lowercase hex string. Unlike hash(), it does not depend on
+    /// the standard library, so it is safe to persist. Two values have the same digest exactly
+    /// when they compare equal, and values that differ only in a key, a type, or in how
+    /// adjacent strings are split get different digests.
+    std::string md5() const;
+
     void debug_print(bool show_type = false) const;
 
     type_t get_type() const;

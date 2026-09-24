@@ -370,14 +370,18 @@ struct find_reduce_mean_variance
     static std::optional<std::vector<operation>> chain_transform_ops(
         instruction_ref start, instruction_ref last, const std::unordered_set<std::string>& allowed)
     {
+        auto path = get_input_path(start);
+        auto it   = std::find(path.begin(), path.end(), last);
+        if(it == path.end())
+            return std::nullopt;
+        if(not std::all_of(path.begin(), it, [&](instruction_ref ins) {
+               return contains(allowed, ins->name());
+           }))
+            return std::nullopt;
         std::vector<operation> ops;
-        while(start != last)
-        {
-            if(start->inputs().size() != 1 or not contains(allowed, start->name()))
-                return std::nullopt;
-            ops.push_back(start->get_operator());
-            start = start->inputs().front();
-        }
+        std::transform(path.begin(), it, std::back_inserter(ops), [](instruction_ref ins) {
+            return ins->get_operator();
+        });
         std::reverse(ops.begin(), ops.end());
         return ops;
     }

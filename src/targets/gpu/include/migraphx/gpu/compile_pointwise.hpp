@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace gpu {
+
+/// The options the pointwise compiler is driven with for a pointwise submodule. Exposed so the
+/// same options can be used to identify the kernel without compiling it.
+value pointwise_options(const_module_ref pm);
 
 operation
 compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm);

@@ -241,7 +241,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                 {
                     auto id = param.value()->get_shape().type_string() +
                               migraphx::shape::to_sizes_string({param.value()->get_shape()});
-                    cr.fill_map[id] = static_cast<double>(fill_val);
+                    cr.code.fill_map[id] = static_cast<double>(fill_val);
                 }
             }
         }
@@ -282,6 +282,19 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
         set_fill_map(cr, *smod);
         return cr;
+    }
+
+    std::string compile_key(const context& ctx,
+                            instruction_ref ins,
+                            const operation&,
+                            const value& solution) const
+    {
+        // The split into separate gemm and pointwise kernels is decided from the submodule, the
+        // context and the solution, so a key built from the unsplit submodule already
+        // distinguishes the split and unsplit forms.
+        assert(not ins->module_inputs().empty());
+        auto* smod = ins->module_inputs().front();
+        return mlir_compile_key(ctx, *smod, to_shapes(ins->inputs()), solution);
     }
 
     compiler_replace insert(const mlir_code_object& mco) const

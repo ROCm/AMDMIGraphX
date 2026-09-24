@@ -23,6 +23,8 @@
  *
  */
 #include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/fp8_types.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/module.hpp>
@@ -32,8 +34,10 @@
 #include <migraphx/common.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_convert.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/unfold.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <unordered_set>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
 
@@ -41,6 +45,115 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+// Walk forward through single-consumer ops looking for an instruction with
+// the given name. Returns start itself if it already matches.
+std::optional<instruction_ref> find_downstream_named(instruction_ref start,
+                                                     const std::string& target)
+{
+    auto path = get_output_path(start);
+    auto it   = std::find_if(
+        path.begin(), path.end(), [&](instruction_ref ins) { return ins->name() == target; });
+    if(it == path.end())
+        return std::nullopt;
+    return *it;
+}
+
+// Walk backward through the data-flow chain looking for an instruction with
+// the given name. Returns start itself if it already matches. Single-input ops
+// are followed directly; multi-input ops follow the first non-constant,
+// non-bool input.
+std::optional<instruction_ref> find_upstream_named(instruction_ref start, const std::string& target)
+{
+    auto path = unfold(start, [](instruction_ref current) -> std::optional<instruction_ref> {
+        const auto& inputs = current->inputs();
+        if(inputs.empty())
+            return std::nullopt;
+        if(inputs.size() == 1)
+            return inputs.front();
+        auto it = std::find_if(inputs.begin(), inputs.end(), [](instruction_ref i) {
+            return not i->can_eval() and i->get_shape().type() != shape::bool_type;
+        });
+        if(it == inputs.end())
+            return std::nullopt;
+        return *it;
+    });
+    auto it   = std::find_if(
+        path.begin(), path.end(), [&](instruction_ref ins) { return ins->name() == target; });
+    if(it == path.end())
+        return std::nullopt;
+    return *it;
+}
+
+// Scan the module for attention dots by matching the decomposed softmax
+// pattern (match::softmax matches the final div). A softmax whose input
+// reaches a dot upstream and whose output reaches another dot downstream
+// identifies the Q*K^T and softmax*V dots of attention; both are marked so
+// find_dot leaves them alone.
+std::unordered_set<instruction_ref> collect_attention_dots(module& m)
+{
+    std::unordered_set<instruction_ref> result;
+    for(auto ins : iterator_for(m))
+    {
+        auto r = match::match_instruction(m, ins, match::softmax());
+        if(r.result == m.end())
+            continue;
+        auto x     = r.instructions["x"];
+        auto q_dot = find_upstream_named(x, "dot");
+        auto v_dot = find_downstream_named(ins, "dot");
+        if(q_dot.has_value() and v_dot.has_value())
+        {
+            result.insert(*q_dot);
+            result.insert(*v_dot);
+        }
+    }
+    return result;
+}
+
+struct find_dot
+{
+    std::unordered_set<instruction_ref> attention_dots;
+
+    auto matcher() const { return match::name("dot"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        if(attention_dots.count(ins) != 0)
+            return;
+        auto a_mat   = ins->inputs().front();
+        auto b_mat   = ins->inputs().back();
+        auto a_shape = a_mat->get_shape();
+        auto b_shape = b_mat->get_shape();
+        auto ndim    = a_shape.ndim();
+        auto rows    = a_shape.lens().at(ndim - 2);
+        if(rows > 2)
+            return;
+
+        std::vector<int64_t> permutation(ndim);
+        std::iota(permutation.begin(), permutation.end(), 0);
+        std::swap(permutation.back(), permutation.at(ndim - 2));
+
+        // If the b matrix is const foldable then make sure its a transposed layout unless its
+        // broadcasting
+        if(b_mat->can_eval() and not b_shape.transposed())
+        {
+            b_mat =
+                m.insert_instruction(ins, make_op("layout", {{"permutation", permutation}}), b_mat);
+        }
+
+        auto a_unsqueeze =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim - 1}}}), a_mat);
+        auto b_transpose =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), b_mat);
+        auto b_unsqueeze =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim - 2}}}), b_transpose);
+        auto mul    = insert_common_op(m, ins, make_op("mul"), {a_unsqueeze, b_unsqueeze});
+        auto reduce = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {ndim}}}), mul);
+        m.replace_instruction(ins, make_op("squeeze", {{"axes", {ndim}}}), reduce);
+    }
+};
+
 struct find_logsoftmax
 {
     auto matcher() const { return match::name("logsoftmax"); }
@@ -245,6 +358,54 @@ struct find_reduce_mean_variance
     }
 };
 
+// Figure out if a wider accumulator type is needed based on `reduce`, `type` and number of reduced
+// elements `n`. All fp8 types need a wider accumulator. fp16 reduce_prod needs wider accumulator
+// because it has a smaller exponent range than fp32. True for fp16 or bf16 reduce_sum if `n` >
+// wide_reduce_elements_threshold
+bool needs_wide_accumulator(const std::string& reduce, shape::type_t type, std::size_t n)
+{
+    constexpr std::size_t wide_reduce_elements_threshold = 16384;
+    if(contains(fp8_types{}.get(), type))
+    {
+        return true;
+    }
+    if(reduce == "reduce_prod")
+    {
+        if(type == shape::half_type)
+            return true;
+    }
+    if(type == shape::half_type or type == shape::bf16_type)
+    {
+        return n > wide_reduce_elements_threshold;
+    }
+    return false;
+}
+
+// Change the accumulator type to float for reductions over low precision floating point types when
+// needed.
+struct find_low_precision_reduce
+{
+    auto matcher() const { return match::name("reduce_sum", "reduce_prod"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto input = ins->inputs().front();
+        auto type  = input->get_shape().type();
+        auto n     = input->get_shape().elements() / ins->get_shape().elements();
+        bool widen = needs_wide_accumulator(ins->name(), type, n);
+        if(not widen)
+            return;
+
+        auto wide = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::float_type}}), input);
+        auto reduce = m.insert_instruction(ins, ins->get_operator(), wide);
+        m.replace_instruction(
+            ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), reduce);
+    }
+};
+
+// Replace `reduce_mean` with `reduce_sum` and change the accumulator type when needed.
 struct find_reduce_mean
 {
     auto matcher() const { return match::name("reduce_mean"); }
@@ -267,8 +428,13 @@ struct find_reduce_mean
 
         auto n = input->get_shape().elements() / ins->get_shape().elements();
 
-        // Convert accumulator to float if <= 8bit type or if < 3 bytes and n >= max_n /4
-        if(size == 1 or (n >= max_n / 4 and size < 3))
+        // Integral types widen for an 8 bit type, or for a 16 bit one once the count is a large
+        // enough fraction of what the type can hold.
+        // A mean is a sum, so floating point follows needs_wide_accumulator.
+        bool widen = is_integral
+                         ? (size == 1 or (n >= max_n / 4 and size < 3))
+                         : needs_wide_accumulator(ins->name(), input->get_shape().type(), n);
+        if(widen)
         {
             shape::type_t t = is_integral ? shape::int32_type : shape::float_type;
             input = m.insert_instruction(ins, make_op("convert", {{"target_type", t}}), input);
@@ -300,6 +466,10 @@ void rewrite_reduce::apply(module& m) const
 {
     match::find_matches(m, find_logsoftmax{});
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
+    // Match the decomposed softmax pattern to identify dots participating in
+    // attention (Q*K^T and softmax*V) so find_dot can skip them.
+    if(enable_skinny_dot)
+        match::find_matches(m, find_dot{collect_attention_dots(m)});
 
     if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
     {
@@ -311,6 +481,7 @@ void rewrite_reduce::apply(module& m) const
                               migraphx::eliminate_common_subexpression{}});
     }
 
+    match::find_matches(m, find_low_precision_reduce{});
     match::find_matches(m, find_reduce_mean{});
     migraphx::run_passes(m, {simplify_reshapes{}});
 }

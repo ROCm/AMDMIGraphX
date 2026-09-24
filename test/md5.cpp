@@ -162,4 +162,46 @@ TEST_CASE(md5_string_view_from_buffer)
     EXPECT(migraphx::md5(view) == "900150983cd24fb0d6963f7d28e17f72");
 }
 
+// The streaming hasher must give the same digest no matter how the input is split, including
+// splits that land on and around the 64-byte block boundary.
+TEST_CASE(md5_hasher_matches_one_shot)
+{
+    const std::string input(150, 'a');
+    const auto expected = migraphx::md5(input);
+    for(std::size_t split : {std::size_t{0},
+                             std::size_t{1},
+                             std::size_t{63},
+                             std::size_t{64},
+                             std::size_t{65},
+                             std::size_t{128},
+                             input.size()})
+    {
+        migraphx::md5_hasher h;
+        h.update(std::string_view(input).substr(0, split));
+        h.update(std::string_view(input).substr(split));
+        EXPECT(h.finalize() == expected);
+    }
+}
+
+TEST_CASE(md5_hasher_byte_at_a_time)
+{
+    const std::string input = "The quick brown fox jumps over the lazy dog";
+    migraphx::md5_hasher h;
+    for(const char& c : input)
+        h.update(std::string_view(&c, 1));
+    EXPECT(h.finalize() == migraphx::md5(input));
+}
+
+TEST_CASE(md5_hasher_finalize_does_not_consume)
+{
+    migraphx::md5_hasher h;
+    h.update("abc");
+    EXPECT(h.finalize() == migraphx::md5("abc"));
+    EXPECT(h.finalize() == migraphx::md5("abc"));
+    h.update("def");
+    EXPECT(h.finalize() == migraphx::md5("abcdef"));
+}
+
+TEST_CASE(md5_hasher_empty) { EXPECT(migraphx::md5_hasher{}.finalize() == migraphx::md5("")); }
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

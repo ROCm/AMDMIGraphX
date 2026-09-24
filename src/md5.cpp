@@ -113,33 +113,37 @@ std::uint8_t to_uint8(char c) { return bit_cast<std::uint8_t>(c); }
 
 } // namespace
 
-std::string md5(const std::string_view& str)
+md5_hasher& md5_hasher::update(const std::string_view& str)
 {
-    std::array<std::uint32_t, 4> state = {0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476};
-
-    const std::size_t full_blocks = str.size() / block_size;
-    const std::size_t remainder   = str.size() % block_size;
-
-    std::array<std::uint8_t, block_size> block{};
-    for(std::size_t i = 0; i < full_blocks; ++i)
+    total_size += str.size();
+    // NOLINTNEXTLINE(readability-qualified-auto)
+    auto it = str.begin();
+    while(it != str.end())
     {
-        // NOLINTNEXTLINE(readability-qualified-auto)
-        const auto chunk_begin = str.begin() + (i * block_size);
-        std::transform(chunk_begin, chunk_begin + block_size, block.begin(), &to_uint8);
-        state = process_block(state, block);
+        const auto n = std::min<std::size_t>(block_size - buffered, str.end() - it);
+        std::transform(it, it + n, buffer.begin() + buffered, &to_uint8);
+        buffered += n;
+        it += n;
+        if(buffered == block_size)
+        {
+            state    = process_block(state, buffer);
+            buffered = 0;
+        }
     }
+    return *this;
+}
 
-    // Final block(s): remaining bytes, a 0x80 terminator, zero fill, and the
+std::string md5_hasher::finalize() const
+{
+    // Final block(s): buffered bytes, a 0x80 terminator, zero fill, and the
     // message bit length in the last 8 bytes (little-endian). Two blocks are
     // needed when the bit-length field no longer fits in the current block.
     std::array<std::array<std::uint8_t, block_size>, 2> tail{};
-    // NOLINTNEXTLINE(readability-qualified-auto)
-    const auto tail_src_begin = str.begin() + (full_blocks * block_size);
-    std::transform(tail_src_begin, str.end(), tail[0].begin(), &to_uint8);
-    tail[0][remainder] = 0x80;
+    std::copy(buffer.begin(), buffer.begin() + buffered, tail[0].begin());
+    tail[0][buffered] = 0x80;
 
-    const bool need_two            = (remainder >= block_size - 8);
-    const std::uint64_t bit_length = std::uint64_t{str.size()} * 8u;
+    const bool need_two            = (buffered >= block_size - 8);
+    const std::uint64_t bit_length = total_size * 8u;
     // cppcheck-suppress constVariableReference
     auto& last             = need_two ? tail[1] : tail[0];
     const auto bit_indices = range(8);
@@ -150,14 +154,16 @@ std::string md5(const std::string_view& str)
         [](std::uint64_t acc, std::uint64_t) { return acc >> 8u; },
         [&](auto) { return bit_length; });
 
-    state = process_block(state, tail[0]);
+    auto result = process_block(state, tail[0]);
     if(need_two)
     {
-        state = process_block(state, tail[1]);
+        result = process_block(result, tail[1]);
     }
 
-    return to_hex_string(state, true);
+    return to_hex_string(result, true);
 }
+
+std::string md5(const std::string_view& str) { return md5_hasher{}.update(str).finalize(); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

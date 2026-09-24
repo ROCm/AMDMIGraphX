@@ -32,7 +32,11 @@
 #include <migraphx/value.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/hash.hpp>
+#include <migraphx/md5.hpp>
+#include <migraphx/bit_cast.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/transform_view.hpp>
+#include <array>
 #include <map>
 #include <unordered_map>
 #include <utility>
@@ -49,8 +53,8 @@ struct value_base_impl : cloneable<value_base_impl>
     virtual std::vector<value>* if_array() { return nullptr; }
     virtual std::map<std::string, std::size_t>* if_object() { return nullptr; }
     virtual value_base_impl* if_value() const { return nullptr; }
-    value_base_impl()                       = default;
-    value_base_impl(const value_base_impl&) = default;
+    value_base_impl()                                  = default;
+    value_base_impl(const value_base_impl&)            = default;
     value_base_impl& operator=(const value_base_impl&) = default;
     virtual ~value_base_impl() override {}
 };
@@ -603,8 +607,8 @@ static std::size_t compute_hash(rank<0>, const std::string& key, std::nullptr_t)
 }
 
 template <class Range>
-static auto
-compute_hash(rank<1>, const std::string& key, const Range& x) -> decltype(hash_value(*x.begin()))
+static auto compute_hash(rank<1>, const std::string& key, const Range& x)
+    -> decltype(hash_value(*x.begin()))
 {
     std::size_t h = hash_value(key);
     for(const auto& v : x)
@@ -618,6 +622,67 @@ std::size_t value::hash() const
     visit_for_compare(*this,
                       [&](const auto& a) { h = compute_hash(rank<2>{}, this->get_key(), a); });
     return h;
+}
+
+// Every scalar is fed to the digest as 8 little-endian bytes, and every byte sequence is
+// prefixed with its length, so the encoding is unambiguous: no two different values can
+// produce the same byte stream.
+static void digest_integer(md5_hasher& h, std::uint64_t x)
+{
+    std::array<char, 8> bytes{};
+    const auto byte_indices = range(bytes.size());
+    std::transform(byte_indices.begin(), byte_indices.end(), bytes.begin(), [&](auto i) {
+        return bit_cast<char>(static_cast<std::uint8_t>(x >> (8 * i)));
+    });
+    h.update(std::string_view(bytes.data(), bytes.size()));
+}
+
+static void digest_bytes(md5_hasher& h, const std::string_view& s)
+{
+    digest_integer(h, s.size());
+    h.update(s);
+}
+
+static void digest_scalar(md5_hasher&, std::nullptr_t) {}
+static void digest_scalar(md5_hasher& h, std::int64_t x)
+{
+    digest_integer(h, bit_cast<std::uint64_t>(x));
+}
+static void digest_scalar(md5_hasher& h, std::uint64_t x) { digest_integer(h, x); }
+static void digest_scalar(md5_hasher& h, double x)
+{
+    digest_integer(h, bit_cast<std::uint64_t>(x));
+}
+static void digest_scalar(md5_hasher& h, bool x) { digest_integer(h, x ? 1 : 0); }
+static void digest_scalar(md5_hasher& h, const std::string& x) { digest_bytes(h, x); }
+static void digest_scalar(md5_hasher& h, const value::binary& x)
+{
+    digest_bytes(h, std::string(x.begin(), x.end()));
+}
+// Containers are walked below rather than through visit_value, so this is never reached.
+static void digest_scalar(md5_hasher&, const value::array&) { assert(false); }
+
+// Mirrors operator==: the type, then the key, then the payload, with container children in
+// stored order.
+static void digest(md5_hasher& h, const value& v)
+{
+    digest_integer(h, v.get_type());
+    digest_bytes(h, v.get_key());
+    if(v.is_array() or v.is_object())
+    {
+        digest_integer(h, v.size());
+        for(const auto& child : v)
+            digest(h, child);
+        return;
+    }
+    v.visit_value([&](const auto& x) { digest_scalar(h, x); });
+}
+
+std::string value::md5() const
+{
+    md5_hasher h;
+    digest(h, *this);
+    return h.finalize();
 }
 
 void value::debug_print(bool show_type) const

@@ -2,10 +2,10 @@
   :description: Installing MIGraphX for ROCm
   :keywords: install, pip, build, MIGraphX, AMD, ROCm, development, contributing
 
-.. |MIGRAPHX_VERSION| replace:: 2.17.0
-.. |ROCM_VERSION| replace:: 10.0.0
-.. |PKG_REPO| replace:: https://stable.repo.amd.com/rocm/migraphx/whl-next/
-.. |WHL| replace:: "migraphx==2.17.0+rocm10.0.0"
+.. |MIGRAPHX_VERSION| replace:: 2.16.0
+.. |ROCM_VERSION| replace:: 7.14.1
+.. |PKG_REPO| replace:: https://rocm.frameworks.amd.com/whl-multi-arch/
+.. |WHL| replace:: migraphx==2.16.0+rocm7.14.1
 
 ****************
 Install MIGraphX
@@ -29,13 +29,11 @@ MIGraphX is currently supported on:
 
 * ``gfx942`` AMD Instinct MI325X and MI300X
 
-* ``gfx1200``, ``gfx1201``, ``gfx1100``, ``gfx1101``, and ``gfx1102`` Radeon GPUs.
-
 See the `ROCm compatibility matrix`_ for more information.
 
 .. _ROCm compatibility matrix: https://rocm.docs.amd.com/en/docs-|ROCM_VERSION|/compatibility/compatibility-matrix.html
 
-Ensure your system has Python 3.14 or 3.12 installed and accessible.
+Ensure your system has Python 3.12 installed and accessible.
 
 Install MIGraphX using pip
 ===========================
@@ -44,23 +42,10 @@ This method installs MIGraphX into a Python virtual environment.
 
 1. Create and activate a virtual environment.
 
-   .. tab-set::
+   .. code-block:: bash
 
-      .. tab-item:: Python 3.14
-         :sync: py314
-
-         .. code-block:: bash
-
-            python3.14 -m venv .venv
-            source .venv/bin/activate
-
-      .. tab-item:: Python 3.12
-         :sync: py312
-
-         .. code-block:: bash
-
-            python3.12 -m venv .venv
-            source .venv/bin/activate
+      python3.12 -m venv .venv
+      source .venv/bin/activate
 
 2. Install the MIGraphX wheel.
 
@@ -68,7 +53,8 @@ This method installs MIGraphX into a Python virtual environment.
       :substitutions:
 
       python -m pip install --index-url |PKG_REPO| \
-          |WHL|
+          |WHL| \
+          https://rocm.frameworks.amd.com/whl-multi-arch/migraphx/migraphx_libs-2.16.0%2Brocm7.14.1-py3-none-manylinux_2_28_x86_64.whl
 
 3. ONNX Runtime accelerates machine learning inference using the MIGraphX
    execution provider on ROCm-supported GPUs. See the `ONNX Runtime

@@ -102,7 +102,11 @@ static migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
     std::sort(inputs.begin(), inputs.end(), migraphx::by(std::less<>{}, [](auto ins) {
                   return to_string(ins->get_operator());
               }));
-    inputs.push_back(mm->add_parameter("output", mmlir.get_output_shapes().front()));
+    // A multi-output module writes into a single tuple-shaped output argument
+    auto out_shapes = mmlir.get_output_shapes();
+    auto out_shape =
+        out_shapes.size() == 1 ? out_shapes.front() : migraphx::shape{out_shapes};
+    inputs.push_back(mm->add_parameter("output", out_shape));
 
     migraphx::gpu::context ctx;
     auto shapes = to_shapes(inputs);
@@ -126,7 +130,24 @@ static migraphx::parameter_map generate_params(const migraphx::program& p)
     return m;
 }
 
-static migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter_map& inputs)
+// Flatten a tuple argument into its sub-arguments so multi-output results
+// compare one-to-one with the reference outputs
+static std::vector<migraphx::argument> flatten_arguments(const std::vector<migraphx::argument>& args)
+{
+    std::vector<migraphx::argument> result;
+    for(const auto& arg : args)
+    {
+        auto sub = arg.get_sub_objects();
+        if(sub.empty())
+            result.push_back(arg);
+        else
+            result.insert(result.end(), sub.begin(), sub.end());
+    }
+    return result;
+}
+
+static std::vector<migraphx::argument> run_gpu(migraphx::program p,
+                                               const migraphx::parameter_map& inputs)
 {
     mlir_gpu_target t;
     p.compile(t);
@@ -142,25 +163,44 @@ static migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter
             m[x.first] = t.allocate(x.second);
         }
     }
-    return t.copy_from(p.eval(m).front());
+    auto results = p.eval(m);
+    std::vector<migraphx::argument> outputs;
+    std::transform(results.begin(),
+                   results.end(),
+                   std::back_inserter(outputs),
+                   [&](const auto& result) { return t.copy_from(result); });
+    return flatten_arguments(outputs);
 }
 
-static migraphx::argument run_ref(migraphx::program p, const migraphx::parameter_map& inputs)
+static std::vector<migraphx::argument> run_ref(migraphx::program p,
+                                               const migraphx::parameter_map& inputs)
 {
     p.compile(migraphx::make_target("ref"));
-    return p.eval(inputs).front();
+    return flatten_arguments(p.eval(inputs));
 }
 
-static bool verify_mlir(const migraphx::module& mmlir)
+static bool verify_mlir(const migraphx::module& mmlir, const migraphx::parameter_map& fixed = {})
 {
     migraphx::program ref;
-    ref.get_main_module()->insert_instructions(ref.get_main_module()->end(), &mmlir);
+    auto* rm   = ref.get_main_module();
+    auto outs  = rm->insert_instructions(rm->end(), &mmlir);
+    rm->add_return(outs);
 
     auto inputs = generate_params(ref);
+    for(const auto& input : fixed)
+        inputs[input.first] = input.second;
 
-    auto mlir = create_program_from_mlir(mmlir);
-    return migraphx::verify_args_with_tolerance(
-        "mlir", run_gpu(mlir, inputs), migraphx::verify::expected{run_ref(ref, inputs)});
+    auto mlir     = create_program_from_mlir(mmlir);
+    auto results  = run_gpu(mlir, inputs);
+    auto expected = run_ref(ref, inputs);
+    return results.size() == expected.size() and
+           std::equal(results.begin(),
+                      results.end(),
+                      expected.begin(),
+                      [](const auto& result, const auto& gold) {
+                          return migraphx::verify_args_with_tolerance(
+                              "mlir", result, migraphx::verify::expected{gold});
+                      });
 }
 
 static std::string get_attrs()
@@ -1081,6 +1121,9 @@ module {
     auto mlir_output_with_attrs =
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // A random sequence length can mask every column, making the softmax nan
+    auto seq_len = migraphx::fill_argument({migraphx::shape::int32_type, {1}}, 5);
+    EXPECT(verify_mlir(m, {{"seq_len", seq_len}}));
 }
 
 // Attention sinks return {output, lse} from the fused module
@@ -1141,6 +1184,9 @@ module {
     auto mlir_output_with_attrs =
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // A random sequence length can mask every column, making the softmax nan
+    auto seq_len = migraphx::fill_argument({migraphx::shape::int32_type, {1}}, 5);
+    EXPECT(verify_mlir(m, {{"seq_len", seq_len}}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

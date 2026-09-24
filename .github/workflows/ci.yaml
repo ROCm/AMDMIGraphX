@@ -643,20 +643,6 @@ jobs:
         path: ${{ github.workspace }}/ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
 
-      #- name: Upload code coverage
-      #  if: "matrix.configuration == 'codecov'"
-      #  env:
-      #    CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
-      #  run: |
-      #    sudo apt-get install -y lcov
-      #    cd build
-      #    lcov --directory . --capture --output-file $(pwd)/coverage.info
-      #    lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
-      #    lcov --list $(pwd)/coverage.info
-      #    curl -Os https://uploader.codecov.io/latest/linux/codecov
-      #    chmod +x codecov
-      #    ./codecov -t ${CODECOV_TOKEN}
-      #    echo "Uploaded"
   misspell:
     name: misspell
     runs-on: ubuntu-24.04

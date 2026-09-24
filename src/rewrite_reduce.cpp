@@ -35,6 +35,7 @@
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_convert.hpp>
 #include <migraphx/instruction_traversal.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/unfold.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <unordered_set>
@@ -323,20 +324,92 @@ struct find_softmax_base_ops
 
 struct find_reduce_mean_variance
 {
+    // Shape transforms that keep elements in standard order, so a reduction
+    // over the transformed data groups the elements the same way on both sides
+    // of the pattern.
+    static const auto& reshaper_names()
+    {
+        static const std::unordered_set<std::string> names = {
+            "reshape", "squeeze", "unsqueeze", "flatten", "contiguous"};
+        return names;
+    }
+
+    static const auto& broadcaster_names()
+    {
+        static const std::unordered_set<std::string> names = {"reshape",
+                                                              "squeeze",
+                                                              "unsqueeze",
+                                                              "flatten",
+                                                              "contiguous",
+                                                              "broadcast",
+                                                              "multibroadcast"};
+        return names;
+    }
+
     auto matcher() const
     {
-        auto reduce_mean          = match::name("reduce_mean");
-        auto skip_broadcasts_mean = match::skip_broadcasts(reduce_mean.bind("mean"));
-        auto x_minus_mean         = match::name("sub")(match::arg(0)(match::any().bind("x")),
-                                               match::arg(1)(skip_broadcasts_mean));
+        auto reduce_mean = match::name("reduce_mean");
+        auto mean        = match::skip(match::name(broadcaster_names()))(reduce_mean.bind("mean"));
+        auto x_minus_mean =
+            match::name("sub")(match::arg(0)(match::any().bind("x")), match::arg(1)(mean));
         auto pow_x_minus_mean =
-            match::name("pow")(match::arg(0)(x_minus_mean), match::arg(1)(match::has_value(2.0f)));
+            match::name("pow")(match::arg(0)(x_minus_mean), match::arg(1)(match::has_value(2.0f)))
+                .bind("sq");
         auto mul_x_minus_mean =
-            match::name("mul")(match::arg(0)(x_minus_mean), match::arg(1)(x_minus_mean));
-        auto sqdiff = match::name("sqdiff")(
-            match::either_arg(0, 1)(match::any().bind("x"), skip_broadcasts_mean));
-        return reduce_mean(
-            match::arg(0)(match::any_of(pow_x_minus_mean, mul_x_minus_mean, sqdiff)));
+            match::name("mul")(match::same_inputs(), match::arg(0)(x_minus_mean)).bind("sq");
+        auto sqdiff =
+            match::name("sqdiff")(match::either_arg(0, 1)(match::any().bind("x"), mean)).bind("sq");
+        auto squared_diff  = match::any_of(pow_x_minus_mean, mul_x_minus_mean, sqdiff);
+        auto skip_reshapes = match::skip(match::name(reshaper_names()));
+        return reduce_mean(match::arg(0)(skip_reshapes(squared_diff)));
+    }
+
+    // Collect the operators applied between last and start, walking the
+    // single-input chain from start down to last; nullopt if the chain
+    // contains an op not in allowed or never reaches last.
+    static std::optional<std::vector<operation>> chain_transform_ops(
+        instruction_ref start, instruction_ref last, const std::unordered_set<std::string>& allowed)
+    {
+        std::vector<operation> ops;
+        while(start != last)
+        {
+            if(start->inputs().size() != 1 or not contains(allowed, start->name()))
+                return std::nullopt;
+            ops.push_back(start->get_operator());
+            start = start->inputs().front();
+        }
+        std::reverse(ops.begin(), ops.end());
+        return ops;
+    }
+
+    // The mean must be broadcast back so that every element of x is paired
+    // with the mean of its own reduction group: the broadcast chain must be
+    // equivalent to broadcasting in the reduction space and reshaping to x.
+    static bool aligned_mean_broadcast(instruction_ref diff,
+                                       instruction_ref x_ins,
+                                       instruction_ref mean,
+                                       const std::vector<std::size_t>& reduce_lens)
+    {
+        const auto& inputs = diff->inputs();
+        std::vector<operation> bcast_ops;
+        auto found = std::any_of(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+            if(input == x_ins)
+                return false;
+            auto ops = chain_transform_ops(input, mean, broadcaster_names());
+            if(not ops.has_value())
+                return false;
+            bcast_ops = *ops;
+            return true;
+        });
+        if(not found)
+            return false;
+        const auto& x_lens              = x_ins->get_shape().lens();
+        std::vector<operation> expected = {
+            make_op("multibroadcast", {{"out_lens", reduce_lens}}),
+            make_op("reshape", {{"dims", std::vector<int64_t>(x_lens.begin(), x_lens.end())}})};
+        const auto& mean_lens = mean->get_shape().lens();
+        return optimize_shape_transforms(mean_lens, bcast_ops) ==
+               optimize_shape_transforms(mean_lens, expected);
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -344,14 +417,39 @@ struct find_reduce_mean_variance
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
         auto mean  = r.instructions["mean"];
+        auto sq    = r.instructions["sq"];
 
         if(ins->get_operator() != mean->get_operator())
             return;
 
-        if(mean->inputs().front() != x_ins)
+        if(ins->get_shape().dynamic() or x_ins->get_shape().dynamic())
             return;
 
-        auto x2       = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
+        // Both reductions must see the same standard-order data layout
+        auto reduce_input = ins->inputs().front();
+        auto mean_input   = mean->inputs().front();
+        if(reduce_input->get_shape().lens() != mean_input->get_shape().lens())
+            return;
+        if(x_ins->get_shape().lens() != sq->get_shape().lens())
+            return;
+        if(not chain_transform_ops(reduce_input, sq, reshaper_names()).has_value())
+            return;
+        if(not chain_transform_ops(mean_input, x_ins, reshaper_names()).has_value())
+            return;
+
+        auto diff = sq->name() == "sqdiff" ? sq : sq->inputs().front();
+        if(not aligned_mean_broadcast(diff, x_ins, mean, mean_input->get_shape().lens()))
+            return;
+
+        auto x2 = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
+        if(x2->get_shape().lens() != reduce_input->get_shape().lens())
+        {
+            const auto& rlens = reduce_input->get_shape().lens();
+            x2                = m.insert_instruction(
+                ins,
+                make_op("reshape", {{"dims", std::vector<int64_t>(rlens.begin(), rlens.end())}}),
+                x2);
+        }
         auto mean_x2  = m.insert_instruction(ins, mean->get_operator(), x2);
         auto mean_x_2 = m.insert_instruction(ins, make_op("mul"), mean, mean);
         m.replace_instruction(ins, make_op("sub"), mean_x2, mean_x_2);

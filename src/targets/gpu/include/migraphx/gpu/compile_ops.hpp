@@ -42,11 +42,12 @@ struct context;
 
 struct MIGRAPHX_GPU_EXPORT compile_ops_tuning_overrides
 {
-    optional<std::int64_t> top_k             = nullopt;
-    optional<std::int64_t> coarse_target_ms  = nullopt;
-    optional<std::int64_t> precise_target_ms = nullopt;
-    optional<std::int64_t> max_samples       = nullopt;
-    optional<std::int64_t> sleep_us          = nullopt;
+    optional<std::int64_t> top_k                = nullopt;
+    optional<std::int64_t> coarse_target_ms     = nullopt;
+    optional<std::int64_t> precise_target_ms    = nullopt;
+    optional<std::int64_t> max_samples          = nullopt;
+    optional<std::int64_t> sleep_us             = nullopt;
+    optional<std::int64_t> coarse_cutoff_factor = nullopt;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -55,7 +56,8 @@ struct MIGRAPHX_GPU_EXPORT compile_ops_tuning_overrides
                     f(self.coarse_target_ms, "tuning_coarse_target_ms"),
                     f(self.precise_target_ms, "tuning_precise_target_ms"),
                     f(self.max_samples, "tuning_max_samples"),
-                    f(self.sleep_us, "tuning_sleep_us"));
+                    f(self.sleep_us, "tuning_sleep_us"),
+                    f(self.coarse_cutoff_factor, "tuning_coarse_cutoff_factor"));
     }
 
     adaptive_tuning_options resolve() const;

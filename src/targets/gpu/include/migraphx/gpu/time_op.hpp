@@ -53,6 +53,9 @@ struct adaptive_time_options
     std::size_t max_warmup_runs = 50;
     std::size_t estimate_runs   = 1;
     double estimated_ms         = 0.0;
+    // Report the first initialization or estimate run slower than this instead of measuring any
+    // further. Zero always measures in full.
+    double cutoff_ms = 0.0;
 };
 
 struct timing_schedule
@@ -78,6 +81,10 @@ struct adaptive_tuning_options
 
     // Number of successful precise timings to collect. Zero precisely times every candidate.
     std::size_t top_k = 10;
+    // A coarse candidate stops after one run once that run is slower than both coarse.target_ms
+    // and this multiple of the fastest coarse time measured before it. Zero times every coarse
+    // candidate in full.
+    std::size_t coarse_cutoff_factor = 4;
     adaptive_time_options coarse{};
     adaptive_time_options precise{};
     // Delay after each candidate-stage timing to reduce thermal interference.

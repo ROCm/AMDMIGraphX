@@ -99,6 +99,8 @@ static void validate_options(const adaptive_time_options& options)
         MIGRAPHX_THROW("Adaptive timing executions must be greater than zero");
     if(options.warmup_ms > 0 and options.max_warmup_runs == 0)
         MIGRAPHX_THROW("Adaptive timing warmup runs must be greater than zero");
+    if(not std::isfinite(options.cutoff_ms) or options.cutoff_ms < 0.0)
+        MIGRAPHX_THROW("Adaptive timing cutoff must be finite and not negative");
 }
 
 // max_samples is settable from the outside while min_samples is not, so lowering only max_samples
@@ -212,12 +214,25 @@ double adaptive_time_loop(migraphx::gpu::context& gctx,
         executions++;
     };
 
+    const auto over_cutoff = [&](double ms) {
+        return options.cutoff_ms > 0.0 and ms > options.cutoff_ms;
+    };
+
     // Run once to initialize lazy GPU resources and count it toward the warmup budget. A prepared
     // candidate promoted from coarse timing has already initialized those resources.
     std::size_t completed_warmup_runs = 0;
     if(not budget.skip_initialization)
     {
-        run();
+        if(options.cutoff_ms > 0.0)
+        {
+            const auto first_ms = estimate_time(gctx, 1, run);
+            if(over_cutoff(first_ms))
+                return first_ms;
+        }
+        else
+        {
+            run();
+        }
         completed_warmup_runs = 1;
     }
 
@@ -234,6 +249,8 @@ double adaptive_time_loop(migraphx::gpu::context& gctx,
         }
         estimate_ms = estimate_time(gctx, estimate_runs, run);
         completed_warmup_runs += estimate_runs;
+        if(over_cutoff(estimate_ms))
+            return estimate_ms;
     }
     estimate_ms = std::max(estimate_ms, min_execution_ms);
 
@@ -304,10 +321,22 @@ optional<std::size_t> adaptive_time_topk_staged(std::size_t candidate_count,
     }
     else
     {
-        std::transform(indices.begin(), indices.end(), coarse.begin(), [&](auto i) {
-            return time_candidate(
-                i, adaptive_time_stage::coarse, coarse_options, options.sleep_us, benchmark);
-        });
+        // Candidates are timed one after another so that each can be cut off against the fastest
+        // time measured before it. The floor at the coarse target keeps lazy initialization in a
+        // candidate's first run from cutting off a fast kernel, and a candidate slower than the
+        // target only gets one measured sample anyway.
+        optional<double> fastest;
+        for(auto i : indices)
+        {
+            auto candidate_options = coarse_options;
+            if(fastest.has_value() and options.coarse_cutoff_factor > 0)
+                candidate_options.cutoff_ms = std::max<double>(
+                    options.coarse_cutoff_factor * *fastest, coarse_options.target_ms);
+            coarse[i] = time_candidate(
+                i, adaptive_time_stage::coarse, candidate_options, options.sleep_us, benchmark);
+            if(coarse[i].has_value() and (not fastest.has_value() or *coarse[i] < *fastest))
+                fastest = coarse[i];
+        }
 
         std::vector<std::size_t> ranked;
         std::copy_if(indices.begin(), indices.end(), std::back_inserter(ranked), [&](auto i) {

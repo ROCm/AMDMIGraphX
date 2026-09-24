@@ -188,6 +188,13 @@ auto pack(Ts... xs)
     return [=](auto f) { return f(xs...); };
 }
 
+// Like pack, but refers to the arguments instead of copying them, so it must not outlive them
+template <class... Ts>
+auto pack_ref(const Ts&... xs)
+{
+    return [&](auto f) { return f(xs...); };
+}
+
 inline auto pack_join() { return pack(); }
 
 template <class... Ps>

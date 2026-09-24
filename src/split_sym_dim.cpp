@@ -1120,10 +1120,36 @@ std::unordered_map<sym::expr, instruction_ref> find_root_sources(const module& m
     return result;
 }
 
+// The parameters an eval_expr_from_shape over expressions needs, in module order. Passing every
+// parameter would make it depend on unrelated inputs (and on their type conversions).
+std::vector<instruction_ref>
+find_expression_sources(const module& m,
+                        const std::unordered_map<sym::expr, instruction_ref>& root_sources,
+                        const std::vector<sym::expr>& expressions)
+{
+    std::unordered_set<sym::expr> variables;
+    for(const auto& expression : expressions)
+        variables.merge(sym::find_variables(expression));
+    auto parameters = m.get_parameters();
+    std::vector<instruction_ref> result;
+    std::copy_if(parameters.begin(),
+                 parameters.end(),
+                 std::back_inserter(result),
+                 [&](instruction_ref parameter) {
+                     return any_of(variables, [&](const auto& variable) {
+                         auto source = root_sources.find(variable);
+                         return source != root_sources.end() and source->second == parameter;
+                     });
+                 });
+    // eval_expr_from_shape requires an input even when nothing needs to be bound
+    if(result.empty())
+        return parameters;
+    return result;
+}
+
 struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
 {
     std::unordered_map<sym::expr, instruction_ref> root_sources;
-    std::vector<instruction_ref> sources;
 
     auto matcher() const { return match::name("dimensions_of")(match::nargs(1)); }
 
@@ -1147,7 +1173,7 @@ struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
         m.replace_instruction(
             ins,
             make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
-            sources);
+            find_expression_sources(m, root_sources, expressions));
     }
 };
 
@@ -2440,7 +2466,8 @@ void resolve_frame_inputs(
 instruction_ref add_output_slice(module& m,
                                  const sliced_value& output,
                                  instruction_ref selected_output,
-                                 const symbolic_op_info& info)
+                                 const symbolic_op_info& info,
+                                 const std::unordered_map<sym::expr, instruction_ref>& root_sources)
 {
     const auto& source_shape = output.source->get_shape();
     const auto& source_dims  = source_shape.dyn_dims();
@@ -2459,7 +2486,7 @@ instruction_ref add_output_slice(module& m,
             dimensions.at(axis) = info.dispatch_output.dyn_dims().at(axis);
     }
     std::vector<sym::expr> start_expressions(axes.size(), sym::lit(int64_t{0}));
-    auto sources = m.get_parameters();
+    auto sources = find_expression_sources(m, root_sources, end_expressions);
     auto starts  = m.add_instruction(
         make_op("eval_expr_from_shape", {{"expressions", to_value(start_expressions)}}), sources);
     auto ends = m.add_instruction(
@@ -2488,7 +2515,8 @@ void wire_select_module(
     std::vector<module> clones,
     const std::vector<clone_output_case>& clone_outputs,
     std::unordered_map<instruction_ref, instruction_ref>& replacements,
-    std::vector<std::pair<sliced_value, instruction_ref>>& output_values)
+    std::vector<std::pair<sliced_value, instruction_ref>>& output_values,
+    const std::unordered_map<sym::expr, instruction_ref>& root_sources)
 {
     module& m = mpm.get_module();
     std::vector<module_ref> submodules;
@@ -2525,8 +2553,11 @@ void wire_select_module(
         auto selected_output =
             m.add_instruction(make_op("get_tuple_elem", {{"index", output_index}}), selection);
         auto sliced = output.source->get_shape().dynamic()
-                          ? add_output_slice(
-                                m, output, selected_output, *info_for_instruction.at(output.source))
+                          ? add_output_slice(m,
+                                             output,
+                                             selected_output,
+                                             *info_for_instruction.at(output.source),
+                                             root_sources)
                           : selected_output;
         output_values.emplace_back(output, sliced);
         replacements.emplace(output.source, sliced);
@@ -2596,7 +2627,8 @@ void specialize_blocks(
                            std::move(clones),
                            clone_outputs,
                            replacements,
-                           output_values);
+                           output_values,
+                           root_sources);
     }
     std::vector<instruction_ref> outputs;
     std::transform(original_outputs.begin(),
@@ -2611,7 +2643,7 @@ void specialize_blocks(
 
 void normalize_symbolic_reshapes(module& m)
 {
-    auto parameters = m.get_parameters();
+    auto root_sources = find_root_sources(m);
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "reshape" or ins->inputs().size() != 1)
@@ -2627,7 +2659,7 @@ void normalize_symbolic_reshapes(module& m)
         auto resolved_dims = m.insert_instruction(
             ins,
             make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
-            parameters);
+            find_expression_sources(m, root_sources, expressions));
         auto allocation = m.insert_instruction(
             ins, make_op("allocate", {{"shape", to_value(output)}}), resolved_dims);
         m.replace_instruction(ins, make_op("reshape"), ins->inputs().front(), allocation);
@@ -2643,8 +2675,8 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     if(not has_symbolic_param(m))
         return;
 
-    resolve_symbolic_dimensions_of_match resolve_symbolic_dimensions{
-        .root_sources = find_root_sources(m), .sources = m.get_parameters()};
+    resolve_symbolic_dimensions_of_match resolve_symbolic_dimensions{.root_sources =
+                                                                         find_root_sources(m)};
     match::find_matches(m, resolve_symbolic_dimensions);
     // Shape-derived chains built per consumer (e.g. per-layer rotary position
     // ids) only become identical once dimensions_of is resolved; merge them

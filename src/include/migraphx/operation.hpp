@@ -231,11 +231,11 @@ auto compute_op(rank<1>,
                 const shape& output_shape,
                 const std::vector<argument>& input)
     -> decltype(x.compute(auto_any_cast(ctx),
-                          make_compute_output_shape(pack(x, output_shape, input)),
+                          make_compute_output_shape(pack_ref(x, output_shape, input)),
                           input))
 {
     return x.compute(
-        auto_any_cast(ctx), make_compute_output_shape(pack(x, output_shape, input)), input);
+        auto_any_cast(ctx), make_compute_output_shape(pack_ref(x, output_shape, input)), input);
 }
 
 template <class T>
@@ -254,9 +254,9 @@ compute_op(const T& x, context& ctx, const shape& output_shape, const std::vecto
 
 template <class T>
 auto compute_op(rank<1>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(make_compute_output_shape(pack(x, output_shape, input)), input))
+    -> decltype(x.compute(make_compute_output_shape(pack_ref(x, output_shape, input)), input))
 {
-    return x.compute(make_compute_output_shape(pack(x, output_shape, input)), input);
+    return x.compute(make_compute_output_shape(pack_ref(x, output_shape, input)), input);
 }
 
 template <class T>
@@ -278,13 +278,13 @@ auto compute_op(rank<1>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
+                F f) -> decltype(x.compute(make_compute_output_shape(pack_ref(x, output, inputs)),
                                            inputs,
                                            module_args,
                                            std::move(f)))
 {
     return x.compute(
-        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f));
+        make_compute_output_shape(pack_ref(x, output, inputs)), inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -320,13 +320,13 @@ auto compute_op(rank<4>,
                 const std::vector<module_ref>& module_args,
                 F f) // NOLINT
     -> decltype(x.compute(auto_any_cast(ctx),
-                          make_compute_output_shape(pack(x, output, inputs)),
+                          make_compute_output_shape(pack_ref(x, output, inputs)),
                           inputs,
                           module_args,
                           std::move(f)))
 {
     return x.compute(auto_any_cast(ctx),
-                     make_compute_output_shape(pack(x, output, inputs)),
+                     make_compute_output_shape(pack_ref(x, output, inputs)),
                      inputs,
                      module_args,
                      std::move(f));
@@ -341,10 +341,10 @@ auto compute_op(rank<3>,
                 const std::vector<module_ref>& module_args,
                 F f) // NOLINT
     -> decltype(x.compute(
-        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f)))
+        make_compute_output_shape(pack_ref(x, output, inputs)), inputs, module_args, std::move(f)))
 {
     return x.compute(
-        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f));
+        make_compute_output_shape(pack_ref(x, output, inputs)), inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -355,9 +355,9 @@ auto compute_op(rank<2>,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
                 F) // NOLINT
-    -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs))
+    -> decltype(x.compute(make_compute_output_shape(pack_ref(x, output, inputs)), inputs))
 {
-    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs);
+    return x.compute(make_compute_output_shape(pack_ref(x, output, inputs)), inputs);
 }
 
 template <class T, class F>
@@ -369,11 +369,11 @@ auto compute_op(rank<1>,
                 const std::vector<module_ref>&,
                 F) // NOLINT
     -> decltype(x.compute(auto_any_cast(ctx),
-                          make_compute_output_shape(pack(x, output, inputs)),
+                          make_compute_output_shape(pack_ref(x, output, inputs)),
                           inputs))
 {
     return x.compute(
-        auto_any_cast(ctx), make_compute_output_shape(pack(x, output, inputs)), inputs);
+        auto_any_cast(ctx), make_compute_output_shape(pack_ref(x, output, inputs)), inputs);
 }
 
 template <class T, class F>
@@ -405,7 +405,7 @@ auto is_context_free_op(rank<1>,
                         const T& x,
                         const shape& output_shape,
                         const std::vector<argument>& input)
-    -> decltype(x.compute(make_compute_output_shape(pack(x, output_shape, input)), input),
+    -> decltype(x.compute(make_compute_output_shape(pack_ref(x, output_shape, input)), input),
                 std::true_type{});
 
 template <class T>

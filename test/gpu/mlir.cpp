@@ -104,8 +104,7 @@ static migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
               }));
     // A multi-output module writes into a single tuple-shaped output argument
     auto out_shapes = mmlir.get_output_shapes();
-    auto out_shape =
-        out_shapes.size() == 1 ? out_shapes.front() : migraphx::shape{out_shapes};
+    auto out_shape  = out_shapes.size() == 1 ? out_shapes.front() : migraphx::shape{out_shapes};
     inputs.push_back(mm->add_parameter("output", out_shape));
 
     migraphx::gpu::context ctx;
@@ -132,7 +131,8 @@ static migraphx::parameter_map generate_params(const migraphx::program& p)
 
 // Flatten a tuple argument into its sub-arguments so multi-output results
 // compare one-to-one with the reference outputs
-static std::vector<migraphx::argument> flatten_arguments(const std::vector<migraphx::argument>& args)
+static std::vector<migraphx::argument>
+flatten_arguments(const std::vector<migraphx::argument>& args)
 {
     std::vector<migraphx::argument> result;
     for(const auto& arg : args)
@@ -182,8 +182,8 @@ static std::vector<migraphx::argument> run_ref(migraphx::program p,
 static bool verify_mlir(const migraphx::module& mmlir, const migraphx::parameter_map& fixed = {})
 {
     migraphx::program ref;
-    auto* rm   = ref.get_main_module();
-    auto outs  = rm->insert_instructions(rm->end(), &mmlir);
+    auto* rm  = ref.get_main_module();
+    auto outs = rm->insert_instructions(rm->end(), &mmlir);
     rm->add_return(outs);
 
     auto inputs = generate_params(ref);

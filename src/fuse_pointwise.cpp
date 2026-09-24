@@ -98,7 +98,18 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             continue;
         if(ins->get_operator().name() == "layout")
             continue;
-        auto* pm = mpm.create_module(mpm.get_module().name() + ":pointwise" + std::to_string(n++));
+        // Skip names that are already taken. This pass can run more than once on the same
+        // module, and the modules it fused on an earlier run keep their names, while n
+        // restarts at 0 on every call. Previously the intervening optimize_module happened
+        // to leave nothing for the later runs to wrap, so the collision never surfaced;
+        // when it does, it asserts in debug and silently aliases the existing module in
+        // release (create_module uses emplace, which does not overwrite).
+        std::string pm_name;
+        do
+        {
+            pm_name = mpm.get_module().name() + ":pointwise" + std::to_string(n++);
+        } while(mpm.has_module(pm_name));
+        auto* pm = mpm.create_module(pm_name);
         pm->set_bypass();
 
         std::unordered_map<instruction_ref, instruction_ref> param_map;

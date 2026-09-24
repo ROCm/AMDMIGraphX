@@ -949,6 +949,13 @@ TEST_CASE(convolution_backwards_2stride)
                  weights);
 }
 
+TEST_CASE(convolution_backwards_stride_zero)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 2, 2}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 1, 2, 2}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"stride", {0, 1}}}), input, weights);
+}
+
 TEST_CASE(convolution_backwards_2dilation)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};
@@ -992,6 +999,22 @@ TEST_CASE(convolution_backwards_channel_mismatch)
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
     migraphx::shape weights{migraphx::shape::float_type, {3, 3, 3, 3}};
     throws_shape(migraphx::make_op("convolution_backwards"), input, weights);
+}
+
+// compute() splits the input channels into equal per-group blocks, so a group that does not
+// divide them would leave part of every group unread.
+TEST_CASE(convolution_backwards_group_indivisible)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 5, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {5, 3, 3, 3}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"group", 2}}), input, weights);
+}
+
+TEST_CASE(convolution_backwards_group_not_positive)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 2, 3, 3}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"group", 0}}), input, weights);
 }
 
 TEST_CASE(convolution_backwards_dyn_batch_2d)
@@ -7254,6 +7277,18 @@ TEST_CASE(test_concat)
 
     // no input shapes (at least one is required)
     throws_shape(migraphx::make_op("concat", {{"axis", 0}}));
+}
+
+TEST_CASE(test_concat_nhwc_singleton)
+{
+    // The standard-layout input has a singleton channel, so its layout is
+    // ambiguous and the NHWC input decides the output layout.
+    auto sx =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 47, 8, 8}, {0, 2, 3, 1});
+    migraphx::shape sy{migraphx::shape::float_type, {1, 1, 8, 8}};
+    auto sout =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 48, 8, 8}, {0, 2, 3, 1});
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
 }
 
 TEST_CASE(test_dyn_concat)

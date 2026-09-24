@@ -344,8 +344,8 @@ TEST_CASE(binary_broadcasted_vs_scalar)
     expect_shape(sx, migraphx::make_op("mul"), sy, sx);
 }
 
-// A single-element shape whose only nonzero stride sits on a length-1 dim
-// (e.g. broadcast[axis=0] of a {1},{1} parameter) is still a scalar here.
+// A single-element shape whose only nonzero stride is on a length-1 dim (broadcast
+// axis=0 of a {1} input) is treated as one element even though scalar() is false.
 TEST_CASE(binary_broadcasted_vs_single_element)
 {
     migraphx::shape sx{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
@@ -373,8 +373,8 @@ TEST_CASE(binary_different_broadcasted_partial)
     expect_shape(sout, migraphx::make_op("add"), sy, sx);
 }
 
-// Both broadcasted along the same axis but with different strides on a
-// length-1 axis (broadcast of {1, 64} vs of a {64} multibroadcast to {1, 64})
+// Same broadcast axes but different strides on the length-1 axis 0 (broadcast of a
+// {1, 64} input vs a {64} input multibroadcast to {1, 64}); the merge keeps sx.
 TEST_CASE(binary_different_broadcasted_same_axes)
 {
     migraphx::shape sx{migraphx::shape::float_type, {1, 64, 8, 8}, {64, 1, 0, 0}};
@@ -391,14 +391,8 @@ TEST_CASE(binary_different_broadcasted_keeps_layout)
     migraphx::shape sy{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 1, 0, 0}};
     auto nhwc =
         migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 64, 8, 8}, {0, 2, 3, 1});
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto x   = mm->add_parameter("x", sx);
-    auto y   = mm->add_parameter("y", sy);
-    auto z   = mm->add_parameter("z", nhwc);
-    auto xy  = mm->add_instruction(migraphx::make_op("add"), x, y);
-    auto out = mm->add_instruction(migraphx::make_op("add"), z, xy);
-    EXPECT(out->get_shape() == nhwc);
+    auto xy = migraphx::make_op("add").compute_shape({sx, sy});
+    expect_shape(nhwc, migraphx::make_op("add"), nhwc, xy);
 }
 
 TEST_CASE(binary_sym_different_broadcasted_partial)

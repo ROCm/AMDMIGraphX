@@ -32,6 +32,7 @@
 #include <migraphx/par.hpp>
 #include <migraphx/sym_argument.hpp>
 #include <migraphx/tensor_view.hpp>
+#include <algorithm>
 #include <cassert>
 
 namespace migraphx {
@@ -44,38 +45,35 @@ struct binary : op_name<Derived>
     // The inherited symbolic_compute is opt-in because not every Derived::apply supports sym::expr.
     static constexpr bool enable_symbolic_compute = false;
 
-    // View over a tensor's underlying storage: n distinct elements, or a zero-stride
-    // broadcast when the input holds a single element.
+    // The same storage viewed with the given lens; the dropped axes must not be
+    // ones the tensor varies along
     template <class T>
-    static tensor_view<T> element_space_view(tensor_view<T> v, std::size_t n)
+    static tensor_view<T> collapse_view(tensor_view<T> v, const std::vector<std::size_t>& lens)
     {
-        assert(v.get_shape().element_space() == n or v.get_shape().element_space() == 1);
-        std::size_t stride = v.get_shape().element_space() == 1 ? 0 : 1;
-        return make_view(shape{v.get_shape().type(), {n}, {stride}}, v.data());
+        shape s{v.get_shape().type(), lens, v.get_shape().strides()};
+        assert(s.element_space() == v.get_shape().element_space());
+        return make_view(s, v.data());
     }
 
-    // The input lines up with the output storage if it shares the layout or broadcasts a
-    // single element.
-    template <class Output, class Input>
-    static bool aligns_with(const Output& output, const Input& input)
-    {
-        return input.get_shape() == output.get_shape() or input.get_shape().element_space() == 1;
-    }
-
-    // A broadcasted output maps multiple indices to the same address; when the inputs line
-    // up with its storage, iterate over the element space instead so parallel writes never
-    // alias the same element. Otherwise the output came from a packed input, whose index
-    // map is injective, so the plain transform is safe.
+    // A broadcasted output maps several indices to one address, so iterate with its
+    // zero-stride axes collapsed to 1; the inputs broadcast along those axes too, so
+    // every remaining index writes a distinct element.
     template <class F, class Output, class Input1, class Input2>
     static void par_broadcast_transform(F f, Output output, Input1 input1, Input2 input2)
     {
-        if(output.get_shape().broadcasted() and aligns_with(output, input1) and
-           aligns_with(output, input2))
+        const auto& s = output.get_shape();
+        if(s.broadcasted())
         {
-            auto n = output.get_shape().element_space();
-            output = element_space_view(output, n);
-            input1 = element_space_view(input1, n);
-            input2 = element_space_view(input2, n);
+            std::vector<std::size_t> lens(s.ndim());
+            std::transform(
+                s.lens().begin(),
+                s.lens().end(),
+                s.strides().begin(),
+                lens.begin(),
+                [](std::size_t len, std::size_t stride) { return stride == 0 ? 1 : len; });
+            output = collapse_view(output, lens);
+            input1 = collapse_view(input1, lens);
+            input2 = collapse_view(input2, lens);
         }
         par_transform(input1.begin(), input1.end(), input2.begin(), output.begin(), f);
     }
@@ -152,7 +150,9 @@ struct binary : op_name<Derived>
                 return s0;
             MIGRAPHX_THROW("BINARY: " + point_function() + ": fixed-dyn shape for inputs");
         }
-        else if(s0 == s1 and (s0.packed() or s0.broadcasted()))
+        const bool b0 = s0.broadcasted();
+        const bool b1 = s1.broadcasted();
+        if(s0 == s1 and (s0.packed() or b0))
         {
             return s0;
         }
@@ -160,18 +160,17 @@ struct binary : op_name<Derived>
         {
             return s0.packed() ? s0 : s1;
         }
-        else if(s0.broadcasted() == s1.broadcasted() and
-                (s0.element_space() == 1) != (s1.element_space() == 1))
+        else if(b0 == b1 and (s0.element_space() == 1) != (s1.element_space() == 1))
         {
             return s0.element_space() == 1 ? s1 : s0;
         }
-        else if(s0.broadcasted() != s1.broadcasted())
+        else if(b0 != b1)
         {
             if(s0.symbolic())
-                return s0.broadcasted() ? s1.with_lens(s0.dyn_dims()) : s0.with_lens(s0.dyn_dims());
-            return s0.broadcasted() ? s1.with_lens(s0.lens()) : s0.with_lens(s0.lens());
+                return b0 ? s1.with_lens(s0.dyn_dims()) : s0.with_lens(s0.dyn_dims());
+            return b0 ? s1.with_lens(s0.lens()) : s0.with_lens(s0.lens());
         }
-        else if(s0.broadcasted())
+        else if(b0)
         {
             // Stay broadcasted over the axes neither input varies along so a
             // materialized default layout cannot outvote a later non-broadcast input

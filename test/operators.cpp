@@ -97,7 +97,7 @@ TEST_CASE(make_op_invalid_key)
 
 TEST_CASE(binary_broadcast_compute)
 {
-    // Broadcasted output shape: each storage element is computed once
+    // Inputs share the broadcasted output layout, so only its storage is iterated
     migraphx::shape bs{migraphx::shape::float_type, {2, 3}, {0, 1}};
     auto op = migraphx::make_op("add");
     EXPECT(op.compute_shape({bs, bs}) == bs);
@@ -107,9 +107,26 @@ TEST_CASE(binary_broadcast_compute)
     auto result =
         op.compute(bs, {migraphx::argument{bs, a.data()}, migraphx::argument{bs, b.data()}});
     EXPECT(result.get_shape() == bs);
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(results_vector == std::vector<float>{3, 5, 7, 3, 5, 7});
+    EXPECT(result.to_vector<float>() == std::vector<float>{3, 5, 7, 3, 5, 7});
+}
+
+// Broadcasts over disjoint axes merge into an output that is packed over both
+TEST_CASE(binary_broadcast_merge_compute)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 3, 4}, {0, 1, 0}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 3, 4}, {0, 0, 1}};
+    migraphx::shape out{migraphx::shape::float_type, {2, 3, 4}, {0, 4, 1}};
+    auto op = migraphx::make_op("add");
+    EXPECT(op.compute_shape({as, bs}) == out);
+
+    std::vector<float> a = {1, 2, 3};
+    std::vector<float> b = {10, 20, 30, 40};
+    auto result =
+        op.compute(out, {migraphx::argument{as, a.data()}, migraphx::argument{bs, b.data()}});
+    EXPECT(result.get_shape() == out);
+    std::vector<float> expected = {11, 21, 31, 41, 12, 22, 32, 42, 13, 23, 33, 43,
+                                   11, 21, 31, 41, 12, 22, 32, 42, 13, 23, 33, 43};
+    EXPECT(result.to_vector<float>() == expected);
 }
 
 TEST_CASE(binary_broadcast_scalar_compute)
@@ -124,9 +141,7 @@ TEST_CASE(binary_broadcast_scalar_compute)
     auto result =
         op.compute(bs, {migraphx::argument{bs, a.data()}, migraphx::argument{ss, b.data()}});
     EXPECT(result.get_shape() == bs);
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(results_vector == std::vector<float>{10, 11, 12, 10, 11, 12});
+    EXPECT(result.to_vector<float>() == std::vector<float>{10, 11, 12, 10, 11, 12});
 }
 
 TEST_CASE(load_offset)

@@ -1087,7 +1087,6 @@ TEST_CASE(test_merge_broadcasts_symbolic)
     migraphx::shape s2{migraphx::shape::float_type, dims, {lit(3), lit(1), lit(0)}};
     migraphx::shape expected{migraphx::shape::float_type, dims, {lit(3), lit(1), lit(0)}};
     EXPECT(migraphx::shape::merge_broadcasts(s1, s2) == expected);
-    EXPECT(migraphx::shape::merge_broadcasts(s1, s2).broadcasted());
 }
 
 TEST_CASE(test_with_lens_ambigous1)

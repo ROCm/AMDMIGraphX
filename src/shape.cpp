@@ -855,63 +855,47 @@ shape shape::with_lens(const std::vector<dynamic_dimension>& dds) const
     return this->with_lens(this->type(), dds);
 }
 
-// Axes where either stride is nonzero
-template <class Strides>
-static std::vector<bool> find_varying_axes(const Strides& xs, const Strides& ys)
+// Keep the values on the varying axes and replace the rest with fill
+template <class T>
+static std::vector<T>
+select_axes(const std::vector<T>& xs, const std::vector<bool>& varying, const T& fill)
 {
-    using stride_type = typename Strides::value_type;
-    auto zero         = shape_impl::make_identity<stride_type>(0);
-    std::vector<bool> varying(xs.size());
-    std::transform(
-        xs.begin(), xs.end(), ys.begin(), varying.begin(), [&](const auto& a, const auto& b) {
-            return a != zero or b != zero;
-        });
-    return varying;
+    assert(xs.size() == varying.size());
+    std::vector<T> result(xs.size());
+    std::transform(xs.begin(), xs.end(), varying.begin(), result.begin(), [&](const T& x, bool v) {
+        return v ? x : fill;
+    });
+    return result;
 }
 
-// Collapse the non-varying axes to 1 so the standard strides over the result
-// are the packed strides of the varying axes
-template <class Dims, class Dim>
-static Dims collapse_dims(const Dims& dims, const std::vector<bool>& varying, const Dim& one)
+// Packed strides over the axes where either stride is nonzero, zero elsewhere
+template <class T>
+static std::vector<T> merge_broadcast_strides(const std::vector<T>& dims,
+                                              const std::vector<T>& xstrides,
+                                              const std::vector<T>& ystrides)
 {
-    Dims collapsed(dims.size());
-    std::transform(
-        dims.begin(), dims.end(), varying.begin(), collapsed.begin(), [&](const auto& d, bool v) {
-            return v ? d : one;
-        });
-    return collapsed;
-}
-
-template <class Strides>
-static Strides mask_strides(const Strides& strides, const std::vector<bool>& varying)
-{
-    using stride_type = typename Strides::value_type;
-    auto zero         = shape_impl::make_identity<stride_type>(0);
-    Strides masked(strides.size());
-    std::transform(strides.begin(),
-                   strides.end(),
+    assert(dims.size() == xstrides.size() and dims.size() == ystrides.size());
+    auto zero = shape_impl::make_identity<T>(0);
+    std::vector<bool> varying(dims.size());
+    std::transform(xstrides.begin(),
+                   xstrides.end(),
+                   ystrides.begin(),
                    varying.begin(),
-                   masked.begin(),
-                   [&](const auto& s, bool v) { return v ? s : zero; });
-    return masked;
+                   [&](const T& a, const T& b) { return a != zero or b != zero; });
+    auto packed =
+        shape_impl::compute_strides(select_axes(dims, varying, shape_impl::make_identity<T>(1)));
+    return select_axes(packed, varying, zero);
 }
 
 shape shape::merge_broadcasts(const shape& x, const shape& y)
 {
-    if(x.dynamic() and not x.symbolic())
-        MIGRAPHX_THROW("SHAPE: merge_broadcasts() called on non-symbolic dynamic shape");
-    if(x.ndim() != y.ndim())
-        MIGRAPHX_THROW("SHAPE: merge_broadcasts() shapes must have the same rank");
+    if(x.ndim() != y.ndim() or x.symbolic() != y.symbolic())
+        MIGRAPHX_THROW("SHAPE: merge_broadcasts() shapes must have the same rank and kind");
     if(x.symbolic())
-    {
-        auto varying = find_varying_axes(x.dyn_strides(), y.dyn_strides());
-        shape packed{x.type(),
-                     collapse_dims(x.dyn_dims(), varying, dynamic_dimension{sym::lit(1)})};
-        return {x.type(), x.dyn_dims(), mask_strides(packed.dyn_strides(), varying)};
-    }
-    auto varying = find_varying_axes(x.strides(), y.strides());
-    shape packed{x.type(), collapse_dims(x.lens(), varying, std::size_t{1})};
-    return {x.type(), x.lens(), mask_strides(packed.strides(), varying)};
+        return {x.type(),
+                x.dyn_dims(),
+                merge_broadcast_strides(x.sym_dims(), x.dyn_strides(), y.dyn_strides())};
+    return {x.type(), x.lens(), merge_broadcast_strides(x.lens(), x.strides(), y.strides())};
 }
 
 shape shape::with_type(type_t t) const

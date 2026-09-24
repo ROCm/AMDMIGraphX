@@ -49,11 +49,12 @@ static bool skip_propagate(instruction_ref ins)
         return true;
     // Skip broadcasted views since folding them saves no computation, but fold
     // computed ops into a literal that keeps the broadcast shape
-    auto&& s     = ins->get_shape();
-    auto aliases = instruction::get_output_alias(ins, true);
-    if(s.broadcasted() and s.element_space() < s.elements() and aliases.front() != ins)
+    auto&& s           = ins->get_shape();
+    auto aliases       = instruction::get_output_alias(ins, true);
+    const bool is_view = aliases.front() != ins;
+    if(s.broadcasted() and s.element_space() < s.elements() and is_view)
         return true;
-    if(aliases.size() == 1 and aliases.front() != ins)
+    if(aliases.size() == 1 and is_view)
         return skip_propagate(aliases.front());
     if(ins->is_undefined())
         return true;

@@ -7252,6 +7252,63 @@ TEST_CASE(roialign_test)
 
     migraphx::shape srois2{migraphx::shape::float_type, {2, 3}};
     throws_shape(migraphx::make_op("roialign"), sx, srois2, sbi);
+
+    migraphx::shape sx1{migraphx::shape::float_type, {3, 4, 5}};
+    throws_shape(migraphx::make_op("roialign"), sx1, srois, sbi);
+
+    migraphx::shape srois3{migraphx::shape::half_type, {2, 4}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois3, sbi);
+
+    migraphx::shape sbi3{migraphx::shape::int32_type, {2}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, sbi3);
+}
+
+TEST_CASE(roialign_dynamic_test)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {{1, 4}, {2, 6}, {5, 5}, {6, 6}}};
+    migraphx::shape srois{migraphx::shape::float_type, {{0, 8}, {4, 4}}};
+    migraphx::shape sbi{migraphx::shape::int64_type, std::vector<dd>{{0, 8}}};
+    migraphx::shape sout{migraphx::shape::float_type, {{0, 8}, {2, 6}, {3, 3}, {2, 2}}};
+
+    expect_shape(sout,
+                 migraphx::make_op("roialign",
+                                   {{"output_height", int64_t{3}}, {"output_width", int64_t{2}}}),
+                 sx,
+                 srois,
+                 sbi);
+
+    migraphx::shape sx_static{migraphx::shape::float_type, {1, 4, 5, 6}};
+    migraphx::shape srois_empty{migraphx::shape::float_type, {0, 4}};
+    migraphx::shape sbi_empty{migraphx::shape::int64_type, {0}};
+    migraphx::shape sout_empty{migraphx::shape::float_type, {0, 4, 1, 1}};
+    expect_shape(sout_empty, migraphx::make_op("roialign"), sx_static, srois_empty, sbi_empty);
+
+    migraphx::shape sbi_disjoint{migraphx::shape::int64_type, std::vector<dd>{{9, 12}}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, sbi_disjoint);
+
+    migraphx::shape srois_nonfixed_width{migraphx::shape::float_type, {{0, 8}, {3, 4}}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois_nonfixed_width, sbi);
+}
+
+TEST_CASE(roialign_symbolic_test)
+{
+    auto r = var("r", {0, 258});
+    migraphx::shape sx{migraphx::shape::float_type,
+                       {dd{lit(1)}, dd{lit(4)}, dd{lit(14)}, dd{lit(14)}}};
+    migraphx::shape srois{migraphx::shape::float_type, {dd{r}, dd{lit(4)}}};
+    migraphx::shape sbi{migraphx::shape::int64_type, {dd{r}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{r}, dd{lit(4)}, dd{lit(7)}, dd{lit(7)}}};
+
+    expect_shape(sout,
+                 migraphx::make_op("roialign",
+                                   {{"output_height", int64_t{7}}, {"output_width", int64_t{7}}}),
+                 sx,
+                 srois,
+                 sbi);
+
+    auto other_r = var("other_r", {0, 258});
+    migraphx::shape other_sbi{migraphx::shape::int64_type, {dd{other_r}}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, other_sbi);
 }
 
 TEST_CASE(test_concat)

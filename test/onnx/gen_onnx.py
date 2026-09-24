@@ -15513,6 +15513,25 @@ def roialign_test():
 
 
 @onnx_test()
+def roialign_dynamic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5, 4, 7])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT,
+                                        ['num_rois', 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64,
+                                       ['num_rois'])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      ['num_rois', 5, 3, 2])
+
+    node = onnx.helper.make_node('RoiAlign',
+                                 inputs=['x', 'rois', 'batch_ind'],
+                                 outputs=['y'],
+                                 output_height=3,
+                                 output_width=2)
+
+    return ([node], [x, roi, bi], [y])
+
+
+@onnx_test()
 def rotary_embedding_test():
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
                                           [1, 2, 18])

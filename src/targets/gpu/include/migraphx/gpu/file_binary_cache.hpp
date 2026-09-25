@@ -38,7 +38,7 @@ namespace gpu {
 
 // A binary_cache_backend that keeps entries as files under a root directory, laid out
 // <root>/<version>/<device>/<key_hash>.mxr. The version directory is named after the build that
-// wrote it, so the tree is self-describing. Path resolution is the caller's job.
+// wrote it, so the tree is self-describing.
 struct MIGRAPHX_GPU_EXPORT file_binary_cache
 {
     optional<std::vector<char>>

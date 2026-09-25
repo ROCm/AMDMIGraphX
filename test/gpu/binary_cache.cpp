@@ -30,11 +30,11 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/md5.hpp>
 #include <migraphx/sqlite.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -52,7 +52,6 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 #include <algorithm>
-#include <functional>
 #include <iterator>
 #include <map>
 #include <string>
@@ -102,8 +101,7 @@ static migraphx::gpu::binary_cache::entry make_entry(const std::string& key)
     return e;
 }
 
-// The storage backend is chosen by the extension of the cache path, so a case that has to hold
-// for both is written once against a path and registered twice, once with each of these.
+// The storage backend is chosen by the extension of the cache path.
 static std::string dir_path(const migraphx::tmp_dir& td) { return td.path.string(); }
 static std::string db_path(const migraphx::tmp_dir& td) { return (td.path / "cache.db").string(); }
 
@@ -111,11 +109,12 @@ static std::string db_path(const migraphx::tmp_dir& td) { return (td.path / "cac
 static std::vector<migraphx::fs::path> entry_files(const migraphx::fs::path& dir)
 {
     std::vector<migraphx::fs::path> result;
-    for(const auto& file : migraphx::fs::recursive_directory_iterator(dir))
-    {
-        if(file.path().extension() == ".mxr")
-            result.push_back(file.path());
-    }
+    migraphx::transform_if(
+        migraphx::fs::recursive_directory_iterator{dir},
+        migraphx::fs::recursive_directory_iterator{},
+        std::back_inserter(result),
+        [](const auto& file) { return file.path().extension() == ".mxr"; },
+        [](const auto& file) { return file.path(); });
     return result;
 }
 
@@ -127,22 +126,6 @@ static std::size_t row_count(const std::string& path, const std::string& table)
     if(rows.empty())
         return 0;
     return std::stoul(rows.front().at("n"));
-}
-
-/// How many entries a cache path holds, whichever backend wrote them. The extensions must match
-/// the ones make_binary_cache_backend routes to the SQLite backend, or this silently counts
-/// files in a directory that does not exist and reports zero.
-static std::size_t stored_entry_count(const std::string& path)
-{
-    if(migraphx::ends_with(path, ".db") or migraphx::ends_with(path, ".sqlite"))
-        return row_count(path, "cache_v1");
-    return entry_files(path).size();
-}
-
-/// Every row a statement call produced.
-static std::vector<migraphx::value> collect_rows(const migraphx::sqlite_stmt::rows& r)
-{
-    return std::vector<migraphx::value>(r.begin(), r.end());
 }
 
 using stored_entries = std::map<std::string, std::vector<char>>;
@@ -163,7 +146,7 @@ static stored_entries db_entries(const std::string& path)
 {
     stored_entries result;
     auto select = migraphx::sqlite::read(path).prepare("SELECT key_hash, entry FROM cache_v1;");
-    auto rows   = collect_rows(select());
+    auto rows   = select();
     std::transform(rows.begin(), rows.end(), std::inserter(result, result.end()), [](auto row) {
         const auto& blob = row.at("entry").get_binary();
         return std::make_pair(row.at("key_hash").get_string(),
@@ -171,6 +154,33 @@ static stored_entries db_entries(const std::string& path)
     });
     return result;
 }
+
+// What a case that must hold for both backends needs to know about each, so the case can be
+// written once as a template and registered for both.
+struct directory_backend
+{
+    static std::string path(const migraphx::tmp_dir& td) { return dir_path(td); }
+    static std::size_t stored(const std::string& p) { return entry_files(p).size(); }
+    /// Overwrite every stored entry with bytes that do not decode.
+    static void damage(const std::string& p)
+    {
+        auto files = entry_files(p);
+        std::for_each(files.begin(), files.end(), [](const auto& file) {
+            migraphx::write_buffer(file, std::vector<char>(8, 0));
+        });
+    }
+};
+
+struct database_backend
+{
+    static std::string path(const migraphx::tmp_dir& td) { return db_path(td); }
+    static std::size_t stored(const std::string& p) { return row_count(p, "cache_v1"); }
+    /// Overwrite every stored entry with bytes that do not decode.
+    static void damage(const std::string& p)
+    {
+        migraphx::sqlite::write(p).execute("UPDATE cache_v1 SET entry = zeroblob(8);");
+    }
+};
 
 /// One of each backend over fresh storage in td: a directory at td/files and a database at
 /// db_path(td). Driven directly, these skip binary_cache and its version and device strings.
@@ -181,7 +191,7 @@ static std::vector<migraphx::gpu::binary_cache_backend> both_backends(const migr
     auto db = migraphx::gpu::sqlite_binary_cache::open(db_path(td));
     EXPECT(db.has_value());
     if(db.has_value())
-        result.push_back(*db);
+        result.emplace_back(std::move(*db));
     return result;
 }
 
@@ -211,16 +221,17 @@ TEST_CASE(memory_lookup_records_reuse)
     EXPECT(cache.get_stats().misses == 0);
 }
 
-// The cases below are written once against a path and registered for both backends. The
-// directory registrations use real temporary paths on purpose: entries sit under
-// version_id()/device_dir(), and on Windows that depth once pushed the entry write past
-// MAX_PATH, so running them there is what keeps it from coming back.
+// The cases below are written once against a Backend and registered for each. The directory
+// registrations use real temporary paths so that on Windows they exercise the full depth of an
+// entry path against MAX_PATH.
 
 // A second cache shares nothing in memory, so anything it finds came out of storage.
-static void disk_lookup_body(const std::string& path)
+template <class Backend>
+static void disk_lookup_records_a_hit()
 {
+    migraphx::tmp_dir td{"binary-cache"};
     migraphx::gpu::context ctx;
-    migraphx::gpu::binary_cache_settings settings{path, false};
+    migraphx::gpu::binary_cache_settings settings{Backend::path(td), false};
 
     migraphx::gpu::binary_cache writer{settings};
     writer.insert(ctx, make_entry("shared-key"));
@@ -233,57 +244,30 @@ static void disk_lookup_body(const std::string& path)
     EXPECT(reader.get_stats().misses == 0);
     EXPECT(*found->fragment.get_main_module() == *make_code().fragment.get_main_module());
 }
+TEST_CASE_REGISTER(disk_lookup_records_a_hit<directory_backend>);
+TEST_CASE_REGISTER(disk_lookup_records_a_hit<database_backend>);
 
-TEST_CASE(disk_lookup_records_a_hit)
+// A damaged entry must cost a recompile and nothing more.
+template <class Backend>
+static void corrupt_entry_is_ignored()
 {
     migraphx::tmp_dir td{"binary-cache"};
-    disk_lookup_body(dir_path(td));
-}
-
-TEST_CASE(sqlite_lookup_records_a_hit)
-{
-    migraphx::tmp_dir td{"binary-cache"};
-    disk_lookup_body(db_path(td));
-}
-
-// A damaged entry must cost a recompile and nothing more. How an entry gets damaged is the only
-// part of this that depends on the backend, so it comes in as a step.
-static void corrupt_entry_body(const std::string& path,
-                               const std::function<void(const std::string&)>& damage)
-{
     migraphx::gpu::context ctx;
+    auto path = Backend::path(td);
     migraphx::gpu::binary_cache_settings settings{path, false};
 
     migraphx::gpu::binary_cache writer{settings};
     writer.insert(ctx, make_entry("damaged"));
-
-    damage(path);
+    EXPECT(Backend::stored(path) == 1);
+    Backend::damage(path);
 
     migraphx::gpu::binary_cache reader{settings};
 
     EXPECT(not reader.get(ctx, "damaged").has_value());
     EXPECT(reader.get_stats().misses == 1);
 }
-
-TEST_CASE(corrupt_entry_is_ignored)
-{
-    migraphx::tmp_dir td{"binary-cache"};
-    corrupt_entry_body(dir_path(td), [](const std::string& dir) {
-        auto files = entry_files(dir);
-        EXPECT(files.size() == 1);
-        for(const auto& file : files)
-            migraphx::write_buffer(file, std::vector<char>(8, 0));
-    });
-}
-
-TEST_CASE(sqlite_corrupt_entry_is_ignored)
-{
-    migraphx::tmp_dir td{"binary-cache"};
-    corrupt_entry_body(db_path(td), [](const std::string& db) {
-        EXPECT(row_count(db, "cache_v1") == 1);
-        migraphx::sqlite::write(db).execute("UPDATE cache_v1 SET entry = zeroblob(8);");
-    });
-}
+TEST_CASE_REGISTER(corrupt_entry_is_ignored<directory_backend>);
+TEST_CASE_REGISTER(corrupt_entry_is_ignored<database_backend>);
 
 // Without a directory nothing reaches disk, though results are still shared in memory.
 TEST_CASE(no_directory_writes_nothing)
@@ -342,8 +326,11 @@ TEST_CASE(duplicate_kernels_compile_once_without_a_directory)
 
 // Compiling twice against the same cache has to leave entries behind and keep producing the
 // same numbers as the reference, whichever half of the run they came from.
-static void compiling_twice_body(const std::string& path)
+template <class Backend>
+static void compiling_twice_populates_the_cache_and_matches_reference()
 {
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path    = Backend::path(td);
     auto options = cache_options(path);
 
     auto p_ref = pointwise_program();
@@ -358,7 +345,7 @@ static void compiling_twice_body(const std::string& path)
     auto warmup = pointwise_program();
     warmup.compile(migraphx::make_target("gpu"), options);
 
-    EXPECT(stored_entry_count(path) > 0);
+    EXPECT(Backend::stored(path) > 0);
 
     auto t = migraphx::make_target("gpu");
     auto p = pointwise_program();
@@ -380,23 +367,16 @@ static void compiling_twice_body(const std::string& path)
                                               gpu_result.to_vector<float>()));
 }
 
-TEST_CASE(compiling_twice_populates_the_cache_and_matches_reference)
-{
-    migraphx::tmp_dir td{"binary-cache"};
-    compiling_twice_body(dir_path(td));
-}
-
-TEST_CASE(sqlite_compiling_twice_populates_the_cache_and_matches_reference)
-{
-    migraphx::tmp_dir td{"binary-cache"};
-    compiling_twice_body(db_path(td));
-}
+TEST_CASE_REGISTER(compiling_twice_populates_the_cache_and_matches_reference<directory_backend>);
+TEST_CASE_REGISTER(compiling_twice_populates_the_cache_and_matches_reference<database_backend>);
 
 // With verification on, every reused result is compiled again and compared, so a run that does
 // not throw is one where the keys really do capture what the compilers depend on.
-static void verified_reuse_body(const std::string& path)
+template <class Backend>
+static void verified_reuse_matches_fresh_compiles()
 {
-    auto options = cache_options(path, /* verify */ true);
+    migraphx::tmp_dir td{"binary-cache"};
+    auto options = cache_options(Backend::path(td), /* verify */ true);
 
     auto warmup = pointwise_program();
     warmup.compile(migraphx::make_target("gpu"), options);
@@ -405,17 +385,8 @@ static void verified_reuse_body(const std::string& path)
     p.compile(migraphx::make_target("gpu"), options);
 }
 
-TEST_CASE(verified_reuse_matches_fresh_compiles)
-{
-    migraphx::tmp_dir td{"binary-cache"};
-    verified_reuse_body(dir_path(td));
-}
-
-TEST_CASE(sqlite_verified_reuse_matches_fresh_compiles)
-{
-    migraphx::tmp_dir td{"binary-cache"};
-    verified_reuse_body(db_path(td));
-}
+TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<directory_backend>);
+TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<database_backend>);
 
 // The extension of the path picks the backend and nothing else does, so the only way to see the
 // choice from outside is the artifact it leaves: a database file, or a directory tree.
@@ -525,13 +496,9 @@ TEST_CASE(backends_store_identical_bytes)
     migraphx::gpu::binary_cache db_cache{migraphx::gpu::binary_cache_settings{path, false}};
     db_cache.insert(ctx, e);
 
-    auto select = migraphx::sqlite::read(path).prepare("SELECT entry FROM cache_v1;");
-    auto rows   = select();
-    auto it     = rows.begin();
-    EXPECT(it != rows.end());
-    auto row            = *it;
-    const auto& from_db = row.at("entry").get_binary();
-    EXPECT((std::vector<char>(from_db.begin(), from_db.end()) == from_file));
+    auto from_db = db_entries(path);
+    EXPECT(from_db.size() == 1);
+    EXPECT((from_db.begin()->second == from_file));
 }
 
 // A whole compile against each backend has to leave the same kernels behind: the same key
@@ -599,7 +566,8 @@ TEST_CASE(entries_move_between_backends)
 
         auto select = migraphx::sqlite::read(db_path(db_td))
                           .prepare("SELECT version, device, key_hash, entry FROM cache_v1;");
-        auto rows   = collect_rows(select());
+        auto result = select();
+        auto rows   = std::vector<migraphx::value>(result.begin(), result.end());
         EXPECT(rows.size() == 1);
         const auto& row = rows.front();
         EXPECT(row.at("version").get_string() == long_version);
@@ -621,8 +589,7 @@ TEST_CASE(entries_move_between_backends)
 }
 
 // Two connections over one database, as two processes compiling against a shared cache would
-// have. This cannot be two sqlite_binary_cache objects: only open() populates one, and it hands
-// back the type-erased wrapper.
+// have.
 TEST_CASE(two_connections_share_a_database)
 {
     migraphx::tmp_dir td{"binary-cache"};
@@ -775,20 +742,15 @@ TEST_CASE(file_store_leaves_only_entries_behind)
     migraphx::gpu::binary_cache second{settings};
     second.insert(ctx, make_entry("one"));
 
-    std::vector<migraphx::fs::path> files;
-    std::vector<migraphx::fs::path> dirs;
-    for(const auto& item : migraphx::fs::recursive_directory_iterator(td.path))
-    {
-        if(item.is_directory())
-            dirs.push_back(item.path());
-        else
-            files.push_back(item.path());
-    }
-    EXPECT(files.size() == 2);
-    EXPECT(std::all_of(
-        files.begin(), files.end(), [](const auto& f) { return f.extension() == ".mxr"; }));
-    // Just the version directory and the device directory inside it.
-    EXPECT(dirs.size() == 2);
+    std::vector<migraphx::fs::directory_entry> items{
+        migraphx::fs::recursive_directory_iterator{td.path},
+        migraphx::fs::recursive_directory_iterator{}};
+    auto dirs = std::count_if(
+        items.begin(), items.end(), [](const auto& item) { return item.is_directory(); });
+    // Just the version directory and the device directory inside it, and the two entries.
+    EXPECT(dirs == 2);
+    EXPECT(entry_files(td.path).size() == 2);
+    EXPECT(items.size() == 4);
 }
 
 // Storage is opened by the first lookup or insert, not by constructing the cache, since every
@@ -807,16 +769,19 @@ TEST_CASE(storage_is_opened_on_first_use)
 
 // Inserts made inside a batch are all there once it ends. The database commits them together;
 // the directory backend has no batching and stores each one as it comes.
-static void batched_inserts_body(const std::string& path)
+template <class Backend>
+static void batched_inserts_are_all_stored()
 {
+    migraphx::tmp_dir td{"binary-cache"};
     migraphx::gpu::context ctx;
+    auto path = Backend::path(td);
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
     {
         migraphx::gpu::binary_cache::store_batch batch{cache};
         cache.insert(ctx, make_entry("first"));
         cache.insert(ctx, make_entry("second"));
     }
-    EXPECT(stored_entry_count(path) == 2);
+    EXPECT(Backend::stored(path) == 2);
 
     migraphx::gpu::binary_cache reader{migraphx::gpu::binary_cache_settings{path, false}};
     EXPECT(reader.get(ctx, "first").has_value());
@@ -824,17 +789,8 @@ static void batched_inserts_body(const std::string& path)
     EXPECT(reader.get_stats().hits == 2);
 }
 
-TEST_CASE(batched_inserts_are_all_stored)
-{
-    migraphx::tmp_dir td{"binary-cache"};
-    batched_inserts_body(dir_path(td));
-}
-
-TEST_CASE(sqlite_batched_inserts_are_all_committed)
-{
-    migraphx::tmp_dir td{"binary-cache"};
-    batched_inserts_body(db_path(td));
-}
+TEST_CASE_REGISTER(batched_inserts_are_all_stored<directory_backend>);
+TEST_CASE_REGISTER(batched_inserts_are_all_stored<database_backend>);
 
 // A batch holds the database's write lock, so another connection must be able to write again as
 // soon as it ends.
@@ -856,8 +812,7 @@ TEST_CASE(sqlite_batch_releases_the_database)
 }
 
 // The backend layer moves opaque bytes and never decodes them, so a payload that is not even
-// msgpack still round-trips. Both backends go through the same type-erased wrapper here, which
-// is the runtime half of the static_assert in each backend's .cpp.
+// msgpack still round-trips. Both backends go through the same type-erased wrapper here.
 TEST_CASE(backends_round_trip_through_the_wrapper)
 {
     migraphx::tmp_dir td{"binary-cache"};

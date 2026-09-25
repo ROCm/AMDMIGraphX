@@ -37,11 +37,7 @@ namespace gpu {
 
 /// What gets stored for one compiled kernel. The op name, problem and solution are stored for
 /// offline inspection; only the key is checked when an entry is loaded.
-///
-/// This lives in its own header, rather than nested inside binary_cache, so that the
-/// binary_cache_backend interface can name it without including binary_cache.hpp -- which in
-/// turn includes the backend header. Same reason cache_device_key.hpp exists for the problem
-/// cache. binary_cache::entry remains an alias for it.
+/// In its own header so binary_cache_backend.hpp can use it without a circular include.
 struct binary_cache_entry
 {
     std::string key     = {};

@@ -30,8 +30,6 @@
 #include <migraphx/gpu/binary_cache_backend.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/optional.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/value.hpp>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -58,9 +56,9 @@ struct binary_cache_settings
 /**
  * Compiled kernels, keyed by a string describing what the compiler was given.
  *
- * Results are held in memory for the life of the context and, when a cache directory is
- * configured, written to disk so later runs can reuse them. Things outside the key, such as the
- * compiler and the embedded kernel headers, are separated by the directory the entries live in.
+ * Results are held in memory for the life of the context and, when a cache path is configured,
+ * written to disk so later runs can reuse them. Things outside the key, such as the compiler and
+ * the embedded kernel headers, are separated by the version the entries are stored under.
  *
  * This is not thread safe, and deliberately so. Every key is known before any compile begins, so
  * the compile pass looks results up and stores them in serial passes on either side of its
@@ -68,8 +66,7 @@ struct binary_cache_settings
  */
 struct MIGRAPHX_GPU_EXPORT binary_cache
 {
-    /// What gets stored for one compiled kernel. Defined in binary_cache_entry.hpp so the
-    /// storage backends can name it; the alias keeps binary_cache::entry working.
+    /// What gets stored for one compiled kernel; see binary_cache_entry.hpp.
     using entry = binary_cache_entry;
 
     /// Counts of what the cache did.
@@ -98,14 +95,14 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         ~store_batch();
 
         private:
-        binary_cache* cache;
+        binary_cache_backend* backend;
     };
 
-    /// Nothing is opened here; storage is set up by the first lookup or insert, so a context
-    /// that never compiles never touches the disk or probes the compiler.
+    /// Nothing is opened here; storage is set up by the first lookup, insert or store_batch, so
+    /// a context that never compiles never touches the disk or probes the compiler.
     explicit binary_cache(binary_cache_settings s = {});
 
-    /// Look up a key, consulting memory first and then the cache directory.
+    /// Look up a key, consulting memory first and then the storage backend.
     optional<compiled_code> get(const context& ctx, const std::string& key);
 
     /// Record a compiled result under its key.

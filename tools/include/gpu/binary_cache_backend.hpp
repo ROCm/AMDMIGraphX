@@ -37,12 +37,11 @@
 // Notes:
 //   * binary_cache_entry is defined in <migraphx/gpu/binary_cache_entry.hpp>;
 //     the include below pulls in its full definition.
-//   * Backends typically own non-trivial resources (a cache directory, a SQLite
-//     connection) and are not meaningfully copyable beyond shared ownership.
-//   * The members are non-const: binary_cache::get and insert are themselves
-//     non-const, so nothing forces a const qualifier here, and a backend that
-//     tracks an open batch needs the mutability. A backend may still declare
-//     them const.
+//   * Backends must be copyable: the wrapper shares T and clones it on a
+//     non-const call while the handle is shared. sqlite_binary_cache shares its
+//     connection across copies.
+//   * The members are non-const so a backend can track an open batch; a backend
+//     may still declare them const.
 //
 #ifndef MIGRAPHX_GUARD_GPU_BINARY_CACHE_BACKEND_HPP
 #define MIGRAPHX_GUARD_GPU_BINARY_CACHE_BACKEND_HPP
@@ -70,13 +69,12 @@ namespace gpu {
 /// Type-erased interface for binary-cache storage backends.
 ///
 /// A backend persists serialized binary_cache_entry blobs to some medium (a
-/// directory of files, a SQLite database, an in-memory map for tests). Entries
-/// are addressed by three strings the caller has already computed:
+/// directory of files or a SQLite database). Entries are addressed by three
+/// strings the caller has already computed:
 ///
 ///   * `version` -- binary_cache::version_id(), identifying the toolchain and
 ///     the embedded kernel sources that produced the entry. Never empty; the
-///     caller skips persistence entirely when it is. The short form is used
-///     for directories and the full form for databases.
+///     caller skips persistence entirely when it is.
 ///   * `device`  -- the GPU the entry was compiled for.
 ///   * `key_hash` -- md5 of the compile key. A hash rather than the key itself
 ///     because a file backend needs a short name; a collision is harmless,
@@ -109,8 +107,9 @@ struct binary_cache_backend
     /// decided entirely by the key, so a writer that loses a race replaces the
     /// entry with equivalent bytes.
     ///
-    /// Must not throw. A failure to store costs a recompile next run, nothing
-    /// more, and the caller still keeps the result in memory.
+    /// May throw: the caller reports a failed store as a warning. It costs a
+    /// recompile next run, nothing more, and the caller still keeps the result
+    /// in memory.
     void store(const std::string& version,
                const std::string& device,
                const std::string& key_hash,

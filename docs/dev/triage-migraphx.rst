@@ -176,8 +176,8 @@ directories for builds you no longer use:
    rm -r $HOME/.cache/migraphx/v1-hip22.0.*
 
 A path ending in ``.db`` or ``.sqlite`` keeps the cache in a single SQLite database instead of a
-directory, which is easier to copy between machines and can be shared by processes compiling at
-the same time. Missing parent directories are created, as for a directory cache:
+directory, which is easier to copy between machines. Like a directory cache it can be used by
+several processes at once, and missing parent directories are created:
 
 .. code-block:: bash
 
@@ -192,11 +192,12 @@ with the ``sqlite3`` shell. Deleting rows does not shrink the file until it is v
    sqlite3 $HOME/.cache/migraphx/kernels.db \
        "SELECT version, op_name, count(*) FROM cache_v1 GROUP BY version, op_name;"
    sqlite3 $HOME/.cache/migraphx/kernels.db \
-       "DELETE FROM cache_v1 WHERE version LIKE 'v1-hip22.0.%'; VACUUM;"
+       "DELETE FROM cache_v1 WHERE version GLOB 'v1-hip22.0.*'; VACUUM;"
 
 A database that cannot be written to, such as a shared cache installed read-only, is still used
-for lookups, and newly compiled kernels are kept in memory only. A database that cannot be opened
-at all is skipped with a warning and the compile proceeds without a disk cache.
+for lookups, and newly compiled kernels are kept in memory only. A database that cannot be
+opened, or whose cache table has an unexpected layout, is skipped with a warning and the compile
+proceeds without a disk cache.
 
 The same settings are available as backend options, which take precedence over the environment
 and are how tests configure the cache:

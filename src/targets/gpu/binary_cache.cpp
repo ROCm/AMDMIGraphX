@@ -105,9 +105,8 @@ static std::string device_dir(const context& ctx)
            "_wf" + std::to_string(device.get_wavefront_size());
 }
 
-/// Turn a stored blob back into an entry. Any failure is just a miss, so a damaged entry costs
-/// a recompile and is written over. Shared by every backend, so they all tolerate corruption
-/// and survive a hash collision the same way.
+/// Turn a stored blob back into an entry. Any failure is a miss, so a damaged entry costs a
+/// recompile.
 static optional<binary_cache::entry>
 decode_entry(const std::vector<char>& blob, const std::string& key, const std::string& key_hash)
 {
@@ -131,54 +130,43 @@ decode_entry(const std::vector<char>& blob, const std::string& key, const std::s
     return e;
 }
 
-// Select the storage backend by file type, the same rule make_problem_cache_backend applies in
-// problem_cache.cpp: a ".db"/".sqlite" path is a SQLite database, anything else is a directory
-// of entries.
-static bool is_database_path(const std::string& path)
-{
-    return ends_with(path, ".db") or ends_with(path, ".sqlite");
-}
-
-static optional<binary_cache_backend> make_binary_cache_backend(const std::string& path)
-{
-    if(is_database_path(path))
-        return sqlite_binary_cache::open(path); // nullopt when the database is unusable
-    return binary_cache_backend{file_binary_cache{path}};
-}
-
 binary_cache::binary_cache(binary_cache_settings s) : settings(std::move(s)) {}
 
-// Nothing can be persisted safely when the compiler cannot be identified, since entries from
-// different toolchains would be indistinguishable. That is a property of the cache rather than
-// of the storage medium, so it is checked here instead of in each backend.
+// The storage backend is selected by file type, the same rule make_problem_cache_backend applies
+// in problem_cache.cpp: a ".db"/".sqlite" path is a SQLite database, anything else is a
+// directory of entries. A directory is named with the short version id to keep paths short; a
+// database records the full id, which is self-describing. Nothing is persisted when the compiler
+// cannot be identified, since entries from different toolchains would be indistinguishable.
 binary_cache_backend* binary_cache::get_backend()
 {
-    if(not backend_opened)
-    {
-        backend_opened = true;
-        // Checked first so that a memory-only cache never compiles the version probe.
-        if(not settings.path.empty())
-        {
-            // The version names a directory for the file backend, so it is kept short there. A
-            // database has no such limit and records the full id, which is self-describing.
-            version = version_id(not is_database_path(settings.path));
-            if(not version.empty())
-                backend = make_binary_cache_backend(settings.path);
-        }
-    }
+    if(backend_opened)
+        return backend.has_value() ? &*backend : nullptr;
+    backend_opened   = true;
+    const auto& path = settings.path;
+    // Checked first so that a memory-only cache never compiles the version probe.
+    if(path.empty())
+        return nullptr;
+    const bool database = ends_with(path, ".db") or ends_with(path, ".sqlite");
+    version             = version_id(not database);
+    if(version.empty())
+        return nullptr;
+    if(not database)
+        backend = binary_cache_backend{file_binary_cache{path}};
+    else if(auto db = sqlite_binary_cache::open(path))
+        backend = binary_cache_backend{std::move(*db)};
     return backend.has_value() ? &*backend : nullptr;
 }
 
-binary_cache::store_batch::store_batch(binary_cache& c) : cache(&c)
+binary_cache::store_batch::store_batch(binary_cache& c) : backend(c.get_backend())
 {
-    if(auto* b = cache->get_backend())
-        b->begin_batch();
+    if(backend != nullptr)
+        backend->begin_batch();
 }
 
 binary_cache::store_batch::~store_batch()
 {
-    if(auto* b = cache->get_backend())
-        b->end_batch();
+    if(backend != nullptr)
+        backend->end_batch();
 }
 
 optional<compiled_code> binary_cache::get(const context& ctx, const std::string& key)
@@ -193,8 +181,8 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
     }
     if(auto* b = get_backend())
     {
-        // Hashing the key is not free -- it is the whole compile source, which runs to
-        // kilobytes -- so it is done once and reused for the lookup and any diagnostics.
+        // The key is the whole compile source, so it is hashed once for the lookup and any
+        // diagnostics.
         auto key_hash = md5(key);
         auto blob     = b->load(version, device_dir(ctx), key_hash);
         if(blob.has_value())
@@ -221,9 +209,7 @@ void binary_cache::insert(const context& ctx, entry e)
         auto key_hash = md5(e.key);
         try
         {
-            // Serializing inside the try, rather than in the call's argument list, makes a
-            // failure here a warning like any other storage failure instead of escaping
-            // insert() and failing the compile.
+            // A failure to serialize or store is a warning, not a failed compile.
             auto blob = to_msgpack(migraphx::to_value(e));
             b->store(version, device_dir(ctx), key_hash, e, blob);
         }

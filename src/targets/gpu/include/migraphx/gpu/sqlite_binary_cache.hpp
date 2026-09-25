@@ -27,7 +27,6 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/binary_cache_entry.hpp>
-#include <migraphx/gpu/binary_cache_backend.hpp>
 #include <migraphx/sqlite.hpp>
 #include <migraphx/optional.hpp>
 #include <string>
@@ -46,14 +45,13 @@ namespace gpu {
 // target: migraphx/sqlite.hpp forward-declares both impl types and never includes sqlite3.h.
 struct MIGRAPHX_GPU_EXPORT sqlite_binary_cache
 {
-    /// Open the database, create the schema and prepare the statements, and return the wrapper
-    /// so the caller can hand the result straight back.
+    /// Open the database at path, creating the schema if it is writable.
     ///
-    /// A database that can only be read gives a backend that serves lookups and ignores stores;
-    /// it is used as it stands, without creating the schema. Returns nullopt when the database
-    /// cannot be opened at all or entries cannot be looked up in it, so an unusable database
-    /// leaves the cache memory-only rather than raising an error.
-    static optional<binary_cache_backend> open(const std::string& path);
+    /// A database that can only be read serves lookups and ignores stores; it is used as it
+    /// stands, without creating the schema. Returns nullopt when the database cannot be opened
+    /// at all or entries cannot be looked up in it, so an unusable database leaves the cache
+    /// memory-only rather than raising an error.
+    static optional<sqlite_binary_cache> open(const std::string& path);
 
     optional<std::vector<char>>
     load(const std::string& version, const std::string& device, const std::string& key_hash) const;
@@ -69,12 +67,9 @@ struct MIGRAPHX_GPU_EXPORT sqlite_binary_cache
     void end_batch();
 
     private:
-    sqlite db                 = {};
-    sqlite_stmt get_stmt      = {};
-    sqlite_stmt store_stmt    = {};
-    sqlite_stmt begin_stmt    = {};
-    sqlite_stmt commit_stmt   = {};
-    sqlite_stmt rollback_stmt = {};
+    sqlite db              = {};
+    sqlite_stmt get_stmt   = {};
+    sqlite_stmt store_stmt = {};
     /// Whether begin_batch opened a transaction that end_batch still has to close.
     bool in_batch = false;
 };

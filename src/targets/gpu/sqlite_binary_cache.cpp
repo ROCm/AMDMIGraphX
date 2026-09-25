@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/gpu/sqlite_binary_cache.hpp>
+#include <migraphx/gpu/binary_cache_backend.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/logger.hpp>
@@ -34,9 +35,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// Compile-time confirmation that sqlite_binary_cache satisfies the backend concept. If a method
-// signature drifts, this assertion fires at the definition site rather than at some far-away
-// usage.
 static_assert(std::is_constructible<binary_cache_backend, sqlite_binary_cache>{},
               "sqlite_binary_cache must satisfy the binary_cache_backend concept");
 
@@ -77,8 +75,8 @@ constexpr const char* get_sql =
 // INSERT OR REPLACE is the analogue of the file backend's publish-by-rename: the content is
 // decided entirely by the key, so two processes compiling the same kernel is benign and the
 // last writer wins with equivalent bytes. The timestamp is computed by the database rather
-// than the process so that rows written by different machines stay comparable; nothing reads
-// it yet, it is there to make pruning an old cache by age possible.
+// than the process so that rows written by different machines stay comparable. MIGraphX never
+// reads it; it lets a cache be pruned by age.
 constexpr const char* store_sql =
     "INSERT OR REPLACE INTO cache_v1"
     " (version, device, key_hash, op_name, problem, solution, entry, timestamp)"
@@ -94,7 +92,7 @@ constexpr const char* rollback_sql = "ROLLBACK;";
 
 } // namespace
 
-optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path)
+optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path)
 {
     sqlite_binary_cache r;
     try
@@ -127,11 +125,8 @@ optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path
         }
         else
         {
-            (void)r.db.execute(schema_sql);
-            r.store_stmt    = r.db.prepare(store_sql);
-            r.begin_stmt    = r.db.prepare(begin_sql);
-            r.commit_stmt   = r.db.prepare(commit_sql);
-            r.rollback_stmt = r.db.prepare(rollback_sql);
+            r.db.execute(schema_sql);
+            r.store_stmt = r.db.prepare(store_sql);
         }
         // Without a working lookup there is no cache, so this failure disables the backend. That
         // includes a read-only database that was never given the schema.
@@ -142,15 +137,13 @@ optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path
         log::warn() << "Disabling the binary cache at " << path << ": " << ex.what();
         return nullopt;
     }
-    return binary_cache_backend{std::move(r)};
+    return r;
 }
 
 optional<std::vector<char>> sqlite_binary_cache::load(const std::string& version,
                                                       const std::string& device,
                                                       const std::string& key_hash) const
 {
-    if(not get_stmt.valid())
-        return nullopt;
     try
     {
         // The primary key makes this at most one row.
@@ -176,34 +169,26 @@ void sqlite_binary_cache::store(const std::string& version,
                                 const binary_cache_entry& e,
                                 const std::vector<char>& blob) const
 {
+    // Not prepared for a read-only database, whose stores are skipped.
     if(not store_stmt.valid())
         return;
-    try
-    {
-        // The json strings are temporaries, which is safe because binding copies immediately.
-        // An insert returns no rows, and it has run by the time the call returns.
-        store_stmt(version,
-                   device,
-                   key_hash,
-                   e.op_name,
-                   to_json_string(e.problem),
-                   to_json_string(e.solution),
-                   blob);
-    }
-    catch(const std::exception& ex)
-    {
-        log::warn() << "Failed to write binary cache entry " << key_hash << ": " << ex.what();
-    }
+    store_stmt(version,
+               device,
+               key_hash,
+               e.op_name,
+               to_json_string(e.problem),
+               to_json_string(e.solution),
+               blob);
 }
 
 void sqlite_binary_cache::begin_batch()
 {
     assert(not in_batch);
-    if(not begin_stmt.valid())
+    if(not store_stmt.valid())
         return;
     try
     {
-        begin_stmt();
+        db.execute(begin_sql);
         in_batch = true;
     }
     catch(const std::exception& ex)
@@ -220,7 +205,7 @@ void sqlite_binary_cache::end_batch()
     in_batch = false;
     try
     {
-        commit_stmt();
+        db.execute(commit_sql);
     }
     catch(const std::exception& ex)
     {
@@ -229,7 +214,7 @@ void sqlite_binary_cache::end_batch()
         log::warn() << "Failed to commit binary cache entries: " << ex.what();
         try
         {
-            rollback_stmt();
+            db.execute(rollback_sql);
         }
         catch(const std::exception& rex)
         {

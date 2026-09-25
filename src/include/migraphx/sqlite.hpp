@@ -31,12 +31,12 @@
 #include <migraphx/iterator.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/value.hpp>
+#include <cassert>
 #include <cstdint>
 #include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -50,10 +50,10 @@ struct sqlite_stmt_impl;
 /// never outlive it. Copies share the same statement.
 ///
 /// Calling it with arguments runs it: the arguments are bound to the parameters in order and the
-/// result comes back as a range of rows. Preparing once and calling many times is the point.
+/// result comes back as a range of rows. Since copies share one statement, only the rows of one
+/// call may be alive at a time.
 ///
-/// Not thread safe: one statement may be used by one thread at a time, even though the
-/// connection itself is serialized.
+/// Not thread safe: use a statement from one thread at a time.
 struct MIGRAPHX_EXPORT sqlite_stmt
 {
     struct rows;
@@ -66,9 +66,11 @@ struct MIGRAPHX_EXPORT sqlite_stmt
     {
         if(not valid())
             MIGRAPHX_THROW("sqlite: calling a statement that was never prepared");
+        assert(sizeof...(Ts) == parameter_count());
         // Anything left from the previous call, bindings or an unfinished result, goes first.
         reset();
-        sequence_c<sizeof...(Ts)>([&](auto... is) { swallow{(bind(int{is + 1}, xs), 0)...}; });
+        int i = 0;
+        each_args([&](const auto& x) { bind(++i, x); }, xs...);
         return rows{*this};
     }
 
@@ -79,6 +81,8 @@ struct MIGRAPHX_EXPORT sqlite_stmt
     void bind(int i, std::string_view s) const;
     void bind(int i, std::int64_t x) const;
     void bind(int i, const std::vector<char>& blob) const;
+
+    std::size_t parameter_count() const;
 
     /// Step once. True when a row is available, false when the statement is done.
     bool step() const;
@@ -103,7 +107,6 @@ struct MIGRAPHX_EXPORT sqlite_stmt
 /// read lock on the database until then, which would stall writers in other processes.
 struct sqlite_stmt::rows
 {
-    explicit rows(sqlite_stmt s) : stmt(std::move(s)), first(stmt.step()) {}
     // Only ever a prvalue returned from a call, so it never needs copying or moving, and a copy
     // would reset the statement out from under the original.
     rows(const rows&)            = delete;
@@ -118,17 +121,22 @@ struct sqlite_stmt::rows
         using reference         = value_type;
         using difference_type   = std::ptrdiff_t;
         using iterator_category = std::input_iterator_tag;
-        using pointer           = std::add_pointer_t<std::remove_reference_t<reference>>;
+        using pointer           = value*;
 
         iterator() = default;
 
         iterator(const rows* pparent, bool pavailable) : parent(pparent), available(pavailable) {}
 
-        reference operator*() const { return parent->stmt.to_value(); }
+        reference operator*() const
+        {
+            assert(parent != nullptr and available);
+            return parent->stmt.to_value();
+        }
 
         template <class U>
         static void increment(U& x)
         {
+            assert(x.parent != nullptr and x.available);
             x.available = x.parent->stmt.step();
         }
 
@@ -147,6 +155,9 @@ struct sqlite_stmt::rows
     iterator end() const { return {this, false}; }
 
     private:
+    friend struct sqlite_stmt;
+    explicit rows(sqlite_stmt s) : stmt(std::move(s)), first(stmt.step()) {}
+
     sqlite_stmt stmt;
     bool first = false;
 };
@@ -171,8 +182,6 @@ struct MIGRAPHX_EXPORT sqlite
     /// True when writes will be refused. Opening for writing still succeeds on a file the OS
     /// has write-protected, in which case sqlite quietly opens it read-only; this is how to tell.
     bool read_only() const;
-
-    bool valid() const { return impl != nullptr; }
 
     private:
     std::shared_ptr<sqlite_impl> impl;

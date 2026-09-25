@@ -808,7 +808,11 @@ struct compile_manager
         {
             // Every plan compiles with the same context, so the stores all go to one cache, and
             // batching them lets its storage commit them together rather than one at a time.
-            binary_cache::store_batch batch{tasks.front().first->ctx->get_binary_cache()};
+            auto* ctx = tasks.front().first->ctx;
+            assert(std::all_of(tasks.begin(), tasks.end(), [&](const auto& task) {
+                return task.first->ctx == ctx;
+            }));
+            binary_cache::store_batch batch{ctx->get_binary_cache()};
             for(const auto& [cp, cell] : tasks)
             {
                 if(not cell->result.has_value())

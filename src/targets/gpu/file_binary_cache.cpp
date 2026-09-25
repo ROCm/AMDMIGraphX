@@ -49,12 +49,9 @@ static fs::path entry_path(const fs::path& root,
 }
 
 /// Publish by rename so a reader never sees a half-written file. The temporary stays beside
-/// the destination since the rename is only atomic within one filesystem.
-///
-/// It is a sibling file with a short unique suffix rather than a file inside a temporary
-/// directory: entries already sit several directories deep, and a nested directory with a
-/// fully unique name pushed the path past Windows' MAX_PATH, which std::ofstream cannot open.
-/// The suffix only has to keep concurrent writers of the same entry apart.
+/// the destination since the rename is only atomic within one filesystem. Its short random
+/// suffix keeps concurrent writers of the same entry apart without lengthening an already deep
+/// path, which on Windows must stay under MAX_PATH for std::ofstream to open it.
 static void write_atomically(const fs::path& dest, const std::vector<char>& content)
 {
     auto suffix = md5(unique_string("cache")).substr(0, 16);
@@ -100,15 +97,8 @@ void file_binary_cache::store(const std::string& version,
     auto path = entry_path(root, version, device, key_hash);
     // The content is decided entirely by the key, so a writer that loses the publish race
     // replaces the file with the same bytes and no locking is needed.
-    try
-    {
-        fs::create_directories(path.parent_path());
-        write_atomically(path, blob);
-    }
-    catch(const std::exception& ex)
-    {
-        log::warn() << "Failed to write binary cache entry " << path << ": " << ex.what();
-    }
+    fs::create_directories(path.parent_path());
+    write_atomically(path, blob);
 }
 
 } // namespace gpu

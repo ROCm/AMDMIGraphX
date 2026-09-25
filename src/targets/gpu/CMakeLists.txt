@@ -275,6 +275,7 @@ add_library(migraphx_gpu
     fixed_pad.cpp
     fuse_ck.cpp
     fuse_concat_past_present.cpp
+    fuse_int4_gemv.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gemm_impl.cpp

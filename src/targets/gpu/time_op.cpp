@@ -152,8 +152,8 @@ generate_program_arguments(const context& ictx,
 
         auto fill = fill_map.find(id);
         // Neither fill tag contains ':', so the first ':' ends the tag even if the name has one
-        auto key = (fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second)) +
-                   ":" + name;
+        auto key  = (fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second)) +
+                    ":" + name;
         auto& arg = generated[key];
         if(not arg.empty() and arg.get_shape() == s)
             return arg;

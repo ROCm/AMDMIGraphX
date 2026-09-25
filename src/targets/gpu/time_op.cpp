@@ -218,13 +218,13 @@ static program make_finalized_program(std::vector<migraphx::context>& ctx_vec,
     return p;
 }
 
-// Generate the arguments of the candidate's finalized program p. An argument in generated is
+// Generate the arguments of the candidate's finalized program p. An argument in arg_cache is
 // reused for a parameter with the same key and shape; one generated for a new shape replaces it,
-// so generated holds one argument per key.
+// so arg_cache holds one argument per key.
 static parameter_map make_benchmark_arguments(std::vector<migraphx::context>& ctx_vec,
                                               const benchmark_candidate& candidate,
                                               const program& p,
-                                              std::unordered_map<std::string, argument>& generated)
+                                              std::unordered_map<std::string, argument>& arg_cache)
 {
     const auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
     const auto* mm   = p.get_main_module();
@@ -236,7 +236,7 @@ static parameter_map make_benchmark_arguments(std::vector<migraphx::context>& ct
     args.reserve(keys.size());
     std::transform(keys.begin(), keys.end(), std::back_inserter(args), [&](const auto& key_shape) {
         const auto& [key, s] = key_shape;
-        auto& arg            = generated[key];
+        auto& arg            = arg_cache[key];
         if(not arg.empty() and arg.get_shape() == s)
             return arg;
         // Release the stale argument first, so it and its replacement are never both resident
@@ -265,7 +265,7 @@ simple_benchmark::run(const context& ictx, const std::vector<benchmark_candidate
         MIGRAPHX_THROW("simple_benchmark: no candidates to benchmark");
     std::vector<migraphx::context> ctx_vec = {ictx};
     // The candidates are alternatives for the same computation, so they can share inputs
-    std::unordered_map<std::string, argument> generated;
+    std::unordered_map<std::string, argument> arg_cache;
     std::vector<double> times;
     times.reserve(candidates.size());
     std::transform(candidates.begin(),
@@ -275,7 +275,7 @@ simple_benchmark::run(const context& ictx, const std::vector<benchmark_candidate
                        auto trace = candidate.trace();
                        trace("Benchmarking solution: ", candidate.solution());
                        auto p         = make_finalized_program(ctx_vec, candidate);
-                       auto param_map = make_benchmark_arguments(ctx_vec, candidate, p, generated);
+                       auto param_map = make_benchmark_arguments(ctx_vec, candidate, p, arg_cache);
                        auto t         = time_benchmark(ctx_vec, p, param_map, bundle, nruns);
                        trace(t, "ms");
                        return t;
@@ -323,7 +323,7 @@ adaptive_topk_benchmark::run(const context& ictx,
         MIGRAPHX_THROW("adaptive_topk_benchmark: max_runs and coarse_max_runs must be at least 1");
     std::vector<migraphx::context> ctx_vec = {ictx};
     // The candidates are alternatives for the same computation, so they can share inputs
-    std::unordered_map<std::string, argument> generated;
+    std::unordered_map<std::string, argument> arg_cache;
 
     const double invalid = std::numeric_limits<double>::infinity();
 
@@ -357,7 +357,7 @@ adaptive_topk_benchmark::run(const context& ictx,
                        trace("Benchmarking solution: ", candidate.solution());
                        auto t = try_benchmark(trace, [&] {
                            auto param_map =
-                               make_benchmark_arguments(ctx_vec, candidate, *p, generated);
+                               make_benchmark_arguments(ctx_vec, candidate, *p, arg_cache);
                            auto estimate = time_benchmark(ctx_vec, *p, param_map, 1, 1);
                            auto nruns    = compute_nruns(coarse_ms, estimate, 1, coarse_max_runs);
                            if(nruns == 1)
@@ -417,7 +417,7 @@ adaptive_topk_benchmark::run(const context& ictx,
         auto trace            = candidate.trace();
         trace("Precise solution: ", candidate.solution());
         auto t = try_benchmark(trace, [&] {
-            auto param_map = make_benchmark_arguments(ctx_vec, candidate, p, generated);
+            auto param_map = make_benchmark_arguments(ctx_vec, candidate, p, arg_cache);
             auto nruns     = compute_nruns(precise_ms, coarse[i], bundle, max_runs);
             return time_benchmark(ctx_vec, p, param_map, bundle, nruns, false);
         });

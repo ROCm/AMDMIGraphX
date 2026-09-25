@@ -224,7 +224,7 @@ merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_r
 static std::vector<std::vector<int64_t>> output_layouts(instruction_ref ins)
 {
     const auto& s = ins->get_shape();
-    auto shapes = s.type() == shape::tuple_type ? s.sub_shapes() : std::vector<shape>{s};
+    auto shapes   = s.type() == shape::tuple_type ? s.sub_shapes() : std::vector<shape>{s};
     std::vector<std::vector<int64_t>> result;
     transform_if(
         shapes.begin(),
@@ -240,14 +240,15 @@ static std::vector<std::vector<int64_t>> output_layouts(instruction_ref ins)
 // an NCHW constant) can flip the layout of an NHWC branch.
 static bool same_output_layouts(const std::vector<instruction_ref>& instructions)
 {
-    auto layouts = transform_accumulate(instructions.begin(),
-                                        instructions.end(),
-                                        std::set<std::vector<int64_t>>{},
-                                        [](auto acc, const auto& perms) {
-                                            acc.insert(perms.begin(), perms.end());
-                                            return acc;
-                                        },
-                                        &output_layouts);
+    auto layouts = transform_accumulate(
+        instructions.begin(),
+        instructions.end(),
+        std::set<std::vector<int64_t>>{},
+        [](auto acc, const auto& perms) {
+            acc.insert(perms.begin(), perms.end());
+            return acc;
+        },
+        &output_layouts);
     return layouts.size() < 2;
 }
 

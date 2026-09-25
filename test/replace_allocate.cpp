@@ -29,6 +29,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/register_op.hpp>
 #include <basic_ops.hpp>
@@ -261,6 +262,89 @@ TEST_CASE(allocate_copy_with_out)
         m2.add_return({copy});
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_select_module_dynamic_tuple_views)
+{
+    using dd  = migraphx::shape::dynamic_dimension;
+    auto n    = migraphx::sym::var("N", {1, 4});
+    auto zero = migraphx::sym::lit(0);
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{migraphx::sym::lit(2)}}};
+    migraphx::shape capacity_s{migraphx::shape::float_type, {4, 2}};
+    migraphx::shape tuple_s{std::vector<migraphx::shape>{s, s}};
+    const std::vector<std::string> symbols = {"@output_0:first", "@output_1:second"};
+    auto make_program                      = [&](bool use_output_param) {
+        migraphx::program p;
+        auto* branch = p.create_module("branch");
+        auto x       = branch->add_parameter("x", capacity_s);
+        std::vector<migraphx::instruction_ref> branch_outputs;
+        for(std::size_t i = 0; i < tuple_s.sub_shapes().size(); ++i)
+        {
+            migraphx::instruction_ref output;
+            if(use_output_param)
+            {
+                output = branch->add_parameter("branch:#output_" + std::to_string(i), capacity_s);
+            }
+            else
+            {
+                output = branch->add_instruction(
+                    migraphx::make_op("allocate", {{"shape", migraphx::to_value(capacity_s)}}));
+            }
+            branch_outputs.push_back(branch->add_instruction(test_copy{}, x, output));
+        }
+        branch->add_return(branch_outputs);
+
+        auto* mm    = p.get_main_module();
+        auto source = mm->add_parameter("x", capacity_s);
+        auto end    = mm->add_parameter("end", migraphx::shape{migraphx::shape::int64_type, {1}});
+        std::vector<migraphx::instruction_ref> buffers;
+        for(std::size_t i = 0; i < tuple_s.sub_shapes().size(); ++i)
+        {
+            if(use_output_param)
+            {
+                auto output = mm->add_parameter("main:#output_" + std::to_string(i), capacity_s);
+                mm->add_debug_symbols(output, {symbols.at(i)});
+                buffers.push_back(output);
+            }
+            else
+            {
+                buffers.push_back(mm->add_instruction(
+                    migraphx::make_op("allocate", {{"shape", migraphx::to_value(capacity_s)}})));
+            }
+        }
+        std::vector<migraphx::instruction_ref> select_inputs = {source};
+        select_inputs.insert(select_inputs.end(), buffers.begin(), buffers.end());
+        auto select = mm->add_instruction(
+            migraphx::make_op("select_module",
+                                                   {{"output_dyn_shapes", migraphx::to_value(tuple_s)}}),
+            select_inputs,
+            {branch});
+        auto start = mm->add_literal(migraphx::literal{migraphx::shape::int64_type, {0}});
+        std::vector<migraphx::instruction_ref> outputs;
+        for(std::size_t i = 0; i < tuple_s.sub_shapes().size(); ++i)
+        {
+            auto elem =
+                mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", i}}), select);
+            outputs.push_back(mm->add_instruction(
+                migraphx::make_op(
+                    "dyn_slice",
+                    {{"axes", {0}},
+                     {"starts", migraphx::to_value(std::vector<migraphx::sym::expr>{zero})},
+                     {"ends", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}}),
+                elem,
+                start,
+                end));
+        }
+        auto ret = mm->add_return(outputs);
+        mm->add_debug_symbols(ret, {symbols.begin(), symbols.end()});
+        return p;
+    };
+
+    auto p1 = make_program(false);
+    run_pass(p1, allocation_with_out_model{});
+    auto p2 = make_program(true);
+
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(allocate_out_squeeze)

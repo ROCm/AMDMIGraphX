@@ -25,8 +25,8 @@
 // Export the current rocMLIR-backed implementation through the private plugin
 // function table consumed by migraphx_gpu.
 
+#include "mlir_backend.hpp"
 #include <migraphx/gpu/mlir.hpp>
-#include <migraphx/gpu/mlir_backend.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>

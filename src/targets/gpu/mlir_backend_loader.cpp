@@ -39,7 +39,7 @@
 #include <vector>
 
 #ifdef MIGRAPHX_MLIR
-#include <migraphx/gpu/mlir_backend.hpp>
+#include "mlir_plugins/mlir_backend.hpp"
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/errors.hpp>
 #include <iostream>

@@ -659,6 +659,24 @@ struct analyze_fill
     }
 };
 
+struct analyze_roialign
+{
+    bool matches(const operation& op) const { return op.name() == "roialign"; }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        if(info.input_shapes.size() != 3)
+            return;
+        // Only the proposal count is parallel; padding feature-map axes changes sampling.
+        analyze_axes(
+            info,
+            [](std::size_t axis) { return axis == 0; },
+            [](std::size_t input, std::size_t axis) {
+                return input > 0 and axis == 0 ? parallel_axis() : axis_desc{};
+            });
+    }
+};
+
 std::optional<shape::dynamic_dimension> symbolic_range_dim(const operation& op)
 {
     if(op.name() != "dynamic_range")
@@ -1135,6 +1153,7 @@ symbolic_op_info analyze_instruction(instruction_ref ins)
                   analyze_slice{},
                   analyze_unit_axis_transform{},
                   analyze_fill{},
+                  analyze_roialign{},
                   analyze_dynamic_range{},
                   analyze_scatternd{},
                   analyze_pointwise{},

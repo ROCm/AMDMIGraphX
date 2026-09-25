@@ -422,6 +422,71 @@ TEST_CASE(split_sym_dim_covers_full_interval)
     EXPECT(p.sort() == expected.sort());
 }
 
+TEST_CASE(split_sym_dim_materializes_roialign)
+{
+    auto r = var("r", {1, 4}, {2});
+    migraphx::program p;
+    auto& m        = *p.get_main_module();
+    auto x         = m.add_parameter("x", {migraphx::shape::float_type, {1, 1, 2, 2}});
+    auto rois      = m.add_parameter("rois", symbolic_shape({r, lit(4)}));
+    auto batch_ind = m.add_parameter("batch_ind", symbolic_shape({r}, migraphx::shape::int64_type));
+    auto output    = m.add_instruction(migraphx::make_op("roialign"), x, rois, batch_ind);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_r    = var("r", {clone.min, clone.max});
+        auto clone_x    = sm.add_parameter("x", {migraphx::shape::float_type, {1, 1, 2, 2}});
+        auto clone_rois = sm.add_parameter("rois", symbolic_shape({clone_r, lit(4)}));
+        auto clone_batch_ind =
+            sm.add_parameter("batch_ind", symbolic_shape({clone_r}, migraphx::shape::int64_type));
+        auto padded_rois      = sm.add_instruction(fixed_pad(), clone_rois);
+        auto padded_batch_ind = sm.add_instruction(fixed_pad(), clone_batch_ind);
+        auto clone_output     = sm.add_instruction(
+            migraphx::make_op("roialign"), clone_x, padded_rois, padded_batch_ind);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_x = expected_main.add_parameter("x", {migraphx::shape::float_type, {1, 1, 2, 2}});
+    auto expected_rois = expected_main.add_parameter("rois", symbolic_shape({r, lit(4)}));
+    auto expected_batch_ind =
+        expected_main.add_parameter("batch_ind", symbolic_shape({r}, migraphx::shape::int64_type));
+    auto target_r = var("#split_sym_dim_r_target", {1, 4}, {1, 2, 4});
+    std::vector<migraphx::instruction_ref> select_inputs = {
+        expected_batch_ind, expected_rois, expected_x};
+    std::vector<migraphx::shape> select_outputs = {
+        symbolic_shape({target_r, lit(1), lit(1), lit(1)})};
+    auto select = add_select_module(expected_main, select_inputs, modules, select_outputs);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_output =
+        add_back_slice(expected_main, expected_output, expected_main.get_parameters(), {0}, {r});
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_preserves_roialign_with_dynamic_feature_map)
+{
+    auto n = var("n", {1, 2});
+    auto r = var("r", {1, 4}, {2});
+    migraphx::program p;
+    auto& m        = *p.get_main_module();
+    auto x         = m.add_parameter("x", symbolic_shape({n, lit(1), lit(2), lit(2)}));
+    auto rois      = m.add_parameter("rois", symbolic_shape({r, lit(4)}));
+    auto batch_ind = m.add_parameter("batch_ind", symbolic_shape({r}, migraphx::shape::int64_type));
+    auto output    = m.add_instruction(migraphx::make_op("roialign"), x, rois, batch_ind);
+    m.add_return({output});
+
+    auto expected = p;
+    run_pass(p);
+    EXPECT(p == expected);
+}
+
 TEST_CASE(split_sym_dim_supports_one_to_one_axis_transforms)
 {
     auto n = var("n", {1, 8}, {2, 4});

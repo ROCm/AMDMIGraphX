@@ -183,30 +183,15 @@ TEST_CASE(adaptive_benchmark_top_k_zero_times_all_precisely)
     EXPECT(*slow.programs_built == 2);
 }
 
-TEST_CASE(adaptive_benchmark_cuts_off_slow_coarse_candidate)
-{
-    migraphx::gpu::context ctx{};
-    test_candidate fast{100, 1};
-    test_candidate slow{20000, 2};
-    std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, slow};
-    const auto& winner = small_adaptive_benchmark(1).run(ctx, candidates);
-    EXPECT(winner.solution().to<int>() == 1);
-    // The slow candidate is skipped after its estimate, so it only runs the warmup and the
-    // single estimate rather than being measured again
-    EXPECT(*slow.launches == 2);
-}
-
 TEST_CASE(adaptive_benchmark_skips_second_measurement_when_estimate_exceeds_coarse_budget)
 {
     migraphx::gpu::context ctx{};
     test_candidate slow{20000, 1};
     test_candidate fast{100, 2};
     std::vector<migraphx::gpu::benchmark_candidate> candidates = {slow, fast};
-    auto bench                                                 = small_adaptive_benchmark(2);
-    bench.coarse_cutoff_factor                                 = 0;
-    const auto& winner                                         = bench.run(ctx, candidates);
+    const auto& winner = small_adaptive_benchmark(1).run(ctx, candidates);
     EXPECT(winner.solution().to<int>() == 2);
-    // First candidate has no leader yet, so only the coarse budget can skip the second timing
+    // Only the warmup and the estimate; top_k = 1 keeps slow out of the precise pass
     EXPECT(*slow.launches == 2);
 }
 
@@ -216,9 +201,7 @@ TEST_CASE(adaptive_benchmark_skips_second_measurement_when_estimate_misses_top_k
     test_candidate fast{100, 1};
     test_candidate mid{1000, 2};
     std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, mid};
-    auto bench                                                 = small_adaptive_benchmark(1);
-    bench.coarse_cutoff_factor                                 = 0;
-    const auto& winner                                         = bench.run(ctx, candidates);
+    const auto& winner = small_adaptive_benchmark(1).run(ctx, candidates);
     EXPECT(winner.solution().to<int>() == 1);
     EXPECT(*mid.programs_built == 1);
     // mid is under coarse_ms, so only the filled top_k slot can skip the second timing
@@ -231,24 +214,48 @@ TEST_CASE(adaptive_benchmark_top_k_zero_still_measures_candidates_under_the_coar
     test_candidate fast{100, 1};
     test_candidate mid{1000, 2};
     std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, mid};
-    auto bench                                                 = small_adaptive_benchmark(0);
+    const auto& winner = small_adaptive_benchmark(0).run(ctx, candidates);
+    EXPECT(winner.solution().to<int>() == 1);
+    EXPECT(*fast.programs_built == 2);
+    EXPECT(*mid.programs_built == 2);
+    EXPECT(*mid.launches > 2);
+}
+
+TEST_CASE(adaptive_benchmark_does_not_precisely_time_candidates_far_behind_the_best)
+{
+    migraphx::gpu::context ctx{};
+    test_candidate fast{100, 1};
+    test_candidate slow{2000, 2};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, slow};
+    const auto& winner = small_adaptive_benchmark(2).run(ctx, candidates);
+    EXPECT(winner.solution().to<int>() == 1);
+    EXPECT(*fast.programs_built == 2);
+    EXPECT(*slow.programs_built == 1);
+}
+
+TEST_CASE(adaptive_benchmark_precisely_times_candidates_close_to_the_best)
+{
+    migraphx::gpu::context ctx{};
+    test_candidate fast{100, 1};
+    test_candidate near_best{150, 2};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, near_best};
+    (void)small_adaptive_benchmark(2).run(ctx, candidates);
+    EXPECT(*fast.programs_built == 2);
+    EXPECT(*near_best.programs_built == 2);
+}
+
+TEST_CASE(adaptive_benchmark_zero_cutoff_factor_precisely_times_every_top_k_candidate)
+{
+    migraphx::gpu::context ctx{};
+    test_candidate fast{100, 1};
+    test_candidate slow{2000, 2};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, slow};
+    auto bench                                                 = small_adaptive_benchmark(2);
     bench.coarse_cutoff_factor                                 = 0;
     const auto& winner                                         = bench.run(ctx, candidates);
     EXPECT(winner.solution().to<int>() == 1);
     EXPECT(*fast.programs_built == 2);
-    EXPECT(*mid.programs_built == 2);
-    // warmup + estimate, then the second coarse loop with no extra warmup
-    EXPECT(*mid.launches > 2);
-}
-
-TEST_CASE(adaptive_benchmark_cutoff_keeps_a_fast_candidate_timed_after_a_slow_one)
-{
-    migraphx::gpu::context ctx{};
-    test_candidate slow{20000, 1};
-    test_candidate fast{100, 2};
-    std::vector<migraphx::gpu::benchmark_candidate> candidates = {slow, fast};
-    const auto& winner = small_adaptive_benchmark(1).run(ctx, candidates);
-    EXPECT(winner.solution().to<int>() == 2);
+    EXPECT(*slow.programs_built == 2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

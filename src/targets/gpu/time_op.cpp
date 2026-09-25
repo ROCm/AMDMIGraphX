@@ -267,55 +267,46 @@ adaptive_topk_benchmark::run(const context& ictx,
     std::iota(indices.begin(), indices.end(), 0);
 
     // Coarse pass: warmup + single-run estimate, then a short bundle-of-1 measurement.
-    // A second measurement is skipped when it cannot change who is precise-timed: the estimate
-    // already exceeds coarse_ms (compute_nruns would return 1), it is slower than the leader
-    // cutoff, or top_k finite times already beat it. `top` is a max-heap of those best times.
-    struct coarse_rank
-    {
-        double fastest = std::numeric_limits<double>::infinity();
-        std::vector<double> top;
-    };
+    // The second measurement is skipped when it cannot change who is precise-timed: the estimate
+    // already exceeds coarse_ms (compute_nruns would return 1), or top_k finite times already
+    // beat it. The accumulator is a max-heap of the best top_k coarse times so far.
     std::vector<double> coarse(candidates.size(), invalid);
     (void)std::accumulate(
-        indices.begin(), indices.end(), coarse_rank{}, [&](coarse_rank rank, auto i) {
+        indices.begin(),
+        indices.end(),
+        std::vector<double>{},
+        [&](std::vector<double> top, auto i) {
             const auto& candidate = candidates[i];
             auto trace            = candidate.trace();
             trace("Benchmarking solution: ", candidate.solution());
-            const double leader_cutoff =
-                (coarse_cutoff_factor == 0 or not std::isfinite(rank.fastest))
-                    ? invalid
-                    : std::max(coarse_cutoff_factor * rank.fastest, static_cast<double>(coarse_ms));
             auto t = try_benchmark(trace, [&] {
                 auto bp                = make_benchmark_program(ctx_vec, candidate);
                 auto estimate          = bp.time(ctx_vec, 1, 1);
                 const bool over_budget = estimate > static_cast<double>(coarse_ms);
                 const bool misses_top_k =
-                    top_k > 0 and rank.top.size() >= top_k and estimate > rank.top.front();
-                if(over_budget or estimate > leader_cutoff or misses_top_k)
+                    top_k > 0 and top.size() >= top_k and estimate > top.front();
+                if(over_budget or misses_top_k)
                     return estimate;
                 return bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs), false);
             });
             if(t.has_value())
                 trace("Coarse time: ", *t, "ms");
             coarse[i] = t.value_or(invalid);
-            if(not std::isfinite(coarse[i]))
-                return rank;
-            rank.fastest = std::min(rank.fastest, coarse[i]);
-            if(top_k == 0)
-                return rank;
-            if(rank.top.size() < top_k)
+            if(top_k == 0 or not std::isfinite(coarse[i]))
+                return top;
+            if(top.size() < top_k)
             {
-                rank.top.push_back(coarse[i]);
-                std::push_heap(rank.top.begin(), rank.top.end());
-                return rank;
+                top.push_back(coarse[i]);
+                std::push_heap(top.begin(), top.end());
+                return top;
             }
-            if(coarse[i] < rank.top.front())
+            if(coarse[i] < top.front())
             {
-                std::pop_heap(rank.top.begin(), rank.top.end());
-                rank.top.back() = coarse[i];
-                std::push_heap(rank.top.begin(), rank.top.end());
+                std::pop_heap(top.begin(), top.end());
+                top.back() = coarse[i];
+                std::push_heap(top.begin(), top.end());
             }
-            return rank;
+            return top;
         });
 
     // Select the candidates that measured successfully, keep the top_k fastest
@@ -330,6 +321,18 @@ adaptive_topk_benchmark::run(const context& ictx,
         selected.begin(), selected.end(), [&](auto i, auto j) { return coarse[i] < coarse[j]; });
     if(top_k > 0 and selected.size() > top_k)
         selected.resize(top_k);
+    // Precise timing only separates close candidates, so one far behind the best coarse time
+    // cannot win it. top_k == 0 asks for every candidate to be timed precisely.
+    if(top_k > 0 and coarse_cutoff_factor > 0)
+    {
+        const double cutoff =
+            coarse_cutoff_factor * std::max(coarse[selected.front()], benchmark_min_time_ms);
+        selected.erase(std::upper_bound(selected.begin(),
+                                        selected.end(),
+                                        cutoff,
+                                        [&](double c, auto i) { return c < coarse[i]; }),
+                       selected.end());
+    }
 
     // Pick one bundle for all precise runs, sized so the fastest candidate can
     // still fit max_runs measurements in the precise budget.

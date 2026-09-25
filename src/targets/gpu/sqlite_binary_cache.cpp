@@ -26,6 +26,7 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/logger.hpp>
+#include <cassert>
 #include <type_traits>
 #include <utility>
 
@@ -83,6 +84,14 @@ constexpr const char* store_sql =
     " (version, device, key_hash, op_name, problem, solution, entry, timestamp)"
     " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, CAST(STRFTIME('%s','now') AS INTEGER));";
 
+// Stores come in a burst after each round of compiles, and outside a transaction every one of
+// them is its own commit, each waiting for the disk. IMMEDIATE takes the write lock up front, so
+// a busy database is found out here, once, rather than partway through the stores; readers are
+// not blocked until the commit itself.
+constexpr const char* begin_sql    = "BEGIN IMMEDIATE;";
+constexpr const char* commit_sql   = "COMMIT;";
+constexpr const char* rollback_sql = "ROLLBACK;";
+
 } // namespace
 
 optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path)
@@ -91,11 +100,20 @@ optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path
     try
     {
         // sqlite will not create a missing parent directory, but the file backend does, so
-        // this keeps the two backends behaving the same on a fresh machine.
+        // this keeps the two backends behaving the same on a fresh machine. A failure here is
+        // left to the open below, since an existing database may still be readable.
         auto parent = fs::path{path}.parent_path();
+        std::error_code ec;
         if(not parent.empty())
-            fs::create_directories(parent);
+            fs::create_directories(parent, ec);
+
+        // A database that can be read but not written to is still worth having: reads serve
+        // hits and nothing is stored. Opening for writing already falls back to reading when the
+        // file itself is write-protected; reading is tried here for anything else that refuses
+        // a writer, such as a read-only mount, as long as there is a database to read.
         auto db = sqlite::try_write(path);
+        if(not db.has_value() and fs::exists(path))
+            db = sqlite::read(path);
         if(not db.has_value())
         {
             log::warn() << "Disabling the binary cache: cannot open " << path;
@@ -103,8 +121,20 @@ optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path
         }
         r.db = std::move(*db);
         r.db.set_busy_timeout(busy_timeout_ms);
-        (void)r.db.execute(schema_sql);
-        // Without a working lookup there is no cache, so this failure disables the backend.
+        if(r.db.read_only())
+        {
+            log::warn() << "Binary cache at " << path << " is read-only";
+        }
+        else
+        {
+            (void)r.db.execute(schema_sql);
+            r.store_stmt    = r.db.prepare(store_sql);
+            r.begin_stmt    = r.db.prepare(begin_sql);
+            r.commit_stmt   = r.db.prepare(commit_sql);
+            r.rollback_stmt = r.db.prepare(rollback_sql);
+        }
+        // Without a working lookup there is no cache, so this failure disables the backend. That
+        // includes a read-only database that was never given the schema.
         r.get_stmt = r.db.prepare(get_sql);
     }
     catch(const std::exception& ex)
@@ -112,32 +142,25 @@ optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path
         log::warn() << "Disabling the binary cache at " << path << ": " << ex.what();
         return nullopt;
     }
-    try
-    {
-        r.store_stmt = r.db.prepare(store_sql);
-    }
-    catch(const std::exception& ex)
-    {
-        // A database that can be read but not written to is still worth having: reads serve
-        // hits and stores quietly do nothing.
-        log::warn() << "Binary cache at " << path << " is read-only: " << ex.what();
-    }
     return binary_cache_backend{std::move(r)};
 }
 
 optional<std::vector<char>> sqlite_binary_cache::load(const std::string& version,
                                                       const std::string& device,
-                                                      const std::string& key_hash)
+                                                      const std::string& key_hash) const
 {
     if(not get_stmt.valid())
         return nullopt;
     try
     {
-        sqlite_stmt_reset guard{get_stmt};
-        get_stmt.bind(1, version).bind(2, device).bind(3, key_hash);
-        if(not get_stmt.step())
+        // The primary key makes this at most one row.
+        auto rows = get_stmt(version, device, key_hash);
+        auto it   = rows.begin();
+        if(it == rows.end())
             return nullopt;
-        return get_stmt.column_blob(0);
+        auto row          = *it;
+        const auto& entry = row.at("entry").get_binary();
+        return std::vector<char>(entry.begin(), entry.end());
     }
     catch(const std::exception& ex)
     {
@@ -151,26 +174,67 @@ void sqlite_binary_cache::store(const std::string& version,
                                 const std::string& device,
                                 const std::string& key_hash,
                                 const binary_cache_entry& e,
-                                const std::vector<char>& blob)
+                                const std::vector<char>& blob) const
 {
     if(not store_stmt.valid())
         return;
     try
     {
         // The json strings are temporaries, which is safe because binding copies immediately.
-        sqlite_stmt_reset guard{store_stmt};
-        store_stmt.bind(1, version)
-            .bind(2, device)
-            .bind(3, key_hash)
-            .bind(4, e.op_name)
-            .bind(5, to_json_string(e.problem))
-            .bind(6, to_json_string(e.solution))
-            .bind(7, blob);
-        store_stmt.step();
+        // An insert returns no rows, and it has run by the time the call returns.
+        store_stmt(version,
+                   device,
+                   key_hash,
+                   e.op_name,
+                   to_json_string(e.problem),
+                   to_json_string(e.solution),
+                   blob);
     }
     catch(const std::exception& ex)
     {
         log::warn() << "Failed to write binary cache entry " << key_hash << ": " << ex.what();
+    }
+}
+
+void sqlite_binary_cache::begin_batch()
+{
+    assert(not in_batch);
+    if(not begin_stmt.valid())
+        return;
+    try
+    {
+        begin_stmt();
+        in_batch = true;
+    }
+    catch(const std::exception& ex)
+    {
+        // Without a transaction each store commits on its own, which is slower but still works.
+        log::warn() << "Binary cache stores will be committed one at a time: " << ex.what();
+    }
+}
+
+void sqlite_binary_cache::end_batch()
+{
+    if(not in_batch)
+        return;
+    in_batch = false;
+    try
+    {
+        commit_stmt();
+    }
+    catch(const std::exception& ex)
+    {
+        // A commit that fails leaves the transaction open, holding the write lock against every
+        // other process, so it is rolled back and the batch's entries are lost instead.
+        log::warn() << "Failed to commit binary cache entries: " << ex.what();
+        try
+        {
+            rollback_stmt();
+        }
+        catch(const std::exception& rex)
+        {
+            log::warn() << "Failed to roll back binary cache entries: " << rex.what();
+        }
     }
 }
 

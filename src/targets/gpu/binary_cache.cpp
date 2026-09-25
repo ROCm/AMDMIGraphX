@@ -146,19 +146,39 @@ static optional<binary_cache_backend> make_binary_cache_backend(const std::strin
     return binary_cache_backend{file_binary_cache{path}};
 }
 
+binary_cache::binary_cache(binary_cache_settings s) : settings(std::move(s)) {}
+
 // Nothing can be persisted safely when the compiler cannot be identified, since entries from
 // different toolchains would be indistinguishable. That is a property of the cache rather than
 // of the storage medium, so it is checked here instead of in each backend.
-binary_cache::binary_cache(binary_cache_settings s) : settings(std::move(s))
+binary_cache_backend* binary_cache::get_backend()
 {
-    // Checked first so that a memory-only cache never compiles the version probe.
-    if(settings.path.empty())
-        return;
-    // The version names a directory for the file backend, so it is kept short there. A database
-    // has no such limit and records the full id, which is self-describing.
-    version = version_id(not is_database_path(settings.path));
-    if(not version.empty())
-        backend = make_binary_cache_backend(settings.path);
+    if(not backend_opened)
+    {
+        backend_opened = true;
+        // Checked first so that a memory-only cache never compiles the version probe.
+        if(not settings.path.empty())
+        {
+            // The version names a directory for the file backend, so it is kept short there. A
+            // database has no such limit and records the full id, which is self-describing.
+            version = version_id(not is_database_path(settings.path));
+            if(not version.empty())
+                backend = make_binary_cache_backend(settings.path);
+        }
+    }
+    return backend.has_value() ? &*backend : nullptr;
+}
+
+binary_cache::store_batch::store_batch(binary_cache& c) : cache(&c)
+{
+    if(auto* b = cache->get_backend())
+        b->begin_batch();
+}
+
+binary_cache::store_batch::~store_batch()
+{
+    if(auto* b = cache->get_backend())
+        b->end_batch();
 }
 
 optional<compiled_code> binary_cache::get(const context& ctx, const std::string& key)
@@ -171,12 +191,12 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
         counters.reused++;
         return it->second;
     }
-    if(backend.has_value())
+    if(auto* b = get_backend())
     {
         // Hashing the key is not free -- it is the whole compile source, which runs to
         // kilobytes -- so it is done once and reused for the lookup and any diagnostics.
         auto key_hash = md5(key);
-        auto blob     = backend->load(version, device_dir(ctx), key_hash);
+        auto blob     = b->load(version, device_dir(ctx), key_hash);
         if(blob.has_value())
         {
             auto e = decode_entry(*blob, key, key_hash);
@@ -196,7 +216,7 @@ void binary_cache::insert(const context& ctx, entry e)
     if(e.key.empty())
         return;
     counters.compiled++;
-    if(backend.has_value())
+    if(auto* b = get_backend())
     {
         auto key_hash = md5(e.key);
         try
@@ -205,7 +225,7 @@ void binary_cache::insert(const context& ctx, entry e)
             // failure here a warning like any other storage failure instead of escaping
             // insert() and failing the compile.
             auto blob = to_msgpack(migraphx::to_value(e));
-            backend->store(version, device_dir(ctx), key_hash, e, blob);
+            b->store(version, device_dir(ctx), key_hash, e, blob);
         }
         catch(const std::exception& ex)
         {

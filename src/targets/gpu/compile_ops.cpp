@@ -804,17 +804,23 @@ struct compile_manager
                 cell->result = cp->run_compile(cell->solution);
         });
 
-        for(const auto& [cp, cell] : tasks)
+        if(not tasks.empty())
         {
-            if(not cell->result.has_value())
-                continue;
-            // When verifying, reused results are stored again, rewriting the same bytes
-            // harmlessly.
-            cp->store(cell->solution, cell->key, cell->result->code);
-            assert(not cell->result->code.empty());
-            // Only the serializable code is used from here on; dropping the replace function
-            // releases what its closure holds and keeps it off other instructions.
-            cell->result->replace_fn = nullptr;
+            // Every plan compiles with the same context, so the stores all go to one cache, and
+            // batching them lets its storage commit them together rather than one at a time.
+            binary_cache::store_batch batch{tasks.front().first->ctx->get_binary_cache()};
+            for(const auto& [cp, cell] : tasks)
+            {
+                if(not cell->result.has_value())
+                    continue;
+                // When verifying, reused results are stored again, rewriting the same bytes
+                // harmlessly.
+                cp->store(cell->solution, cell->key, cell->result->code);
+                assert(not cell->result->code.empty());
+                // Only the serializable code is used from here on; dropping the replace function
+                // releases what its closure holds and keeps it off other instructions.
+                cell->result->replace_fn = nullptr;
+            }
         }
 
         static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});

@@ -175,6 +175,29 @@ directories for builds you no longer use:
    ls $HOME/.cache/migraphx        # directories are named after the build that wrote them
    rm -r $HOME/.cache/migraphx/v1-hip22.0.*
 
+A path ending in ``.db`` or ``.sqlite`` keeps the cache in a single SQLite database instead of a
+directory, which is easier to copy between machines and can be shared by processes compiling at
+the same time. Missing parent directories are created, as for a directory cache:
+
+.. code-block:: bash
+
+   export MIGRAPHX_BINARY_CACHE=$HOME/.cache/migraphx/kernels.db
+
+Every row records the full version id of the build that wrote it in the ``version`` column,
+alongside the operator name, problem and solution, so the database can be inspected and pruned
+with the ``sqlite3`` shell. Deleting rows does not shrink the file until it is vacuumed:
+
+.. code-block:: bash
+
+   sqlite3 $HOME/.cache/migraphx/kernels.db \
+       "SELECT version, op_name, count(*) FROM cache_v1 GROUP BY version, op_name;"
+   sqlite3 $HOME/.cache/migraphx/kernels.db \
+       "DELETE FROM cache_v1 WHERE version LIKE 'v1-hip22.0.%'; VACUUM;"
+
+A database that cannot be written to, such as a shared cache installed read-only, is still used
+for lookups, and newly compiled kernels are kept in memory only. A database that cannot be opened
+at all is skipped with a warning and the compile proceeds without a disk cache.
+
 The same settings are available as backend options, which take precedence over the environment
 and are how tests configure the cache:
 

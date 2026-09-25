@@ -31,6 +31,8 @@
 #include <migraphx/msgpack.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/json.hpp>
+#include <migraphx/md5.hpp>
 #include <migraphx/sqlite.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tmp_dir.hpp>
@@ -161,15 +163,13 @@ TEST_CASE(memory_lookup_records_reuse)
     EXPECT(cache.get_stats().misses == 0);
 }
 
-// The cases below are registered only against a database path, not a directory. Driving the file
-// backend through binary_cache puts entries under version_id()/device_dir(), and write_atomically
-// then creates a temp directory inside that, which pushes the file past Windows' MAX_PATH:
-// fs::create_directories succeeds because std::filesystem uses the \\?\ prefix, but the
-// std::ofstream in write_buffer does not, so every store fails and nothing is persisted. The
-// bodies are still parameterized by path, so a directory case is one TEST_CASE to restore once
-// write_atomically writes its temporary as a sibling instead of nesting a directory.
-// backends_round_trip_through_the_wrapper still covers the file backend, where it is driven
-// directly and the version and device strings are short.
+// The cases below are written once against a path and registered for both backends. The
+// directory registrations are skipped on Windows for now: driving the file backend through
+// binary_cache puts entries under version_id()/device_dir(), and write_atomically then creates a
+// temp directory inside that, which pushes the file past Windows' MAX_PATH. fs::create_directories
+// succeeds because std::filesystem uses the \\?\ prefix, but the std::ofstream in write_buffer
+// does not, so every store fails and nothing is persisted. backends_round_trip_through_the_wrapper
+// still covers the file backend there, where it is driven directly and the paths are short.
 
 // A second cache shares nothing in memory, so anything it finds came out of storage.
 static void disk_lookup_body(const std::string& path)
@@ -188,6 +188,14 @@ static void disk_lookup_body(const std::string& path)
     EXPECT(reader.get_stats().misses == 0);
     EXPECT(*found->fragment.get_main_module() == *make_code().fragment.get_main_module());
 }
+
+#ifndef _WIN32
+TEST_CASE(disk_lookup_records_a_hit)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    disk_lookup_body(dir_path(td));
+}
+#endif
 
 TEST_CASE(sqlite_lookup_records_a_hit)
 {
@@ -213,6 +221,19 @@ static void corrupt_entry_body(const std::string& path,
     EXPECT(not reader.get(ctx, "damaged").has_value());
     EXPECT(reader.get_stats().misses == 1);
 }
+
+#ifndef _WIN32
+TEST_CASE(corrupt_entry_is_ignored)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    corrupt_entry_body(dir_path(td), [](const std::string& dir) {
+        auto files = entry_files(dir);
+        EXPECT(files.size() == 1);
+        for(const auto& file : files)
+            migraphx::write_buffer(file, std::vector<char>(8, 0));
+    });
+}
+#endif
 
 TEST_CASE(sqlite_corrupt_entry_is_ignored)
 {
@@ -318,6 +339,14 @@ static void compiling_twice_body(const std::string& path)
                                               gpu_result.to_vector<float>()));
 }
 
+#ifndef _WIN32
+TEST_CASE(compiling_twice_populates_the_cache_and_matches_reference)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    compiling_twice_body(dir_path(td));
+}
+#endif
+
 TEST_CASE(sqlite_compiling_twice_populates_the_cache_and_matches_reference)
 {
     migraphx::tmp_dir td{"binary-cache"};
@@ -336,6 +365,14 @@ static void verified_reuse_body(const std::string& path)
     auto p = pointwise_program();
     p.compile(migraphx::make_target("gpu"), options);
 }
+
+#ifndef _WIN32
+TEST_CASE(verified_reuse_matches_fresh_compiles)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    verified_reuse_body(dir_path(td));
+}
+#endif
 
 TEST_CASE(sqlite_verified_reuse_matches_fresh_compiles)
 {
@@ -445,6 +482,63 @@ TEST_CASE(sqlite_records_the_full_version_id)
     EXPECT(rows.front().at("version") == migraphx::gpu::binary_cache::version_id(false));
 }
 
+// The op name, problem and solution are copied into columns only so a cache can be inspected
+// with SQL; loads never read them, so nothing else would notice them being wrong.
+TEST_CASE(sqlite_records_what_each_entry_was_compiled_for)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto path = db_path(td);
+    auto e    = make_entry("described");
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
+    cache.insert(ctx, e);
+
+    auto rows = migraphx::sqlite::read(path).execute(
+        "SELECT key_hash, op_name, problem, solution FROM cache_v1;");
+    EXPECT(rows.size() == 1);
+    const auto& row = rows.front();
+    EXPECT(row.at("key_hash") == migraphx::md5(e.key));
+    EXPECT(row.at("op_name") == e.op_name);
+    EXPECT(migraphx::from_json_string(row.at("problem")) == e.problem);
+    EXPECT(migraphx::from_json_string(row.at("solution")) == e.solution);
+}
+
+// A database that cannot be written to, such as a shared cache installed read-only, still
+// serves the entries already in it, and storing into it is quietly skipped.
+TEST_CASE(sqlite_read_only_database_still_serves_hits)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto path = db_path(td);
+    migraphx::gpu::binary_cache_settings settings{path, false};
+    {
+        migraphx::gpu::binary_cache writer{settings};
+        writer.insert(ctx, make_entry("existing"));
+    }
+
+    const auto writable = migraphx::fs::perms::owner_write | migraphx::fs::perms::group_write |
+                          migraphx::fs::perms::others_write;
+    migraphx::fs::permissions(path, writable, migraphx::fs::perm_options::remove);
+    // Permissions do not stop root, so what can be checked about stores depends on whether the
+    // write protection actually took.
+    const bool protected_file = migraphx::sqlite::write(path).read_only();
+
+    migraphx::gpu::binary_cache reader{settings};
+    EXPECT(reader.get(ctx, "existing").has_value());
+    EXPECT(reader.get_stats().hits == 1);
+
+    reader.insert(ctx, make_entry("new"));
+    EXPECT(reader.get(ctx, "new").has_value());
+    if(protected_file)
+    {
+        EXPECT(row_count(path, "cache_v1") == 1);
+    }
+
+    // Restored so the temporary directory can be removed, which Windows refuses otherwise.
+    migraphx::fs::permissions(
+        path, migraphx::fs::perms::owner_write, migraphx::fs::perm_options::add);
+}
+
 // version and device lead the primary key because they are what separates entries this build
 // may use from entries it may not, so a row stored under one must not be served under another.
 TEST_CASE(sqlite_scopes_entries_by_version_and_device)
@@ -464,6 +558,40 @@ TEST_CASE(sqlite_scopes_entries_by_version_and_device)
 // Storing a key twice replaces the row rather than accumulating or failing, the way the file
 // backend's publish-by-rename overwrites in place. Two processes compiling the same kernel is
 // benign for exactly this reason.
+// Storage is opened by the first lookup or insert, not by constructing the cache, since every
+// context makes one whether or not it ever compiles anything.
+TEST_CASE(storage_is_opened_on_first_use)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto path = db_path(td);
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
+    EXPECT(not migraphx::fs::exists(path));
+
+    EXPECT(not cache.get(ctx, "absent").has_value());
+    EXPECT(migraphx::fs::exists(path));
+}
+
+// Inserts made inside a batch are committed together when it ends, and are all there after.
+TEST_CASE(sqlite_batched_inserts_are_all_committed)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto path = db_path(td);
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
+    {
+        migraphx::gpu::binary_cache::store_batch batch{cache};
+        cache.insert(ctx, make_entry("first"));
+        cache.insert(ctx, make_entry("second"));
+    }
+    EXPECT(row_count(path, "cache_v1") == 2);
+
+    migraphx::gpu::binary_cache reader{migraphx::gpu::binary_cache_settings{path, false}};
+    EXPECT(reader.get(ctx, "first").has_value());
+    EXPECT(reader.get(ctx, "second").has_value());
+    EXPECT(reader.get_stats().hits == 2);
+}
+
 TEST_CASE(sqlite_store_overwrites_in_place)
 {
     migraphx::tmp_dir td{"binary-cache"};

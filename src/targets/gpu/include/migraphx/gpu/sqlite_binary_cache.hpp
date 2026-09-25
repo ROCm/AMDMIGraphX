@@ -46,23 +46,37 @@ namespace gpu {
 // target: migraphx/sqlite.hpp forward-declares both impl types and never includes sqlite3.h.
 struct MIGRAPHX_GPU_EXPORT sqlite_binary_cache
 {
-    /// Open the database, create the schema and prepare the statements. Returns nullopt when any
-    /// of that fails, so an unusable database leaves the cache memory-only rather than raising an
-    /// error. Returns the wrapper so the caller can hand the result straight back.
+    /// Open the database, create the schema and prepare the statements, and return the wrapper
+    /// so the caller can hand the result straight back.
+    ///
+    /// A database that can only be read gives a backend that serves lookups and ignores stores;
+    /// it is used as it stands, without creating the schema. Returns nullopt when the database
+    /// cannot be opened at all or entries cannot be looked up in it, so an unusable database
+    /// leaves the cache memory-only rather than raising an error.
     static optional<binary_cache_backend> open(const std::string& path);
 
     optional<std::vector<char>>
-    load(const std::string& version, const std::string& device, const std::string& key_hash);
+    load(const std::string& version, const std::string& device, const std::string& key_hash) const;
     void store(const std::string& version,
                const std::string& device,
                const std::string& key_hash,
                const binary_cache_entry& e,
-               const std::vector<char>& blob);
+               const std::vector<char>& blob) const;
+
+    /// Open a transaction, so the stores that follow cost one commit rather than one each.
+    void begin_batch();
+    /// Commit the transaction begin_batch opened, or roll it back if the commit fails.
+    void end_batch();
 
     private:
-    sqlite db              = {};
-    sqlite_stmt get_stmt   = {};
-    sqlite_stmt store_stmt = {};
+    sqlite db                 = {};
+    sqlite_stmt get_stmt      = {};
+    sqlite_stmt store_stmt    = {};
+    sqlite_stmt begin_stmt    = {};
+    sqlite_stmt commit_stmt   = {};
+    sqlite_stmt rollback_stmt = {};
+    /// Whether begin_batch opened a transaction that end_batch still has to close.
+    bool in_batch = false;
 };
 
 } // namespace gpu

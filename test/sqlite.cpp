@@ -25,8 +25,13 @@
 #include <migraphx/tmp_dir.hpp>
 #include <test.hpp>
 #include <cstdint>
-#include <string_view>
 #include <vector>
+
+/// Every row a call produced, so a test can count and inspect them.
+static std::vector<migraphx::value> collect(const migraphx::sqlite_stmt::rows& r)
+{
+    return std::vector<migraphx::value>(r.begin(), r.end());
+}
 
 TEST_CASE(read_write)
 {
@@ -76,47 +81,62 @@ TEST_CASE(prepared_blob_round_trip)
         );
         )__migraphx__");
 
-        // One statement, two inserts: the reset/rebind path backends rely on.
+        // One statement, two inserts: calling it again rebinds, which is what backends rely on.
+        // An insert produces no rows, and runs whether or not they are iterated.
         auto insert = db.prepare("INSERT INTO blob_db (name, size, data) VALUES (?, ?, ?);");
         EXPECT(insert.valid());
-
-        insert.bind(1, std::string_view{"k1"})
-            .bind(2, static_cast<std::int64_t>(blob.size()))
-            .bind(3, blob);
-        EXPECT(not insert.step());
-        insert.reset();
-
-        insert.bind(1, std::string_view{"empty"})
-            .bind(2, static_cast<std::int64_t>(0))
-            .bind(3, std::vector<char>{});
-        EXPECT(not insert.step());
-        insert.reset();
+        EXPECT(collect(insert("k1", static_cast<std::int64_t>(blob.size()), blob)).empty());
+        insert("empty", std::int64_t{0}, std::vector<char>{});
     }
     {
         auto db     = migraphx::sqlite::read(db_path);
-        auto select = db.prepare("SELECT name, data FROM blob_db WHERE name = ?;");
+        auto select = db.prepare("SELECT name, size, data FROM blob_db WHERE name = ?;");
 
-        {
-            migraphx::sqlite_stmt_reset guard{select};
-            select.bind(1, std::string_view{"k1"});
-            EXPECT(select.step());
-            EXPECT(select.column_text(0) == "k1");
-            EXPECT((select.column_blob(1) == blob));
-            EXPECT(not select.step());
-        }
-        {
-            // An empty blob must come back as an empty blob, not as NULL.
-            migraphx::sqlite_stmt_reset guard{select};
-            select.bind(1, std::string_view{"empty"});
-            EXPECT(select.step());
-            EXPECT(select.column_blob(1).empty());
-        }
-        {
-            migraphx::sqlite_stmt_reset guard{select};
-            select.bind(1, std::string_view{"missing"});
-            EXPECT(not select.step());
-        }
+        auto found = collect(select("k1"));
+        EXPECT(found.size() == 1);
+        EXPECT(found.front().at("name").get_string() == "k1");
+        EXPECT(found.front().at("size").to<std::size_t>() == blob.size());
+        EXPECT(found.front().at("data").get_binary() == migraphx::value::binary{blob});
+
+        // An empty blob must come back as an empty blob, not as NULL.
+        auto empty = collect(select("empty"));
+        EXPECT(empty.size() == 1);
+        EXPECT(empty.front().at("data").is_binary());
+        EXPECT(empty.front().at("data").get_binary().empty());
+
+        EXPECT(collect(select("missing")).empty());
     }
+}
+
+// A select abandoned after its first row must not keep holding the database. Until the
+// statement is reset it holds a read lock, and a writer on another connection would wait out
+// its busy timeout and then fail.
+TEST_CASE(abandoned_rows_release_the_database)
+{
+    migraphx::tmp_dir td{};
+    auto db_path = td.path / "lock.db";
+    auto writer  = migraphx::sqlite::write(db_path);
+    writer.execute("CREATE TABLE t (id INTEGER PRIMARY KEY);"
+                   "INSERT INTO t (id) VALUES (1), (2);");
+
+    auto reader = migraphx::sqlite::read(db_path);
+    auto select = reader.prepare("SELECT id FROM t;");
+    {
+        // Read one of the two rows and stop.
+        auto rows = select();
+        EXPECT(rows.begin() != rows.end());
+    }
+
+    auto insert = writer.prepare("INSERT INTO t (id) VALUES (?);");
+    insert(std::int64_t{3});
+    EXPECT(writer.execute("SELECT id FROM t;").size() == 3);
+}
+
+TEST_CASE(unprepared_statement_throws)
+{
+    migraphx::sqlite_stmt stmt;
+    EXPECT(not stmt.valid());
+    EXPECT(test::throws([&] { stmt(); }));
 }
 
 TEST_CASE(try_write_unusable_path)

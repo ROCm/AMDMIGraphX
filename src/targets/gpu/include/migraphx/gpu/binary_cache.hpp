@@ -85,6 +85,24 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         std::size_t compiled = 0;
     };
 
+    /// Groups the inserts made while it lives, so the storage backend can commit them together
+    /// rather than one at a time. Scope it tightly around a run of inserts: a database holds a
+    /// write lock against other processes until it ends.
+    struct MIGRAPHX_GPU_EXPORT store_batch
+    {
+        explicit store_batch(binary_cache& c);
+        store_batch(const store_batch&)            = delete;
+        store_batch(store_batch&&)                 = delete;
+        store_batch& operator=(const store_batch&) = delete;
+        store_batch& operator=(store_batch&&)      = delete;
+        ~store_batch();
+
+        private:
+        binary_cache* cache;
+    };
+
+    /// Nothing is opened here; storage is set up by the first lookup or insert, so a context
+    /// that never compiles never touches the disk or probes the compiler.
     explicit binary_cache(binary_cache_settings s = {});
 
     /// Look up a key, consulting memory first and then the cache directory.
@@ -106,12 +124,17 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     static const std::string& version_id(bool use_short_digest);
 
     private:
+    /// The storage backend, opened on first use, or null for a memory-only cache.
+    binary_cache_backend* get_backend();
+
     std::unordered_map<std::string, compiled_code> memo;
     binary_cache_settings settings;
     /// The version_id entries are stored under, in the form the backend uses.
     std::string version;
     /// Where entries are persisted, or empty for a memory-only cache.
     optional<binary_cache_backend> backend;
+    /// Whether get_backend has already tried to open the backend, successfully or not.
+    bool backend_opened = false;
     stats counters;
 };
 

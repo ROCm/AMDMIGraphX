@@ -25,8 +25,10 @@
 #include <migraphx/sqlite.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/ranges.hpp>
 #include <sqlite3.h>
 #include <algorithm>
+#include <iterator>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -157,7 +159,9 @@ sqlite_stmt sqlite::prepare(const std::string& sql)
 
 void sqlite::set_busy_timeout(int ms) { sqlite3_busy_timeout(impl->get(), ms); }
 
-sqlite_stmt& sqlite_stmt::bind(int i, std::string_view s)
+bool sqlite::read_only() const { return sqlite3_db_readonly(impl->get(), "main") == 1; }
+
+void sqlite_stmt::bind(int i, std::string_view s) const
 {
     // A default-constructed string_view has null data(), and a null pointer binds SQL NULL
     // rather than an empty string, so empty input substitutes a valid pointer. SQLITE_TRANSIENT
@@ -167,18 +171,16 @@ sqlite_stmt& sqlite_stmt::bind(int i, std::string_view s)
     int rc = sqlite3_bind_text64(impl->get(), i, text, s.size(), SQLITE_TRANSIENT, SQLITE_UTF8);
     if(rc != SQLITE_OK)
         MIGRAPHX_THROW(impl->error_message());
-    return *this;
 }
 
-sqlite_stmt& sqlite_stmt::bind(int i, std::int64_t x)
+void sqlite_stmt::bind(int i, std::int64_t x) const
 {
     int rc = sqlite3_bind_int64(impl->get(), i, x);
     if(rc != SQLITE_OK)
         MIGRAPHX_THROW(impl->error_message());
-    return *this;
 }
 
-sqlite_stmt& sqlite_stmt::bind(int i, const std::vector<char>& blob)
+void sqlite_stmt::bind(int i, const std::vector<char>& blob) const
 {
     // As with text, an empty vector's data() may be null, which would bind SQL NULL; a
     // zero-length zeroblob is an empty BLOB instead. The 64-bit form is used because the
@@ -189,10 +191,9 @@ sqlite_stmt& sqlite_stmt::bind(int i, const std::vector<char>& blob)
                  : sqlite3_bind_blob64(impl->get(), i, blob.data(), blob.size(), SQLITE_TRANSIENT);
     if(rc != SQLITE_OK)
         MIGRAPHX_THROW(impl->error_message());
-    return *this;
 }
 
-bool sqlite_stmt::step()
+bool sqlite_stmt::step() const
 {
     int rc = sqlite3_step(impl->get());
     if(rc == SQLITE_ROW)
@@ -202,7 +203,7 @@ bool sqlite_stmt::step()
     MIGRAPHX_THROW(impl->error_message());
 }
 
-void sqlite_stmt::reset() noexcept
+void sqlite_stmt::reset() const noexcept
 {
     if(impl == nullptr)
         return;
@@ -212,25 +213,48 @@ void sqlite_stmt::reset() noexcept
     (void)sqlite3_clear_bindings(impl->get());
 }
 
-std::string sqlite_stmt::column_text(int i) const
+static value column_value(sqlite3_stmt* stmt, int i)
 {
-    const auto* text = sqlite3_column_text(impl->get(), i);
-    int n            = sqlite3_column_bytes(impl->get(), i);
-    if(text == nullptr or n <= 0)
-        return {};
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    return {reinterpret_cast<const char*>(text), static_cast<std::size_t>(n)};
+    // For text and blobs the data must be fetched before sqlite3_column_bytes: the other order
+    // can force a type conversion that invalidates the pointer. A zero-length value comes back
+    // as a null pointer, which still means empty rather than NULL.
+    switch(sqlite3_column_type(stmt, i))
+    {
+    case SQLITE_INTEGER: return std::int64_t{sqlite3_column_int64(stmt, i)};
+    case SQLITE_FLOAT: return sqlite3_column_double(stmt, i);
+    case SQLITE_TEXT: {
+        const auto* text = sqlite3_column_text(stmt, i);
+        auto n           = sqlite3_column_bytes(stmt, i);
+        if(text == nullptr)
+            return std::string{};
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        return std::string(reinterpret_cast<const char*>(text), n);
+    }
+    case SQLITE_BLOB: {
+        const auto* data = static_cast<const std::uint8_t*>(sqlite3_column_blob(stmt, i));
+        auto n           = sqlite3_column_bytes(stmt, i);
+        if(data == nullptr)
+            return value::binary{};
+        return value::binary{data, static_cast<std::size_t>(n)};
+    }
+    default: return {};
+    }
 }
 
-std::vector<char> sqlite_stmt::column_blob(int i) const
+value sqlite_stmt::to_value() const
 {
-    // sqlite3_column_blob must be called before sqlite3_column_bytes: the other order can
-    // force a type conversion that invalidates the pointer.
-    const auto* data = static_cast<const char*>(sqlite3_column_blob(impl->get(), i));
-    int n            = sqlite3_column_bytes(impl->get(), i);
-    if(data == nullptr or n <= 0)
-        return {};
-    return {data, data + n};
+    auto* stmt = impl->get();
+    value::object row;
+    auto columns = range(sqlite3_column_count(stmt));
+    std::transform(columns.begin(),
+                   columns.end(),
+                   std::inserter(row, row.end()),
+                   [&](std::ptrdiff_t i) {
+                       auto col = static_cast<int>(i);
+                       return std::make_pair(std::string{sqlite3_column_name(stmt, col)},
+                                             column_value(stmt, col));
+                   });
+    return row;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

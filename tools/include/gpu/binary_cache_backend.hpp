@@ -30,7 +30,8 @@
 // into the gpu target tree). Do not edit the generated header by hand.
 //
 // Any type T satisfies the binary_cache_backend concept if it provides the
-// member functions listed below. The wrapper holds T by shared_ptr and forwards
+// member functions listed below; begin_batch and end_batch are optional and
+// default to doing nothing. The wrapper holds T by shared_ptr and forwards
 // each call through a virtual dispatch, matching problem_cache_backend.
 //
 // Notes:
@@ -38,9 +39,10 @@
 //     the include below pulls in its full definition.
 //   * Backends typically own non-trivial resources (a cache directory, a SQLite
 //     connection) and are not meaningfully copyable beyond shared ownership.
-//   * Both members are non-const: binary_cache::get and insert are themselves
-//     non-const, so nothing forces a const qualifier here, and a backend holding
-//     prepared statements needs the mutability.
+//   * The members are non-const: binary_cache::get and insert are themselves
+//     non-const, so nothing forces a const qualifier here, and a backend that
+//     tracks an open batch needs the mutability. A backend may still declare
+//     them const.
 //
 #ifndef MIGRAPHX_GUARD_GPU_BINARY_CACHE_BACKEND_HPP
 #define MIGRAPHX_GUARD_GPU_BINARY_CACHE_BACKEND_HPP
@@ -54,6 +56,7 @@
 #include <vector>
 
 #include <migraphx/config.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/gpu/export.h>
 #include <migraphx/gpu/binary_cache_entry.hpp>
@@ -113,6 +116,21 @@ struct binary_cache_backend
                const std::string& key_hash,
                const binary_cache_entry& e,
                const std::vector<char>& blob);
+
+    /// Mark the start of a run of stores that may be committed together, such as
+    /// a database transaction, rather than one at a time. Every begin_batch is
+    /// followed by an end_batch, and the two are never nested. Optional: a
+    /// backend without them stores each entry as it comes.
+    ///
+    /// Must not throw. A backend that cannot start a batch stores entries one
+    /// at a time instead.
+    void begin_batch();
+
+    /// Commit the stores made since begin_batch.
+    ///
+    /// Must not throw. A failed commit costs those entries a recompile next
+    /// run, nothing more, and must not leave anything locked.
+    void end_batch();
 };
 
 #else
@@ -131,7 +149,9 @@ struct binary_cache_backend
                 device   = 'const std::string&',
                 key_hash = 'const std::string&',
                 e        = 'const binary_cache_entry&',
-                blob     = 'const std::vector<char>&'))
+                blob     = 'const std::vector<char>&'),
+        virtual('begin_batch', returns = 'void', default = 'migraphx::nop'),
+        virtual('end_batch', returns = 'void', default = 'migraphx::nop'))
 %>
 
 #endif

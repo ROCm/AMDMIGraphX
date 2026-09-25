@@ -855,6 +855,49 @@ shape shape::with_lens(const std::vector<dynamic_dimension>& dds) const
     return this->with_lens(this->type(), dds);
 }
 
+// Keep the values on the varying axes and replace the rest with fill
+template <class T>
+static std::vector<T>
+select_axes(const std::vector<T>& xs, const std::vector<bool>& varying, const T& fill)
+{
+    assert(xs.size() == varying.size());
+    std::vector<T> result(xs.size());
+    std::transform(xs.begin(), xs.end(), varying.begin(), result.begin(), [&](const T& x, bool v) {
+        return v ? x : fill;
+    });
+    return result;
+}
+
+// Packed strides over the axes where either stride is nonzero, zero elsewhere
+template <class T>
+static std::vector<T> merge_broadcast_strides(const std::vector<T>& dims,
+                                              const std::vector<T>& xstrides,
+                                              const std::vector<T>& ystrides)
+{
+    assert(dims.size() == xstrides.size() and dims.size() == ystrides.size());
+    auto zero = shape_impl::make_identity<T>(0);
+    std::vector<bool> varying(dims.size());
+    std::transform(xstrides.begin(),
+                   xstrides.end(),
+                   ystrides.begin(),
+                   varying.begin(),
+                   [&](const T& a, const T& b) { return a != zero or b != zero; });
+    auto packed =
+        shape_impl::compute_strides(select_axes(dims, varying, shape_impl::make_identity<T>(1)));
+    return select_axes(packed, varying, zero);
+}
+
+shape shape::merge_broadcasts(const shape& x, const shape& y)
+{
+    if(x.ndim() != y.ndim() or x.symbolic() != y.symbolic())
+        MIGRAPHX_THROW("SHAPE: merge_broadcasts() shapes must have the same rank and kind");
+    if(x.symbolic())
+        return {x.type(),
+                x.dyn_dims(),
+                merge_broadcast_strides(x.sym_dims(), x.dyn_strides(), y.dyn_strides())};
+    return {x.type(), x.lens(), merge_broadcast_strides(x.lens(), x.strides(), y.strides())};
+}
+
 shape shape::with_type(type_t t) const
 {
     auto c    = impl->copy();

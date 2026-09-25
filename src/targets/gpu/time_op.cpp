@@ -208,40 +208,27 @@ double time_program(const context& ictx,
     return time_loop(gctx, bundle, nruns, run);
 }
 
-namespace {
-struct benchmark_program
+// Build the candidate's program and finalize it for ctx_vec
+static program make_finalized_program(std::vector<migraphx::context>& ctx_vec,
+                                      const benchmark_candidate& candidate)
 {
-    program p;
-    parameter_map param_map;
+    auto p = candidate.make_program();
+    candidate.before_run(p);
+    p.get_main_module()->finalize(ctx_vec);
+    return p;
+}
 
-    double
-    time(std::vector<migraphx::context>& ctx_vec, int bundle, int nruns, bool warmup = true) const
-    {
-        auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
-        return time_loop(
-            gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); }, warmup);
-    }
-};
-} // namespace
-
-// Pair the candidate's finalized program with its arguments, and build the program unless one is
-// given. An argument in generated is reused for a parameter with the same key and shape; one
-// generated for a new shape replaces it, so generated holds one argument per key.
-static benchmark_program
-make_benchmark_program(std::vector<migraphx::context>& ctx_vec,
-                       const benchmark_candidate& candidate,
-                       std::unordered_map<std::string, argument>& generated,
-                       optional<program> finalized = nullopt)
+// Generate the arguments of the candidate's finalized program p. An argument in generated is
+// reused for a parameter with the same key and shape; one generated for a new shape replaces it,
+// so generated holds one argument per key.
+static parameter_map make_benchmark_arguments(std::vector<migraphx::context>& ctx_vec,
+                                              const benchmark_candidate& candidate,
+                                              const program& p,
+                                              std::unordered_map<std::string, argument>& generated)
 {
-    if(not finalized.has_value())
-    {
-        finalized = candidate.make_program();
-        candidate.before_run(*finalized);
-        finalized->get_main_module()->finalize(ctx_vec);
-    }
     const auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
-    const auto* mm   = finalized->get_main_module();
-    auto keys        = candidate.generate_argument_keys(*finalized);
+    const auto* mm   = p.get_main_module();
+    auto keys        = candidate.generate_argument_keys(p);
     if(keys.size() != mm->get_parameter_names().size())
         MIGRAPHX_THROW("benchmark_candidate: generate_argument_keys must give one key per "
                        "parameter");
@@ -257,8 +244,18 @@ make_benchmark_program(std::vector<migraphx::context>& ctx_vec,
         arg = candidate.generate_argument(gctx, key, s);
         return arg;
     });
-    auto param_map = make_parameter_map(mm, args);
-    return {*std::move(finalized), std::move(param_map)};
+    return make_parameter_map(mm, args);
+}
+
+static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
+                             const program& p,
+                             const parameter_map& param_map,
+                             int bundle,
+                             int nruns,
+                             bool warmup = true)
+{
+    auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
+    return time_loop(gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); }, warmup);
 }
 
 const benchmark_candidate&
@@ -277,8 +274,9 @@ simple_benchmark::run(const context& ictx, const std::vector<benchmark_candidate
                    [&](const benchmark_candidate& candidate) {
                        auto trace = candidate.trace();
                        trace("Benchmarking solution: ", candidate.solution());
-                       auto bp = make_benchmark_program(ctx_vec, candidate, generated);
-                       auto t  = bp.time(ctx_vec, bundle, nruns);
+                       auto p         = make_finalized_program(ctx_vec, candidate);
+                       auto param_map = make_benchmark_arguments(ctx_vec, candidate, p, generated);
+                       auto t         = time_benchmark(ctx_vec, p, param_map, bundle, nruns);
                        trace(t, "ms");
                        return t;
                    });
@@ -296,9 +294,9 @@ static int compute_nruns(std::size_t budget_ms, double t, int bundle, std::size_
     return std::clamp(n, 1.0, static_cast<double>(max_runs));
 }
 
-// Run the timing function f, tracing and mapping a failure to nullopt
+// Call f, tracing and mapping a failure to nullopt
 template <class F>
-static optional<double> try_benchmark(const tracer& trace, F f)
+static auto try_benchmark(const tracer& trace, F f) -> optional<decltype(f())>
 {
     try
     {
@@ -328,52 +326,52 @@ adaptive_topk_benchmark::run(const context& ictx,
     std::unordered_map<std::string, argument> generated;
 
     const double invalid = std::numeric_limits<double>::infinity();
-    std::vector<std::size_t> indices(candidates.size());
-    std::iota(indices.begin(), indices.end(), 0);
+
+    // Build every program first and hold them through both passes. A candidate whose program
+    // fails to build is skipped. Arguments are not held: each set holds its candidate's scratch,
+    // which would otherwise stay resident while later candidates allocate theirs.
+    std::vector<optional<program>> programs;
+    programs.reserve(candidates.size());
+    std::transform(candidates.begin(),
+                   candidates.end(),
+                   std::back_inserter(programs),
+                   [&](const benchmark_candidate& candidate) {
+                       auto trace = candidate.trace();
+                       trace("Building solution: ", candidate.solution());
+                       return try_benchmark(
+                           trace, [&] { return make_finalized_program(ctx_vec, candidate); });
+                   });
 
     // Coarse pass: warmup + single-run estimate, then a bundle-of-1 measurement of up to
     // coarse_max_runs runs within coarse_ms. The measurement is skipped when it would be a single
-    // run too, so with the default coarse_max_runs every candidate is ranked by its estimate. The
-    // programs of the top_k fastest candidates so far are kept for the precise pass, and released
-    // as soon as a faster one pushes them out. Their arguments are not kept: each set holds its
-    // candidate's scratch, which would otherwise stay resident while later candidates allocate
-    // theirs.
+    // run too, so with the default coarse_max_runs every candidate is ranked by its estimate.
     std::vector<double> coarse(candidates.size(), invalid);
-    std::vector<optional<program>> kept(candidates.size());
-    // Coarse time and index of the top_k fastest candidates so far, fastest first
-    std::vector<std::pair<double, std::size_t>> top;
-    std::transform(indices.begin(), indices.end(), coarse.begin(), [&](auto i) {
-        const auto& candidate = candidates[i];
-        auto trace            = candidate.trace();
-        trace("Benchmarking solution: ", candidate.solution());
-        auto t = try_benchmark(trace, [&] {
-            auto bp       = make_benchmark_program(ctx_vec, candidate, generated);
-            auto estimate = bp.time(ctx_vec, 1, 1);
-            auto nruns    = compute_nruns(coarse_ms, estimate, 1, coarse_max_runs);
-            double time   = estimate;
-            if(nruns > 1)
-                time = bp.time(ctx_vec, 1, nruns, false);
-            if(top_k > 0)
-                kept[i] = std::move(bp.p);
-            return time;
-        });
-        if(not t.has_value())
-            return invalid;
-        trace("Coarse time: ", *t, "ms");
-        if(top_k > 0)
-        {
-            auto entry = std::make_pair(*t, i);
-            top.insert(std::upper_bound(top.begin(), top.end(), entry), entry);
-            if(top.size() > top_k)
-            {
-                kept[top.back().second] = nullopt;
-                top.pop_back();
-            }
-        }
-        return *t;
-    });
+    std::transform(candidates.begin(),
+                   candidates.end(),
+                   programs.begin(),
+                   coarse.begin(),
+                   [&](const benchmark_candidate& candidate, const optional<program>& p) {
+                       if(not p.has_value())
+                           return invalid;
+                       auto trace = candidate.trace();
+                       trace("Benchmarking solution: ", candidate.solution());
+                       auto t = try_benchmark(trace, [&] {
+                           auto param_map =
+                               make_benchmark_arguments(ctx_vec, candidate, *p, generated);
+                           auto estimate = time_benchmark(ctx_vec, *p, param_map, 1, 1);
+                           auto nruns    = compute_nruns(coarse_ms, estimate, 1, coarse_max_runs);
+                           if(nruns == 1)
+                               return estimate;
+                           return time_benchmark(ctx_vec, *p, param_map, 1, nruns, false);
+                       });
+                       if(t.has_value())
+                           trace("Coarse time: ", *t, "ms");
+                       return t.value_or(invalid);
+                   });
 
     // Select the candidates that measured successfully, keep the top_k fastest
+    std::vector<std::size_t> indices(candidates.size());
+    std::iota(indices.begin(), indices.end(), 0);
     std::vector<std::size_t> selected;
     selected.reserve(candidates.size());
     std::copy_if(indices.begin(), indices.end(), std::back_inserter(selected), [&](auto i) {
@@ -381,7 +379,7 @@ adaptive_topk_benchmark::run(const context& ictx,
     });
     if(selected.empty())
         MIGRAPHX_THROW("adaptive_topk_benchmark: all candidates failed to run");
-    // Ties go to the lower index, as in top, so the kept programs are the selected ones
+    // Ties go to the lower index so the selection is deterministic
     std::sort(selected.begin(), selected.end(), [&](auto i, auto j) {
         return std::tie(coarse[i], i) < std::tie(coarse[j], j);
     });
@@ -410,18 +408,18 @@ adaptive_topk_benchmark::run(const context& ictx,
     // doesn't skew the precise measurements
     std::this_thread::sleep_for(std::chrono::milliseconds{10});
 
-    // Precise pass over the selected candidates, generating the arguments of one at a time. A kept
-    // coarse program has already run on this stream, so only a rebuilt one needs a warmup.
+    // Precise pass over the selected candidates, generating the arguments of one at a time. Each
+    // program has already run on this stream in the coarse pass, so no warmup is needed.
     std::vector<double> precise(selected.size(), invalid);
     std::transform(selected.begin(), selected.end(), precise.begin(), [&](auto i) {
         const auto& candidate = candidates[i];
+        const auto& p         = *programs[i];
         auto trace            = candidate.trace();
         trace("Precise solution: ", candidate.solution());
         auto t = try_benchmark(trace, [&] {
-            const bool rebuild = not kept[i].has_value();
-            auto bp = make_benchmark_program(ctx_vec, candidate, generated, std::move(kept[i]));
-            return bp.time(
-                ctx_vec, bundle, compute_nruns(precise_ms, coarse[i], bundle, max_runs), rebuild);
+            auto param_map = make_benchmark_arguments(ctx_vec, candidate, p, generated);
+            auto nruns     = compute_nruns(precise_ms, coarse[i], bundle, max_runs);
+            return time_benchmark(ctx_vec, p, param_map, bundle, nruns, false);
         });
         if(t.has_value())
             trace("Precise time: ", *t, "ms");

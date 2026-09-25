@@ -223,8 +223,8 @@ TEST_CASE(adaptive_benchmark_top_k_zero_times_all_precisely)
     std::vector<migraphx::gpu::benchmark_candidate> candidates = {slow, fast};
     const auto& winner = small_adaptive_benchmark(0).run(ctx, candidates);
     EXPECT(winner.solution().to<int>() == 1);
-    EXPECT(*fast.programs_built == 2);
-    EXPECT(*slow.programs_built == 2);
+    EXPECT(*fast.programs_built == 1);
+    EXPECT(*slow.programs_built == 1);
 }
 
 TEST_CASE(adaptive_benchmark_measures_a_candidate_whose_estimate_misses_the_top_k)
@@ -284,7 +284,7 @@ TEST_CASE(adaptive_benchmark_precise_pass_reuses_the_coarse_programs_of_the_top_
     (void)small_adaptive_benchmark(2).run(ctx, candidates);
     EXPECT(fast.log->str().find("Precise solution") != std::string::npos);
     EXPECT(near_best.log->str().find("Precise solution") != std::string::npos);
-    // slow enters the top_k first and is evicted by near_best
+    // slow is pushed out of the top_k by near_best
     EXPECT(slow.log->str().find("Precise solution") == std::string::npos);
     EXPECT(*fast.programs_built == 1);
     EXPECT(*near_best.programs_built == 1);

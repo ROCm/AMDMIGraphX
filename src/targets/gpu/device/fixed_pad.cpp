@@ -41,17 +41,18 @@ namespace device {
 static argument
 fixed_pad_base_impl(hipStream_t stream, const argument& result, const argument& arg, float value)
 {
-    hip_visit_all(result, arg)([&](auto output, auto input) {
-        using type     = typename decltype(output)::value_type;
-        auto pad_value = device_cast(pad_clamp<host_type<type>>(value));
-        gs_launch(stream, result.get_shape().elements())([=](auto i) __device__ {
-            auto input_bounds = input.get_shape().lens;
-            auto idx          = output.get_shape().multi(i);
-
-            bool in_bounds = sequence(
-                idx.size(), [&](auto... js) { return ((idx[js] < input_bounds[js]) and ...); });
-
-            output[idx] = in_bounds ? input[idx] : pad_value;
+    shape standard_shape{result.get_shape().type(), result.get_shape().lens()};
+    visit_all(result, arg)([&](auto output_v, auto input_v) {
+        hip_visit_views(
+            output_v, input_v, standard_shape)([&](auto output, auto input, auto standard) {
+            using type     = typename decltype(output)::value_type;
+            auto pad_value = device_cast(pad_clamp<host_type<type>>(value));
+            mi_gs_launch(stream, standard)([=](auto idx) __device__ {
+                auto input_bounds = input.get_shape().lens;
+                bool in_bounds    = sequence(
+                    idx.size(), [&](auto... js) { return ((idx[js] < input_bounds[js]) and ...); });
+                output[idx] = in_bounds ? input[idx] : pad_value;
+            });
         });
     });
     return result;

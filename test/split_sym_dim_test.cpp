@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/algorithm.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
@@ -2558,6 +2559,62 @@ TEST_CASE(split_sym_dim_sequential_nonzero_nms_roots)
     }
 }
 
+TEST_CASE(split_sym_dim_topk_static_sentinel_padding)
+{
+    auto n = var("topk_input_count", {1, 4});
+    migraphx::program p;
+    auto& m   = *p.get_main_module();
+    auto data = m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto indices =
+        m.add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {dd{n}}});
+    auto largest = m.add_instruction(
+        migraphx::make_op("topk", {{"k", 4}, {"axis", 0}, {"largest", true}}), data, indices);
+    auto largest_values =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), largest);
+    auto largest_indices =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), largest);
+    auto smallest = m.add_instruction(
+        migraphx::make_op("topk", {{"k", 4}, {"axis", 0}, {"largest", false}}), data);
+    auto smallest_values =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), smallest);
+    m.add_return({largest_values, largest_indices, smallest_values});
+
+    run_pass(p);
+
+    std::vector<float> pad_values;
+    for(auto* mod : p.get_modules())
+    {
+        if(mod == p.get_main_module())
+            continue;
+        migraphx::transform_if(
+            mod->begin(),
+            mod->end(),
+            std::back_inserter(pad_values),
+            [](const auto& ins) { return ins.name() == "fixed_pad"; },
+            [](const auto& ins) {
+                return ins.get_operator().to_value().at("value").template to<float>();
+            });
+        EXPECT(migraphx::none_of(*mod, [](const auto& ins) {
+            return ins.name() == "topk" and ins.inputs().front()->get_shape().dynamic();
+        }));
+    }
+    EXPECT(migraphx::contains(pad_values, std::numeric_limits<float>::lowest()));
+    EXPECT(migraphx::contains(pad_values, std::numeric_limits<float>::max()));
+
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> values         = {2.0f, 1.0f};
+    std::vector<int64_t> index_values = {10, 11};
+    migraphx::parameter_map params;
+    params["data"] =
+        migraphx::argument{migraphx::shape{migraphx::shape::float_type, {2}}, values.data()};
+    params["indices"] =
+        migraphx::argument{migraphx::shape{migraphx::shape::int64_type, {2}}, index_values.data()};
+    auto results = p.eval(params);
+    EXPECT(results.at(0).to_vector<float>() == std::vector<float>{2.0f, 1.0f});
+    EXPECT(results.at(1).to_vector<int64_t>() == std::vector<int64_t>{10, 11});
+    EXPECT(results.at(2).to_vector<float>() == std::vector<float>{1.0f, 2.0f});
+}
+
 TEST_CASE(split_sym_dim_ssd_nms_topk_tail)
 {
     auto nms_count  = var("ssd_nms_count", {0, 4});
@@ -2635,13 +2692,21 @@ TEST_CASE(split_sym_dim_ssd_nms_topk_tail)
 
     auto selections = migraphx::find_all(migraphx::iterator_for(m),
                                          [](auto ins) { return ins->name() == "select_module"; });
-    EXPECT(selections.size() == 2);
+    EXPECT(selections.size() == 3);
+    std::size_t static_topks = 0;
     for(auto* mod : p.get_modules())
     {
         if(mod == p.get_main_module())
             continue;
         EXPECT(migraphx::none_of(*mod, [](const auto& ins) { return ins.name() == "dyn_slice"; }));
+        static_topks += std::count_if(mod->begin(), mod->end(), [](const auto& ins) {
+            if(ins.name() != "topk" or ins.inputs().front()->get_shape().dynamic())
+                return false;
+            return migraphx::none_of(ins.get_shape().sub_shapes(),
+                                     [](const auto& s) { return s.dynamic(); });
+        });
     }
+    EXPECT(static_topks == 1);
 
     p.compile(migraphx::make_target("ref"));
     std::vector<float> box_values   = {0.0f,

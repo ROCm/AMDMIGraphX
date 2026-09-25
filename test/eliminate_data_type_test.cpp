@@ -114,6 +114,22 @@ TEST_CASE(skip_convert_eval_expr_from_shape)
     EXPECT(mm1 == mm2);
 }
 
+TEST_CASE(skip_convert_fixed_pad)
+{
+    auto n = migraphx::sym::var("n", {1, 4});
+    migraphx::shape input_shape{
+        migraphx::shape::int64_type,
+        std::vector<migraphx::shape::dynamic_dimension>{migraphx::shape::dynamic_dimension{n}}};
+    migraphx::module mm1;
+    auto x      = mm1.add_parameter("x", input_shape);
+    auto padded = mm1.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), x);
+    mm1.add_return({padded});
+
+    auto mm2 = mm1;
+    run_pass(mm1, {migraphx::shape::int64_type});
+    EXPECT(mm1 == mm2);
+}
+
 static void check_skip_convert_slice(const std::string& name)
 {
     migraphx::shape data_shape{migraphx::shape::int64_type, {4}};

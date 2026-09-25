@@ -589,6 +589,90 @@ std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank)
     return static_cast<std::size_t>(axis);
 }
 
+struct analyze_topk
+{
+    bool matches(const operation& op) const { return op.name() == "topk"; }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& inputs = info.input_shapes;
+        const auto& output = info.output_shape;
+        if(inputs.empty() or inputs.size() > 2 or not inputs.front().symbolic() or
+           output.type() != shape::tuple_type or output.sub_shapes().size() != 2)
+            return;
+
+        auto attributes = info.ins->get_operator().to_value();
+        auto axis = normalize_axis(attributes.at("axis").to<int64_t>(), inputs.front().ndim());
+        if(not axis.has_value() or not is_variable_axis(inputs.front().dyn_dims().at(*axis)) or
+           any_of(output.sub_shapes(), [](const auto& s) { return not s.symbolic(); }))
+            return;
+
+        auto tuple_output = info.output_shape;
+        info.output_shape = output.sub_shapes().front();
+        auto topk_fill =
+            attributes.at("largest").to<bool>() ? fill_kind::lowest : fill_kind::highest;
+        analyze_axes(info, [axis = *axis, topk_fill](std::size_t input, std::size_t current_axis) {
+            if(current_axis != axis)
+                return parallel_axis();
+            return input == 0 ? contracted_axis(topk_fill) : contracted_axis(fill_kind::dont_care);
+        });
+        info.output_shape = std::move(tuple_output);
+    }
+};
+
+struct analyze_topk_get_tuple_elem
+{
+    bool matches(const operation& op) const { return op.name() == "get_tuple_elem"; }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& inputs = info.ins->inputs();
+        if(inputs.size() != 1 or inputs.front()->name() != "topk")
+            return;
+        info.freezer = freeze;
+        analyze_axes(info);
+    }
+
+    static instruction_ref freeze(module& m,
+                                  instruction_ref source,
+                                  const std::vector<instruction_ref>& args,
+                                  const std::unordered_map<sym::expr, std::size_t>&)
+    {
+        return m.add_instruction(source->get_operator(), args);
+    }
+};
+
+bool is_prefix_stable_dyn_slice(instruction_ref ins);
+
+bool uses_aligned_topk_indices(instruction_ref gather, std::size_t gather_axis)
+{
+    const auto& inputs = gather->inputs();
+    if(inputs.size() != 2)
+        return false;
+    auto indices = inputs.at(1);
+    if(indices->name() != "dyn_slice" or not is_prefix_stable_dyn_slice(indices))
+        return false;
+    auto get_tuple_elem = indices->inputs().front();
+    if(get_tuple_elem->name() != "get_tuple_elem" or
+       get_tuple_elem->get_operator().to_value().at("index").to<std::size_t>() != 1)
+        return false;
+    auto topk = get_tuple_elem->inputs().front();
+    if(topk->name() != "topk" or topk->inputs().empty())
+        return false;
+    auto topk_axis = normalize_axis(topk->get_operator().to_value().at("axis").to<int64_t>(),
+                                    topk->inputs().front()->get_shape().ndim());
+    if(not topk_axis.has_value())
+        return false;
+
+    const auto& data_shape = inputs.front()->get_shape();
+    const auto& topk_shape = topk->inputs().front()->get_shape();
+    if(not data_shape.symbolic() or not topk_shape.symbolic() or gather_axis >= data_shape.ndim() or
+       *topk_axis >= topk_shape.ndim())
+        return false;
+    return sym::same_symbol(data_shape.dyn_dims().at(gather_axis).sym_expr,
+                            topk_shape.dyn_dims().at(*topk_axis).sym_expr);
+}
+
 struct analyze_gather
 {
     bool matches(const operation& op) const { return op.name() == "gather"; }
@@ -602,12 +686,18 @@ struct analyze_gather
                                    inputs.front().ndim());
         if(not axis.has_value())
             return;
-        // Only the data gather axis is unsupported; all other input axes are parallel.
-        analyze_axes(info, [axis = *axis](std::size_t input, std::size_t current_axis) {
-            if(input == 1)
-                return parallel_axis();
-            return current_axis == axis ? axis_desc{} : parallel_axis();
-        });
+        bool aligned_topk_indices = uses_aligned_topk_indices(info.ins, *axis);
+        // Gathering a variable data axis is safe when the indices are a prefix of TopK indices
+        // over an aligned tensor. Padded index entries are zero and their outputs are sliced away.
+        analyze_axes(
+            info,
+            [axis = *axis, aligned_topk_indices](std::size_t input, std::size_t current_axis) {
+                if(input == 1)
+                    return parallel_axis();
+                if(current_axis != axis)
+                    return parallel_axis();
+                return aligned_topk_indices ? contracted_axis(fill_kind::dont_care) : axis_desc{};
+            });
     }
 };
 
@@ -1198,6 +1288,8 @@ symbolic_op_info analyze_instruction(instruction_ref ins)
     info.output_shape = ins->get_shape();
     info.input_shapes = std::move(input_shapes);
     analyze_first(info,
+                  analyze_topk{},
+                  analyze_topk_get_tuple_elem{},
                   analyze_gather{},
                   analyze_concat{},
                   analyze_slice{},
@@ -1812,7 +1904,12 @@ void prepare_clone_infos(
             bool emit_pad =
                 operand.pad_value.has_value() or
                 needs_fixed_retarget(info.input_shapes.at(input_index), target_substitutions);
-            if(source_in_same_block and operand.pad_value.has_value())
+            if(source_in_same_block and source->get_shape().type() == shape::tuple_type)
+            {
+                input.slice_axes.clear();
+                emit_pad = false;
+            }
+            else if(source_in_same_block and operand.pad_value.has_value())
             {
                 assert(operand.retained_slice_axes.empty());
                 // Internal edges already carry bucket-sized values.
@@ -2611,6 +2708,59 @@ void wire_select_module(
     }
 }
 
+std::optional<sym::expr> find_root_runtime_extent(const root_spec& root, instruction_ref source)
+{
+    if(source->name() != "dyn_slice" or source->inputs().size() != 3 or
+       not source->get_shape().symbolic() or not is_prefix_stable_dyn_slice(source))
+        return std::nullopt;
+    auto attributes = source->get_operator().to_value();
+    if(not attributes.contains("axes"))
+        return std::nullopt;
+    auto axes = attributes.at("axes").to_vector<int64_t>();
+    auto ends = source->inputs().at(2)->sym_eval();
+    if(ends.empty() or ends.get().size() != axes.size())
+        return std::nullopt;
+
+    const auto& output = source->get_shape();
+    auto indices       = range(axes.size());
+    auto found         = std::find_if(indices.begin(), indices.end(), [&](auto i) {
+        auto axis = normalize_axis(axes.at(i), output.ndim());
+        return axis.has_value() and
+               sym::same_symbol(output.dyn_dims().at(*axis).sym_expr, root.root);
+    });
+    if(found == indices.end())
+        return std::nullopt;
+    return ends.get()[*found];
+}
+
+bool specialization_is_reachable(
+    const block_plan& block,
+    const std::unordered_map<sym::expr, shape::dynamic_dimension::interval>& subranges,
+    const std::unordered_map<sym::expr, instruction_ref>& root_sources)
+{
+    return all_of(block.roots, [&](const root_spec* root) {
+        auto expression = find_root_runtime_extent(*root, root_sources.at(root->root));
+        if(not expression.has_value())
+            return true;
+        std::unordered_map<sym::expr, sym::interval> bounds;
+        for(const auto& variable : sym::find_variables(*expression))
+        {
+            auto found = std::find_if(subranges.begin(), subranges.end(), [&](const auto& entry) {
+                return sym::same_symbol(entry.first, variable);
+            });
+            if(found != subranges.end())
+                bounds.emplace(variable,
+                               sym::interval{sym::pick_scalar::apply(found->second.min),
+                                             sym::pick_scalar::apply(found->second.max)});
+        }
+        auto evaluated      = expression->eval_interval(bounds);
+        auto selected       = subranges.at(root->root);
+        sym::interval range = {sym::pick_scalar::apply(selected.min),
+                               sym::pick_scalar::apply(selected.max)};
+        return not(evaluated < range or evaluated > range);
+    });
+}
+
 void specialize_blocks(
     module_pass_manager& mpm,
     const std::vector<block_plan>& blocks,
@@ -2661,6 +2811,8 @@ void specialize_blocks(
                 subranges[root->root]               = runtime_range;
             }
             assert(remaining == 0);
+            if(not specialization_is_reachable(block, subranges, root_sources))
+                continue;
             bool fixed_specialization =
                 std::all_of(subranges.begin(), subranges.end(), [](const auto& entry) {
                     return entry.second.min == entry.second.max;
@@ -2722,8 +2874,12 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     run_passes(m, {dead_code_elimination{}});
     registry = find_root_sources(m);
 
-    auto symbolic_instructions =
-        find_all(iterator_for(m), [](instruction_ref ins) { return ins->get_shape().symbolic(); });
+    auto symbolic_instructions = find_all(iterator_for(m), [](instruction_ref ins) {
+        if(ins->get_shape().symbolic())
+            return true;
+        return ins->name() == "topk" and not ins->inputs().empty() and
+               ins->inputs().front()->get_shape().symbolic();
+    });
     if(symbolic_instructions.empty())
         return;
 

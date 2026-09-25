@@ -101,7 +101,20 @@ struct parse_topk : op_parser<parse_topk>
         // Normalize axis because we need the interval maximum on that dimension.
         int64_t norm_axis = tune_axis(input_shape.ndim(), axis, "TopK");
         int64_t max_k     = input_shape.max_lens().at(norm_axis);
-        auto outs         = add_topk_and_gets(info, args, max_k, norm_axis, largest);
+        auto symbolic_k   = k_ins->sym_eval();
+        if(not symbolic_k.empty() and symbolic_k.get_shape().elements() == 1 and
+           shape::is_integral(symbolic_k.get_shape().type()))
+        {
+            auto interval = symbolic_k.get()[0].eval_interval_default();
+            if(interval.valid())
+            {
+                auto min_k          = sym::to<int64_t>(interval.min);
+                auto max_symbolic_k = sym::to<int64_t>(interval.max);
+                if(min_k >= 0 and max_symbolic_k > 0)
+                    max_k = std::min(max_k, max_symbolic_k);
+            }
+        }
+        auto outs = add_topk_and_gets(info, args, max_k, norm_axis, largest);
 
         // `k` is only known at run time, so it becomes a symbol bounded by the axis it slices.
         auto k_var      = sym::var(info.name, {0, max_k});

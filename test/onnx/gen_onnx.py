@@ -19339,6 +19339,68 @@ def topk_var_k_test():
     return ([node], [x, k], [val, ind])
 
 
+@onnx_test(opset_version=11)
+def topk_bounded_var_k_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 1000])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT,
+                                        [2, 'runtime_k'])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [2, 'runtime_k'])
+
+    shape_node = helper.make_node('Shape',
+                                  inputs=['data'],
+                                  outputs=['data_shape'])
+    axis_index = helper.make_node('Constant',
+                                  inputs=[],
+                                  outputs=['axis_index'],
+                                  value=helper.make_tensor(
+                                      'axis_index_value', TensorProto.INT64,
+                                      [], [1]))
+    axis_len = helper.make_node('Gather',
+                                inputs=['data_shape', 'axis_index'],
+                                outputs=['axis_len'],
+                                axis=0)
+    axis_len_vec = helper.make_node('Unsqueeze',
+                                    inputs=['axis_len'],
+                                    outputs=['axis_len_vec'],
+                                    axes=[0])
+    cap = helper.make_node('Constant',
+                           inputs=[],
+                           outputs=['cap'],
+                           value=helper.make_tensor('cap_value',
+                                                    TensorProto.INT64, [1],
+                                                    [200]))
+    candidates = helper.make_node('Concat',
+                                  inputs=['cap', 'axis_len_vec'],
+                                  outputs=['candidates'],
+                                  axis=0)
+    candidates_i32 = helper.make_node('Cast',
+                                      inputs=['candidates'],
+                                      outputs=['candidates_i32'],
+                                      to=TensorProto.INT32)
+    minimum_i32 = helper.make_node('ReduceMin',
+                                   inputs=['candidates_i32'],
+                                   outputs=['minimum_i32'],
+                                   axes=[0],
+                                   keepdims=0)
+    minimum = helper.make_node('Cast',
+                               inputs=['minimum_i32'],
+                               outputs=['minimum'],
+                               to=TensorProto.INT64)
+    k = helper.make_node('Unsqueeze',
+                         inputs=['minimum'],
+                         outputs=['k'],
+                         axes=[0])
+    topk = helper.make_node('TopK',
+                            inputs=['data', 'k'],
+                            outputs=['val', 'indices'],
+                            axis=1)
+    return ([
+        shape_node, axis_index, axis_len, axis_len_vec, cap, candidates,
+        candidates_i32, minimum_i32, minimum, k, topk
+    ], [x], [val, ind])
+
+
 def transpose_default_perm_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 5, 2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 5, 1])

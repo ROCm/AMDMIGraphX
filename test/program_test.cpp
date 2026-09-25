@@ -26,11 +26,13 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
+#include <algorithm>
 #include <memory>
 #include <sstream>
 #include <migraphx/apply_alpha_beta.hpp>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
 #include <basic_ops.hpp>
 
@@ -237,6 +239,142 @@ TEST_CASE(program_submodules_capture_parent_teardown)
     // A copy carries the same cross-module references and must tear down the same way.
     migraphx::program copy = p;
     EXPECT(copy == p);
+}
+
+TEST_CASE(program_from_module_copies_submodules)
+{
+    // Constructing a program from a module copies the submodules its
+    // instructions reference, so the program owns every module it uses
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    auto* mm  = p1.get_main_module();
+    auto cond = mm->add_parameter("cond", {migraphx::shape::bool_type, {1}});
+
+    auto* then_mod = p1.create_module("then_mod");
+    auto tl        = then_mod->add_literal(migraphx::literal{s, {1, 2, 3, 4, 5, 6}});
+    then_mod->add_return({then_mod->add_instruction(migraphx::make_op("neg"), tl)});
+    auto* else_mod = p1.create_module("else_mod");
+    auto el        = else_mod->add_literal(migraphx::literal{s, {6, 5, 4, 3, 2, 1}});
+    else_mod->add_return({else_mod->add_instruction(migraphx::make_op("relu"), el)});
+    auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({if_ins});
+
+    migraphx::program p2{*p1.get_main_module()};
+    EXPECT(p2 == p1);
+    auto mods = p2.get_main_module()->get_sub_modules();
+    EXPECT(mods.size() == 2);
+    EXPECT(mods.front() == p2.get_module("then_mod"));
+    EXPECT(mods.back() == p2.get_module("else_mod"));
+    EXPECT(mods.front() != then_mod);
+    EXPECT(mods.back() != else_mod);
+}
+
+TEST_CASE(program_from_module_remaps_parent_captures)
+{
+    // Submodules capture the source root's parameter; the constructor must
+    // remap the copied captures so destroying the source program leaves no
+    // dangling references
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape cond_s{migraphx::shape::bool_type, {1}};
+
+    auto p1   = std::make_unique<migraphx::program>();
+    auto* mm  = p1->get_main_module();
+    auto x    = mm->add_parameter("x", s);
+    auto cond = mm->add_parameter("cond", cond_s);
+
+    auto* then_mod = p1->create_module("then_mod");
+    then_mod->add_return({then_mod->add_instruction(migraphx::make_op("neg"), x)});
+    auto* else_mod = p1->create_module("else_mod");
+    else_mod->add_return({else_mod->add_instruction(migraphx::make_op("relu"), x)});
+
+    auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto ret    = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), if_ins);
+    mm->add_return({ret});
+
+    migraphx::program p2{*p1->get_main_module()};
+    EXPECT(p2 == *p1);
+    p1.reset();
+
+    auto* mm2 = p2.get_main_module();
+    auto x2   = mm2->get_parameter("x");
+    for(auto* sm : mm2->get_sub_modules())
+    {
+        auto ins = std::find_if(sm->begin(), sm->end(), [](const auto& i) {
+            return i.name() == "neg" or i.name() == "relu";
+        });
+        EXPECT(ins != sm->end());
+        EXPECT(ins->inputs().front() == x2);
+    }
+
+    p2.compile(migraphx::make_target("ref"));
+    std::vector<float> x_data   = {1, -2, 3, -4, 5, -6};
+    std::vector<char> cond_data = {1};
+    migraphx::parameter_map params;
+    params["x"]    = migraphx::argument(s, x_data.data());
+    params["cond"] = migraphx::argument(cond_s, cond_data.data());
+    auto result    = p2.eval(params).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto v) { result_vector.assign(v.begin(), v.end()); });
+    EXPECT(result_vector == std::vector<float>{-1, 2, -3, 4, -5, 6});
+}
+
+TEST_CASE(program_from_module_remaps_nested_submodule_captures)
+{
+    // A nested submodule captures an instruction from its parent submodule;
+    // the copied nested modules must reference the copied parent instruction
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape cond_s{migraphx::shape::bool_type, {1}};
+
+    auto p1   = std::make_unique<migraphx::program>();
+    auto* mm  = p1->get_main_module();
+    auto cond = mm->add_parameter("cond", cond_s);
+
+    auto* inner_then = p1->create_module("inner_then");
+    auto* inner_else = p1->create_module("inner_else");
+    auto* outer_mod  = p1->create_module("outer_mod");
+    auto y           = outer_mod->add_literal(migraphx::literal{s, {1, 2, 3, 4, 5, 6}});
+    inner_then->add_return({inner_then->add_instruction(migraphx::make_op("neg"), y)});
+    inner_else->add_return({inner_else->add_instruction(migraphx::make_op("relu"), y)});
+    auto inner_if =
+        outer_mod->add_instruction(migraphx::make_op("if"), {cond}, {inner_then, inner_else});
+    auto inner_ret =
+        outer_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), inner_if);
+    outer_mod->add_return({inner_ret});
+
+    auto* alt_mod = p1->create_module("alt_mod");
+    auto al       = alt_mod->add_literal(migraphx::literal{s, {6, 5, 4, 3, 2, 1}});
+    alt_mod->add_return({alt_mod->add_instruction(migraphx::make_op("relu"), al)});
+
+    auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {outer_mod, alt_mod});
+    auto ret    = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), if_ins);
+    mm->add_return({ret});
+
+    migraphx::program p2{*p1->get_main_module()};
+    EXPECT(p2 == *p1);
+    p1.reset();
+
+    auto* outer2 = p2.get_module("outer_mod");
+    auto y2      = std::find_if(
+        outer2->begin(), outer2->end(), [](const auto& i) { return i.name() == "@literal"; });
+    EXPECT(y2 != outer2->end());
+    for(const auto* name : {"inner_then", "inner_else"})
+    {
+        auto* sm = p2.get_module(name);
+        auto ins = std::find_if(sm->begin(), sm->end(), [](const auto& i) {
+            return i.name() == "neg" or i.name() == "relu";
+        });
+        EXPECT(ins != sm->end());
+        EXPECT(ins->inputs().front() == y2);
+    }
+
+    p2.compile(migraphx::make_target("ref"));
+    std::vector<char> cond_data = {1};
+    migraphx::parameter_map params;
+    params["cond"] = migraphx::argument(cond_s, cond_data.data());
+    auto result    = p2.eval(params).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto v) { result_vector.assign(v.begin(), v.end()); });
+    EXPECT(result_vector == std::vector<float>{-1, -2, -3, -4, -5, -6});
 }
 
 TEST_CASE(program_modules_destroyed_referenced_first)

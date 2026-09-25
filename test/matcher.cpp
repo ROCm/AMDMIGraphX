@@ -973,6 +973,17 @@ TEST_CASE(match_has_value_fp8_not_neighbor)
     EXPECT(find_match(mm, match::has_value(1.0f)).result == mm.end());
     EXPECT(find_match(mm, match::has_value(2.0f)).result == two);
 }
+// An integral literal is compared without casting the value to its type: -1
+// is out of range for uint8 and must not match the 255 it would wrap to
+TEST_CASE(match_has_value_unsigned_not_wrapped)
+{
+    migraphx::module mm;
+    auto s   = migraphx::shape{migraphx::shape::uint8_type, {1}, {0}};
+    auto max = mm.add_literal(migraphx::literal{s, {255}});
+    mm.add_instruction(pass_op{}, max);
+    EXPECT(find_match(mm, match::has_value(-1.0f)).result == mm.end());
+    EXPECT(find_match(mm, match::has_value(255.0f)).result == max);
+}
 
 // The same window let a pow exponent of 0.5, as in a batchnorm, report as 2.0 and trip the
 // variance rewrite.

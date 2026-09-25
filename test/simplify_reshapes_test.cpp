@@ -6343,4 +6343,129 @@ TEST_CASE(layout_broadcast_middle_axis)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(dequantizelinear_entry_shape_transform)
+{
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", {migraphx::shape::uint8_type, {4, 6}});
+        auto scale = m1.add_parameter("scale", {migraphx::shape::float_type, {12}});
+        auto scale_reshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 1}}}), scale);
+        auto scale_bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 3, 2}}}), scale_reshape);
+        auto scale_flat =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 6}}}), scale_bcast);
+        auto dq = m1.add_instruction(migraphx::make_op("dequantizelinear"), x, scale_flat);
+        m1.add_return({dq});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", {migraphx::shape::uint8_type, {4, 6}});
+        auto scale = m2.add_parameter("scale", {migraphx::shape::float_type, {12}});
+        auto scale_reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3}}}), scale);
+        auto scale_bcast = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {4, 3, 2}}}), scale_reshape);
+        auto x_reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), x);
+        auto dq = m2.add_instruction(migraphx::make_op("dequantizelinear"), x_reshape, scale_bcast);
+        auto dq_flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 6}}}), dq);
+        m2.add_return({dq_flat});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(dequantizelinear_entry_shape_transform_zero_point)
+{
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", {migraphx::shape::uint8_type, {4, 6}});
+        auto scale = m1.add_parameter("scale", {migraphx::shape::float_type, {12}});
+        auto zp    = m1.add_parameter("zp", {migraphx::shape::uint8_type, {1}});
+        auto scale_reshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 1}}}), scale);
+        auto scale_bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 3, 2}}}), scale_reshape);
+        auto scale_flat =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 6}}}), scale_bcast);
+        auto zp_bcast =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6}}}), zp);
+        auto dq =
+            m1.add_instruction(migraphx::make_op("dequantizelinear"), x, scale_flat, zp_bcast);
+        m1.add_return({dq});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", {migraphx::shape::uint8_type, {4, 6}});
+        auto scale = m2.add_parameter("scale", {migraphx::shape::float_type, {12}});
+        auto zp    = m2.add_parameter("zp", {migraphx::shape::uint8_type, {1}});
+        auto scale_reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3}}}), scale);
+        auto scale_bcast = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {4, 3, 2}}}), scale_reshape);
+        auto x_reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), x);
+        auto zp_unsqueeze =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), zp);
+        auto zp_bcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 3, 2}}}), zp_unsqueeze);
+        auto dq = m2.add_instruction(
+            migraphx::make_op("dequantizelinear"), x_reshape, scale_bcast, zp_bcast);
+        auto dq_flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 6}}}), dq);
+        m2.add_return({dq_flat});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(dequantizelinear_entry_shape_transform_none)
+{
+    migraphx::module m1;
+    {
+        auto x           = m1.add_parameter("x", {migraphx::shape::uint8_type, {4, 3, 2}});
+        auto scale       = m1.add_parameter("scale", {migraphx::shape::float_type, {4, 3, 1}});
+        auto scale_bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 3, 2}}}), scale);
+        auto dq = m1.add_instruction(migraphx::make_op("dequantizelinear"), x, scale_bcast);
+        m1.add_return({dq});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(op_shape_transform_shadowed_broadcast)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto w   = m1.add_parameter("w", {migraphx::shape::float_type, {6, 4}});
+        auto sq  = m1.add_instruction(migraphx::make_op("sqrt"), x);
+        auto squ = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), sq);
+        auto sqb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), squ);
+        auto ex  = m1.add_instruction(migraphx::make_op("exp"), w);
+        auto exr = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 4}}}), ex);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), sqb, exr);
+        m1.add_return({sum});
+    }
+    run_pass(m1);
+
+    // The x chain broadcasts to a different element count so it cant be
+    // rewritten; it must not shadow the rewritable reshape chain on the w
+    // input
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto w   = m2.add_parameter("w", {migraphx::shape::float_type, {6, 4}});
+        auto sq  = m2.add_instruction(migraphx::make_op("sqrt"), x);
+        auto sqb = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 3, 4}}}), sq);
+        auto wr  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 4}}}), w);
+        auto ex  = m2.add_instruction(migraphx::make_op("exp"), wr);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), sqb, ex);
+        m2.add_return({sum});
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

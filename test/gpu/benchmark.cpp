@@ -28,8 +28,11 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/reflect.hpp>
+#include <migraphx/stringutils.hpp>
 #include <test.hpp>
+#include <algorithm>
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -100,10 +103,21 @@ struct test_candidate
     // Trace output, to observe which candidates the precise pass times
     std::shared_ptr<std::stringstream> log = std::make_shared<std::stringstream>();
 
+    // Keys as compile_ops builds them: the fill value, or "random", then the parameter name
     std::vector<std::pair<std::string, migraphx::shape>>
     generate_argument_keys(const migraphx::program& p) const
     {
-        return migraphx::gpu::fill_map_argument_keys(p, fills);
+        const auto* mm = p.get_main_module();
+        auto names     = mm->get_parameter_names();
+        std::vector<std::pair<std::string, migraphx::shape>> keys;
+        std::transform(names.begin(), names.end(), std::back_inserter(keys), [&](const auto& name) {
+            auto s    = mm->get_parameter_shape(name);
+            auto fill = fills.find(s.type_string() + migraphx::shape::to_sizes_string({s}));
+            auto tag =
+                fill == fills.end() ? std::string{"random"} : migraphx::to_hex_float(fill->second);
+            return std::make_pair(tag + ":" + name, s);
+        });
+        return keys;
     }
 
     migraphx::argument generate_argument(const migraphx::gpu::context& ctx,
@@ -111,7 +125,13 @@ struct test_candidate
                                          const migraphx::shape& s) const
     {
         generated->emplace_back(key, s);
-        return migraphx::gpu::generate_fill_map_argument(ctx, fills, key, s);
+        auto tag = key.substr(0, key.find(':'));
+        if(tag == "random")
+        {
+            auto gctx = ctx;
+            return migraphx::gpu::gpu_generate_random(gctx, s, std::hash<std::string>{}(key));
+        }
+        return migraphx::gpu::to_gpu(migraphx::fill_argument(s, std::stod(tag)));
     }
 
     migraphx::program make_program() const
@@ -346,46 +366,6 @@ TEST_CASE(simple_benchmark_regenerates_a_shared_argument_whose_shape_differs)
     // large reuses x, but not the scratch, whose key matches and whose shape does not
     EXPECT(large.generated->size() == 1);
     EXPECT(large.generated->front().second == migraphx::shape{migraphx::shape::int8_type, {32}});
-}
-
-TEST_CASE(fill_map_argument_keys_differ_for_close_fill_values)
-{
-    migraphx::gpu::context ctx{};
-    migraphx::shape s{migraphx::shape::double_type, {4}};
-    migraphx::program p;
-    {
-        auto* mm = p.get_main_module();
-        mm->add_return({mm->add_parameter("x", s)});
-    }
-    auto id = s.type_string() + migraphx::shape::to_sizes_string({s});
-    std::unordered_map<std::string, double> first_fill_map  = {{id, 3.0000001}};
-    std::unordered_map<std::string, double> second_fill_map = {{id, 3.0000002}};
-    auto first  = migraphx::gpu::fill_map_argument_keys(p, first_fill_map);
-    auto second = migraphx::gpu::fill_map_argument_keys(p, second_fill_map);
-    EXPECT(first.front().first != second.front().first);
-    auto arg =
-        migraphx::gpu::generate_fill_map_argument(ctx, second_fill_map, second.front().first, s);
-    EXPECT(migraphx::gpu::from_gpu(arg) == migraphx::fill_argument(s, 3.0000002));
-}
-
-TEST_CASE(fill_map_argument_keys_do_not_confuse_a_parameter_name_with_a_fill_value)
-{
-    migraphx::shape s{migraphx::shape::float_type, {4}};
-    migraphx::program p1;
-    {
-        auto* mm = p1.get_main_module();
-        mm->add_return({mm->add_parameter("x", s)});
-    }
-    migraphx::program p2;
-    {
-        auto* mm = p2.get_main_module();
-        mm->add_return({mm->add_parameter("x:3.000000", s)});
-    }
-    std::unordered_map<std::string, double> fill_map = {
-        {s.type_string() + migraphx::shape::to_sizes_string({s}), 3}};
-    auto filled = migraphx::gpu::fill_map_argument_keys(p1, fill_map);
-    auto random = migraphx::gpu::fill_map_argument_keys(p2, {});
-    EXPECT(filled.front().first != random.front().first);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

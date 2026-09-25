@@ -125,57 +125,26 @@ double time_op(const context& ictx, operation op, int bundle, int nruns)
     return time_op(ictx, op, inputs, bundle, nruns);
 }
 
-// The value fill_map holds for s, keyed by its shape id (type + dims)
-static optional<double> find_fill(const std::unordered_map<std::string, double>& fill_map,
-                                  const shape& s)
-{
-    std::string id = "";
-    if(s.type() != migraphx::shape::tuple_type)
-        id = s.type_string() + migraphx::shape::to_sizes_string({s.as_standard()});
-    auto fill = fill_map.find(id);
-    if(fill == fill_map.end())
-        return nullopt;
-    return fill->second;
-}
-
-std::vector<std::pair<std::string, shape>>
-fill_map_argument_keys(const program& p, const std::unordered_map<std::string, double>& fill_map)
-{
-    const auto* mm = p.get_main_module();
-    auto names     = mm->get_parameter_names();
-    std::vector<std::pair<std::string, shape>> keys;
-    keys.reserve(names.size());
-    std::transform(names.begin(), names.end(), std::back_inserter(keys), [&](const auto& name) {
-        auto s    = mm->get_parameter_shape(name);
-        auto fill = find_fill(fill_map, s);
-        // Neither fill tag contains ':', so the first ':' ends the tag even if the name has one
-        auto tag = fill.has_value() ? to_hex_float(*fill) : std::string{"random"};
-        return std::make_pair(tag + ":" + name, s);
-    });
-    return keys;
-}
-
-argument generate_fill_map_argument(const context& ictx,
-                                    const std::unordered_map<std::string, double>& fill_map,
-                                    const std::string& key,
-                                    const shape& s)
-{
-    // fill_map inputs need specific values (host fill); the rest are generated
-    // on the GPU to skip the host PRNG + H2D copy per candidate.
-    if(auto fill = find_fill(fill_map, s))
-        return to_gpu(fill_argument(s, *fill));
-    auto gctx = ictx;
-    return gpu_generate_random(gctx, s, std::hash<std::string>{}(key));
-}
-
 std::vector<argument> generate_program_arguments(
     const context& ictx, const program& p, const std::unordered_map<std::string, double>& fill_map)
 {
-    auto keys = fill_map_argument_keys(p, fill_map);
+    auto gctx      = ictx;
+    const auto* mm = p.get_main_module();
+    auto names     = mm->get_parameter_names();
     std::vector<argument> args;
-    args.reserve(keys.size());
-    std::transform(keys.begin(), keys.end(), std::back_inserter(args), [&](const auto& key) {
-        return generate_fill_map_argument(ictx, fill_map, key.first, key.second);
+    args.reserve(names.size());
+    unsigned long seed = 0;
+    std::transform(names.begin(), names.end(), std::back_inserter(args), [&](const auto& name) {
+        auto s         = mm->get_parameter_shape(name);
+        std::string id = "";
+        if(s.type() != migraphx::shape::tuple_type)
+            id = s.type_string() + migraphx::shape::to_sizes_string({s.as_standard()});
+
+        // fill_map inputs need specific values (host fill); the rest are generated
+        // on the GPU to skip the host PRNG + H2D copy per candidate.
+        if(contains(fill_map, id))
+            return to_gpu(fill_argument(s, fill_map.at(id)));
+        return gpu_generate_random(gctx, s, seed++);
     });
     return args;
 }

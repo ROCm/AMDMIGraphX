@@ -38,17 +38,22 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <functional>
+#include <string>
 #include <thread>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -274,19 +279,45 @@ struct compiled_result
         const compiled_result* parent = nullptr;
         value sol                     = value{};
 
-        // Parameters whose shape is in the compiled result's fill_map hold that value, the rest
-        // random data
+        // Parameters whose shape id (type + dims) is in the compiled result's fill_map hold that
+        // value, the rest random data. Each key leads with the fill value, or "random", so only
+        // parameters that hold the same data share a key.
         std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const
         {
             assert(parent != nullptr);
-            return fill_map_argument_keys(p, parent->replace.fill_map);
+            const auto& fill_map = parent->replace.fill_map;
+            const auto* mm       = p.get_main_module();
+            auto names           = mm->get_parameter_names();
+            std::vector<std::pair<std::string, shape>> keys;
+            keys.reserve(names.size());
+            std::transform(
+                names.begin(), names.end(), std::back_inserter(keys), [&](const auto& name) {
+                    auto s         = mm->get_parameter_shape(name);
+                    std::string id = "";
+                    if(s.type() != shape::tuple_type)
+                        id = s.type_string() + shape::to_sizes_string({s.as_standard()});
+                    auto fill = fill_map.find(id);
+                    // Neither tag contains ':', so the first ':' ends the tag even if the name
+                    // has one
+                    auto tag =
+                        fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second);
+                    return std::make_pair(tag + ":" + name, s);
+                });
+            return keys;
         }
 
+        // The key's tag gives the data: "random" is generated on the GPU, seeded by the key so a
+        // key always gives the same data; a hex float is filled on the host
         argument
         generate_argument(const context& ictx, const std::string& key, const shape& s) const
         {
-            assert(parent != nullptr);
-            return generate_fill_map_argument(ictx, parent->replace.fill_map, key, s);
+            auto tag = key.substr(0, key.find(':'));
+            if(tag == "random")
+            {
+                auto gctx = ictx;
+                return gpu_generate_random(gctx, s, std::hash<std::string>{}(key));
+            }
+            return to_gpu(fill_argument(s, std::stod(tag)));
         }
 
         program make_program() const

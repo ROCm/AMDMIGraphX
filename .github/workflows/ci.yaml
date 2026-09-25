@@ -2,6 +2,8 @@ name: migraphx
 
 permissions:
   contents: read
+  actions: write
+  checks: write
 
 on: 
   pull_request:

@@ -1240,7 +1240,10 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
     return fname;
 }
 
-void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location)
+void dump_mlir_to_file(const context&,
+                       module m,
+                       const std::vector<shape>& inputs,
+                       const fs::path& location)
 {
     static std::mutex mutex;
     const std::lock_guard<std::mutex> lock(mutex);
@@ -1403,7 +1406,8 @@ bool mlir_lds_usage_fits_arch(int64_t gemm_o,
         gemm_o, arch.c_str(), prog.make_type(elem_type), MlirModule{});
 }
 
-void dump_mlir_to_mxr(module m,
+void dump_mlir_to_mxr(const context&,
+                      module m,
                       const std::vector<instruction_ref>& inputs,
                       const fs::path& location)
 {
@@ -1467,9 +1471,11 @@ bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const 
 // when MIGRAPHX_MLIR is disabled.
 bool is_module_fusible(const module&, const context&, const value&) { return false; }
 
-void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
+void dump_mlir_to_file(const context&, module, const std::vector<shape>&, const fs::path&) {}
 
-void dump_mlir_to_mxr(module, const std::vector<instruction_ref>&, const fs::path&) {}
+void dump_mlir_to_mxr(const context&, module, const std::vector<instruction_ref>&, const fs::path&)
+{
+}
 // NOLINTEND(performance-unnecessary-value-param)
 
 #endif

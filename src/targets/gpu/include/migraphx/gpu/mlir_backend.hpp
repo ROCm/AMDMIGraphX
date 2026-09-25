@@ -87,7 +87,8 @@ struct mlir_backend_v3
 
     mlir_backend_result* (*dump_mlir)(
         const module* m, const shape* inputs, std::size_t input_count) noexcept;
-    mlir_backend_result* (*dump_mlir_to_file)(const module* m,
+    mlir_backend_result* (*dump_mlir_to_file)(const context* migraphx_ctx,
+                                              const module* m,
                                               const shape* inputs,
                                               std::size_t input_count,
                                               const fs::path::value_type* location,
@@ -113,7 +114,8 @@ struct mlir_backend_v3
                                                    const shape* inputs,
                                                    std::size_t input_count,
                                                    bool exhaustive) noexcept;
-    mlir_backend_result* (*dump_mlir_to_mxr)(const module* m,
+    mlir_backend_result* (*dump_mlir_to_mxr)(const context* migraphx_ctx,
+                                             const module* m,
                                              const instruction_ref* inputs,
                                              std::size_t input_count,
                                              const fs::path::value_type* location,

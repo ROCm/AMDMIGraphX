@@ -147,14 +147,16 @@ plugin_dump_mlir(const module* m, const shape* inputs, std::size_t input_count) 
     });
 }
 
-static mlir_backend_result* plugin_dump_mlir_to_file(const module* m,
+static mlir_backend_result* plugin_dump_mlir_to_file(const context* migraphx_ctx,
+                                                     const module* m,
                                                      const shape* inputs,
                                                      std::size_t input_count,
                                                      const fs::path::value_type* location,
                                                      std::size_t location_size) noexcept
 {
     return make_backend_result([&](auto&) {
-        dump_mlir_to_file(required(m, "module"),
+        dump_mlir_to_file(required(migraphx_ctx, "context"),
+                          required(m, "module"),
                           copy_range(inputs, input_count),
                           copy_path(location, location_size));
     });
@@ -246,14 +248,16 @@ static mlir_backend_result* plugin_get_tuning_config_mlir(const context* migraph
     });
 }
 
-static mlir_backend_result* plugin_dump_mlir_to_mxr(const module* m,
+static mlir_backend_result* plugin_dump_mlir_to_mxr(const context* migraphx_ctx,
+                                                    const module* m,
                                                     const instruction_ref* inputs,
                                                     std::size_t input_count,
                                                     const fs::path::value_type* location,
                                                     std::size_t location_size) noexcept
 {
     return make_backend_result([&](auto&) {
-        dump_mlir_to_mxr(required(m, "module"),
+        dump_mlir_to_mxr(required(migraphx_ctx, "context"),
+                         required(m, "module"),
                          copy_range(inputs, input_count),
                          copy_path(location, location_size));
     });

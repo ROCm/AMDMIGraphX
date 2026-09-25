@@ -332,13 +332,16 @@ std::string dump_mlir(module m)
     return result_string(result);
 }
 
-void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location)
+void dump_mlir_to_file(const context& migraphx_ctx,
+                       module m,
+                       const std::vector<shape>& inputs,
+                       const fs::path& location)
 {
     const auto& path    = location.native();
-    const auto& backend = mlir_backend();
-    checked_result(
-        backend.dump_mlir_to_file(&m, inputs.data(), inputs.size(), path.data(), path.size()),
-        backend);
+    const auto& backend = mlir_backend(migraphx_ctx);
+    checked_result(backend.dump_mlir_to_file(
+                       &migraphx_ctx, &m, inputs.data(), inputs.size(), path.data(), path.size()),
+                   backend);
 }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
@@ -388,15 +391,16 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     return result_tuning_config(result);
 }
 
-void dump_mlir_to_mxr(module m,
+void dump_mlir_to_mxr(const context& migraphx_ctx,
+                      module m,
                       const std::vector<instruction_ref>& inputs,
                       const fs::path& location)
 {
     const auto& path    = location.native();
-    const auto& backend = mlir_backend();
-    checked_result(
-        backend.dump_mlir_to_mxr(&m, inputs.data(), inputs.size(), path.data(), path.size()),
-        backend);
+    const auto& backend = mlir_backend(migraphx_ctx);
+    checked_result(backend.dump_mlir_to_mxr(
+                       &migraphx_ctx, &m, inputs.data(), inputs.size(), path.data(), path.size()),
+                   backend);
 }
 
 bool mlir_lds_usage_fits_arch(int64_t gemm_o,
@@ -449,9 +453,11 @@ bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const 
 
 bool is_module_fusible(const module&, const context&, const value&) { return false; }
 
-void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
+void dump_mlir_to_file(const context&, module, const std::vector<shape>&, const fs::path&) {}
 
-void dump_mlir_to_mxr(module, const std::vector<instruction_ref>&, const fs::path&) {}
+void dump_mlir_to_mxr(const context&, module, const std::vector<instruction_ref>&, const fs::path&)
+{
+}
 // NOLINTEND(performance-unnecessary-value-param)
 
 #endif // MIGRAPHX_MLIR

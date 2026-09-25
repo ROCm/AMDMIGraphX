@@ -438,11 +438,11 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto* smod  = ins->module_inputs().front();
         if(not mxr_loc.empty())
         {
-            dump_mlir_to_mxr(*smod, ins->inputs(), mxr_loc);
+            dump_mlir_to_mxr(ctx, *smod, ins->inputs(), mxr_loc);
         }
         if(not mlir_loc.empty())
         {
-            dump_mlir_to_file(*smod, shapes, mlir_loc);
+            dump_mlir_to_file(ctx, *smod, shapes, mlir_loc);
         }
         return get_tuning_config_mlir(ctx, *smod, shapes, exhaustive);
     }

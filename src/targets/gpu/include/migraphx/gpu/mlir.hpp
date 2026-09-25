@@ -41,8 +41,10 @@ namespace gpu {
 
 MIGRAPHX_GPU_EXPORT std::string dump_mlir(module m);
 MIGRAPHX_GPU_EXPORT std::string dump_mlir(module m, const std::vector<shape>& inputs);
-MIGRAPHX_GPU_EXPORT void
-dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location);
+MIGRAPHX_GPU_EXPORT void dump_mlir_to_file(const context& migraphx_ctx,
+                                           module m,
+                                           const std::vector<shape>& inputs,
+                                           const fs::path& location);
 
 MIGRAPHX_GPU_EXPORT bool
 is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution);
@@ -91,8 +93,10 @@ MIGRAPHX_GPU_EXPORT tuning_config get_tuning_config_mlir(const context& migraphx
                                                          const std::vector<shape>& inputs,
                                                          bool exhaustive);
 
-MIGRAPHX_GPU_EXPORT void
-dump_mlir_to_mxr(module m, const std::vector<instruction_ref>& inputs, const fs::path& location);
+MIGRAPHX_GPU_EXPORT void dump_mlir_to_mxr(const context& migraphx_ctx,
+                                          module m,
+                                          const std::vector<instruction_ref>& inputs,
+                                          const fs::path& location);
 
 // Returns true if rocMLIR estimates that a two-gemm problem with
 // the given second gemm's output dimension (gemm_o) fits within the target arch's LDS budget

@@ -35,7 +35,10 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
 #include <migraphx/rewrite_broadcasts.hpp>
+#include <migraphx/permutation.hpp>
+#include <migraphx/algorithm.hpp>
 #include <iterator>
+#include <set>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
 
@@ -216,6 +219,38 @@ merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_r
     return fins;
 }
 
+// One layout per non-broadcasted output; broadcasted and non-symbolic dynamic
+// outputs are layout-ambiguous so they contribute none.
+static std::vector<std::vector<int64_t>> output_layouts(instruction_ref ins)
+{
+    const auto& s = ins->get_shape();
+    auto shapes = s.type() == shape::tuple_type ? s.sub_shapes() : std::vector<shape>{s};
+    std::vector<std::vector<int64_t>> result;
+    transform_if(
+        shapes.begin(),
+        shapes.end(),
+        std::back_inserter(result),
+        [](const shape& x) { return x.symbolic() or not(x.dynamic() or x.broadcasted()); },
+        [](const shape& x) { return find_permutation(x); });
+    return result;
+}
+
+// A multi-output pointwise resolves every output shape from one layout vote,
+// so only merge outputs that already agree; otherwise an unrelated input (eg
+// an NCHW constant) can flip the layout of an NHWC branch.
+static bool same_output_layouts(const std::vector<instruction_ref>& instructions)
+{
+    auto layouts = transform_accumulate(instructions.begin(),
+                                        instructions.end(),
+                                        std::set<std::vector<int64_t>>{},
+                                        [](auto acc, const auto& perms) {
+                                            acc.insert(perms.begin(), perms.end());
+                                            return acc;
+                                        },
+                                        &output_layouts);
+    return layouts.size() < 2;
+}
+
 static auto find_input_pointwise(const module& m, instruction_ref ins, bool multi_out)
 {
     auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
@@ -227,7 +262,7 @@ static auto find_input_pointwise(const module& m, instruction_ref ins, bool mult
             if(not m.has_instruction(i))
                 return false;
             auto base_distance = std::distance(i, ins);
-            return i->name() == "pointwise" and
+            return i->name() == "pointwise" and same_output_layouts({i, ins}) and
                    std::none_of(i->outputs().begin(), i->outputs().end(), [&](auto output) {
                        if(not m.has_instruction(output))
                            return true;
@@ -275,6 +310,8 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
         return std::none_of(
             result.begin(), result.end(), [&](auto other) { return reaches(other, output, &m); });
     });
+    if(not same_output_layouts(result))
+        return {};
     return result;
 }
 

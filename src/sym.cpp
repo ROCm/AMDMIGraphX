@@ -481,7 +481,7 @@ static void check_var_name(const std::string& name)
 {
     if(name.empty())
         MIGRAPHX_THROW("Variable name must not be empty");
-    auto first = static_cast<unsigned char>(name.front());
+    unsigned char first = name.front();
     if(not is_identifier_start(first))
         MIGRAPHX_THROW("Variable name must start with a letter or an underscore: " + name);
     if(not std::all_of(name.begin(), name.end(), &is_identifier_char))

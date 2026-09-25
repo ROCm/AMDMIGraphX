@@ -36,6 +36,7 @@
 #include <limits>
 #include <numeric>
 #include <thread>
+#include <tuple>
 #include <utility>
 
 namespace migraphx {
@@ -307,54 +308,43 @@ adaptive_topk_benchmark::run(const context& ictx,
     // Coarse pass: warmup + single-run estimate, then a short bundle-of-1 measurement.
     // The second measurement is skipped only when the estimate already exceeds coarse_ms, as it
     // would then be a single run too. A single run is too noisy to rule a candidate out of the
-    // top_k, so every other candidate is measured. The accumulator is a max-heap, by coarse time,
-    // of the best top_k candidates so far; their programs are kept for the precise pass and
-    // released when they drop out of the heap. Their arguments are not kept: each set holds its
-    // candidate's scratch, which would otherwise stay resident while later candidates allocate
-    // theirs.
+    // top_k, so every other candidate is measured. The programs of the top_k fastest candidates
+    // so far are kept for the precise pass, and released as soon as a faster one pushes them out.
+    // Their arguments are not kept: each set holds its candidate's scratch, which would otherwise
+    // stay resident while later candidates allocate theirs.
     std::vector<double> coarse(candidates.size(), invalid);
     std::vector<optional<program>> kept(candidates.size());
-    auto by_coarse = [&](auto i, auto j) { return coarse[i] < coarse[j]; };
-    (void)std::accumulate(
-        indices.begin(),
-        indices.end(),
-        std::vector<std::size_t>{},
-        [&](std::vector<std::size_t> top, auto i) {
-            const auto& candidate = candidates[i];
-            auto trace            = candidate.trace();
-            trace("Benchmarking solution: ", candidate.solution());
-            auto t = try_benchmark(trace, [&] {
-                auto bp       = make_benchmark_program(ctx_vec, candidate, generated);
-                auto estimate = bp.time(ctx_vec, 1, 1);
-                double time   = estimate;
-                if(estimate <= static_cast<double>(coarse_ms))
-                    time =
-                        bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs), false);
-                if(top_k > 0)
-                    kept[i] = std::move(bp.p);
-                return time;
-            });
-            if(t.has_value())
-                trace("Coarse time: ", *t, "ms");
-            coarse[i] = t.value_or(invalid);
-            if(top_k == 0 or not std::isfinite(coarse[i]))
-                return top;
-            if(top.size() < top_k)
-            {
-                top.push_back(i);
-                std::push_heap(top.begin(), top.end(), by_coarse);
-                return top;
-            }
-            auto dropped = i;
-            if(coarse[i] < coarse[top.front()])
-            {
-                std::pop_heap(top.begin(), top.end(), by_coarse);
-                dropped = std::exchange(top.back(), i);
-                std::push_heap(top.begin(), top.end(), by_coarse);
-            }
-            kept[dropped] = nullopt;
-            return top;
+    // Coarse time and index of the top_k fastest candidates so far, fastest first
+    std::vector<std::pair<double, std::size_t>> top;
+    std::transform(indices.begin(), indices.end(), coarse.begin(), [&](auto i) {
+        const auto& candidate = candidates[i];
+        auto trace            = candidate.trace();
+        trace("Benchmarking solution: ", candidate.solution());
+        auto t = try_benchmark(trace, [&] {
+            auto bp       = make_benchmark_program(ctx_vec, candidate, generated);
+            auto estimate = bp.time(ctx_vec, 1, 1);
+            double time   = estimate;
+            if(estimate <= static_cast<double>(coarse_ms))
+                time = bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs), false);
+            if(top_k > 0)
+                kept[i] = std::move(bp.p);
+            return time;
         });
+        if(not t.has_value())
+            return invalid;
+        trace("Coarse time: ", *t, "ms");
+        if(top_k > 0)
+        {
+            auto entry = std::make_pair(*t, i);
+            top.insert(std::upper_bound(top.begin(), top.end(), entry), entry);
+            if(top.size() > top_k)
+            {
+                kept[top.back().second] = nullopt;
+                top.pop_back();
+            }
+        }
+        return *t;
+    });
 
     // Select the candidates that measured successfully, keep the top_k fastest
     std::vector<std::size_t> selected;
@@ -364,8 +354,10 @@ adaptive_topk_benchmark::run(const context& ictx,
     });
     if(selected.empty())
         MIGRAPHX_THROW("adaptive_topk_benchmark: all candidates failed to run");
-    std::sort(
-        selected.begin(), selected.end(), [&](auto i, auto j) { return coarse[i] < coarse[j]; });
+    // Ties go to the lower index, as in top, so the kept programs are the selected ones
+    std::sort(selected.begin(), selected.end(), [&](auto i, auto j) {
+        return std::tie(coarse[i], i) < std::tie(coarse[j], j);
+    });
     if(top_k > 0 and selected.size() > top_k)
         selected.resize(top_k);
     // Precise timing only separates close candidates, so one far behind the best coarse time

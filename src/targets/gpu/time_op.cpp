@@ -313,14 +313,7 @@ adaptive_topk_benchmark::run(const context& ictx,
 
     // Coarse pass: warmup + single-run estimate, then a bundle-of-1 measurement of up to
     // coarse_max_runs runs within coarse_ms. The measurement is skipped when it would be a single
-<<<<<<< HEAD
     // run too, so with the default coarse_max_runs every candidate is ranked by its estimate.
-=======
-    // run too, and the candidate is ranked by its estimate. The programs of the top_k fastest
-    // candidates so far are kept for the precise pass, and released as soon as a faster one pushes
-    // them out. Their arguments are not kept: each set holds its candidate's scratch, which would
-    // otherwise stay resident while later candidates allocate theirs.
->>>>>>> 564522fe6d98bbaaa32e0f8d2559c033c9dfd592
     std::vector<double> coarse(candidates.size(), invalid);
     std::transform(candidates.begin(),
                    candidates.end(),

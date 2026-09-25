@@ -135,9 +135,10 @@ static stored_entries dir_entries(const migraphx::fs::path& dir)
 {
     stored_entries result;
     auto files = entry_files(dir);
-    std::transform(files.begin(), files.end(), std::inserter(result, result.end()), [](auto f) {
-        return std::make_pair(f.stem().string(), migraphx::read_buffer(f));
-    });
+    std::transform(
+        files.begin(), files.end(), std::inserter(result, result.end()), [](const auto& f) {
+            return std::make_pair(f.stem().string(), migraphx::read_buffer(f));
+        });
     return result;
 }
 

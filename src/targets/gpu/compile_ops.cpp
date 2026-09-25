@@ -733,6 +733,32 @@ struct compile_manager
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
+    /// Store every compiled result in the binary cache.
+    static void
+    store_results(const std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>>& tasks)
+    {
+        if(tasks.empty())
+            return;
+        // Every plan compiles with the same context, so the stores all go to one cache, and
+        // batching them lets its storage commit them together rather than one at a time.
+        auto* ctx = tasks.front().first->ctx;
+        assert(std::all_of(
+            tasks.begin(), tasks.end(), [&](const auto& task) { return task.first->ctx == ctx; }));
+        binary_cache::store_batch batch{ctx->get_binary_cache()};
+        for(const auto& [cp, cell] : tasks)
+        {
+            if(not cell->result.has_value())
+                continue;
+            // When verifying, reused results are stored again, rewriting the same bytes
+            // harmlessly.
+            cp->store(cell->solution, cell->key, cell->result->code);
+            assert(not cell->result->code.empty());
+            // Only the serializable code is used from here on; dropping the replace function
+            // releases what its closure holds and keeps it off other instructions.
+            cell->result->replace_fn = nullptr;
+        }
+    }
+
     void compile(module& m, bool is_root)
     {
         for(auto& cp : cps)
@@ -804,28 +830,7 @@ struct compile_manager
                 cell->result = cp->run_compile(cell->solution);
         });
 
-        if(not tasks.empty())
-        {
-            // Every plan compiles with the same context, so the stores all go to one cache, and
-            // batching them lets its storage commit them together rather than one at a time.
-            auto* ctx = tasks.front().first->ctx;
-            assert(std::all_of(tasks.begin(), tasks.end(), [&](const auto& task) {
-                return task.first->ctx == ctx;
-            }));
-            binary_cache::store_batch batch{ctx->get_binary_cache()};
-            for(const auto& [cp, cell] : tasks)
-            {
-                if(not cell->result.has_value())
-                    continue;
-                // When verifying, reused results are stored again, rewriting the same bytes
-                // harmlessly.
-                cp->store(cell->solution, cell->key, cell->result->code);
-                assert(not cell->result->code.empty());
-                // Only the serializable code is used from here on; dropping the replace function
-                // releases what its closure holds and keeps it off other instructions.
-                cell->result->replace_fn = nullptr;
-            }
-        }
+        store_results(tasks);
 
         static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
         bool dump_mxr              = not mxr_path.empty();

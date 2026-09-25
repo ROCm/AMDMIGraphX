@@ -217,7 +217,9 @@ void sqlite_stmt::reset() const noexcept
     (void)sqlite3_clear_bindings(impl->get());
 }
 
-/// Column i of the current row, keyed by its name.
+/// Column i of the current row, keyed by its name. The values are built with parentheses
+/// rather than the braces tidy suggests: value has an initializer_list constructor, which braces
+/// would select, turning a keyed value into a two-element array.
 static value column_value(sqlite3_stmt* stmt, int i)
 {
     std::string name = sqlite3_column_name(stmt, i);
@@ -225,6 +227,7 @@ static value column_value(sqlite3_stmt* stmt, int i)
     switch(type)
     {
     case SQLITE_INTEGER: return value(name, std::int64_t{sqlite3_column_int64(stmt, i)});
+    // NOLINTNEXTLINE(modernize-return-braced-init-list)
     case SQLITE_FLOAT: return value(name, sqlite3_column_double(stmt, i));
     case SQLITE_TEXT:
     case SQLITE_BLOB: {
@@ -236,9 +239,12 @@ static value column_value(sqlite3_stmt* stmt, int i)
         assert(bytes >= 0);
         auto size = data == nullptr ? 0 : static_cast<std::size_t>(bytes);
         if(type == SQLITE_TEXT)
+            // NOLINTNEXTLINE(modernize-return-braced-init-list)
             return value(name, size == 0 ? std::string{} : std::string(data, size));
+        // NOLINTNEXTLINE(modernize-return-braced-init-list)
         return value(name, value::binary{data, size});
     }
+    // NOLINTNEXTLINE(modernize-return-braced-init-list)
     default: return value(name, nullptr);
     }
 }
@@ -253,6 +259,7 @@ value sqlite_stmt::to_value() const
                    indices.end(),
                    std::back_inserter(columns),
                    [&](std::ptrdiff_t i) { return column_value(stmt, static_cast<int>(i)); });
+    // NOLINTNEXTLINE(modernize-return-braced-init-list)
     return value(columns, /* array_on_empty */ false);
 }
 

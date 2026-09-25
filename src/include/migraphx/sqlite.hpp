@@ -60,19 +60,10 @@ struct MIGRAPHX_EXPORT sqlite_stmt
 
     sqlite_stmt() = default;
 
-    /// Run the statement with xs bound to its parameters in order, and return its rows.
+    /// Run the statement with xs bound to its parameters in order, and return its rows. Defined
+    /// after rows, which has to be complete for a function returning it to be defined.
     template <class... Ts>
-    rows operator()(const Ts&... xs) const
-    {
-        if(not valid())
-            MIGRAPHX_THROW("sqlite: calling a statement that was never prepared");
-        assert(sizeof...(Ts) == parameter_count());
-        // Anything left from the previous call, bindings or an unfinished result, goes first.
-        reset();
-        int i = 0;
-        each_args([&](const auto& x) { bind(++i, x); }, xs...);
-        return rows{*this};
-    }
+    rows operator()(const Ts&... xs) const;
 
     bool valid() const { return impl != nullptr; }
 
@@ -161,6 +152,19 @@ struct sqlite_stmt::rows
     sqlite_stmt stmt;
     bool first = false;
 };
+
+template <class... Ts>
+sqlite_stmt::rows sqlite_stmt::operator()(const Ts&... xs) const
+{
+    if(not valid())
+        MIGRAPHX_THROW("sqlite: calling a statement that was never prepared");
+    assert(sizeof...(Ts) == parameter_count());
+    // Anything left from the previous call, bindings or an unfinished result, goes first.
+    reset();
+    int i = 0;
+    each_args([&](const auto& x) { bind(++i, x); }, xs...);
+    return rows{*this};
+}
 
 struct MIGRAPHX_EXPORT sqlite
 {

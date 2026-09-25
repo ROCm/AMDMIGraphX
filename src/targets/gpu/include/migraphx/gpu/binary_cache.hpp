@@ -98,19 +98,18 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
 
     const stats& get_stats() const { return counters; }
 
-    /// Names the directory holding entries that this build can use: the entry format, the
-    /// compiler, a digest of the embedded kernel headers, and the rocMLIR build. Empty when the
-    /// compiler cannot be identified, in which case nothing is read from or written to disk,
-    /// since entries from different compilers could not be told apart.
-    static const std::string& version_dir();
-
-    /// A human-readable description of what version_dir() encodes. Handed to a backend when one
-    /// is constructed, so it can store a self-describing marker alongside its entries.
-    static const std::string& version_stamp();
+    /// Identifies what this build can use: the entry format, the compiler, a digest of the
+    /// embedded kernel headers, and the rocMLIR build. Digests are truncated when a short id is
+    /// requested; the short id names the cache directory, and a database records the full one.
+    /// Empty when the compiler cannot be identified, in which case nothing is read from or
+    /// written to disk, since entries from different compilers could not be told apart.
+    static const std::string& version_id(bool use_short_digest);
 
     private:
     std::unordered_map<std::string, compiled_code> memo;
     binary_cache_settings settings;
+    /// The version_id entries are stored under, in the form the backend uses.
+    std::string version;
     /// Where entries are persisted, or empty for a memory-only cache.
     optional<binary_cache_backend> backend;
     stats counters;

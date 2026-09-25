@@ -142,16 +142,16 @@ std::vector<std::unordered_map<std::string, std::string>> sqlite::execute(const 
     return result;
 }
 
-sqlite_stmt sqlite::prepare(const std::string& s)
+sqlite_stmt sqlite::prepare(const std::string& sql)
 {
     sqlite3_stmt* stmt_tmp = nullptr;
-    int rc                 = sqlite3_prepare_v2(impl->get(), s.c_str(), -1, &stmt_tmp, nullptr);
+    int rc                 = sqlite3_prepare_v2(impl->get(), sql.c_str(), -1, &stmt_tmp, nullptr);
     sqlite_stmt result;
     result.impl      = std::make_shared<sqlite_stmt_impl>();
     result.impl->db  = impl;
     result.impl->ptr = sqlite3_stmt_ptr{stmt_tmp};
     if(rc != SQLITE_OK)
-        MIGRAPHX_THROW("error preparing '" + s + "': " + impl->error_message());
+        MIGRAPHX_THROW("error preparing '" + sql + "': " + impl->error_message());
     return result;
 }
 

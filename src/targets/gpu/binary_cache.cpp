@@ -51,37 +51,48 @@ static constexpr const char* rocmlir_id = "nomlir";
 
 std::shared_ptr<binary_cache> make_binary_cache() { return std::make_shared<binary_cache>(); }
 
-static std::string short_digest(const std::string& s) { return md5(s).substr(0, 12); }
-
-/// A digest of the kernel headers compiled into this build. Taken from the embedded sources
-/// rather than the files on disk, so it tracks what is actually compiled even when the build
-/// system has not reconfigured.
-static const std::string& kernels_digest()
+/// An md5 digest, truncated for readability when a short one is requested.
+static std::string digest(const std::string& s, bool use_short_digest)
 {
-    static const std::string digest = [] {
+    auto d = md5(s);
+    if(use_short_digest)
+        d.resize(12);
+    return d;
+}
+
+/// The kernel headers compiled into this build. Taken from the embedded sources rather than
+/// the files on disk, so it tracks what is actually compiled even when the build system has
+/// not reconfigured.
+static const std::string& kernels_source()
+{
+    static const std::string src = [] {
         std::stringstream ss;
         for(const auto& [path, content] : ::migraphx_kernels())
         {
             ss << path << "\n" << content << "\n";
         }
-        return short_digest(ss.str());
+        return ss.str();
     }();
-    return digest;
+    return src;
 }
 
-const std::string& binary_cache::version_dir()
+static std::string make_version_id(bool use_short_digest)
 {
-    static const std::string dir = [] {
-        const auto& compiler = hip_compiler_version();
-        if(compiler.empty())
-            return std::string{};
-        // The version numbers make the directory readable; the hash of the full version string
-        // separates builds that share them, since it also covers the source revision.
-        return std::string{binary_cache_format} + "-hip" + compiler.major + "." + compiler.minor +
-               "." + short_digest(compiler.version) + "-kernels" + kernels_digest() + "-rocmlir" +
-               rocmlir_id;
-    }();
-    return dir;
+    const auto& compiler = hip_compiler_version();
+    if(compiler.empty())
+        return {};
+    // The version numbers make the id readable; the hash of the full version string
+    // separates builds that share them, since it also covers the source revision.
+    return std::string{binary_cache_format} + "-hip" + compiler.major + "." + compiler.minor +
+           "." + digest(compiler.version, use_short_digest) + "-kernels" +
+           digest(kernels_source(), use_short_digest) + "-rocmlir" + rocmlir_id;
+}
+
+const std::string& binary_cache::version_id(bool use_short_digest)
+{
+    static const std::string short_id = make_version_id(true);
+    static const std::string long_id  = make_version_id(false);
+    return use_short_digest ? short_id : long_id;
 }
 
 /// Entries are grouped by the device they were compiled for. This keeps the directory
@@ -92,19 +103,6 @@ static std::string device_dir(const context& ctx)
     const auto& device = ctx.get_current_device();
     return to_c_id(device.get_device_name()) + "_cu" + std::to_string(device.get_cu_count()) +
            "_wf" + std::to_string(device.get_wavefront_size());
-}
-
-const std::string& binary_cache::version_stamp()
-{
-    static const std::string stamp = [] {
-        std::stringstream ss;
-        ss << "format: " << binary_cache_format << "\n";
-        ss << "hip: " << hip_compiler_version().version << "\n";
-        ss << "kernels: " << kernels_digest() << "\n";
-        ss << "rocmlir: " << rocmlir_id << "\n";
-        return ss.str();
-    }();
-    return stamp;
 }
 
 /// Turn a stored blob back into an entry. Any failure is just a miss, so a damaged entry costs
@@ -135,16 +133,17 @@ decode_entry(const std::vector<char>& blob, const std::string& key, const std::s
 
 // Select the storage backend by file type, the same rule make_problem_cache_backend applies in
 // problem_cache.cpp: a ".db"/".sqlite" path is a SQLite database, anything else is a directory
-// of entries. The version stamp is handed to the backend here so the backends do not have to
-// reach back into the cache frontend for it.
+// of entries.
+static bool is_database_path(const std::string& path)
+{
+    return ends_with(path, ".db") or ends_with(path, ".sqlite");
+}
+
 static optional<binary_cache_backend> make_binary_cache_backend(const std::string& path)
 {
-    if(path.empty())
-        return nullopt;
-    const auto& stamp = binary_cache::version_stamp();
-    if(ends_with(path, ".db") or ends_with(path, ".sqlite"))
-        return sqlite_binary_cache::open(path, stamp); // nullopt when the database is unusable
-    return binary_cache_backend{file_binary_cache{path, stamp}};
+    if(is_database_path(path))
+        return sqlite_binary_cache::open(path); // nullopt when the database is unusable
+    return binary_cache_backend{file_binary_cache{path}};
 }
 
 // Nothing can be persisted safely when the compiler cannot be identified, since entries from
@@ -152,7 +151,13 @@ static optional<binary_cache_backend> make_binary_cache_backend(const std::strin
 // of the storage medium, so it is checked here instead of in each backend.
 binary_cache::binary_cache(binary_cache_settings s) : settings(std::move(s))
 {
-    if(not version_dir().empty())
+    // Checked first so that a memory-only cache never compiles the version probe.
+    if(settings.path.empty())
+        return;
+    // The version names a directory for the file backend, so it is kept short there. A database
+    // has no such limit and records the full id, which is self-describing.
+    version = version_id(not is_database_path(settings.path));
+    if(not version.empty())
         backend = make_binary_cache_backend(settings.path);
 }
 
@@ -171,7 +176,7 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
         // Hashing the key is not free -- it is the whole compile source, which runs to
         // kilobytes -- so it is done once and reused for the lookup and any diagnostics.
         auto key_hash = md5(key);
-        auto blob     = backend->load(version_dir(), device_dir(ctx), key_hash);
+        auto blob     = backend->load(version, device_dir(ctx), key_hash);
         if(blob.has_value())
         {
             auto e = decode_entry(*blob, key, key_hash);
@@ -200,7 +205,7 @@ void binary_cache::insert(const context& ctx, entry e)
             // failure here a warning like any other storage failure instead of escaping
             // insert() and failing the compile.
             auto blob = to_msgpack(migraphx::to_value(e));
-            backend->store(version_dir(), device_dir(ctx), key_hash, e, blob);
+            backend->store(version, device_dir(ctx), key_hash, e, blob);
         }
         catch(const std::exception& ex)
         {

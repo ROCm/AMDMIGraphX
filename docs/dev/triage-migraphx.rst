@@ -172,7 +172,7 @@ directories for builds you no longer use:
 
 .. code-block:: bash
 
-   ls $HOME/.cache/migraphx        # each directory has a cache.info describing the build
+   ls $HOME/.cache/migraphx        # directories are named after the build that wrote them
    rm -r $HOME/.cache/migraphx/v1-hip22.0.*
 
 The same settings are available as backend options, which take precedence over the environment

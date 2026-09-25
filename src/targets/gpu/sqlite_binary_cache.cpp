@@ -68,10 +68,6 @@ CREATE TABLE IF NOT EXISTS cache_v1 (
   timestamp INTEGER NOT NULL,
   PRIMARY KEY (version, device, key_hash)
 );
-CREATE TABLE IF NOT EXISTS cache_info_v1 (
-  version TEXT PRIMARY KEY,
-  stamp   TEXT NOT NULL
-);
 )__migraphx__";
 
 constexpr const char* get_sql =
@@ -87,15 +83,11 @@ constexpr const char* store_sql =
     " (version, device, key_hash, op_name, problem, solution, entry, timestamp)"
     " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, CAST(STRFTIME('%s','now') AS INTEGER));";
 
-constexpr const char* info_sql =
-    "INSERT OR IGNORE INTO cache_info_v1 (version, stamp) VALUES (?1, ?2);";
-
 } // namespace
 
-optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path, std::string stamp)
+optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path)
 {
     sqlite_binary_cache r;
-    r.stamp = std::move(stamp);
     try
     {
         // sqlite will not create a missing parent directory, but the file backend does, so
@@ -123,7 +115,6 @@ optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path
     try
     {
         r.store_stmt = r.db.prepare(store_sql);
-        r.info_stmt  = r.db.prepare(info_sql);
     }
     catch(const std::exception& ex)
     {
@@ -132,27 +123,6 @@ optional<binary_cache_backend> sqlite_binary_cache::open(const std::string& path
         log::warn() << "Binary cache at " << path << " is read-only: " << ex.what();
     }
     return binary_cache_backend{std::move(r)};
-}
-
-void sqlite_binary_cache::stamp_version(const std::string& version)
-{
-    if(info_written == version or not info_stmt.valid())
-        return;
-    // Recorded up front, and not again on success, so that a database which rejects the write
-    // is not retried once per stored kernel.
-    info_written = version;
-    try
-    {
-        sqlite_stmt_reset guard{info_stmt};
-        info_stmt.bind(1, version).bind(2, stamp);
-        info_stmt.step();
-    }
-    catch(const std::exception& ex)
-    {
-        // The stamp is provenance for a human reading the database later, so failing to write
-        // it must not stop entries being stored.
-        log::warn() << "Failed to stamp the binary cache: " << ex.what();
-    }
 }
 
 optional<std::vector<char>> sqlite_binary_cache::load(const std::string& version,
@@ -185,7 +155,6 @@ void sqlite_binary_cache::store(const std::string& version,
 {
     if(not store_stmt.valid())
         return;
-    stamp_version(version);
     try
     {
         // The json strings are temporaries, which is safe because binding copies immediately.

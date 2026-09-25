@@ -70,9 +70,10 @@ namespace gpu {
 /// directory of files, a SQLite database, an in-memory map for tests). Entries
 /// are addressed by three strings the caller has already computed:
 ///
-///   * `version` -- binary_cache::version_dir(), identifying the toolchain and
+///   * `version` -- binary_cache::version_id(), identifying the toolchain and
 ///     the embedded kernel sources that produced the entry. Never empty; the
-///     caller skips persistence entirely when it is.
+///     caller skips persistence entirely when it is. The short form is used
+///     for directories and the full form for databases.
 ///   * `device`  -- the GPU the entry was compiled for.
 ///   * `key_hash` -- md5 of the compile key. A hash rather than the key itself
 ///     because a file backend needs a short name; a collision is harmless,

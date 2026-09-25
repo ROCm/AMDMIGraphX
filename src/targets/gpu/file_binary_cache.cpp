@@ -56,18 +56,9 @@ static void write_atomically(const fs::path& dest, const std::vector<char>& cont
     fs::rename(tmp, dest);
 }
 
-/// Record what this build is, so a directory full of hashes can be identified later.
-static void write_stamp(const fs::path& dir, const std::string& stamp)
-{
-    auto path = dir / "cache.info";
-    if(fs::exists(path))
-        return;
-    write_atomically(path, std::vector<char>(stamp.begin(), stamp.end()));
-}
-
 optional<std::vector<char>> file_binary_cache::load(const std::string& version,
                                                     const std::string& device,
-                                                    const std::string& key_hash)
+                                                    const std::string& key_hash) const
 {
     auto path = entry_path(root, version, device, key_hash);
     try
@@ -88,7 +79,7 @@ void file_binary_cache::store(const std::string& version,
                               const std::string& device,
                               const std::string& key_hash,
                               const binary_cache_entry&,
-                              const std::vector<char>& blob)
+                              const std::vector<char>& blob) const
 {
     auto path = entry_path(root, version, device, key_hash);
     // The content is decided entirely by the key, so a writer that loses the publish race
@@ -96,7 +87,6 @@ void file_binary_cache::store(const std::string& version,
     try
     {
         fs::create_directories(path.parent_path());
-        write_stamp(root / version, stamp);
         write_atomically(path, blob);
     }
     catch(const std::exception& ex)

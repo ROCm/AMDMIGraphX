@@ -37,21 +37,19 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 // A binary_cache_backend that keeps entries as files under a root directory, laid out
-// <root>/<version>/<device>/<key_hash>.mxr, with a cache.info stamp beside each version
-// directory describing the build that produced it. Path resolution and the text of the stamp
-// are the caller's job.
+// <root>/<version>/<device>/<key_hash>.mxr. The version directory is named after the build that
+// wrote it, so the tree is self-describing. Path resolution is the caller's job.
 struct MIGRAPHX_GPU_EXPORT file_binary_cache
 {
     optional<std::vector<char>>
-    load(const std::string& version, const std::string& device, const std::string& key_hash);
+    load(const std::string& version, const std::string& device, const std::string& key_hash) const;
     void store(const std::string& version,
                const std::string& device,
                const std::string& key_hash,
                const binary_cache_entry& e,
-               const std::vector<char>& blob);
+               const std::vector<char>& blob) const;
 
-    fs::path root     = {};
-    std::string stamp = {};
+    fs::path root = {};
 };
 
 } // namespace gpu

@@ -135,10 +135,6 @@ static std::size_t stored_entry_count(const std::string& path)
     return entry_files(path).size();
 }
 
-/// Backends constructed directly take the stamp as an argument; only the test that reads
-/// cache_info_v1 back cares what it says.
-static const std::string test_stamp = "test-stamp\n";
-
 TEST_CASE(lookup_records_a_miss)
 {
     migraphx::gpu::context ctx;
@@ -166,7 +162,7 @@ TEST_CASE(memory_lookup_records_reuse)
 }
 
 // The cases below are registered only against a database path, not a directory. Driving the file
-// backend through binary_cache puts entries under version_dir()/device_dir(), and write_atomically
+// backend through binary_cache puts entries under version_id()/device_dir(), and write_atomically
 // then creates a temp directory inside that, which pushes the file past Windows' MAX_PATH:
 // fs::create_directories succeeds because std::filesystem uses the \\?\ prefix, but the
 // std::ofstream in write_buffer does not, so every store fails and nothing is persisted. The
@@ -357,12 +353,13 @@ TEST_CASE(sqlite_verified_reuse_matches_fresh_compiles)
 TEST_CASE(extension_selects_the_backend)
 {
     migraphx::gpu::context ctx;
+    const auto& version_dir = migraphx::gpu::binary_cache::version_id(true);
 
     migraphx::tmp_dir dir_td{"binary-cache"};
     migraphx::gpu::binary_cache dir_cache{
         migraphx::gpu::binary_cache_settings{dir_path(dir_td), false}};
     dir_cache.insert(ctx, make_entry("in-a-directory"));
-    EXPECT(migraphx::fs::is_directory(dir_td.path / migraphx::gpu::binary_cache::version_dir()));
+    EXPECT(migraphx::fs::is_directory(dir_td.path / version_dir));
 
     for(const char* name : {"cache.db", "cache.sqlite"})
     {
@@ -374,7 +371,7 @@ TEST_CASE(extension_selects_the_backend)
         EXPECT(migraphx::fs::is_regular_file(path));
         EXPECT(row_count(path, "cache_v1") == 1);
         EXPECT(entry_files(db_td.path).empty());
-        EXPECT(not migraphx::fs::exists(db_td.path / migraphx::gpu::binary_cache::version_dir()));
+        EXPECT(not migraphx::fs::exists(db_td.path / version_dir));
     }
 }
 
@@ -408,8 +405,8 @@ TEST_CASE(two_connections_share_a_database)
     migraphx::tmp_dir td{"binary-cache"};
     auto path = db_path(td);
 
-    auto a = migraphx::gpu::sqlite_binary_cache::open(path, test_stamp);
-    auto b = migraphx::gpu::sqlite_binary_cache::open(path, test_stamp);
+    auto a = migraphx::gpu::sqlite_binary_cache::open(path);
+    auto b = migraphx::gpu::sqlite_binary_cache::open(path);
     EXPECT(a.has_value());
     EXPECT(b.has_value());
 
@@ -429,9 +426,10 @@ TEST_CASE(two_connections_share_a_database)
     EXPECT(not a->load("v", "dev", "absent").has_value());
 }
 
-// A table of hashes says nothing about which build wrote it, so the database carries a
-// description of that build -- written once, not once per kernel.
-TEST_CASE(sqlite_records_the_version_stamp)
+// A table of hashes says nothing about which build wrote it, so each row records the full
+// version id. A database has no path length to protect, unlike the directory backend, which
+// names its directories with the short one.
+TEST_CASE(sqlite_records_the_full_version_id)
 {
     migraphx::tmp_dir td{"binary-cache"};
     migraphx::gpu::context ctx;
@@ -439,16 +437,12 @@ TEST_CASE(sqlite_records_the_version_stamp)
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
 
     cache.insert(ctx, make_entry("one"));
-    EXPECT(row_count(path, "cache_info_v1") == 1);
-
     cache.insert(ctx, make_entry("two"));
     EXPECT(row_count(path, "cache_v1") == 2);
-    EXPECT(row_count(path, "cache_info_v1") == 1);
 
-    auto rows = migraphx::sqlite::read(path).execute("SELECT version, stamp FROM cache_info_v1;");
+    auto rows = migraphx::sqlite::read(path).execute("SELECT DISTINCT version FROM cache_v1;");
     EXPECT(rows.size() == 1);
-    EXPECT(rows.front().at("version") == migraphx::gpu::binary_cache::version_dir());
-    EXPECT(rows.front().at("stamp") == migraphx::gpu::binary_cache::version_stamp());
+    EXPECT(rows.front().at("version") == migraphx::gpu::binary_cache::version_id(false));
 }
 
 // version and device lead the primary key because they are what separates entries this build
@@ -456,7 +450,7 @@ TEST_CASE(sqlite_records_the_version_stamp)
 TEST_CASE(sqlite_scopes_entries_by_version_and_device)
 {
     migraphx::tmp_dir td{"binary-cache"};
-    auto backend = migraphx::gpu::sqlite_binary_cache::open(db_path(td), test_stamp);
+    auto backend = migraphx::gpu::sqlite_binary_cache::open(db_path(td));
     EXPECT(backend.has_value());
 
     const std::vector<char> blob{'p', 'a', 'y'};
@@ -474,7 +468,7 @@ TEST_CASE(sqlite_store_overwrites_in_place)
 {
     migraphx::tmp_dir td{"binary-cache"};
     auto path    = db_path(td);
-    auto backend = migraphx::gpu::sqlite_binary_cache::open(path, test_stamp);
+    auto backend = migraphx::gpu::sqlite_binary_cache::open(path);
     EXPECT(backend.has_value());
 
     const std::vector<char> replacement{'n', 'e', 'w'};
@@ -496,11 +490,11 @@ TEST_CASE(backends_round_trip_through_the_wrapper)
     const std::vector<char> blob{'\0', 'n', 'o', 't', '\0', 'm', 's', 'g', '\xff'};
     auto e = make_entry("opaque");
 
-    auto db = migraphx::gpu::sqlite_binary_cache::open((td.path / "cache.db").string(), test_stamp);
+    auto db = migraphx::gpu::sqlite_binary_cache::open((td.path / "cache.db").string());
     EXPECT(db.has_value());
 
     std::vector<migraphx::gpu::binary_cache_backend> backends;
-    backends.emplace_back(migraphx::gpu::file_binary_cache{td.path / "files", test_stamp});
+    backends.emplace_back(migraphx::gpu::file_binary_cache{td.path / "files"});
     backends.push_back(*db);
 
     for(auto& backend : backends)
@@ -573,11 +567,15 @@ TEST_CASE(key_covers_more_than_the_source)
     EXPECT(migraphx::gpu::hip_compile_key(ctx, changed_views) != base);
 }
 
-TEST_CASE(version_dir_is_stable)
+TEST_CASE(version_id_is_stable)
 {
-    EXPECT(migraphx::gpu::binary_cache::version_dir() ==
-           migraphx::gpu::binary_cache::version_dir());
-    EXPECT(not migraphx::gpu::binary_cache::version_dir().empty());
+    EXPECT(migraphx::gpu::binary_cache::version_id(true) ==
+           migraphx::gpu::binary_cache::version_id(true));
+    EXPECT(migraphx::gpu::binary_cache::version_id(false) ==
+           migraphx::gpu::binary_cache::version_id(false));
+    EXPECT(not migraphx::gpu::binary_cache::version_id(true).empty());
+    EXPECT(migraphx::gpu::binary_cache::version_id(true) !=
+           migraphx::gpu::binary_cache::version_id(false));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

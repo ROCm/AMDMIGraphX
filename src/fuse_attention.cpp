@@ -32,6 +32,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/split_factor.hpp>
+#include <algorithm>
 #include <optional>
 
 namespace migraphx {
@@ -158,6 +159,60 @@ inline auto pointwise_inputs()
     };
 }
 
+std::unordered_map<instruction_ref, instruction_ref>
+invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    std::unordered_map<instruction_ref, instruction_ref> inverse_map;
+    for(auto const& [key, value] : map_ins)
+    {
+        assert(not contains(inverse_map, value));
+        inverse_map[value] = key;
+    }
+    return inverse_map;
+}
+
+std::vector<instruction_ref> find_outputs(const std::vector<instruction_ref>& inss)
+{
+    std::vector<instruction_ref> outputs;
+    std::copy_if(inss.begin(), inss.end(), std::back_inserter(outputs), [&](auto i) {
+        return not std::all_of(
+            i->outputs().begin(), i->outputs().end(), [&](auto o) { return contains(inss, o); });
+    });
+    return outputs;
+}
+
+// {final_op, reduce_max, reduce_sum} outputs indicate the softmax statistics are
+// consumed externally by an lse (log-sum-exp) computation
+bool has_lse_outputs(const std::vector<instruction_ref>& outs, const std::string& final_op)
+{
+    auto count = [&](const std::string& name) {
+        return std::count_if(outs.begin(), outs.end(), [&](auto o) { return o->name() == name; });
+    };
+    return outs.size() == 3 and count(final_op) == 1 and count("reduce_max") == 1 and
+           count("reduce_sum") == 1;
+}
+
+std::vector<instruction_ref> get_lse_instructions(const std::vector<instruction_ref>& group_outs)
+{
+    std::vector<instruction_ref> lse_inss;
+    auto rsum = std::find_if(
+        group_outs.begin(), group_outs.end(), [](auto o) { return o->name() == "reduce_sum"; });
+    if(rsum == group_outs.end())
+        return lse_inss;
+    auto rsum_outs = (*rsum)->outputs();
+    auto log =
+        std::find_if(rsum_outs.begin(), rsum_outs.end(), [](auto o) { return o->name() == "log"; });
+    if(log == rsum_outs.end())
+        return lse_inss;
+    auto log_outs = (*log)->outputs();
+    if(log_outs.size() != 1 or log_outs.front()->name() != "add")
+        return lse_inss;
+    auto add = log_outs.front();
+    lse_inss.insert(lse_inss.end(), {*log, add});
+
+    return lse_inss;
+}
+
 // find attention blocks that have been quantized and undo them
 struct find_quant_attention
 {
@@ -209,6 +264,159 @@ struct find_quant_attention
             dequantize_gemm(m, qgemm1, deq1);
             dequantize_gemm(m, qgemm2, deq2);
         }
+    }
+};
+
+// Rewrite attention sinks (an extra per-head logit column joining the softmax
+// denominator, e.g. GPT-OSS) into a standard softmax so the attention matchers
+// below (and rocMLIR) see a canonical gemm-softmax-gemm:
+//   slice(softmax(concat(scores, sinks))) = softmax(scores) * sigmoid(lse - sinks)
+// where lse = reduce_max(scores) + log(reduce_sum(exp(scores - max))). The
+// sigmoid factor is constant along the reduction axis, so it commutes past the
+// second gemm (and its transpose/reshape output tail) and is applied there as a
+// small pointwise epilogue. The log/add lse chain hangs off the softmax
+// reductions and becomes a second output of the fused attention group.
+struct find_attention_sinks
+{
+    auto matcher() const
+    {
+        auto scores = match::any().bind("scores");
+        auto sinks  = match::any().bind("sinks");
+        auto ext    = match::name("concat")(match::args(scores, sinks)).bind("concat");
+        auto rmax   = match::name("reduce_max")(match::arg(0)(ext)).bind("rmax");
+        auto sub =
+            match::name("sub")(match::arg(0)(ext), match::arg(1)(match::skip_broadcasts(rmax)));
+        auto exp  = match::name("exp")(match::arg(0)(sub));
+        auto rsum = match::name("reduce_sum")(match::arg(0)(exp)).bind("rsum");
+        auto sm =
+            match::name("div")(match::arg(0)(exp), match::arg(1)(match::skip_broadcasts(rsum)));
+        return match::name("slice")(match::arg(0)(match::skip(match::name("convert"))(sm)));
+    }
+
+    static std::vector<int64_t> normalized_axes(instruction_ref ins)
+    {
+        return ins->normalized_operator().to_value()["axes"].to_vector<int64_t>();
+    }
+
+    // The concat must append a single column on the softmax axis and the slice
+    // must drop exactly that column again
+    static bool is_sink_pattern(instruction_ref slc,
+                                instruction_ref ext,
+                                instruction_ref scores,
+                                instruction_ref sinks,
+                                instruction_ref rmax,
+                                instruction_ref rsum)
+    {
+        if(slc->get_shape().dynamic() or scores->get_shape().dynamic() or
+           sinks->get_shape().dynamic())
+            return false;
+        const auto& lens = scores->get_shape().lens();
+        auto axis        = static_cast<int64_t>(lens.size()) - 1;
+        if(sinks->get_shape().lens().back() != 1)
+            return false;
+        if(ext->normalized_operator().to_value()["axis"].to<int64_t>() != axis)
+            return false;
+        if(slc->get_shape().lens() != lens)
+            return false;
+        auto slc_val = slc->normalized_operator().to_value();
+        if(slc_val["axes"].to_vector<int64_t>() != std::vector<int64_t>{axis})
+            return false;
+        if(slc_val["starts"].to_vector<int64_t>() != std::vector<int64_t>{0})
+            return false;
+        return normalized_axes(rmax) == std::vector<int64_t>{axis} and
+               normalized_axes(rsum) == std::vector<int64_t>{axis};
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto slc    = r.result;
+        auto ext    = r.instructions["concat"];
+        auto scores = r.instructions["scores"];
+        auto sinks  = r.instructions["sinks"];
+        auto rmax   = r.instructions["rmax"];
+        auto rsum   = r.instructions["rsum"];
+
+        if(not is_sink_pattern(slc, ext, scores, sinks, rmax, rsum))
+            return;
+
+        const auto& lens = scores->get_shape().lens();
+        auto bcast       = [&](instruction_ref ins) {
+            if(ins->get_shape().lens() == lens)
+                return ins;
+            return m.insert_instruction(slc, make_op("multibroadcast", {{"out_lens", lens}}), ins);
+        };
+        auto convert_to = [&](instruction_ref ins, shape::type_t t, instruction_ref pos) {
+            if(ins->get_shape().type() == t)
+                return ins;
+            return m.insert_instruction(pos, make_op("convert", {{"target_type", t}}), ins);
+        };
+
+        // softmax over the scores without the sink column
+        auto new_rmax = m.insert_instruction(slc, rmax->get_operator(), scores);
+        auto new_sub  = m.insert_instruction(slc, make_op("sub"), scores, bcast(new_rmax));
+        auto new_exp  = m.insert_instruction(slc, make_op("exp"), new_sub);
+        auto new_rsum = m.insert_instruction(slc, rsum->get_operator(), new_exp);
+        auto probs    = m.insert_instruction(slc, make_op("div"), new_exp, bcast(new_rsum));
+        probs         = convert_to(probs, slc->get_shape().type(), slc);
+
+        // sigmoid(lse - sinks) scales each softmax row by sum/(sum + exp(sinks - max))
+        auto log_sum  = m.insert_instruction(slc, make_op("log"), new_rsum);
+        auto lse      = m.insert_instruction(slc, make_op("add"), new_rmax, log_sum);
+        auto sink_val = convert_to(sinks, lse->get_shape().type(), slc);
+        auto diff     = m.insert_instruction(slc, make_op("sub"), lse, sink_val);
+        auto sigma    = m.insert_instruction(slc, make_op("sigmoid"), diff);
+
+        // The row-wise correction commutes past the second gemm and its
+        // transpose/reshape output tail; walk there so the multiply stays
+        // outside the attention block matched below.
+        std::vector<instruction_ref> tail;
+        auto pos = slc;
+        while(pos->outputs().size() == 1)
+        {
+            auto next    = pos->outputs().front();
+            bool is_gemm = tail.empty() and next->name() == "dot" and next->inputs().front() == pos;
+            bool is_view = not tail.empty() and contains({"transpose", "reshape"}, next->name());
+            if(not is_gemm and not is_view)
+                break;
+            tail.push_back(next);
+            pos = next;
+        }
+
+        if(tail.empty())
+        {
+            auto factor = bcast(convert_to(sigma, probs->get_shape().type(), slc));
+            auto scaled = m.insert_instruction(slc, make_op("mul"), probs, factor);
+            m.replace_instruction(slc, scaled);
+            return;
+        }
+        m.replace_instruction(slc, probs);
+
+        auto anchor = tail.back();
+        auto factor = convert_to(sigma, anchor->get_shape().type(), anchor);
+        for(auto ins : tail)
+        {
+            // the factor broadcasts unchanged over the gemm output columns
+            if(ins->name() == "transpose")
+            {
+                factor = m.insert_instruction(anchor, ins->get_operator(), factor);
+            }
+            else if(ins->name() == "reshape")
+            {
+                const auto& in_lens = ins->inputs().front()->get_shape().lens();
+                if(factor->get_shape().lens() != in_lens)
+                    factor = m.insert_instruction(
+                        anchor, make_op("multibroadcast", {{"out_lens", in_lens}}), factor);
+                factor = m.insert_instruction(anchor, ins->get_operator(), factor);
+            }
+        }
+        if(factor->get_shape().lens() != anchor->get_shape().lens())
+            factor = m.insert_instruction(
+                anchor,
+                make_op("multibroadcast", {{"out_lens", anchor->get_shape().lens()}}),
+                factor);
+        auto new_anchor = m.insert_instruction(anchor, anchor->get_operator(), anchor->inputs());
+        auto scaled     = m.insert_instruction(anchor, make_op("mul"), new_anchor, factor);
+        m.replace_instruction(anchor, scaled);
     }
 };
 
@@ -283,18 +491,6 @@ struct find_attention
 
     std::string get_count() const { return std::to_string((*counter)++); }
 
-    std::unordered_map<instruction_ref, instruction_ref>
-    invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
-    {
-        std::unordered_map<instruction_ref, instruction_ref> inverse_map;
-        for(auto const& [key, value] : map_ins)
-        {
-            assert(not contains(inverse_map, value));
-            inverse_map[value] = key;
-        }
-        return inverse_map;
-    }
-
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref gemm1, instruction_ref gemm2) const
     {
@@ -325,45 +521,6 @@ struct find_attention
         return sorted_inss;
     }
 
-    static bool has_lse_out(std::vector<instruction_ref>& group_outs)
-    {
-        return (group_outs.size() == 3 and
-                std::all_of(group_outs.begin(), group_outs.end(), [](auto o) {
-                    return contains({"dot", "reduce_max", "reduce_sum"}, o->name());
-                }));
-    }
-
-    std::vector<instruction_ref>
-    get_lse_instructions(std::vector<instruction_ref>& group_outs) const
-    {
-        std::vector<instruction_ref> lse_inss;
-        auto rsum = *std::find_if(
-            group_outs.begin(), group_outs.end(), [](auto o) { return o->name() == "reduce_sum"; });
-        auto rsum_outs = rsum->outputs();
-        auto log       = std::find_if(
-            rsum_outs.begin(), rsum_outs.end(), [](auto o) { return o->name() == "log"; });
-        if(log == rsum_outs.end())
-            return lse_inss;
-        auto log_outs = (*log)->outputs();
-        if(log_outs.size() != 1 or log_outs.front()->name() != "add")
-            return lse_inss;
-        auto add = log_outs.front();
-        lse_inss.insert(lse_inss.end(), {*log, add});
-
-        return lse_inss;
-    }
-
-    std::vector<instruction_ref> find_outputs(std::vector<instruction_ref> inss) const
-    {
-        std::vector<instruction_ref> outputs;
-        std::copy_if(inss.begin(), inss.end(), std::back_inserter(outputs), [&](auto i) {
-            return not std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
-                return contains(inss, o);
-            });
-        });
-        return outputs;
-    }
-
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto gemm2         = r.result;
@@ -390,7 +547,7 @@ struct find_attention
         assert(not required_outputs.empty());
 
         // LSE case requires output from reduce_max and reduce_sum instructions
-        if(has_lse_out(required_outputs))
+        if(has_lse_outputs(required_outputs, "dot"))
         {
             auto lse_inss = get_lse_instructions(required_outputs);
             m_attn.fuse(lse_inss, &map_mm_to_mattn);
@@ -959,18 +1116,6 @@ struct find_kv_cache_attention
 
     std::string get_count() const { return std::to_string((*counter)++); }
 
-    std::unordered_map<instruction_ref, instruction_ref>
-    invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
-    {
-        std::unordered_map<instruction_ref, instruction_ref> inverse_map;
-        for(auto const& [key, value] : map_ins)
-        {
-            assert(not contains(inverse_map, value));
-            inverse_map[value] = key;
-        }
-        return inverse_map;
-    }
-
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
     {
@@ -1067,15 +1212,29 @@ struct find_kv_cache_attention
         dead_code_elimination{}.apply(m_attn);
 
         // Define outputs based on instructions that are used elsewhere in the graph
-        std::vector<instruction_ref> required_outputs;
-        std::copy_if(
-            attn_inss.begin(), attn_inss.end(), std::back_inserter(required_outputs), [&](auto i) {
-                return not std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
-                    return contains(attn_inss, o);
-                });
-            });
+        auto required_outputs = find_outputs(attn_inss);
 
         assert(not required_outputs.empty());
+
+        // Attention sinks leave a log/add lse chain hanging off the softmax
+        // reductions (see find_attention_sinks); fuse it in and return
+        // {output, lse} as a tuple.
+        bool has_lse = false;
+        if(has_lse_outputs(required_outputs, "reshape"))
+        {
+            auto lse_inss = get_lse_instructions(required_outputs);
+            if(not lse_inss.empty())
+            {
+                m_attn.fuse(lse_inss, &map_mm_to_mattn);
+                attn_inss.insert(attn_inss.end(), lse_inss.begin(), lse_inss.end());
+                required_outputs = find_outputs(attn_inss);
+                if(required_outputs.size() != 2)
+                    return;
+                has_lse = true;
+            }
+        }
+        if(not has_lse)
+            required_outputs = {required_outputs.back()};
 
         // Find corresponding output instructions in m_attn
         std::vector<instruction_ref> m_attn_outputs;
@@ -1083,7 +1242,7 @@ struct find_kv_cache_attention
                        required_outputs.end(),
                        std::back_inserter(m_attn_outputs),
                        [&](auto i) { return map_mm_to_mattn.at(i); });
-        m_attn.add_return({m_attn_outputs.back()});
+        m_attn.add_return(m_attn_outputs);
 
         // Define inputs to m_attn
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
@@ -1092,14 +1251,29 @@ struct find_kv_cache_attention
         module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
-        // Construct group op with the attention module
-        auto group_ins =
-            mpm.get_module().insert_instruction(required_outputs.back(),
-                                                make_op("group", {{"tag", "kv_cache_attention"}}),
-                                                new_inputs,
-                                                {mpm_attn});
+        // Construct group op with the attention module, inserted before the
+        // earliest output; any inputs positioned later are fixed up by the
+        // module sort in fuse_attention::apply.
+        auto& mm       = mpm.get_module();
+        auto insert_pt = *std::min_element(
+            required_outputs.begin(), required_outputs.end(), [&](auto x, auto y) {
+                return std::distance(mm.begin(), x) < std::distance(mm.begin(), y);
+            });
+        auto group_ins = mm.insert_instruction(
+            insert_pt, make_op("group", {{"tag", "kv_cache_attention"}}), new_inputs, {mpm_attn});
 
-        mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
+        if(m_attn_outputs.size() == 1)
+        {
+            mm.replace_instruction(required_outputs.front(), group_ins);
+        }
+        else
+        {
+            for(std::size_t i = 0; i < required_outputs.size(); ++i)
+            {
+                mm.replace_instruction(
+                    required_outputs[i], make_op("get_tuple_elem", {{"index", i}}), group_ins);
+            }
+        }
     }
 };
 
@@ -1108,6 +1282,11 @@ struct find_kv_cache_attention
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
+
+    // Canonicalize attention sinks into a standard softmax with an lse-based
+    // output correction so the matchers below can fuse the attention block
+    match::find_matches(mpm.get_module(), find_attention_sinks{});
+    mpm.run_pass(dead_code_elimination{});
 
     // Fuse kv-cache attention by default
     match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});

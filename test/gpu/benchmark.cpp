@@ -23,11 +23,14 @@
  */
 #include <migraphx/gpu/time_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/reflect.hpp>
 #include <test.hpp>
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <memory>
 #include <sstream>
@@ -64,6 +67,14 @@ struct sleep_op
     }
 };
 
+// Buffers generated for the candidates sharing it, to observe how many are still resident when
+// another candidate's arguments are generated
+struct argument_buffers
+{
+    std::vector<std::weak_ptr<std::array<float, 4>>> generated;
+    std::size_t most_resident = 0;
+};
+
 // Benchmark candidate that runs for `usec` microseconds and is identified by its solution id
 struct test_candidate
 {
@@ -74,12 +85,21 @@ struct test_candidate
     std::shared_ptr<std::size_t> programs_built = std::make_shared<std::size_t>(0);
     std::shared_ptr<std::size_t> launches       = std::make_shared<std::size_t>(0);
     // Trace output, to observe which candidates the precise pass times
-    std::shared_ptr<std::stringstream> log = std::make_shared<std::stringstream>();
+    std::shared_ptr<std::stringstream> log      = std::make_shared<std::stringstream>();
+    std::shared_ptr<argument_buffers> arguments = std::make_shared<argument_buffers>();
 
     std::vector<migraphx::argument> generate_arguments(const migraphx::gpu::context&,
                                                        const migraphx::program&) const
     {
-        return {migraphx::fill_argument({migraphx::shape::float_type, {4}}, 1)};
+        const auto& generated = arguments->generated;
+        std::size_t resident =
+            std::count_if(generated.begin(), generated.end(), [](const auto& buffer) {
+                return not buffer.expired();
+            });
+        arguments->most_resident = std::max(arguments->most_resident, resident);
+        auto buffer              = std::make_shared<std::array<float, 4>>();
+        arguments->generated.push_back(buffer);
+        return {migraphx::argument{{migraphx::shape::float_type, {4}}, buffer}};
     }
 
     migraphx::program make_program() const
@@ -270,6 +290,26 @@ TEST_CASE(adaptive_benchmark_precise_pass_reuses_the_coarse_programs_of_the_top_
     EXPECT(*slow.programs_built == 1);
 }
 
+TEST_CASE(adaptive_benchmark_does_not_keep_the_arguments_of_the_top_k_resident)
+{
+    migraphx::gpu::context ctx{};
+    test_candidate fast{100, 1};
+    test_candidate near_best{150, 2};
+    test_candidate mid{300, 3};
+    near_best.arguments                                        = fast.arguments;
+    mid.arguments                                              = fast.arguments;
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, near_best, mid};
+    auto bench                                                 = small_adaptive_benchmark(3);
+    bench.coarse_cutoff_factor                                 = 0;
+    (void)bench.run(ctx, candidates);
+    EXPECT(fast.arguments->most_resident == 0);
+    // Arguments are generated for each coarse and each precise timing, but programs only once
+    EXPECT(fast.arguments->generated.size() == 6);
+    EXPECT(*fast.programs_built == 1);
+    EXPECT(*near_best.programs_built == 1);
+    EXPECT(*mid.programs_built == 1);
+}
+
 TEST_CASE(adaptive_benchmark_precise_pass_skips_the_warmup_of_a_reused_program)
 {
     migraphx::gpu::context ctx{};
@@ -361,6 +401,47 @@ TEST_CASE(generate_program_arguments_does_not_share_differently_filled_parameter
     EXPECT(random.front().data() != filled.front().data());
     EXPECT(filled.front().data() == filled_again.front().data());
     EXPECT(random.front().data() == random_again.front().data());
+}
+
+TEST_CASE(generate_program_arguments_does_not_share_parameters_filled_with_close_values)
+{
+    migraphx::gpu::context ctx{};
+    migraphx::shape s{migraphx::shape::double_type, {4}};
+    migraphx::program p;
+    {
+        auto* mm = p.get_main_module();
+        mm->add_return({mm->add_parameter("x", s)});
+    }
+    auto id = s.type_string() + migraphx::shape::to_sizes_string({s});
+    std::unordered_map<std::string, double> first_fill_map  = {{id, 3.0000001}};
+    std::unordered_map<std::string, double> second_fill_map = {{id, 3.0000002}};
+    std::unordered_map<std::string, migraphx::argument> generated;
+    auto first  = migraphx::gpu::generate_program_arguments(ctx, p, first_fill_map, generated);
+    auto second = migraphx::gpu::generate_program_arguments(ctx, p, second_fill_map, generated);
+    EXPECT(first.front().data() != second.front().data());
+    EXPECT(migraphx::gpu::from_gpu(second.front()) == migraphx::fill_argument(s, 3.0000002));
+}
+
+TEST_CASE(generate_program_arguments_does_not_confuse_a_parameter_name_with_a_fill_value)
+{
+    migraphx::gpu::context ctx{};
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        mm->add_return({mm->add_parameter("x", s)});
+    }
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        mm->add_return({mm->add_parameter("x:3.000000", s)});
+    }
+    std::unordered_map<std::string, double> fill_map = {
+        {s.type_string() + migraphx::shape::to_sizes_string({s}), 3}};
+    std::unordered_map<std::string, migraphx::argument> generated;
+    auto filled = migraphx::gpu::generate_program_arguments(ctx, p1, fill_map, generated);
+    auto random = migraphx::gpu::generate_program_arguments(ctx, p2, {}, generated);
+    EXPECT(filled.front().data() != random.front().data());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

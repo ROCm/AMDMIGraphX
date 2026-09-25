@@ -72,8 +72,8 @@ struct MIGRAPHX_GPU_EXPORT simple_benchmark
 struct MIGRAPHX_GPU_EXPORT adaptive_topk_benchmark
 {
     // Number of top candidates to precisely time. Zero precisely times every candidate. The coarse
-    // programs of the current top_k are held for the precise pass; with zero, every candidate is
-    // rebuilt for it instead.
+    // programs of the current top_k, but not their arguments, are held for the precise pass; with
+    // zero, every candidate is rebuilt for it instead.
     std::size_t top_k = 10;
     // Per-candidate time budgets (ms) for the precise and coarse measurements
     std::size_t precise_ms         = 20;

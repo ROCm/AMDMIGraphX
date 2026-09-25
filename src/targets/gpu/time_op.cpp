@@ -28,6 +28,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <algorithm>
 #include <chrono>
@@ -152,10 +153,14 @@ generate_program_arguments(const context& ictx,
             id = s.type_string() + migraphx::shape::to_sizes_string({s.as_standard()});
 
         auto fill = fill_map.find(id);
-        auto& arg =
-            generated[fill == fill_map.end() ? name : name + ":" + std::to_string(fill->second)];
+        // Neither fill tag contains ':', so the first ':' ends the tag even if the name has one
+        auto key = (fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second)) +
+                   ":" + name;
+        auto& arg = generated[key];
         if(not arg.empty() and arg.get_shape() == s)
             return arg;
+        // Release the stale argument first, so it and its replacement are never both resident
+        arg = {};
         // fill_map inputs need specific values (host fill); the rest are generated
         // on the GPU to skip the host PRNG + H2D copy per candidate.
         if(fill != fill_map.end())
@@ -211,16 +216,22 @@ struct benchmark_program
 };
 } // namespace
 
+// Pair the candidate's finalized program with newly generated arguments, building the program
+// unless one is given
 static benchmark_program make_benchmark_program(std::vector<migraphx::context>& ctx_vec,
-                                                const benchmark_candidate& candidate)
+                                                const benchmark_candidate& candidate,
+                                                optional<program> finalized = nullopt)
 {
-    auto p = candidate.make_program();
-    candidate.before_run(p);
-    p.get_main_module()->finalize(ctx_vec);
-    auto param_map = make_parameter_map(
-        p.get_main_module(),
-        candidate.generate_arguments(any_cast<migraphx::gpu::context>(ctx_vec.front()), p));
-    return {std::move(p), std::move(param_map)};
+    if(not finalized.has_value())
+    {
+        finalized = candidate.make_program();
+        candidate.before_run(*finalized);
+        finalized->get_main_module()->finalize(ctx_vec);
+    }
+    const auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
+    auto param_map   = make_parameter_map(finalized->get_main_module(),
+                                        candidate.generate_arguments(gctx, *finalized));
+    return {*std::move(finalized), std::move(param_map)};
 }
 
 const benchmark_candidate&
@@ -292,8 +303,10 @@ adaptive_topk_benchmark::run(const context& ictx,
     // already exceeds coarse_ms (compute_nruns would return 1), or top_k finite times already
     // beat it. The accumulator is a max-heap, by coarse time, of the best top_k candidates so far;
     // their programs are kept for the precise pass and released when they drop out of the heap.
+    // Their arguments are not kept: each set holds its candidate's scratch, which would otherwise
+    // stay resident while later candidates allocate theirs.
     std::vector<double> coarse(candidates.size(), invalid);
-    std::vector<optional<benchmark_program>> kept(candidates.size());
+    std::vector<optional<program>> kept(candidates.size());
     auto by_coarse = [&](auto i, auto j) { return coarse[i] < coarse[j]; };
     (void)std::accumulate(
         indices.begin(),
@@ -314,7 +327,7 @@ adaptive_topk_benchmark::run(const context& ictx,
                     time =
                         bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs), false);
                 if(top_k > 0)
-                    kept[i] = std::move(bp);
+                    kept[i] = std::move(bp.p);
                 return time;
             });
             if(t.has_value())
@@ -374,8 +387,8 @@ adaptive_topk_benchmark::run(const context& ictx,
     // doesn't skew the precise measurements
     std::this_thread::sleep_for(std::chrono::milliseconds{10});
 
-    // Precise pass over the selected candidates. A kept coarse program has already run on this
-    // stream, so only a rebuilt one needs a warmup.
+    // Precise pass over the selected candidates, generating the arguments of one at a time. A kept
+    // coarse program has already run on this stream, so only a rebuilt one needs a warmup.
     std::vector<double> precise(selected.size(), invalid);
     std::transform(selected.begin(), selected.end(), precise.begin(), [&](auto i) {
         const auto& candidate = candidates[i];
@@ -383,7 +396,7 @@ adaptive_topk_benchmark::run(const context& ictx,
         trace("Precise solution: ", candidate.solution());
         auto t = try_benchmark(trace, [&] {
             const bool rebuild = not kept[i].has_value();
-            auto bp = rebuild ? make_benchmark_program(ctx_vec, candidate) : *std::move(kept[i]);
+            auto bp            = make_benchmark_program(ctx_vec, candidate, std::move(kept[i]));
             return bp.time(
                 ctx_vec, bundle, compute_nruns(precise_ms, coarse[i], bundle, max_runs), rebuild);
         });

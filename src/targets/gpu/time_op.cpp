@@ -69,12 +69,9 @@ double time_loop(migraphx::gpu::context& gctx,
                  const std::function<void()>& f,
                  bool warmup)
 {
-    // check for manual overrides; value_of caches its result, so the fallback must not be a
-    // per-call value
-    if(auto b = value_of(MIGRAPHX_BENCHMARKING_BUNDLE{}, 0); b > 0)
-        bundle = b;
-    if(auto n = value_of(MIGRAPHX_BENCHMARKING_NRUNS{}, 0); n > 0)
-        nruns = n;
+    // check for manual overrides
+    bundle = value_of(MIGRAPHX_BENCHMARKING_BUNDLE{}, bundle);
+    nruns  = value_of(MIGRAPHX_BENCHMARKING_NRUNS{}, nruns);
     if(bundle <= 0 or nruns <= 0)
         MIGRAPHX_THROW("Timing bundle and runs must be greater than zero");
 
@@ -155,8 +152,8 @@ generate_program_arguments(const context& ictx,
 
         auto fill = fill_map.find(id);
         // Neither fill tag contains ':', so the first ':' ends the tag even if the name has one
-        auto key  = (fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second)) +
-                    ":" + name;
+        auto key = (fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second)) +
+                   ":" + name;
         auto& arg = generated[key];
         if(not arg.empty() and arg.get_shape() == s)
             return arg;
@@ -297,6 +294,8 @@ adaptive_topk_benchmark::run(const context& ictx,
 {
     if(candidates.empty())
         MIGRAPHX_THROW("adaptive_topk_benchmark: no candidates to benchmark");
+    if(max_runs == 0 or coarse_max_runs == 0)
+        MIGRAPHX_THROW("adaptive_topk_benchmark: max_runs and coarse_max_runs must be at least 1");
     std::vector<migraphx::context> ctx_vec = {ictx};
     // The candidates are alternatives for the same computation, so they can share inputs
     std::unordered_map<std::string, argument> generated;
@@ -305,13 +304,13 @@ adaptive_topk_benchmark::run(const context& ictx,
     std::vector<std::size_t> indices(candidates.size());
     std::iota(indices.begin(), indices.end(), 0);
 
-    // Coarse pass: warmup + single-run estimate, then a short bundle-of-1 measurement.
-    // The second measurement is skipped only when the estimate already exceeds coarse_ms, as it
-    // would then be a single run too. A single run is too noisy to rule a candidate out of the
-    // top_k, so every other candidate is measured. The programs of the top_k fastest candidates
-    // so far are kept for the precise pass, and released as soon as a faster one pushes them out.
-    // Their arguments are not kept: each set holds its candidate's scratch, which would otherwise
-    // stay resident while later candidates allocate theirs.
+    // Coarse pass: warmup + single-run estimate, then a bundle-of-1 measurement of up to
+    // coarse_max_runs runs within coarse_ms. The measurement is skipped when it would be a single
+    // run too, so with the default coarse_max_runs every candidate is ranked by its estimate. The
+    // programs of the top_k fastest candidates so far are kept for the precise pass, and released
+    // as soon as a faster one pushes them out. Their arguments are not kept: each set holds its
+    // candidate's scratch, which would otherwise stay resident while later candidates allocate
+    // theirs.
     std::vector<double> coarse(candidates.size(), invalid);
     std::vector<optional<program>> kept(candidates.size());
     // Coarse time and index of the top_k fastest candidates so far, fastest first
@@ -323,9 +322,10 @@ adaptive_topk_benchmark::run(const context& ictx,
         auto t = try_benchmark(trace, [&] {
             auto bp       = make_benchmark_program(ctx_vec, candidate, generated);
             auto estimate = bp.time(ctx_vec, 1, 1);
+            auto nruns    = compute_nruns(coarse_ms, estimate, 1, coarse_max_runs);
             double time   = estimate;
-            if(estimate <= static_cast<double>(coarse_ms))
-                time = bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs), false);
+            if(nruns > 1)
+                time = bp.time(ctx_vec, 1, nruns, false);
             if(top_k > 0)
                 kept[i] = std::move(bp.p);
             return time;

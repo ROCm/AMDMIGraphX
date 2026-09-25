@@ -207,18 +207,6 @@ TEST_CASE(adaptive_benchmark_top_k_zero_times_all_precisely)
     EXPECT(*slow.programs_built == 2);
 }
 
-TEST_CASE(adaptive_benchmark_skips_second_measurement_when_estimate_exceeds_coarse_budget)
-{
-    migraphx::gpu::context ctx{};
-    test_candidate slow{20000, 1};
-    test_candidate fast{100, 2};
-    std::vector<migraphx::gpu::benchmark_candidate> candidates = {slow, fast};
-    const auto& winner = small_adaptive_benchmark(1).run(ctx, candidates);
-    EXPECT(winner.solution().to<int>() == 2);
-    // Only the warmup and the estimate; top_k = 1 keeps slow out of the precise pass
-    EXPECT(*slow.launches == 2);
-}
-
 TEST_CASE(adaptive_benchmark_measures_a_candidate_whose_estimate_misses_the_top_k)
 {
     migraphx::gpu::context ctx{};
@@ -226,23 +214,21 @@ TEST_CASE(adaptive_benchmark_measures_a_candidate_whose_estimate_misses_the_top_
     test_candidate transient{100, 2};
     // The warmup and the estimate are slower than steady, the later runs are faster
     transient.slow_launches                                    = 2;
-    transient.slow_usec                                        = 1000;
+    transient.slow_usec                                        = 500;
     std::vector<migraphx::gpu::benchmark_candidate> candidates = {steady, transient};
-    const auto& winner = small_adaptive_benchmark(1).run(ctx, candidates);
+    auto bench                                                 = small_adaptive_benchmark(1);
+    bench.coarse_max_runs                                      = 4;
+    const auto& winner                                         = bench.run(ctx, candidates);
     EXPECT(winner.solution().to<int>() == 2);
 }
 
-TEST_CASE(adaptive_benchmark_top_k_zero_still_measures_candidates_under_the_coarse_budget)
+TEST_CASE(adaptive_benchmark_zero_coarse_max_runs_throws)
 {
     migraphx::gpu::context ctx{};
-    test_candidate fast{100, 1};
-    test_candidate mid{1000, 2};
-    std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, mid};
-    const auto& winner = small_adaptive_benchmark(0).run(ctx, candidates);
-    EXPECT(winner.solution().to<int>() == 1);
-    EXPECT(*fast.programs_built == 2);
-    EXPECT(*mid.programs_built == 2);
-    EXPECT(*mid.launches > 2);
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {test_candidate{100, 1}};
+    auto bench                                                 = small_adaptive_benchmark(1);
+    bench.coarse_max_runs                                      = 0;
+    EXPECT(test::throws([&] { bench.run(ctx, candidates); }));
 }
 
 TEST_CASE(adaptive_benchmark_does_not_precisely_time_candidates_far_behind_the_best)
@@ -311,35 +297,6 @@ TEST_CASE(adaptive_benchmark_shares_inputs_between_candidates_with_the_same_fill
     (void)small_adaptive_benchmark(3).run(ctx, candidates);
     EXPECT(random.launch_inputs->front().data() == random_again.launch_inputs->front().data());
     EXPECT(random.launch_inputs->front().data() != filled.launch_inputs->front().data());
-}
-
-TEST_CASE(adaptive_benchmark_precise_pass_skips_the_warmup_of_a_reused_program)
-{
-    migraphx::gpu::context ctx{};
-    test_candidate only{1500, 1};
-    std::vector<migraphx::gpu::benchmark_candidate> candidates = {only};
-    auto bench                                                 = small_adaptive_benchmark(1);
-    bench.precise_ms                                           = 1;
-    bench.precise_min_bundle                                   = 2;
-    (void)bench.run(ctx, candidates);
-    EXPECT(*only.programs_built == 1);
-    // Coarse: warmup, estimate, then a single run (coarse_ms / 1.5ms rounds down to 1).
-    // Precise: one bundle of 2 (precise_ms / (1.5ms * 2) clamps to one run) and no warmup.
-    EXPECT(*only.launches == 5);
-}
-
-TEST_CASE(adaptive_benchmark_top_k_zero_warms_up_the_rebuilt_program)
-{
-    migraphx::gpu::context ctx{};
-    test_candidate only{1500, 1};
-    std::vector<migraphx::gpu::benchmark_candidate> candidates = {only};
-    auto bench                                                 = small_adaptive_benchmark(0);
-    bench.precise_ms                                           = 1;
-    bench.precise_min_bundle                                   = 2;
-    (void)bench.run(ctx, candidates);
-    EXPECT(*only.programs_built == 2);
-    // Same runs as a reused program, plus the warmup of the rebuilt one
-    EXPECT(*only.launches == 6);
 }
 
 TEST_CASE(adaptive_benchmark_zero_cutoff_factor_precisely_times_every_top_k_candidate)

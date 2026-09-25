@@ -783,9 +783,17 @@ Advanced settings
     - Takes a positive integer.
 
   * - | ``MIGRAPHX_BENCHMARKING_NRUNS``
-      | Sets the number of timing runs for each configuration bundle being benchmarked. 
-      
+      | Sets the number of timing runs for each configuration bundle being benchmarked.
+
     - Takes a positive integer.
+
+  * - | ``MIGRAPHX_BENCHMARKING_USE_SIMPLE``
+      | When set, times every candidate with a fixed bundle and run count instead of the default adaptive benchmarking, which coarsely times every candidate and then precisely re-times only the top candidates.
+
+    - | ``1``: Use the simple benchmark.
+      | ``0``: Returns to default behavior.
+
+      | Default: Adaptive benchmarking is used.
 
   * - | ``MIGRAPHX_SKIP_BENCHMARKING``
       | When set, skips MIGraphX and rocMLIR kernel benchmarking and compiles with the first available solution.

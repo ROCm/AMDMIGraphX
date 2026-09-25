@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
 #include <migraphx/logger.hpp>
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <deque>
@@ -36,12 +37,10 @@
 #include <hip/hiprtc.h>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/tmp_dir.hpp>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/process.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
-#include <migraphx/file_buffer.hpp>
 #else
 #include <migraphx/compile_src.hpp>
 #include <migraphx/process.hpp>
@@ -162,7 +161,8 @@ struct hiprtc_program
     void compile(const std::vector<std::string>& options, bool quiet = false) const
     {
         if(enabled(MIGRAPHX_TRACE_HIPRTC{}))
-            std::cout << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
+            // stderr, not stdout: in migraphx-hiprtc-driver stdout carries the msgpack reply.
+            std::cerr << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
         std::vector<const char*> c_options;
         std::transform(options.begin(),
                        options.end(),
@@ -227,7 +227,13 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 
     prog.compile(options, quiet);
 
-    return {prog.get_code_obj()};
+    auto code_obj = prog.get_code_obj();
+    // Checked here so the in-process path and migraphx-hiprtc-driver both get it: hiprtc can
+    // report success and still hand back nothing, and an empty buffer reaches hipModuleLoadData as
+    // a null image.
+    if(code_obj.empty())
+        MIGRAPHX_THROW("hiprtc produced an empty code object for " + arch);
+    return {std::move(code_obj)};
 }
 
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
@@ -264,15 +270,20 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         v["arch"]   = to_value(arch);
         v["quiet"]  = quiet;
 
-        tmp_dir td{};
-        auto out = td.path / "output";
-
-        process(driver, {quote_string(out.string())}).write([&](auto writer) {
-            to_msgpack(v, std::move(writer));
-        });
-        if(fs::exists(out))
-            return {read_buffer(out)};
-        MIGRAPHX_THROW("hiprtc compilation failed!");
+        // The msgpack request goes out on the driver's stdin and a msgpack reply comes back on its
+        // stdout; read_write throws if the driver fails, having let it log to our stderr. Neither
+        // direction streams end to end: read_write serializes the whole request before spawning,
+        // and invokes the reader once, after stdout reaches EOF. Both payloads are therefore held
+        // in memory in full, but no temporary file is involved on either side.
+        value response;
+        process{driver}.read_write(
+            [&](const auto& writer) { to_msgpack(v, writer); },
+            [&](const char* data, std::size_t n) { response = from_msgpack(data, n); });
+        const auto& code_obj = response.at("code_object").get_binary();
+        // Not a braced return: that would pick the initializer_list constructor and copy.
+        std::vector<std::vector<char>> code_objs;
+        code_objs.emplace_back(code_obj.begin(), code_obj.end());
+        return code_objs;
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 }

@@ -1,0 +1,162 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+//
+// te.py DSL for migraphx::gpu::binary_cache_backend.
+//
+// The generated header lives at
+// src/targets/gpu/include/migraphx/gpu/binary_cache_backend.hpp; regenerate it
+// with `cd tools && python generate.py` (generate_all routes include/gpu/ inputs
+// into the gpu target tree). Do not edit the generated header by hand.
+//
+// Any type T satisfies the binary_cache_backend concept if it provides the
+// member functions listed below; begin_batch and end_batch are optional and
+// default to doing nothing. The wrapper holds T by shared_ptr and forwards
+// each call through a virtual dispatch, matching problem_cache_backend.
+//
+// Notes:
+//   * binary_cache_entry is defined in <migraphx/gpu/binary_cache_entry.hpp>;
+//     the include below pulls in its full definition.
+//   * Backends must be copyable: the wrapper shares T and clones it on a
+//     non-const call while the handle is shared. sqlite_binary_cache shares its
+//     connection across copies.
+//   * The members are non-const so a backend can track an open batch; a backend
+//     may still declare them const.
+//
+#ifndef MIGRAPHX_GUARD_GPU_BINARY_CACHE_BACKEND_HPP
+#define MIGRAPHX_GUARD_GPU_BINARY_CACHE_BACKEND_HPP
+
+#include <cassert>
+#include <string>
+#include <functional>
+#include <memory>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
+#include <migraphx/config.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/gpu/export.h>
+#include <migraphx/gpu/binary_cache_entry.hpp>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+
+#ifdef DOXYGEN
+
+/// Type-erased interface for binary-cache storage backends.
+///
+/// A backend persists serialized binary_cache_entry blobs to some medium (a
+/// directory of files or a SQLite database). Entries are addressed by three
+/// strings the caller has already computed:
+///
+///   * `version` -- binary_cache::version_id(), identifying the toolchain and
+///     the embedded kernel sources that produced the entry. Never empty; the
+///     caller skips persistence entirely when it is.
+///   * `device`  -- the GPU the entry was compiled for.
+///   * `key_hash` -- md5 of the compile key. A hash rather than the key itself
+///     because a file backend needs a short name; a collision is harmless,
+///     since the caller re-checks the full key against the decoded entry.
+///
+/// Together these three form the identity of an entry. A backend must keep
+/// entries with different scopes distinct rather than overwriting across them.
+struct binary_cache_backend
+{
+    /// Return the serialized entry for this key, or nullopt for a miss.
+    ///
+    /// nullopt also covers every failure: a missing file, an unreadable
+    /// database, a permissions problem. A cache that cannot be read is not an
+    /// error, it is a cache miss, and the caller recompiles.
+    ///
+    /// Must not throw.
+    optional<std::vector<char>> load(const std::string& version,
+                                     const std::string& device,
+                                     const std::string& key_hash);
+
+    /// Persist `blob`, the msgpack encoding of `e`, under this key.
+    ///
+    /// `e` is passed alongside `blob` so a backend may denormalize op_name,
+    /// problem and solution into queryable columns. Those fields are also
+    /// inside `blob`, which stays the authoritative record -- a backend that
+    /// stores them separately must still be able to answer a load() with the
+    /// blob alone.
+    ///
+    /// Overwriting an existing entry is expected and safe: the content is
+    /// decided entirely by the key, so a writer that loses a race replaces the
+    /// entry with equivalent bytes.
+    ///
+    /// May throw: the caller reports a failed store as a warning. It costs a
+    /// recompile next run, nothing more, and the caller still keeps the result
+    /// in memory.
+    void store(const std::string& version,
+               const std::string& device,
+               const std::string& key_hash,
+               const binary_cache_entry& e,
+               const std::vector<char>& blob);
+
+    /// Mark the start of a run of stores that may be committed together, such as
+    /// a database transaction, rather than one at a time. Every begin_batch is
+    /// followed by an end_batch, and the two are never nested. Optional: a
+    /// backend without them stores each entry as it comes.
+    ///
+    /// Must not throw. A backend that cannot start a batch stores entries one
+    /// at a time instead.
+    void begin_batch();
+
+    /// Commit the stores made since begin_batch.
+    ///
+    /// Must not throw. A failed commit costs those entries a recompile next
+    /// run, nothing more, and must not leave anything locked.
+    void end_batch();
+};
+
+#else
+
+<%
+    interface(
+        'binary_cache_backend',
+        virtual('load',
+                returns  = 'optional<std::vector<char>>',
+                version  = 'const std::string&',
+                device   = 'const std::string&',
+                key_hash = 'const std::string&'),
+        virtual('store',
+                returns  = 'void',
+                version  = 'const std::string&',
+                device   = 'const std::string&',
+                key_hash = 'const std::string&',
+                e        = 'const binary_cache_entry&',
+                blob     = 'const std::vector<char>&'),
+        virtual('begin_batch', returns = 'void', default = 'migraphx::nop'),
+        virtual('end_batch', returns = 'void', default = 'migraphx::nop'))
+%>
+
+#endif
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif // MIGRAPHX_GUARD_GPU_BINARY_CACHE_BACKEND_HPP

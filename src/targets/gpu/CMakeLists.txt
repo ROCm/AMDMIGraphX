@@ -235,6 +235,7 @@ add_library(migraphx_gpu
     device_description.cpp
     device_name.cpp
     eliminate_data_type_for_gpu.cpp
+    file_binary_cache.cpp
     fixed_pad.cpp
     fuse_ck.cpp
     fuse_mlir.cpp
@@ -262,6 +263,7 @@ add_library(migraphx_gpu
     problem_cache.cpp
     rocblas.cpp
     schedule_model.cpp
+    sqlite_binary_cache.cpp
     sqlite_problem_cache.cpp
     sync_device.cpp
     target.cpp

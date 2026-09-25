@@ -1261,10 +1261,21 @@ inline bool literal_has_value(const migraphx::literal& l, T x, value_tolerance t
         auto window = eps * (atol + rtol * std::fabs(target));
         if(migraphx::float_equal(window, 0))
         {
-            // cast to the literal's data type before comparing
-            b = std::all_of(v.begin(), v.end(), [&](auto val) {
-                return migraphx::float_equal(val, static_cast<type>(x));
-            });
+            if constexpr(std::is_integral<type>{})
+            {
+                // Casting an out-of-range x to an integral type is undefined, so
+                // compare in double like the windowed branch does
+                b = std::all_of(v.begin(), v.end(), [&](auto val) {
+                    return migraphx::float_equal(static_cast<double>(val), target);
+                });
+            }
+            else
+            {
+                // cast to the literal's data type before comparing
+                b = std::all_of(v.begin(), v.end(), [&](auto val) {
+                    return migraphx::float_equal(val, static_cast<type>(x));
+                });
+            }
         }
         else
         {

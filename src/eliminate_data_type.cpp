@@ -110,7 +110,9 @@ void eliminate_data_type::apply(module& m) const
                                                            "scatternd_add",
                                                            "scatternd_mul",
                                                            "scatternd_none",
-                                                           "select_module"};
+                                                           "select_module",
+                                                           // only unpacks int8/uint8 bytes
+                                                           "unpack_int4"};
     if(unsupported_types.empty())
         return;
 

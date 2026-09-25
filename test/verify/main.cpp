@@ -143,10 +143,6 @@ int main(int argc, const char* argv[])
          // disabled because CPU does eliminate_data_type to float for everything
          "test_bitwise_and<migraphx::shape::int32_type>",
          "test_bitwise_and<migraphx::shape::uint8_type>",
-         "test_unpack_int4<migraphx::shape::uint8_type>",
-         "test_unpack_int4<migraphx::shape::int8_type>",
-         "test_unpack_int4<migraphx::shape::uint8_type, 0>",
-         "test_unpack_int4<migraphx::shape::int8_type, 0>",
          "test_bit_cast<migraphx::shape::uint8_type, migraphx::shape::int8_type>",
          "test_bit_cast<migraphx::shape::int8_type, migraphx::shape::uint8_type>",
          "test_bit_cast<migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e4m3fnuz_type>",

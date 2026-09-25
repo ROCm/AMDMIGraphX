@@ -125,47 +125,57 @@ double time_op(const context& ictx, operation op, int bundle, int nruns)
     return time_op(ictx, op, inputs, bundle, nruns);
 }
 
+// The value fill_map holds for s, keyed by its shape id (type + dims)
+static optional<double> find_fill(const std::unordered_map<std::string, double>& fill_map,
+                                  const shape& s)
+{
+    std::string id = "";
+    if(s.type() != migraphx::shape::tuple_type)
+        id = s.type_string() + migraphx::shape::to_sizes_string({s.as_standard()});
+    auto fill = fill_map.find(id);
+    if(fill == fill_map.end())
+        return nullopt;
+    return fill->second;
+}
+
+std::vector<std::pair<std::string, shape>>
+fill_map_argument_keys(const program& p, const std::unordered_map<std::string, double>& fill_map)
+{
+    const auto* mm = p.get_main_module();
+    auto names     = mm->get_parameter_names();
+    std::vector<std::pair<std::string, shape>> keys;
+    keys.reserve(names.size());
+    std::transform(names.begin(), names.end(), std::back_inserter(keys), [&](const auto& name) {
+        auto s    = mm->get_parameter_shape(name);
+        auto fill = find_fill(fill_map, s);
+        // Neither fill tag contains ':', so the first ':' ends the tag even if the name has one
+        auto tag = fill.has_value() ? to_hex_float(*fill) : std::string{"random"};
+        return std::make_pair(tag + ":" + name, s);
+    });
+    return keys;
+}
+
+argument generate_fill_map_argument(const context& ictx,
+                                    const std::unordered_map<std::string, double>& fill_map,
+                                    const std::string& key,
+                                    const shape& s)
+{
+    // fill_map inputs need specific values (host fill); the rest are generated
+    // on the GPU to skip the host PRNG + H2D copy per candidate.
+    if(auto fill = find_fill(fill_map, s))
+        return to_gpu(fill_argument(s, *fill));
+    auto gctx = ictx;
+    return gpu_generate_random(gctx, s, std::hash<std::string>{}(key));
+}
+
 std::vector<argument> generate_program_arguments(
     const context& ictx, const program& p, const std::unordered_map<std::string, double>& fill_map)
 {
-    std::unordered_map<std::string, argument> generated;
-    return generate_program_arguments(ictx, p, fill_map, generated);
-}
-
-std::vector<argument>
-generate_program_arguments(const context& ictx,
-                           const program& p,
-                           const std::unordered_map<std::string, double>& fill_map,
-                           std::unordered_map<std::string, argument>& generated)
-{
-    auto gctx      = ictx;
-    const auto* mm = p.get_main_module();
-    auto names     = mm->get_parameter_names();
+    auto keys = fill_map_argument_keys(p, fill_map);
     std::vector<argument> args;
-    args.reserve(names.size());
-    unsigned long seed = 0;
-    std::transform(names.begin(), names.end(), std::back_inserter(args), [&](const auto& name) {
-        auto s         = mm->get_parameter_shape(name);
-        std::string id = "";
-        if(s.type() != migraphx::shape::tuple_type)
-            id = s.type_string() + migraphx::shape::to_sizes_string({s.as_standard()});
-
-        auto fill = fill_map.find(id);
-        // Neither fill tag contains ':', so the first ':' ends the tag even if the name has one
-        auto key  = (fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second)) +
-                    ":" + name;
-        auto& arg = generated[key];
-        if(not arg.empty() and arg.get_shape() == s)
-            return arg;
-        // Release the stale argument first, so it and its replacement are never both resident
-        arg = {};
-        // fill_map inputs need specific values (host fill); the rest are generated
-        // on the GPU to skip the host PRNG + H2D copy per candidate.
-        if(fill != fill_map.end())
-            arg = to_gpu(fill_argument(s, fill->second));
-        else
-            arg = gpu_generate_random(gctx, s, seed++);
-        return arg;
+    args.reserve(keys.size());
+    std::transform(keys.begin(), keys.end(), std::back_inserter(args), [&](const auto& key) {
+        return generate_fill_map_argument(ictx, fill_map, key.first, key.second);
     });
     return args;
 }
@@ -214,8 +224,9 @@ struct benchmark_program
 };
 } // namespace
 
-// Pair the candidate's finalized program with its arguments, reusing the matching ones in
-// generated, and build the program unless one is given
+// Pair the candidate's finalized program with its arguments, and build the program unless one is
+// given. An argument in generated is reused for a parameter with the same key and shape; one
+// generated for a new shape replaces it, so generated holds one argument per key.
 static benchmark_program
 make_benchmark_program(std::vector<migraphx::context>& ctx_vec,
                        const benchmark_candidate& candidate,
@@ -229,8 +240,24 @@ make_benchmark_program(std::vector<migraphx::context>& ctx_vec,
         finalized->get_main_module()->finalize(ctx_vec);
     }
     const auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
-    auto args      = generate_program_arguments(gctx, *finalized, candidate.fill_map(), generated);
-    auto param_map = make_parameter_map(finalized->get_main_module(), args);
+    const auto* mm   = finalized->get_main_module();
+    auto keys        = candidate.generate_argument_keys(*finalized);
+    if(keys.size() != mm->get_parameter_names().size())
+        MIGRAPHX_THROW("benchmark_candidate: generate_argument_keys must give one key per "
+                       "parameter");
+    std::vector<argument> args;
+    args.reserve(keys.size());
+    std::transform(keys.begin(), keys.end(), std::back_inserter(args), [&](const auto& key_shape) {
+        const auto& [key, s] = key_shape;
+        auto& arg            = generated[key];
+        if(not arg.empty() and arg.get_shape() == s)
+            return arg;
+        // Release the stale argument first, so it and its replacement are never both resident
+        arg = {};
+        arg = candidate.generate_argument(gctx, key, s);
+        return arg;
+    });
+    auto param_map = make_parameter_map(mm, args);
     return {*std::move(finalized), std::move(param_map)};
 }
 

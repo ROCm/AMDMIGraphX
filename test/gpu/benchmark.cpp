@@ -35,6 +35,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 // Identity op that sleeps on the host, so a candidate's measured time is deterministic
@@ -86,15 +87,32 @@ struct test_candidate
     std::size_t slow_launches                     = 0;
     std::size_t slow_usec                         = 0;
     std::unordered_map<std::string, double> fills = {};
+    // Size of an unused int8 parameter, like a solution's scratch; zero adds none
+    std::size_t scratch = 0;
     // Counts make_program calls to observe which candidates each benchmark pass builds
     std::shared_ptr<std::size_t> programs_built = std::make_shared<std::size_t>(0);
     std::shared_ptr<std::size_t> launches       = std::make_shared<std::size_t>(0);
     std::shared_ptr<std::vector<migraphx::argument>> launch_inputs =
         std::make_shared<std::vector<migraphx::argument>>();
+    // Key and shape of each argument the benchmark had this candidate generate
+    std::shared_ptr<std::vector<std::pair<std::string, migraphx::shape>>> generated =
+        std::make_shared<std::vector<std::pair<std::string, migraphx::shape>>>();
     // Trace output, to observe which candidates the precise pass times
     std::shared_ptr<std::stringstream> log = std::make_shared<std::stringstream>();
 
-    std::unordered_map<std::string, double> fill_map() const { return fills; }
+    std::vector<std::pair<std::string, migraphx::shape>>
+    generate_argument_keys(const migraphx::program& p) const
+    {
+        return migraphx::gpu::fill_map_argument_keys(p, fills);
+    }
+
+    migraphx::argument generate_argument(const migraphx::gpu::context& ctx,
+                                         const std::string& key,
+                                         const migraphx::shape& s) const
+    {
+        generated->emplace_back(key, s);
+        return migraphx::gpu::generate_fill_map_argument(ctx, fills, key, s);
+    }
 
     migraphx::program make_program() const
     {
@@ -104,6 +122,8 @@ struct test_candidate
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {4}});
+        if(scratch > 0)
+            mm->add_parameter("scratch", {migraphx::shape::int8_type, {scratch}});
         mm->add_return({mm->add_instruction(
             sleep_op{usec, slow_launches, slow_usec, launches, launch_inputs}, x)});
         return p;
@@ -313,57 +333,22 @@ TEST_CASE(adaptive_benchmark_zero_cutoff_factor_precisely_times_every_top_k_cand
     EXPECT(slow.log->str().find("Precise solution") != std::string::npos);
 }
 
-TEST_CASE(generate_program_arguments_shares_parameters_with_the_same_name_and_shape)
+TEST_CASE(simple_benchmark_regenerates_a_shared_argument_whose_shape_differs)
 {
     migraphx::gpu::context ctx{};
-    migraphx::program p1;
-    {
-        auto* mm     = p1.get_main_module();
-        auto x       = mm->add_parameter("x", {migraphx::shape::float_type, {4}});
-        auto scratch = mm->add_parameter("scratch", {migraphx::shape::int8_type, {16}});
-        mm->add_return({x, scratch});
-    }
-    migraphx::program p2;
-    {
-        auto* mm     = p2.get_main_module();
-        auto x       = mm->add_parameter("x", {migraphx::shape::float_type, {4}});
-        auto scratch = mm->add_parameter("scratch", {migraphx::shape::int8_type, {32}});
-        mm->add_return({x, scratch});
-    }
-    std::unordered_map<std::string, migraphx::argument> generated;
-    auto args1 = migraphx::gpu::make_parameter_map(
-        p1.get_main_module(), migraphx::gpu::generate_program_arguments(ctx, p1, {}, generated));
-    auto args2 = migraphx::gpu::make_parameter_map(
-        p2.get_main_module(), migraphx::gpu::generate_program_arguments(ctx, p2, {}, generated));
-    EXPECT(args1.at("x").data() == args2.at("x").data());
-    EXPECT(args1.at("scratch").data() != args2.at("scratch").data());
-    EXPECT(args2.at("scratch").get_shape() == migraphx::shape{migraphx::shape::int8_type, {32}});
-    // The larger scratch replaced the smaller one
-    EXPECT(generated.size() == 2);
+    test_candidate small{100, 1};
+    small.scratch = 16;
+    test_candidate large{100, 2};
+    large.scratch                                              = 32;
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {small, large};
+    (void)migraphx::gpu::simple_benchmark{/* bundle */ 1, /* nruns */ 2}.run(ctx, candidates);
+    EXPECT(small.generated->size() == 2);
+    // large reuses x, but not the scratch, whose key matches and whose shape does not
+    EXPECT(large.generated->size() == 1);
+    EXPECT(large.generated->front().second == migraphx::shape{migraphx::shape::int8_type, {32}});
 }
 
-TEST_CASE(generate_program_arguments_does_not_share_differently_filled_parameters)
-{
-    migraphx::gpu::context ctx{};
-    migraphx::shape s{migraphx::shape::float_type, {4}};
-    migraphx::program p;
-    {
-        auto* mm = p.get_main_module();
-        mm->add_return({mm->add_parameter("x", s)});
-    }
-    std::unordered_map<std::string, double> fill_map = {
-        {s.type_string() + migraphx::shape::to_sizes_string({s}), 3}};
-    std::unordered_map<std::string, migraphx::argument> generated;
-    auto random       = migraphx::gpu::generate_program_arguments(ctx, p, {}, generated);
-    auto filled       = migraphx::gpu::generate_program_arguments(ctx, p, fill_map, generated);
-    auto filled_again = migraphx::gpu::generate_program_arguments(ctx, p, fill_map, generated);
-    auto random_again = migraphx::gpu::generate_program_arguments(ctx, p, {}, generated);
-    EXPECT(random.front().data() != filled.front().data());
-    EXPECT(filled.front().data() == filled_again.front().data());
-    EXPECT(random.front().data() == random_again.front().data());
-}
-
-TEST_CASE(generate_program_arguments_does_not_share_parameters_filled_with_close_values)
+TEST_CASE(fill_map_argument_keys_differ_for_close_fill_values)
 {
     migraphx::gpu::context ctx{};
     migraphx::shape s{migraphx::shape::double_type, {4}};
@@ -375,16 +360,16 @@ TEST_CASE(generate_program_arguments_does_not_share_parameters_filled_with_close
     auto id = s.type_string() + migraphx::shape::to_sizes_string({s});
     std::unordered_map<std::string, double> first_fill_map  = {{id, 3.0000001}};
     std::unordered_map<std::string, double> second_fill_map = {{id, 3.0000002}};
-    std::unordered_map<std::string, migraphx::argument> generated;
-    auto first  = migraphx::gpu::generate_program_arguments(ctx, p, first_fill_map, generated);
-    auto second = migraphx::gpu::generate_program_arguments(ctx, p, second_fill_map, generated);
-    EXPECT(first.front().data() != second.front().data());
-    EXPECT(migraphx::gpu::from_gpu(second.front()) == migraphx::fill_argument(s, 3.0000002));
+    auto first  = migraphx::gpu::fill_map_argument_keys(p, first_fill_map);
+    auto second = migraphx::gpu::fill_map_argument_keys(p, second_fill_map);
+    EXPECT(first.front().first != second.front().first);
+    auto arg =
+        migraphx::gpu::generate_fill_map_argument(ctx, second_fill_map, second.front().first, s);
+    EXPECT(migraphx::gpu::from_gpu(arg) == migraphx::fill_argument(s, 3.0000002));
 }
 
-TEST_CASE(generate_program_arguments_does_not_confuse_a_parameter_name_with_a_fill_value)
+TEST_CASE(fill_map_argument_keys_do_not_confuse_a_parameter_name_with_a_fill_value)
 {
-    migraphx::gpu::context ctx{};
     migraphx::shape s{migraphx::shape::float_type, {4}};
     migraphx::program p1;
     {
@@ -398,10 +383,9 @@ TEST_CASE(generate_program_arguments_does_not_confuse_a_parameter_name_with_a_fi
     }
     std::unordered_map<std::string, double> fill_map = {
         {s.type_string() + migraphx::shape::to_sizes_string({s}), 3}};
-    std::unordered_map<std::string, migraphx::argument> generated;
-    auto filled = migraphx::gpu::generate_program_arguments(ctx, p1, fill_map, generated);
-    auto random = migraphx::gpu::generate_program_arguments(ctx, p2, {}, generated);
-    EXPECT(filled.front().data() != random.front().data());
+    auto filled = migraphx::gpu::fill_map_argument_keys(p1, fill_map);
+    auto random = migraphx::gpu::fill_map_argument_keys(p2, {});
+    EXPECT(filled.front().first != random.front().first);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

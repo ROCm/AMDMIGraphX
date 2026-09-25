@@ -47,15 +47,20 @@ generate_program_arguments(const context& ictx,
                            const program& p,
                            const std::unordered_map<std::string, double>& fill_map = {});
 
-/* Like above, but reuses the argument in generated for a parameter with the same name, fill and
-   shape, so programs that are alternatives for the same computation can share their inputs. A
-   newly generated argument replaces the one stored for its name and fill, so generated holds one
-   argument per parameter name and fill value. */
-MIGRAPHX_GPU_EXPORT std::vector<argument>
-generate_program_arguments(const context& ictx,
-                           const program& p,
+/* Argument keys, as given by benchmark_candidate::generate_argument_keys, for a candidate whose
+   parameters are generated as in generate_program_arguments. Each key leads with the parameter's
+   fill value, or "random", so only parameters that hold the same data share a key. */
+MIGRAPHX_GPU_EXPORT std::vector<std::pair<std::string, shape>>
+fill_map_argument_keys(const program& p, const std::unordered_map<std::string, double>& fill_map);
+
+/* Generate the argument for a key and shape given by fill_map_argument_keys, as in
+   generate_program_arguments. Random data is seeded by the key, so a key always gives the same
+   data. */
+MIGRAPHX_GPU_EXPORT argument
+generate_fill_map_argument(const context& ictx,
                            const std::unordered_map<std::string, double>& fill_map,
-                           std::unordered_map<std::string, argument>& generated);
+                           const std::string& key,
+                           const shape& s);
 
 /* Time each candidate and return the fastest one */
 struct MIGRAPHX_GPU_EXPORT simple_benchmark

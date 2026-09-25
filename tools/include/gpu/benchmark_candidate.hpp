@@ -36,14 +36,16 @@
 #include <memory>
 #include <string>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <migraphx/config.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/tracer.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/export.h>
 
 namespace migraphx {
@@ -55,14 +57,18 @@ namespace gpu {
 /// Type-erased interface for a tuning candidate that can be timed by a
 /// benchmarker (see simple_benchmark and adaptive_topk_benchmark in
 /// <migraphx/gpu/time_op.hpp>). A candidate knows how to build a runnable
-/// program for itself and which values its inputs must hold.
+/// program for itself and how to generate the input data used to run it.
 struct benchmark_candidate
 {
-    /// Values to fill parameters of make_program() with, keyed by shape id
-    /// (type + dims); the rest get random data. The benchmarker generates the
-    /// arguments, sharing them between candidates whose parameters match (see
-    /// generate_program_arguments).
-    std::unordered_map<std::string, double> fill_map() const;
+    /// Key and shape of the argument for each parameter of p, a program
+    /// returned by make_program(), in parameter order. The benchmarker reuses
+    /// a generated argument for any parameter, of this or another candidate,
+    /// with the same key and shape, so equal keys must describe the same data.
+    std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const;
+
+    /// Generate the argument for a key and shape returned by
+    /// generate_argument_keys().
+    argument generate_argument(const context& ictx, const std::string& key, const shape& s) const;
 
     /// Build a runnable program for this candidate.
     program make_program() const;
@@ -84,7 +90,16 @@ struct benchmark_candidate
 <%
     interface(
         'benchmark_candidate',
-        virtual('fill_map', returns = 'std::unordered_map<std::string, double>', const = True),
+        virtual('generate_argument_keys',
+                returns = 'std::vector<std::pair<std::string, shape>>',
+                p       = 'const program&',
+                const   = True),
+        virtual('generate_argument',
+                returns = 'argument',
+                ictx    = 'const context&',
+                key     = 'const std::string&',
+                s       = 'const shape&',
+                const   = True),
         virtual('make_program', returns = 'program', const = True),
         virtual('trace', returns = 'tracer', const = True),
         virtual('solution', returns = 'value', const = True),

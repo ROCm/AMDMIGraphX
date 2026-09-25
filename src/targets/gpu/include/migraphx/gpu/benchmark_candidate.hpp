@@ -36,14 +36,16 @@
 #include <memory>
 #include <string>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <migraphx/config.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/tracer.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/export.h>
 
 namespace migraphx {
@@ -55,14 +57,18 @@ namespace gpu {
 /// Type-erased interface for a tuning candidate that can be timed by a
 /// benchmarker (see simple_benchmark and adaptive_topk_benchmark in
 /// <migraphx/gpu/time_op.hpp>). A candidate knows how to build a runnable
-/// program for itself and which values its inputs must hold.
+/// program for itself and how to generate the input data used to run it.
 struct benchmark_candidate
 {
-    /// Values to fill parameters of make_program() with, keyed by shape id
-    /// (type + dims); the rest get random data. The benchmarker generates the
-    /// arguments, sharing them between candidates whose parameters match (see
-    /// generate_program_arguments).
-    std::unordered_map<std::string, double> fill_map() const;
+    /// Key and shape of the argument for each parameter of p, a program
+    /// returned by make_program(), in parameter order. The benchmarker reuses
+    /// a generated argument for any parameter, of this or another candidate,
+    /// with the same key and shape, so equal keys must describe the same data.
+    std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const;
+
+    /// Generate the argument for a key and shape returned by
+    /// generate_argument_keys().
+    argument generate_argument(const context& ictx, const std::string& key, const shape& s) const;
 
     /// Build a runnable program for this candidate.
     program make_program() const;
@@ -87,7 +93,9 @@ struct benchmark_candidate
 struct MIGRAPHX_EXPORT benchmark_candidate
 {
     //
-    std::unordered_map<std::string, double> fill_map() const;
+    std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const;
+    //
+    argument generate_argument(const context& ictx, const std::string& key, const shape& s) const;
     //
     program make_program() const;
     //
@@ -119,7 +127,12 @@ struct benchmark_candidate
 
     template <class PrivateDetailTypeErasedT>
     using private_te_constraints_impl =
-        decltype(std::declval<PrivateDetailTypeErasedT>().fill_map(),
+        decltype(std::declval<PrivateDetailTypeErasedT>().generate_argument_keys(
+                     std::declval<const program&>()),
+                 std::declval<PrivateDetailTypeErasedT>().generate_argument(
+                     std::declval<const context&>(),
+                     std::declval<const std::string&>(),
+                     std::declval<const shape&>()),
                  std::declval<PrivateDetailTypeErasedT>().make_program(),
                  std::declval<PrivateDetailTypeErasedT>().trace(),
                  std::declval<PrivateDetailTypeErasedT>().solution(),
@@ -201,10 +214,16 @@ struct benchmark_candidate
             return private_detail_te_get_handle().type();
     }
 
-    std::unordered_map<std::string, double> fill_map() const
+    std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().fill_map();
+        return (*this).private_detail_te_get_handle().generate_argument_keys(p);
+    }
+
+    argument generate_argument(const context& ictx, const std::string& key, const shape& s) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().generate_argument(ictx, key, s);
     }
 
     program make_program() const
@@ -245,11 +264,14 @@ struct benchmark_candidate
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::unordered_map<std::string, double> fill_map() const = 0;
-        virtual program make_program() const                             = 0;
-        virtual tracer trace() const                                     = 0;
-        virtual value solution() const                                   = 0;
-        virtual void before_run(const program& p) const                  = 0;
+        virtual std::vector<std::pair<std::string, shape>>
+        generate_argument_keys(const program& p) const = 0;
+        virtual argument
+        generate_argument(const context& ictx, const std::string& key, const shape& s) const = 0;
+        virtual program make_program() const                                                 = 0;
+        virtual tracer trace() const                                                         = 0;
+        virtual value solution() const                                                       = 0;
+        virtual void before_run(const program& p) const                                      = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -279,10 +301,19 @@ struct benchmark_candidate
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        std::unordered_map<std::string, double> fill_map() const override
+        std::vector<std::pair<std::string, shape>>
+        generate_argument_keys(const program& p) const override
         {
 
-            return private_detail_te_value.fill_map();
+            return private_detail_te_value.generate_argument_keys(p);
+        }
+
+        argument generate_argument(const context& ictx,
+                                   const std::string& key,
+                                   const shape& s) const override
+        {
+
+            return private_detail_te_value.generate_argument(ictx, key, s);
         }
 
         program make_program() const override { return private_detail_te_value.make_program(); }

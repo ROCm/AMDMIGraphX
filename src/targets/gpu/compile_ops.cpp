@@ -274,10 +274,19 @@ struct compiled_result
         const compiled_result* parent = nullptr;
         value sol                     = value{};
 
-        std::unordered_map<std::string, double> fill_map() const
+        // Parameters whose shape is in the compiled result's fill_map hold that value, the rest
+        // random data
+        std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const
         {
             assert(parent != nullptr);
-            return parent->replace.fill_map;
+            return fill_map_argument_keys(p, parent->replace.fill_map);
+        }
+
+        argument
+        generate_argument(const context& ictx, const std::string& key, const shape& s) const
+        {
+            assert(parent != nullptr);
+            return generate_fill_map_argument(ictx, parent->replace.fill_map, key, s);
         }
 
         program make_program() const
@@ -488,7 +497,7 @@ struct compile_plan
             config->solutions.begin(),
             std::back_inserter(candidates),
             [](const auto& cr, const auto&) { return cr.has_value(); },
-            [&](const auto& cr, const auto& solution) {
+            [](const auto& cr, const auto& solution) {
                 return cr->make_benchmark_candidate(solution);
             });
         auto skipped = results.size() - candidates.size();

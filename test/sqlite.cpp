@@ -21,10 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/float_equal.hpp>
 #include <migraphx/sqlite.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <test.hpp>
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <vector>
 
 /// Every row a call produced, so a test can count and inspect them.
@@ -130,6 +133,59 @@ TEST_CASE(abandoned_rows_release_the_database)
     auto insert = writer.prepare("INSERT INTO t (id) VALUES (?);");
     insert(std::int64_t{3});
     EXPECT(writer.execute("SELECT id FROM t;").size() == 3);
+}
+
+// Each column comes back as the value type matching what sqlite stored, keyed by its name.
+TEST_CASE(rows_convert_column_types)
+{
+    migraphx::tmp_dir td{};
+    auto db = migraphx::sqlite::write(td.path / "types.db");
+    auto select =
+        db.prepare("SELECT 42 AS i, 2.5 AS f, 'text' AS t, x'00ff' AS b, NULL AS n, ?1 AS p;");
+
+    auto rows = collect(select(std::int64_t{-7}));
+    EXPECT(rows.size() == 1);
+    const auto& row = rows.front();
+    EXPECT(row.size() == 6);
+    EXPECT(row.at("i").is_int64());
+    EXPECT(row.at("i").get_int64() == 42);
+    EXPECT(row.at("f").is_float());
+    EXPECT(migraphx::float_equal(row.at("f").get_float(), 2.5));
+    EXPECT(row.at("t").get_string() == "text");
+    EXPECT(row.at("b").get_binary() == migraphx::value::binary{std::vector<std::uint8_t>{0, 255}});
+    EXPECT(row.at("n").is_null());
+    EXPECT(row.at("p").get_int64() == -7);
+}
+
+// A statement returning many rows yields each in turn, and calling it again starts over.
+TEST_CASE(rows_iterate_in_order_and_restart)
+{
+    migraphx::tmp_dir td{};
+    auto db = migraphx::sqlite::write(td.path / "many.db");
+    db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY);"
+               "INSERT INTO t (id) VALUES (1), (2), (3);");
+    auto select = db.prepare("SELECT id FROM t WHERE id >= ?1 ORDER BY id;");
+
+    auto ids = [&](std::int64_t from) {
+        std::vector<std::int64_t> result;
+        auto rows = select(from);
+        std::transform(rows.begin(), rows.end(), std::back_inserter(result), [](const auto& row) {
+            return row.at("id").get_int64();
+        });
+        return result;
+    };
+    EXPECT((ids(1) == std::vector<std::int64_t>{1, 2, 3}));
+    EXPECT((ids(2) == std::vector<std::int64_t>{2, 3}));
+    EXPECT(ids(4).empty());
+}
+
+TEST_CASE(read_only_matches_how_it_was_opened)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "mode.db";
+    migraphx::sqlite::write(path).execute("CREATE TABLE t (id INTEGER PRIMARY KEY);");
+    EXPECT(not migraphx::sqlite::write(path).read_only());
+    EXPECT(migraphx::sqlite::read(path).read_only());
 }
 
 TEST_CASE(unprepared_statement_throws)

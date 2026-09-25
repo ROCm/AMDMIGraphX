@@ -26,7 +26,9 @@
 #include <migraphx/gpu/binary_cache_backend.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/md5.hpp>
 #include <migraphx/tmp_dir.hpp>
+#include <system_error>
 #include <type_traits>
 
 namespace migraphx {
@@ -48,12 +50,26 @@ static fs::path entry_path(const fs::path& root,
 
 /// Publish by rename so a reader never sees a half-written file. The temporary stays beside
 /// the destination since the rename is only atomic within one filesystem.
+///
+/// It is a sibling file with a short unique suffix rather than a file inside a temporary
+/// directory: entries already sit several directories deep, and a nested directory with a
+/// fully unique name pushed the path past Windows' MAX_PATH, which std::ofstream cannot open.
+/// The suffix only has to keep concurrent writers of the same entry apart.
 static void write_atomically(const fs::path& dest, const std::vector<char>& content)
 {
-    tmp_dir td{"cache", dest.parent_path()};
-    auto tmp = td.path / dest.filename();
-    write_buffer(tmp, content);
-    fs::rename(tmp, dest);
+    auto suffix = md5(unique_string("cache")).substr(0, 16);
+    auto tmp    = dest.parent_path() / (dest.stem().string() + "." + suffix + ".tmp");
+    try
+    {
+        write_buffer(tmp, content);
+        fs::rename(tmp, dest);
+    }
+    catch(...)
+    {
+        std::error_code ec;
+        fs::remove(tmp, ec);
+        throw;
+    }
 }
 
 optional<std::vector<char>> file_binary_cache::load(const std::string& version,

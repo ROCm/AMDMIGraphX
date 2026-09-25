@@ -21,46 +21,43 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/lrn.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/par_for.hpp>
+#include <migraphx/errors.hpp>
+#include <algorithm>
+#include <atomic>
+#include <vector>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-#if MIGRAPHX_USE_MIOPEN
-shape miopen_lrn::compute_shape(const std::vector<shape>& inputs) const
+#include <test.hpp>
+
+TEST_CASE(par_for_runs_all)
 {
-    check_shapes{inputs, *this}.has(2).standard();
-    return inputs.at(1);
+    std::vector<int> data(64, 0);
+    migraphx::par_for(data.size(), 1, [&](std::size_t i) { data[i] = 1; });
+    EXPECT(std::all_of(data.begin(), data.end(), [](int x) { return x == 1; }));
 }
 
-argument miopen_lrn::compute(context& ctx,
-                             const shape& output_shape,
-                             const std::vector<argument>& args) const
+TEST_CASE(par_for_exception_propagates)
 {
-    float alpha = 1;
-    float beta  = 0;
-    auto x_desc = make_tensor(args[0].get_shape());
-    auto y_desc = make_tensor(output_shape);
-    miopenLRNForward(ctx.get_stream().get_miopen(),
-                     ldesc.get(),
-                     &alpha,
-                     x_desc.get(),
-                     args[0].implicit(),
-                     &beta,
-                     y_desc.get(),
-                     args[1].implicit(),
-                     false,
-                     nullptr);
-
-    return args[1];
+    EXPECT(test::throws<migraphx::exception>(
+        [] {
+            migraphx::par_for(64, 1, [](std::size_t i) {
+                if(i % 2 == 0)
+                    MIGRAPHX_THROW("par_for_error");
+            });
+        },
+        "par_for_error"));
 }
 
-void miopen_lrn::finalize(context&, const shape&, const std::vector<shape>&)
+TEST_CASE(par_for_exception_propagates_serial)
 {
-    ldesc = make_lrn(op);
+    EXPECT(test::throws<migraphx::exception>(
+        [] {
+            migraphx::par_for(4, 100, [](std::size_t i) {
+                if(i == 2)
+                    MIGRAPHX_THROW("par_for_error");
+            });
+        },
+        "par_for_error"));
 }
-#endif
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -250,28 +250,36 @@ adaptive_topk_benchmark::run(const context& ictx,
     std::vector<migraphx::context> ctx_vec = {ictx};
 
     const double invalid = std::numeric_limits<double>::infinity();
-    // Coarse pass: warmup + single-run estimate, then a short bundle-of-1 measurement
-    std::vector<double> coarse(candidates.size(), invalid);
-    std::transform(candidates.begin(),
-                   candidates.end(),
-                   coarse.begin(),
-                   [&](const benchmark_candidate& candidate) {
-                       auto trace = candidate.trace();
-                       trace("Benchmarking solution: ", candidate.solution());
-                       auto t = try_benchmark(trace, [&] {
-                           auto bp       = make_benchmark_program(ctx_vec, candidate);
-                           auto estimate = bp.time(ctx_vec, 1, 1);
-                           return bp.time(
-                               ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs));
-                       });
-                       if(t.has_value())
-                           trace("Coarse time: ", *t, "ms");
-                       return t.value_or(invalid);
-                   });
-
-    // Select the candidates that measured successfully, keep the top_k fastest
     std::vector<std::size_t> indices(candidates.size());
     std::iota(indices.begin(), indices.end(), 0);
+
+    // Coarse pass: warmup + single-run estimate, then a short bundle-of-1 measurement.
+    // The accumulator carries the fastest time measured so far, so a candidate whose estimate
+    // is already slower than that is skipped instead of measured. The floor at coarse_ms keeps
+    // lazy initialization in the estimate from skipping a fast candidate.
+    std::vector<double> coarse(candidates.size(), invalid);
+    (void)std::accumulate(indices.begin(), indices.end(), invalid, [&](double fastest, auto i) {
+        const auto& candidate = candidates[i];
+        auto trace            = candidate.trace();
+        trace("Benchmarking solution: ", candidate.solution());
+        const double cutoff =
+            (coarse_cutoff_factor == 0 or not std::isfinite(fastest))
+                ? invalid
+                : std::max(coarse_cutoff_factor * fastest, static_cast<double>(coarse_ms));
+        auto t = try_benchmark(trace, [&] {
+            auto bp       = make_benchmark_program(ctx_vec, candidate);
+            auto estimate = bp.time(ctx_vec, 1, 1);
+            if(estimate > cutoff)
+                return estimate;
+            return bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs));
+        });
+        if(t.has_value())
+            trace("Coarse time: ", *t, "ms");
+        coarse[i] = t.value_or(invalid);
+        return std::min(fastest, coarse[i]);
+    });
+
+    // Select the candidates that measured successfully, keep the top_k fastest
     std::vector<std::size_t> selected;
     selected.reserve(candidates.size());
     std::copy_if(indices.begin(), indices.end(), std::back_inserter(selected), [&](auto i) {

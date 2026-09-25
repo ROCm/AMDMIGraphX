@@ -36,6 +36,7 @@
 struct sleep_op
 {
     std::size_t usec = 0;
+    std::shared_ptr<std::size_t> launches{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -53,6 +54,8 @@ struct sleep_op
     migraphx::argument
     compute(migraphx::context&, const migraphx::shape&, std::vector<migraphx::argument> args) const
     {
+        if(launches)
+            ++(*launches);
         std::this_thread::sleep_for(std::chrono::microseconds{usec});
         return args.front();
     }
@@ -66,6 +69,7 @@ struct test_candidate
     bool fail        = false;
     // Counts make_program calls to observe which candidates each benchmark pass builds
     std::shared_ptr<std::size_t> programs_built = std::make_shared<std::size_t>(0);
+    std::shared_ptr<std::size_t> launches       = std::make_shared<std::size_t>(0);
 
     std::vector<migraphx::argument> generate_arguments(const migraphx::gpu::context&) const
     {
@@ -80,7 +84,7 @@ struct test_candidate
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {4}});
-        mm->add_return({mm->add_instruction(sleep_op{usec}, x)});
+        mm->add_return({mm->add_instruction(sleep_op{usec, launches}, x)});
         return p;
     }
 
@@ -177,6 +181,42 @@ TEST_CASE(adaptive_benchmark_top_k_zero_times_all_precisely)
     EXPECT(winner.solution().to<int>() == 1);
     EXPECT(*fast.programs_built == 2);
     EXPECT(*slow.programs_built == 2);
+}
+
+TEST_CASE(adaptive_benchmark_cuts_off_slow_coarse_candidate)
+{
+    migraphx::gpu::context ctx{};
+    test_candidate fast{100, 1};
+    test_candidate slow{20000, 2};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, slow};
+    const auto& winner = small_adaptive_benchmark(1).run(ctx, candidates);
+    EXPECT(winner.solution().to<int>() == 1);
+    // The slow candidate is skipped after its estimate, so it only runs the warmup and the
+    // single estimate rather than being measured again
+    EXPECT(*slow.launches == 2);
+}
+
+TEST_CASE(adaptive_benchmark_zero_cutoff_factor_measures_every_coarse_candidate)
+{
+    migraphx::gpu::context ctx{};
+    test_candidate fast{100, 1};
+    test_candidate slow{20000, 2};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, slow};
+    auto bench                                                 = small_adaptive_benchmark(1);
+    bench.coarse_cutoff_factor                                 = 0;
+    const auto& winner                                         = bench.run(ctx, candidates);
+    EXPECT(winner.solution().to<int>() == 1);
+    EXPECT(*slow.launches > 2);
+}
+
+TEST_CASE(adaptive_benchmark_cutoff_keeps_a_fast_candidate_timed_after_a_slow_one)
+{
+    migraphx::gpu::context ctx{};
+    test_candidate slow{20000, 1};
+    test_candidate fast{100, 2};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {slow, fast};
+    const auto& winner = small_adaptive_benchmark(1).run(ctx, candidates);
+    EXPECT(winner.solution().to<int>() == 2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

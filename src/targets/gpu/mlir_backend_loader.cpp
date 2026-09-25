@@ -172,9 +172,8 @@ static loaded_mlir_backend load_mlir_backend(const std::string& backend)
     }
 }
 
-static const mlir_backend_v3& mlir_backend(const std::string& arch)
+static const mlir_backend_v3& mlir_backend_by_name(const std::string& backend)
 {
-    const auto backend = select_mlir_backend(arch);
     // Keep plugins loaded for the process lifetime. Unloading one from a static
     // destructor can call FreeLibrary while Windows is unloading migraphx_gpu.
     if(backend == "legacy")
@@ -186,6 +185,11 @@ static const mlir_backend_v3& mlir_backend(const std::string& arch)
     static const auto* loaded =
         std::make_unique<loaded_mlir_backend>(load_mlir_backend(backend)).release();
     return *loaded->vtable;
+}
+
+static const mlir_backend_v3& mlir_backend(const std::string& arch)
+{
+    return mlir_backend_by_name(select_mlir_backend(arch));
 }
 
 static const mlir_backend_v3& mlir_backend(const context& ctx)
@@ -384,11 +388,17 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      const std::vector<shape>& inputs,
                                      bool exhaustive)
 {
-    const auto& backend = mlir_backend(migraphx_ctx);
+    const auto name     = select_mlir_backend(migraphx_ctx.get_current_device().get_gfx_name());
+    const auto& backend = mlir_backend_by_name(name);
     auto result = checked_result(
         backend.get_tuning_config_mlir(&migraphx_ctx, &m, inputs.data(), inputs.size(), exhaustive),
         backend);
-    return result_tuning_config(result);
+    auto config = result_tuning_config(result);
+    // Tuned solutions only apply to the backend that produced them. Legacy keys
+    // stay unchanged so existing problem caches remain valid.
+    if(name != "legacy")
+        config.problem = name + ":" + config.problem.to<std::string>();
+    return config;
 }
 
 void dump_mlir_to_mxr(const context& migraphx_ctx,

@@ -29,9 +29,11 @@
 #include <migraphx/time.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <numeric>
 #include <thread>
 
 namespace migraphx {
@@ -254,30 +256,56 @@ adaptive_topk_benchmark::run(const context& ictx,
     std::iota(indices.begin(), indices.end(), 0);
 
     // Coarse pass: warmup + single-run estimate, then a short bundle-of-1 measurement.
-    // The accumulator carries the fastest time measured so far, so a candidate whose estimate
-    // is already slower than that is skipped instead of measured. The floor at coarse_ms keeps
-    // lazy initialization in the estimate from skipping a fast candidate.
+    // A second measurement is skipped when it cannot change who is precise-timed: the estimate
+    // already exceeds coarse_ms (compute_nruns would return 1), it is slower than the leader
+    // cutoff, or top_k finite times already beat it. `top` is a max-heap of those best times.
+    struct coarse_rank
+    {
+        double fastest = std::numeric_limits<double>::infinity();
+        std::vector<double> top;
+    };
     std::vector<double> coarse(candidates.size(), invalid);
-    (void)std::accumulate(indices.begin(), indices.end(), invalid, [&](double fastest, auto i) {
-        const auto& candidate = candidates[i];
-        auto trace            = candidate.trace();
-        trace("Benchmarking solution: ", candidate.solution());
-        const double cutoff =
-            (coarse_cutoff_factor == 0 or not std::isfinite(fastest))
-                ? invalid
-                : std::max(coarse_cutoff_factor * fastest, static_cast<double>(coarse_ms));
-        auto t = try_benchmark(trace, [&] {
-            auto bp       = make_benchmark_program(ctx_vec, candidate);
-            auto estimate = bp.time(ctx_vec, 1, 1);
-            if(estimate > cutoff)
-                return estimate;
-            return bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs));
+    (void)std::accumulate(
+        indices.begin(), indices.end(), coarse_rank{}, [&](coarse_rank rank, auto i) {
+            const auto& candidate = candidates[i];
+            auto trace            = candidate.trace();
+            trace("Benchmarking solution: ", candidate.solution());
+            const double leader_cutoff =
+                (coarse_cutoff_factor == 0 or not std::isfinite(rank.fastest))
+                    ? invalid
+                    : std::max(coarse_cutoff_factor * rank.fastest, static_cast<double>(coarse_ms));
+            auto t = try_benchmark(trace, [&] {
+                auto bp                = make_benchmark_program(ctx_vec, candidate);
+                auto estimate          = bp.time(ctx_vec, 1, 1);
+                const bool over_budget = estimate > static_cast<double>(coarse_ms);
+                const bool misses_top_k =
+                    top_k > 0 and rank.top.size() >= top_k and estimate > rank.top.front();
+                if(over_budget or estimate > leader_cutoff or misses_top_k)
+                    return estimate;
+                return bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs));
+            });
+            if(t.has_value())
+                trace("Coarse time: ", *t, "ms");
+            coarse[i] = t.value_or(invalid);
+            if(not std::isfinite(coarse[i]))
+                return rank;
+            rank.fastest = std::min(rank.fastest, coarse[i]);
+            if(top_k == 0)
+                return rank;
+            if(rank.top.size() < top_k)
+            {
+                rank.top.push_back(coarse[i]);
+                std::push_heap(rank.top.begin(), rank.top.end());
+                return rank;
+            }
+            if(coarse[i] < rank.top.front())
+            {
+                std::pop_heap(rank.top.begin(), rank.top.end());
+                rank.top.back() = coarse[i];
+                std::push_heap(rank.top.begin(), rank.top.end());
+            }
+            return rank;
         });
-        if(t.has_value())
-            trace("Coarse time: ", *t, "ms");
-        coarse[i] = t.value_or(invalid);
-        return std::min(fastest, coarse[i]);
-    });
 
     // Select the candidates that measured successfully, keep the top_k fastest
     std::vector<std::size_t> selected;

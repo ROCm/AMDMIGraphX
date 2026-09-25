@@ -69,8 +69,8 @@ struct MIGRAPHX_GPU_EXPORT adaptive_topk_benchmark
     std::size_t precise_min_bundle = 4;
     std::size_t max_runs           = 20;
     // A coarse candidate is skipped after its estimate run when that run is slower than both
-    // coarse_ms and this multiple of the fastest coarse time measured before it. Zero measures
-    // every coarse candidate in full.
+    // coarse_ms and this multiple of the fastest coarse time measured before it. Zero disables
+    // this leader-relative cutoff; candidates slower than coarse_ms are still not re-measured.
     std::size_t coarse_cutoff_factor = 4;
 
     const benchmark_candidate& run(const context& ictx,

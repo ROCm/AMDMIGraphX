@@ -126,6 +126,13 @@ def shape(h):
         'create_dynamic',
         api.params(type='migraphx::shape::type_t',
                    dims='std::vector<migraphx::shape::dynamic_dimension>'))
+    h.constructor('create_symbolic',
+                  api.params(type='migraphx::shape::type_t',
+                             dims='const char* const*',
+                             ndims='size_t',
+                             strides='const char* const*',
+                             nstrides='size_t'),
+                  fname='migraphx::create_symbolic_shape')
     h.method('lengths',
              fname='lens',
              returns='const std::vector<size_t>&',

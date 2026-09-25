@@ -868,139 +868,136 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compile_op(ctx, shapes, v);
     }
 
-    /// Add a solution for the algo with the given block size, plus the
-    /// larger-block alternative when it differs. The extra parameters are
-    /// included in each solution.
-    static void add_block_size_solutions(tuning_config& tc,
-                                         const std::string& algo,
-                                         std::size_t block_size,
-                                         std::size_t large_block_size,
-                                         const value& extra = value::object{})
+    /// The tuning solutions for a fused reduce, built from its plan
+    struct tuning_solutions
     {
-        auto solution          = extra;
-        solution["algo"]       = algo;
-        solution["block_size"] = block_size;
-        tc.solutions.push_back(solution);
-        if(large_block_size != block_size)
-        {
-            solution["block_size"] = large_block_size;
-            tc.solutions.push_back(solution);
-        }
-    }
+        fused_reduce_plan plan;
+        optional<reduce_tile> tile;
+        std::size_t noutputs = 0;
+        /// The vector result of the batched pass is only assigned to a single output
+        bool batchable = false;
+        tuning_config tc;
 
-    /// Without exhaustive tuning, offer the heuristic default algorithm plus a few
-    /// alternatives so benchmarking can decide: block_batch/block_tile when a tile
-    /// is found, a larger block size (max 1024 instead of 256) for block, and
-    /// block_strided when the lane heuristics prefer it.
-    static void add_default_solutions(tuning_config& tc,
-                                      context& ctx,
-                                      const fused_reduce_plan& plan,
-                                      const optional<reduce_tile>& tile,
-                                      std::size_t noutputs,
-                                      bool batchable)
-    {
-        if(plan.algo == "block")
+        /// Add a solution for the algo with the given block size, plus the
+        /// larger-block alternative when it differs. The extra parameters are
+        /// included in each solution.
+        void add_block_size_solutions(const std::string& algo,
+                                      std::size_t block_size,
+                                      std::size_t large_block_size,
+                                      const value& extra = value::object{})
         {
-            if(tile.has_value() and plan.assign == "assign_none")
+            auto solution          = extra;
+            solution["algo"]       = algo;
+            solution["block_size"] = block_size;
+            tc.solutions.push_back(solution);
+            if(large_block_size != block_size)
             {
-                // The batched pass loads the broadcast input once per tile
-                // instead of once per output, so offer it first as the
-                // default ahead of the cache-bound block_tile
-                auto batch_block = tile_block_size(ctx, plan.relements, 256);
-                if(batchable and batch_iterations(tile->size, plan.relements, batch_block) <=
-                                     tuned_batch_iterations)
+                solution["block_size"] = large_block_size;
+                tc.solutions.push_back(solution);
+            }
+        }
+
+        /// Without exhaustive tuning, offer the heuristic default algorithm plus a few
+        /// alternatives so benchmarking can decide: block_batch/block_tile when a tile
+        /// is found, a larger block size (max 1024 instead of 256) for block, and
+        /// block_strided when the lane heuristics prefer it.
+        void add_default_solutions(context& ctx)
+        {
+            if(plan.algo == "block")
+            {
+                if(tile.has_value() and plan.assign == "assign_none")
                 {
+                    // The batched pass loads the broadcast input once per tile
+                    // instead of once per output, so offer it first as the
+                    // default ahead of the cache-bound block_tile
+                    auto batch_block = tile_block_size(ctx, plan.relements, 256);
+                    if(batchable and batch_iterations(tile->size, plan.relements, batch_block) <=
+                                         tuned_batch_iterations)
+                    {
+                        add_block_size_solutions(
+                            "block_batch",
+                            batch_block,
+                            compute_block_size(ctx, plan.relements, 256),
+                            {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
+                    }
+                    // For the cache-bound tiled reduction a smaller workgroup
+                    // that leaves about 4 elements per lane pipelines enough
+                    // loads to often beat the default block size, so offer
+                    // both and let benchmarking decide
+                    std::size_t max_block = tile->size == 2 ? 512 : 256;
                     add_block_size_solutions(
-                        tc,
-                        "block_batch",
-                        batch_block,
-                        compute_block_size(ctx, plan.relements, 256),
+                        "block_tile",
+                        tile_block_size(ctx, plan.relements, max_block),
+                        compute_block_size(ctx, plan.relements, max_block),
                         {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
                 }
-                // For the cache-bound tiled reduction a smaller workgroup
-                // that leaves about 4 elements per lane pipelines enough
-                // loads to often beat the default block size, so offer
-                // both and let benchmarking decide
-                std::size_t max_block = tile->size == 2 ? 512 : 256;
-                add_block_size_solutions(tc,
-                                         "block_tile",
-                                         tile_block_size(ctx, plan.relements, max_block),
-                                         compute_block_size(ctx, plan.relements, max_block),
-                                         {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
+                add_block_size_solutions("block",
+                                         compute_block_size(ctx, plan.relements, 256),
+                                         compute_block_size(ctx, plan.relements, 1024));
             }
-            add_block_size_solutions(tc,
-                                     "block",
-                                     compute_block_size(ctx, plan.relements, 256),
-                                     compute_block_size(ctx, plan.relements, 1024));
-        }
-        else if(plan.algo == "lane" and prefer_block_strided(ctx, plan, noutputs) and
-                find_strided_tile(ctx, plan.relements, 256).has_value())
-        {
-            // A block_strided workgroup computes a tile of out_tile outputs at once, so
-            // its block size is fitted to the parallel work across the whole tile
-            // rather than a single reduction
-            auto swork = ctx.get_current_device().get_wavefront_size() * plan.relements;
-            add_block_size_solutions(tc,
-                                     "block_strided",
-                                     compute_block_size(ctx, swork, 256),
-                                     compute_block_size(ctx, swork, 1024));
-            tc.solutions.push_back({{"algo", "lane"}});
-            add_block_size_solutions(tc,
-                                     "block",
-                                     compute_block_size(ctx, plan.relements, 256),
-                                     compute_block_size(ctx, plan.relements, 1024));
-        }
-        else
-        {
-            tc.solutions.push_back({{"algo", plan.algo}});
-        }
-    }
-
-    /// Every algorithm at each candidate block or subwave size for exhaustive tuning
-    static void add_exhaustive_solutions(tuning_config& tc,
-                                         const context& ctx,
-                                         const fused_reduce_plan& plan,
-                                         const optional<reduce_tile>& tile,
-                                         bool batchable)
-    {
-        auto relements = plan.reduction_shape.elements();
-        std::unordered_set<std::size_t> tile_sizes;
-        for(auto per_lane : {1, 2, 4, 8, 16})
-        {
-            std::size_t x = relements / per_lane;
-            for(auto max_block : {256, 512, 1024})
-                tile_sizes.insert(compute_block_size(ctx, x, max_block));
-            if(x < ctx.get_current_device().get_wavefront_size())
-                tile_sizes.insert(bit_ceil(x));
-        }
-        for(auto tile_size : tile_sizes)
-        {
-            if(tile_size > ctx.get_current_device().get_wavefront_size())
-                tc.solutions.push_back({{"algo", "block"}, {"block_size", tile_size}});
-            else
-                tc.solutions.push_back({{"algo", "wave"}, {"subwave_size", tile_size}});
-        }
-        tc.solutions.push_back({{"algo", "lane"}});
-        for(auto block_size : {128, 256, 512, 1024})
-            tc.solutions.push_back({{"algo", "block_strided"}, {"block_size", block_size}});
-        if(tile.has_value() and plan.assign == "assign_none")
-        {
-            for(auto block_size : {64, 128, 256, 512})
+            else if(plan.algo == "lane" and prefer_block_strided(ctx, plan, noutputs) and
+                    find_strided_tile(ctx, plan.relements, 256).has_value())
             {
-                value solution = {{"algo", "block_tile"},
-                                  {"block_size", block_size},
-                                  {"tile_axis", tile->axis},
-                                  {"n_per_block", tile->size}};
-                tc.solutions.push_back(solution);
-                if(batchable and batch_iterations(tile->size, plan.relements, block_size) <=
-                                     tuned_batch_iterations)
+                // A block_strided workgroup computes a tile of out_tile outputs at once, so
+                // its block size is fitted to the parallel work across the whole tile
+                // rather than a single reduction
+                auto swork = ctx.get_current_device().get_wavefront_size() * plan.relements;
+                add_block_size_solutions("block_strided",
+                                         compute_block_size(ctx, swork, 256),
+                                         compute_block_size(ctx, swork, 1024));
+                tc.solutions.push_back({{"algo", "lane"}});
+                add_block_size_solutions("block",
+                                         compute_block_size(ctx, plan.relements, 256),
+                                         compute_block_size(ctx, plan.relements, 1024));
+            }
+            else
+            {
+                tc.solutions.push_back({{"algo", plan.algo}});
+            }
+        }
+
+        /// Every algorithm at each candidate block or subwave size for exhaustive tuning
+        void add_exhaustive_solutions(const context& ctx)
+        {
+            auto relements = plan.reduction_shape.elements();
+            std::unordered_set<std::size_t> tile_sizes;
+            for(auto per_lane : {1, 2, 4, 8, 16})
+            {
+                std::size_t x = relements / per_lane;
+                for(auto max_block : {256, 512, 1024})
+                    tile_sizes.insert(compute_block_size(ctx, x, max_block));
+                if(x < ctx.get_current_device().get_wavefront_size())
+                    tile_sizes.insert(bit_ceil(x));
+            }
+            for(auto tile_size : tile_sizes)
+            {
+                if(tile_size > ctx.get_current_device().get_wavefront_size())
+                    tc.solutions.push_back({{"algo", "block"}, {"block_size", tile_size}});
+                else
+                    tc.solutions.push_back({{"algo", "wave"}, {"subwave_size", tile_size}});
+            }
+            tc.solutions.push_back({{"algo", "lane"}});
+            for(auto block_size : {128, 256, 512, 1024})
+                tc.solutions.push_back({{"algo", "block_strided"}, {"block_size", block_size}});
+            if(tile.has_value() and plan.assign == "assign_none")
+            {
+                for(auto block_size : {64, 128, 256, 512})
                 {
-                    solution["algo"] = "block_batch";
+                    value solution = {{"algo", "block_tile"},
+                                      {"block_size", block_size},
+                                      {"tile_axis", tile->axis},
+                                      {"n_per_block", tile->size}};
                     tc.solutions.push_back(solution);
+                    if(batchable and batch_iterations(tile->size, plan.relements, block_size) <=
+                                         tuned_batch_iterations)
+                    {
+                        solution["algo"] = "block_batch";
+                        tc.solutions.push_back(solution);
+                    }
                 }
             }
         }
-    }
+    };
 
     optional<tuning_config>
     get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
@@ -1008,25 +1005,26 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(not contains({"fused_reduce", "split_fused_reduce"}, op.name()))
             return nullopt;
         assert(not ins->module_inputs().empty());
-        const auto& rm = *ins->module_inputs().front();
-        tuning_config tc;
+        const auto& rm   = *ins->module_inputs().front();
         auto shapes      = to_shapes(ins->inputs());
-        tc.problem       = to_value(shapes);
         auto v           = op.to_value();
         auto packed_args = find_packed_args(rm);
         if(not packed_args.empty())
             v["packed_args"] = packed_args;
-        auto plan     = compute_fused_reduce_plan(ctx, shapes, v);
-        auto noutputs = plan.finputs.size() - shapes.size() + 1;
-        auto tile     = find_reduce_tile(
-            plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());
-        // The vector result of the batched pass is only assigned to a single output
-        bool batchable = tile.has_value() and noutputs == 1 and can_batch_reduce(rm);
+        tuning_solutions ts;
+        ts.plan       = compute_fused_reduce_plan(ctx, shapes, v);
+        ts.noutputs   = ts.plan.finputs.size() - shapes.size() + 1;
+        ts.tile       = find_reduce_tile(ts.plan.virtual_inputs,
+                                         ts.noutputs,
+                                         ts.plan.reduce_output_shape,
+                                         ts.plan.reduction_shape.lens());
+        ts.batchable  = ts.tile.has_value() and ts.noutputs == 1 and can_batch_reduce(rm);
+        ts.tc.problem = to_value(shapes);
         if(exhaustive)
-            add_exhaustive_solutions(tc, ctx, plan, tile, batchable);
+            ts.add_exhaustive_solutions(ctx);
         else
-            add_default_solutions(tc, ctx, plan, tile, noutputs, batchable);
-        return tc;
+            ts.add_default_solutions(ctx);
+        return ts.tc;
     }
 };
 } // namespace gpu

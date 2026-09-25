@@ -1715,9 +1715,9 @@ void prepare_clone_infos(
                 input.slice_axes = source_info->second->output_symbolic_axes;
 
             // Fixed symbolic dimensions and strides still require static clone metadata.
-            bool emit_pad = operand.pad_value.has_value() or
-                            needs_fixed_retarget(info.input_shapes.at(input_index),
-                                                 target_substitutions);
+            bool emit_pad =
+                operand.pad_value.has_value() or
+                needs_fixed_retarget(info.input_shapes.at(input_index), target_substitutions);
             if(source_in_same_block and operand.pad_value.has_value())
             {
                 assert(operand.retained_slice_axes.empty());
@@ -1991,14 +1991,14 @@ std::optional<block_frame> find_block_frame(
     if(body_instructions.empty())
         return std::nullopt;
 
-    result.inputs.erase(
-        std::remove_if(result.inputs.begin(),
-                       result.inputs.end(),
-                       [&](const auto& input) {
-                           return contains(body_instructions, input.clone_value.source) and
-                                  input.clone_value.slice_axes.empty();
-                       }),
-        result.inputs.end());
+    result.inputs.erase(std::remove_if(result.inputs.begin(),
+                                       result.inputs.end(),
+                                       [&](const auto& input) {
+                                           return contains(body_instructions,
+                                                           input.clone_value.source) and
+                                                  input.clone_value.slice_axes.empty();
+                                       }),
+                        result.inputs.end());
 
     std::vector<sliced_value> required_outputs;
     auto add_required_output = [&](sliced_value output) {
@@ -2084,11 +2084,9 @@ find_cloned_input(const sliced_value& input,
 bool only_used_as_slice_metadata(instruction_ref ins)
 {
     const auto& outputs = ins->outputs();
-    return not outputs.empty() and
-           std::all_of(outputs.begin(), outputs.end(), [&](auto output) {
-               return contains({"slice", "dyn_slice"}, output->name()) and
-                      output->inputs().front() != ins;
-           });
+    return not outputs.empty() and std::all_of(outputs.begin(), outputs.end(), [&](auto output) {
+        return contains({"slice", "dyn_slice"}, output->name()) and output->inputs().front() != ins;
+    });
 }
 
 struct clone_context
@@ -2142,8 +2140,8 @@ struct clone_context
                 if(clone_inputs.at(index).operand.pad_value.has_value())
                     args.at(index) = add_or_reuse_pad(
                         clone_module,
-                        make_op(
-                            "fixed_pad", {{"value", *clone_inputs.at(index).operand.pad_value}}),
+                        make_op("fixed_pad",
+                                {{"value", *clone_inputs.at(index).operand.pad_value}}),
                         args.at(index),
                         reusable_pads);
             for(std::size_t index = 0; index < clone_inputs.size(); ++index)
@@ -2198,8 +2196,8 @@ struct fold_fixed_clone_evaluations : match::supports_dynamic_shapes
         if(only_used_as_slice_metadata(ins))
             return;
 
-        auto expressions = from_value<std::vector<sym::expr>>(
-            ins->get_operator().to_value().at("expressions"));
+        auto expressions =
+            from_value<std::vector<sym::expr>>(ins->get_operator().to_value().at("expressions"));
         std::unordered_set<sym::expr> required;
         for(const auto& expression : expressions)
         {
@@ -2217,8 +2215,7 @@ struct fold_fixed_clone_evaluations : match::supports_dynamic_shapes
                        expressions.end(),
                        std::back_inserter(values),
                        [&](const auto& expression) {
-                           return static_cast<int64_t>(
-                               expression.eval_uint(fixed_runtime_values));
+                           return static_cast<int64_t>(expression.eval_uint(fixed_runtime_values));
                        });
         m.replace_instruction(
             ins, m.add_literal(literal{shape{shape::int64_type, {values.size()}}, values}));
@@ -2447,9 +2444,7 @@ void wire_select_module(
     std::transform(frame.params.begin(),
                    frame.params.end(),
                    std::back_inserter(selection_inputs),
-                   [&](const auto& input) {
-                       return frame.inputs.at(input.second).select_input;
-                   });
+                   [&](const auto& input) { return frame.inputs.at(input.second).select_input; });
     std::vector<shape> body_output_shapes;
     for(std::size_t output_index = 0; output_index < frame.outputs.size(); ++output_index)
     {
@@ -2593,8 +2588,7 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
         return;
 
     prepare_clone_infos(infos, info_for_instruction, *roots);
-    specialize_blocks(
-        mpm, blocks, info_for_instruction, resolve_symbolic_dimensions.root_sources);
+    specialize_blocks(mpm, blocks, info_for_instruction, resolve_symbolic_dimensions.root_sources);
     run_passes(m, {dead_code_elimination{}});
 }
 

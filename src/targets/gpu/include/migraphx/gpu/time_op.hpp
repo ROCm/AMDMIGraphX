@@ -66,13 +66,12 @@ struct MIGRAPHX_GPU_EXPORT adaptive_topk_benchmark
     std::size_t top_k = 10;
     // Per-candidate time budgets (ms) for the precise and coarse measurements
     std::size_t precise_ms         = 20;
-    std::size_t coarse_ms          = 10;
+    std::size_t coarse_ms          = 5;
     std::size_t precise_min_bundle = 4;
     // Most runs in a precise measurement
     std::size_t max_runs = 20;
-    // Most runs in a coarse measurement. With one, each candidate is ranked by the single run after
-    // its warmup, and telling close candidates apart is left to the precise pass.
-    std::size_t coarse_max_runs = 1;
+    // Most runs in a coarse measurement
+    std::size_t coarse_max_runs = 4;
     // Candidates whose coarse time is more than this multiple of the best coarse time are not
     // precisely timed. Zero precisely times all top_k candidates. Ignored when top_k is zero.
     std::size_t coarse_cutoff_factor = 4;

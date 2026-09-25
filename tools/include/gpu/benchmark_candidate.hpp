@@ -58,9 +58,9 @@ namespace gpu {
 /// program for itself and how to generate the input data used to run it.
 struct benchmark_candidate
 {
-    /// Generate one input argument per parameter of the program returned by
+    /// Generate one input argument per parameter of p, a program returned by
     /// make_program(), ordered to match its parameter order.
-    std::vector<argument> generate_arguments(const context& ictx) const;
+    std::vector<argument> generate_arguments(const context& ictx, const program& p) const;
 
     /// Build a runnable program for this candidate.
     program make_program() const;
@@ -84,6 +84,7 @@ struct benchmark_candidate
               virtual('generate_arguments',
                       returns = 'std::vector<argument>',
                       ictx    = 'const context&',
+                      p       = 'const program&',
                       const   = True),
               virtual('make_program', returns = 'program', const = True),
               virtual('trace', returns = 'tracer', const = True),

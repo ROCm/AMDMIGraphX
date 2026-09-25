@@ -58,9 +58,9 @@ namespace gpu {
 /// program for itself and how to generate the input data used to run it.
 struct benchmark_candidate
 {
-    /// Generate one input argument per parameter of the program returned by
+    /// Generate one input argument per parameter of p, a program returned by
     /// make_program(), ordered to match its parameter order.
-    std::vector<argument> generate_arguments(const context& ictx) const;
+    std::vector<argument> generate_arguments(const context& ictx, const program& p) const;
 
     /// Build a runnable program for this candidate.
     program make_program() const;
@@ -85,7 +85,7 @@ struct benchmark_candidate
 struct MIGRAPHX_EXPORT benchmark_candidate
 {
     //
-    std::vector<argument> generate_arguments(const context& ictx) const;
+    std::vector<argument> generate_arguments(const context& ictx, const program& p) const;
     //
     program make_program() const;
     //
@@ -118,7 +118,7 @@ struct benchmark_candidate
     template <class PrivateDetailTypeErasedT>
     using private_te_constraints_impl =
         decltype(std::declval<PrivateDetailTypeErasedT>().generate_arguments(
-                     std::declval<const context&>()),
+                     std::declval<const context&>(), std::declval<const program&>()),
                  std::declval<PrivateDetailTypeErasedT>().make_program(),
                  std::declval<PrivateDetailTypeErasedT>().trace(),
                  std::declval<PrivateDetailTypeErasedT>().solution(),
@@ -200,10 +200,10 @@ struct benchmark_candidate
             return private_detail_te_get_handle().type();
     }
 
-    std::vector<argument> generate_arguments(const context& ictx) const
+    std::vector<argument> generate_arguments(const context& ictx, const program& p) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().generate_arguments(ictx);
+        return (*this).private_detail_te_get_handle().generate_arguments(ictx, p);
     }
 
     program make_program() const
@@ -244,11 +244,12 @@ struct benchmark_candidate
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::vector<argument> generate_arguments(const context& ictx) const = 0;
-        virtual program make_program() const                                        = 0;
-        virtual tracer trace() const                                                = 0;
-        virtual value solution() const                                              = 0;
-        virtual void before_run(const program& p) const                             = 0;
+        virtual std::vector<argument> generate_arguments(const context& ictx,
+                                                         const program& p) const = 0;
+        virtual program make_program() const                                     = 0;
+        virtual tracer trace() const                                             = 0;
+        virtual value solution() const                                           = 0;
+        virtual void before_run(const program& p) const                          = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -278,10 +279,11 @@ struct benchmark_candidate
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        std::vector<argument> generate_arguments(const context& ictx) const override
+        std::vector<argument> generate_arguments(const context& ictx,
+                                                 const program& p) const override
         {
 
-            return private_detail_te_value.generate_arguments(ictx);
+            return private_detail_te_value.generate_arguments(ictx, p);
         }
 
         program make_program() const override { return private_detail_te_value.make_program(); }

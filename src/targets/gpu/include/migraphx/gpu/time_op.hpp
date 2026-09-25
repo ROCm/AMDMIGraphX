@@ -47,6 +47,16 @@ generate_program_arguments(const context& ictx,
                            const program& p,
                            const std::unordered_map<std::string, double>& fill_map = {});
 
+/* Like above, but reuses the argument in generated for a parameter with the same name, fill and
+   shape, so programs that are alternatives for the same computation can share their inputs. A
+   newly generated argument replaces the one stored for its name and fill, so generated holds one
+   argument per parameter name and fill value. */
+MIGRAPHX_GPU_EXPORT std::vector<argument>
+generate_program_arguments(const context& ictx,
+                           const program& p,
+                           const std::unordered_map<std::string, double>& fill_map,
+                           std::unordered_map<std::string, argument>& generated);
+
 /* Time each candidate and return the fastest one */
 struct MIGRAPHX_GPU_EXPORT simple_benchmark
 {
@@ -61,7 +71,9 @@ struct MIGRAPHX_GPU_EXPORT simple_benchmark
    the top candidates with more iterations and return the fastest one */
 struct MIGRAPHX_GPU_EXPORT adaptive_topk_benchmark
 {
-    // Number of top candidates to precisely time. Zero precisely times every candidate.
+    // Number of top candidates to precisely time. Zero precisely times every candidate. The coarse
+    // programs of the current top_k are held for the precise pass; with zero, every candidate is
+    // rebuilt for it instead.
     std::size_t top_k = 10;
     // Per-candidate time budgets (ms) for the precise and coarse measurements
     std::size_t precise_ms         = 20;

@@ -30,7 +30,10 @@
 #include <test.hpp>
 #include <chrono>
 #include <memory>
+#include <sstream>
+#include <string>
 #include <thread>
+#include <unordered_map>
 
 // Identity op that sleeps on the host, so a candidate's measured time is deterministic
 struct sleep_op
@@ -70,8 +73,11 @@ struct test_candidate
     // Counts make_program calls to observe which candidates each benchmark pass builds
     std::shared_ptr<std::size_t> programs_built = std::make_shared<std::size_t>(0);
     std::shared_ptr<std::size_t> launches       = std::make_shared<std::size_t>(0);
+    // Trace output, to observe which candidates the precise pass times
+    std::shared_ptr<std::stringstream> log = std::make_shared<std::stringstream>();
 
-    std::vector<migraphx::argument> generate_arguments(const migraphx::gpu::context&) const
+    std::vector<migraphx::argument> generate_arguments(const migraphx::gpu::context&,
+                                                       const migraphx::program&) const
     {
         return {migraphx::fill_argument({migraphx::shape::float_type, {4}}, 1)};
     }
@@ -88,7 +94,7 @@ struct test_candidate
         return p;
     }
 
-    migraphx::tracer trace() const { return {}; }
+    migraphx::tracer trace() const { return {*log}; }
 
     migraphx::value solution() const { return id; }
 
@@ -165,8 +171,11 @@ TEST_CASE(adaptive_benchmark_only_times_top_k_precisely)
     std::vector<migraphx::gpu::benchmark_candidate> candidates = {slow, fast, mid};
     const auto& winner = small_adaptive_benchmark(1).run(ctx, candidates);
     EXPECT(winner.solution().to<int>() == 1);
-    // The coarse pass builds every candidate once; only the fastest is rebuilt for the precise pass
-    EXPECT(*fast.programs_built == 2);
+    EXPECT(fast.log->str().find("Precise solution") != std::string::npos);
+    EXPECT(mid.log->str().find("Precise solution") == std::string::npos);
+    EXPECT(slow.log->str().find("Precise solution") == std::string::npos);
+    // The precise pass reuses the program fast was coarse timed with
+    EXPECT(*fast.programs_built == 1);
     EXPECT(*mid.programs_built == 1);
     EXPECT(*slow.programs_built == 1);
 }
@@ -229,8 +238,8 @@ TEST_CASE(adaptive_benchmark_does_not_precisely_time_candidates_far_behind_the_b
     std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, slow};
     const auto& winner = small_adaptive_benchmark(2).run(ctx, candidates);
     EXPECT(winner.solution().to<int>() == 1);
-    EXPECT(*fast.programs_built == 2);
-    EXPECT(*slow.programs_built == 1);
+    EXPECT(fast.log->str().find("Precise solution") != std::string::npos);
+    EXPECT(slow.log->str().find("Precise solution") == std::string::npos);
 }
 
 TEST_CASE(adaptive_benchmark_precisely_times_candidates_close_to_the_best)
@@ -240,8 +249,54 @@ TEST_CASE(adaptive_benchmark_precisely_times_candidates_close_to_the_best)
     test_candidate near_best{150, 2};
     std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, near_best};
     (void)small_adaptive_benchmark(2).run(ctx, candidates);
-    EXPECT(*fast.programs_built == 2);
-    EXPECT(*near_best.programs_built == 2);
+    EXPECT(fast.log->str().find("Precise solution") != std::string::npos);
+    EXPECT(near_best.log->str().find("Precise solution") != std::string::npos);
+}
+
+TEST_CASE(adaptive_benchmark_precise_pass_reuses_the_coarse_programs_of_the_top_k)
+{
+    migraphx::gpu::context ctx{};
+    test_candidate fast{100, 1};
+    test_candidate near_best{150, 2};
+    test_candidate slow{1000, 3};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {slow, fast, near_best};
+    (void)small_adaptive_benchmark(2).run(ctx, candidates);
+    EXPECT(fast.log->str().find("Precise solution") != std::string::npos);
+    EXPECT(near_best.log->str().find("Precise solution") != std::string::npos);
+    // slow enters the top_k first and is evicted by near_best
+    EXPECT(slow.log->str().find("Precise solution") == std::string::npos);
+    EXPECT(*fast.programs_built == 1);
+    EXPECT(*near_best.programs_built == 1);
+    EXPECT(*slow.programs_built == 1);
+}
+
+TEST_CASE(adaptive_benchmark_precise_pass_skips_the_warmup_of_a_reused_program)
+{
+    migraphx::gpu::context ctx{};
+    test_candidate only{1500, 1};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {only};
+    auto bench                                                 = small_adaptive_benchmark(1);
+    bench.precise_ms                                           = 1;
+    bench.precise_min_bundle                                   = 2;
+    (void)bench.run(ctx, candidates);
+    EXPECT(*only.programs_built == 1);
+    // Coarse: warmup, estimate, then a single run (coarse_ms / 1.5ms rounds down to 1).
+    // Precise: one bundle of 2 (precise_ms / (1.5ms * 2) clamps to one run) and no warmup.
+    EXPECT(*only.launches == 5);
+}
+
+TEST_CASE(adaptive_benchmark_top_k_zero_warms_up_the_rebuilt_program)
+{
+    migraphx::gpu::context ctx{};
+    test_candidate only{1500, 1};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {only};
+    auto bench                                                 = small_adaptive_benchmark(0);
+    bench.precise_ms                                           = 1;
+    bench.precise_min_bundle                                   = 2;
+    (void)bench.run(ctx, candidates);
+    EXPECT(*only.programs_built == 2);
+    // Same runs as a reused program, plus the warmup of the rebuilt one
+    EXPECT(*only.launches == 6);
 }
 
 TEST_CASE(adaptive_benchmark_zero_cutoff_factor_precisely_times_every_top_k_candidate)
@@ -254,8 +309,58 @@ TEST_CASE(adaptive_benchmark_zero_cutoff_factor_precisely_times_every_top_k_cand
     bench.coarse_cutoff_factor                                 = 0;
     const auto& winner                                         = bench.run(ctx, candidates);
     EXPECT(winner.solution().to<int>() == 1);
-    EXPECT(*fast.programs_built == 2);
-    EXPECT(*slow.programs_built == 2);
+    EXPECT(fast.log->str().find("Precise solution") != std::string::npos);
+    EXPECT(slow.log->str().find("Precise solution") != std::string::npos);
+}
+
+TEST_CASE(generate_program_arguments_shares_parameters_with_the_same_name_and_shape)
+{
+    migraphx::gpu::context ctx{};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", {migraphx::shape::float_type, {4}});
+        auto scratch = mm->add_parameter("scratch", {migraphx::shape::int8_type, {16}});
+        mm->add_return({x, scratch});
+    }
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", {migraphx::shape::float_type, {4}});
+        auto scratch = mm->add_parameter("scratch", {migraphx::shape::int8_type, {32}});
+        mm->add_return({x, scratch});
+    }
+    std::unordered_map<std::string, migraphx::argument> generated;
+    auto args1 = migraphx::gpu::make_parameter_map(
+        p1.get_main_module(), migraphx::gpu::generate_program_arguments(ctx, p1, {}, generated));
+    auto args2 = migraphx::gpu::make_parameter_map(
+        p2.get_main_module(), migraphx::gpu::generate_program_arguments(ctx, p2, {}, generated));
+    EXPECT(args1.at("x").data() == args2.at("x").data());
+    EXPECT(args1.at("scratch").data() != args2.at("scratch").data());
+    EXPECT(args2.at("scratch").get_shape() == migraphx::shape{migraphx::shape::int8_type, {32}});
+    // The larger scratch replaced the smaller one
+    EXPECT(generated.size() == 2);
+}
+
+TEST_CASE(generate_program_arguments_does_not_share_differently_filled_parameters)
+{
+    migraphx::gpu::context ctx{};
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::program p;
+    {
+        auto* mm = p.get_main_module();
+        mm->add_return({mm->add_parameter("x", s)});
+    }
+    std::unordered_map<std::string, double> fill_map = {
+        {s.type_string() + migraphx::shape::to_sizes_string({s}), 3}};
+    std::unordered_map<std::string, migraphx::argument> generated;
+    auto random       = migraphx::gpu::generate_program_arguments(ctx, p, {}, generated);
+    auto filled       = migraphx::gpu::generate_program_arguments(ctx, p, fill_map, generated);
+    auto filled_again = migraphx::gpu::generate_program_arguments(ctx, p, fill_map, generated);
+    auto random_again = migraphx::gpu::generate_program_arguments(ctx, p, {}, generated);
+    EXPECT(random.front().data() != filled.front().data());
+    EXPECT(filled.front().data() == filled_again.front().data());
+    EXPECT(random.front().data() == random_again.front().data());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

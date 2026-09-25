@@ -56,7 +56,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
 
 static void validate_mlir_backend(const mlir_backend_v3* table, const fs::path& path)
 {
-    const auto plugin = "MLIR backend plugin '" + path.string() + "'";
+    const auto plugin = "MLIR backend plugin '" + path.u8string() + "'";
     if(table == nullptr)
         MIGRAPHX_THROW(plugin + " returned a null vtable");
     if(table->abi_version != mlir_backend_abi_version)
@@ -152,7 +152,7 @@ static loaded_mlir_backend load_mlir_backend(const std::string& backend)
     const auto candidate = plugin_dir / make_shared_object_filename("migraphx_mlir_" + backend);
     if(not fs::exists(candidate))
         MIGRAPHX_THROW("MLIR backend plugin '" + backend + "' was not found at '" +
-                       candidate.string() + "'");
+                       candidate.u8string() + "'");
 
     try
     {
@@ -162,13 +162,13 @@ static loaded_mlir_backend load_mlir_backend(const std::string& backend)
         const auto* table = getter();
         validate_mlir_backend(table, candidate);
         if(enabled(MIGRAPHX_TRACE_MLIR{}))
-            std::cout << "Loaded MLIR backend plugin: " << candidate.string() << std::endl;
+            std::cout << "Loaded MLIR backend plugin: " << candidate.u8string() << std::endl;
         return {std::move(loader), table};
     }
     catch(const std::exception& e)
     {
         MIGRAPHX_THROW("Failed to load MLIR backend '" + backend + "' from '" +
-                       candidate.string() + "': " + e.what());
+                       candidate.u8string() + "': " + e.what());
     }
 }
 

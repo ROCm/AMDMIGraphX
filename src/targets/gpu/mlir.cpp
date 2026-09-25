@@ -51,10 +51,9 @@
 #include <mlir-c/Support.h>
 #include <mutex>
 #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 6
-#warning "Incompatible version of rocMLIR library used, disabling"
-// Only undefine when not using cppcheck
+// Only fail when not using cppcheck
 #ifndef CPPCHECK
-#undef MIGRAPHX_MLIR
+#error "Incompatible version of rocMLIR library used"
 #endif
 #else
 #include <mlir-c/RegisterRocMLIR.h>
@@ -1427,56 +1426,6 @@ void dump_mlir_to_mxr(const context&,
     log::info() << "Dumping MXR file to: " << f;
     save(program{m}, f.string());
 }
-
-#else
-
-template <class T>
-void use(T&)
-{
-}
-
-std::string dump_mlir(module) { return {}; }
-
-std::string dump_mlir(module m, const std::vector<shape>& inputs)
-{
-    use(m);
-    use(inputs);
-    return {};
-}
-
-// Disabling clang-tidy warning on non-real useage.
-// NOLINTBEGIN(performance-unnecessary-value-param)
-mlir_code_object compile_mlir(const context&, module, const std::vector<shape>&, const value&)
-{
-    return {};
-}
-
-std::string mlir_compile_key(const context&, module, const std::vector<shape>&, const value&)
-{
-    return {};
-}
-
-tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
-{
-    return {};
-}
-
-bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const module*)
-{
-    return false;
-}
-
-// Conservative "MLIR unavailable" default: the module cannot be MLIR-fused, so callers
-// take their non-MLIR path. Present so libmigraphx_gpu.so has no dangling MLIR symbols
-// when MIGRAPHX_MLIR is disabled.
-bool is_module_fusible(const module&, const context&, const value&) { return false; }
-
-void dump_mlir_to_file(const context&, module, const std::vector<shape>&, const fs::path&) {}
-
-void dump_mlir_to_mxr(const context&, module, const std::vector<instruction_ref>&, const fs::path&)
-{
-}
-// NOLINTEND(performance-unnecessary-value-param)
 
 #endif
 

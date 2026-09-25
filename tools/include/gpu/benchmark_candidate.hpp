@@ -68,7 +68,7 @@ struct benchmark_candidate
 
     /// Generate the argument for a key and shape returned by
     /// generate_argument_keys().
-    argument generate_argument(const context& ictx, const std::string& key, const shape& s) const;
+    argument generate_argument(context& ctx, const std::string& key, const shape& s) const;
 
     /// Build a runnable program for this candidate.
     program make_program() const;
@@ -95,7 +95,7 @@ struct benchmark_candidate
                       const   = True),
               virtual('generate_argument',
                       returns = 'argument',
-                      ictx    = 'const context&',
+                      ctx     = 'context&',
                       key     = 'const std::string&',
                       s       = 'const shape&',
                       const   = True),

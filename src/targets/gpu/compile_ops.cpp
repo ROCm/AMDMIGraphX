@@ -308,15 +308,11 @@ struct compiled_result
 
         // The key's tag gives the data: "random" is generated on the GPU, seeded by the key so a
         // key always gives the same data; a hex float is filled on the host
-        argument
-        generate_argument(const context& ictx, const std::string& key, const shape& s) const
+        argument generate_argument(context& ctx, const std::string& key, const shape& s) const
         {
             auto tag = key.substr(0, key.find(':'));
             if(tag == "random")
-            {
-                auto gctx = ictx;
-                return gpu_generate_random(gctx, s, std::hash<std::string>{}(key));
-            }
+                return gpu_generate_random(ctx, s, std::hash<std::string>{}(key));
             return to_gpu(fill_argument(s, std::stod(tag)));
         }
 

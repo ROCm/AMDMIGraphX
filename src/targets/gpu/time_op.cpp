@@ -195,9 +195,9 @@ static parameter_map make_benchmark_arguments(std::vector<migraphx::context>& ct
                                               const program& p,
                                               std::unordered_map<std::string, argument>& arg_cache)
 {
-    const auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
-    const auto* mm   = p.get_main_module();
-    auto keys        = candidate.generate_argument_keys(p);
+    auto& gctx     = any_cast<migraphx::gpu::context>(ctx_vec.front());
+    const auto* mm = p.get_main_module();
+    auto keys      = candidate.generate_argument_keys(p);
     if(keys.size() != mm->get_parameter_names().size())
         MIGRAPHX_THROW("benchmark_candidate: generate_argument_keys must give one key per "
                        "parameter");

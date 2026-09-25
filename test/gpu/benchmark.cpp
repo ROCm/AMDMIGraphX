@@ -120,17 +120,14 @@ struct test_candidate
         return keys;
     }
 
-    migraphx::argument generate_argument(const migraphx::gpu::context& ctx,
+    migraphx::argument generate_argument(migraphx::gpu::context& ctx,
                                          const std::string& key,
                                          const migraphx::shape& s) const
     {
         generated->emplace_back(key, s);
         auto tag = key.substr(0, key.find(':'));
         if(tag == "random")
-        {
-            auto gctx = ctx;
-            return migraphx::gpu::gpu_generate_random(gctx, s, std::hash<std::string>{}(key));
-        }
+            return migraphx::gpu::gpu_generate_random(ctx, s, std::hash<std::string>{}(key));
         return migraphx::gpu::to_gpu(migraphx::fill_argument(s, std::stod(tag)));
     }
 

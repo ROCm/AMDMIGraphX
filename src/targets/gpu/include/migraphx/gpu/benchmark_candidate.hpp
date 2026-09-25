@@ -68,7 +68,7 @@ struct benchmark_candidate
 
     /// Generate the argument for a key and shape returned by
     /// generate_argument_keys().
-    argument generate_argument(const context& ictx, const std::string& key, const shape& s) const;
+    argument generate_argument(context& ctx, const std::string& key, const shape& s) const;
 
     /// Build a runnable program for this candidate.
     program make_program() const;
@@ -95,7 +95,7 @@ struct MIGRAPHX_EXPORT benchmark_candidate
     //
     std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const;
     //
-    argument generate_argument(const context& ictx, const std::string& key, const shape& s) const;
+    argument generate_argument(context& ctx, const std::string& key, const shape& s) const;
     //
     program make_program() const;
     //
@@ -130,7 +130,7 @@ struct benchmark_candidate
         decltype(std::declval<PrivateDetailTypeErasedT>().generate_argument_keys(
                      std::declval<const program&>()),
                  std::declval<PrivateDetailTypeErasedT>().generate_argument(
-                     std::declval<const context&>(),
+                     std::declval<context&>(),
                      std::declval<const std::string&>(),
                      std::declval<const shape&>()),
                  std::declval<PrivateDetailTypeErasedT>().make_program(),
@@ -220,10 +220,10 @@ struct benchmark_candidate
         return (*this).private_detail_te_get_handle().generate_argument_keys(p);
     }
 
-    argument generate_argument(const context& ictx, const std::string& key, const shape& s) const
+    argument generate_argument(context& ctx, const std::string& key, const shape& s) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().generate_argument(ictx, key, s);
+        return (*this).private_detail_te_get_handle().generate_argument(ctx, key, s);
     }
 
     program make_program() const
@@ -267,11 +267,11 @@ struct benchmark_candidate
         virtual std::vector<std::pair<std::string, shape>>
         generate_argument_keys(const program& p) const = 0;
         virtual argument
-        generate_argument(const context& ictx, const std::string& key, const shape& s) const = 0;
-        virtual program make_program() const                                                 = 0;
-        virtual tracer trace() const                                                         = 0;
-        virtual value solution() const                                                       = 0;
-        virtual void before_run(const program& p) const                                      = 0;
+        generate_argument(context& ctx, const std::string& key, const shape& s) const = 0;
+        virtual program make_program() const                                          = 0;
+        virtual tracer trace() const                                                  = 0;
+        virtual value solution() const                                                = 0;
+        virtual void before_run(const program& p) const                               = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -308,12 +308,11 @@ struct benchmark_candidate
             return private_detail_te_value.generate_argument_keys(p);
         }
 
-        argument generate_argument(const context& ictx,
-                                   const std::string& key,
-                                   const shape& s) const override
+        argument
+        generate_argument(context& ctx, const std::string& key, const shape& s) const override
         {
 
-            return private_detail_te_value.generate_argument(ictx, key, s);
+            return private_detail_te_value.generate_argument(ctx, key, s);
         }
 
         program make_program() const override { return private_detail_te_value.make_program(); }

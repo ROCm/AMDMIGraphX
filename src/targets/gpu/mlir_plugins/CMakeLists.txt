@@ -22,10 +22,6 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-if(NOT BUILD_SHARED_LIBS)
-    message(FATAL_ERROR "MLIR backend plugins require BUILD_SHARED_LIBS=ON")
-endif()
-
 set(MIGRAPHX_MLIR_LEGACY_ROCMLIR_DIR "" CACHE PATH
     "Legacy rocMLIR package config directory (empty: standard package search)")
 set(MIGRAPHX_MLIR_TRITON_ROCMLIR_DIR "" CACHE PATH

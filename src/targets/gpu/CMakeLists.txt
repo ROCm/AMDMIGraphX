@@ -292,7 +292,6 @@ add_library(migraphx_gpu
     lowering.cpp
     loop.cpp
     lrn.cpp
-    mlir_backend_loader.cpp
     mlir_common.cpp
     nms_ops.cpp
     no_device.cpp
@@ -320,6 +319,15 @@ if(MIGRAPHX_USE_MIOPEN)
         PRIVATE
             abs.cpp
             perfdb.cpp)
+endif()
+
+set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
+# Backend plugins need a shared migraphx_gpu to load into, so static builds
+# compile the rocMLIR implementation into migraphx_gpu directly.
+if(MIGRAPHX_ENABLE_MLIR AND NOT BUILD_SHARED_LIBS)
+    target_sources(migraphx_gpu PRIVATE mlir.cpp)
+else()
+    target_sources(migraphx_gpu PRIVATE mlir_backend_loader.cpp)
 endif()
 
 enable_static_init(migraphx_gpu)
@@ -371,12 +379,18 @@ rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_add_version_resource(migraphx_gpu "AMD MIGraphX" "MIGraphX GPU Target - AMD GPU Acceleration")
 rocm_clang_tidy_check(migraphx_gpu)
 
-set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
-
 if(MIGRAPHX_ENABLE_MLIR)
-    # rocMLIR is linked into runtime-loadable backend plugins rather than
-    # directly into migraphx_gpu.
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
+    if(NOT BUILD_SHARED_LIBS)
+        if(DEFINED MIGRAPHX_MLIR_BACKENDS AND NOT MIGRAPHX_MLIR_BACKENDS STREQUAL "legacy")
+            message(FATAL_ERROR
+                "MIGRAPHX_MLIR_BACKENDS=${MIGRAPHX_MLIR_BACKENDS} requires BUILD_SHARED_LIBS=ON")
+        endif()
+        find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
+        message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
+        # Private to avoid multiple inclusions of LLVM symbols.
+        target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
+    endif()
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
@@ -535,7 +549,7 @@ if(MIGRAPHX_USE_AMDMLSS)
     endif()
 endif()
 
-if(MIGRAPHX_ENABLE_MLIR)
+if(MIGRAPHX_ENABLE_MLIR AND BUILD_SHARED_LIBS)
     set(MIGRAPHX_GPU_DIR ${CMAKE_CURRENT_SOURCE_DIR})
     set(MIGRAPHX_GPU_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
     add_subdirectory(mlir_plugins)

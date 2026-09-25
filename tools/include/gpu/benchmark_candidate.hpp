@@ -34,16 +34,16 @@
 
 #include <cassert>
 #include <memory>
+#include <string>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <migraphx/config.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/tracer.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/export.h>
 
 namespace migraphx {
@@ -55,12 +55,14 @@ namespace gpu {
 /// Type-erased interface for a tuning candidate that can be timed by a
 /// benchmarker (see simple_benchmark and adaptive_topk_benchmark in
 /// <migraphx/gpu/time_op.hpp>). A candidate knows how to build a runnable
-/// program for itself and how to generate the input data used to run it.
+/// program for itself and which values its inputs must hold.
 struct benchmark_candidate
 {
-    /// Generate one input argument per parameter of the program returned by
-    /// make_program(), ordered to match its parameter order.
-    std::vector<argument> generate_arguments(const context& ictx) const;
+    /// Values to fill parameters of make_program() with, keyed by shape id
+    /// (type + dims); the rest get random data. The benchmarker generates the
+    /// arguments, sharing them between candidates whose parameters match (see
+    /// generate_program_arguments).
+    std::unordered_map<std::string, double> fill_map() const;
 
     /// Build a runnable program for this candidate.
     program make_program() const;
@@ -80,15 +82,13 @@ struct benchmark_candidate
 #else
 
 <%
-    interface('benchmark_candidate',
-              virtual('generate_arguments',
-                      returns = 'std::vector<argument>',
-                      ictx    = 'const context&',
-                      const   = True),
-              virtual('make_program', returns = 'program', const = True),
-              virtual('trace', returns = 'tracer', const = True),
-              virtual('solution', returns = 'value', const = True),
-              virtual('before_run', returns = 'void', p = 'const program&', const = True))
+    interface(
+        'benchmark_candidate',
+        virtual('fill_map', returns = 'std::unordered_map<std::string, double>', const = True),
+        virtual('make_program', returns = 'program', const = True),
+        virtual('trace', returns = 'tracer', const = True),
+        virtual('solution', returns = 'value', const = True),
+        virtual('before_run', returns = 'void', p = 'const program&', const = True))
 %>
 
 #endif

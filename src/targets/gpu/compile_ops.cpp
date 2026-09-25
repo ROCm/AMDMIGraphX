@@ -274,11 +274,10 @@ struct compiled_result
         const compiled_result* parent = nullptr;
         value sol                     = value{};
 
-        std::vector<argument> generate_arguments(const context& ictx) const
+        std::unordered_map<std::string, double> fill_map() const
         {
             assert(parent != nullptr);
-            return generate_program_arguments(
-                ictx, parent->make_program(), parent->replace.fill_map);
+            return parent->replace.fill_map;
         }
 
         program make_program() const
@@ -489,7 +488,7 @@ struct compile_plan
             config->solutions.begin(),
             std::back_inserter(candidates),
             [](const auto& cr, const auto&) { return cr.has_value(); },
-            [](const auto& cr, const auto& solution) {
+            [&](const auto& cr, const auto& solution) {
                 return cr->make_benchmark_candidate(solution);
             });
         auto skipped = results.size() - candidates.size();

@@ -40,6 +40,7 @@ endif()
 # Build each plugin in a separate directory scope because both package
 # installations export a target named rocMLIR::rockCompiler.
 function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
+    string(TOUPPER "${BACKEND_NAME}" _backend_var)
     if(ROCMLIR_CONFIG_DIR)
         set(rocMLIR_DIR "${ROCMLIR_CONFIG_DIR}")
         find_package(rocMLIR 1.0.0 CONFIG REQUIRED
@@ -50,7 +51,6 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
         # other dependency.
         find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
     else()
-        string(TOUPPER "${BACKEND_NAME}" _backend_var)
         message(FATAL_ERROR
             "MIGRAPHX_MLIR_${_backend_var}_ROCMLIR_DIR must name a rocMLIR config directory")
     endif()
@@ -97,6 +97,8 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
     endif()
 
     add_dependencies(migraphx_gpu ${_plugin})
+    # Lets automatic backend selection skip plugins that were not built.
+    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_MLIR_HAS_${_backend_var}_BACKEND)
     if(WIN32)
         set(_plugin_install_dir ${CMAKE_INSTALL_BINDIR})
     else()

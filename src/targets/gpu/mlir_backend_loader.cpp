@@ -102,29 +102,9 @@ static std::vector<std::string> built_mlir_backends()
 
 static std::string select_mlir_backend(const std::string& arch)
 {
-    auto backend = string_value_of(MIGRAPHX_MLIR_BACKEND{}, "auto");
-    if(backend.empty())
-        backend = "auto";
-    if(backend == "auto")
-    {
-        // A build with a single backend plugin uses it for every architecture.
-        const auto available = built_mlir_backends();
-        if(available.size() == 1)
-            return available.front();
-        // Route only validated architectures to Triton so new gfx117 variants
-        // stay on the legacy backend until they are explicitly enabled.
-        static const auto triton_archs = {"gfx1170", "gfx1171", "gfx1172"};
-        const auto gfx_name            = get_gfx_name(arch);
-        const auto use_triton =
-            std::any_of(triton_archs.begin(), triton_archs.end(), [&](const auto* supported_arch) {
-                return gfx_name == supported_arch;
-            });
-        return use_triton ? "triton" : "legacy";
-    }
-    if(backend != "legacy" and backend != "triton")
-        MIGRAPHX_THROW("Invalid MIGRAPHX_MLIR_BACKEND value '" + backend +
-                       "'; expected 'legacy', 'triton', or 'auto'");
-    return backend;
+    return select_mlir_backend(string_value_of(MIGRAPHX_MLIR_BACKEND{}, "auto"),
+                               get_gfx_name(arch),
+                               built_mlir_backends());
 }
 
 struct loaded_mlir_backend

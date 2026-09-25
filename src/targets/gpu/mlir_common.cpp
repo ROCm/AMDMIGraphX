@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/gpu/mlir.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
@@ -34,6 +35,31 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+std::string select_mlir_backend(const std::string& requested,
+                                const std::string& gfx_name,
+                                const std::vector<std::string>& available)
+{
+    const auto backend = requested.empty() ? std::string{"auto"} : requested;
+    if(backend == "auto")
+    {
+        // A build with a single backend plugin uses it for every architecture.
+        if(available.size() == 1)
+            return available.front();
+        // Route only validated architectures to Triton so new gfx117 variants
+        // stay on the legacy backend until they are explicitly enabled.
+        static const auto triton_archs = {"gfx1170", "gfx1171", "gfx1172"};
+        const auto use_triton =
+            std::any_of(triton_archs.begin(), triton_archs.end(), [&](const auto* supported_arch) {
+                return gfx_name == supported_arch;
+            });
+        return use_triton ? "triton" : "legacy";
+    }
+    if(backend != "legacy" and backend != "triton")
+        MIGRAPHX_THROW("Invalid MIGRAPHX_MLIR_BACKEND value '" + backend +
+                       "'; expected 'legacy', 'triton', or 'auto'");
+    return backend;
+}
 
 // rocMLIR can only map a layout with a unit stride to memory
 static bool has_unit_stride(const shape& s) { return s.standard() or contains(s.strides(), 1); }

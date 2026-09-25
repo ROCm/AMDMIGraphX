@@ -82,6 +82,7 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
     if(WIN32)
         target_link_libraries(${_plugin} PRIVATE ntdll)
     endif()
+    rocm_clang_tidy_check(${_plugin})
 
     # Put the backend beside migraphx_gpu so the loader can resolve it without
     # requiring an additional runtime search path.

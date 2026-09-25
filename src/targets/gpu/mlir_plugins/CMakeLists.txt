@@ -27,10 +27,10 @@ if(NOT BUILD_SHARED_LIBS)
 endif()
 
 set(MIGRAPHX_MLIR_LEGACY_ROCMLIR_DIR "" CACHE PATH
-    "Legacy rocMLIR package config directory")
+    "Legacy rocMLIR package config directory (empty: standard package search)")
 set(MIGRAPHX_MLIR_TRITON_ROCMLIR_DIR "" CACHE PATH
     "rocmlirTriton package config directory")
-set(MIGRAPHX_MLIR_BACKENDS "both" CACHE STRING
+set(MIGRAPHX_MLIR_BACKENDS "legacy" CACHE STRING
     "MLIR backend plugins to build: legacy, triton, or both")
 set_property(CACHE MIGRAPHX_MLIR_BACKENDS PROPERTY STRINGS legacy triton both)
 
@@ -44,17 +44,22 @@ endif()
 # Build each plugin in a separate directory scope because both package
 # installations export a target named rocMLIR::rockCompiler.
 function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
-    if(NOT ROCMLIR_CONFIG_DIR)
+    if(ROCMLIR_CONFIG_DIR)
+        set(rocMLIR_DIR "${ROCMLIR_CONFIG_DIR}")
+        find_package(rocMLIR 1.0.0 CONFIG REQUIRED
+            PATHS "${ROCMLIR_CONFIG_DIR}"
+            NO_DEFAULT_PATH)
+    elseif(BACKEND_NAME STREQUAL "legacy")
+        # Keep existing builds working: the stock rocMLIR is found like any
+        # other dependency.
+        find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
+    else()
         string(TOUPPER "${BACKEND_NAME}" _backend_var)
         message(FATAL_ERROR
             "MIGRAPHX_MLIR_${_backend_var}_ROCMLIR_DIR must name a rocMLIR config directory")
     endif()
 
     set(_plugin migraphx_mlir_${BACKEND_NAME})
-    set(rocMLIR_DIR "${ROCMLIR_CONFIG_DIR}")
-    find_package(rocMLIR 1.0.0 CONFIG REQUIRED
-        PATHS "${ROCMLIR_CONFIG_DIR}"
-        NO_DEFAULT_PATH)
     message(STATUS
         "MLIR backend plugin '${BACKEND_NAME}' using rocMLIR from ${rocMLIR_DIR}")
 

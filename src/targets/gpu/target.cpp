@@ -280,7 +280,7 @@ struct pipeline_factory
             // dot+dequant) are never folded and would otherwise survive as host ops over GPU
             // literals (segfault). Re-add just propagate_constant (cheap fold) in eager here.
             enable_pass(options.compile_mode == compile_modes::eager, propagate_constant{}),
-            dead_code_elimination{},
+            enable_pass(options.compile_mode == compile_modes::eager, dead_code_elimination{}),
             fuse_concat{},
             dead_code_elimination{},
         };

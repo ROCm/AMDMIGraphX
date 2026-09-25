@@ -237,6 +237,7 @@ TEST_CASE(adaptive_benchmark_top_k_zero_still_measures_candidates_under_the_coar
     EXPECT(winner.solution().to<int>() == 1);
     EXPECT(*fast.programs_built == 2);
     EXPECT(*mid.programs_built == 2);
+    // warmup + estimate, then the second coarse loop with no extra warmup
     EXPECT(*mid.launches > 2);
 }
 

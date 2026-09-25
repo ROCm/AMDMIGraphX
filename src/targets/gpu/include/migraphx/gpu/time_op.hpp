@@ -96,6 +96,14 @@ time_op(const context& ictx, operation op, int bundle = 1, int nruns = 100);
 MIGRAPHX_GPU_EXPORT double
 time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::function<void()>& f);
 
+// warmup=false skips the untimed launch. Use it only when f has already been run on this
+// stream, such as the second coarse measurement after the estimate.
+MIGRAPHX_GPU_EXPORT double time_loop(migraphx::gpu::context& gctx,
+                                     int bundle,
+                                     int nruns,
+                                     const std::function<void()>& f,
+                                     bool warmup);
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -57,6 +57,15 @@ static std::vector<argument> generate_arguments(const std::vector<shape>& shapes
 double
 time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::function<void()>& f)
 {
+    return time_loop(gctx, bundle, nruns, f, true);
+}
+
+double time_loop(migraphx::gpu::context& gctx,
+                 int bundle,
+                 int nruns,
+                 const std::function<void()>& f,
+                 bool warmup)
+{
     // check for manual overrides
     bundle = value_of(MIGRAPHX_BENCHMARKING_BUNDLE{}, bundle);
     nruns  = value_of(MIGRAPHX_BENCHMARKING_NRUNS{}, nruns);
@@ -70,8 +79,8 @@ time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::functi
     });
     std::vector<double> times;
     times.reserve(nruns);
-    // Warmup
-    f();
+    if(warmup)
+        f();
     for(auto i : range(nruns))
     {
         gctx.get_stream().record(events[i].first.get());
@@ -171,10 +180,12 @@ struct benchmark_program
     program p;
     parameter_map param_map;
 
-    double time(std::vector<migraphx::context>& ctx_vec, int bundle, int nruns) const
+    double
+    time(std::vector<migraphx::context>& ctx_vec, int bundle, int nruns, bool warmup = true) const
     {
         auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
-        return time_loop(gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); });
+        return time_loop(
+            gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); }, warmup);
     }
 };
 } // namespace
@@ -282,7 +293,7 @@ adaptive_topk_benchmark::run(const context& ictx,
                     top_k > 0 and rank.top.size() >= top_k and estimate > rank.top.front();
                 if(over_budget or estimate > leader_cutoff or misses_top_k)
                     return estimate;
-                return bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs));
+                return bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs), false);
             });
             if(t.has_value())
                 trace("Coarse time: ", *t, "ms");

@@ -29,14 +29,13 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/reflect.hpp>
 #include <test.hpp>
-#include <algorithm>
-#include <array>
 #include <chrono>
 #include <memory>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 // Identity op that sleeps on the host, so a candidate's measured time is deterministic
 struct sleep_op
@@ -46,6 +45,8 @@ struct sleep_op
     std::size_t slow_launches = 0;
     std::size_t slow_usec     = 0;
     std::shared_ptr<std::size_t> launches{};
+    // Input of each launch, kept alive so separately generated inputs never share an address
+    std::shared_ptr<std::vector<migraphx::argument>> launch_inputs{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -67,18 +68,12 @@ struct sleep_op
     {
         if(launches)
             ++(*launches);
+        if(launch_inputs)
+            launch_inputs->push_back(args.front());
         const bool slow = launches != nullptr and *launches <= slow_launches;
         std::this_thread::sleep_for(std::chrono::microseconds{slow ? slow_usec : usec});
         return args.front();
     }
-};
-
-// Buffers generated for the candidates sharing it, to observe how many are still resident when
-// another candidate's arguments are generated
-struct argument_buffers
-{
-    std::vector<std::weak_ptr<std::array<float, 4>>> generated;
-    std::size_t most_resident = 0;
 };
 
 // Benchmark candidate that runs for `usec` microseconds and is identified by its solution id
@@ -88,28 +83,18 @@ struct test_candidate
     int id           = 0;
     bool fail        = false;
     // Makes the first launches of the candidate's programs slower, see sleep_op
-    std::size_t slow_launches = 0;
-    std::size_t slow_usec     = 0;
+    std::size_t slow_launches                     = 0;
+    std::size_t slow_usec                         = 0;
+    std::unordered_map<std::string, double> fills = {};
     // Counts make_program calls to observe which candidates each benchmark pass builds
     std::shared_ptr<std::size_t> programs_built = std::make_shared<std::size_t>(0);
     std::shared_ptr<std::size_t> launches       = std::make_shared<std::size_t>(0);
+    std::shared_ptr<std::vector<migraphx::argument>> launch_inputs =
+        std::make_shared<std::vector<migraphx::argument>>();
     // Trace output, to observe which candidates the precise pass times
-    std::shared_ptr<std::stringstream> log      = std::make_shared<std::stringstream>();
-    std::shared_ptr<argument_buffers> arguments = std::make_shared<argument_buffers>();
+    std::shared_ptr<std::stringstream> log = std::make_shared<std::stringstream>();
 
-    std::vector<migraphx::argument> generate_arguments(const migraphx::gpu::context&,
-                                                       const migraphx::program&) const
-    {
-        const auto& generated = arguments->generated;
-        std::size_t resident =
-            std::count_if(generated.begin(), generated.end(), [](const auto& buffer) {
-                return not buffer.expired();
-            });
-        arguments->most_resident = std::max(arguments->most_resident, resident);
-        auto buffer              = std::make_shared<std::array<float, 4>>();
-        arguments->generated.push_back(buffer);
-        return {migraphx::argument{{migraphx::shape::float_type, {4}}, buffer}};
-    }
+    std::unordered_map<std::string, double> fill_map() const { return fills; }
 
     migraphx::program make_program() const
     {
@@ -119,8 +104,8 @@ struct test_candidate
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {4}});
-        mm->add_return(
-            {mm->add_instruction(sleep_op{usec, slow_launches, slow_usec, launches}, x)});
+        mm->add_return({mm->add_instruction(
+            sleep_op{usec, slow_launches, slow_usec, launches, launch_inputs}, x)});
         return p;
     }
 
@@ -300,24 +285,32 @@ TEST_CASE(adaptive_benchmark_precise_pass_reuses_the_coarse_programs_of_the_top_
     EXPECT(*slow.programs_built == 1);
 }
 
-TEST_CASE(adaptive_benchmark_does_not_keep_the_arguments_of_the_top_k_resident)
+TEST_CASE(simple_benchmark_shares_inputs_between_candidates_with_the_same_fill)
 {
     migraphx::gpu::context ctx{};
-    test_candidate fast{100, 1};
-    test_candidate near_best{150, 2};
-    test_candidate mid{300, 3};
-    near_best.arguments                                        = fast.arguments;
-    mid.arguments                                              = fast.arguments;
-    std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, near_best, mid};
-    auto bench                                                 = small_adaptive_benchmark(3);
-    bench.coarse_cutoff_factor                                 = 0;
-    (void)bench.run(ctx, candidates);
-    EXPECT(fast.arguments->most_resident == 0);
-    // Arguments are generated for each coarse and each precise timing, but programs only once
-    EXPECT(fast.arguments->generated.size() == 6);
-    EXPECT(*fast.programs_built == 1);
-    EXPECT(*near_best.programs_built == 1);
-    EXPECT(*mid.programs_built == 1);
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    test_candidate random{100, 1};
+    test_candidate random_again{100, 2};
+    test_candidate filled{100, 3};
+    filled.fills = {{s.type_string() + migraphx::shape::to_sizes_string({s}), 3}};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {random, random_again, filled};
+    (void)migraphx::gpu::simple_benchmark{/* bundle */ 1, /* nruns */ 2}.run(ctx, candidates);
+    EXPECT(random.launch_inputs->front().data() == random_again.launch_inputs->front().data());
+    EXPECT(random.launch_inputs->front().data() != filled.launch_inputs->front().data());
+}
+
+TEST_CASE(adaptive_benchmark_shares_inputs_between_candidates_with_the_same_fill)
+{
+    migraphx::gpu::context ctx{};
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    test_candidate random{100, 1};
+    test_candidate random_again{100, 2};
+    test_candidate filled{100, 3};
+    filled.fills = {{s.type_string() + migraphx::shape::to_sizes_string({s}), 3}};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {random, random_again, filled};
+    (void)small_adaptive_benchmark(3).run(ctx, candidates);
+    EXPECT(random.launch_inputs->front().data() == random_again.launch_inputs->front().data());
+    EXPECT(random.launch_inputs->front().data() != filled.launch_inputs->front().data());
 }
 
 TEST_CASE(adaptive_benchmark_precise_pass_skips_the_warmup_of_a_reused_program)

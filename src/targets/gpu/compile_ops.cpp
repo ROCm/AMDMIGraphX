@@ -273,16 +273,11 @@ struct compiled_result
     {
         const compiled_result* parent = nullptr;
         value sol                     = value{};
-        // Arguments generated so far for the problem, shared by all of its candidates. Their
-        // programs take the same ins->inputs(), so only solution-specific ones like scratch
-        // can differ.
-        std::shared_ptr<std::unordered_map<std::string, argument>> inputs = nullptr;
 
-        std::vector<argument> generate_arguments(const context& ictx, const program& p) const
+        std::unordered_map<std::string, double> fill_map() const
         {
             assert(parent != nullptr);
-            assert(inputs != nullptr);
-            return generate_program_arguments(ictx, p, parent->replace.fill_map, *inputs);
+            return parent->replace.fill_map;
         }
 
         program make_program() const
@@ -310,12 +305,7 @@ struct compiled_result
         }
     };
 
-    candidate make_benchmark_candidate(
-        const value& solution,
-        std::shared_ptr<std::unordered_map<std::string, argument>> inputs) const
-    {
-        return {this, solution, std::move(inputs)};
-    }
+    candidate make_benchmark_candidate(const value& solution) const { return {this, solution}; }
 
     // Create a small program with the instruction being compiled and call "replace"
     // on it, which inserts the compiled code objects, prefills, etc. needed to run it.
@@ -492,7 +482,6 @@ struct compile_plan
         std::vector<benchmark_candidate> candidates;
         candidates.reserve(results.size());
         assert(config->solutions.size() == results.size());
-        auto inputs = std::make_shared<std::unordered_map<std::string, argument>>();
         transform_if(
             results.begin(),
             results.end(),
@@ -500,7 +489,7 @@ struct compile_plan
             std::back_inserter(candidates),
             [](const auto& cr, const auto&) { return cr.has_value(); },
             [&](const auto& cr, const auto& solution) {
-                return cr->make_benchmark_candidate(solution, inputs);
+                return cr->make_benchmark_candidate(solution);
             });
         auto skipped = results.size() - candidates.size();
         if(skipped > 0 and trace_level > 1)

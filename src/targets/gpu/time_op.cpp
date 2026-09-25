@@ -216,11 +216,13 @@ struct benchmark_program
 };
 } // namespace
 
-// Pair the candidate's finalized program with newly generated arguments, building the program
-// unless one is given
-static benchmark_program make_benchmark_program(std::vector<migraphx::context>& ctx_vec,
-                                                const benchmark_candidate& candidate,
-                                                optional<program> finalized = nullopt)
+// Pair the candidate's finalized program with its arguments, reusing the matching ones in
+// generated, and build the program unless one is given
+static benchmark_program
+make_benchmark_program(std::vector<migraphx::context>& ctx_vec,
+                       const benchmark_candidate& candidate,
+                       std::unordered_map<std::string, argument>& generated,
+                       optional<program> finalized = nullopt)
 {
     if(not finalized.has_value())
     {
@@ -229,8 +231,8 @@ static benchmark_program make_benchmark_program(std::vector<migraphx::context>& 
         finalized->get_main_module()->finalize(ctx_vec);
     }
     const auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
-    auto param_map   = make_parameter_map(finalized->get_main_module(),
-                                        candidate.generate_arguments(gctx, *finalized));
+    auto args      = generate_program_arguments(gctx, *finalized, candidate.fill_map(), generated);
+    auto param_map = make_parameter_map(finalized->get_main_module(), args);
     return {*std::move(finalized), std::move(param_map)};
 }
 
@@ -240,6 +242,8 @@ simple_benchmark::run(const context& ictx, const std::vector<benchmark_candidate
     if(candidates.empty())
         MIGRAPHX_THROW("simple_benchmark: no candidates to benchmark");
     std::vector<migraphx::context> ctx_vec = {ictx};
+    // The candidates are alternatives for the same computation, so they can share inputs
+    std::unordered_map<std::string, argument> generated;
     std::vector<double> times;
     times.reserve(candidates.size());
     std::transform(candidates.begin(),
@@ -248,7 +252,7 @@ simple_benchmark::run(const context& ictx, const std::vector<benchmark_candidate
                    [&](const benchmark_candidate& candidate) {
                        auto trace = candidate.trace();
                        trace("Benchmarking solution: ", candidate.solution());
-                       auto bp = make_benchmark_program(ctx_vec, candidate);
+                       auto bp = make_benchmark_program(ctx_vec, candidate, generated);
                        auto t  = bp.time(ctx_vec, bundle, nruns);
                        trace(t, "ms");
                        return t;
@@ -293,6 +297,8 @@ adaptive_topk_benchmark::run(const context& ictx,
     if(candidates.empty())
         MIGRAPHX_THROW("adaptive_topk_benchmark: no candidates to benchmark");
     std::vector<migraphx::context> ctx_vec = {ictx};
+    // The candidates are alternatives for the same computation, so they can share inputs
+    std::unordered_map<std::string, argument> generated;
 
     const double invalid = std::numeric_limits<double>::infinity();
     std::vector<std::size_t> indices(candidates.size());
@@ -318,7 +324,7 @@ adaptive_topk_benchmark::run(const context& ictx,
             auto trace            = candidate.trace();
             trace("Benchmarking solution: ", candidate.solution());
             auto t = try_benchmark(trace, [&] {
-                auto bp       = make_benchmark_program(ctx_vec, candidate);
+                auto bp       = make_benchmark_program(ctx_vec, candidate, generated);
                 auto estimate = bp.time(ctx_vec, 1, 1);
                 double time   = estimate;
                 if(estimate <= static_cast<double>(coarse_ms))
@@ -394,7 +400,7 @@ adaptive_topk_benchmark::run(const context& ictx,
         trace("Precise solution: ", candidate.solution());
         auto t = try_benchmark(trace, [&] {
             const bool rebuild = not kept[i].has_value();
-            auto bp            = make_benchmark_program(ctx_vec, candidate, std::move(kept[i]));
+            auto bp = make_benchmark_program(ctx_vec, candidate, generated, std::move(kept[i]));
             return bp.time(
                 ctx_vec, bundle, compute_nruns(precise_ms, coarse[i], bundle, max_runs), rebuild);
         });

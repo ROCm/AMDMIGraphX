@@ -88,22 +88,21 @@ struct benchmark_candidate
 #else
 
 <%
-    interface(
-        'benchmark_candidate',
-        virtual('generate_argument_keys',
-                returns = 'std::vector<std::pair<std::string, shape>>',
-                p       = 'const program&',
-                const   = True),
-        virtual('generate_argument',
-                returns = 'argument',
-                ictx    = 'const context&',
-                key     = 'const std::string&',
-                s       = 'const shape&',
-                const   = True),
-        virtual('make_program', returns = 'program', const = True),
-        virtual('trace', returns = 'tracer', const = True),
-        virtual('solution', returns = 'value', const = True),
-        virtual('before_run', returns = 'void', p = 'const program&', const = True))
+    interface('benchmark_candidate',
+              virtual('generate_argument_keys',
+                      returns = 'std::vector<std::pair<std::string, shape>>',
+                      p       = 'const program&',
+                      const   = True),
+              virtual('generate_argument',
+                      returns = 'argument',
+                      ictx    = 'const context&',
+                      key     = 'const std::string&',
+                      s       = 'const shape&',
+                      const   = True),
+              virtual('make_program', returns = 'program', const = True),
+              virtual('trace', returns = 'tracer', const = True),
+              virtual('solution', returns = 'value', const = True),
+              virtual('before_run', returns = 'void', p = 'const program&', const = True))
 %>
 
 #endif

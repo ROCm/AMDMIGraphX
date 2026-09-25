@@ -27,7 +27,10 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
+#include <migraphx/gpu/device/fill.hpp>
 #include <migraphx/gpu/device/generate_random.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/ranges.hpp>
 #if MIGRAPHX_USE_MIOPEN
 #include <miopen/miopen.h>
 #endif
@@ -43,6 +46,7 @@ MIGRAPHX_REGISTER_OP(hip_allocate)
 MIGRAPHX_REGISTER_OP(hip_fill)
 MIGRAPHX_REGISTER_OP(hip_sync_stream)
 MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
+MIGRAPHX_REGISTER_OP(hip_eval_expr_from_shape)
 MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy)
 MIGRAPHX_REGISTER_OP(hip_allocate_memory)
@@ -326,6 +330,21 @@ argument gpu_generate_random(context& ctx, const shape& s, unsigned long seed)
 void store_preallocated_param(context& ctx, const std::string& id, const argument& a)
 {
     ctx.get_current_device().preallocations[id] = a;
+}
+
+argument hip_eval_expr_from_shape::compute(context& ctx,
+                                           const shape& output_shape,
+                                           const std::vector<argument>& args) const
+{
+    const auto& output = args.back();
+    auto values =
+        op.compute(output_shape, {args.begin(), std::prev(args.end())}).to_vector<std::size_t>();
+    auto indices = range(values.size());
+    migraphx::for_each(
+        values.begin(), values.end(), indices.begin(), [&](std::size_t value, std::size_t i) {
+            device::fill(ctx.get_stream().get(), output.element(i), value);
+        });
+    return output;
 }
 
 // clang-format off

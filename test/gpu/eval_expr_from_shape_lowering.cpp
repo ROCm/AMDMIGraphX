@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -61,10 +62,12 @@ TEST_CASE(eval_expr_from_shape_lowering_single_input)
         auto input  = m2.add_parameter("input", input_shape);
         auto output = m2.add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}));
-        auto host_result = m2.add_instruction(op, input);
-        auto gpu_result =
-            m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_result, output);
-        m2.add_return({gpu_result});
+        auto result = m2.add_instruction(
+            migraphx::gpu::hip_eval_expr_from_shape{
+                migraphx::any_cast<migraphx::op::eval_expr_from_shape>(op)},
+            input,
+            output);
+        m2.add_return({result});
     }
     EXPECT(m1 == m2);
 }
@@ -96,10 +99,13 @@ TEST_CASE(eval_expr_from_shape_lowering_multi_input)
         auto b      = m2.add_parameter("b", b_shape);
         auto output = m2.add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}));
-        auto host_result = m2.add_instruction(op, a, b);
-        auto gpu_result =
-            m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_result, output);
-        m2.add_return({gpu_result});
+        auto result = m2.add_instruction(
+            migraphx::gpu::hip_eval_expr_from_shape{
+                migraphx::any_cast<migraphx::op::eval_expr_from_shape>(op)},
+            a,
+            b,
+            output);
+        m2.add_return({result});
     }
     EXPECT(m1 == m2);
 }
@@ -134,6 +140,31 @@ TEST_CASE(eval_expr_from_shape_lowering_slice_metadata_stays_on_host)
     auto m2 = m1;
     run_lowering(m1);
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(hip_eval_expr_from_shape_writes_values_on_gpu)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    auto m   = migraphx::sym::var("M", {1, 4});
+    auto n   = migraphx::sym::var("N", {1, 8});
+    migraphx::shape a_shape{migraphx::shape::float_type, {dd{m}, dd{migraphx::sym::lit(3)}}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {dd{migraphx::sym::lit(2)}, dd{n}}};
+    migraphx::shape output_shape{migraphx::shape::int64_type, {3}};
+    migraphx::gpu::hip_eval_expr_from_shape op{
+        migraphx::any_cast<migraphx::op::eval_expr_from_shape>(migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{m + n, m, n})}}))};
+
+    auto ctx = migraphx::gpu::context{};
+    op.finalize(ctx, output_shape, {a_shape, b_shape, output_shape});
+    auto a      = migraphx::gpu::allocate_gpu(migraphx::shape{migraphx::shape::float_type, {3, 3}});
+    auto b      = migraphx::gpu::allocate_gpu(migraphx::shape{migraphx::shape::float_type, {2, 5}});
+    auto output = migraphx::gpu::allocate_gpu(output_shape);
+    op.compute(ctx, output_shape, {a, b, output});
+    ctx.finish();
+
+    auto result = migraphx::gpu::from_gpu(output).to_vector<std::int64_t>();
+    EXPECT(result == std::vector<std::int64_t>{8, 3, 5});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

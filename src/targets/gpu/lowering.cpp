@@ -38,12 +38,14 @@
 
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
+#include <migraphx/op/eval_expr_from_shape.hpp>
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/quant_dot.hpp>
 
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/miopen.hpp>
@@ -736,11 +738,12 @@ struct miopen_apply
         apply_map.emplace("eval_expr_from_shape", [=](instruction_ref ins) {
             if(only_used_as_slice_metadata(ins))
                 return ins;
-            auto output   = insert_allocation(ins, ins->get_shape());
-            auto host_out = mod->insert_instruction(ins, ins->get_operator(), ins->inputs());
-            auto gpu_out =
-                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
-            return mod->replace_instruction(ins, gpu_out);
+            auto inputs = ins->inputs();
+            inputs.push_back(insert_allocation(ins, ins->get_shape()));
+            return mod->replace_instruction(
+                ins,
+                hip_eval_expr_from_shape{any_cast<op::eval_expr_from_shape>(ins->get_operator())},
+                inputs);
         });
     }
 };

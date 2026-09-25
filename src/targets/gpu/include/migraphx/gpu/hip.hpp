@@ -30,6 +30,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/op/eval_expr_from_shape.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -172,6 +173,40 @@ struct hip_copy_to_gpu
         if(args.size() == 1)
             return {};
         return {1};
+    }
+};
+
+// Evaluates the expressions from the input shapes on the host and writes the values into the
+// last argument on the GPU, passing them as kernel arguments. Copying them with hip::copy_to_gpu
+// would register a new host buffer with HIP every run, which costs milliseconds.
+struct hip_eval_expr_from_shape
+{
+    op::eval_expr_from_shape op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "hip::eval_expr_from_shape"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has_at_least(2);
+        inputs.pop_back();
+        return op.compute_shape(inputs);
+    }
+    void finalize(context&, const shape&, std::vector<shape> inputs)
+    {
+        inputs.pop_back();
+        op.input_shapes = std::move(inputs);
+    }
+    MIGRAPHX_GPU_EXPORT argument compute(context& ctx,
+                                         const shape& output_shape,
+                                         const std::vector<argument>& args) const;
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
+    {
+        return {shapes.size() - 1};
     }
 };
 

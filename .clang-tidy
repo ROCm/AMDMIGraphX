@@ -125,4 +125,6 @@ CheckOptions:
     value:           'and;or;not'
   - key:             readability-operators-representation.OverloadedOperators
     value:           'and;or;not'
+  - key:             readability-qualified-auto.AllowedTypes
+    value:           'std::array<.*>::(const_)?iterator'
 

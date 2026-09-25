@@ -42,12 +42,17 @@
 struct sleep_op
 {
     std::size_t usec = 0;
+    // The first slow_launches launches sleep for slow_usec instead, like a transiently slow GPU
+    std::size_t slow_launches = 0;
+    std::size_t slow_usec     = 0;
     std::shared_ptr<std::size_t> launches{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return migraphx::pack(f(self.usec, "usec"));
+        return migraphx::pack(f(self.usec, "usec"),
+                              f(self.slow_launches, "slow_launches"),
+                              f(self.slow_usec, "slow_usec"));
     }
 
     std::string name() const { return "test::sleep"; }
@@ -62,7 +67,8 @@ struct sleep_op
     {
         if(launches)
             ++(*launches);
-        std::this_thread::sleep_for(std::chrono::microseconds{usec});
+        const bool slow = launches != nullptr and *launches <= slow_launches;
+        std::this_thread::sleep_for(std::chrono::microseconds{slow ? slow_usec : usec});
         return args.front();
     }
 };
@@ -81,6 +87,9 @@ struct test_candidate
     std::size_t usec = 0;
     int id           = 0;
     bool fail        = false;
+    // Makes the first launches of the candidate's programs slower, see sleep_op
+    std::size_t slow_launches = 0;
+    std::size_t slow_usec     = 0;
     // Counts make_program calls to observe which candidates each benchmark pass builds
     std::shared_ptr<std::size_t> programs_built = std::make_shared<std::size_t>(0);
     std::shared_ptr<std::size_t> launches       = std::make_shared<std::size_t>(0);
@@ -110,7 +119,8 @@ struct test_candidate
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {4}});
-        mm->add_return({mm->add_instruction(sleep_op{usec, launches}, x)});
+        mm->add_return(
+            {mm->add_instruction(sleep_op{usec, slow_launches, slow_usec, launches}, x)});
         return p;
     }
 
@@ -224,17 +234,17 @@ TEST_CASE(adaptive_benchmark_skips_second_measurement_when_estimate_exceeds_coar
     EXPECT(*slow.launches == 2);
 }
 
-TEST_CASE(adaptive_benchmark_skips_second_measurement_when_estimate_misses_top_k)
+TEST_CASE(adaptive_benchmark_measures_a_candidate_whose_estimate_misses_the_top_k)
 {
     migraphx::gpu::context ctx{};
-    test_candidate fast{100, 1};
-    test_candidate mid{1000, 2};
-    std::vector<migraphx::gpu::benchmark_candidate> candidates = {fast, mid};
+    test_candidate steady{300, 1};
+    test_candidate transient{100, 2};
+    // The warmup and the estimate are slower than steady, the later runs are faster
+    transient.slow_launches                                    = 2;
+    transient.slow_usec                                        = 1000;
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {steady, transient};
     const auto& winner = small_adaptive_benchmark(1).run(ctx, candidates);
-    EXPECT(winner.solution().to<int>() == 1);
-    EXPECT(*mid.programs_built == 1);
-    // mid is under coarse_ms, so only the filled top_k slot can skip the second timing
-    EXPECT(*mid.launches == 2);
+    EXPECT(winner.solution().to<int>() == 2);
 }
 
 TEST_CASE(adaptive_benchmark_top_k_zero_still_measures_candidates_under_the_coarse_budget)

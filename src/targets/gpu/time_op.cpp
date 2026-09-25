@@ -299,12 +299,13 @@ adaptive_topk_benchmark::run(const context& ictx,
     std::iota(indices.begin(), indices.end(), 0);
 
     // Coarse pass: warmup + single-run estimate, then a short bundle-of-1 measurement.
-    // The second measurement is skipped when it cannot change who is precise-timed: the estimate
-    // already exceeds coarse_ms (compute_nruns would return 1), or top_k finite times already
-    // beat it. The accumulator is a max-heap, by coarse time, of the best top_k candidates so far;
-    // their programs are kept for the precise pass and released when they drop out of the heap.
-    // Their arguments are not kept: each set holds its candidate's scratch, which would otherwise
-    // stay resident while later candidates allocate theirs.
+    // The second measurement is skipped only when the estimate already exceeds coarse_ms, as it
+    // would then be a single run too. A single run is too noisy to rule a candidate out of the
+    // top_k, so every other candidate is measured. The accumulator is a max-heap, by coarse time,
+    // of the best top_k candidates so far; their programs are kept for the precise pass and
+    // released when they drop out of the heap. Their arguments are not kept: each set holds its
+    // candidate's scratch, which would otherwise stay resident while later candidates allocate
+    // theirs.
     std::vector<double> coarse(candidates.size(), invalid);
     std::vector<optional<program>> kept(candidates.size());
     auto by_coarse = [&](auto i, auto j) { return coarse[i] < coarse[j]; };
@@ -317,13 +318,10 @@ adaptive_topk_benchmark::run(const context& ictx,
             auto trace            = candidate.trace();
             trace("Benchmarking solution: ", candidate.solution());
             auto t = try_benchmark(trace, [&] {
-                auto bp                = make_benchmark_program(ctx_vec, candidate);
-                auto estimate          = bp.time(ctx_vec, 1, 1);
-                const bool over_budget = estimate > static_cast<double>(coarse_ms);
-                const bool misses_top_k =
-                    top_k > 0 and top.size() >= top_k and estimate > coarse[top.front()];
-                double time = estimate;
-                if(not over_budget and not misses_top_k)
+                auto bp       = make_benchmark_program(ctx_vec, candidate);
+                auto estimate = bp.time(ctx_vec, 1, 1);
+                double time   = estimate;
+                if(estimate <= static_cast<double>(coarse_ms))
                     time =
                         bp.time(ctx_vec, 1, compute_nruns(coarse_ms, estimate, 1, max_runs), false);
                 if(top_k > 0)

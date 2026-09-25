@@ -141,7 +141,7 @@ struct backend_options
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
-     }
+    }
 };
 
 // The backend options passed to compile, with any key set by MIGRAPHX_GPU_OPTIONS (a json-like

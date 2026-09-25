@@ -91,6 +91,7 @@ adaptive_tuning_options compile_ops_tuning_overrides::resolve() const
     if(max_samples.has_value())
         result.precise.max_samples = result.coarse.max_samples;
     apply(result.sleep_us, sleep_us, "tuning_sleep_us", true);
+    apply(result.coarse_cutoff_factor, coarse_cutoff_factor, "tuning_coarse_cutoff_factor", true);
     return result;
 }
 

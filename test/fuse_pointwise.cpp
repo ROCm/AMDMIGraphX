@@ -514,6 +514,70 @@ TEST_CASE(horizontal_mutli_out_fused2)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(horizontal_mutli_out_same_layout_fused)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 4, 4}, {48, 1, 12, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto mul2 = mm->add_instruction(migraphx::make_op("mul"), x, z);
+        mm->add_return({add1, mul2});
+    }
+    run_pass(p1, {.enable_multi_output = true});
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto fadd = add_pointwise(
+            p2,
+            "main:pointwise0",
+            {x, y, z},
+            [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                auto mul2 = pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[2]);
+                return {mul2, add1};
+            });
+        auto add1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fadd);
+        auto mul2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fadd);
+        mm->add_return({add1, mul2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(horizontal_mutli_out_layout_mismatch)
+{
+    migraphx::shape s_nhwc{migraphx::shape::float_type, {1, 3, 4, 4}, {48, 1, 12, 3}};
+    migraphx::shape s_nchw{migraphx::shape::float_type, {1, 3, 4, 4}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s_nhwc);
+        auto y    = mm->add_parameter("y", s_nhwc);
+        auto z    = mm->add_parameter("z", s_nchw);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto mul2 = mm->add_instruction(migraphx::make_op("mul"), x, z);
+        mm->add_return({add1, mul2});
+    }
+    run_pass(p1, {.enable_multi_output = true});
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s_nhwc);
+        auto y    = mm->add_parameter("y", s_nhwc);
+        auto z    = mm->add_parameter("z", s_nchw);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto mul2 = add_pointwise(p2, "main:pointwise1", {x, z}, single_pointwise("mul"));
+        mm->add_return({add1, mul2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(horizontal_mutli_out_fused3)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

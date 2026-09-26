@@ -62,53 +62,53 @@ __device__ bool unpack_int4_as_matches(T bias)
 
 TEST_CASE(unpack_int4_as_half_uint8)
 {
-    EXPECT(unpack_int4_as_matches<migraphx::half, uint8_t, 16>(migraphx::half(0)));
-    EXPECT(unpack_int4_as_matches<migraphx::half, uint8_t, 16>(migraphx::half(-8)));
+    EXPECT(unpack_int4_as_matches<migraphx::half, migraphx::uint8_t, 16>(migraphx::half(0)));
+    EXPECT(unpack_int4_as_matches<migraphx::half, migraphx::uint8_t, 16>(migraphx::half(-8)));
 }
 
 TEST_CASE(unpack_int4_as_half_int8)
 {
-    EXPECT(unpack_int4_as_matches<migraphx::half, int8_t, 16>(migraphx::half(0)));
-    EXPECT(unpack_int4_as_matches<migraphx::half, int8_t, 16>(migraphx::half(-8)));
+    EXPECT(unpack_int4_as_matches<migraphx::half, migraphx::int8_t, 16>(migraphx::half(0)));
+    EXPECT(unpack_int4_as_matches<migraphx::half, migraphx::int8_t, 16>(migraphx::half(-8)));
 }
 
 TEST_CASE(unpack_int4_as_float_uint8)
 {
-    EXPECT(unpack_int4_as_matches<float, uint8_t, 16>(0.0f));
-    EXPECT(unpack_int4_as_matches<float, uint8_t, 16>(-8.0f));
+    EXPECT(unpack_int4_as_matches<float, migraphx::uint8_t, 16>(0.0f));
+    EXPECT(unpack_int4_as_matches<float, migraphx::uint8_t, 16>(-8.0f));
 }
 
 TEST_CASE(unpack_int4_as_float_int8)
 {
-    EXPECT(unpack_int4_as_matches<float, int8_t, 16>(0.0f));
-    EXPECT(unpack_int4_as_matches<float, int8_t, 16>(-8.0f));
+    EXPECT(unpack_int4_as_matches<float, migraphx::int8_t, 16>(0.0f));
+    EXPECT(unpack_int4_as_matches<float, migraphx::int8_t, 16>(-8.0f));
 }
 
 // A single word and the generic fallback for fewer bytes than a word
 TEST_CASE(unpack_int4_as_word)
 {
-    EXPECT(unpack_int4_as_matches<migraphx::half, uint8_t, 4>(migraphx::half(-8)));
-    EXPECT(unpack_int4_as_matches<float, int8_t, 4>(-8.0f));
+    EXPECT(unpack_int4_as_matches<migraphx::half, migraphx::uint8_t, 4>(migraphx::half(-8)));
+    EXPECT(unpack_int4_as_matches<float, migraphx::int8_t, 4>(-8.0f));
 }
 
 TEST_CASE(unpack_int4_as_generic)
 {
-    EXPECT(unpack_int4_as_matches<migraphx::half, uint8_t, 2>(migraphx::half(-8)));
-    EXPECT(unpack_int4_as_matches<float, int8_t, 2>(-8.0f));
-    EXPECT(unpack_int4_as_matches<migraphx::bf16, uint8_t, 16>(migraphx::bf16(-8)));
+    EXPECT(unpack_int4_as_matches<migraphx::half, migraphx::uint8_t, 2>(migraphx::half(-8)));
+    EXPECT(unpack_int4_as_matches<float, migraphx::int8_t, 2>(-8.0f));
+    EXPECT(unpack_int4_as_matches<migraphx::bf16, migraphx::uint8_t, 16>(migraphx::bf16(-8)));
 }
 
 // Spot-check the values: 0x7a holds low nibble 10 and high nibble 7
 TEST_CASE(unpack_int4_as_values)
 {
-    auto u = migraphx::unpack_int4_as<migraphx::half>(uint8_t{0x7a}, migraphx::half(-8));
+    auto u = migraphx::unpack_int4_as<migraphx::half>(migraphx::uint8_t{0x7a}, migraphx::half(-8));
     EXPECT(migraphx::float_equal(u[0], migraphx::half(2)));
     EXPECT(migraphx::float_equal(u[1], migraphx::half(-1)));
     // The signed low nibble 10 is -6
-    auto s = migraphx::unpack_int4_as<float>(int8_t{0x7a}, 0.0f);
+    auto s = migraphx::unpack_int4_as<float>(migraphx::int8_t{0x7a}, 0.0f);
     EXPECT(migraphx::float_equal(s[0], -6.0f));
     EXPECT(migraphx::float_equal(s[1], 7.0f));
-    migraphx::vec<uint8_t, 16> w{};
+    migraphx::vec<migraphx::uint8_t, 16> w{};
     w[5]   = 0x7a;
     auto v = migraphx::unpack_int4_as<float>(w, -8.0f);
     EXPECT(migraphx::float_equal(v[10], 2.0f));

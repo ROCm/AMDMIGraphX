@@ -28,6 +28,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 #include <test.hpp>
 
 static void run_pass(migraphx::module& m)
@@ -817,6 +818,63 @@ TEST_CASE(onehot_cannot_simplify)
     migraphx::module m1 = m0;
     run_pass(m0);
     EXPECT(m0 == m1);
+}
+
+TEST_CASE(select_module_preserves_symbolic_output_shape)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using se = migraphx::sym::expr;
+
+    auto n        = migraphx::sym::var("n", {1, 4});
+    auto target_n = migraphx::sym::var("#split_sym_dim_n_target", {1, 4}, {1, 4});
+    migraphx::program p0;
+    auto create_submodule0 = [&](const std::string& name, const dd::interval& subrange) {
+        auto* submod         = p0.create_module(name);
+        std::vector<dd> dims = {{migraphx::sym::var("n", {subrange.min, subrange.max})},
+                                {migraphx::sym::lit(4)}};
+        auto input =
+            submod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims});
+        auto output = submod->add_instruction(migraphx::make_op("fixed_pad"), input);
+        submod->add_return({output});
+        return submod;
+    };
+    auto* first0                = create_submodule0("main:split_sym_dim_0_0", {1, 1});
+    auto* second0               = create_submodule0("main:split_sym_dim_0_1", {2, 4});
+    auto* main0                 = p0.get_main_module();
+    std::vector<dd> input_dims0 = {{n}, {migraphx::sym::lit(4)}};
+    auto input0 =
+        main0->add_parameter("data", migraphx::shape{migraphx::shape::float_type, input_dims0});
+    std::vector<dd> output_dims0 = {{target_n}, {migraphx::sym::lit(4)}};
+    migraphx::shape output_shape0{
+        std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type, output_dims0}}};
+    auto select0 = main0->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape0)}}),
+        {input0},
+        {first0, second0});
+    auto selected0 =
+        main0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select0);
+    std::vector<se> starts0 = {migraphx::sym::lit(0)};
+    std::vector<se> ends0   = {n};
+    auto start0             = main0->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(starts0)}}),
+        input0);
+    auto end0 = main0->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(ends0)}}),
+        input0);
+    auto result0 =
+        main0->add_instruction(migraphx::make_op("dyn_slice",
+                                                 {{"axes", {0}},
+                                                  {"starts", migraphx::to_value(starts0)},
+                                                  {"ends", migraphx::to_value(ends0)}}),
+                               selected0,
+                               start0,
+                               end0);
+    main0->add_return({result0});
+
+    auto expected = p0;
+    migraphx::run_passes(p0, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
+    EXPECT(p0 == expected);
 }
 
 // Test case with static output shape in the submodules (look at `sm_shape`)

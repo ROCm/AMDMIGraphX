@@ -148,7 +148,8 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
         {
             bias_bcast = add_instruction(
                 make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", to_value(s.dyn_dims())}}),
-                args[2]);
+                args[2],
+                curr_ins);
         }
         else if(s.dynamic())
         {

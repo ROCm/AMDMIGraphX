@@ -50,7 +50,7 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
             "MIGRAPHX_MLIR_${_backend_var}_ROCMLIR_DIR must name a rocMLIR config directory")
     endif()
 
-    set(_plugin migraphx_mlir_${BACKEND_NAME})
+    set(_plugin migraphx_${BACKEND_NAME})
     set(rocMLIR_DIR "${ROCMLIR_CONFIG_DIR}")
     find_package(rocMLIR 1.0.0 CONFIG REQUIRED
         PATHS "${ROCMLIR_CONFIG_DIR}"

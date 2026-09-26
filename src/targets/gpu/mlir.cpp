@@ -29,6 +29,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -1425,6 +1426,41 @@ instruction_ref insert_mlir(module& m,
     return m.insert_instruction(ins, co, refs);
 }
 
+// Structural description of the module that is independent of how rocMLIR prints it: the
+// operators with their attributes, the shape each one produces, and how they are wired
+// together. Instructions are referred to by position, so parameter names and instruction ids
+// do not affect it. Literals contribute their shape but not their data, since the constant's
+// value does not change which perf config wins.
+static value module_fingerprint(const module& m)
+{
+    std::unordered_map<instruction_ref, std::size_t> positions;
+    value::array nodes;
+    for(auto ins : iterator_for(m))
+    {
+        positions[ins] = nodes.size();
+        value::array inputs;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(inputs),
+                       [&](instruction_ref input) { return value(positions.at(input)); });
+        value node = {{"name", ins->name()}, {"shape", to_value(ins->get_shape())}};
+        if(not starts_with(ins->name(), "@"))
+            node["attributes"] = ins->get_operator().to_value();
+        node["inputs"] = inputs;
+        if(not ins->module_inputs().empty())
+        {
+            value::array submodules;
+            std::transform(ins->module_inputs().begin(),
+                           ins->module_inputs().end(),
+                           std::back_inserter(submodules),
+                           [](module_ref sm) { return module_fingerprint(*sm); });
+            node["modules"] = submodules;
+        }
+        nodes.push_back(node);
+    }
+    return nodes;
+}
+
 tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      module m,
                                      const std::vector<shape>& inputs,
@@ -1442,6 +1478,10 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     auto tc = mp.get_tuning_config(exhaustive);
+    // The rocMLIR tuning key only describes the gemm/conv, so kernels that fuse different
+    // epilogues around the same gemm share it. Pair it with a digest of the fused graph so the
+    // problem cache keeps them apart. Only "key" is handed back to rocMLIR.
+    tc.problem = {{"key", tc.problem}, {"hash", module_fingerprint(m).md5()}};
     static std::mutex mutex;
     if(trace)
     {

@@ -1550,4 +1550,65 @@ TEST_CASE(generate_shape_transforms_for_offset)
            });
 }
 
+TEST_CASE(is_transposed_basic)
+{
+    EXPECT(make_simple_descriptor({2, 3, 4}, make_op("transpose", {{"permutation", {0, 2, 1}}}))
+               .is_transposed());
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {2, 12}}}))
+                   .is_transposed());
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {2, 3, 2, 2}}}))
+                   .is_transposed());
+}
+
+TEST_CASE(is_transposed_cancelled)
+{
+    // Two transposes that compose to the identity
+    EXPECT(not make_simple_descriptor({2, 3, 4},
+                                      make_op("transpose", {{"permutation", {0, 2, 1}}}),
+                                      make_op("transpose", {{"permutation", {0, 2, 1}}}))
+                   .is_transposed());
+}
+
+TEST_CASE(is_transposed_1_dim)
+{
+    // Moving a 1 dimension doesnt reorder any data
+    EXPECT(not make_simple_descriptor({1, 3, 4}, make_op("transpose", {{"permutation", {1, 2, 0}}}))
+                   .is_transposed());
+}
+
+TEST_CASE(is_transposed_split)
+{
+    // Split then swap the split dimensions
+    EXPECT(make_simple_descriptor({6, 4},
+                                  make_op("reshape", {{"dims", {2, 3, 4}}}),
+                                  make_op("transpose", {{"permutation", {1, 0, 2}}}))
+               .is_transposed());
+}
+
+TEST_CASE(is_collapsing_basic)
+{
+    EXPECT(
+        make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {6, 4}}})).is_collapsing());
+    EXPECT(make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {24}}})).is_collapsing());
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {2, 3, 2, 2}}}))
+                   .is_collapsing());
+}
+
+TEST_CASE(is_collapsing_1_dims)
+{
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("unsqueeze", {{"axes", {0}}}))
+                   .is_collapsing());
+    EXPECT(
+        not make_simple_descriptor({1, 3, 4}, make_op("squeeze", {{"axes", {0}}})).is_collapsing());
+    // Merging with a 1 dimension isnt collapsing
+    EXPECT(not make_simple_descriptor({1, 3, 4}, make_op("reshape", {{"dims", {3, 4}}}))
+                   .is_collapsing());
+}
+
+TEST_CASE(is_collapsing_transposed)
+{
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("transpose", {{"permutation", {2, 0, 1}}}))
+                   .is_collapsing());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

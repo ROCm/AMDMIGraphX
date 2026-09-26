@@ -1821,3 +1821,187 @@ TEST_CASE(argmax_reshape_pointwise)
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
+
+TEST_CASE(reduce_slice_pointwise)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 8}};
+    auto slice_op = [](int64_t start, int64_t end) {
+        return migraphx::make_op("slice", {{"axes", {0}}, {"starts", {start}}, {"ends", {end}}});
+    };
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", xs);
+        auto w   = mm->add_parameter("w", ws);
+        auto xb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 8}}}), x);
+        auto mul  = add_pointwise(p1, "main:pointwise0", {w, xb}, single_pointwise("mul"));
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsum);
+        auto a    = mm->add_instruction(slice_op(0, 2), sq);
+        auto b    = mm->add_instruction(slice_op(2, 4), sq);
+        auto add  = add_pointwise(p1, "main:pointwise1", {a, b}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", xs);
+        auto w   = mm->add_parameter("w", ws);
+        auto xb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 8}}}), x);
+        auto wb  = mm->add_instruction(slice_op(2, 4), w);
+        auto xbb = mm->add_instruction(slice_op(2, 4), xb);
+        auto wa  = mm->add_instruction(slice_op(0, 2), w);
+        auto xba = mm->add_instruction(slice_op(0, 2), xb);
+        auto* pm0 =
+            create_pointwise_module(p2, "main:pointwise0", {w, xb}, single_pointwise("mul"));
+        auto rsum = add_reduce(
+            p2,
+            "main:pointwise0:main:reduce_sum0_slice0:main:pointwise1:main:pointwise0:main:"
+            "reduce_sum0_slice2",
+            {wb, xbb, wa, xba},
+            {1},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto mul_b = rm->add_instruction(
+                    migraphx::make_op("pointwise"), {inputs[0], inputs[1]}, {pm0});
+                auto rb =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul_b);
+                auto mul_a = rm->add_instruction(
+                    migraphx::make_op("pointwise"), {inputs[2], inputs[3]}, {pm0});
+                auto ra =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul_a);
+                return add_pointwise(p2, rm, "main:pointwise1", {ra, rb}, single_pointwise("add"));
+            });
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsum);
+        mm->add_return({sq});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(reduce_squeeze_pointwise)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {4, 8}};
+    migraphx::shape ys{migraphx::shape::float_type, {4}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", xs);
+        auto y    = mm->add_parameter("y", ys);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsum);
+        auto add  = add_pointwise(p1, "main:pointwise0", {sq, y}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", xs);
+        auto y   = mm->add_parameter("y", ys);
+        auto yu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), y);
+        auto rsum =
+            add_reduce(p2,
+                       "main:reduce_sum0:main:pointwise0",
+                       {x, yu},
+                       {1},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           auto rs = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                           return add_pointwise(
+                               p2, rm, "main:pointwise0", {rs, inputs[1]}, single_pointwise("add"));
+                       });
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsum);
+        mm->add_return({sq});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(reduce_squeeze_all_pointwise_scalar)
+{
+    // Squeezing every axis of the reduce clamps the rank to 1, so the {1}
+    // input cant be unsqueezed back to the reduce shape and is broadcast instead
+    migraphx::shape xs{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape ys{migraphx::shape::float_type, {1}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", xs);
+        auto y    = mm->add_parameter("y", ys);
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {0, 1}}}), x);
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), rmax);
+        auto add  = add_pointwise(p1, "main:pointwise0", {sq, y}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", xs);
+        auto y   = mm->add_parameter("y", ys);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1}}}), y);
+        auto* pm0 = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto rmax = add_reduce(
+            p2,
+            "main:reduce_max0:main:pointwise0",
+            {x, yb},
+            {0, 1},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto r = rm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}),
+                                             inputs[0]);
+                return rm->add_instruction(migraphx::make_op("pointwise"), {r, inputs[1]}, {pm0});
+            });
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), rmax);
+        mm->add_return({sq});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(reduce_reshape_squeeze_all_pointwise)
+{
+    // Two fully reduced outputs, one behind a reshape and one behind a squeeze,
+    // combined by a pointwise: the epilogue fusion must broadcast the {1} reshape
+    // output and rewrite_reshapes must not rebase across the 1-element reduce
+    migraphx::shape s{migraphx::shape::float_type, {3, 2}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto r1  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), x);
+        auto rsh = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1}}}), r1);
+        auto r2  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), y);
+        auto sq  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), r2);
+        auto add = add_pointwise(p1, "main:pointwise0", {rsh, sq}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto rsum = add_reduce(
+            p2,
+            "main:reduce_sum1:main:pointwise0:main:reduce_sum0",
+            {x, y},
+            {0, 1},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto r1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                              inputs[0]);
+                auto r2 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                              inputs[1]);
+                return add_pointwise(p2, rm, "main:pointwise0", {r1, r2}, single_pointwise("add"));
+            });
+        auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), rsum);
+        mm->add_return({sq});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}

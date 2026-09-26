@@ -147,6 +147,8 @@ int main(int argc, const char* argv[])
          "test_unpack_int4<migraphx::shape::int8_type>",
          "test_unpack_int4<migraphx::shape::uint8_type, 0>",
          "test_unpack_int4<migraphx::shape::int8_type, 0>",
+         "test_unpack_int4_dequant_reduce_slice_swiglu",
+         "test_unpack_int4_dequant_reduce_tiled",
          "test_bit_cast<migraphx::shape::uint8_type, migraphx::shape::int8_type>",
          "test_bit_cast<migraphx::shape::int8_type, migraphx::shape::uint8_type>",
          "test_bit_cast<migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e4m3fnuz_type>",

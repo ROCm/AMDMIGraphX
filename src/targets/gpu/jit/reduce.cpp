@@ -612,6 +612,36 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compute_block_size(ctx, std::max<std::size_t>(relements / 4, 1), max_block);
     }
 
+    /// Two outputs per workgroup when a short reduction leaves each lane of a
+    /// full workgroup with only a few elements: the per-workgroup overhead is
+    /// amortized over two reductions and each lane keeps twice the loads in
+    /// flight. Only offered when the outputs fill the device at the tiled
+    /// block size, the tuner benchmarks it against the plain block algorithm.
+    static optional<reduce_tile> find_short_reduce_tile(const context& ctx,
+                                                        const shape& reduce_output_shape,
+                                                        const std::vector<std::size_t>& reduce_lens,
+                                                        std::size_t relements)
+    {
+        const std::size_t tile       = 2;
+        const std::size_t full_block = 256;
+        auto block_size              = tile_block_size(ctx, relements, full_block);
+        if(block_size >= full_block)
+            return nullopt;
+        const auto& device = ctx.get_current_device();
+        auto resident      = device.get_cu_count() * device.get_max_workitems_per_cu() / block_size;
+        if(reduce_output_shape.elements() < resident)
+            return nullopt;
+        // Tile the last non-reduced axis so the outputs of a tile are adjacent
+        auto is = reverse(range(reduce_output_shape.lens().size()));
+        auto it = std::find_if(is.begin(), is.end(), [&](auto axis) {
+            return reduce_lens[axis] == 1 and reduce_output_shape.lens()[axis] % tile == 0;
+        });
+        if(it == is.end())
+            return nullopt;
+        std::size_t axis = *it;
+        return reduce_tile{axis, tile};
+    }
+
     static std::string tiled_algo_name(const std::string& algo, std::size_t axis, std::size_t n)
     {
         return algo + "<" + std::to_string(axis) + ", " + std::to_string(n) + ">";
@@ -745,6 +775,74 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         }
     }
 
+    /// Without exhaustive tuning, offer the heuristic default algorithm plus a
+    /// few alternatives so benchmarking can decide: block_batch/block_tile when
+    /// a tile is found, a larger block size (max 1024 instead of 256) for
+    /// block, and block_strided when the lane heuristics prefer it.
+    static void add_heuristic_solutions(tuning_config& tc,
+                                        context& ctx,
+                                        const fused_reduce_plan& plan,
+                                        const optional<reduce_tile>& tile,
+                                        bool batchable,
+                                        std::size_t noutputs)
+    {
+        if(plan.algo == "block")
+        {
+            if(tile.has_value() and plan.assign == "assign_none")
+            {
+                // The batched pass loads the broadcast input once per tile
+                // instead of once per output, so offer it first as the
+                // default ahead of the cache-bound block_tile
+                auto batch_block = tile_block_size(ctx, plan.relements, 256);
+                if(batchable and batch_iterations(tile->size, plan.relements, batch_block) <=
+                                     tuned_batch_iterations)
+                {
+                    add_block_size_solutions(
+                        tc,
+                        "block_batch",
+                        batch_block,
+                        compute_block_size(ctx, plan.relements, 256),
+                        {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
+                }
+                // For the cache-bound tiled reduction a smaller workgroup
+                // that leaves about 4 elements per lane pipelines enough
+                // loads to often beat the default block size, so offer
+                // both and let benchmarking decide
+                std::size_t max_block = tile->size == 2 ? 512 : 256;
+                add_block_size_solutions(tc,
+                                         "block_tile",
+                                         tile_block_size(ctx, plan.relements, max_block),
+                                         compute_block_size(ctx, plan.relements, max_block),
+                                         {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
+            }
+            add_block_size_solutions(tc,
+                                     "block",
+                                     compute_block_size(ctx, plan.relements, 256),
+                                     compute_block_size(ctx, plan.relements, 1024));
+        }
+        else if(plan.algo == "lane" and prefer_block_strided(ctx, plan, noutputs) and
+                find_strided_tile(ctx, plan.relements, 256).has_value())
+        {
+            // A block_strided workgroup computes a tile of out_tile outputs at once, so
+            // its block size is fitted to the parallel work across the whole tile
+            // rather than a single reduction
+            auto swork = ctx.get_current_device().get_wavefront_size() * plan.relements;
+            add_block_size_solutions(tc,
+                                     "block_strided",
+                                     compute_block_size(ctx, swork, 256),
+                                     compute_block_size(ctx, swork, 1024));
+            tc.solutions.push_back({{"algo", "lane"}});
+            add_block_size_solutions(tc,
+                                     "block",
+                                     compute_block_size(ctx, plan.relements, 256),
+                                     compute_block_size(ctx, plan.relements, 1024));
+        }
+        else
+        {
+            tc.solutions.push_back({{"algo", plan.algo}});
+        }
+    }
+
     optional<tuning_config>
     get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
     {
@@ -757,72 +855,16 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto noutputs = plan.finputs.size() - shapes.size() + 1;
         auto tile     = find_reduce_tile(
             plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());
+        if(not tile.has_value())
+            tile = find_short_reduce_tile(
+                ctx, plan.reduce_output_shape, plan.reduction_shape.lens(), plan.relements);
         assert(not ins->module_inputs().empty());
         // The vector result of the batched pass is only assigned to a single output
         bool batchable =
             tile.has_value() and noutputs == 1 and can_batch_reduce(*ins->module_inputs().front());
         if(not exhaustive)
         {
-            // Without exhaustive tuning, offer the heuristic default algorithm plus a few
-            // alternatives so benchmarking can decide: block_batch/block_tile when a tile
-            // is found, a larger block size (max 1024 instead of 256) for block, and
-            // block_strided when the lane heuristics prefer it.
-            if(plan.algo == "block")
-            {
-                if(tile.has_value() and plan.assign == "assign_none")
-                {
-                    // The batched pass loads the broadcast input once per tile
-                    // instead of once per output, so offer it first as the
-                    // default ahead of the cache-bound block_tile
-                    auto batch_block = tile_block_size(ctx, plan.relements, 256);
-                    if(batchable and batch_iterations(tile->size, plan.relements, batch_block) <=
-                                         tuned_batch_iterations)
-                    {
-                        add_block_size_solutions(
-                            tc,
-                            "block_batch",
-                            batch_block,
-                            compute_block_size(ctx, plan.relements, 256),
-                            {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
-                    }
-                    // For the cache-bound tiled reduction a smaller workgroup
-                    // that leaves about 4 elements per lane pipelines enough
-                    // loads to often beat the default block size, so offer
-                    // both and let benchmarking decide
-                    std::size_t max_block = tile->size == 2 ? 512 : 256;
-                    add_block_size_solutions(
-                        tc,
-                        "block_tile",
-                        tile_block_size(ctx, plan.relements, max_block),
-                        compute_block_size(ctx, plan.relements, max_block),
-                        {{"tile_axis", tile->axis}, {"n_per_block", tile->size}});
-                }
-                add_block_size_solutions(tc,
-                                         "block",
-                                         compute_block_size(ctx, plan.relements, 256),
-                                         compute_block_size(ctx, plan.relements, 1024));
-            }
-            else if(plan.algo == "lane" and prefer_block_strided(ctx, plan, noutputs) and
-                    find_strided_tile(ctx, plan.relements, 256).has_value())
-            {
-                // A block_strided workgroup computes a tile of out_tile outputs at once, so
-                // its block size is fitted to the parallel work across the whole tile
-                // rather than a single reduction
-                auto swork = ctx.get_current_device().get_wavefront_size() * plan.relements;
-                add_block_size_solutions(tc,
-                                         "block_strided",
-                                         compute_block_size(ctx, swork, 256),
-                                         compute_block_size(ctx, swork, 1024));
-                tc.solutions.push_back({{"algo", "lane"}});
-                add_block_size_solutions(tc,
-                                         "block",
-                                         compute_block_size(ctx, plan.relements, 256),
-                                         compute_block_size(ctx, plan.relements, 1024));
-            }
-            else
-            {
-                tc.solutions.push_back({{"algo", plan.algo}});
-            }
+            add_heuristic_solutions(tc, ctx, plan, tile, batchable, noutputs);
             return tc;
         }
         auto relements = plan.reduction_shape.elements();

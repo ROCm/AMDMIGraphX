@@ -24,10 +24,13 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GPU_MLIR_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GPU_MLIR_HPP
 
+#include <chrono>
 #include <string>
 #include <vector>
 #include <migraphx/value.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/optional.hpp>
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -58,14 +61,55 @@ struct MIGRAPHX_GPU_EXPORT mlir_code_object
     code_object_op cop;
     std::vector<size_t> prefill_indices = {};
     std::vector<value> prefill_values   = {};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.cop, "cop"),
+                    f(self.prefill_indices, "prefill_indices"),
+                    f(self.prefill_values, "prefill_values"));
+    }
 };
+
+// The device properties an MLIR compile reads. It is a plain value so that a compile can run
+// where there is no HIP context.
+struct MIGRAPHX_GPU_EXPORT mlir_gpu_properties
+{
+    std::string arch          = "";
+    std::size_t cu_count      = 0;
+    std::size_t chiplet_count = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.arch, "arch"),
+                    f(self.cu_count, "cu_count"),
+                    f(self.chiplet_count, "chiplet_count"));
+    }
+};
+
+MIGRAPHX_GPU_EXPORT mlir_gpu_properties get_mlir_gpu_properties(const context& migraphx_ctx);
+
+// Registers the MLIR dialects and passes and creates the shared thread pool now rather than in
+// the first compile
+MIGRAPHX_GPU_EXPORT void warm_up_mlir();
 
 // Replace the standard parameters with the actual input layouts and pin the
 // output layout, returning the shapes to compile the module with
 MIGRAPHX_GPU_EXPORT std::vector<shape> adjust_param_shapes(module& m,
                                                            const std::vector<shape>& inputs);
 
-MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
+// With a CPU budget, the compile runs in a compile driver session, which gives up once the compile
+// has used that much CPU time, and then this throws. It stays in-process when processes are
+// disabled on the context or there is no driver.
+MIGRAPHX_GPU_EXPORT mlir_code_object
+compile_mlir(const context& migraphx_ctx,
+             module m,
+             const std::vector<shape>& in_shapes,
+             const value& solution,
+             optional<std::chrono::milliseconds> cpu_budget = nullopt);
+
+MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const mlir_gpu_properties& props,
                                                   module m,
                                                   const std::vector<shape>& in_shapes,
                                                   const value& solution);

@@ -21,36 +21,47 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
+#ifndef MIGRAPHX_GUARD_GPU_COMPILE_DRIVER_POOL_HPP
+#define MIGRAPHX_GUARD_GPU_COMPILE_DRIVER_POOL_HPP
 
 #include <migraphx/gpu/config.hpp>
-#include <migraphx/optional.hpp>
-#include <chrono>
-#include <string>
+#include <migraphx/filesystem.hpp>
+#include <migraphx/process.hpp>
+#include <migraphx/value.hpp>
+#include <atomic>
+#include <mutex>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
 namespace gpu {
 
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT compile_ops
+// Idle sessions of `migraphx-hiprtc-driver --serve`. A request takes an idle session, or starts one
+// when none is idle, and puts it back after the reply. The mutex guards only the idle list, so
+// requests on different sessions run in parallel.
+struct MIGRAPHX_GPU_EXPORT compile_driver_pool
 {
-    context* ctx         = nullptr;
-    bool exhaustive_tune = false;
-    bool skip_benchmark  = false;
-    // Applies to every tuning candidate except the first; compilers that can't enforce it ignore it
-    optional<std::chrono::milliseconds> tuning_compile_budget = nullopt;
-    std::string name() const { return "gpu::compile_ops"; }
-    void apply(module_pass_manager& mpm) const;
+    // Sends `req` to a session of `driver` and returns the reply. A session that replies "timeout"
+    // has exited, and one whose request throws is broken, so neither goes back to the pool.
+    value request(const fs::path& driver, const value& req);
+
+    // Closes the idle sessions
+    void close();
+
+    std::size_t sessions_started() const { return started; }
+    std::size_t sessions_dropped() const { return dropped; }
+
+    private:
+    process::session take(const fs::path& driver);
+    void put_back(process::session s);
+
+    std::mutex mutex;
+    std::vector<process::session> idle;
+    std::atomic<std::size_t> started{0};
+    std::atomic<std::size_t> dropped{0};
 };
 
 } // namespace gpu
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
+#endif // MIGRAPHX_GUARD_GPU_COMPILE_DRIVER_POOL_HPP

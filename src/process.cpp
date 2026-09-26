@@ -42,6 +42,7 @@
 #endif
 #endif
 
+#include <migraphx/bit_cast.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/process.hpp>
@@ -51,15 +52,21 @@
 #include <migraphx/fileutils.hpp>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <limits>
 #include <numeric>
 #include <functional>
 #include <iostream>
+#include <streambuf>
 
 #ifdef _WIN32
 #include <Windows.h>
+#include <fcntl.h>
+#include <io.h>
 #include <cstdint>
 #include <cstring>
 #include <sstream>
@@ -433,6 +440,46 @@ void trace_read_write_command(const std::string& cmd, const std::vector<std::str
     std::cerr << std::endl;
 }
 
+// A session message is its payload's size followed by the payload. The size is in native byte
+// order: both ends of a session are the same build on the same machine.
+using message_size_t                      = std::uint64_t;
+constexpr std::size_t message_header_size = sizeof(message_size_t);
+
+std::array<char, message_header_size> encode_message_size(message_size_t size)
+{
+    return bit_cast<std::array<char, message_header_size>>(size);
+}
+
+message_size_t decode_message_size(const char* header)
+{
+    std::array<char, message_header_size> bytes{};
+    std::copy_n(header, bytes.size(), bytes.begin());
+    return bit_cast<message_size_t>(bytes);
+}
+
+std::vector<char> frame_message(const std::function<void(process::writer)>& pipe_in)
+{
+    std::vector<char> frame(message_header_size);
+    pipe_in([&](const char* buffer, std::size_t n) {
+        // An empty write may hand us a null pointer, which is not a valid range even for a count
+        // of zero.
+        if(n > 0)
+            frame.insert(frame.end(), buffer, buffer + n);
+    });
+    auto header = encode_message_size(frame.size() - message_header_size);
+    std::copy(header.begin(), header.end(), frame.begin());
+    return frame;
+}
+
+// The bytes of the message being read that have not arrived yet: the header first, then the
+// payload it announces. Reads are sized by this, so they never run into a following message.
+std::size_t message_bytes_remaining(const std::vector<char>& data, std::size_t bytes_read)
+{
+    if(bytes_read < message_header_size)
+        return message_header_size - bytes_read;
+    return message_header_size + decode_message_size(data.data()) - bytes_read;
+}
+
 #ifdef _WIN32
 
 // RAII wrapper around a Win32 handle. Both NULL and INVALID_HANDLE_VALUE count as "nothing to
@@ -473,12 +520,12 @@ struct handle_wrapper
 // on a FILE_FLAG_OVERLAPPED handle.
 void make_pipe(handle_wrapper& read, handle_wrapper& write, bool async_read)
 {
-    // Unique among live pipes only: pid + tid + the address of a caller-owned handle that outlives
-    // the pipe.
+    // A pipe lives as long as its child, which for a session is well past the call that made it,
+    // so nothing short of a process-wide count keeps the names of live pipes unique.
+    static std::atomic<std::size_t> pipe_count{0};
     const std::string pipe_name = "\\\\.\\pipe\\migraphx_process_" +
                                   std::to_string(GetCurrentProcessId()) + "_" +
-                                  std::to_string(GetCurrentThreadId()) + "_" +
-                                  std::to_string(reinterpret_cast<std::uintptr_t>(&read)); // NOLINT
+                                  std::to_string(pipe_count++);
 
     SECURITY_ATTRIBUTES sa{};
     sa.nLength              = sizeof(SECURITY_ATTRIBUTES);
@@ -636,37 +683,25 @@ struct child_guard
     bool armed = true;
 };
 
-exec_result exec_read_write(const std::string& cmd,
-                            const std::vector<std::string>& argv,
-                            const std::vector<char>& stdin_data)
+// Spawns cmd with its stdin and stdout on pipes and its stderr on a duplicate of ours. Our ends of
+// the pipes, both overlapped, come back in stdin_write and stdout_read.
+void spawn_child(const std::string& cmd,
+                 const std::vector<std::string>& argv,
+                 handle_wrapper& process_handle,
+                 handle_wrapper& stdin_write,
+                 handle_wrapper& stdout_read)
 {
-    // Declaration order below is load-bearing. Locals destruct in reverse, and the required order
-    // is: cancel pending I/O, kill the child, close handles, then release the buffers the kernel
-    // was pointed at. So buffers come first and the guards come last.
-    std::vector<char> stdout_data;
-    OVERLAPPED stdin_write_overlapped = {};
-    OVERLAPPED stdout_read_overlapped = {};
-
-    handle_wrapper stdin_write_event{CreateEventA(nullptr, TRUE, FALSE, nullptr)};
-    handle_wrapper stdout_read_event{CreateEventA(nullptr, TRUE, FALSE, nullptr)};
-    if(not stdin_write_event.valid() or not stdout_read_event.valid())
-        throw_error(GetLastError(), "Failed to create overlapped I/O event");
-    stdin_write_overlapped.hEvent = stdin_write_event.get();
-    stdout_read_overlapped.hEvent = stdout_read_event.get();
-
     handle_wrapper child_stdin_read;
-    handle_wrapper child_stdin_write;
-    handle_wrapper child_stdout_read;
     handle_wrapper child_stdout_write;
-    make_pipe(child_stdin_read, child_stdin_write, false);
-    make_pipe(child_stdout_read, child_stdout_write, true);
+    make_pipe(child_stdin_read, stdin_write, false);
+    make_pipe(stdout_read, child_stdout_write, true);
 
     // Keep our own ends out of the child: a stray duplicate of the stdin write end would stop the
     // child from ever seeing EOF on stdin, and one of the stdout read end would let it steal our
     // output.
-    if(SetHandleInformation(child_stdin_write.get(), HANDLE_FLAG_INHERIT, 0) == FALSE)
+    if(SetHandleInformation(stdin_write.get(), HANDLE_FLAG_INHERIT, 0) == FALSE)
         throw_error(GetLastError(), "Failed to uninherit stdin write handle");
-    if(SetHandleInformation(child_stdout_read.get(), HANDLE_FLAG_INHERIT, 0) == FALSE)
+    if(SetHandleInformation(stdout_read.get(), HANDLE_FLAG_INHERIT, 0) == FALSE)
         throw_error(GetLastError(), "Failed to uninherit stdout read handle");
 
     // Give the child an inheritable duplicate of our stderr rather than marking the real one
@@ -716,14 +751,35 @@ exec_result exec_read_write(const std::string& cmd,
     {
         throw_error(GetLastError(), "Failed to create process " + cmd);
     }
-    handle_wrapper process_handle{process_info.hProcess};
-    handle_wrapper thread_handle{process_info.hThread};
-    child_guard guard{process_handle.get()};
+    process_handle.handle = process_info.hProcess;
+    CloseHandle(process_info.hThread);
+    // Returning closes the child's ends, which it has its own copies of now. Ours must go, or we
+    // never see EOF on stdout.
+}
 
-    // The child has its own copies now. Ours must go, or we never see EOF on stdout.
-    child_stdin_read.close();
-    child_stdout_write.close();
-    child_stderr.close();
+exec_result exec_read_write(const std::string& cmd,
+                            const std::vector<std::string>& argv,
+                            const std::vector<char>& stdin_data)
+{
+    // Declaration order below is load-bearing. Locals destruct in reverse, and the required order
+    // is: cancel pending I/O, kill the child, close handles, then release the buffers the kernel
+    // was pointed at. So buffers come first and the guards come last.
+    std::vector<char> stdout_data;
+    OVERLAPPED stdin_write_overlapped = {};
+    OVERLAPPED stdout_read_overlapped = {};
+
+    handle_wrapper stdin_write_event{CreateEventA(nullptr, TRUE, FALSE, nullptr)};
+    handle_wrapper stdout_read_event{CreateEventA(nullptr, TRUE, FALSE, nullptr)};
+    if(not stdin_write_event.valid() or not stdout_read_event.valid())
+        throw_error(GetLastError(), "Failed to create overlapped I/O event");
+    stdin_write_overlapped.hEvent = stdin_write_event.get();
+    stdout_read_overlapped.hEvent = stdout_read_event.get();
+
+    handle_wrapper child_stdin_write;
+    handle_wrapper child_stdout_read;
+    handle_wrapper process_handle;
+    spawn_child(cmd, argv, process_handle, child_stdin_write, child_stdout_read);
+    child_guard guard{process_handle.get()};
 
     pending_io write_io{child_stdin_write.get(), stdin_write_overlapped};
     pending_io read_io{child_stdout_read.get(), stdout_read_overlapped};
@@ -881,7 +937,7 @@ exec_result exec_read_write(const std::string& cmd,
 
 struct fd_wrapper
 {
-    explicit fd_wrapper(int f) : fd(f) {}
+    explicit fd_wrapper(int f = -1) : fd(f) {}
     fd_wrapper(const fd_wrapper&)            = delete;
     fd_wrapper& operator=(const fd_wrapper&) = delete;
     ~fd_wrapper() { close(); }
@@ -891,6 +947,12 @@ struct fd_wrapper
         if(fd != -1)
             ::close(fd);
         fd = -1;
+    }
+
+    void reset(int f)
+    {
+        close();
+        fd = f;
     }
 
     int get() const { return fd; }
@@ -1000,8 +1062,16 @@ constexpr std::size_t write_chunk_size = 4096;
 // obscure what it does.
 struct pipe_pump
 {
-    pipe_pump(const std::vector<char>& data, fd_wrapper& write_end, fd_wrapper& read_end)
-        : stdin_data(data), stdin_write(write_end), stdout_read(read_end)
+    // A session keeps stdin open once the request is written, since the child reads the next
+    // request from it; read_write closes it so the child sees EOF.
+    pipe_pump(const std::vector<char>& data,
+              fd_wrapper& write_end,
+              fd_wrapper& read_end,
+              bool close_when_written = true)
+        : stdin_data(data),
+          stdin_write(write_end),
+          stdout_read(read_end),
+          close_stdin_when_written(close_when_written)
     {
         fds[0].fd     = stdin_write.get();
         fds[0].events = POLLOUT;
@@ -1014,17 +1084,21 @@ struct pipe_pump
     const std::vector<char>& stdin_data;
     fd_wrapper& stdin_write;
     fd_wrapper& stdout_read;
+    bool close_stdin_when_written;
     std::array<pollfd, 2> fds{};
     std::size_t total_bytes_written = 0;
     std::size_t total_bytes_read    = 0;
     std::vector<char> stdout_data{};
 
-    // Stop feeding the child and let it see EOF. A negative fd is ignored by poll.
+    // Stop feeding the child. A negative fd is ignored by poll.
     void finish_writing()
     {
-        stdin_write.close();
+        if(close_stdin_when_written)
+            stdin_write.close();
         fds[0].fd = -1;
     }
+
+    bool writing() const { return fds[0].fd != -1; }
 
     void handle_write_event()
     {
@@ -1055,8 +1129,9 @@ struct pipe_pump
             finish_writing();
     }
 
-    // Returns false once stdout has reached EOF and there is nothing more to collect.
-    bool handle_read_event()
+    // Reads at most `limit` bytes. Returns false once stdout has reached EOF and there is nothing
+    // more to collect.
+    bool handle_read_event(std::size_t limit = read_chunk_size)
     {
         if(not has_event(fds[1].revents, POLLIN))
         {
@@ -1065,9 +1140,9 @@ struct pipe_pump
         }
         // Read straight into the result rather than via a scratch buffer, so a multi-megabyte code
         // object is not copied a second time on its way out.
-        stdout_data.resize(total_bytes_read + read_chunk_size);
-        auto bytes_read =
-            ::read(stdout_read.get(), stdout_data.data() + total_bytes_read, read_chunk_size);
+        auto chunk = std::min(limit, read_chunk_size);
+        stdout_data.resize(total_bytes_read + chunk);
+        auto bytes_read = ::read(stdout_read.get(), stdout_data.data() + total_bytes_read, chunk);
         if(bytes_read < 0)
         {
             if(errno == EINTR)
@@ -1089,23 +1164,24 @@ struct pipe_pump
     }
 };
 
-exec_result exec_read_write(const std::string& cmd,
-                            const std::vector<std::string>& argv,
-                            const std::vector<char>& stdin_data)
+// Spawns cmd with its stdin and stdout on pipes; our ends come back in stdin_write and
+// stdout_read, and child owns the pid from then on.
+void spawn_child(const std::string& cmd,
+                 const std::vector<std::string>& argv,
+                 child_reaper& child,
+                 fd_wrapper& stdin_write,
+                 fd_wrapper& stdout_read)
 {
-    // Declared before the pipes so it is destroyed after them; see child_reaper's comment.
-    child_reaper child;
-
     std::array<int, 2> stdin_fds{-1, -1};
     if(pipe2(stdin_fds.data(), O_CLOEXEC) != 0)
         MIGRAPHX_THROW("Failed to create stdin pipe");
     fd_wrapper child_stdin_read{stdin_fds[0]};
-    fd_wrapper child_stdin_write{stdin_fds[1]};
+    stdin_write.reset(stdin_fds[1]);
 
     std::array<int, 2> stdout_fds{-1, -1};
     if(pipe2(stdout_fds.data(), O_CLOEXEC) != 0)
         MIGRAPHX_THROW("Failed to create stdout pipe");
-    fd_wrapper child_stdout_read{stdout_fds[0]};
+    stdout_read.reset(stdout_fds[0]);
     fd_wrapper child_stdout_write{stdout_fds[1]};
 
     std::vector<const char*> child_argv;
@@ -1150,11 +1226,19 @@ exec_result exec_read_write(const std::string& cmd,
         MIGRAPHX_THROW("Failed to spawn process " + cmd + " (errno " +
                        std::to_string(spawn_result) + ")");
     child.reset(pid);
+    // Returning drops our copies of the child's ends, or stdout never reports EOF and a dead child
+    // never shows up as an error on the write side.
+}
 
-    // Drop our copies of the child's ends, or stdout never reports EOF and a dead child never shows
-    // up as an error on the write side.
-    child_stdin_read.close();
-    child_stdout_write.close();
+exec_result exec_read_write(const std::string& cmd,
+                            const std::vector<std::string>& argv,
+                            const std::vector<char>& stdin_data)
+{
+    // Declared before the pipes so it is destroyed after them; see child_reaper's comment.
+    child_reaper child;
+    fd_wrapper child_stdin_write;
+    fd_wrapper child_stdout_read;
+    spawn_child(cmd, argv, child, child_stdin_write, child_stdout_read);
 
     pipe_pump pump{stdin_data, child_stdin_write, child_stdout_read};
 
@@ -1185,6 +1269,227 @@ exec_result exec_read_write(const std::string& cmd,
 #endif
 
 } // namespace
+
+#ifdef _WIN32
+
+struct process_session_impl
+{
+    std::string command{};
+    handle_wrapper process_handle{};
+    handle_wrapper stdin_write{};
+    handle_wrapper stdout_read{};
+    // Still set after a request that threw, when the child may be in the middle of it.
+    bool busy = false;
+
+    process_session_impl()                                       = default;
+    process_session_impl(const process_session_impl&)            = delete;
+    process_session_impl& operator=(const process_session_impl&) = delete;
+
+    ~process_session_impl()
+    {
+        if(not process_handle.valid())
+            return;
+        if(busy)
+            TerminateProcess(process_handle.get(), 1);
+        // EOF on stdin is the child's cue to exit.
+        stdin_write.close();
+        stdout_read.close();
+        WaitForSingleObject(process_handle.get(), INFINITE);
+    }
+
+    std::vector<char> request(const std::vector<char>& frame)
+    {
+        // Declaration order is load-bearing, as in exec_read_write: the guards that cancel pending
+        // I/O must be destroyed before the buffers the kernel was pointed at.
+        std::vector<char> reply;
+        OVERLAPPED write_overlapped = {};
+        OVERLAPPED read_overlapped  = {};
+        handle_wrapper write_event{CreateEventA(nullptr, TRUE, FALSE, nullptr)};
+        handle_wrapper read_event{CreateEventA(nullptr, TRUE, FALSE, nullptr)};
+        if(not write_event.valid() or not read_event.valid())
+            throw_error(GetLastError(), "Failed to create overlapped I/O event");
+        write_overlapped.hEvent = write_event.get();
+        read_overlapped.hEvent  = read_event.get();
+        pending_io write_io{stdin_write.get(), write_overlapped};
+        pending_io read_io{stdout_read.get(), read_overlapped};
+
+        std::size_t total_bytes_written = 0;
+        std::size_t total_bytes_read    = 0;
+        // The slots of exec_read_write: stdout first, then the write event while there is still
+        // data to send, else the process handle.
+        std::array<HANDLE, 3> handles{read_event.get(), write_event.get(), process_handle.get()};
+        bool writing = true;
+
+        // Unlike exec_read_write, stdin stays open: the next request goes out on it.
+        auto finish_writing = [&] {
+            write_io.cancel();
+            handles[1] = process_handle.get();
+            writing    = false;
+        };
+
+        auto issue_write = [&] {
+            auto remaining = std::min<std::size_t>(frame.size() - total_bytes_written, MAXDWORD);
+            if(WriteFile(stdin_write.get(),
+                         frame.data() + total_bytes_written,
+                         static_cast<DWORD>(remaining),
+                         nullptr,
+                         &write_overlapped) != FALSE)
+            {
+                write_io.arm();
+                return true;
+            }
+            auto error = GetLastError();
+            if(error == ERROR_IO_PENDING)
+            {
+                write_io.arm();
+                return true;
+            }
+            if(error == ERROR_BROKEN_PIPE or error == ERROR_NO_DATA)
+                return false;
+            throw_error(error, "Failed to write to child stdin");
+        };
+
+        // Returns false once the child has closed stdout.
+        auto issue_read = [&](std::size_t want) {
+            // Grow before issuing: the buffer must not move while a read is pending.
+            // Not redundant on Windows, where DWORD is narrower than std::size_t.
+            // cppcheck-suppress migraphx-RedundantCast
+            auto chunk = static_cast<DWORD>(std::min(want, read_chunk_size));
+            reply.resize(total_bytes_read + chunk);
+            if(ReadFile(stdout_read.get(),
+                        reply.data() + total_bytes_read,
+                        chunk,
+                        nullptr,
+                        &read_overlapped) != FALSE)
+            {
+                read_io.arm();
+                return true;
+            }
+            auto error = GetLastError();
+            if(error == ERROR_IO_PENDING)
+            {
+                read_io.arm();
+                return true;
+            }
+            if(error == ERROR_BROKEN_PIPE or error == ERROR_HANDLE_EOF)
+                return false;
+            throw_error(error, "Failed to read from child stdout");
+        };
+
+        if(not issue_write())
+            finish_writing();
+        if(not issue_read(message_bytes_remaining(reply, 0)))
+            MIGRAPHX_THROW("Command " + command + " exited before replying");
+        for(;;)
+        {
+            auto wait_result =
+                WaitForMultipleObjects(writing ? 3 : 2, handles.data(), FALSE, INFINITE);
+            if(wait_result == WAIT_OBJECT_0)
+            {
+                DWORD bytes_read = 0;
+                read_io.disarm();
+                if(GetOverlappedResult(stdout_read.get(), &read_overlapped, &bytes_read, FALSE) ==
+                   FALSE)
+                {
+                    auto error = GetLastError();
+                    if(error != ERROR_HANDLE_EOF and error != ERROR_BROKEN_PIPE)
+                    {
+                        read_io.arm();
+                        throw_error(error, "Failed to complete read from child stdout");
+                    }
+                    MIGRAPHX_THROW("Command " + command + " exited before replying");
+                }
+                total_bytes_read += bytes_read;
+                auto want = message_bytes_remaining(reply, total_bytes_read);
+                if(want == 0)
+                    break;
+                if(not issue_read(want))
+                    MIGRAPHX_THROW("Command " + command + " exited before replying");
+            }
+            else if(writing and wait_result == WAIT_OBJECT_0 + 1)
+            {
+                DWORD bytes_written = 0;
+                write_io.disarm();
+                if(GetOverlappedResult(
+                       stdin_write.get(), &write_overlapped, &bytes_written, FALSE) == FALSE)
+                {
+                    // The child stopped reading; whether it replies decides what happened.
+                    finish_writing();
+                }
+                else
+                {
+                    total_bytes_written += bytes_written;
+                    if(total_bytes_written >= frame.size() or not issue_write())
+                        finish_writing();
+                }
+            }
+            else
+            {
+                // The child exited with nothing left to read, or the wait failed.
+                MIGRAPHX_THROW("Command " + command + " exited before replying");
+            }
+        }
+        // A reply complete before the whole request went out answers something else, and the rest
+        // of the request would be read as the next one.
+        if(writing)
+            MIGRAPHX_THROW("Command " + command + " replied before reading its request");
+        reply.resize(total_bytes_read);
+        reply.erase(reply.begin(), reply.begin() + message_header_size);
+        return reply;
+    }
+};
+
+#else
+
+struct process_session_impl
+{
+    std::string command{};
+    // Declared before the pipes so it is destroyed after them; see child_reaper's comment.
+    child_reaper child{};
+    fd_wrapper stdin_write{};
+    fd_wrapper stdout_read{};
+    // Still set after a request that threw, when the child may be in the middle of it.
+    bool busy = false;
+
+    process_session_impl()                                       = default;
+    process_session_impl(const process_session_impl&)            = delete;
+    process_session_impl& operator=(const process_session_impl&) = delete;
+
+    // Closing stdin, which the members do on their way out, is the child's cue to exit.
+    ~process_session_impl()
+    {
+        if(busy and child.pid > 0)
+            ::kill(child.pid, SIGKILL);
+    }
+
+    std::vector<char> request(const std::vector<char>& frame)
+    {
+        pipe_pump pump{frame, stdin_write, stdout_read, false};
+        sigpipe_blocker no_sigpipe;
+        for(auto want = message_bytes_remaining(pump.stdout_data, 0); want > 0;
+            want      = message_bytes_remaining(pump.stdout_data, pump.total_bytes_read))
+        {
+            if(poll(pump.fds.data(), static_cast<nfds_t>(pump.fds.size()), -1) < 0)
+            {
+                if(errno == EINTR)
+                    continue;
+                MIGRAPHX_THROW("Failed to poll child pipes for " + command);
+            }
+            pump.handle_write_event();
+            if(not pump.handle_read_event(want))
+                MIGRAPHX_THROW("Command " + command + " exited before replying");
+        }
+        // A reply complete before the whole request went out answers something else, and the rest
+        // of the request would be read as the next one.
+        if(pump.writing())
+            MIGRAPHX_THROW("Command " + command + " replied before reading its request");
+        auto reply = pump.take_stdout();
+        reply.erase(reply.begin(), reply.begin() + message_header_size);
+        return reply;
+    }
+};
+
+#endif
 
 struct process_impl
 {
@@ -1345,6 +1650,163 @@ void process::read_write(const std::function<void(writer)>& pipe_in, const write
                             : " exited with status " + std::to_string(result.exit_code)));
     }
     output(result.stdout_data.data(), result.stdout_data.size());
+}
+
+process::session::session(std::unique_ptr<process_session_impl> p) : impl(std::move(p)) {}
+
+process::session::session(session&&) noexcept = default;
+
+process::session& process::session::operator=(session&&) noexcept = default;
+
+process::session::~session() noexcept = default;
+
+std::vector<char> process::session::request(const std::function<void(writer)>& pipe_in)
+{
+    assert(impl != nullptr);
+    if(impl->busy)
+        MIGRAPHX_THROW("Command " + impl->command + " cannot serve requests after a failed one");
+    auto frame = frame_message(pipe_in);
+    impl->busy = true;
+    auto reply = impl->request(frame);
+    impl->busy = false;
+    return reply;
+}
+
+process::session process::start() const
+{
+    if(not impl->cwd.empty() or not impl->envs.empty())
+        MIGRAPHX_THROW("Command " + impl->get_command() +
+                       " uses start, which does not support cwd or env");
+
+    trace_read_write_command(impl->command, impl->arg_list);
+    auto s     = std::make_unique<process_session_impl>();
+    s->command = impl->get_command();
+#ifdef _WIN32
+    spawn_child(impl->command, impl->arg_list, s->process_handle, s->stdin_write, s->stdout_read);
+#else
+    spawn_child(impl->command, impl->arg_list, s->child, s->stdin_write, s->stdout_read);
+#endif
+    return session{std::move(s)};
+}
+
+optional<std::vector<char>> process::read_message(std::istream& in)
+{
+    std::array<char, message_header_size> header{};
+    if(not in.read(header.data(), header.size()))
+    {
+        if(in.gcount() == 0 and in.eof())
+            return nullopt;
+        MIGRAPHX_THROW("Session message cut short in its header");
+    }
+    std::vector<char> data(decode_message_size(header.data()));
+    // An empty vector's data() may be null, which the stream buffer passes on to memcpy.
+    if(not data.empty() and not in.read(data.data(), data.size()))
+        MIGRAPHX_THROW("Session message cut short");
+    return data;
+}
+
+void process::write_message(std::ostream& out, const std::vector<char>& data)
+{
+    auto header = encode_message_size(data.size());
+    out.write(header.data(), header.size());
+    if(not data.empty())
+        out.write(data.data(), data.size());
+    if(not out.flush())
+        MIGRAPHX_THROW("Failed to write a session message");
+}
+
+namespace {
+
+#ifdef _WIN32
+std::streamsize write_descriptor(int fd, const char* data, std::streamsize n)
+{
+    return _write(
+        fd,
+        data,
+        static_cast<unsigned int>(std::min<std::streamsize>(n, std::numeric_limits<int>::max())));
+}
+
+void close_descriptor(int fd) { _close(fd); }
+#else
+std::streamsize write_descriptor(int fd, const char* data, std::streamsize n)
+{
+    ssize_t result = 0;
+    do
+    {
+        result = ::write(fd, data, static_cast<std::size_t>(n));
+    } while(result == -1 and errno == EINTR);
+    return result;
+}
+
+void close_descriptor(int fd) { ::close(fd); }
+#endif
+
+// The copy of stdout that take_stdout returns is a bare descriptor, which no standard stream can be
+// opened on. Unbuffered, since write_message flushes every message anyway.
+struct descriptor_buffer : std::streambuf
+{
+    explicit descriptor_buffer(int descriptor) : fd(descriptor) {}
+    descriptor_buffer(const descriptor_buffer&)            = delete;
+    descriptor_buffer& operator=(const descriptor_buffer&) = delete;
+    ~descriptor_buffer() override { close_descriptor(fd); }
+
+    protected:
+    int_type overflow(int_type c) override
+    {
+        if(traits_type::eq_int_type(c, traits_type::eof()))
+            return traits_type::not_eof(c);
+        auto ch = traits_type::to_char_type(c);
+        return xsputn(&ch, 1) == 1 ? c : traits_type::eof();
+    }
+
+    std::streamsize xsputn(const char* data, std::streamsize n) override
+    {
+        std::streamsize written = 0;
+        while(written < n)
+        {
+            auto result = write_descriptor(fd, data + written, n - written);
+            if(result <= 0)
+                break;
+            written += result;
+        }
+        return written;
+    }
+
+    private:
+    int fd;
+};
+
+struct descriptor_stream : std::ostream
+{
+    explicit descriptor_stream(int fd) : std::ostream{nullptr}, buffer{fd} { rdbuf(&buffer); }
+
+    private:
+    descriptor_buffer buffer;
+};
+
+} // namespace
+
+std::unique_ptr<std::ostream> process::take_stdout()
+{
+#ifdef _WIN32
+    auto reply_fd = _dup(_fileno(stdout));
+    if(reply_fd == -1)
+        MIGRAPHX_THROW("Failed to duplicate stdout");
+    auto replies = std::make_unique<descriptor_stream>(reply_fd);
+    if(_setmode(reply_fd, _O_BINARY) == -1)
+        MIGRAPHX_THROW("Failed to set the copy of stdout to binary mode");
+    if(_dup2(_fileno(stderr), _fileno(stdout)) != 0)
+        MIGRAPHX_THROW("Failed to point stdout at stderr");
+#else
+    // Close-on-exec like every other descriptor here, so no child spawned later can write replies
+    auto reply_fd = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, 0);
+    if(reply_fd == -1)
+        MIGRAPHX_THROW("Failed to duplicate stdout");
+    auto replies = std::make_unique<descriptor_stream>(reply_fd);
+    if(dup2(STDERR_FILENO, STDOUT_FILENO) == -1)
+        MIGRAPHX_THROW("Failed to point stdout at stderr");
+#endif
+    return replies;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -30,6 +30,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/fileutils.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/hip.hpp>
@@ -586,6 +587,14 @@ TEST_CASE(compile_code_object_disable_processes_backend_option)
     auto result = migraphx::gpu::from_gpu(p_gpu.eval({}).front());
 
     EXPECT(result == expected);
+}
+
+// GPU tests depend on the driver target, so the lookup must find the driver of this build
+TEST_CASE(find_hiprtc_driver_in_build)
+{
+    auto driver = migraphx::gpu::find_hiprtc_driver();
+    EXPECT(driver.has_value());
+    EXPECT(driver->filename() == migraphx::make_executable_filename("migraphx-hiprtc-driver"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

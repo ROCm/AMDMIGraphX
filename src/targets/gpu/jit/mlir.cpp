@@ -247,8 +247,11 @@ struct mlir_compiler : compiler<mlir_compiler>
         }
     }
 
-    compiler_replace
-    compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
+    compiler_replace compile(context& ctx,
+                             instruction_ref ins,
+                             const operation&,
+                             const value& solution,
+                             optional<std::chrono::milliseconds> cpu_budget) const
     {
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
@@ -272,14 +275,15 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto dot_mlir_inputs                         = to_shapes(mod_splits[0].inputs);
             // add alloc for the gemm output
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
-            mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
+            mlir_code_object cop1 =
+                compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution, cpu_budget);
             auto pw_shapes        = to_shapes(mod_splits[1].inputs);
             pw_shapes.push_back(ins->get_shape());
             auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
             std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
             return insert(cops, mod_splits, ins, split_ins);
         }
-        auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
+        auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution, cpu_budget));
         set_fill_map(cr, *smod);
         return cr;
     }

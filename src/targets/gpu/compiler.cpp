@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,11 +53,14 @@ void register_compiler(const std::string& name,
 }
 
 bool has_compiler_for(const std::string& name) { return compiler_map().count(name) > 0; }
-compiler_replace
-compile(context& ctx, instruction_ref ins, const operation& op, const value& solution)
+compiler_replace compile(context& ctx,
+                         instruction_ref ins,
+                         const operation& op,
+                         const value& solution,
+                         optional<std::chrono::milliseconds> cpu_budget)
 {
     assert(contains(compiler_map(), op.name()));
-    return compiler_map().at(op.name()).compile(ctx, ins, op, solution);
+    return compiler_map().at(op.name()).compile(ctx, ins, op, solution, cpu_budget);
 }
 operation
 compile_op(const std::string& name, context& ctx, const std::vector<shape>& inputs, const value& v)

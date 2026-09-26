@@ -21,51 +21,47 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_TIME_HPP
-#define MIGRAPHX_GUARD_RTGLIB_TIME_HPP
+#include <migraphx/time.hpp>
+#include <migraphx/errors.hpp>
 
-#include <chrono>
-#include <migraphx/config.hpp>
+#ifdef _WIN32
+// cppcheck-suppress definePrefix
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#else
+#include <ctime>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// The CPU time used by all threads of this process. It doesn't advance while the process sleeps or
-// waits for a core.
-struct MIGRAPHX_EXPORT process_cpu_clock
+process_cpu_clock::time_point process_cpu_clock::now()
 {
-    using duration                  = std::chrono::nanoseconds;
-    using rep                       = duration::rep;
-    using period                    = duration::period;
-    using time_point                = std::chrono::time_point<process_cpu_clock>;
-    static constexpr bool is_steady = true;
-    static time_point now();
-};
-
-template <class Clock>
-struct basic_timer
-{
-    typename Clock::time_point start = Clock::now();
-    template <class Duration>
-    auto record() const
-    {
-        auto finish = Clock::now();
-        return std::chrono::duration_cast<Duration>(finish - start).count();
-    }
-};
-
-using timer     = basic_timer<std::chrono::steady_clock>;
-using cpu_timer = basic_timer<process_cpu_clock>;
-
-template <class Duration, class F>
-auto time(F f)
-{
-    timer t{};
-    f();
-    return t.record<Duration>();
+#ifdef _WIN32
+    FILETIME creation_time;
+    FILETIME exit_time;
+    FILETIME kernel_time;
+    FILETIME user_time;
+    if(GetProcessTimes(GetCurrentProcess(), &creation_time, &exit_time, &kernel_time, &user_time) ==
+       FALSE)
+        MIGRAPHX_THROW("Failed to read the process CPU time");
+    auto ticks = [](const FILETIME& t) {
+        ULARGE_INTEGER u;
+        u.LowPart  = t.dwLowDateTime;
+        u.HighPart = t.dwHighDateTime;
+        return u.QuadPart;
+    };
+    // FILETIME counts 100 ns intervals
+    using filetime_duration = std::chrono::duration<ULONGLONG, std::ratio<1, 10000000>>;
+    return time_point{std::chrono::duration_cast<duration>(
+        filetime_duration{ticks(kernel_time) + ticks(user_time)})};
+#else
+    timespec ts{};
+    if(clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) != 0)
+        MIGRAPHX_THROW("Failed to read the process CPU time");
+    return time_point{std::chrono::seconds{ts.tv_sec} + std::chrono::nanoseconds{ts.tv_nsec}};
+#endif
 }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

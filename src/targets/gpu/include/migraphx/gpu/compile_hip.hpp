@@ -29,6 +29,7 @@
 #include <migraphx/compile_src.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/optional.hpp>
 #include <string>
 #include <utility>
 #include <vector>
@@ -71,6 +72,9 @@ compile_hip_src(const std::vector<src_file>& srcs,
                 const std::string& arch,
                 bool disable_processes = false,
                 bool quiet             = false);
+
+// migraphx-hiprtc-driver next to libmigraphx_gpu, else in ../bin; nullopt when neither exists
+MIGRAPHX_GPU_EXPORT optional<fs::path> find_hiprtc_driver();
 
 MIGRAPHX_GPU_EXPORT std::string enum_params(std::size_t count, std::string param);
 

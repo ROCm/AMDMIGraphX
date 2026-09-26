@@ -352,12 +352,15 @@ struct compile_plan
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
     }
     template <class Vector>
-    void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
+    void insert_compiles(Vector& compiles,
+                         const value& solution,
+                         std::size_t i,
+                         optional<std::chrono::milliseconds> cpu_budget)
     {
         compiles.emplace_back([=] {
             try
             {
-                results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
+                results[i] = compiled_result{compile(*ctx, ins, preop, solution, cpu_budget), ins};
             }
             catch(const std::exception& e)
             {
@@ -374,7 +377,9 @@ struct compile_plan
     }
 
     template <class Vector>
-    void add_compiles(Vector& compiles, bool skip_benchmark)
+    void add_compiles(Vector& compiles,
+                      bool skip_benchmark,
+                      optional<std::chrono::milliseconds> tuning_compile_budget)
     {
         if(config.has_value())
         {
@@ -387,7 +392,7 @@ struct compile_plan
                 if(solution.is_null())
                     return;
                 results.resize(1);
-                insert_compiles(compiles, solution, 0);
+                insert_compiles(compiles, solution, 0, nullopt);
             }
             else
             {
@@ -402,15 +407,18 @@ struct compile_plan
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
-                    insert_compiles(compiles, solutions.front(), 0);
+                    insert_compiles(compiles, solutions.front(), 0, nullopt);
                 }
                 else
                 {
                     ctx->get_problem_cache().mark(preop.name(), problem);
                     results.resize(solutions.size());
+                    // The first solution has no budget, so a problem whose every candidate runs
+                    // out of budget still has a kernel
                     for(auto i : range(solutions.size()))
                     {
-                        insert_compiles(compiles, solutions[i], i);
+                        insert_compiles(
+                            compiles, solutions[i], i, i == 0 ? nullopt : tuning_compile_budget);
                     }
                 }
             }
@@ -418,7 +426,7 @@ struct compile_plan
         else
         {
             results.resize(1);
-            insert_compiles(compiles, value{}, 0);
+            insert_compiles(compiles, value{}, 0, nullopt);
         }
     }
     std::string problem_string() const
@@ -565,8 +573,9 @@ static void par_compile(std::size_t n, F f)
 struct compile_manager
 {
     std::vector<compile_plan> cps;
-    bool exhaustive     = false;
-    bool skip_benchmark = false;
+    bool exhaustive                                           = false;
+    bool skip_benchmark                                       = false;
+    optional<std::chrono::milliseconds> tuning_compile_budget = nullopt;
 
     template <class... Ts>
     void add_plan(Ts&&... xs)
@@ -584,7 +593,7 @@ struct compile_manager
         std::vector<std::function<void()>> compiles;
         for(auto& cp : cps)
         {
-            cp.add_compiles(compiles, skip_benchmark);
+            cp.add_compiles(compiles, skip_benchmark, tuning_compile_budget);
         }
         par_compile(compiles.size(), [&](auto i) { compiles[i](); });
 
@@ -660,8 +669,9 @@ void compile_ops::apply(module_pass_manager& mpm) const
     bool is_root = &mpm.get_module() == mpm.get_root_module();
     auto& m      = mpm.get_module();
     compile_manager cm;
-    cm.exhaustive     = exhaustive_tune;
-    cm.skip_benchmark = skip_benchmark;
+    cm.exhaustive            = exhaustive_tune;
+    cm.skip_benchmark        = skip_benchmark;
+    cm.tuning_compile_budget = tuning_compile_budget;
     // Find all precompile ops
     for(auto ins : iterator_for(m))
     {
@@ -677,6 +687,16 @@ void compile_ops::apply(module_pass_manager& mpm) const
     assert(cm.cps.empty());
 
     replace_inserted_device_ops(*ctx, m);
+
+    // Submodules are compiled before the root module, so no compile is left for the sessions
+    if(is_root)
+    {
+        auto& pool = ctx->get_compile_driver_pool();
+        pool.close();
+        if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 0 and pool.sessions_started() > 0)
+            std::cout << "Compile driver sessions: " << pool.sessions_started() << " started, "
+                      << pool.sessions_dropped() << " dropped" << std::endl;
+    }
 }
 
 } // namespace gpu

@@ -195,6 +195,18 @@ TEST_CASE(from_value_binary)
     EXPECT(out == data);
 }
 
+TEST_CASE(to_value_binary)
+{
+    std::vector<std::uint8_t> data(10);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::value::binary bin{data};
+
+    auto v = migraphx::to_value(bin);
+    EXPECT(v.is_binary());
+    EXPECT(v.get_binary() == bin);
+    EXPECT(migraphx::from_value<migraphx::value::binary>(v) == bin);
+}
+
 TEST_CASE(to_value_initializer_list_int)
 {
     auto v = migraphx::to_value({1, 2, 3});

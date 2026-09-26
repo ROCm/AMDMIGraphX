@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <climits>
 #include <condition_variable>
 #include <cstdio>
@@ -31,6 +32,7 @@
 #include <iostream>
 #include <mutex>
 #include <random>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -42,6 +44,7 @@
 #include <migraphx/process.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/stringutils.hpp>
 
 #ifndef _WIN32
 #include <cstring>
@@ -362,6 +365,175 @@ TEST_CASE(read_write_concurrent_spawns)
     }
 }
 
+// session: one child answering request after request.
+
+TEST_CASE(session_serves_several_requests)
+{
+    auto session = migraphx::process{executable, {child_flag, "serve-echo"}}.start();
+    auto echo    = [&](const std::vector<char>& data) {
+        return session.request([&](const auto& writer) { writer(data.data(), data.size()); });
+    };
+    std::vector<char> text{string_data.begin(), string_data.end()};
+    // Larger than a pipe buffer, so it only goes out whole if the write is pumped.
+    auto large = make_payload(1024 * 1024);
+    EXPECT(echo(text) == text);
+    EXPECT(echo({}).empty());
+    EXPECT(echo(large) == large);
+    EXPECT(echo(text) == text);
+}
+
+// A child that dies with a request outstanding must surface as an exception rather than a hang,
+// and the session must refuse the requests after it.
+TEST_CASE(session_child_exits_before_replying)
+{
+    auto session = migraphx::process{executable, {child_flag, "serve-then-exit", "1"}}.start();
+    auto data    = make_payload(4096);
+    auto request = [&] {
+        return session.request([&](const auto& writer) { writer(data.data(), data.size()); });
+    };
+    EXPECT(request() == data);
+    EXPECT(test::throws([&] { request(); }));
+    EXPECT(test::throws([&] { request(); }));
+}
+
+TEST_CASE(session_reply_cut_short)
+{
+    auto session = migraphx::process{executable, {child_flag, "serve-partial"}}.start();
+    EXPECT(test::throws([&] { session.request([](const auto&) {}); }));
+}
+
+// A child that prints to stdout before replying, the way a library it calls might, must not
+// corrupt the reply once it has taken stdout over
+TEST_CASE(session_child_prints_to_stdout)
+{
+    auto session = migraphx::process{executable, {child_flag, "serve-print-to-stdout"}}.start();
+    auto data    = make_payload(4096);
+    EXPECT(session.request([&](const auto& writer) { writer(data.data(), data.size()); }) == data);
+}
+
+// The child answers without reading the request, which is larger than a pipe buffer, so it cannot
+// all go out. Taking that answer would leave the rest of the request to be read as the next one.
+TEST_CASE(session_reply_before_request_is_read)
+{
+    auto session = migraphx::process{executable, {child_flag, "serve-reply-first"}}.start();
+    auto data    = make_payload(1024 * 1024);
+    EXPECT(test::throws(
+        [&] { session.request([&](const auto& writer) { writer(data.data(), data.size()); }); }));
+}
+
+// Destroying a session closes the child's stdin and waits for it to exit, so nothing is left
+// running or unreaped. The child lingers before leaving its marker, which a destructor that did
+// not wait would miss.
+TEST_CASE(session_destructor_waits_for_child)
+{
+    auto tmp    = migraphx::tmp_dir{};
+    auto marker = tmp.path / "exited";
+    {
+        auto session =
+            migraphx::process{executable, {child_flag, "serve-echo", marker.string()}}.start();
+        EXPECT(session.request([](const auto&) {}).empty());
+    }
+    EXPECT(migraphx::fs::exists(marker));
+}
+
+TEST_CASE(session_moves)
+{
+    auto first  = migraphx::process{executable, {child_flag, "serve-echo"}}.start();
+    auto second = std::move(first);
+    auto data   = make_payload(100);
+    EXPECT(second.request([&](const auto& writer) { writer(data.data(), data.size()); }) == data);
+    first = std::move(second);
+    EXPECT(first.request([&](const auto& writer) { writer(data.data(), data.size()); }) == data);
+}
+
+// Sessions started together must not inherit each other's pipe ends. A child holding a stray copy
+// of another session's stdin would keep that session's child from ever seeing EOF, and destroying
+// that session would hang.
+TEST_CASE(session_concurrent_starts)
+{
+    constexpr std::size_t n = 8;
+    auto data               = make_payload(64 * 1024);
+    // Three requests on one session; returns how many replies match
+    auto serve = [&] {
+        auto session        = migraphx::process{executable, {child_flag, "serve-echo"}}.start();
+        std::size_t matched = 0;
+        for(std::size_t j = 0; j < 3; j++)
+        {
+            if(session.request([&](const auto& writer) { writer(data.data(), data.size()); }) ==
+               data)
+                matched++;
+        }
+        return matched;
+    };
+
+    std::mutex mutex;
+    std::condition_variable ready;
+    std::size_t waiting = 0;
+
+    std::vector<std::size_t> matches(n, 0);
+    std::vector<std::string> errors(n);
+    std::vector<std::thread> threads;
+    threads.reserve(n);
+    for(std::size_t i = 0; i < n; i++)
+    {
+        threads.emplace_back([&, i] {
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                waiting++;
+                if(waiting == n)
+                    ready.notify_all();
+                else
+                    ready.wait(lock, [&] { return waiting == n; });
+            }
+            // An exception escaping a std::thread calls std::terminate.
+            try
+            {
+                matches[i] = serve();
+            }
+            catch(const std::exception& e)
+            {
+                errors[i] = e.what();
+            }
+        });
+    }
+    for(auto& t : threads)
+        t.join();
+
+    for(std::size_t i = 0; i < n; i++)
+    {
+        EXPECT(errors[i].empty());
+        EXPECT(matches[i] == 3);
+    }
+}
+
+// The framing both ends of a session share: messages come back whole, empty ones included, EOF
+// between messages ends the stream, and a message cut short is an error.
+TEST_CASE(session_message_framing)
+{
+    auto data = make_payload(1000);
+
+    std::stringstream stream;
+    migraphx::process::write_message(stream, data);
+    migraphx::process::write_message(stream, {});
+    auto first = migraphx::process::read_message(stream);
+    EXPECT(first.has_value());
+    EXPECT(*first == data);
+    auto second = migraphx::process::read_message(stream);
+    EXPECT(second.has_value());
+    EXPECT(second->empty());
+    EXPECT(not migraphx::process::read_message(stream).has_value());
+
+    std::stringstream one;
+    migraphx::process::write_message(one, data);
+    auto message = one.str();
+    // Cut in the payload, then in the header
+    for(auto size : {message.size() - 1, std::size_t{3}})
+    {
+        std::stringstream cut{message.substr(0, size)};
+        EXPECT(test::throws([&] { migraphx::process::read_message(cut); }));
+    }
+}
+
 static void set_binary_mode()
 {
 #ifdef _WIN32
@@ -376,6 +548,62 @@ static void child_write(const std::vector<char>& data)
     // empty vector.
     if(not data.empty())
         std::fwrite(data.data(), 1, data.size(), stdout);
+}
+
+// The child ends of the session tests
+static int run_session_child(const std::vector<std::string>& args)
+{
+    const auto& mode = args.at(0);
+    if(mode == "serve-echo")
+    {
+        while(auto message = migraphx::process::read_message(std::cin))
+            migraphx::process::write_message(std::cout, *message);
+        if(args.size() > 1)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds{200});
+            migraphx::write_string(args.at(1), "exited");
+        }
+        return 0;
+    }
+    if(mode == "serve-then-exit")
+    {
+        auto served = std::stoul(args.at(1));
+        for(std::size_t i = 0; i < served; i++)
+            migraphx::process::write_message(std::cout,
+                                             migraphx::process::read_message(std::cin).value());
+        migraphx::process::read_message(std::cin);
+        return 3;
+    }
+    if(mode == "serve-partial")
+    {
+        migraphx::process::read_message(std::cin);
+        std::stringstream message;
+        migraphx::process::write_message(message, make_payload(100));
+        auto bytes = message.str();
+        std::cout.write(bytes.data(), bytes.size() / 2);
+        std::cout.flush();
+        return 3;
+    }
+    if(mode == "serve-reply-first")
+    {
+        // The parent gives up on the request and kills us long before this runs out.
+        migraphx::process::write_message(std::cout, {});
+        std::this_thread::sleep_for(std::chrono::seconds{60});
+        return 0;
+    }
+    if(mode == "serve-print-to-stdout")
+    {
+        // Serves a single request, so that printing into the reply ends in EOF instead of a hang
+        auto replies = migraphx::process::take_stdout();
+        auto message = migraphx::process::read_message(std::cin).value();
+        std::cout << "printed with std::cout" << std::endl;
+        std::printf("printed with printf\n");
+        std::fflush(stdout);
+        migraphx::process::write_message(*replies, message);
+        return 0;
+    }
+    std::cerr << "unknown child mode: " << mode << std::endl;
+    return 2;
 }
 
 static int run_child(const std::vector<std::string>& args)
@@ -437,6 +665,8 @@ static int run_child(const std::vector<std::string>& args)
         std::fflush(stdout);
         return 0;
     }
+    if(migraphx::starts_with(mode, "serve-"))
+        return run_session_child(args);
     std::cerr << "unknown child mode: " << mode << std::endl;
     return 2;
 }

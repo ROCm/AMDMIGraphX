@@ -103,8 +103,21 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TUNING_COMPILE_BUDGET)
 
 namespace {
+
+constexpr std::size_t default_tuning_compile_budget_ms = 5000;
+
+// CPU time each tuning candidate after the first may take to compile; 0 turns the budget off
+optional<std::chrono::milliseconds> get_tuning_compile_budget()
+{
+    auto budget = value_of(MIGRAPHX_TUNING_COMPILE_BUDGET{}, default_tuning_compile_budget_ms);
+    if(budget == 0)
+        return nullopt;
+    return std::chrono::milliseconds{budget};
+}
+
 // Backend options recognized by the GPU target, supplied via
 // compile_options::backend_options.
 struct backend_options
@@ -305,9 +318,10 @@ struct pipeline_factory
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
             lower_device_ops{},
-            compile_ops{get_context(),
-                        options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager},
+            compile_ops{.ctx                   = get_context(),
+                        .exhaustive_tune       = options.exhaustive_tune,
+                        .skip_benchmark        = options.compile_mode == compile_modes::eager,
+                        .tuning_compile_budget = get_tuning_compile_budget()},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},

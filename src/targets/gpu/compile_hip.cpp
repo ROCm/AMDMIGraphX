@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/dynamic_loader.hpp>
 #include <algorithm>
 #include <cassert>
 #include <iostream>
@@ -37,7 +38,6 @@
 #include <hip/hiprtc.h>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/dynamic_loader.hpp>
 #include <migraphx/process.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
@@ -256,13 +256,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     if(disable_processes)
         return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 
-    auto fname  = make_executable_filename("migraphx-hiprtc-driver");
-    auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
-    auto driver = p.parent_path() / fname;
-    if(not fs::exists(driver))
-        driver = p.parent_path().parent_path() / "bin" / fname;
-
-    if(fs::exists(driver))
+    if(auto driver = find_hiprtc_driver())
     {
         value v;
         v["srcs"]   = to_value(hsrcs);
@@ -276,7 +270,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         // and invokes the reader once, after stdout reaches EOF. Both payloads are therefore held
         // in memory in full, but no temporary file is involved on either side.
         value response;
-        process{driver}.read_write(
+        process{*driver}.read_write(
             [&](const auto& writer) { to_msgpack(v, writer); },
             [&](const char* data, std::size_t n) { response = from_msgpack(data, n); });
         const auto& code_obj = response.at("code_object").get_binary();
@@ -387,6 +381,18 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 }
 
 #endif // MIGRAPHX_USE_HIPRTC
+
+optional<fs::path> find_hiprtc_driver()
+{
+    auto fname  = make_executable_filename("migraphx-hiprtc-driver");
+    auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
+    auto driver = p.parent_path() / fname;
+    if(not fs::exists(driver))
+        driver = p.parent_path().parent_path() / "bin" / fname;
+    if(not fs::exists(driver))
+        return nullopt;
+    return driver;
+}
 
 bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags)
 {

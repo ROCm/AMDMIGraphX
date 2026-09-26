@@ -41,6 +41,7 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/serialize.hpp>
 #include <test.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
@@ -1083,6 +1084,163 @@ TEST_CASE_SKIP(prefill_integer_reduce, "temporarily disabled")
     EXPECT(migraphx::all_of(mco.prefill_values, [](const migraphx::value& v) {
         return v.is_int64() and v.to<int>() == 0;
     }));
+}
+
+// A compile that runs without a HIP context gets the device properties as a value, so compiling
+// from properties that went through to_value/from_value must match compiling from the context.
+TEST_CASE(compile_mlir_from_gpu_properties)
+{
+    migraphx::module m;
+    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+    auto y   = m.add_parameter("y", {migraphx::shape::float_type, {3, 4}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), x, y);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {x->get_shape(), y->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx;
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    auto props = migraphx::from_value<migraphx::gpu::mlir_gpu_properties>(
+        migraphx::to_value(migraphx::gpu::get_mlir_gpu_properties(ctx)));
+    EXPECT(props.arch == ctx.get_current_device().get_device_name());
+    EXPECT(props.cu_count == ctx.get_current_device().get_cu_count());
+    EXPECT(props.chiplet_count == ctx.get_current_device().get_chiplet_count());
+
+    auto from_ctx   = compile_mlir(ctx, create_mlir_submodule(m), shapes, tc.solutions.front());
+    auto from_props = compile_mlir(props, create_mlir_submodule(m), shapes, tc.solutions.front());
+    EXPECT(not from_props.cop.code_object.empty());
+    EXPECT(migraphx::to_value(from_props.cop) == migraphx::to_value(from_ctx.cop));
+    EXPECT(from_props.prefill_indices == from_ctx.prefill_indices);
+    EXPECT(from_props.prefill_values == from_ctx.prefill_values);
+}
+
+// A compile with a CPU budget runs in a compile driver session and must produce the kernel an
+// in-process compile does
+TEST_CASE(compile_mlir_in_driver_session)
+{
+    migraphx::module m;
+    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+    auto y   = m.add_parameter("y", {migraphx::shape::float_type, {3, 4}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), x, y);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {x->get_shape(), y->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx;
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    auto in_process = compile_mlir(ctx, create_mlir_submodule(m), shapes, tc.solutions.front());
+    auto in_session = compile_mlir(
+        ctx, create_mlir_submodule(m), shapes, tc.solutions.front(), std::chrono::seconds{60});
+    EXPECT(ctx.get_compile_driver_pool().sessions_started() == 1);
+    EXPECT(not in_session.cop.code_object.empty());
+    EXPECT(migraphx::to_value(in_session.cop) == migraphx::to_value(in_process.cop));
+    EXPECT(in_session.prefill_indices == in_process.prefill_indices);
+    EXPECT(in_session.prefill_values == in_process.prefill_values);
+
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto px     = mm->add_parameter("x", shapes[0]);
+    auto py     = mm->add_parameter("y", shapes[1]);
+    auto output = mm->add_parameter("output", shapes[2]);
+    migraphx::gpu::insert_mlir(*mm, mm->end(), in_session.cop, {px, py, output});
+    auto ref    = create_ref_program(m, shapes);
+    auto inputs = generate_params(ref);
+    EXPECT(migraphx::verify_args_with_tolerance(
+        "mlir", run_gpu(p, inputs), migraphx::verify::expected{run_ref(ref, inputs)}));
+}
+
+TEST_CASE(compile_mlir_reuses_driver_session)
+{
+    migraphx::module m;
+    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+    auto y   = m.add_parameter("y", {migraphx::shape::float_type, {3, 4}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), x, y);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {x->get_shape(), y->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx;
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    auto compile = [&](const migraphx::value& solution) {
+        return compile_mlir(
+            ctx, create_mlir_submodule(m), shapes, solution, std::chrono::seconds{60});
+    };
+    compile(tc.solutions.front());
+    compile(tc.solutions.back());
+    compile(tc.solutions.front());
+    EXPECT(ctx.get_compile_driver_pool().sessions_started() == 1);
+    EXPECT(ctx.get_compile_driver_pool().sessions_dropped() == 0);
+
+    ctx.get_compile_driver_pool().close();
+    compile(tc.solutions.front());
+    EXPECT(ctx.get_compile_driver_pool().sessions_started() == 2);
+    EXPECT(ctx.get_compile_driver_pool().sessions_dropped() == 0);
+}
+
+// The session gives up on a compile that runs out of budget and exits, so the pool must not hand
+// it out again
+TEST_CASE(compile_mlir_over_budget_drops_session)
+{
+    migraphx::module m;
+    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+    auto y   = m.add_parameter("y", {migraphx::shape::float_type, {3, 4}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), x, y);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {x->get_shape(), y->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx;
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            compile_mlir(ctx,
+                         create_mlir_submodule(m),
+                         shapes,
+                         tc.solutions.front(),
+                         std::chrono::milliseconds{1});
+        },
+        "CPU compile budget"));
+    EXPECT(ctx.get_compile_driver_pool().sessions_started() == 1);
+    EXPECT(ctx.get_compile_driver_pool().sessions_dropped() == 1);
+
+    compile_mlir(
+        ctx, create_mlir_submodule(m), shapes, tc.solutions.front(), std::chrono::seconds{60});
+    EXPECT(ctx.get_compile_driver_pool().sessions_started() == 2);
+    EXPECT(ctx.get_compile_driver_pool().sessions_dropped() == 1);
+}
+
+TEST_CASE(compile_mlir_budget_needs_processes)
+{
+    migraphx::module m;
+    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+    auto y   = m.add_parameter("y", {migraphx::shape::float_type, {3, 4}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), x, y);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {x->get_shape(), y->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx;
+    ctx.set_disable_processes(true);
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    auto mco = compile_mlir(
+        ctx, create_mlir_submodule(m), shapes, tc.solutions.front(), std::chrono::milliseconds{1});
+    EXPECT(not mco.cop.code_object.empty());
+    EXPECT(ctx.get_compile_driver_pool().sessions_started() == 0);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

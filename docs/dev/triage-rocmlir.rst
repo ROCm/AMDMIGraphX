@@ -99,6 +99,12 @@ or
    Currently MIGraphX does not run the applicability pipeline of rocMLIR. Therefore, you will see these errors for inapplicable tuning params as well.
    Also, you can ignore ``MLIR backend compilation failed:`` as long as you don't see ``No solutions provided for mlir_*``
 
+.. note::
+
+   Tuning candidates after the first compile in ``migraphx-hiprtc-driver`` sessions, so their ``MIGRAPHX_TRACE_MLIR`` output goes to stderr rather than stdout.
+   A candidate that uses more than 5 seconds of CPU time fails with ``ran out of its 5000 ms CPU compile budget``.
+   Set ``MIGRAPHX_TUNING_COMPILE_BUDGET=0`` to compile every candidate in the MIGraphX process, without a budget, while debugging.
+
 If the above error message is present, then proceed with the following steps:
 
 1. Disable threading first by setting:

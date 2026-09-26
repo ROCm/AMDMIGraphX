@@ -40,6 +40,7 @@
 #include <migraphx/logger.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
+#include <migraphx/gpu/compile_driver_pool.hpp>
 #include <migraphx/gpu/device_description.hpp>
 #include <unordered_map>
 #include <memory>
@@ -486,6 +487,10 @@ struct context
         pc->load(read_only_paths, writable_paths);
     }
 
+    /// Compile driver sessions, shared by copies of this context and safe to use from the compile
+    /// threads, which only have a const context.
+    compile_driver_pool& get_compile_driver_pool() const { return *driver_pool; }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -500,6 +505,7 @@ struct context
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = std::make_shared<auto_save_problem_cache>();
+    std::shared_ptr<compile_driver_pool> driver_pool = std::make_shared<compile_driver_pool>();
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

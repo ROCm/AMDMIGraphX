@@ -123,6 +123,8 @@ value to_value_impl(rank<8>, const T& x)
 
 inline value to_value_impl(rank<9>, const std::string& x) { return x; }
 
+inline value to_value_impl(rank<9>, const value::binary& x) { return x; }
+
 template <class T>
 auto to_value_impl(rank<10>, const T& x) -> decltype(migraphx_to_value(x))
 {

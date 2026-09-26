@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@
 #include <migraphx/optional.hpp>
 #include <migraphx/rank.hpp>
 #include <migraphx/gpu/tuning_config.hpp>
+#include <chrono>
 #include <functional>
 #include <utility>
 
@@ -115,8 +116,8 @@ struct compiler_replace
     }
 };
 
-using compiler_compile =
-    std::function<compiler_replace(context&, instruction_ref, operation, const value&)>;
+using compiler_compile = std::function<compiler_replace(
+    context&, instruction_ref, operation, const value&, optional<std::chrono::milliseconds>)>;
 using compiler_compile_op =
     std::function<operation(context&, const std::vector<shape>& inputs, const value&)>;
 using compiler_tuning_config =
@@ -128,10 +129,14 @@ MIGRAPHX_GPU_EXPORT void register_compiler(const std::string& name,
                                            compiler_tuning_config ctg);
 
 MIGRAPHX_GPU_EXPORT bool has_compiler_for(const std::string& name);
-MIGRAPHX_GPU_EXPORT compiler_replace compile(context& ctx,
-                                             instruction_ref ins,
-                                             const operation& op,
-                                             const value& solution);
+// A compiler that can enforce the CPU budget throws once the compile has used that much CPU time.
+// Other compilers ignore it.
+MIGRAPHX_GPU_EXPORT compiler_replace
+compile(context& ctx,
+        instruction_ref ins,
+        const operation& op,
+        const value& solution,
+        optional<std::chrono::milliseconds> cpu_budget = nullopt);
 MIGRAPHX_GPU_EXPORT operation compile_op(const std::string& name,
                                          context& ctx,
                                          const std::vector<shape>& inputs,
@@ -148,7 +153,7 @@ void register_compiler()
         register_compiler(
             name,
             [=](auto&&... xs) {
-                return c.invoke_compile(rank<1>{}, std::forward<decltype(xs)>(xs)...);
+                return c.invoke_compile(rank<2>{}, std::forward<decltype(xs)>(xs)...);
             },
             [=](auto&&... xs) { return c.compile_op(std::forward<decltype(xs)>(xs)...); },
             [=](auto&&... xs) { return c.get_tuning_config(std::forward<decltype(xs)>(xs)...); });
@@ -186,17 +191,37 @@ struct compiler : auto_register_compiler<Derived>
     }
 
     template <class D = Derived>
-    auto
-    invoke_compile(rank<1>, context& ctx, instruction_ref ins, operation op, const value& solution)
-        const -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution))
+    auto invoke_compile(rank<2>,
+                        context& ctx,
+                        instruction_ref ins,
+                        operation op,
+                        const value& solution,
+                        optional<std::chrono::milliseconds> cpu_budget) const
+        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution, cpu_budget))
+    {
+        return derived().compile(ctx, ins, std::move(op), solution, cpu_budget);
+    }
+
+    template <class D = Derived>
+    auto invoke_compile(rank<1>,
+                        context& ctx,
+                        instruction_ref ins,
+                        operation op,
+                        const value& solution,
+                        optional<std::chrono::milliseconds>) const
+        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution))
     {
         return derived().compile(ctx, ins, std::move(op), solution);
     }
 
     template <class D = Derived>
-    auto
-    invoke_compile(rank<0>, context& ctx, instruction_ref ins, operation op, const value& solution)
-        const -> decltype(std::declval<D>().compile(ctx, ins, std::move(op)))
+    auto invoke_compile(rank<0>,
+                        context& ctx,
+                        instruction_ref ins,
+                        operation op,
+                        const value& solution,
+                        optional<std::chrono::milliseconds>) const
+        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op)))
     {
         assert(solution.empty());
         (void)solution;

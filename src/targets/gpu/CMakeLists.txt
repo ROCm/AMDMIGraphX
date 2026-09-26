@@ -239,6 +239,7 @@ add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
     code_object_op.cpp
+    compile_driver_pool.cpp
     compile_ops.cpp
     compile_gen.cpp
     compile_hip.cpp

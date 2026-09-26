@@ -150,6 +150,7 @@ add_library(migraphx
     sym.cpp
     sym_argument.cpp
     target.cpp
+    time.cpp
     tmp_dir.cpp
     truncate_float.cpp
     value.cpp

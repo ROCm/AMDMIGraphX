@@ -85,6 +85,14 @@ void wait_for_context(T&, any_ptr)
 template <class T>
 void finish_on_context(T&, any_ptr){}
 
+// Optional capture/replay customization point (E1b hipGraph POC).
+// Default: not handled -> caller runs the body eagerly.
+template <class T>
+bool capture_replay_context(T&, any_ptr, std::size_t, const std::function<void()>&)
+{
+    return false;
+}
+
 template <class T>
 bool is_cross_compile_context(const T&)
 {
@@ -101,6 +109,12 @@ bool is_cross_compile_context(const T&)
         virtual('restore_queue', returns = 'void', default = 'restore_queue_context'),
         virtual('wait_for', queue = 'any_ptr', returns = 'void', default = 'wait_for_context'),
         virtual('finish_on', queue = 'any_ptr', returns = 'void', default = 'finish_on_context'),
+        virtual('capture_replay',
+                queue = 'any_ptr',
+                key = 'std::size_t',
+                run = 'const std::function<void()>&',
+                returns = 'bool',
+                default = 'capture_replay_context'),
         virtual('is_cross_compile',
                 returns = 'bool',
                 const   = True,

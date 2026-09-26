@@ -22,4 +22,4 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-add_mlir_backend_plugin(legacy "${MIGRAPHX_MLIR_LEGACY_ROCMLIR_DIR}")
+add_mlir_backend_plugin(rocmlir "${MIGRAPHX_MLIR_LEGACY_ROCMLIR_DIR}")

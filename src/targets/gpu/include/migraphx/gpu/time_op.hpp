@@ -61,13 +61,20 @@ struct MIGRAPHX_GPU_EXPORT simple_benchmark
    the top candidates with more iterations and return the fastest one */
 struct MIGRAPHX_GPU_EXPORT adaptive_topk_benchmark
 {
-    // Number of top candidates to precisely time. Zero precisely times every candidate.
+    // Number of top candidates to precisely time. Zero precisely times every candidate. Every
+    // candidate's program, but not its arguments, is held from the coarse pass to the precise one.
     std::size_t top_k = 10;
     // Per-candidate time budgets (ms) for the precise and coarse measurements
     std::size_t precise_ms         = 20;
-    std::size_t coarse_ms          = 10;
+    std::size_t coarse_ms          = 5;
     std::size_t precise_min_bundle = 4;
-    std::size_t max_runs           = 20;
+    // Most runs in a precise measurement
+    std::size_t max_runs = 20;
+    // Most runs in a coarse measurement
+    std::size_t coarse_max_runs = 4;
+    // Candidates whose coarse time is more than this multiple of the best coarse time are not
+    // precisely timed. Zero precisely times all top_k candidates. Ignored when top_k is zero.
+    std::size_t coarse_cutoff_factor = 4;
 
     const benchmark_candidate& run(const context& ictx,
                                    const std::vector<benchmark_candidate>& candidates) const;
@@ -91,6 +98,14 @@ time_op(const context& ictx, operation op, int bundle = 1, int nruns = 100);
 
 MIGRAPHX_GPU_EXPORT double
 time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::function<void()>& f);
+
+// warmup=false skips the untimed launch. Use it only when f has already been run on this
+// stream, such as the second coarse measurement after the estimate.
+MIGRAPHX_GPU_EXPORT double time_loop(migraphx::gpu::context& gctx,
+                                     int bundle,
+                                     int nruns,
+                                     const std::function<void()>& f,
+                                     bool warmup);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

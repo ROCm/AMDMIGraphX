@@ -34,6 +34,7 @@
 
 #include <cassert>
 #include <memory>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -41,6 +42,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/tracer.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -58,9 +60,15 @@ namespace gpu {
 /// program for itself and how to generate the input data used to run it.
 struct benchmark_candidate
 {
-    /// Generate one input argument per parameter of the program returned by
-    /// make_program(), ordered to match its parameter order.
-    std::vector<argument> generate_arguments(const context& ictx) const;
+    /// Key and shape of the argument for each parameter of p, a program
+    /// returned by make_program(), in parameter order. The benchmarker reuses
+    /// a generated argument for any parameter, of this or another candidate,
+    /// with the same key and shape, so equal keys must describe the same data.
+    std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const;
+
+    /// Generate the argument for a key and shape returned by
+    /// generate_argument_keys().
+    argument generate_argument(context& ctx, const std::string& key, const shape& s) const;
 
     /// Build a runnable program for this candidate.
     program make_program() const;
@@ -81,9 +89,15 @@ struct benchmark_candidate
 
 <%
     interface('benchmark_candidate',
-              virtual('generate_arguments',
-                      returns = 'std::vector<argument>',
-                      ictx    = 'const context&',
+              virtual('generate_argument_keys',
+                      returns = 'std::vector<std::pair<std::string, shape>>',
+                      p       = 'const program&',
+                      const   = True),
+              virtual('generate_argument',
+                      returns = 'argument',
+                      ctx     = 'context&',
+                      key     = 'const std::string&',
+                      s       = 'const shape&',
                       const   = True),
               virtual('make_program', returns = 'program', const = True),
               virtual('trace', returns = 'tracer', const = True),

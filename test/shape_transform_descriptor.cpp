@@ -224,6 +224,61 @@ TEST_CASE(record_reshape_split)
     EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}});
 }
 
+TEST_CASE(record_reshape_lazy_split)
+{
+    auto desc = make_descriptor({3, 20}, make_op("reshape_lazy", {{"dims", {3, 4, 5}}}));
+    EXPECT(get_final_lens(desc) == final_lens{3, 4, 5});
+    EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {5}});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}});
+}
+
+TEST_CASE(slice_axis_outer_split)
+{
+    auto desc     = make_descriptor({10},
+                                    make_op("reshape", {{"dims", {5, 2}}}),
+                                    make_op("transpose", {{"permutation", {1, 0}}}));
+    auto selected = desc.slice_axis(0, {1}, {0}, {3});
+    EXPECT(selected.has_value());
+    EXPECT(*selected == std::make_pair(std::size_t{0}, std::size_t{6}));
+    EXPECT(get_final_lens(desc) == final_lens{2, 3});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0, 1}}, d_axes{{0, 0}}});
+}
+
+TEST_CASE(slice_axis_single_index)
+{
+    auto desc     = make_descriptor({10},
+                                    make_op("reshape", {{"dims", {5, 2}}}),
+                                    make_op("transpose", {{"permutation", {1, 0}}}));
+    auto selected = desc.slice_axis(0, {1}, {3}, {4});
+    EXPECT(selected.has_value());
+    EXPECT(*selected == std::make_pair(std::size_t{6}, std::size_t{8}));
+    EXPECT(get_final_lens(desc) == final_lens{2, 1});
+    // The unit subdimension is renumbered to output order so no transpose is
+    // generated
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0, 0}}, d_axes{{0, 1}}});
+}
+
+TEST_CASE(slice_axis_not_contiguous)
+{
+    auto desc = make_descriptor({10}, make_op("reshape", {{"dims", {5, 2}}}));
+    // Slicing the inner split selects a strided range of the axis
+    EXPECT(not desc.slice_axis(0, {1}, {0}, {1}).has_value());
+}
+
+TEST_CASE(slice_axis_different_axis)
+{
+    auto desc = make_descriptor({4, 6}, make_op("transpose", {{"permutation", {1, 0}}}));
+    // Output axis 0 comes from axis 1
+    EXPECT(not desc.slice_axis(0, {0}, {0}, {2}).has_value());
+}
+
+TEST_CASE(slice_axis_merged)
+{
+    auto desc = make_descriptor({4, 6}, make_op("reshape", {{"dims", {24}}}));
+    // The sliced output axis merges axis 1 with axis 0
+    EXPECT(not desc.slice_axis(1, {0}, {0}, {6}).has_value());
+}
+
 TEST_CASE(record_reshape_merge_split)
 {
     auto desc = make_descriptor({3, 10, 16}, make_op("reshape", {{"dims", {3, 40, 2, 2}}}));
@@ -353,6 +408,17 @@ TEST_CASE(optimize_reshape_reshape2)
                                                make_op("reshape", {{"dims", {15, 2, 2}}}),
                                            }) == ops{
                                                      make_op("reshape", {{"dims", {15, 2, 2}}}),
+                                                 });
+}
+
+TEST_CASE(optimize_reshape_lazy_reshape)
+{
+    EXPECT(check_optimize_shape_transforms({3, 5, 2},
+                                           {
+                                               make_op("reshape_lazy", {{"dims", {30}}}),
+                                               make_op("reshape", {{"dims", {3, 10}}}),
+                                           }) == ops{
+                                                     make_op("reshape", {{"dims", {3, 10}}}),
                                                  });
 }
 
@@ -1482,6 +1548,67 @@ TEST_CASE(generate_shape_transforms_for_offset)
                make_op("reshape", {{"dims", {4, 6, 4}}}),
                make_op("slice", {{"axes", {1, 2}}, {"starts", {1, 1}}, {"ends", {4, 3}}}),
            });
+}
+
+TEST_CASE(is_transposed_basic)
+{
+    EXPECT(make_simple_descriptor({2, 3, 4}, make_op("transpose", {{"permutation", {0, 2, 1}}}))
+               .is_transposed());
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {2, 12}}}))
+                   .is_transposed());
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {2, 3, 2, 2}}}))
+                   .is_transposed());
+}
+
+TEST_CASE(is_transposed_cancelled)
+{
+    // Two transposes that compose to the identity
+    EXPECT(not make_simple_descriptor({2, 3, 4},
+                                      make_op("transpose", {{"permutation", {0, 2, 1}}}),
+                                      make_op("transpose", {{"permutation", {0, 2, 1}}}))
+                   .is_transposed());
+}
+
+TEST_CASE(is_transposed_1_dim)
+{
+    // Moving a 1 dimension doesnt reorder any data
+    EXPECT(not make_simple_descriptor({1, 3, 4}, make_op("transpose", {{"permutation", {1, 2, 0}}}))
+                   .is_transposed());
+}
+
+TEST_CASE(is_transposed_split)
+{
+    // Split then swap the split dimensions
+    EXPECT(make_simple_descriptor({6, 4},
+                                  make_op("reshape", {{"dims", {2, 3, 4}}}),
+                                  make_op("transpose", {{"permutation", {1, 0, 2}}}))
+               .is_transposed());
+}
+
+TEST_CASE(is_collapsing_basic)
+{
+    EXPECT(
+        make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {6, 4}}})).is_collapsing());
+    EXPECT(make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {24}}})).is_collapsing());
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {2, 3, 2, 2}}}))
+                   .is_collapsing());
+}
+
+TEST_CASE(is_collapsing_1_dims)
+{
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("unsqueeze", {{"axes", {0}}}))
+                   .is_collapsing());
+    EXPECT(
+        not make_simple_descriptor({1, 3, 4}, make_op("squeeze", {{"axes", {0}}})).is_collapsing());
+    // Merging with a 1 dimension isnt collapsing
+    EXPECT(not make_simple_descriptor({1, 3, 4}, make_op("reshape", {{"dims", {3, 4}}}))
+                   .is_collapsing());
+}
+
+TEST_CASE(is_collapsing_transposed)
+{
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("transpose", {{"permutation", {2, 0, 1}}}))
+                   .is_collapsing());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

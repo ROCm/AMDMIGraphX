@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,31 +51,31 @@ struct layernorm_matcher
         });
     }
 
-    auto reduce_mean() const { return f("reduce_mean")(last_axis()); }
+    auto reduce_mean() const { return opaque(f("reduce_mean")(last_axis())); }
 
     auto x_minus_mean() const
     {
-        return f("sub")(arg(0)(any().bind("x")), arg(1)(skip_broadcasts(reduce_mean())));
+        return opaque(f("sub")(arg(0)(any().bind("x")), arg(1)(skip_broadcasts(reduce_mean()))));
     }
 
     auto variance() const
     {
-        return reduce_mean()(arg(0)(any_of(
+        return opaque(reduce_mean()(arg(0)(any_of(
             f("pow")(arg(0)(x_minus_mean()), arg(1)(has_value(2.0f))),
             f("mul")(arg(0)(x_minus_mean()), arg(1)(x_minus_mean())),
-            f("sqdiff")(either_arg(0, 1)(any().bind("x"), skip_broadcasts(reduce_mean()))))));
+            f("sqdiff")(either_arg(0, 1)(any().bind("x"), skip_broadcasts(reduce_mean())))))));
     }
 
     auto sqrt_add_eps(const std::string& name) const
     {
-        auto add_eps = f("add")(either_arg(0, 1)(variance(), is_constant().bind("eps")));
-        return skip_broadcasts(f(name)(arg(0)(any_of(add_eps, variance()))));
+        auto add_eps = opaque(f("add")(either_arg(0, 1)(variance(), is_constant().bind("eps"))));
+        return opaque(skip_broadcasts(f(name)(arg(0)(any_of(add_eps, variance())))));
     }
 
     auto layernorm_onnx() const
     {
-        auto div_sqrt  = f("div")(arg(0)(x_minus_mean()), arg(1)(sqrt_add_eps("sqrt")));
-        auto mul_rsqrt = f("mul")(either_arg(0, 1)(x_minus_mean(), sqrt_add_eps("rsqrt")));
+        auto div_sqrt  = opaque(f("div")(arg(0)(x_minus_mean()), arg(1)(sqrt_add_eps("sqrt"))));
+        auto mul_rsqrt = opaque(f("mul")(either_arg(0, 1)(x_minus_mean(), sqrt_add_eps("rsqrt"))));
         return any(any_of(div_sqrt, mul_rsqrt));
     }
 

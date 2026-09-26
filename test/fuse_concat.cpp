@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -365,6 +365,349 @@ TEST_CASE(pointwise_concat_fusion)
                                  arg("concat:noop1", {yc}, noop_pointwise()));
         mm->add_return({fused_concat});
     }
+    EXPECT(p1 == p2);
+}
+
+// The pointwise input y is sliced to match each concat segment and the mul is
+// split across the fused_concat's input submodules:
+//
+// Before:
+//              +---+
+//              | x |
+//              +-+-+
+//                |
+//       +--------+--------+
+//       |                 |
+// +-----+------+    +-----+------+
+// | slice[4:8] |    | slice[0:4] |
+// |    (xb)    |    |    (xa)    |
+// +-----+------+    +-----+------+
+//       |                 |
+//       +--------+--------+
+//                |
+//        +-------+--------+  +---+
+//        | concat(axis=1) |  | y |
+//        +-------+--------+  +-+-+
+//                |             |
+//                +------+------+
+//                       |
+//                    +--+--+
+//                    | mul |
+//                    +--+--+
+//                       |
+//                   +---+----+
+//                   | return |
+//                   +--------+
+//
+// After:
+//              +---+                               +---+
+//              | x |                               | y |
+//              +-+-+                               +-+-+
+//                |                                   |
+//       +--------+--------+                 +--------+--------+
+//       |                 |                 |                 |
+// +-----+------+    +-----+------+    +-----+------+    +-----+------+
+// | slice[4:8] |    | slice[0:4] |    | slice[0:4] |    | slice[4:8] |
+// |    (xb)    |    |    (xa)    |    |    (y0)    |    |    (y1)    |
+// +-----+------+    +-----+------+    +-----+------+    +-----+------+
+//       |                 |                 |                 |
+// +-----+-----------------+-----------------+-----------------+-----+
+// |                      fused_concat(axis=1)                       |
+// |            split0: mul(xb, y0), split1: mul(xa, y1)             |
+// +--------------------------------+--------------------------------+
+//                                  |
+//                              +---+----+
+//                              | return |
+//                              +--------+
+TEST_CASE(pointwise_concat_of_slices_split)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto xb  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), x);
+        auto xa = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), x);
+        auto rot = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xb, xa);
+        auto mul = add_pointwise(p1, "main:pointwise0", {rot, y}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto xb  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), x);
+        auto xa = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), x);
+        auto y0 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), y);
+        auto y1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), y);
+        auto fused_concat = add_pointwise_concat(
+            p2,
+            1,
+            arg("noop:concat0", {}, noop_pointwise()),
+            arg("concat:main:pointwise0:split0", {xb, y0}, single_pointwise("mul")),
+            arg("concat:main:pointwise0:split1", {xa, y1}, single_pointwise("mul")));
+        mm->add_return({fused_concat});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The split mul segments and the outer concat's extra input all become inputs
+// of a single fused_concat:
+//
+// Before:
+//                       +---+
+//                       | x |
+//                       +-+-+
+//                         |
+//       +-----------------+------------------+
+//       |                 |                  |
+// +-----+------+    +-----+------+    +------+------+
+// | slice[4:8] |    | slice[0:4] |    | slice[8:12] |
+// |    (xb)    |    |    (xa)    |    |   (xtail)   |
+// +-----+------+    +-----+------+    +------+------+
+//       |                 |                  |
+//       +--------+--------+                  |
+//                |                           |
+//        +-------+--------+  +---+           |
+//        | concat(axis=1) |  | y |           |
+//        +-------+--------+  +-+-+           |
+//                |             |             |
+//                +------+------+             |
+//                       |                    |
+//                    +--+--+                 |
+//                    | mul |                 |
+//                    +--+--+                 |
+//                       |                    |
+//                       +---------+----------+
+//                                 |
+//                         +-------+--------+
+//                         | concat(axis=1) |
+//                         +-------+--------+
+//                                 |
+//                             +---+----+
+//                             | return |
+//                             +--------+
+//
+// After:
+//                       +---+                                         +---+
+//                       | x |                                         | y |
+//                       +-+-+                                         +-+-+
+//                         |                                             |
+//       +-----------------+------------------+                 +--------+--------+
+//       |                 |                  |                 |                 |
+// +-----+------+    +-----+------+    +------+------+    +-----+------+    +-----+------+
+// | slice[4:8] |    | slice[0:4] |    | slice[8:12] |    | slice[0:4] |    | slice[4:8] |
+// |    (xb)    |    |    (xa)    |    |   (xtail)   |    |    (y0)    |    |    (y1)    |
+// +-----+------+    +-----+------+    +------+------+    +-----+------+    +-----+------+
+//       |                 |                  |                 |                 |
+// +-----+-----------------+------------------+-----------------+-----------------+-----+
+// |                                fused_concat(axis=1)                                |
+// |               split0: mul(xb, y0)  split1: mul(xa, y1)  noop(xtail)                |
+// +-----------------------------------------+------------------------------------------+
+//                                           |
+//                                       +---+----+
+//                                       | return |
+//                                       +--------+
+TEST_CASE(pointwise_concat_of_slices_split_outer_concat)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 12}};
+    migraphx::shape sr{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", sr);
+        auto xb  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), x);
+        auto xa = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), x);
+        auto xtail = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {8}}, {"ends", {12}}}), x);
+        auto rot   = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xb, xa);
+        auto mul   = add_pointwise(p1, "main:pointwise0", {rot, y}, single_pointwise("mul"));
+        auto outer = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), mul, xtail);
+        mm->add_return({outer});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", sr);
+        auto xb  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), x);
+        auto xa = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), x);
+        auto xtail = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {8}}, {"ends", {12}}}), x);
+        auto y0 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), y);
+        auto y1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), y);
+        auto fused_concat = add_pointwise_concat(
+            p2,
+            1,
+            arg("noop:concat2", {}, noop_pointwise()),
+            arg("concat:main:pointwise0:split0", {xb, y0}, single_pointwise("mul")),
+            arg("concat:main:pointwise0:split1", {xa, y1}, single_pointwise("mul")),
+            arg("concat:noop0", {xtail}, noop_pointwise()));
+        mm->add_return({fused_concat});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The concat has a second use besides the pointwise (it is returned directly),
+// so splitting the pointwise would duplicate work and no fusion happens:
+//
+//              +---+
+//              | x |
+//              +-+-+
+//                |
+//       +--------+--------+
+//       |                 |
+// +-----+------+    +-----+------+
+// | slice[4:8] |    | slice[0:4] |
+// |    (xb)    |    |    (xa)    |
+// +-----+------+    +-----+------+
+//       |                 |
+//       +--------+--------+
+//                |
+//        +-------+--------+  +---+
+//        | concat(axis=1) |  | y |
+//        +---+--------+---+  +-+-+
+//            |        |        |
+//            |        +---+----+
+//            |            |
+//            |         +--+--+
+//            |         | mul |
+//            |         +--+--+
+//            |            |
+//            +-----+------+
+//                  |
+//              +---+----+
+//              | return |
+//              +--------+
+TEST_CASE(pointwise_concat_of_slices_multi_use)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto xb  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), x);
+        auto xa = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), x);
+        auto rot = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xb, xa);
+        auto mul = add_pointwise(p1, "main:pointwise0", {rot, y}, single_pointwise("mul"));
+        mm->add_return({mul, rot});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+// The concat feeds both arguments of the pointwise, so the segments can't be
+// paired one-to-one with slices of another input and no fusion happens:
+//
+//              +---+
+//              | x |
+//              +-+-+
+//                |
+//       +--------+--------+
+//       |                 |
+// +-----+------+    +-----+------+
+// | slice[4:8] |    | slice[0:4] |
+// |    (xb)    |    |    (xa)    |
+// +-----+------+    +-----+------+
+//       |                 |
+//       +--------+--------+
+//                |
+//        +-------+--------+
+//        | concat(axis=1) |
+//        +---+--------+---+
+//            |        |
+//            +---+----+
+//                |
+//             +--+--+
+//             | mul |
+//             +--+--+
+//                |
+//            +---+----+
+//            | return |
+//            +--------+
+TEST_CASE(pointwise_concat_of_slices_repeated_arg)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto xb  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), x);
+        auto xa = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), x);
+        auto rot = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xb, xa);
+        auto mul = add_pointwise(p1, "main:pointwise0", {rot, rot}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+// A single-input concat is a no-op copy; there is nothing to split, so no
+// fusion happens:
+//
+//       +---+
+//       | x |
+//       +-+-+
+//         |
+//   +-----+------+
+//   | slice[0:4] |
+//   |    (xa)    |
+//   +-----+------+
+//         |
+// +-------+--------+  +---+
+// | concat(axis=1) |  | y |
+// +-------+--------+  +-+-+
+//         |             |
+//         +------+------+
+//                |
+//             +--+--+
+//             | mul |
+//             +--+--+
+//                |
+//            +---+----+
+//            | return |
+//            +--------+
+TEST_CASE(pointwise_concat_of_slices_single_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape sr{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", sr);
+        auto xa  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), x);
+        auto cat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xa);
+        auto mul = add_pointwise(p1, "main:pointwise0", {cat, y}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
     EXPECT(p1 == p2);
 }
 

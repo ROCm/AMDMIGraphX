@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
 #include <migraphx/logger.hpp>
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <deque>
@@ -37,12 +38,10 @@
 #include <hip/hiprtc.h>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/tmp_dir.hpp>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/process.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
-#include <migraphx/file_buffer.hpp>
 #else
 #include <migraphx/compile_src.hpp>
 #include <migraphx/process.hpp>
@@ -64,7 +63,10 @@ std::vector<std::string> compile_hip_options(const std::vector<std::string>& par
 {
     auto options = params;
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
+    {
         options.push_back("-DMIGRAPHX_DEBUG");
+        options.push_back("-DROCM_DEBUG");
+    }
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
            return starts_with(s, "--std=") or starts_with(s, "-std=");
        }))
@@ -186,7 +188,8 @@ struct hiprtc_program
     void compile(const std::vector<std::string>& options, bool quiet = false) const
     {
         if(enabled(MIGRAPHX_TRACE_HIPRTC{}))
-            std::cout << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
+            // stderr, not stdout: in migraphx-hiprtc-driver stdout carries the msgpack reply.
+            std::cerr << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
         std::vector<const char*> c_options;
         std::transform(options.begin(),
                        options.end(),
@@ -235,12 +238,19 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 
     prog.compile(options, quiet);
 
-    return {prog.get_code_obj()};
+    auto code_obj = prog.get_code_obj();
+    // Checked here so the in-process path and migraphx-hiprtc-driver both get it: hiprtc can
+    // report success and still hand back nothing, and an empty buffer reaches hipModuleLoadData as
+    // a null image.
+    if(code_obj.empty())
+        MIGRAPHX_THROW("hiprtc produced an empty code object for " + arch);
+    return {std::move(code_obj)};
 }
 
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
                                                const std::string& arch,
+                                               bool disable_processes,
                                                bool quiet)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
@@ -254,18 +264,16 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         }
     }
 
+    if(disable_processes)
+        return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
+
     auto fname  = make_executable_filename("migraphx-hiprtc-driver");
     auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
     auto driver = p.parent_path() / fname;
-
-    bool found = fs::exists(driver);
-    if(not found)
-    {
+    if(not fs::exists(driver))
         driver = p.parent_path().parent_path() / "bin" / fname;
-        found  = fs::exists(driver);
-    }
 
-    if(found)
+    if(fs::exists(driver))
     {
         value v;
         v["srcs"]   = to_value(hsrcs);
@@ -273,15 +281,20 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         v["arch"]   = to_value(arch);
         v["quiet"]  = quiet;
 
-        tmp_dir td{};
-        auto out = td.path / "output";
-
-        process(driver, {quote_string(out.string())}).write([&](auto writer) {
-            to_msgpack(v, std::move(writer));
-        });
-        if(fs::exists(out))
-            return {read_buffer(out)};
-        MIGRAPHX_THROW("hiprtc compilation failed!");
+        // The msgpack request goes out on the driver's stdin and a msgpack reply comes back on its
+        // stdout; read_write throws if the driver fails, having let it log to our stderr. Neither
+        // direction streams end to end: read_write serializes the whole request before spawning,
+        // and invokes the reader once, after stdout reaches EOF. Both payloads are therefore held
+        // in memory in full, but no temporary file is involved on either side.
+        value response;
+        process{driver}.read_write(
+            [&](const auto& writer) { to_msgpack(v, writer); },
+            [&](const char* data, std::size_t n) { response = from_msgpack(data, n); });
+        const auto& code_obj = response.at("code_object").get_binary();
+        // Not a braced return: that would pick the initializer_list constructor and copy.
+        std::vector<std::vector<char>> code_objs;
+        code_objs.emplace_back(code_obj.begin(), code_obj.end());
+        return code_objs;
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 }
@@ -323,8 +336,10 @@ static src_compiler assemble(src_compiler compiler)
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
                                                const std::string& arch,
-                                               bool)
+                                               bool /*disable_processes*/,
+                                               bool /*quiet*/)
 {
+    // disable_processes has no effect on the clang path, there is no hiprtc subprocess to skip.
     assert(not srcs.empty());
 
     if(not is_hip_clang_compiler())
@@ -428,6 +443,7 @@ const hip_compiler_info& hip_compiler_version()
             auto cos = compile_hip_src({src_file{"main.cpp", probe}},
                                        {"-std=c++17"},
                                        version_probe_arch,
+                                       /* disable_processes */ false,
                                        /* quiet */ true);
             if(not cos.empty())
                 return parse_version(cos.front());
@@ -451,7 +467,7 @@ bool hip_can_compile(const std::string& src, const std::vector<std::string>& fla
     try
     {
         std::string arch = "gfx900";
-        compile_hip_src(srcs, flags, arch, true);
+        compile_hip_src(srcs, flags, arch, false, true);
         return true;
     }
     catch(...)

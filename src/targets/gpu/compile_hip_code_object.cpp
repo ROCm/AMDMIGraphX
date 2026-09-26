@@ -237,10 +237,13 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
         kernels.end(),
         std::back_inserter(srcs),
         [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
-    srcs.emplace_back("main.cpp", content);
+    srcs.emplace_back(options.src_name, content);
 
     add_derived_params(ctx, options);
-    auto cos = compile_hip_src(srcs, options.params, ctx.get_current_device().get_device_name());
+    auto cos = compile_hip_src(srcs,
+                               options.params,
+                               ctx.get_current_device().get_device_name(),
+                               ctx.get_disable_processes());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
     return cos.front();
@@ -283,7 +286,7 @@ std::string hip_compile_key(const context& ctx, const hip_src& src)
         ss << "src=" << f.path << ":" << f.content.size() << "\n" << f.content << "\n";
     auto args_hpp = make_args_hpp(options);
     ss << "args.hpp:" << args_hpp.size() << "\n" << args_hpp;
-    ss << "main.cpp:" << src.content.size() << "\n" << src.content;
+    ss << options.src_name << ":" << src.content.size() << "\n" << src.content;
     return ss.str();
 }
 

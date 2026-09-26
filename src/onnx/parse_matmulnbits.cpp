@@ -74,11 +74,10 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
 
         if(args.size() > 3)
         {
-            std::vector<size_t> expected_zp_lens{
-                static_cast<size_t>(n * std::ceil(n_blocks_per_col * bits / 8.0f))};
-            if(args[3]->get_shape().lens() != expected_zp_lens)
+            const size_t expected_zp_elements = n * std::ceil(n_blocks_per_col * bits / 8.0f);
+            if(args[3]->get_shape().elements() != expected_zp_elements)
                 MIGRAPHX_THROW("MatMulNBits: Input zero_points does not match expected dims: " +
-                               to_string_range(expected_zp_lens) +
+                               to_string(expected_zp_elements) +
                                ". Actual dims: " + to_string_range(args[3]->get_shape().lens()));
         }
 

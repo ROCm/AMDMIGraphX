@@ -469,14 +469,14 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         }
         options.kernel_name  = "reduce_kernel";
         std::string identity = "[](auto x) { return x; }";
-        auto src             = interpolate_string(simple_reduce_kernel,
-                                                  {{"reduction", v.at("reduction").to<std::string>()},
-                                                   {"init", v.get("init", std::string{"0"})},
-                                                   {"read", v.get("read", identity)},
-                                                   {"write", v.get("write", identity)},
-                                                   {"algo", algo},
-                                                   {"transformers", make_transformer_args(vec)},
-                                                   {"preamble", v.get("preamble", std::string{})}});
+        auto src = interpolate_string(simple_reduce_kernel,
+                                      {{"reduction", v.at("reduction").to<std::string>()},
+                                       {"init", v.get("init", std::string{"0"})},
+                                       {"read", v.get("read", identity)},
+                                       {"write", v.get("write", identity)},
+                                       {"algo", algo},
+                                       {"transformers", make_transformer_args(vec)},
+                                       {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
         return {src, options};
     }

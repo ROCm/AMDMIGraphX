@@ -385,7 +385,26 @@ struct compile_plan
     std::vector<optional<compiled_result>> results = {};
     void update_config(bool exhaustive)
     {
-        config = get_tuning_config(*ctx, ins, preop, exhaustive);
+        // get_tuning_config runs on par_for worker threads (compile_manager::update_configs).
+        // An exception escaping here would call std::terminate; fall back to no tuning config
+        // (default/untuned compile) instead, mirroring the per-config compile handling below.
+        try
+        {
+            config = get_tuning_config(*ctx, ins, preop, exhaustive);
+        }
+        catch(const std::exception& e)
+        {
+            const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+            if(trace_level > 0)
+                std::cerr << "Exception getting tuning config for " + preop.name() + ": " +
+                                 e.what()
+                          << std::endl;
+            config = nullopt;
+        }
+        catch(...)
+        {
+            config = nullopt;
+        }
     }
     template <class Vector>
     void insert_compiles(Vector& compiles, const value& solution, std::size_t i)

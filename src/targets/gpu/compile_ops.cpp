@@ -28,7 +28,6 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -39,17 +38,22 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
-#include <cassert>
-#include <cmath>
+#include <chrono>
 #include <cstdlib>
 #include <functional>
+#include <string>
+#include <thread>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,81 +63,21 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_USE_SIMPLE);
 
-// Match the fixed per-candidate work budget used before adaptive timing.
-constexpr std::size_t benchmark_samples = 20;
-
-// Samples the coarse stage may spend on one candidate. Ranking a fast candidate from a single
-// bundled run lets event overhead decide the order, and four is the smallest count that
-// common_average trims. Slow candidates still collapse to fewer samples through min_samples.
-constexpr std::size_t coarse_samples = 4;
-
-adaptive_tuning_options compile_ops_tuning_overrides::resolve() const
+static const benchmark_candidate& run_benchmark(const context& ctx,
+                                                const std::vector<benchmark_candidate>& candidates)
 {
-    const auto apply = [](std::size_t& output,
-                          const optional<std::int64_t>& input,
-                          const char* name,
-                          bool allow_zero) {
-        if(not input.has_value())
-            return;
-        if(*input < 0)
-            MIGRAPHX_THROW(std::string{name} + " must not be negative");
-        if(not allow_zero and *input == 0)
-            MIGRAPHX_THROW(std::string{name} + " must be greater than zero");
-        output = static_cast<std::size_t>(*input);
-    };
-
-    adaptive_tuning_options result;
-    apply(result.top_k, top_k, "tuning_top_k", true);
-    apply(result.coarse.target_ms, coarse_target_ms, "tuning_coarse_target_ms", false);
-    apply(result.precise.target_ms, precise_target_ms, "tuning_precise_target_ms", false);
-    apply(result.coarse.max_samples, max_samples, "tuning_max_samples", false);
-    if(max_samples.has_value())
-        result.precise.max_samples = result.coarse.max_samples;
-    apply(result.sleep_us, sleep_us, "tuning_sleep_us", true);
-    return result;
+    // A single candidate is already the winner, so skip timing it
+    if(candidates.size() == 1)
+        return candidates.front();
+    const auto& best = enabled(MIGRAPHX_BENCHMARKING_USE_SIMPLE{})
+                           ? simple_benchmark{/* bundle */ 10, /* nruns */ 20}.run(ctx, candidates)
+                           : adaptive_topk_benchmark{}.run(ctx, candidates);
+    // Let the GPU settle before the next tuning problem
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    return best;
 }
-
-// Inner repeat count when timing a candidate, raised for split-k (kernel + prefill).
-static std::size_t compute_benchmark_bundle(const module& m)
-{
-    // Count context-requiring ops (kernel + prefills); skip context-free and @-builtins.
-    int n = std::count_if(m.begin(), m.end(), [](const auto& ins) {
-        return not migraphx::is_context_free(ins.get_operator()) and
-               not starts_with(ins.name(), "@");
-    });
-    return std::max(1, 4 * n - 2);
-}
-
-// Executions one candidate may still spend. The lifetime total matches the fixed per-candidate
-// work of the pre-adaptive schedule and is drawn down by both timing stages.
-struct candidate_budget
-{
-    std::size_t remaining   = 0;
-    std::size_t stage_limit = 0;
-
-    bool exhausted() const { return remaining == 0; }
-};
-
-static candidate_budget
-make_candidate_budget(adaptive_time_stage stage, std::size_t bundle, std::size_t used)
-{
-    const auto lifetime = 1 + benchmark_samples * bundle;
-    if(used >= lifetime)
-        return {};
-    const auto remaining = lifetime - used;
-    if(stage == adaptive_time_stage::precise)
-        return {remaining, remaining};
-    // Coarse timing only needs lazy initialization, one estimate, and up to coarse_samples bundled
-    // ranking measurements, so it leaves most of the lifetime budget to the finalists.
-    return {remaining, std::min(remaining, 2 + coarse_samples * bundle)};
-}
-
-// A timing stage needs three executions to initialize, estimate, and measure, and it reports a
-// tighter budget than that by throwing. Keeping the coarse stage this far below the lifetime is
-// what guarantees every finalist still has a workable precise budget.
-static_assert(coarse_samples >= 1 and benchmark_samples >= coarse_samples + 4,
-              "Coarse timing must leave the precise stage at least three executions");
 
 struct precompile_op
 {
@@ -210,15 +154,7 @@ struct dynamic_code_object_op
     std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,
                                                               const_module_ref mod) const
     {
-        auto pnames = mod->get_parameter_names();
-        assert(pnames.size() == args.size());
-        std::unordered_map<std::string, argument> param_map;
-        std::transform(pnames.begin(),
-                       pnames.end(),
-                       args.begin(),
-                       std::inserter(param_map, param_map.end()),
-                       [](const auto& name, const auto& arg) { return std::make_pair(name, arg); });
-        return param_map;
+        return make_parameter_map(mod, args);
     }
     argument compute(context& ctx,
                      const shape&,
@@ -338,6 +274,77 @@ struct compiled_result
         return os;
     }
 
+    struct candidate
+    {
+        const compiled_result* parent = nullptr;
+        value sol                     = value{};
+
+        // Parameters whose shape id (type + dims) is in the compiled result's fill_map hold that
+        // value, the rest random data. Each key leads with the fill value, or "random", so only
+        // parameters that hold the same data share a key.
+        std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const
+        {
+            assert(parent != nullptr);
+            const auto& fill_map = parent->replace.fill_map;
+            const auto* mm       = p.get_main_module();
+            auto names           = mm->get_parameter_names();
+            std::vector<std::pair<std::string, shape>> keys;
+            keys.reserve(names.size());
+            std::transform(
+                names.begin(), names.end(), std::back_inserter(keys), [&](const auto& name) {
+                    auto s         = mm->get_parameter_shape(name);
+                    std::string id = "";
+                    if(s.type() != shape::tuple_type)
+                        id = s.type_string() + shape::to_sizes_string({s.as_standard()});
+                    auto fill = fill_map.find(id);
+                    // Neither tag contains ':', so the first ':' ends the tag even if the name
+                    // has one
+                    auto tag =
+                        fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second);
+                    return std::make_pair(tag + ":" + name, s);
+                });
+            return keys;
+        }
+
+        // The key's tag gives the data: "random" is generated on the GPU, seeded by the key so a
+        // key always gives the same data; a hex float is filled on the host
+        argument generate_argument(context& ctx, const std::string& key, const shape& s) const
+        {
+            auto tag = key.substr(0, key.find(':'));
+            if(tag == "random")
+                return gpu_generate_random(ctx, s, std::hash<std::string>{}(key));
+            return to_gpu(fill_argument(s, std::stod(tag)));
+        }
+
+        program make_program() const
+        {
+            assert(parent != nullptr);
+            return parent->make_program();
+        }
+
+        // Set based on trace level
+        tracer trace() const
+        {
+            if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 1)
+                return {std::cout};
+            return {};
+        }
+
+        value solution() const { return sol; }
+
+        // Used to print the program and other info on higher trace levels
+        void before_run(const program& p) const
+        {
+            assert(parent != nullptr);
+            if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 2)
+                std::cout << *parent << "\n" << p << std::endl;
+        }
+    };
+
+    candidate make_benchmark_candidate(const value& solution) const { return {this, solution}; }
+
+    // Create a small program with the instruction being compiled and call "replace"
+    // on it, which inserts the compiled code objects, prefills, etc. needed to run it.
     program make_program() const
     {
         program bench_prog;
@@ -365,48 +372,6 @@ struct compiled_result
     }
 };
 
-// Input buffers reused across coarsely timed candidates. Candidates for one problem can allocate
-// different workspaces, so the parameter layout is part of the key and not just the fill policy.
-struct shared_benchmark_inputs
-{
-    std::unordered_map<std::string, double> fill_map;
-    std::unordered_map<std::string, shape> parameter_shapes;
-    std::shared_ptr<parameter_map> params;
-
-    bool matches(const std::unordered_map<std::string, double>& other_fill_map,
-                 const std::unordered_map<std::string, shape>& other_shapes) const
-    {
-        return fill_map == other_fill_map and parameter_shapes == other_shapes;
-    }
-};
-
-// State that has to survive from one benchmarked candidate to the next.
-struct benchmark_state
-{
-    explicit benchmark_state(std::size_t candidate_count) : execution_counts(candidate_count) {}
-
-    std::vector<shared_benchmark_inputs> shared_inputs;
-    // How much of each candidate's lifetime execution budget the timing stages have spent.
-    std::vector<std::size_t> execution_counts;
-
-    std::shared_ptr<parameter_map>
-    find_reusable(const std::unordered_map<std::string, double>& fill_map,
-                  const std::unordered_map<std::string, shape>& parameter_shapes) const
-    {
-        auto it = std::find_if(shared_inputs.begin(), shared_inputs.end(), [&](const auto& x) {
-            return x.matches(fill_map, parameter_shapes);
-        });
-        return it == shared_inputs.end() ? nullptr : it->params;
-    }
-
-    void keep_for_reuse(const std::unordered_map<std::string, double>& fill_map,
-                        std::unordered_map<std::string, shape> parameter_shapes,
-                        std::shared_ptr<parameter_map> params)
-    {
-        shared_inputs.push_back({fill_map, std::move(parameter_shapes), std::move(params)});
-    }
-};
-
 // forward declared since it requires compile_manager
 static void replace_inserted_device_ops(context& ctx, module& m);
 
@@ -418,7 +383,6 @@ struct compile_plan
     module_ref mod;
     optional<tuning_config> config                 = nullopt;
     std::vector<optional<compiled_result>> results = {};
-    adaptive_tuning_options tuning                 = {};
     void update_config(bool exhaustive)
     {
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
@@ -528,94 +492,6 @@ struct compile_plan
         }
         return input_shapes.str();
     }
-    std::string no_valid_compilation_message() const
-    {
-        return "No valid tuned compilation for " + preop.name() + " with " + problem_string() +
-               "\n\n" + print_modules();
-    }
-    std::string no_valid_benchmark_message() const
-    {
-        return "No valid tuned benchmark for " + preop.name() + " with " + problem_string() +
-               "\n\n" + print_modules();
-    }
-
-    // Builds the runnable form of one candidate, reusing input buffers from an earlier candidate
-    // when both the fill policy and the parameter layout agree.
-    prepared_time_program prepare_candidate(benchmark_state& state,
-                                            std::size_t i,
-                                            adaptive_time_stage stage,
-                                            program bench_prog) const
-    {
-        // Finalists are measured from fresh buffers, so release what the coarse stage was sharing
-        // before this candidate allocates its own.
-        if(stage == adaptive_time_stage::precise)
-            state.shared_inputs.clear();
-
-        const auto& fill_map  = results[i]->replace.fill_map;
-        auto parameter_shapes = bench_prog.get_parameter_shapes();
-        auto reusable         = state.find_reusable(fill_map, parameter_shapes);
-
-        auto prepared = prepare_time_program(*ctx, std::move(bench_prog), fill_map, reusable);
-        // find_reusable already matched the parameter layout, so the hint is never rejected.
-        assert(reusable == nullptr or prepared.params == reusable);
-        if(stage == adaptive_time_stage::coarse and reusable == nullptr)
-            state.keep_for_reuse(fill_map, std::move(parameter_shapes), prepared.params);
-        return prepared;
-    }
-
-    // Times a single candidate, as required by adaptive_time_topk_staged. A candidate with no
-    // binary, no budget left, or an unusable measurement is reported as unmeasured so that tuning
-    // can continue. Candidates that cannot run at all are already filtered out when they fail to
-    // compile, so a failure here is a real error and is left to propagate.
-    optional<double> time_solution(benchmark_state& state,
-                                   std::size_t i,
-                                   adaptive_time_stage stage,
-                                   const adaptive_time_options& input_options) const
-    {
-        const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
-        if(not results[i].has_value())
-        {
-            if(trace_level > 1)
-                std::cout << "No binary for solution: " << config->solutions.at(i) << std::endl;
-            return nullopt;
-        }
-
-        if(trace_level > 1)
-            std::cout << (stage == adaptive_time_stage::coarse ? "Coarsely" : "Precisely")
-                      << " benchmarking solution: " << config->solutions.at(i) << std::endl;
-        if(trace_level > 2)
-            std::cout << *results[i] << std::endl;
-        /*
-         * Replacing the instruction in this small program inserts every code object
-         * and prefill required by the candidate, so split-k is timed end to end.
-         */
-        auto bench_prog = results[i]->make_program();
-        if(trace_level > 2)
-            std::cout << bench_prog << std::endl;
-        const auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
-        const auto budget = make_candidate_budget(stage, bundle, state.execution_counts[i]);
-        if(budget.exhausted())
-            return nullopt;
-
-        // Held for one timing only so that loaded code objects and input buffers are not
-        // retained for every candidate at once.
-        auto prepared = prepare_candidate(state, i, stage, std::move(bench_prog));
-        if(trace_level > 1)
-            std::cout << "Prepared benchmark solution: " << config->solutions.at(i) << std::endl;
-
-        auto options             = input_options;
-        options.preferred_bundle = bundle;
-        options.max_executions   = std::min(options.max_executions, budget.remaining);
-        adaptive_time_budget stage_budget;
-        stage_budget.max_executions = budget.stage_limit;
-        auto measured               = adaptive_time_program(prepared, options, stage_budget);
-        state.execution_counts[i] += prepared.executions;
-        if(not std::isfinite(measured) or measured <= 0.0)
-            return nullopt;
-        if(trace_level > 1)
-            std::cout << measured << "ms" << std::endl;
-        return measured;
-    }
 
     const compiled_result& benchmark() const
     {
@@ -626,61 +502,48 @@ struct compile_plan
                       << std::endl;
         }
         if(results.empty())
-            MIGRAPHX_THROW(no_valid_compilation_message());
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string() + "\n\n" + print_modules());
         if(results.size() == 1)
         {
             if(not results.front().has_value())
-                MIGRAPHX_THROW(no_valid_compilation_message());
+                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                               problem_string() + "\n\n" + print_modules());
             return *results.front();
         }
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
-
-        std::vector<std::size_t> valid_indices;
-        auto indices = range(results.size());
-        std::copy_if(indices.begin(),
-                     indices.end(),
-                     std::back_inserter(valid_indices),
-                     [&](auto i) { return results[i].has_value(); });
-        if(valid_indices.empty())
-            MIGRAPHX_THROW(no_valid_compilation_message());
-
-        if(valid_indices.size() == 1)
-        {
-            const auto i = valid_indices.front();
-            ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
-            return *results[i];
-        }
-
-        auto tuning_options = tuning;
-        // Every valid candidate would reach precise timing anyway, so skip the ranking stage.
-        if(tuning_options.top_k >= valid_indices.size())
-            tuning_options.top_k = 0;
-
-        benchmark_state state{results.size()};
-        const auto winner = adaptive_time_topk_staged(
-            results.size(), tuning_options, [&](auto i, auto stage, const auto& options) {
-                return time_solution(state, i, stage, options);
+        std::vector<benchmark_candidate> candidates;
+        candidates.reserve(results.size());
+        assert(config->solutions.size() == results.size());
+        transform_if(
+            results.begin(),
+            results.end(),
+            config->solutions.begin(),
+            std::back_inserter(candidates),
+            [](const auto& cr, const auto&) { return cr.has_value(); },
+            [](const auto& cr, const auto& solution) {
+                return cr->make_benchmark_candidate(solution);
             });
-        if(not winner.has_value())
-            MIGRAPHX_THROW(no_valid_benchmark_message());
-        const auto i = *winner;
-        ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
+        auto skipped = results.size() - candidates.size();
+        if(skipped > 0 and trace_level > 1)
+            std::cout << "No binary for " << skipped << " solutions" << std::endl;
+        if(candidates.empty())
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string() + "\n\n" + print_modules());
+        const auto& best = run_benchmark(*ctx, candidates);
+        ctx->get_problem_cache().insert(preop.name(), config->problem, best.solution());
         if(trace_level > 0)
         {
-            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
+            std::cout << "Fastest solution: " << best.solution() << std::endl;
             ctx->get_problem_cache().save();
         }
-        if(not results[i].has_value())
-            MIGRAPHX_THROW(no_valid_compilation_message());
-        auto skipped = std::count_if(
-            results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)
             log::info() << "Skipped " << skipped << " configs for " << preop.name();
 
-        return *results[i];
+        return *any_cast<compiled_result::candidate>(best).parent;
     }
 
     void replace(module& m) const
@@ -738,13 +601,13 @@ static void par_compile(std::size_t n, F f)
 struct compile_manager
 {
     std::vector<compile_plan> cps;
-    bool exhaustive                = false;
-    bool skip_benchmark            = false;
-    adaptive_tuning_options tuning = {};
+    bool exhaustive     = false;
+    bool skip_benchmark = false;
 
-    void add_plan(context* ctx, const operation& preop, instruction_ref ins, module_ref mod)
+    template <class... Ts>
+    void add_plan(Ts&&... xs)
     {
-        cps.push_back({ctx, preop, ins, mod, nullopt, {}, tuning});
+        cps.push_back({std::forward<Ts>(xs)...});
     }
 
     void update_configs()
@@ -835,7 +698,6 @@ void compile_ops::apply(module_pass_manager& mpm) const
     compile_manager cm;
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
-    cm.tuning         = tuning;
     // Find all precompile ops
     for(auto ins : iterator_for(m))
     {

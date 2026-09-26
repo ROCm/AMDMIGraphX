@@ -38,6 +38,8 @@ The table below summarizes the MIGraphX driver commands.
       - Runs reference and GPU implementations and checks outputs for consistency
    *  - perf
       - Compiles and runs input graph followed by printing the performance report
+   *  - time
+      - Compiles and runs input graph followed by printing the total execution time
 
 Options
 ----------
@@ -141,6 +143,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Reduces program and verifies
    *  - --iterations | -n
       - Sets the number of iterations to run for perf report
+   *  - --buffers | -b
+      - Sets the number of parameter buffer sets to rotate through between iterations (avoids cache reuse)
    *  - --list | -l
       - Lists all the MIGraphX operators
    *  - --log-level

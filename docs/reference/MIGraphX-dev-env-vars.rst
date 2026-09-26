@@ -743,10 +743,10 @@ Advanced settings
       | Default: No compiler optimization is used.
 
   * - | ``MIGRAPHX_GPU_COMPILE_PARALLEL``
-      | Sets the number of threads to use for parallel GPU code compilation. 
+      | Sets the number of threads to use for parallel GPU code compilation. Each thread takes the next kernel to compile as soon as it finishes one.
       
-    - | Takes a positive integer value.
-      | Default: Number of threads is equal to number of processing units (`nproc`).
+    - | Takes a positive integer value. A value above the number of logical CPUs is lowered to it.
+      | Default: One thread per physical CPU core the process can run on, so compiles don't share a core. Outside Linux, one thread per logical CPU.
 
   * - | ``MIGRAPHX_TRACE_NARY``
       | When set, the nary device functions used during execution are printed out.

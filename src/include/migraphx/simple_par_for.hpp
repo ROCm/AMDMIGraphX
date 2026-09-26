@@ -27,6 +27,7 @@
 #include <thread>
 #include <cmath>
 #include <algorithm>
+#include <atomic>
 #include <exception>
 #include <mutex>
 #include <vector>
@@ -147,6 +148,29 @@ void simple_par_for(std::size_t n, F f)
 {
     const int min_grain = 8;
     simple_par_for(n, min_grain, f);
+}
+
+// Runs f over [0, n) on up to threadsize threads, each taking the next index as soon as it finishes
+// one, so a run of slow indices doesn't hold up a thread while the others sit idle. With one
+// thread, f runs on the calling thread. An exception thrown on a worker thread is rethrown after
+// all threads are joined.
+template <class F>
+void dynamic_par_for(std::size_t n, std::size_t threadsize, F f)
+{
+    threadsize = std::min(threadsize, n);
+    if(threadsize <= 1)
+    {
+        for(std::size_t i = 0; i < n; i++)
+            thread_invoke(i, 0, f);
+        return;
+    }
+    std::atomic<std::size_t> next{0};
+    auto eptr = simple_par_for_threads(threadsize, threadsize, [&](std::size_t tid) {
+        for(auto i = next++; i < n; i = next++)
+            thread_invoke(i, tid, f);
+    });
+    if(eptr)
+        std::rethrow_exception(eptr);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -39,6 +39,7 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/fileutils.hpp>
 #include <migraphx/json.hpp>
+#include <migraphx/system.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -564,10 +565,15 @@ static void par_compile(std::size_t n, F f)
 {
     if(n == 0)
         return;
-    auto d = value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{});
-    if(d == 0)
-        d = n;
-    par_for(n, n / d, f);
+    // A compile sharing its core with another runs slower, and its CPU budget counts the lost time
+    static const auto cores = physical_cpu_cores();
+    auto threads            = value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{});
+    if(threads == 0)
+        threads = cores;
+    dynamic_par_for(
+        n, std::min<std::size_t>(threads, std::max(1u, std::thread::hardware_concurrency())), f);
+    // Otherwise each compile thread's malloc arena keeps what its compiles freed
+    trim_heap();
 }
 
 struct compile_manager
@@ -696,6 +702,8 @@ void compile_ops::apply(module_pass_manager& mpm) const
         if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 0 and pool.sessions_started() > 0)
             std::cout << "Compile driver sessions: " << pool.sessions_started() << " started, "
                       << pool.sessions_dropped() << " dropped" << std::endl;
+        // Benchmarking and the replaced plans free memory after the last trim of a compile round
+        trim_heap();
     }
 }
 

@@ -31,6 +31,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/process.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/hip.hpp>
@@ -596,5 +597,26 @@ TEST_CASE(find_hiprtc_driver_in_build)
     EXPECT(driver.has_value());
     EXPECT(driver->filename() == migraphx::make_executable_filename("migraphx-hiprtc-driver"));
 }
+
+#ifdef __linux__
+// Every compile session starts the driver, and loading libmigraphx_gpu with the GPU libraries it
+// needs would take most of a session's start-up time and memory
+TEST_CASE(hiprtc_driver_does_not_load_gpu_libraries)
+{
+    auto driver = migraphx::gpu::find_hiprtc_driver();
+    EXPECT(driver.has_value());
+    std::string loaded;
+    // The dynamic loader lists the libraries it loads for the driver instead of running it
+    migraphx::process{*driver}
+        .env({"LD_TRACE_LOADED_OBJECTS=1"})
+        .read([&](const char* data, std::size_t n) { loaded.append(data, n); });
+    EXPECT(migraphx::contains(loaded, "libmigraphx_gpu_compile"));
+    EXPECT(not migraphx::contains(loaded, "libmigraphx_gpu.so"));
+    EXPECT(not migraphx::contains(loaded, "libMIOpen"));
+    EXPECT(not migraphx::contains(loaded, "librocblas"));
+    EXPECT(not migraphx::contains(loaded, "libhipblaslt"));
+    EXPECT(not migraphx::contains(loaded, "libamdhip64"));
+}
+#endif
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

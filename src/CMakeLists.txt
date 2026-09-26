@@ -149,6 +149,7 @@ add_library(migraphx
     split_single_dyn_dim.cpp
     sym.cpp
     sym_argument.cpp
+    system.cpp
     target.cpp
     time.cpp
     tmp_dir.cpp

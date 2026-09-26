@@ -26,6 +26,7 @@
 #include <migraphx/process.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/system.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/msgpack.hpp>
@@ -219,7 +220,11 @@ static int serve()
         migraphx::gpu::warm_up_mlir();
         compile_watchdog watchdog{*replies};
         while(auto request = migraphx::process::read_message(std::cin))
+        {
             write_reply(*replies, serve_request(*request, watchdog));
+            // Otherwise the session holds on to the memory of its last compile while it waits
+            migraphx::trim_heap();
+        }
     }
     catch(const std::exception& err)
     {

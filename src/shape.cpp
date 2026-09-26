@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/shape.hpp>
+#include <migraphx/checked_ops.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/serialize.hpp>
@@ -197,6 +198,13 @@ struct shape_impl
     {
         if(dims.empty())
             return make_identity<T>(0);
+        if constexpr(std::is_same<T, std::size_t>{})
+        {
+            std::size_t result = 1;
+            for(const auto d : dims)
+                result = checked_mul(result, d);
+            return result;
+        }
         return std::accumulate(dims.begin(), dims.end(), make_identity<T>(1), std::multiplies<>{});
     }
 
@@ -677,14 +685,14 @@ std::size_t shape::bytes() const
         {
             this->visit_type([&](auto as) { n = as.size(); });
         }
-        return n * this->element_space();
+        return checked_mul(n, this->element_space());
     }
     else
     {
         return std::accumulate(this->sub_shapes().begin(),
                                this->sub_shapes().end(),
                                std::size_t{0},
-                               [&](auto x, auto y) { return x + y.bytes(); });
+                               [&](auto x, auto y) { return checked_add(x, y.bytes()); });
     }
 }
 

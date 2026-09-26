@@ -23,7 +23,10 @@
  */
 
 #include <algorithm>
+#include <chrono>
+#include <iostream>
 #include <iterator>
+#include <sstream>
 #include <unordered_set>
 #include <vector>
 #include <migraphx/builtin.hpp>
@@ -34,7 +37,12 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction_traversal.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/time.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/compile_driver_pool.hpp>
+#include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/mlir.hpp>
@@ -46,6 +54,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP_TO_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 
 void validate_pointwise_module(const module& m)
 {
@@ -181,6 +190,82 @@ instruction_ref find_final_split(instruction_ref split_ins)
         });
     result = (it == output_path.end()) ? output_path.back() : *it;
     return result;
+}
+
+mlir_gpu_properties get_mlir_gpu_properties(const context& migraphx_ctx)
+{
+    const auto& device = migraphx_ctx.get_current_device();
+    return {device.get_device_name(), device.get_cu_count(), device.get_chiplet_count()};
+}
+
+bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
+{
+    return is_module_fusible(m, get_mlir_gpu_properties(migraphx_ctx), solution);
+}
+
+mlir_code_object compile_mlir(const context& migraphx_ctx,
+                              module m,
+                              const std::vector<shape>& in_shapes,
+                              const value& solution,
+                              optional<std::chrono::milliseconds> cpu_budget)
+{
+    auto props = get_mlir_gpu_properties(migraphx_ctx);
+    optional<fs::path> driver;
+    if(cpu_budget.has_value() and not migraphx_ctx.get_disable_processes())
+        driver = find_hiprtc_driver();
+    if(not driver.has_value())
+        return compile_mlir(props, std::move(m), in_shapes, solution);
+
+    using milliseconds = std::chrono::duration<double, std::milli>;
+    timer wall{};
+    auto reply = migraphx_ctx.get_compile_driver_pool().request(
+        *driver,
+        {{"program", program{std::move(m)}.to_value()},
+         {"inputs", migraphx::to_value(in_shapes)},
+         {"solution", solution},
+         {"gpu", migraphx::to_value(props)},
+         {"cpu_budget_ms", cpu_budget->count()}});
+    if(reply.contains("timeout"))
+        MIGRAPHX_THROW("MLIR solution " + to_string(solution) + " ran out of its " +
+                       std::to_string(cpu_budget->count()) + " ms CPU compile budget");
+    if(reply.contains("error"))
+        MIGRAPHX_THROW(reply.at("error").to<std::string>());
+    auto mco = from_value<mlir_code_object>(reply.at("mlir_code_object"));
+    if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 1)
+    {
+        std::stringstream ss;
+        ss << "MLIR solution " << to_string(solution)
+           << " compiled in a driver session: " << reply.at("cpu_ms").to<double>() << " ms CPU, "
+           << reply.at("wall_ms").to<double>() << " ms wall, " << wall.record<milliseconds>()
+           << " ms wall in MIGraphX" << std::endl;
+        std::cout << ss.str();
+    }
+    return mco;
+}
+
+instruction_ref insert_mlir(module& m,
+                            instruction_ref ins,
+                            code_object_op co,
+                            const std::vector<instruction_ref>& inputs)
+{
+
+    std::vector<instruction_ref> refs;
+    std::size_t last = 0;
+    refs.reserve(inputs.size());
+    std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
+    last               = refs.size() - 1;
+    co.expected_inputs = to_shapes(refs);
+    co.output_arg      = last;
+    return m.insert_instruction(ins, co, refs);
+}
+
+tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
+                                     module m,
+                                     const std::vector<shape>& inputs,
+                                     bool exhaustive)
+{
+    return get_tuning_config_mlir(
+        get_mlir_gpu_properties(migraphx_ctx), std::move(m), inputs, exhaustive);
 }
 
 struct mlir_compiler : compiler<mlir_compiler>

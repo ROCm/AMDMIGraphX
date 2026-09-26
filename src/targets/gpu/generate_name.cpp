@@ -20,29 +20,51 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#ifndef MIGRAPHX_GUARD_GPU_PREPARE_MLIR_HPP
-#define MIGRAPHX_GUARD_GPU_PREPARE_MLIR_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/gpu/compile/export.h>
-#include <string>
+#include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
 namespace gpu {
+namespace gen {
 
-struct MIGRAPHX_GPU_COMPILE_EXPORT prepare_mlir
+static std::vector<std::string> get_op_names(const module& m)
 {
-    std::string name() const { return "gpu::prepare_mlir"; }
-    void apply(module& m) const;
-};
+    std::vector<std::string> result;
+    for(auto& ins : m)
+    {
+        if(starts_with(ins.name(), "@"))
+            continue;
+        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
+            continue;
+        if(ins.name() == "pointwise")
+        {
+            auto names = get_op_names(*ins.module_inputs().front());
+            result.insert(result.end(), names.begin(), names.end());
+        }
+        else
+        {
+            result.push_back(ins.name());
+        }
+    }
+    return result;
+}
 
+std::string generate_name_from_ops(const module& m, const std::string& postname)
+{
+    auto op_names = get_op_names(m);
+    if(not postname.empty())
+        op_names.push_back(postname);
+    if(op_names.empty())
+        return "noop";
+    return join_strings(op_names, "_");
+}
+
+} // namespace gen
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP

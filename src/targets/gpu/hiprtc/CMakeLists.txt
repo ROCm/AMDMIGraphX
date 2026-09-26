@@ -33,7 +33,7 @@ if(MSVC)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_SIMULATE_ID MATCHES "MSVC")
     target_link_options(migraphx-hiprtc-driver PRIVATE -Xlinker /stack:${STACK_SIZE})
 endif()
-target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
+target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu_compile)
 rocm_add_version_resource(migraphx-hiprtc-driver "AMD MIGraphX" "MIGraphX HIP RTC Driver - Runtime Compilation Driver")
 add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
 rocm_install_targets(

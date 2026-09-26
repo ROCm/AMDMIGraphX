@@ -70,19 +70,12 @@
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/compile_driver_pool.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/perfdb.hpp>
 #include <migraphx/gpu/tuning_config.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/logger.hpp>
-#include <migraphx/serialize.hpp>
-#include <migraphx/time.hpp>
 #include <deque>
 #include <variant>
 #include <fstream>
@@ -93,18 +86,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
-
-mlir_gpu_properties get_mlir_gpu_properties(const context& migraphx_ctx)
-{
-    const auto& device = migraphx_ctx.get_current_device();
-    return {device.get_device_name(), device.get_cu_count(), device.get_chiplet_count()};
-}
 
 #ifdef MIGRAPHX_MLIR
 template <class T, class F, F f> // NOLINT
@@ -873,12 +859,6 @@ struct mlir_program
                 ops.add_attributes({{"value", mlir_value_attr}});
             }
 
-            if(ins->name() == "convolution" or ins->name() == "dot")
-            {
-                pp =
-                    problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
-            }
-
             std::vector<MlirValue> inputs;
             transform(
                 ins->inputs(), std::back_inserter(inputs), [&](auto i) { return ins_map.at(i); });
@@ -1051,8 +1031,6 @@ struct mlir_program
         return tc;
     }
 
-    std::string get_tune_params(bool xdlops) const { return get_mlir_perf_for_conv(pp, xdlops); }
-
     // This function appends to tuning cfg file that could be
     // used with rocMLIR tuning scripts.
     void dump_tuning_cfg(const std::string& prob_config) const
@@ -1144,7 +1122,6 @@ struct mlir_program
     MlirLocation location;
     mlir_module mmodule;
     mlir_logger logger;
-    problem_params pp;
     std::deque<std::string> strings{};
     std::string target_arch  = "";
     std::size_t num_cu       = 0;
@@ -1154,7 +1131,7 @@ struct mlir_program
 
 static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 
-bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
+bool is_module_fusible(const module& m, const mlir_gpu_properties& props, const value& solution)
 {
     // A string tuning solution is required here; a null one has no config and the
     // MLIR backend pipeline rejects it downstream, so fail fast with a clear error.
@@ -1164,7 +1141,7 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     auto mm = m;
     prepare(mm);
     mlir_program mp;
-    mp.set_gpu_properties(get_mlir_gpu_properties(migraphx_ctx));
+    mp.set_gpu_properties(props);
     mp.parse(mm);
     mp.run_high_level_pipeline();
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*tuning));
@@ -1351,46 +1328,6 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
 
 std::string dump_mlir(module m) { return dump_mlir(std::move(m), {}); }
 
-mlir_code_object compile_mlir(const context& migraphx_ctx,
-                              module m,
-                              const std::vector<shape>& in_shapes,
-                              const value& solution,
-                              optional<std::chrono::milliseconds> cpu_budget)
-{
-    auto props = get_mlir_gpu_properties(migraphx_ctx);
-    optional<fs::path> driver;
-    if(cpu_budget.has_value() and not migraphx_ctx.get_disable_processes())
-        driver = find_hiprtc_driver();
-    if(not driver.has_value())
-        return compile_mlir(props, std::move(m), in_shapes, solution);
-
-    using milliseconds = std::chrono::duration<double, std::milli>;
-    timer wall{};
-    auto reply = migraphx_ctx.get_compile_driver_pool().request(
-        *driver,
-        {{"program", program{std::move(m)}.to_value()},
-         {"inputs", migraphx::to_value(in_shapes)},
-         {"solution", solution},
-         {"gpu", migraphx::to_value(props)},
-         {"cpu_budget_ms", cpu_budget->count()}});
-    if(reply.contains("timeout"))
-        MIGRAPHX_THROW("MLIR solution " + to_string(solution) + " ran out of its " +
-                       std::to_string(cpu_budget->count()) + " ms CPU compile budget");
-    if(reply.contains("error"))
-        MIGRAPHX_THROW(reply.at("error").to<std::string>());
-    auto mco = from_value<mlir_code_object>(reply.at("mlir_code_object"));
-    if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 1)
-    {
-        std::stringstream ss;
-        ss << "MLIR solution " << to_string(solution)
-           << " compiled in a driver session: " << reply.at("cpu_ms").to<double>() << " ms CPU, "
-           << reply.at("wall_ms").to<double>() << " ms wall, " << wall.record<milliseconds>()
-           << " ms wall in MIGraphX" << std::endl;
-        std::cout << ss.str();
-    }
-    return mco;
-}
-
 mlir_code_object compile_mlir(const mlir_gpu_properties& props,
                               module m,
                               const std::vector<shape>& in_shapes,
@@ -1465,23 +1402,7 @@ void warm_up_mlir()
     mlir_program::get_thread_pool();
 }
 
-instruction_ref insert_mlir(module& m,
-                            instruction_ref ins,
-                            code_object_op co,
-                            const std::vector<instruction_ref>& inputs)
-{
-
-    std::vector<instruction_ref> refs;
-    std::size_t last = 0;
-    refs.reserve(inputs.size());
-    std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
-    last               = refs.size() - 1;
-    co.expected_inputs = to_shapes(refs);
-    co.output_arg      = last;
-    return m.insert_instruction(ins, co, refs);
-}
-
-tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
+tuning_config get_tuning_config_mlir(const mlir_gpu_properties& props,
                                      module m,
                                      const std::vector<shape>& inputs,
                                      bool exhaustive)
@@ -1489,7 +1410,7 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     auto shapes = adjust_param_shapes(m, inputs);
     prepare(m);
     mlir_program mp;
-    mp.set_gpu_properties(get_mlir_gpu_properties(migraphx_ctx));
+    mp.set_gpu_properties(props);
     mp.parse(m, shapes);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
@@ -1565,15 +1486,6 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
 
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
-mlir_code_object compile_mlir(const context&,
-                              module,
-                              const std::vector<shape>&,
-                              const value&,
-                              optional<std::chrono::milliseconds>)
-{
-    return {};
-}
-
 mlir_code_object
 compile_mlir(const mlir_gpu_properties&, module, const std::vector<shape>&, const value&)
 {
@@ -1582,16 +1494,8 @@ compile_mlir(const mlir_gpu_properties&, module, const std::vector<shape>&, cons
 
 void warm_up_mlir() {}
 
-instruction_ref
-// cppcheck-suppress funcArgNamesDifferent
-insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<instruction_ref>&)
-{
-    use(co);
-    use(m);
-    return m.end();
-}
-
-tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
+tuning_config
+get_tuning_config_mlir(const mlir_gpu_properties&, module, const std::vector<shape>&, bool)
 {
     return {};
 }
@@ -1602,9 +1506,9 @@ bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const 
 }
 
 // Conservative "MLIR unavailable" default: the module cannot be MLIR-fused, so callers
-// take their non-MLIR path. Present so libmigraphx_gpu.so has no dangling MLIR symbols
+// take their non-MLIR path. Present so libmigraphx_gpu_compile.so has no dangling MLIR symbols
 // when MIGRAPHX_MLIR is disabled.
-bool is_module_fusible(const module&, const context&, const value&) { return false; }
+bool is_module_fusible(const module&, const mlir_gpu_properties&, const value&) { return false; }
 
 std::vector<shape> adjust_param_shapes(module&, const std::vector<shape>&) { return {}; }
 

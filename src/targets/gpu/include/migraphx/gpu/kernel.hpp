@@ -62,7 +62,10 @@ unpack_pointer_args(const std::vector<char>& buffer,
 // Store a pointer value at a byte position in a packed kernarg buffer.
 MIGRAPHX_GPU_EXPORT void write_pointer(char* pos, const char* p);
 
-struct MIGRAPHX_GPU_EXPORT kernel
+// Only the out-of-line members are exported. libmigraphx_gpu_compile copies kernels inside
+// code_object_op without linking libmigraphx_gpu, which on Windows needs the implicit members to
+// stay inline rather than be imported.
+struct kernel
 {
     struct pointers
     {
@@ -84,40 +87,40 @@ struct MIGRAPHX_GPU_EXPORT kernel
         std::size_t n = 0;
     };
     kernel() = default;
-    kernel(const char* image, const std::string& name);
+    MIGRAPHX_GPU_EXPORT kernel(const char* image, const std::string& name);
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
     kernel(const std::vector<T>& image, const std::string& name)
         : kernel(reinterpret_cast<const char*>(image.data()), name)
     {
     }
 
-    bool empty() const;
+    MIGRAPHX_GPU_EXPORT bool empty() const;
 
     // The underlying HIP function handle, used to correlate a captured graph
     // kernel node back to this kernel. Null when the kernel is empty.
-    hipFunction_t get_function() const;
+    MIGRAPHX_GPU_EXPORT hipFunction_t get_function() const;
 
-    void launch(hipStream_t stream,
-                std::size_t global,
-                std::size_t local,
-                const std::vector<kernel_argument>& args,
-                hipEvent_t start = nullptr,
-                hipEvent_t stop  = nullptr) const;
+    MIGRAPHX_GPU_EXPORT void launch(hipStream_t stream,
+                                    std::size_t global,
+                                    std::size_t local,
+                                    const std::vector<kernel_argument>& args,
+                                    hipEvent_t start = nullptr,
+                                    hipEvent_t stop  = nullptr) const;
 
-    void launch(hipStream_t stream,
-                std::size_t global,
-                std::size_t local,
-                pointers args,
-                hipEvent_t start = nullptr,
-                hipEvent_t stop  = nullptr) const;
+    MIGRAPHX_GPU_EXPORT void launch(hipStream_t stream,
+                                    std::size_t global,
+                                    std::size_t local,
+                                    pointers args,
+                                    hipEvent_t start = nullptr,
+                                    hipEvent_t stop  = nullptr) const;
 
-    void launch(hipStream_t stream,
-                std::size_t global,
-                std::size_t local,
-                void* kernargs,
-                std::size_t kernargs_size,
-                hipEvent_t start = nullptr,
-                hipEvent_t stop  = nullptr) const;
+    MIGRAPHX_GPU_EXPORT void launch(hipStream_t stream,
+                                    std::size_t global,
+                                    std::size_t local,
+                                    void* kernargs,
+                                    std::size_t kernargs_size,
+                                    hipEvent_t start = nullptr,
+                                    hipEvent_t stop  = nullptr) const;
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const

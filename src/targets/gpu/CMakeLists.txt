@@ -227,6 +227,27 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/rocm/.clang-tidy ${CM
 
 rocm_clang_tidy_check(migraphx_gpu_kernel_file_check)
 
+# The compilers migraphx-hiprtc-driver runs. It loads this library without libmigraphx_gpu, so
+# nothing here may use the GPU context, and every library linked here is loaded into each compile
+# driver session: it must not link the HIP runtime, MIOpen, rocBLAS or hipBLASLt.
+add_library(migraphx_gpu_compile
+    compile_hiprtc.cpp
+    generate_name.cpp
+    mlir.cpp
+    prepare_mlir.cpp
+)
+set_target_properties(migraphx_gpu_compile PROPERTIES EXPORT_NAME gpu_compile)
+rocm_set_soversion(migraphx_gpu_compile ${MIGRAPHX_SO_VERSION})
+rocm_add_version_resource(migraphx_gpu_compile "AMD MIGraphX" "MIGraphX GPU Compile Library - MLIR and hipRTC Compilation")
+rocm_clang_tidy_check(migraphx_gpu_compile)
+migraphx_generate_export_header(migraphx_gpu_compile)
+target_link_libraries(migraphx_gpu_compile PUBLIC migraphx)
+# The GPU headers include the HIP headers, and linking hip::host for them would load the HIP runtime.
+target_include_directories(migraphx_gpu_compile SYSTEM PUBLIC
+    $<BUILD_INTERFACE:$<TARGET_PROPERTY:hip::host,INTERFACE_INCLUDE_DIRECTORIES>>)
+target_compile_definitions(migraphx_gpu_compile PUBLIC
+    $<BUILD_INTERFACE:$<TARGET_PROPERTY:hip::host,INTERFACE_COMPILE_DEFINITIONS>>)
+
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
@@ -269,12 +290,10 @@ add_library(migraphx_gpu
     lowering.cpp
     loop.cpp
     lrn.cpp
-    mlir.cpp
     nms_ops.cpp
     no_device.cpp
     pack_args.cpp
     prefuse_ops.cpp
-    prepare_mlir.cpp
     prepare_reduce.cpp
     pooling.cpp
     problem_cache.cpp
@@ -354,19 +373,26 @@ if(MIGRAPHX_ENABLE_MLIR)
     find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
+    target_compile_definitions(migraphx_gpu_compile PRIVATE "-DMIGRAPHX_MLIR")
     # Make this private to avoid multiple inclusions of LLVM symbols.
-    target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
+    target_link_libraries(migraphx_gpu_compile PRIVATE rocMLIR::rockCompiler)
     # Hide LLVM internals that come from rocMLIR.
     if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
-        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
+        target_link_options(migraphx_gpu_compile PRIVATE "LINKER:--exclude-libs,ALL")
     endif()
+endif()
+
+# Hide the internals of the static libraries linked in, such as composable_kernel's.
+if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
+    target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
     find_package(hiprtc REQUIRED)
     message(STATUS "MIGraphX is using hipRTC")
     target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
-    target_link_libraries(migraphx_gpu PUBLIC hiprtc::hiprtc)
+    target_compile_definitions(migraphx_gpu_compile PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
+    target_link_libraries(migraphx_gpu_compile PRIVATE hiprtc::hiprtc)
 else()
     message(STATUS "MIGraphX is using HIP Clang")
 
@@ -484,10 +510,10 @@ endif()
 
 if(WIN32)
     # Temporary workaround on rocMLIR not exporting correctly libraries it depends on.
-    target_link_libraries(migraphx_gpu PRIVATE ntdll)
+    target_link_libraries(migraphx_gpu_compile PRIVATE ntdll)
 endif()
 
-target_link_libraries(migraphx_gpu PUBLIC migraphx)
+target_link_libraries(migraphx_gpu PUBLIC migraphx migraphx_gpu_compile)
 if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
     target_link_libraries(migraphx_gpu PUBLIC migraphx_device)
 else()
@@ -523,7 +549,7 @@ add_subdirectory(hiprtc)
 
 rocm_install_targets(
     PRIVATE
-    TARGETS migraphx_gpu migraphx_device compile_for_gpu
+    TARGETS migraphx_gpu migraphx_gpu_compile migraphx_device compile_for_gpu
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

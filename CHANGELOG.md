@@ -47,6 +47,7 @@ Full documentation for MIGraphX is available at
 * Extended `find_concat_op` to treat `unsqueeze` as a fusable `concat` input so the concat can be folded through it (#5180).
 * Added `find_layout_broadcast` to `simplify_reshapes`, rewriting `layout(broadcast(x))` to `broadcast(layout(x))` so only the unique data is materialized instead of one full copy per broadcast output (#5141).
 * Limited each MLIR tuning candidate after the first to 5 seconds of CPU compile time, so a slow candidate is skipped like a failed compile instead of holding up tuning. These candidates compile in reusable `migraphx-hiprtc-driver` sessions, and `MIGRAPHX_TUNING_COMPILE_BUDGET` changes the budget or turns it off with `0`.
+* Moved the MLIR and hipRTC compilers into a new `libmigraphx_gpu_compile` library, so `migraphx-hiprtc-driver` no longer loads MIOpen, rocBLAS, hipBLASLt or the HIP runtime. Each compile process starts in about 20 ms instead of 100 ms and holds about 4 MB of private memory instead of 57 MB.
 * Serialized binary fields, such as GPU code objects, as msgpack binary instead of arrays of integers, which makes compiled programs smaller and faster to save and load.
 
 

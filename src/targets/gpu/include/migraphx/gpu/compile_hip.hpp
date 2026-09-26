@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_COMPILE_HIP_HPP
 
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/gpu/compile/export.h>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/compile_src.hpp>
 #include <migraphx/env.hpp>
@@ -60,7 +61,7 @@ MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
 
 MIGRAPHX_GPU_EXPORT bool hip_has_flags(const std::vector<std::string>& flags);
 
-MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
+MIGRAPHX_GPU_COMPILE_EXPORT std::vector<std::vector<char>>
 compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
                             const std::vector<std::string>& params,
                             const std::string& arch,

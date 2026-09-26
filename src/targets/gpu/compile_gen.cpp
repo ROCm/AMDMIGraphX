@@ -576,38 +576,6 @@ std::string generate_reduce(module m, const std::string& name)
     return g.str();
 }
 
-static std::vector<std::string> get_op_names(const module& m)
-{
-    std::vector<std::string> result;
-    for(auto& ins : m)
-    {
-        if(starts_with(ins.name(), "@"))
-            continue;
-        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
-            continue;
-        if(ins.name() == "pointwise")
-        {
-            auto names = get_op_names(*ins.module_inputs().front());
-            result.insert(result.end(), names.begin(), names.end());
-        }
-        else
-        {
-            result.push_back(ins.name());
-        }
-    }
-    return result;
-}
-
-std::string generate_name_from_ops(const module& m, const std::string& postname)
-{
-    auto op_names = get_op_names(m);
-    if(not postname.empty())
-        op_names.push_back(postname);
-    if(op_names.empty())
-        return "noop";
-    return join_strings(op_names, "_");
-}
-
 } // namespace gen
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

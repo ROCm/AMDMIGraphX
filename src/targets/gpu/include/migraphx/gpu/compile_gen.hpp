@@ -29,6 +29,7 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/gpu/export.h>
+#include <migraphx/gpu/compile/export.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -97,7 +98,8 @@ generate_pointwise(const module& pm, const std::string& name, bool always_return
 
 MIGRAPHX_GPU_EXPORT std::string generate_reduce(module m, const std::string& name);
 
-std::string generate_name_from_ops(const module& m, const std::string& postname = "");
+MIGRAPHX_GPU_COMPILE_EXPORT std::string generate_name_from_ops(const module& m,
+                                                               const std::string& postname = "");
 
 struct reduce_op
 {

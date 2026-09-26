@@ -44,6 +44,7 @@
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/optimize_module.hpp>
+#include <migraphx/propagate_constant.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
@@ -257,9 +258,12 @@ struct pipeline_factory
                                            get_context(), backend_opts.mlir_use_specific_ops),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
-            optimize_module{},
+            // optimize_module is skipped in eager (compile-time speedup, accepted runtime cost);
+            // balanced/max keep it.
+            enable_pass(options.compile_mode != compile_modes::eager, optimize_module{}),
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
-            fuse_pointwise_reduce{},
+            fuse_pointwise_reduce{.run_optimize_module =
+                                      options.compile_mode != compile_modes::eager},
             dead_code_elimination{},
 #ifndef _WIN32
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
@@ -269,6 +273,11 @@ struct pipeline_factory
                         fuse_mlir{.ctx              = get_context(),
                                   .use_specific_ops = backend_opts.mlir_use_specific_ops}),
             dead_code_elimination{},
+            // eager drops optimize_module, so fuse_mlir's hoisted constant scales (e.g. sa*sb for
+            // dot+dequant) are never folded and would otherwise survive as host ops over GPU
+            // literals (segfault). Re-add just propagate_constant (cheap fold) in eager here.
+            enable_pass(options.compile_mode == compile_modes::eager, propagate_constant{}),
+            enable_pass(options.compile_mode == compile_modes::eager, dead_code_elimination{}),
             fuse_concat{},
             dead_code_elimination{},
         };
@@ -355,9 +364,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         pipelines = {
             p.dynamic_shapes_pipeline(),
             p.required_pipeline(),
-            {optimize_module{},
-             dead_code_elimination{},
-             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
+            // eager runs the lowering-only subset; optimize_module intentionally omitted
+            {rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
              rewrite_topk{},
              dead_code_elimination{}},
             p.fusion_pipeline(),

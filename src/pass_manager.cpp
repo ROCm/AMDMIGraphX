@@ -116,6 +116,12 @@ struct module_pm : module_pass_manager
         return prog->create_module(name, std::move(m));
     }
 
+    virtual bool has_module(const std::string& name) const override
+    {
+        assert(prog);
+        return prog->has_module(name);
+    }
+
     virtual void rename_module(const std::string& old_name, const std::string& new_name) override
     {
         assert(prog);

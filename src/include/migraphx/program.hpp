@@ -159,6 +159,7 @@ struct MIGRAPHX_EXPORT program
     module* create_module(const std::string& name, module m);
     module* get_module(const std::string& name);
     const module* get_module(const std::string& name) const;
+    bool has_module(const std::string& name) const;
 
     module* get_main_module();
     const module* get_main_module() const;

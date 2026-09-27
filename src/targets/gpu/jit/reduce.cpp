@@ -798,6 +798,36 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compute_block_size(ctx, std::max<std::size_t>(relements / 4, 1), max_block);
     }
 
+    /// Two outputs per workgroup when a short reduction leaves each lane of a
+    /// full workgroup with only a few elements: the per-workgroup overhead is
+    /// amortized over two reductions and each lane keeps twice the loads in
+    /// flight. Only offered when the outputs fill the device at the tiled
+    /// block size, the tuner benchmarks it against the plain block algorithm.
+    static optional<reduce_tile> find_short_reduce_tile(const context& ctx,
+                                                        const shape& reduce_output_shape,
+                                                        const std::vector<std::size_t>& reduce_lens,
+                                                        std::size_t relements)
+    {
+        const std::size_t tile       = 2;
+        const std::size_t full_block = 256;
+        auto block_size              = tile_block_size(ctx, relements, full_block);
+        if(block_size >= full_block)
+            return nullopt;
+        const auto& device = ctx.get_current_device();
+        auto resident      = device.get_cu_count() * device.get_max_workitems_per_cu() / block_size;
+        if(reduce_output_shape.elements() < resident)
+            return nullopt;
+        // Tile the last non-reduced axis so the outputs of a tile are adjacent
+        auto is = reverse(range(reduce_output_shape.lens().size()));
+        auto it = std::find_if(is.begin(), is.end(), [&](auto axis) {
+            return reduce_lens[axis] == 1 and reduce_output_shape.lens()[axis] % tile == 0;
+        });
+        if(it == is.end())
+            return nullopt;
+        std::size_t axis = *it;
+        return reduce_tile{axis, tile};
+    }
+
     static std::string tiled_algo_name(const std::string& algo, std::size_t axis, std::size_t n)
     {
         return algo + "<" + std::to_string(axis) + ", " + std::to_string(n) + ">";
@@ -1126,12 +1156,17 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(not packed_args.empty())
             v["packed_args"] = packed_args;
         tuning_solutions ts;
-        ts.plan       = compute_fused_reduce_plan(ctx, shapes, v);
-        ts.noutputs   = ts.plan.finputs.size() - shapes.size() + 1;
-        ts.tile       = find_reduce_tile(ts.plan.virtual_inputs,
-                                         ts.noutputs,
-                                         ts.plan.reduce_output_shape,
-                                         ts.plan.reduction_shape.lens());
+        ts.plan     = compute_fused_reduce_plan(ctx, shapes, v);
+        ts.noutputs = ts.plan.finputs.size() - shapes.size() + 1;
+        ts.tile     = find_reduce_tile(ts.plan.virtual_inputs,
+                                       ts.noutputs,
+                                       ts.plan.reduce_output_shape,
+                                       ts.plan.reduction_shape.lens());
+        if(not ts.tile.has_value())
+            ts.tile = find_short_reduce_tile(ctx,
+                                             ts.plan.reduce_output_shape,
+                                             ts.plan.reduction_shape.lens(),
+                                             ts.plan.relements);
         ts.batchable  = ts.tile.has_value() and ts.noutputs == 1 and can_batch_reduce(rm);
         ts.tc.problem = to_value(shapes);
         if(ts.plan.topk > 0)

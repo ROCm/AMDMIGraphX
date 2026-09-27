@@ -558,6 +558,20 @@ std::string generate_reduce(module m, const std::string& name)
             const auto& val = names.at(ins->inputs().front());
             return "r.make_indices_from(" + val + ")";
         }
+        if(ins->name() == "topk")
+        {
+            if(ins->inputs().size() != 1)
+                MIGRAPHX_THROW("topk with an indices input is not supported in fused_reduce");
+            auto v       = ins->get_operator().to_value();
+            auto axis    = v.at("axis").to<std::size_t>();
+            auto k       = ins->get_shape().sub_shapes().front().lens().at(axis);
+            bool largest = v.at("largest").to<bool>();
+            return interpolate_string("r.template topk<${k}>(${compare}, ${init})(${x})",
+                                      {{"k", std::to_string(k)},
+                                       {"compare", largest ? "greater{}" : "less{}"},
+                                       {"init", largest ? "lowest{}" : "highest{}"},
+                                       {"x", names.at(ins->inputs().front())}});
+        }
         if(ins->name() == "identity")
         {
             const auto& x = names.at(ins->inputs().front());
@@ -583,7 +597,7 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
+        if(contains({"multibroadcast", "contiguous", "identity", "get_tuple_elem"}, ins.name()))
             continue;
         if(ins.name() == "pointwise")
         {

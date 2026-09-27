@@ -59,8 +59,9 @@ struct fused_reduce
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         const auto* sm = mods.front();
-        if(sm->get_output_shapes().size() != 1)
-            MIGRAPHX_THROW("Only one output supported");
+        auto outputs   = sm->get_output_shapes();
+        if(outputs.empty())
+            MIGRAPHX_THROW("fused_reduce: missing output");
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
@@ -74,12 +75,19 @@ struct fused_reduce
            }))
             MIGRAPHX_THROW("Input dimension does not match the submodule.");
 
-        if(sm->get_output_shapes().front().dynamic())
-            return sm->get_output_shapes().front();
+        if(outputs.front().dynamic())
+            return outputs.size() == 1 ? outputs.front() : shape{outputs};
 
-        return shape::from_permutation(sm->get_output_shapes().front().type(),
-                                       sm->get_output_shapes().front().lens(),
-                                       find_permutation(inputs));
+        // The output layout follows the inputs
+        auto perm = find_permutation(inputs);
+        std::vector<shape> result;
+        std::transform(
+            outputs.begin(), outputs.end(), std::back_inserter(result), [&](const shape& s) {
+                return shape::from_permutation(s.type(), s.lens(), perm);
+            });
+        if(result.size() == 1)
+            return result.front();
+        return shape{result};
     }
 
     std::string name() const { return "fused_reduce"; }

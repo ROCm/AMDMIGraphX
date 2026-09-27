@@ -33,6 +33,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/bit.hpp>
+#include <set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -330,6 +331,35 @@ static bool can_batch_reduce(const module& rm)
     return true;
 }
 
+/// The k of the topk in the module, if any
+static optional<std::size_t> find_topk(const module& rm)
+{
+    auto it = std::find_if(
+        rm.begin(), rm.end(), [](const instruction& ins) { return ins.name() == "topk"; });
+    if(it == rm.end())
+        return nullopt;
+    auto axis = it->get_operator().to_value().at("axis").to<std::size_t>();
+    return it->get_shape().sub_shapes().front().lens().at(axis);
+}
+
+/// The topk selection sorts the elements of each wave in registers, so about
+/// 4 elements per lane are used like the standalone topk kernel, with the
+/// workgroup capped so the per-wave candidates fit in lds
+static std::size_t topk_block_size(context& ctx, std::size_t relements, std::size_t k)
+{
+    auto max_wavefronts = std::max<std::size_t>(1, 8192 / k);
+    auto max_block_size =
+        std::min<std::size_t>(max_wavefronts * ctx.get_current_device().get_wavefront_size(), 1024);
+    return compute_block_size(ctx, std::max<std::size_t>(relements / 4, 1), max_block_size);
+}
+
+static std::size_t default_block_size(context& ctx, const value& v, std::size_t relements)
+{
+    if(v.contains("topk"))
+        return topk_block_size(ctx, relements, v.at("topk").to<std::size_t>());
+    return compute_block_size(ctx, relements, 1024);
+}
+
 /// This will adjust the input shapes so a partial reduction is done per workgroup.
 /// This is done by splitting the reduction axis so each split group becomes
 /// part of the batch. So if we want to do a split redution of a tensor
@@ -557,6 +587,13 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     plan.algo =
         v.get("algo", get_reduce_algo(ctx, plan.virtual_inputs, plan.reduction_shape.lens()));
     bool no_vectorize = v.get("no_vectorize", false);
+    // The topk selection needs the whole reduction in one workgroup and
+    // sorts scalar elements
+    if(v.contains("topk"))
+    {
+        plan.algo    = "block";
+        no_vectorize = true;
+    }
     // The occupancy-based vector sizes are not used since vectorizing the
     // reduction axis does not reduce the number of workgroups, only the lanes
     // reducing each output, so a full-width vector is always fewer load
@@ -634,7 +671,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(contains({"block", "block_tile", "block_batch"}, algo))
         {
             auto n_per_block = v.get("n_per_block", std::size_t{1});
-            auto block_size  = v.get("block_size", compute_block_size(ctx, relements, 1024));
+            auto block_size  = v.get("block_size", default_block_size(ctx, v, relements));
             assert(n_per_block > 0);
             assert(block_size > 0);
             assert(nelements % n_per_block == 0);
@@ -719,6 +756,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         // shapes, so recheck that the module supports the batched algorithm
         if(v.get("algo", std::string{}) == "block_batch" and not can_batch_reduce(*rm))
             v["algo"] = "block_tile";
+        auto topk = find_topk(*rm);
+        if(topk.has_value())
+            v["topk"] = *topk;
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
@@ -745,22 +785,107 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         }
     }
 
+    /// The topk selection needs the whole reduction in one workgroup, so only
+    /// the block size is tuned: larger blocks split the sort across more
+    /// waves while smaller ones sort more elements per lane
+    static void add_topk_solutions(
+        context& ctx, tuning_config& tc, std::size_t relements, std::size_t k, bool exhaustive)
+    {
+        if(not exhaustive)
+        {
+            add_block_size_solutions(tc,
+                                     "block",
+                                     topk_block_size(ctx, relements, k),
+                                     compute_block_size(ctx, relements, 1024));
+            return;
+        }
+        const std::vector<std::size_t> candidates = {64, 128, 256, 512, 1024};
+        std::set<std::size_t> block_sizes         = {topk_block_size(ctx, relements, k)};
+        // Larger reductions per lane would need the block_large algorithm
+        std::copy_if(candidates.begin(),
+                     candidates.end(),
+                     std::inserter(block_sizes, block_sizes.end()),
+                     [&](auto block_size) { return relements < (block_size - 1) * 256; });
+        std::transform(
+            block_sizes.begin(),
+            block_sizes.end(),
+            std::back_inserter(tc.solutions),
+            [](auto block_size) { return value{{"algo", "block"}, {"block_size", block_size}}; });
+    }
+
+    /// All the block and wave sizes, the lane and block_strided algorithms,
+    /// and the tiled algorithms when a tile is found
+    static std::vector<value> exhaustive_solutions(context& ctx,
+                                                   const fused_reduce_plan& plan,
+                                                   const optional<reduce_tile>& tile,
+                                                   bool batchable)
+    {
+        std::vector<value> solutions;
+        auto relements = plan.reduction_shape.elements();
+        std::unordered_set<std::size_t> tile_sizes;
+        for(auto per_lane : {1, 2, 4, 8, 16})
+        {
+            std::size_t x = relements / per_lane;
+            for(auto max_block : {256, 512, 1024})
+                tile_sizes.insert(compute_block_size(ctx, x, max_block));
+            if(x < ctx.get_current_device().get_wavefront_size())
+                tile_sizes.insert(bit_ceil(x));
+        }
+        for(auto tile_size : tile_sizes)
+        {
+            if(tile_size > ctx.get_current_device().get_wavefront_size())
+                solutions.push_back({{"algo", "block"}, {"block_size", tile_size}});
+            else
+                solutions.push_back({{"algo", "wave"}, {"subwave_size", tile_size}});
+        }
+        solutions.push_back({{"algo", "lane"}});
+        for(auto block_size : {128, 256, 512, 1024})
+            solutions.push_back({{"algo", "block_strided"}, {"block_size", block_size}});
+        if(tile.has_value() and plan.assign == "assign_none")
+        {
+            for(auto block_size : {64, 128, 256, 512})
+            {
+                value solution = {{"algo", "block_tile"},
+                                  {"block_size", block_size},
+                                  {"tile_axis", tile->axis},
+                                  {"n_per_block", tile->size}};
+                solutions.push_back(solution);
+                if(batchable and batch_iterations(tile->size, plan.relements, block_size) <=
+                                     tuned_batch_iterations)
+                {
+                    solution["algo"] = "block_batch";
+                    solutions.push_back(solution);
+                }
+            }
+        }
+        return solutions;
+    }
+
     optional<tuning_config>
     get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
     {
         if(not contains({"fused_reduce", "split_fused_reduce"}, op.name()))
             return nullopt;
         tuning_config tc;
-        auto shapes   = to_shapes(ins->inputs());
-        tc.problem    = to_value(shapes);
-        auto plan     = compute_fused_reduce_plan(ctx, shapes, op.to_value());
-        auto noutputs = plan.finputs.size() - shapes.size() + 1;
-        auto tile     = find_reduce_tile(
-            plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());
+        auto shapes = to_shapes(ins->inputs());
+        tc.problem  = to_value(shapes);
         assert(not ins->module_inputs().empty());
+        const auto* rm = ins->module_inputs().front();
+        auto v         = op.to_value();
+        auto topk      = find_topk(*rm);
+        if(topk.has_value())
+            v["topk"] = *topk;
+        auto plan     = compute_fused_reduce_plan(ctx, shapes, v);
+        auto noutputs = plan.finputs.size() - shapes.size() + 1;
+        if(topk.has_value())
+        {
+            add_topk_solutions(ctx, tc, plan.relements, *topk, exhaustive);
+            return tc;
+        }
+        auto tile = find_reduce_tile(
+            plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());
         // The vector result of the batched pass is only assigned to a single output
-        bool batchable =
-            tile.has_value() and noutputs == 1 and can_batch_reduce(*ins->module_inputs().front());
+        bool batchable = tile.has_value() and noutputs == 1 and can_batch_reduce(*rm);
         if(not exhaustive)
         {
             // Without exhaustive tuning, offer the heuristic default algorithm plus a few
@@ -825,43 +950,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             }
             return tc;
         }
-        auto relements = plan.reduction_shape.elements();
-        std::unordered_set<std::size_t> tile_sizes;
-        for(auto per_lane : {1, 2, 4, 8, 16})
-        {
-            std::size_t x = relements / per_lane;
-            for(auto max_block : {256, 512, 1024})
-                tile_sizes.insert(compute_block_size(ctx, x, max_block));
-            if(x < ctx.get_current_device().get_wavefront_size())
-                tile_sizes.insert(bit_ceil(x));
-        }
-        for(auto tile_size : tile_sizes)
-        {
-            if(tile_size > ctx.get_current_device().get_wavefront_size())
-                tc.solutions.push_back({{"algo", "block"}, {"block_size", tile_size}});
-            else
-                tc.solutions.push_back({{"algo", "wave"}, {"subwave_size", tile_size}});
-        }
-        tc.solutions.push_back({{"algo", "lane"}});
-        for(auto block_size : {128, 256, 512, 1024})
-            tc.solutions.push_back({{"algo", "block_strided"}, {"block_size", block_size}});
-        if(tile.has_value() and plan.assign == "assign_none")
-        {
-            for(auto block_size : {64, 128, 256, 512})
-            {
-                value solution = {{"algo", "block_tile"},
-                                  {"block_size", block_size},
-                                  {"tile_axis", tile->axis},
-                                  {"n_per_block", tile->size}};
-                tc.solutions.push_back(solution);
-                if(batchable and batch_iterations(tile->size, plan.relements, block_size) <=
-                                     tuned_batch_iterations)
-                {
-                    solution["algo"] = "block_batch";
-                    tc.solutions.push_back(solution);
-                }
-            }
-        }
+        tc.solutions = exhaustive_solutions(ctx, plan, tile, batchable);
         return tc;
     }
 };

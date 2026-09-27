@@ -31,6 +31,7 @@
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/scatter_reduction_modes.hpp>
+#include <migraphx/kernels/sort.hpp>
 #include <migraphx/kernels/tuple.hpp>
 #include <migraphx/kernels/uninitialized_buffer.hpp>
 #include <migraphx/kernels/pp.hpp>
@@ -574,6 +575,17 @@ struct reducer_base
         return this->reduce(op, init, op::id{});
     }
 
+    /// Selects the top K elements of the reduction, returning the values and
+    /// their indices as a tuple of inner storages of K elements
+    template <index_int K, class Compare, class T>
+    __device__ auto topk(Compare compare, T init) const
+    {
+        return this->inner_sliced([=](auto n, auto&&... xs) {
+            auto&& derived = static_cast<const Derived&>(*this);
+            return derived.template topk_impl<K>(compare, init, n, xs...);
+        });
+    }
+
     template <class F>
     __device__ void outer(F f) const
     {
@@ -639,6 +651,29 @@ struct block_reducer_base : reducer_base<Derived>
         inner_storage<R, max_iterations{}, N> storage;
         idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
         return storage;
+    }
+
+    template <index_int K, class Compare, class T, class N, class X>
+    __device__ auto topk_impl(Compare compare, T init, N n, X&& x) const
+    {
+        using type = typename remove_reference_t<X>::type;
+        static_assert(not is_any_vec<type>(), "topk does not support vectorized elements");
+        using index_type     = conditional_t<(N{} > 32768), index_int, uint16_t>;
+        using pair           = topk_pair<type, index_type>;
+        using max_iterations = decltype(idx.max_local_stride_iterations(index_c<K>));
+        inner_storage<type, max_iterations{}, index_constant<K>> values;
+        inner_storage<index_type, max_iterations{}, index_constant<K>> indices;
+        select_topk<K>(
+            idx,
+            compare,
+            init,
+            n,
+            [&](auto j, auto d) { return make_topk_pair<pair>(x(j, d), j); },
+            [&](auto i, auto d, const pair& p) {
+                values(i, d)  = p.key;
+                indices(i, d) = p.val;
+            });
+        return make_tuple(values, indices);
     }
 };
 

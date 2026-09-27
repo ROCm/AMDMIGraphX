@@ -29,9 +29,11 @@
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/bit.hpp>
 #include <migraphx/kernels/ranges.hpp>
 #include <migraphx/kernels/dpp.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 
@@ -261,6 +263,116 @@ struct bitonic_topk
 
 template <class N, class K, class Compare>
 bitonic_topk(N, K, Compare) -> bitonic_topk<N{}, K{}, Compare>;
+
+template <class T, class U>
+struct topk_pair_t_u
+{
+    T key;
+    U val;
+};
+
+template <class T, class U>
+struct topk_pair_u_t
+{
+    U val;
+    T key;
+};
+
+/// Key and index of a topk candidate, with the larger member first to avoid padding
+template <class T, class U>
+struct topk_pair : conditional_t<(sizeof(T) >= sizeof(U)), topk_pair_t_u<T, U>, topk_pair_u_t<T, U>>
+{
+    template <class Stream>
+    friend constexpr const Stream& operator<<(const Stream& ss, const topk_pair& tp)
+    {
+        ss << "{ " << tp.key << ", " << tp.val << "}";
+        return ss;
+    }
+};
+
+template <class Pair, class T, class U>
+constexpr Pair make_topk_pair(T key, U val)
+{
+    Pair p;
+    p.key = key;
+    p.val = val;
+    return p;
+}
+
+/// Orders the pairs by key, with the lower index first among equal keys
+template <class Compare>
+constexpr auto compare_topk_pair(Compare compare)
+{
+    return [=](const auto& x, const auto& y) {
+        if(compare(x.key, y.key))
+            return true;
+        if(compare(y.key, x.key))
+            return false;
+        return x.val < y.val;
+    };
+}
+
+/// Selects the top K of the n elements in a workgroup. read(j, d) returns the
+/// topk_pair of element j in local_stride order, and the sorted top K are
+/// passed to write(i, d, p) in local_stride order. Each wave sorts its
+/// elements in registers and the per-wave candidates are merged through lds,
+/// unless there would be as many candidates as elements, in which case all
+/// the elements are merged through lds directly.
+template <index_int K, class Compare, class T, class N, class Read, class Write>
+__device__ void select_topk(index idx, Compare compare, T init, N, Read read, Write write)
+{
+    using pair                   = decltype(read(index_int{0}, _c<0>));
+    constexpr auto n             = N{};
+    constexpr auto k             = _c<K>;
+    constexpr auto aligned_n     = _c<bit_ceil(n)>;
+    constexpr auto aligned_k     = _c<bit_ceil(K)>;
+    constexpr auto nwave         = idx.nwave();
+    constexpr auto m             = k * nwave;
+    constexpr auto aligned_m     = _c<bit_ceil(m)>;
+    constexpr bool wave_select   = aligned_m < aligned_n or nwave == 1;
+    constexpr index_int buf_size = wave_select ? aligned_m : aligned_n;
+    static_assert(K <= n, "K must not be larger than n");
+    const auto sentinel = make_topk_pair<pair>(init, -1);
+    __shared__ pair buf[buf_size];
+    // Wait for any previous selection to finish reading the buffer
+    __syncthreads();
+    if constexpr(wave_select)
+    {
+        constexpr auto nper_lane = _c<bit_ceil(decltype(idx.max_local_stride_iterations(n)){})>;
+        array<pair, nper_lane> local_buf;
+        for(index_int i : range(nper_lane))
+            local_buf[i] = sentinel;
+        idx.local_stride(n, [&](auto j, auto d) { local_buf[d] = read(j, d); });
+        bitonic_sort{compare_topk_pair(compare)}.wave_sort(idx, local_buf);
+        // Each wave keeps its top K candidates
+        const auto base = idx.local_wave() * nper_lane;
+        for(index_int i : range(nper_lane))
+        {
+            auto ibase = i + base;
+            if(ibase >= k)
+                continue;
+            buf[idx.wave() * k + ibase] = local_buf[i];
+        }
+        if constexpr(nwave > 1)
+        {
+            idx.local_stride(aligned_m - m, [&](auto i) { buf[m + i] = sentinel; });
+            __syncthreads();
+            bitonic_topk{aligned_m, aligned_k, compare_topk_pair(compare)}.block_topk(idx, buf);
+        }
+        else
+        {
+            __syncthreads();
+        }
+    }
+    else
+    {
+        idx.local_stride(n, [&](auto j, auto d) { buf[j] = read(j, d); });
+        idx.local_stride(aligned_n - n, [&](auto i) { buf[n + i] = sentinel; });
+        __syncthreads();
+        bitonic_topk{aligned_n, aligned_k, compare_topk_pair(compare)}.block_topk(idx, buf);
+    }
+    idx.local_stride(k, [&](auto i, auto d) { write(i, d, buf[i]); });
+}
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_SORT_HPP

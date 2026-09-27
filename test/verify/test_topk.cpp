@@ -70,6 +70,10 @@ template struct test_topk<migraphx::shape::float_type, 30, 2400>;
 template struct test_topk<migraphx::shape::float_type, 100, 80000>;
 template struct test_topk<migraphx::shape::float_type, 1000, 1875>;
 template struct test_topk<migraphx::shape::float_type, 1000, 120000>;
+// n just above a power of two with the slack of a non power of two k
+template struct test_topk<migraphx::shape::half_type, 5, 65>;
+template struct test_topk<migraphx::shape::float_type, 5, 130>;
+template struct test_topk<migraphx::shape::float_type, 4, 129>;
 
 template struct test_topk<migraphx::shape::int32_type, 1, 256>;
 template struct test_topk<migraphx::shape::int32_type, 1, 1024>;

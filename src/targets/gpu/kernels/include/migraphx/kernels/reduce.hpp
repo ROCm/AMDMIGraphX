@@ -653,25 +653,48 @@ struct block_reducer_base : reducer_base<Derived>
         return storage;
     }
 
+    /// The elements are selected from the vectors of the input and packed
+    /// back into vectors of the same width, with the indices as the scalar
+    /// positions along the reduction
     template <index_int K, class Compare, class T, class N, class X>
     __device__ auto topk_impl(Compare compare, T init, N n, X&& x) const
     {
-        using type = typename remove_reference_t<X>::type;
-        static_assert(not is_any_vec<type>(), "topk does not support vectorized elements");
-        using index_type     = conditional_t<(N{} > 32768), index_int, uint16_t>;
-        using pair           = topk_pair<type, index_type>;
-        using max_iterations = decltype(idx.max_local_stride_iterations(index_c<K>));
-        inner_storage<type, max_iterations{}, index_constant<K>> values;
-        inner_storage<index_type, max_iterations{}, index_constant<K>> indices;
+        using type                    = typename remove_reference_t<X>::type;
+        using elem                    = vec_type<type>;
+        constexpr index_int vsize     = vec_size<type>();
+        constexpr index_int width     = vsize == 0 ? 1 : vsize;
+        constexpr index_int nelements = N{} * width;
+        static_assert(K % width == 0, "topk k must be a multiple of the vector width");
+        using index_type       = conditional_t<(nelements > 32768), index_int, uint16_t>;
+        using pair             = topk_pair<elem, index_type>;
+        using index_vec        = conditional_t<(width == 1), int64_t, vec<int64_t, width>>;
+        constexpr auto nwrites = index_c<K / width>;
+        using max_iterations   = decltype(idx.max_local_stride_iterations(nwrites));
+        inner_storage<type, max_iterations{}, decltype(nwrites)> values;
+        inner_storage<index_vec, max_iterations{}, decltype(nwrites)> indices;
         select_topk<K>(
             idx,
             compare,
             init,
             n,
-            [&](auto j, auto d) { return make_topk_pair<pair>(x(j, d), j); },
-            [&](auto i, auto d, const pair& p) {
-                values(i, d)  = p.key;
-                indices(i, d) = p.val;
+            [&](auto j, auto d) {
+                auto v = x(j, d);
+                return generate_array<pair>(_c<width>, [&](index_int i) {
+                    return make_topk_pair<pair>(vec_at(v, i), j * width + i);
+                });
+            },
+            [&](auto i, auto d, const array<pair, width>& ps) {
+                if constexpr(width == 1)
+                {
+                    values(i, d)  = ps[0].key;
+                    indices(i, d) = ps[0].val;
+                }
+                else
+                {
+                    values(i, d) = generate_vec(_c<width>, [&](auto e) { return ps[e].key; });
+                    indices(i, d) =
+                        generate_vec(_c<width>, [&](auto e) { return int64_t{ps[e].val}; });
+                }
             });
         return make_tuple(values, indices);
     }

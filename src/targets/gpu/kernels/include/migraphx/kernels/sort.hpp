@@ -312,17 +312,21 @@ constexpr auto compare_topk_pair(Compare compare)
     };
 }
 
-/// Selects the top K of the n elements in a workgroup. read(j, d) returns the
-/// topk_pair of element j in local_stride order, and the sorted top K are
-/// passed to write(i, d, p) in local_stride order. Each wave sorts its
-/// elements in registers and the per-wave candidates are merged through lds,
-/// unless there would be as many candidates as elements, in which case all
-/// the elements are merged through lds directly.
+/// Selects the top K elements in a workgroup. read(j, d) returns an array of
+/// the topk_pairs of the elements read at position j in local_stride order,
+/// and the sorted top K are passed as arrays of the same width to
+/// write(i, d, ps) in local_stride order. Each wave sorts its elements in
+/// registers and the per-wave candidates are merged through lds, unless
+/// there would be as many candidates as elements, in which case all the
+/// elements are merged through lds directly.
 template <index_int K, class Compare, class T, class N, class Read, class Write>
 __device__ void select_topk(index idx, Compare compare, T init, N, Read read, Write write)
 {
-    using pair                   = decltype(read(index_int{0}, _c<0>));
-    constexpr auto n             = N{};
+    using reads                  = decltype(read(index_int{0}, _c<0>));
+    using pair                   = typename reads::value_type;
+    constexpr auto width         = decltype(reads{}.size()){};
+    constexpr auto nreads        = N{};
+    constexpr auto n             = nreads * width;
     constexpr auto k             = _c<K>;
     constexpr auto aligned_n     = _c<bit_ceil(n)>;
     constexpr auto aligned_k     = _c<bit_ceil(K)>;
@@ -332,17 +336,22 @@ __device__ void select_topk(index idx, Compare compare, T init, N, Read read, Wr
     constexpr bool wave_select   = aligned_m < aligned_n or nwave == 1;
     constexpr index_int buf_size = wave_select ? aligned_m : aligned_n;
     static_assert(K <= n, "K must not be larger than n");
+    static_assert(K % width == 0, "K must be a multiple of the read width");
     const auto sentinel = make_topk_pair<pair>(init, -1);
     __shared__ pair buf[buf_size];
     // Wait for any previous selection to finish reading the buffer
     __syncthreads();
     if constexpr(wave_select)
     {
-        constexpr auto nper_lane = _c<bit_ceil(decltype(idx.max_local_stride_iterations(n)){})>;
+        constexpr auto nper_lane =
+            _c<bit_ceil(decltype(idx.max_local_stride_iterations(nreads)){} * width)>;
         array<pair, nper_lane> local_buf;
         for(index_int i : range(nper_lane))
             local_buf[i] = sentinel;
-        idx.local_stride(n, [&](auto j, auto d) { local_buf[d] = read(j, d); });
+        idx.local_stride(nreads, [&](auto j, auto d) {
+            auto ps = read(j, d);
+            repeat_c<width>([&](auto i) { local_buf[d * width + i] = ps[i]; });
+        });
         bitonic_sort{compare_topk_pair(compare)}.wave_sort(idx, local_buf);
         // Each wave keeps its top K candidates
         const auto base = idx.local_wave() * nper_lane;
@@ -366,12 +375,17 @@ __device__ void select_topk(index idx, Compare compare, T init, N, Read read, Wr
     }
     else
     {
-        idx.local_stride(n, [&](auto j, auto d) { buf[j] = read(j, d); });
+        idx.local_stride(nreads, [&](auto j, auto d) {
+            auto ps = read(j, d);
+            repeat_c<width>([&](auto i) { buf[j * width + i] = ps[i]; });
+        });
         idx.local_stride(aligned_n - n, [&](auto i) { buf[n + i] = sentinel; });
         __syncthreads();
         bitonic_topk{aligned_n, aligned_k, compare_topk_pair(compare)}.block_topk(idx, buf);
     }
-    idx.local_stride(k, [&](auto i, auto d) { write(i, d, buf[i]); });
+    idx.local_stride(k / width, [&](auto i, auto d) {
+        write(i, d, generate_array<pair>(width, [&](index_int e) { return buf[i * width + e]; }));
+    });
 }
 
 } // namespace migraphx

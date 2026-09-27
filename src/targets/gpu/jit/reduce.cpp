@@ -342,22 +342,21 @@ static optional<std::size_t> find_topk(const module& rm)
     return it->get_shape().sub_shapes().front().lens().at(axis);
 }
 
-/// The topk selection sorts the elements of each wave in registers, so about
-/// 4 elements per lane are used like the standalone topk kernel, with the
-/// workgroup capped so the per-wave candidates fit in lds
-static std::size_t topk_block_size(context& ctx, std::size_t relements, std::size_t k)
+/// The topk selects the elements of the vectors, so the vectors are kept to
+/// the 4 elements per lane the selection sorts in registers, and small
+/// enough that a wave still reads the whole reduction. The width also
+/// divides k since the selected elements are packed into vectors.
+static vectorize
+topk_vectorize(context& ctx, std::size_t axis, const std::vector<shape>& inputs, std::size_t n)
 {
-    auto max_wavefronts = std::max<std::size_t>(1, 8192 / k);
-    auto max_block_size =
-        std::min<std::size_t>(max_wavefronts * ctx.get_current_device().get_wavefront_size(), 1024);
-    return compute_block_size(ctx, std::max<std::size_t>(relements / 4, 1), max_block_size);
-}
-
-static std::size_t default_block_size(context& ctx, const value& v, std::size_t relements)
-{
-    if(v.contains("topk"))
-        return topk_block_size(ctx, relements, v.at("topk").to<std::size_t>());
-    return compute_block_size(ctx, relements, 1024);
+    const std::vector<std::size_t> candidates = {4, 2};
+    std::vector<std::size_t> sizes;
+    std::copy_if(candidates.begin(), candidates.end(), std::back_inserter(sizes), [&](auto size) {
+        return n / size >= ctx.get_current_device().get_wavefront_size();
+    });
+    if(sizes.empty())
+        return {1, axis};
+    return vectorize::elements(axis, inputs, sizes);
 }
 
 /// This will adjust the input shapes so a partial reduction is done per workgroup.
@@ -560,6 +559,8 @@ struct fused_reduce_plan
     std::string algo                  = {};
     std::string assign                = {};
     std::size_t relements             = 0;
+    /// The k selected by the topk in the module, 0 when there is none
+    std::size_t topk = 0;
 };
 
 // Computes the virtual inputs, default reduction algorithm, vectorization, and vectorized
@@ -587,22 +588,45 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     plan.algo =
         v.get("algo", get_reduce_algo(ctx, plan.virtual_inputs, plan.reduction_shape.lens()));
     bool no_vectorize = v.get("no_vectorize", false);
-    // The topk selection needs the whole reduction in one workgroup and
-    // sorts scalar elements
-    if(v.contains("topk"))
-    {
-        plan.algo    = "block";
-        no_vectorize = true;
-    }
+    plan.topk         = v.get("topk", std::size_t{0});
+    // The topk selection needs the whole reduction in one workgroup
+    if(plan.topk > 0)
+        plan.algo = "block";
     // The occupancy-based vector sizes are not used since vectorizing the
     // reduction axis does not reduce the number of workgroups, only the lanes
     // reducing each output, so a full-width vector is always fewer load
     // instructions for the same parallelism across outputs.
     if(contains({"block", "block_tile", "block_batch", "wave"}, plan.algo) and
        plan.reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
-        plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {8, 4, 2});
+    {
+        if(plan.topk > 0)
+            plan.vec =
+                topk_vectorize(ctx, faxis, plan.virtual_inputs, plan.reduction_shape.lens()[faxis]);
+        else
+            plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {8, 4, 2});
+    }
     plan.relements = plan.reduction_shape.elements() / plan.vec.size;
     return plan;
+}
+
+/// The topk selection sorts the elements of each wave in registers, so about
+/// 4 elements, or one vector, per lane are used like the standalone topk
+/// kernel, with the workgroup capped so the per-wave candidates fit in lds
+std::size_t topk_block_size(context& ctx, const fused_reduce_plan& plan)
+{
+    auto max_wavefronts = std::max<std::size_t>(1, 8192 / plan.topk);
+    auto max_block_size =
+        std::min<std::size_t>(max_wavefronts * ctx.get_current_device().get_wavefront_size(), 1024);
+    auto per_lane = std::max<std::size_t>(4, plan.vec.size);
+    auto n        = plan.reduction_shape.elements();
+    return compute_block_size(ctx, std::max<std::size_t>(n / per_lane, 1), max_block_size);
+}
+
+std::size_t default_block_size(context& ctx, const fused_reduce_plan& plan)
+{
+    if(plan.topk > 0)
+        return topk_block_size(ctx, plan);
+    return compute_block_size(ctx, plan.relements, 1024);
 }
 
 /// The lane algorithm should be replaced with block_strided when there are
@@ -671,7 +695,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(contains({"block", "block_tile", "block_batch"}, algo))
         {
             auto n_per_block = v.get("n_per_block", std::size_t{1});
-            auto block_size  = v.get("block_size", default_block_size(ctx, v, relements));
+            auto block_size  = v.get("block_size", default_block_size(ctx, plan));
             assert(n_per_block > 0);
             assert(block_size > 0);
             assert(nelements % n_per_block == 0);
@@ -785,32 +809,53 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         }
     }
 
-    /// The topk selection needs the whole reduction in one workgroup, so only
-    /// the block size is tuned: larger blocks split the sort across more
-    /// waves while smaller ones sort more elements per lane
-    static void add_topk_solutions(
-        context& ctx, tuning_config& tc, std::size_t relements, std::size_t k, bool exhaustive)
+    /// The topk selection needs the whole reduction in one workgroup, so the
+    /// block size is tuned along with whether the reduction is vectorized:
+    /// larger blocks split the sort across more waves while smaller ones
+    /// sort more elements per lane, and the vectors load fewer instructions
+    /// but sort more elements per lane
+    static void add_topk_solutions(context& ctx,
+                                   tuning_config& tc,
+                                   const fused_reduce_plan& plan,
+                                   bool exhaustive)
     {
-        if(not exhaustive)
+        auto nelements = plan.reduction_shape.elements();
+        // About 4 elements per lane, or one vector per lane
+        std::set<std::size_t> vector_block_sizes = {topk_block_size(ctx, plan),
+                                                    compute_block_size(ctx, plan.relements, 1024)};
+        // About 4 elements per lane, or one element per lane
+        std::set<std::size_t> scalar_block_sizes = {
+            compute_block_size(ctx, std::max<std::size_t>(nelements / 4, 1), 1024),
+            compute_block_size(ctx, nelements, 1024)};
+        if(exhaustive)
         {
-            add_block_size_solutions(tc,
-                                     "block",
-                                     topk_block_size(ctx, relements, k),
-                                     compute_block_size(ctx, relements, 1024));
-            return;
+            const std::vector<std::size_t> candidates = {64, 128, 256, 512, 1024};
+            // Larger reductions per lane would need the block_large algorithm
+            std::copy_if(candidates.begin(),
+                         candidates.end(),
+                         std::inserter(scalar_block_sizes, scalar_block_sizes.end()),
+                         [&](auto block_size) { return nelements < (block_size - 1) * 256; });
+            std::copy_if(candidates.begin(),
+                         candidates.end(),
+                         std::inserter(vector_block_sizes, vector_block_sizes.end()),
+                         [&](auto block_size) { return plan.relements < (block_size - 1) * 256; });
         }
-        const std::vector<std::size_t> candidates = {64, 128, 256, 512, 1024};
-        std::set<std::size_t> block_sizes         = {topk_block_size(ctx, relements, k)};
-        // Larger reductions per lane would need the block_large algorithm
-        std::copy_if(candidates.begin(),
-                     candidates.end(),
-                     std::inserter(block_sizes, block_sizes.end()),
-                     [&](auto block_size) { return relements < (block_size - 1) * 256; });
+        if(plan.vec.size > 1)
+        {
+            std::transform(vector_block_sizes.begin(),
+                           vector_block_sizes.end(),
+                           std::back_inserter(tc.solutions),
+                           [](auto block_size) {
+                               return value{{"algo", "block"}, {"block_size", block_size}};
+                           });
+        }
         std::transform(
-            block_sizes.begin(),
-            block_sizes.end(),
+            scalar_block_sizes.begin(),
+            scalar_block_sizes.end(),
             std::back_inserter(tc.solutions),
-            [](auto block_size) { return value{{"algo", "block"}, {"block_size", block_size}}; });
+            [](auto block_size) {
+                return value{{"algo", "block"}, {"block_size", block_size}, {"no_vectorize", true}};
+            });
     }
 
     /// All the block and wave sizes, the lane and block_strided algorithms,
@@ -877,9 +922,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             v["topk"] = *topk;
         auto plan     = compute_fused_reduce_plan(ctx, shapes, v);
         auto noutputs = plan.finputs.size() - shapes.size() + 1;
-        if(topk.has_value())
+        if(plan.topk > 0)
         {
-            add_topk_solutions(ctx, tc, plan.relements, *topk, exhaustive);
+            add_topk_solutions(ctx, tc, plan, exhaustive);
             return tc;
         }
         auto tile = find_reduce_tile(

@@ -78,10 +78,10 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
         compare,
         init,
         n,
-        [&](auto j, auto) { return make_topk_pair<pair>(x[j], get_index(j)); },
-        [&](auto i, auto, const pair& p) {
-            y[i]     = p.key;
-            y_idx[i] = p.val;
+        [&](auto j, auto) { return make_array(make_topk_pair<pair>(x[j], get_index(j))); },
+        [&](auto i, auto, const array<pair, 1>& ps) {
+            y[i]     = ps[0].key;
+            y_idx[i] = ps[0].val;
         });
 }
 

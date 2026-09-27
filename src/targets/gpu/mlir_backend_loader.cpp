@@ -102,11 +102,11 @@ static std::string select_mlir_backend(const std::string& arch)
             std::any_of(triton_archs.begin(), triton_archs.end(), [&](const auto* supported_arch) {
                 return gfx_name == supported_arch;
             });
-        return use_triton ? "triton" : "legacy";
+        return use_triton ? "triton" : "rocmlir";
     }
-    if(backend != "legacy" and backend != "triton")
+    if(backend != "rocmlir" and backend != "triton")
         MIGRAPHX_THROW("Invalid MIGRAPHX_MLIR_BACKEND value '" + backend +
-                       "'; expected 'legacy', 'triton', or 'auto'");
+                       "'; expected 'rocmlir', 'triton', or 'auto'");
     return backend;
 }
 
@@ -132,7 +132,7 @@ static loaded_mlir_backend load_mlir_backend(const std::string& backend)
                        std::string{e.what()});
     }
 
-    const auto candidate = plugin_dir / make_shared_object_filename("migraphx_mlir_" + backend);
+    const auto candidate = plugin_dir / make_shared_object_filename("migraphx_" + backend);
     if(not fs::exists(candidate))
         MIGRAPHX_THROW("MLIR backend plugin '" + backend + "' was not found at '" +
                        candidate.string() + "'");

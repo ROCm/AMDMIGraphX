@@ -1116,10 +1116,10 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(not contains({"fused_reduce", "split_fused_reduce"}, op.name()))
             return nullopt;
         assert(not ins->module_inputs().empty());
-        const auto& rm   = *ins->module_inputs().front();
-        auto shapes      = to_shapes(ins->inputs());
-        auto v           = op.to_value();
-        auto topk        = find_topk(rm);
+        const auto& rm = *ins->module_inputs().front();
+        auto shapes    = to_shapes(ins->inputs());
+        auto v         = op.to_value();
+        auto topk      = find_topk(rm);
         if(topk.has_value())
             v["topk"] = *topk;
         auto packed_args = find_packed_args(rm);

@@ -207,6 +207,16 @@ TEST_CASE(to_value_binary)
     EXPECT(migraphx::from_value<migraphx::value::binary>(v) == bin);
 }
 
+// Before value::binary had a to_value of its own, it was serialized like any other vector of
+// bytes: as an array of numbers, which saved programs still hold
+TEST_CASE(from_value_binary_array)
+{
+    std::vector<std::uint8_t> data = {0, 1, 2, 255};
+    auto v                         = migraphx::to_value(data);
+    EXPECT(v.is_array());
+    EXPECT(migraphx::from_value<migraphx::value::binary>(v) == migraphx::value::binary{data});
+}
+
 TEST_CASE(to_value_initializer_list_int)
 {
     auto v = migraphx::to_value({1, 2, 3});

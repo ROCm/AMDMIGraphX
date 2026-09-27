@@ -48,6 +48,7 @@
 
 #ifndef _WIN32
 #include <cstring>
+#include <unistd.h>
 #else
 #include <io.h>
 #include <fcntl.h>
@@ -436,6 +437,30 @@ TEST_CASE(session_destructor_waits_for_child)
     EXPECT(migraphx::fs::exists(marker));
 }
 
+// Output from before the child took stdout over must not be read as the size of a reply
+TEST_CASE(session_start_rejects_output_before_ready)
+{
+    EXPECT(test::throws(
+        [] { migraphx::process{executable, {child_flag, "serve-print-before-ready"}}.start(); }));
+}
+
+TEST_CASE(session_start_child_exits_first)
+{
+    EXPECT(test::throws(
+        [] { migraphx::process{executable, {child_flag, "serve-exit-before-ready"}}.start(); }));
+}
+
+#ifndef _WIN32
+// Taking stdout over in a child started without stderr must still keep what it prints out of the
+// replies
+TEST_CASE(session_child_without_stderr)
+{
+    auto session = migraphx::process{executable, {child_flag, "serve-without-stderr"}}.start();
+    auto data    = make_payload(4096);
+    EXPECT(session.request([&](const auto& writer) { writer(data.data(), data.size()); }) == data);
+}
+#endif
+
 TEST_CASE(session_moves)
 {
     auto first  = migraphx::process{executable, {child_flag, "serve-echo"}}.start();
@@ -554,6 +579,41 @@ static void child_write(const std::vector<char>& data)
 static int run_session_child(const std::vector<std::string>& args)
 {
     const auto& mode = args.at(0);
+    if(mode == "serve-print-before-ready")
+    {
+        std::cout << "printed before the child was ready" << std::endl;
+        migraphx::process::write_ready(std::cout);
+        return 0;
+    }
+    if(mode == "serve-exit-before-ready")
+        return 3;
+    if(mode == "serve-print-to-stdout")
+    {
+        // Serves a single request, so that printing into the reply ends in EOF instead of a hang
+        auto replies = migraphx::process::take_stdout();
+        migraphx::process::write_ready(*replies);
+        auto message = migraphx::process::read_message(std::cin).value();
+        std::cout << "printed with std::cout" << std::endl;
+        std::printf("printed with printf\n");
+        std::fflush(stdout);
+        migraphx::process::write_message(*replies, message);
+        return 0;
+    }
+#ifndef _WIN32
+    if(mode == "serve-without-stderr")
+    {
+        // Serves a single request, so that printing into the reply ends in EOF instead of a hang
+        close(STDERR_FILENO);
+        auto replies = migraphx::process::take_stdout();
+        migraphx::process::write_ready(*replies);
+        auto message = migraphx::process::read_message(std::cin).value();
+        std::cout << "printed with std::cout" << std::endl;
+        std::cerr << "printed with std::cerr" << std::endl;
+        migraphx::process::write_message(*replies, message);
+        return 0;
+    }
+#endif
+    migraphx::process::write_ready(std::cout);
     if(mode == "serve-echo")
     {
         while(auto message = migraphx::process::read_message(std::cin))
@@ -589,17 +649,6 @@ static int run_session_child(const std::vector<std::string>& args)
         // The parent gives up on the request and kills us long before this runs out.
         migraphx::process::write_message(std::cout, {});
         std::this_thread::sleep_for(std::chrono::seconds{60});
-        return 0;
-    }
-    if(mode == "serve-print-to-stdout")
-    {
-        // Serves a single request, so that printing into the reply ends in EOF instead of a hang
-        auto replies = migraphx::process::take_stdout();
-        auto message = migraphx::process::read_message(std::cin).value();
-        std::cout << "printed with std::cout" << std::endl;
-        std::printf("printed with printf\n");
-        std::fflush(stdout);
-        migraphx::process::write_message(*replies, message);
         return 0;
     }
     std::cerr << "unknown child mode: " << mode << std::endl;

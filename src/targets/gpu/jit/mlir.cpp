@@ -210,33 +210,31 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               optional<std::chrono::milliseconds> cpu_budget)
 {
     auto props = get_mlir_gpu_properties(migraphx_ctx);
-    optional<fs::path> driver;
-    if(cpu_budget.has_value() and not migraphx_ctx.get_disable_processes())
-        driver = find_hiprtc_driver();
-    if(not driver.has_value())
+    if(not cpu_budget.has_value() or migraphx_ctx.get_disable_processes())
         return compile_mlir(props, std::move(m), in_shapes, solution);
 
     using milliseconds = std::chrono::duration<double, std::milli>;
     timer wall{};
-    auto reply = migraphx_ctx.get_compile_driver_pool().request(
-        *driver,
-        {{"program", program{std::move(m)}.to_value()},
-         {"inputs", migraphx::to_value(in_shapes)},
-         {"solution", solution},
-         {"gpu", migraphx::to_value(props)},
-         {"cpu_budget_ms", cpu_budget->count()}});
-    if(reply.contains("timeout"))
+    value request = {{"program", program{m}.to_value()},
+                     {"inputs", migraphx::to_value(in_shapes)},
+                     {"solution", solution},
+                     {"gpu", migraphx::to_value(props)},
+                     {"cpu_budget_ms", cpu_budget->count()}};
+    auto reply    = migraphx_ctx.get_compile_driver_pool().request(request);
+    if(not reply.has_value())
+        return compile_mlir(props, std::move(m), in_shapes, solution);
+    if(reply->contains("timeout"))
         MIGRAPHX_THROW("MLIR solution " + to_string(solution) + " ran out of its " +
                        std::to_string(cpu_budget->count()) + " ms CPU compile budget");
-    if(reply.contains("error"))
-        MIGRAPHX_THROW(reply.at("error").to<std::string>());
-    auto mco = from_value<mlir_code_object>(reply.at("mlir_code_object"));
+    if(reply->contains("error"))
+        MIGRAPHX_THROW(reply->at("error").to<std::string>());
+    auto mco = from_value<mlir_code_object>(reply->at("mlir_code_object"));
     if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 1)
     {
         std::stringstream ss;
         ss << "MLIR solution " << to_string(solution)
-           << " compiled in a driver session: " << reply.at("cpu_ms").to<double>() << " ms CPU, "
-           << reply.at("wall_ms").to<double>() << " ms wall, " << wall.record<milliseconds>()
+           << " compiled in a driver session: " << reply->at("cpu_ms").to<double>() << " ms CPU, "
+           << reply->at("wall_ms").to<double>() << " ms wall, " << wall.record<milliseconds>()
            << " ms wall in MIGraphX" << std::endl;
         std::cout << ss.str();
     }

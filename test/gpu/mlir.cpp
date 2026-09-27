@@ -41,6 +41,7 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
 #include <test.hpp>
 
@@ -1115,6 +1116,23 @@ TEST_CASE(compile_mlir_from_gpu_properties)
     EXPECT(migraphx::to_value(from_props.cop) == migraphx::to_value(from_ctx.cop));
     EXPECT(from_props.prefill_indices == from_ctx.prefill_indices);
     EXPECT(from_props.prefill_values == from_ctx.prefill_values);
+}
+
+// A session sends the code object back as msgpack, which reads the prefill values back as unsigned
+// integers, so they are compared as the int that hip::fill takes
+TEST_CASE(mlir_code_object_msgpack_round_trip)
+{
+    migraphx::gpu::mlir_code_object mco;
+    mco.cop.code_object = migraphx::value::binary{std::vector<std::uint8_t>{0, 1, 255}};
+    mco.cop.symbol_name = "mlir_kernel";
+    mco.prefill_indices = {1, 3};
+    mco.prefill_values  = {0, 7};
+    auto round_trip     = migraphx::from_value<migraphx::gpu::mlir_code_object>(
+        migraphx::from_msgpack(migraphx::to_msgpack(migraphx::to_value(mco))));
+    EXPECT(migraphx::to_value(round_trip.cop) == migraphx::to_value(mco.cop));
+    EXPECT(round_trip.prefill_indices == mco.prefill_indices);
+    EXPECT(migraphx::from_value<std::vector<int>>(migraphx::to_value(round_trip.prefill_values)) ==
+           std::vector<int>{0, 7});
 }
 
 // A compile with a CPU budget runs in a compile driver session and must produce the kernel an

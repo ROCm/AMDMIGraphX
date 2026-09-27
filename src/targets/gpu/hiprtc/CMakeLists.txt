@@ -35,7 +35,11 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_SIMULATE_ID MATCHES "
 endif()
 target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu_compile)
 rocm_add_version_resource(migraphx-hiprtc-driver "AMD MIGraphX" "MIGraphX HIP RTC Driver - Runtime Compilation Driver")
-add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
+# libmigraphx_gpu runs the driver, so everything that links the library needs it built
+add_dependencies(migraphx_gpu migraphx-hiprtc-driver)
+# find_hiprtc_driver looks in the bin directory next to the lib directory libmigraphx_gpu is in,
+# which PRIVATE installs both to
 rocm_install_targets(
+    PRIVATE
     TARGETS migraphx-hiprtc-driver
 )

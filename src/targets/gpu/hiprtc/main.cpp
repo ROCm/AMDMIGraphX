@@ -164,9 +164,17 @@ struct compile_watchdog
             if(armed and used >= budget.count())
             {
                 // The lock is held until the process ends, so disarm() blocks and the compile
-                // can't reply as well
-                write_reply(replies, {{"timeout", true}, {"cpu_ms", used}});
-                std::_Exit(0);
+                // can't reply as well. The process ends even when the parent is gone and the
+                // reply can't be written.
+                try
+                {
+                    write_reply(replies, {{"timeout", true}, {"cpu_ms", used}});
+                }
+                catch(...)
+                {
+                    migraphx::process::exit_now(1);
+                }
+                migraphx::process::exit_now(0);
             }
             wake.wait_for(lock, watchdog_period, [&] { return not armed or stopping; });
         }
@@ -219,6 +227,7 @@ static int serve()
         auto replies = migraphx::process::take_stdout();
         migraphx::gpu::warm_up_mlir();
         compile_watchdog watchdog{*replies};
+        migraphx::process::write_ready(*replies);
         while(auto request = migraphx::process::read_message(std::cin))
         {
             write_reply(*replies, serve_request(*request, watchdog));
@@ -231,9 +240,9 @@ static int serve()
         std::cerr << err.what() << std::endl;
         return 1;
     }
-    // The parent waits for the driver to exit, and the static destructors of the MLIR and HIP
-    // libraries take tens of milliseconds. Every reply has already been flushed.
-    std::_Exit(0);
+    // Every reply has already been flushed, and the static destructors of the MLIR and HIP
+    // libraries take tens of milliseconds
+    migraphx::process::exit_now(0);
 }
 
 // Without this, a bare invocation would silently block in fread waiting for a human to type

@@ -57,11 +57,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <numeric>
 #include <functional>
 #include <iostream>
 #include <streambuf>
+#include <string_view>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -478,6 +480,20 @@ std::size_t message_bytes_remaining(const std::vector<char>& data, std::size_t b
     if(bytes_read < message_header_size)
         return message_header_size - bytes_read;
     return message_header_size + decode_message_size(data.data()) - bytes_read;
+}
+
+// What a session child writes once it is ready for requests. Output from before the child took
+// stdout over comes ahead of it and fails to match, rather than being read as the size of a reply.
+constexpr std::string_view session_ready_marker = "migraphx session 1\n";
+
+std::size_t ready_marker_bytes_remaining(const std::vector<char>&, std::size_t bytes_read)
+{
+    return session_ready_marker.size() - bytes_read;
+}
+
+std::string exited_early_message(const std::string& command, std::string_view awaited)
+{
+    return "Command " + command + " exited before sending its " + std::string{awaited};
 }
 
 #ifdef _WIN32
@@ -1297,7 +1313,10 @@ struct process_session_impl
         WaitForSingleObject(process_handle.get(), INFINITE);
     }
 
-    std::vector<char> request(const std::vector<char>& frame)
+    // Sends `frame`, and reads until `remaining` reports nothing left of the message being read
+    template <class F>
+    std::vector<char>
+    exchange(const std::vector<char>& frame, F remaining, std::string_view awaited)
     {
         // Declaration order is load-bearing, as in exec_read_write: the guards that cancel pending
         // I/O must be destroyed before the buffers the kernel was pointed at.
@@ -1328,10 +1347,10 @@ struct process_session_impl
         };
 
         auto issue_write = [&] {
-            auto remaining = std::min<std::size_t>(frame.size() - total_bytes_written, MAXDWORD);
+            auto size = std::min<std::size_t>(frame.size() - total_bytes_written, MAXDWORD);
             if(WriteFile(stdin_write.get(),
                          frame.data() + total_bytes_written,
-                         static_cast<DWORD>(remaining),
+                         static_cast<DWORD>(size),
                          nullptr,
                          &write_overlapped) != FALSE)
             {
@@ -1376,10 +1395,25 @@ struct process_session_impl
             throw_error(error, "Failed to read from child stdout");
         };
 
-        if(not issue_write())
+        auto complete_write = [&] {
+            DWORD bytes_written = 0;
+            write_io.disarm();
+            if(GetOverlappedResult(stdin_write.get(), &write_overlapped, &bytes_written, FALSE) ==
+               FALSE)
+            {
+                // The child stopped reading; whether it replies decides what happened.
+                finish_writing();
+                return;
+            }
+            total_bytes_written += bytes_written;
+            if(total_bytes_written >= frame.size() or not issue_write())
+                finish_writing();
+        };
+
+        if(frame.empty() or not issue_write())
             finish_writing();
-        if(not issue_read(message_bytes_remaining(reply, 0)))
-            MIGRAPHX_THROW("Command " + command + " exited before replying");
+        if(not issue_read(remaining(reply, 0)))
+            MIGRAPHX_THROW(exited_early_message(command, awaited));
         for(;;)
         {
             auto wait_result =
@@ -1397,44 +1431,34 @@ struct process_session_impl
                         read_io.arm();
                         throw_error(error, "Failed to complete read from child stdout");
                     }
-                    MIGRAPHX_THROW("Command " + command + " exited before replying");
+                    MIGRAPHX_THROW(exited_early_message(command, awaited));
                 }
                 total_bytes_read += bytes_read;
-                auto want = message_bytes_remaining(reply, total_bytes_read);
+                auto want = remaining(reply, total_bytes_read);
                 if(want == 0)
                     break;
                 if(not issue_read(want))
-                    MIGRAPHX_THROW("Command " + command + " exited before replying");
+                    MIGRAPHX_THROW(exited_early_message(command, awaited));
             }
             else if(writing and wait_result == WAIT_OBJECT_0 + 1)
             {
-                DWORD bytes_written = 0;
-                write_io.disarm();
-                if(GetOverlappedResult(
-                       stdin_write.get(), &write_overlapped, &bytes_written, FALSE) == FALSE)
-                {
-                    // The child stopped reading; whether it replies decides what happened.
-                    finish_writing();
-                }
-                else
-                {
-                    total_bytes_written += bytes_written;
-                    if(total_bytes_written >= frame.size() or not issue_write())
-                        finish_writing();
-                }
+                complete_write();
             }
             else
             {
                 // The child exited with nothing left to read, or the wait failed.
-                MIGRAPHX_THROW("Command " + command + " exited before replying");
+                MIGRAPHX_THROW(exited_early_message(command, awaited));
             }
         }
+        // The wait reports only the first signaled handle, and the read comes first, so the last
+        // write can finish unseen when the reply completes before this thread gets to it
+        if(writing and WaitForSingleObject(write_event.get(), 0) == WAIT_OBJECT_0)
+            complete_write();
         // A reply complete before the whole request went out answers something else, and the rest
         // of the request would be read as the next one.
         if(writing)
             MIGRAPHX_THROW("Command " + command + " replied before reading its request");
         reply.resize(total_bytes_read);
-        reply.erase(reply.begin(), reply.begin() + message_header_size);
         return reply;
     }
 };
@@ -1462,12 +1486,15 @@ struct process_session_impl
             ::kill(child.pid, SIGKILL);
     }
 
-    std::vector<char> request(const std::vector<char>& frame)
+    // Sends `frame`, and reads until `remaining` reports nothing left of the message being read
+    template <class F>
+    std::vector<char>
+    exchange(const std::vector<char>& frame, F remaining, std::string_view awaited)
     {
         pipe_pump pump{frame, stdin_write, stdout_read, false};
         sigpipe_blocker no_sigpipe;
-        for(auto want = message_bytes_remaining(pump.stdout_data, 0); want > 0;
-            want      = message_bytes_remaining(pump.stdout_data, pump.total_bytes_read))
+        for(auto want = remaining(pump.stdout_data, 0); want > 0;
+            want      = remaining(pump.stdout_data, pump.total_bytes_read))
         {
             if(poll(pump.fds.data(), static_cast<nfds_t>(pump.fds.size()), -1) < 0)
             {
@@ -1477,15 +1504,13 @@ struct process_session_impl
             }
             pump.handle_write_event();
             if(not pump.handle_read_event(want))
-                MIGRAPHX_THROW("Command " + command + " exited before replying");
+                MIGRAPHX_THROW(exited_early_message(command, awaited));
         }
         // A reply complete before the whole request went out answers something else, and the rest
         // of the request would be read as the next one.
         if(pump.writing())
             MIGRAPHX_THROW("Command " + command + " replied before reading its request");
-        auto reply = pump.take_stdout();
-        reply.erase(reply.begin(), reply.begin() + message_header_size);
-        return reply;
+        return pump.take_stdout();
     }
 };
 
@@ -1667,8 +1692,9 @@ std::vector<char> process::session::request(const std::function<void(writer)>& p
         MIGRAPHX_THROW("Command " + impl->command + " cannot serve requests after a failed one");
     auto frame = frame_message(pipe_in);
     impl->busy = true;
-    auto reply = impl->request(frame);
+    auto reply = impl->exchange(frame, &message_bytes_remaining, "reply");
     impl->busy = false;
+    reply.erase(reply.begin(), reply.begin() + message_header_size);
     return reply;
 }
 
@@ -1686,6 +1712,10 @@ process::session process::start() const
 #else
     spawn_child(impl->command, impl->arg_list, s->child, s->stdin_write, s->stdout_read);
 #endif
+    auto marker = s->exchange({}, &ready_marker_bytes_remaining, "ready marker");
+    if(not std::equal(
+           marker.begin(), marker.end(), session_ready_marker.begin(), session_ready_marker.end()))
+        MIGRAPHX_THROW("Command " + s->command + " wrote to stdout before it was ready");
     return session{std::move(s)};
 }
 
@@ -1713,6 +1743,22 @@ void process::write_message(std::ostream& out, const std::vector<char>& data)
         out.write(data.data(), data.size());
     if(not out.flush())
         MIGRAPHX_THROW("Failed to write a session message");
+}
+
+void process::write_ready(std::ostream& out)
+{
+    out.write(session_ready_marker.data(), session_ready_marker.size());
+    if(not out.flush())
+        MIGRAPHX_THROW("Failed to write the session ready marker");
+}
+
+void process::exit_now(int code)
+{
+#ifdef _WIN32
+    // _Exit still runs the static destructors of every loaded DLL
+    TerminateProcess(GetCurrentProcess(), static_cast<UINT>(code));
+#endif
+    std::_Exit(code);
 }
 
 namespace {
@@ -1795,11 +1841,39 @@ std::unique_ptr<std::ostream> process::take_stdout()
     auto replies = std::make_unique<descriptor_stream>(reply_fd);
     if(_setmode(reply_fd, _O_BINARY) == -1)
         MIGRAPHX_THROW("Failed to set the copy of stdout to binary mode");
-    if(_dup2(_fileno(stderr), _fileno(stdout)) != 0)
+    // A child started without stderr has no descriptor for it, so stdout goes nowhere instead
+    auto null_fd = -1;
+    auto err_fd  = _fileno(stderr);
+    if(err_fd < 0)
+    {
+        null_fd = _open("NUL", _O_WRONLY);
+        if(null_fd == -1)
+            MIGRAPHX_THROW("Failed to open NUL for stdout");
+        err_fd = null_fd;
+    }
+    auto result = _dup2(err_fd, _fileno(stdout));
+    if(null_fd != -1)
+        _close(null_fd);
+    if(result != 0)
         MIGRAPHX_THROW("Failed to point stdout at stderr");
 #else
+    // A child started without stderr would get the copy of stdout as its descriptor 2, and
+    // everything written to stderr would land among the replies. /dev/null takes its place first.
+    if(fcntl(STDERR_FILENO, F_GETFD) == -1)
+    {
+        auto null_fd = open("/dev/null", O_WRONLY);
+        if(null_fd == -1)
+            MIGRAPHX_THROW("Failed to open /dev/null for stderr");
+        if(null_fd != STDERR_FILENO)
+        {
+            auto result = dup2(null_fd, STDERR_FILENO);
+            ::close(null_fd);
+            if(result == -1)
+                MIGRAPHX_THROW("Failed to point stderr at /dev/null");
+        }
+    }
     // Close-on-exec like every other descriptor here, so no child spawned later can write replies
-    auto reply_fd = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, 0);
+    auto reply_fd = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
     if(reply_fd == -1)
         MIGRAPHX_THROW("Failed to duplicate stdout");
     auto replies = std::make_unique<descriptor_stream>(reply_fd);

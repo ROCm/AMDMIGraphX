@@ -108,8 +108,8 @@ MIGRAPHX_GPU_COMPILE_EXPORT std::vector<shape>
 adjust_param_shapes(module& m, const std::vector<shape>& inputs);
 
 // With a CPU budget, the compile runs in a compile driver session, which gives up once the compile
-// has used that much CPU time, and then this throws. It stays in-process when processes are
-// disabled on the context or there is no driver.
+// has used that much CPU time, and then this throws. It stays in-process, without a budget, when
+// processes are disabled on the context or the pool has no sessions to offer.
 MIGRAPHX_GPU_EXPORT mlir_code_object
 compile_mlir(const context& migraphx_ctx,
              module m,

@@ -686,13 +686,23 @@ void compile_ops::apply(module_pass_manager& mpm) const
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
         cm.add_plan(ctx, preop, ins, &m);
     }
-    cm.update_configs();
-    cm.compile(m, is_root);
-    // Compile already tuned configs
-    cm.compile(m, is_root);
-    assert(cm.cps.empty());
+    try
+    {
+        cm.update_configs();
+        cm.compile(m, is_root);
+        // Compile already tuned configs
+        cm.compile(m, is_root);
+        assert(cm.cps.empty());
 
-    replace_inserted_device_ops(*ctx, m);
+        replace_inserted_device_ops(*ctx, m);
+    }
+    catch(...)
+    {
+        // The context outlives the compile, and would keep the idle sessions running for as long
+        // as it lives
+        ctx->get_compile_driver_pool().close();
+        throw;
+    }
 
     // Submodules are compiled before the root module, so no compile is left for the sessions
     if(is_root)

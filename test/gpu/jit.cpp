@@ -590,7 +590,7 @@ TEST_CASE(compile_code_object_disable_processes_backend_option)
     EXPECT(result == expected);
 }
 
-// GPU tests depend on the driver target, so the lookup must find the driver of this build
+// libmigraphx_gpu depends on the driver target, so the lookup must find the driver of this build
 TEST_CASE(find_hiprtc_driver_in_build)
 {
     auto driver = migraphx::gpu::find_hiprtc_driver();
@@ -610,7 +610,11 @@ TEST_CASE(hiprtc_driver_does_not_load_gpu_libraries)
     migraphx::process{*driver}
         .env({"LD_TRACE_LOADED_OBJECTS=1"})
         .read([&](const char* data, std::size_t n) { loaded.append(data, n); });
-    EXPECT(migraphx::contains(loaded, "libmigraphx_gpu_compile"));
+    // Every dynamically linked program loads libc, so an empty list can't pass as a clean one
+    EXPECT(migraphx::contains(loaded, "libc.so"));
+    // A static build links the MIGraphX libraries into the driver, so none of them is listed
+    if(migraphx::contains(loaded, "libmigraphx"))
+        EXPECT(migraphx::contains(loaded, "libmigraphx_gpu_compile"));
     EXPECT(not migraphx::contains(loaded, "libmigraphx_gpu.so"));
     EXPECT(not migraphx::contains(loaded, "libMIOpen"));
     EXPECT(not migraphx::contains(loaded, "librocblas"));

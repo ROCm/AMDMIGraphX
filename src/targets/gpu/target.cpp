@@ -89,6 +89,7 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
+#include <chrono>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -107,12 +108,19 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TUNING_COMPILE_BUDGET)
 
 namespace {
 
-constexpr std::size_t default_tuning_compile_budget_ms = 5000;
+constexpr std::chrono::milliseconds default_tuning_compile_budget{5000};
 
 // CPU time each tuning candidate after the first may take to compile; 0 turns the budget off
 optional<std::chrono::milliseconds> get_tuning_compile_budget()
 {
-    auto budget = value_of(MIGRAPHX_TUNING_COMPILE_BUDGET{}, default_tuning_compile_budget_ms);
+    auto text = string_value_of(MIGRAPHX_TUNING_COMPILE_BUDGET{});
+    if(text.empty())
+        return default_tuning_compile_budget;
+    auto budget = std::stoll(text);
+    if(budget < 0)
+        MIGRAPHX_THROW("MIGRAPHX_TUNING_COMPILE_BUDGET must be 0 or a positive number of "
+                       "milliseconds, not " +
+                       text);
     if(budget == 0)
         return nullopt;
     return std::chrono::milliseconds{budget};

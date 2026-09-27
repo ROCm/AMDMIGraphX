@@ -84,7 +84,8 @@ struct MIGRAPHX_EXPORT process
 
         /// Sends the bytes `pipe_in` produces as one message and returns the payload of the
         /// child's next message. Throws if the child closes stdout or exits before the reply is
-        /// complete. After a throw the session is broken: every later request throws too.
+        /// complete. A throw once the request has started going out breaks the session: every
+        /// later request throws too.
         std::vector<char> request(const std::function<void(writer)>& pipe_in);
 
         private:
@@ -94,7 +95,8 @@ struct MIGRAPHX_EXPORT process
     };
 
     /// Spawns the child the same way read_write does, but leaves it running to serve requests.
-    /// cwd() and env() are unsupported.
+    /// Returns once the child has called write_ready, and throws if it writes anything else first
+    /// or exits first. cwd() and env() are unsupported.
     session start() const;
 
     /// The child side of a session. read_message returns the next message on `in`, or nullopt at
@@ -103,11 +105,19 @@ struct MIGRAPHX_EXPORT process
     static optional<std::vector<char>> read_message(std::istream& in);
     static void write_message(std::ostream& out, const std::vector<char>& data);
 
+    /// Also for the child: tells the parent it is ready for requests. Written once, to the stream
+    /// the replies go to, before the first reply.
+    static void write_ready(std::ostream& out);
+
     /// Also for the child: returns a binary stream on a private copy of stdout to write the
     /// replies to, and points stdout itself at stderr. Libraries print to stdout through printf
     /// and the file descriptor as well as through std::cout, and a stray byte among the replies
     /// would leave the parent waiting for a message that never ends.
     static std::unique_ptr<std::ostream> take_stdout();
+
+    /// Ends the calling process at once with `code`, running no atexit handler and no static
+    /// destructor, including those of the libraries it loaded.
+    [[noreturn]] static void exit_now(int code);
 
     private:
     std::unique_ptr<process_impl> impl;

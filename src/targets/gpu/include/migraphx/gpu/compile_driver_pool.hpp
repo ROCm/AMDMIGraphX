@@ -26,10 +26,12 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/optional.hpp>
 #include <migraphx/process.hpp>
 #include <migraphx/value.hpp>
 #include <atomic>
 #include <mutex>
+#include <string>
 #include <vector>
 
 namespace migraphx {
@@ -37,13 +39,20 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 // Idle sessions of `migraphx-hiprtc-driver --serve`. A request takes an idle session, or starts one
-// when none is idle, and puts it back after the reply. The mutex guards only the idle list, so
-// requests on different sessions run in parallel.
+// when none is idle, and puts it back after the reply. The mutex guards only the idle list and the
+// driver lookup, so requests on different sessions run in parallel.
 struct MIGRAPHX_GPU_EXPORT compile_driver_pool
 {
-    // Sends `req` to a session of `driver` and returns the reply. A session that replies "timeout"
-    // has exited, and one whose request throws is broken, so neither goes back to the pool.
-    value request(const fs::path& driver, const value& req);
+    // Uses the driver find_hiprtc_driver finds, looked up on the first request
+    compile_driver_pool() = default;
+    explicit compile_driver_pool(fs::path driver_path);
+
+    // Sends `req` to a session and returns the reply, or nullopt when there are no sessions to
+    // send it to: the driver wasn't found, or a session failed to start twice in a row. Either
+    // way every later request returns nullopt too, and the caller does the work itself. Throws if
+    // the session fails once the request is out. A session that replies "timeout" has exited, and
+    // one whose request throws is broken, so neither goes back to the pool.
+    optional<value> request(const value& req);
 
     // Closes the idle sessions
     void close();
@@ -52,11 +61,15 @@ struct MIGRAPHX_GPU_EXPORT compile_driver_pool
     std::size_t sessions_dropped() const { return dropped; }
 
     private:
-    process::session take(const fs::path& driver);
+    optional<process::session> take();
     void put_back(process::session s);
+    void give_up(const std::string& reason);
 
     std::mutex mutex;
     std::vector<process::session> idle;
+    optional<fs::path> driver;
+    bool driver_looked_up = false;
+    std::atomic<bool> unavailable{false};
     std::atomic<std::size_t> started{0};
     std::atomic<std::size_t> dropped{0};
 };

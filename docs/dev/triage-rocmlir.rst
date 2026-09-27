@@ -102,7 +102,7 @@ or
 .. note::
 
    Tuning candidates after the first compile in ``migraphx-hiprtc-driver`` sessions, so their ``MIGRAPHX_TRACE_MLIR`` output goes to stderr rather than stdout.
-   A candidate that uses more than 5 seconds of CPU time fails with ``ran out of its 5000 ms CPU compile budget``.
+   A candidate that uses more than 5 seconds of CPU time is skipped like one that fails to compile, and ``MIGRAPHX_TRACE_BENCHMARKING=1`` prints its error, ``ran out of its 5000 ms CPU compile budget``.
    Set ``MIGRAPHX_TUNING_COMPILE_BUDGET=0`` to compile every candidate in the MIGraphX process, without a budget, while debugging.
 
 If the above error message is present, then proceed with the following steps:

@@ -804,9 +804,11 @@ Advanced settings
       | Default: Benchmarking is not skipped.
 
   * - | ``MIGRAPHX_TUNING_COMPILE_BUDGET``
-      | Sets the CPU time, in milliseconds, that each tuning candidate after the first can use to compile. A candidate that runs out of time is skipped, like a candidate that fails to compile. Only MLIR tuning candidates honor the budget for now; they compile in ``migraphx-hiprtc-driver`` sessions.
+      | Sets the CPU time, in milliseconds, that every MLIR tuning candidate after the first can use to compile. A candidate that runs out of time is skipped, like a candidate that fails to compile.
+      | Whether a candidate close to the budget finishes in time depends on the machine and how busy it is, so two compiles of the same model can pick different kernels.
+      | The candidates compile in ``migraphx-hiprtc-driver`` sessions. When the driver isn't found or its sessions fail to start, a warning is printed and the candidates compile in the MIGraphX process without a budget.
 
-    - | Takes a non-negative integer.
+    - | Takes a non-negative integer. A negative value is an error.
       | ``0``: Disables the budget, and every candidate compiles in the MIGraphX process.
 
       | Default: ``5000``

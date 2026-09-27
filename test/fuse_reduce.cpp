@@ -1999,7 +1999,6 @@ TEST_CASE(pointwise_reshapes_reduce_shadowed_broadcast)
     EXPECT(p1.sort() == p2.sort());
 }
 
-
 static auto dequant_mul_pointwise()
 {
     return [](auto* pm, const auto& inputs) {

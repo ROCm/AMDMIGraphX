@@ -39,8 +39,10 @@ template <class T, index_int N>
 constexpr vec<T, N * 2> unpack_int4(vec<T, N> x)
 {
     vec<T, N * 2> result{};
-    for(index_int i = 0; i < N; i++)
-    {
+    repeat_c<N>([&](auto ic) {
+        // A vector subscript needs a plain integer index; a class index like
+        // integral_constant is not converted
+        const index_int i = ic;
         if constexpr(is_unsigned<T>{})
         {
             result[2 * i]     = x[i] & 0xfu;
@@ -53,7 +55,7 @@ constexpr vec<T, N * 2> unpack_int4(vec<T, N> x)
             // NOLINTNEXTLINE(hicpp-signed-bitwise)
             result[2 * i + 1] = x[i] >> 4;
         }
-    }
+    });
     return result;
 }
 

@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/tune_axis.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
@@ -33,6 +34,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/bit.hpp>
+#include <migraphx/module.hpp>
+#include <map>
 #include <set>
 
 namespace migraphx {
@@ -528,6 +531,7 @@ static const char* const fused_reduce_kernel = R"__migraphx__(
 #include <migraphx/kernels/reduce.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/vectorize.hpp>
+#include <migraphx/kernels/unpack_int4.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -549,6 +553,91 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 )__migraphx__";
 
 namespace {
+
+bool is_unpack(instruction_ref ins) { return ins->name() == "unpack_int4"; }
+
+/// The submodule parameters read by an unpack_int4 (two int4 values per
+/// byte) as {input index, unpack axis}
+value find_packed_args(const module& rm)
+{
+    value result = value::array{};
+    auto names   = rm.get_parameter_names();
+    std::sort(names.begin(), names.end());
+    std::vector<instruction_ref> params;
+    std::transform(names.begin(), names.end(), std::back_inserter(params), [&](const auto& name) {
+        return rm.get_parameter(name);
+    });
+    auto is = range(params.size());
+    transform_if(
+        is.begin(),
+        is.end(),
+        std::back_inserter(result),
+        [&](std::size_t i) {
+            const auto& outputs = params[i]->outputs();
+            return std::any_of(outputs.begin(), outputs.end(), &is_unpack);
+        },
+        [&](std::size_t i) -> value {
+            const auto& outputs = params[i]->outputs();
+            // The fusion only feeds a packed input to its unpack
+            assert(std::all_of(outputs.begin(), outputs.end(), &is_unpack));
+            auto unpack = outputs.front();
+            auto axis   = tune_axis(params[i]->get_shape().ndim(),
+                                    unpack->get_operator().to_value().at("axis").to<int>(),
+                                    unpack->name());
+            return {{"index", i}, {"axis", axis}};
+        });
+    return result;
+}
+
+/// The logical unpacked shape: the unpack axis doubles in length and the
+/// other strides double to count unpacked elements
+shape unpack_shape(const shape& s, std::size_t axis)
+{
+    assert(axis < s.ndim());
+    auto lens = s.lens();
+    lens[axis] *= 2;
+    auto strides = s.strides();
+    std::transform(
+        strides.begin(), strides.end(), strides.begin(), [](auto stride) { return stride * 2; });
+    strides[axis] = s.strides()[axis];
+    return {s.type(), lens, strides};
+}
+
+/// Convert the logical shape back to the packed shape along the given axis
+shape pack_shape(const shape& s, std::size_t axis)
+{
+    assert(axis < s.ndim());
+    auto lens = s.lens();
+    if(lens[axis] % 2 != 0 or s.strides()[axis] != 1)
+        MIGRAPHX_THROW("fused_reduce: unsupported packed input layout");
+    lens[axis] /= 2;
+    auto strides = s.strides();
+    auto is      = range(strides.size());
+    std::transform(is.begin(), is.end(), strides.begin(), [&](auto i) -> std::size_t {
+        if(i == axis)
+            return 1;
+        if(lens[i] == 1)
+            return 0;
+        if(s.strides()[i] % 2 != 0)
+            MIGRAPHX_THROW("fused_reduce: unsupported packed input layout");
+        return s.strides()[i] / 2;
+    });
+    return {s.type(), lens, strides};
+}
+
+/// The unit-stride axis, which is where the unpack axis lands after
+/// reduce_dims merges dimensions
+optional<std::size_t> find_unit_axis(const shape& s)
+{
+    auto is = range(s.ndim());
+    auto it = std::find_if(is.begin(), is.end(), [&](auto axis) {
+        return s.strides()[axis] == 1 and s.lens()[axis] > 1;
+    });
+    if(it == is.end())
+        return nullopt;
+    return *it;
+}
+
 struct fused_reduce_plan
 {
     std::vector<shape> finputs        = {};
@@ -561,6 +650,8 @@ struct fused_reduce_plan
     std::size_t relements             = 0;
     /// The k selected by the topk in the module, 0 when there is none
     std::size_t topk = 0;
+    // Packed input index to its unpack axis on the original input shape
+    std::map<std::size_t, std::size_t> packed_args = {};
 };
 
 // Computes the virtual inputs, default reduction algorithm, vectorization, and vectorized
@@ -570,12 +661,26 @@ fused_reduce_plan
 compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const value& v)
 {
     fused_reduce_plan plan;
-    plan.assign         = v.get("assign", "assign_none");
-    auto axes           = v.at("axes").to_vector<std::size_t>();
-    plan.finputs        = flatten_tuple_shapes(inputs);
+    plan.assign  = v.get("assign", "assign_none");
+    auto axes    = v.at("axes").to_vector<std::size_t>();
+    plan.finputs = flatten_tuple_shapes(inputs);
+    if(v.contains("packed_args"))
+    {
+        for(const auto& pa : v.at("packed_args"))
+        {
+            auto index = pa.at("index").to<std::size_t>();
+            assert(index < plan.finputs.size());
+            plan.packed_args[index] = pa.at("axis").to<std::size_t>();
+        }
+    }
+    // Plan on the logical unpacked shapes so the packed inputs share the
+    // same dimensions as the other inputs
     plan.virtual_inputs = plan.finputs;
-    plan.virtual_inputs.push_back(get_reduced_shape(get_input_shape(plan.finputs), axes));
-    plan.virtual_inputs.push_back(get_output_shape(get_input_shape(plan.finputs), axes));
+    for(const auto& [index, axis] : plan.packed_args)
+        plan.virtual_inputs[index] = unpack_shape(plan.virtual_inputs[index], axis);
+    auto input_shape = get_input_shape(plan.virtual_inputs);
+    plan.virtual_inputs.push_back(get_reduced_shape(input_shape, axes));
+    plan.virtual_inputs.push_back(get_output_shape(input_shape, axes));
     plan.virtual_inputs = reduce_dims(normalize_permutation(plan.virtual_inputs));
     if(plan.assign != "assign_none")
         plan.virtual_inputs = split_reduce(plan.virtual_inputs);
@@ -585,6 +690,15 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     plan.virtual_inputs.pop_back();
 
     auto faxis = find_fast_axis({plan.virtual_inputs.front()});
+    if(not plan.packed_args.empty())
+    {
+        // The vectorization axis must be the unpack axis so the packed
+        // input lines up when read at half the vector size
+        auto uaxis = find_unit_axis(plan.virtual_inputs[plan.packed_args.begin()->first]);
+        if(not uaxis.has_value())
+            MIGRAPHX_THROW("fused_reduce: unsupported packed input layout");
+        faxis = *uaxis;
+    }
     plan.algo =
         v.get("algo", get_reduce_algo(ctx, plan.virtual_inputs, plan.reduction_shape.lens()));
     bool no_vectorize = v.get("no_vectorize", false);
@@ -592,13 +706,25 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     // The topk selection needs the whole reduction in one workgroup
     if(plan.topk > 0)
         plan.algo = "block";
-    // The occupancy-based vector sizes are not used since vectorizing the
-    // reduction axis does not reduce the number of workgroups, only the lanes
-    // reducing each output, so a full-width vector is always fewer load
-    // instructions for the same parallelism across outputs.
-    if(contains({"block", "block_tile", "block_batch", "wave"}, plan.algo) and
-       plan.reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
+    bool vectorizable = contains({"block", "block_tile", "block_batch", "wave"}, plan.algo) and
+                        plan.reduce_output_shape.lens()[faxis] == 1;
+    if(not plan.packed_args.empty())
     {
+        // A packed input holds two elements per byte, so it always needs a
+        // vector of at least two; a full 16-byte load is 32 logical elements
+        if(vectorizable)
+            plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {32, 16, 8, 4, 2});
+        if(plan.vec.size < 2)
+            plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {2});
+        if(plan.vec.size < 2)
+            MIGRAPHX_THROW("fused_reduce: packed inputs require vectorization");
+    }
+    else if(vectorizable and not no_vectorize)
+    {
+        // The occupancy-based vector sizes are not used since vectorizing the
+        // reduction axis does not reduce the number of workgroups, only the lanes
+        // reducing each output, so a full-width vector is always fewer load
+        // instructions for the same parallelism across outputs.
         if(plan.topk > 0)
             plan.vec =
                 topk_vectorize(ctx, faxis, plan.virtual_inputs, plan.reduction_shape.lens()[faxis]);
@@ -692,6 +818,20 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         options.inputs         = plan.finputs;
         options.output         = inputs.back();
         options.virtual_inputs = plan.virtual_inputs;
+        // Emit the packed inputs at their packed shape with a packed element
+        // type so the vectorizer reads them at half the vector size
+        for(const auto& pa : plan.packed_args)
+        {
+            auto index = pa.first;
+            auto uaxis = find_unit_axis(plan.virtual_inputs[index]);
+            if(not uaxis.has_value() or *uaxis != plan.vec.axis)
+                MIGRAPHX_THROW("fused_reduce: unsupported packed input layout");
+            options.virtual_inputs[index] = pack_shape(plan.virtual_inputs[index], *uaxis);
+            assert(contains({shape::int8_type, shape::uint8_type}, plan.finputs[index].type()));
+            options.type_overrides[index] = plan.finputs[index].type() == shape::int8_type
+                                                ? "migraphx::int4x2_t"
+                                                : "migraphx::uint4x2_t";
+        }
         if(contains({"block", "block_tile", "block_batch"}, algo))
         {
             auto n_per_block = v.get("n_per_block", std::size_t{1});
@@ -783,6 +923,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto topk = find_topk(*rm);
         if(topk.has_value())
             v["topk"] = *topk;
+        auto packed_args = find_packed_args(*rm);
+        if(not packed_args.empty())
+            v["packed_args"] = packed_args;
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
@@ -920,6 +1063,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto topk      = find_topk(*rm);
         if(topk.has_value())
             v["topk"] = *topk;
+        auto packed_args = find_packed_args(*rm);
+        if(not packed_args.empty())
+            v["packed_args"] = packed_args;
         auto plan     = compute_fused_reduce_plan(ctx, shapes, v);
         auto noutputs = plan.finputs.size() - shapes.size() + 1;
         if(plan.topk > 0)

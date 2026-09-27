@@ -59,6 +59,7 @@ struct MIGRAPHX_EXPORT program
 
     program();
 
+    /// A program of the module and copies of the submodules it references
     explicit program(module m);
 
     // move constructor

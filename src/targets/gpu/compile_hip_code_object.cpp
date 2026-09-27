@@ -29,6 +29,8 @@
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
+#include <algorithm>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,21 +53,27 @@ struct make_tensor<${n}>
 };
 )__migraphx__";
 
-static std::string generate_make_tensor(std::size_t n, const shape& s)
+static std::string generate_make_tensor(std::size_t n, const shape& s, const std::string& type)
 {
     return interpolate_string(make_tensor_template,
                               {{"n", std::to_string(n)},
-                               {"type", shape::cpp_type(s.type())},
+                               {"type", type},
                                {"lens", generate_index_ints(s.lens())},
                                {"strides", generate_index_ints(s.strides())}});
 }
 
-static std::string generate_args_hpp(const std::vector<shape>& inputs)
+static std::string generate_args_hpp(const std::vector<shape>& inputs,
+                                     const std::map<std::size_t, std::string>& type_overrides)
 {
+    assert(std::all_of(type_overrides.begin(), type_overrides.end(), [&](const auto& p) {
+        return p.first < inputs.size();
+    }));
     std::string inner;
     for(std::size_t i = 0; i < inputs.size(); i++)
     {
-        inner += generate_make_tensor(i, inputs[i]);
+        auto it   = type_overrides.find(i);
+        auto type = it == type_overrides.end() ? shape::cpp_type(inputs[i].type()) : it->second;
+        inner += generate_make_tensor(i, inputs[i], type);
     }
     const std::string args_hpp = R"__migraphx__(
 #ifndef MIGRAPHX_GUARD_AUTO_ARGS_HPP
@@ -246,7 +254,8 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     assert(options.inputs.size() == options.virtual_inputs.size() or
            options.virtual_inputs.empty());
     auto args_hpp =
-        generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
+        generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs,
+                          options.type_overrides);
     options.additional_src_files.emplace_back("args.hpp", args_hpp);
 
     return code_object_op{value::binary{compile_hip_raw(ctx, content, options)},

@@ -41,6 +41,8 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/fp8_types.hpp>
 
+#include <unordered_set>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -491,9 +493,13 @@ std::string generate_reduce(module m, const std::string& name)
     g.always_return_tuple();
     auto rlens    = get_rlens(m);
     std::size_t i = 0;
+    // Values emitted as a scalar instead of a tensor. Their shape still carries the
+    // unreduced lens, so the shape alone cannot decide whether a value needs slicing.
+    std::unordered_set<instruction_ref> scalars;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
         {
+            scalars.insert(ins);
             return reduce_op::generate(ins, cpp_generator::to_args(ins->inputs(), names));
         }
         if(ins->name() == "pointwise")
@@ -508,6 +514,7 @@ std::string generate_reduce(module m, const std::string& name)
                          [&](auto input) {
                              return input->get_shape().lens() != rlens and
                                     not input->get_shape().broadcasted() and
+                                    not contains(scalars, input) and
                                     not contains(tensors, input);
                          });
             auto inner_names = names;
@@ -525,7 +532,10 @@ std::string generate_reduce(module m, const std::string& name)
                 pointwise_name + "(" +
                 join_strings(cpp_generator::to_args(ins->inputs(), inner_names), ", ") + ")";
             if(tensors.empty())
+            {
+                scalars.insert(ins);
                 return call_function;
+            }
             const std::string inner_template =
                 "r.${inner}([=](${params}) { return ${call}; })(${args})";
             std::string inner_name = use_lazy_inner(ins) ? "lazy_inner" : "inner";
@@ -542,11 +552,16 @@ std::string generate_reduce(module m, const std::string& name)
         }
         if(ins->name() == "multibroadcast")
         {
-            return names.at(ins->inputs().front());
+            auto input = ins->inputs().front();
+            if(contains(scalars, input))
+                scalars.insert(ins);
+            return names.at(input);
         }
         if(ins->name() == "get_tuple_elem")
         {
             const auto& x = names.at(ins->inputs().front());
+            if(contains(scalars, ins->inputs().front()))
+                scalars.insert(ins);
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
             return interpolate_string("${x}[_c<${index}>]",
                                           {{"x", x}, {"index", std::to_string(index)}});

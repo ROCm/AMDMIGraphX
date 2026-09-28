@@ -28,6 +28,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,13 +41,18 @@ struct pointwise_broadcast_op : match::supports_dynamic_shapes
     auto matcher() const
     {
         auto pointwise = match::name("pointwise")(match::used_once()).bind("x");
+        auto reshapes =
+            match::name("reshape", "squeeze", "unsqueeze", "flatten", "transpose", "contiguous")(
+                match::used_once());
+        auto reshapes_pointwise = match::skip(reshapes)(pointwise);
         auto broadcast_pointwise =
-            match::name("multibroadcast", "broadcast")(match::used_once(), match::args(pointwise))
+            match::name("multibroadcast", "broadcast")(
+                match::used_once(), match::nargs(1), match::arg(0)(reshapes_pointwise))
                 .bind("broadcast");
         auto dyn_broadcast_pointwise =
             match::name("multibroadcast", "broadcast")(match::used_once(),
                                                        match::nargs(2),
-                                                       match::arg(0)(pointwise),
+                                                       match::arg(0)(reshapes_pointwise),
                                                        match::arg(1)(match::any().bind("ref_ins")))
                 .bind("broadcast");
         return match::name(op)(match::any_of[match::inputs()](
@@ -61,8 +67,26 @@ struct pointwise_broadcast_op : match::supports_dynamic_shapes
 
         auto broadcast = broadcast_ins->get_operator();
 
+        // Reshapes between the pointwise and the broadcast apply to each input
+        // as well since every pointwise input has the same lens as its output
+        std::vector<operation> reshape_ops;
+        auto next_ins = broadcast_ins->inputs().front();
+        while(next_ins != x_ins)
+        {
+            reshape_ops.push_back(next_ins->get_operator());
+            next_ins = next_ins->inputs().front();
+        }
+        std::reverse(reshape_ops.begin(), reshape_ops.end());
+
         auto x_inputs = x_ins->inputs();
         std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
+            input =
+                std::accumulate(reshape_ops.begin(),
+                                reshape_ops.end(),
+                                input,
+                                [&](auto start, const auto& reshape_op) {
+                                    return m.insert_instruction(broadcast_ins, reshape_op, start);
+                                });
             if(is_dyn_broadcast)
             {
                 return m.insert_instruction(

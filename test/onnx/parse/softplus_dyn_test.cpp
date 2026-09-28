@@ -32,13 +32,11 @@ TEST_CASE(softplus_dyn_test)
     auto input_type = migraphx::shape::float_type;
     migraphx::shape s{input_type, {{1, 4}, {5, 5}}};
 
-    auto x    = mm->add_parameter("x", s);
-    auto ones = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
-    auto exp  = mm->add_instruction(migraphx::make_op("exp"), x);
+    auto x      = mm->add_parameter("x", s);
+    auto ones   = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
+    auto exp    = mm->add_instruction(migraphx::make_op("exp"), x);
     auto mb_exp = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(s.dyn_dims())}}),
-        exp,
-        ones);
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(s.dyn_dims())}}), exp, ones);
     auto mb_ones = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(s.dyn_dims())}}),
         ones,

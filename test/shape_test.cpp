@@ -1053,6 +1053,42 @@ TEST_CASE(test_with_lens2)
     EXPECT(s2 == s3);
 }
 
+TEST_CASE(test_merge_broadcasts)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4, 5}, {0, 1, 0, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 4, 5}, {0, 0, 0, 1}};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 3, 4, 5}, {0, 5, 0, 1}};
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s2) == expected);
+    EXPECT(migraphx::shape::merge_broadcasts(s2, s1) == expected);
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s1) == s1);
+}
+
+TEST_CASE(test_merge_broadcasts_all_axes)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4, 5}, {3, 1, 0, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 4, 5}, {0, 0, 5, 1}};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 3, 4, 5}};
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s2) == expected);
+}
+
+TEST_CASE(test_merge_broadcasts_scalar)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}, {0, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3}, {0, 1}};
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s2) == s2);
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s1) == s1);
+}
+
+TEST_CASE(test_merge_broadcasts_symbolic)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape s1{migraphx::shape::float_type, dims, {lit(0), lit(1), lit(0)}};
+    migraphx::shape s2{migraphx::shape::float_type, dims, {lit(3), lit(1), lit(0)}};
+    migraphx::shape expected{migraphx::shape::float_type, dims, {lit(3), lit(1), lit(0)}};
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s2) == expected);
+}
+
 TEST_CASE(test_with_lens_ambigous1)
 {
     migraphx::shape s1{migraphx::shape::float_type, {64, 1, 24, 24}};
@@ -1282,6 +1318,38 @@ TEST_CASE(from_4d_permutation)
         migraphx::shape::from_permutation(migraphx::shape::float_type, out_lens, permutation);
     EXPECT(out_shape.lens() == out_lens);
     EXPECT(migraphx::find_permutation(out_shape) == permutation);
+}
+
+TEST_CASE(find_permutation_multi_singleton_ambiguous)
+{
+    // A standard shape with a singleton channel is layout-ambiguous, so the
+    // NHWC shape decides the layout.
+    auto nhwc = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {1, 511, 32, 32}, {0, 2, 3, 1});
+    migraphx::shape single{migraphx::shape::float_type, {1, 1, 32, 32}};
+    std::vector<int64_t> permutation = {0, 2, 3, 1};
+    EXPECT(migraphx::find_permutation({nhwc, single}) == permutation);
+    EXPECT(migraphx::find_permutation({single, nhwc}) == permutation);
+}
+
+TEST_CASE(find_permutation_multi_singleton_only)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 32, 32}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 1, 32, 32}};
+    std::vector<int64_t> permutation = {0, 1, 2, 3};
+    EXPECT(migraphx::find_permutation({s1, s2}) == permutation);
+}
+
+TEST_CASE(find_permutation_multi_majority)
+{
+    // Shapes without singleton dims keep one vote each, so the majority layout
+    // still wins.
+    auto nhwc =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {2, 8, 4, 4}, {0, 2, 3, 1});
+    migraphx::shape nchw1{migraphx::shape::float_type, {2, 8, 4, 4}};
+    migraphx::shape nchw2{migraphx::shape::float_type, {2, 8, 4, 4}};
+    std::vector<int64_t> permutation = {0, 1, 2, 3};
+    EXPECT(migraphx::find_permutation({nchw1, nhwc, nchw2}) == permutation);
 }
 
 TEST_CASE(multi_within_bounds)

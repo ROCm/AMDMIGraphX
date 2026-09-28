@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <iosfwd>
 #include <set>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -88,6 +89,15 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     bool apply_transpose(const std::vector<std::int64_t>& permutation);
     bool apply_broadcast(const std::vector<std::size_t>& out_lens,
                          optional<std::size_t> axis = nullopt);
+    // Restrict the source axis to the range selected by slicing the output
+    // dimensions given by slice_axes/starts/ends. Returns the selected
+    // [start, end) range of the source axis, or nullopt when the slice does
+    // not select one contiguous range of only this axis.
+    optional<std::pair<std::size_t, std::size_t>>
+    slice_axis(std::size_t axis,
+               const std::vector<std::size_t>& slice_axes,
+               const std::vector<std::size_t>& starts,
+               const std::vector<std::size_t>& ends);
     void simplify();
     std::size_t elements() const;
     std::vector<operation> generate(const std::vector<std::size_t>& input_dims = {},
@@ -95,6 +105,10 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
 
     std::set<std::size_t> find_broadcasted_axes() const;
     bool has_broadcast() const;
+    // Returns true if any non-trivial axes are reordered, requiring a transpose
+    bool is_transposed() const;
+    // Returns true if any dimension merges multiple non-trivial axes together
+    bool is_collapsing() const;
     void flatten_broadcast();
 
     std::vector<std::size_t> common_dims(const std::vector<std::size_t>& input_dims = {}) const;

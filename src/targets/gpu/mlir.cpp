@@ -151,8 +151,7 @@ struct mlir_handle
 
 #define MIGRAPHX_MANAGE_MLIR_HANDLE(T, F) migraphx::gpu::mlir_handle<T, decltype(&F), &F> // NOLINT
 
-using mlir_context     = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
-using mlir_thread_pool = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirLlvmThreadPool, mlirLlvmThreadPoolDestroy);
+using mlir_context           = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
 using mlir_dialect_registry  = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirDialectRegistry,
                                                           mlirDialectRegistryDestroy);
 using mlir_module            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirModule, mlirModuleDestroy);
@@ -288,7 +287,8 @@ struct mlir_program
           mmodule(mlirModuleCreateEmpty(location)),
           logger(&ctx)
     {
-        mlirContextSetThreadPool(ctx.get(), get_thread_pool().get());
+        // Keep this context single-threaded because MIGraphX already compiles independent tuning
+        // candidates in parallel.
         mlirContextLoadAllAvailableDialects(ctx.get());
     }
 
@@ -306,15 +306,6 @@ struct mlir_program
             mlirRegisterRocMLIRPasses();
         });
         return the_registry;
-    }
-
-    static mlir_thread_pool& get_thread_pool()
-    {
-        // To save on overhead, we create one LLVM thread pool and reuse it
-        // across all MLIR contexts as recommended by MLIR upstream.
-        // Note that this is thread-safe as of C++11.
-        static mlir_thread_pool the_pool = mlirLlvmThreadPoolCreate();
-        return the_pool;
     }
 
     MlirType make_type(shape::type_t t) const

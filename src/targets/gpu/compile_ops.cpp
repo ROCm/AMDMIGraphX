@@ -414,7 +414,7 @@ static void replace_inserted_device_ops(context& ctx, module& m);
 /// written by exactly one worker during the parallel compile; sharers read it after the join.
 struct compile_cell
 {
-    explicit compile_cell(value s) : solution(std::move(s)) {}
+    explicit compile_cell(const value& s) : solution(s) {}
 
     value solution = {};
     /// Identifies the code the compile would produce, or an invented private key when the
@@ -783,11 +783,10 @@ struct compile_manager
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
-    void compile(module& m, bool is_root)
+    /// Fill every cell's result, from the cache or by compiling, sharing one compile among
+    /// the cells with the same key.
+    void compile_cells()
     {
-        for(auto& cp : cps)
-            cp.add_cells(skip_benchmark);
-
         {
             // Every slot is collected so the keys can be computed in parallel.
             std::vector<std::pair<compile_plan*, compile_cell*>> slots;
@@ -866,6 +865,13 @@ struct compile_manager
             // releases what its closure holds and keeps it off other instructions.
             cell->result->replace_fn = nullptr;
         }
+    }
+
+    void compile(module& m, bool is_root)
+    {
+        for(auto& cp : cps)
+            cp.add_cells(skip_benchmark);
+        compile_cells();
 
         static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
         bool dump_mxr              = not mxr_path.empty();

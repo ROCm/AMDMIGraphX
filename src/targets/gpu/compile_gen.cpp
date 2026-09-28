@@ -40,7 +40,6 @@
 #include <migraphx/array.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/fp8_types.hpp>
-#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -442,17 +441,17 @@ std::string reduce_op::generate(instruction_ref ins, const std::vector<std::stri
     return r.str();
 }
 
-static bool use_lazy_inner(instruction_ref ins, const std::unordered_set<instruction_ref>& scalars)
+static bool use_lazy_inner(instruction_ref ins)
 {
     if(ins->outputs().size() != 1)
         return false;
-    // When the inputs are broadcasted or per-output scalars, it means the
-    // lambda will capture SGPRs when doing block/wave reduction. This can
-    // cause register spilling in the compiler when the lambda is evaluated at
-    // a later time although it shouldn't. Instead, use `inner` to workaround
-    // this issue in the compiler.
-    if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref input) {
-           return input->get_shape().broadcasted() or contains(scalars, input);
+    // When the inputs are broadcasted, it means the lambda will capture SGPRs
+    // when doing block/wave reduction. This can cause register spilling in
+    // the compiler when the lambda is evaluated at a later time although it
+    // shouldn't. Instead, use `inner` to workaround this issue in the
+    // compiler.
+    if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](instruction_ref input) {
+           return input->get_shape().broadcasted();
        }))
         return false;
     auto output = ins->outputs().front();
@@ -490,15 +489,7 @@ std::string generate_reduce(module m, const std::string& name)
     m.sort();
     cpp_generator g;
     g.always_return_tuple();
-    auto rlens = get_rlens(m);
-    // Pointwise instructions whose inputs are all read at a single output
-    // index are evaluated once per output rather than over a tensor slice, so
-    // their result is a scalar even though their shape is not broadcasted
-    std::unordered_set<instruction_ref> scalars;
-    auto is_scalar = [&](instruction_ref input) {
-        return input->get_shape().lens() == rlens or input->get_shape().broadcasted() or
-               contains(scalars, input);
-    };
+    auto rlens    = get_rlens(m);
     std::size_t i = 0;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
@@ -511,11 +502,14 @@ std::string generate_reduce(module m, const std::string& name)
             i++;
             generate_pointwise(g, *ins->module_inputs().front(), pointwise_name);
             std::vector<instruction_ref> tensors;
-            std::copy_if(
-                ins->inputs().begin(),
-                ins->inputs().end(),
-                std::back_inserter(tensors),
-                [&](auto input) { return not is_scalar(input) and not contains(tensors, input); });
+            std::copy_if(ins->inputs().begin(),
+                         ins->inputs().end(),
+                         std::back_inserter(tensors),
+                         [&](auto input) {
+                             return input->get_shape().lens() != rlens and
+                                    not input->get_shape().broadcasted() and
+                                    not contains(tensors, input);
+                         });
             auto inner_names = names;
             for(auto input : ins->inputs())
             {
@@ -531,13 +525,10 @@ std::string generate_reduce(module m, const std::string& name)
                 pointwise_name + "(" +
                 join_strings(cpp_generator::to_args(ins->inputs(), inner_names), ", ") + ")";
             if(tensors.empty())
-            {
-                scalars.insert(ins);
                 return call_function;
-            }
             const std::string inner_template =
                 "r.${inner}([=](${params}) { return ${call}; })(${args})";
-            std::string inner_name = use_lazy_inner(ins, scalars) ? "lazy_inner" : "inner";
+            std::string inner_name = use_lazy_inner(ins) ? "lazy_inner" : "inner";
             auto args              = cpp_generator::to_args(tensors, names);
             auto params            = cpp_generator::to_args(tensors, inner_names);
             std::transform(params.begin(), params.end(), params.begin(), [](const auto& s) {

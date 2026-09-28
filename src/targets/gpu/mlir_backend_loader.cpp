@@ -42,6 +42,7 @@
 #include <migraphx/gpu/mlir_backend.hpp>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/json.hpp>
 #include <iostream>
 #endif
 
@@ -286,16 +287,13 @@ static tuning_config result_tuning_config(const mlir_backend_result_ptr& result)
 {
     const auto v = result_backend(result).result_tuning_config(result.get());
     tuning_config config;
-    config.problem = copy_string(v.problem, "tuning problem");
-    const auto solution_views =
-        copy_range(v.solutions, v.solution_count, "tuning solutions");
+    config.problem            = from_json_string(copy_string(v.problem, "tuning problem"));
+    const auto solution_views = copy_range(v.solutions, v.solution_count, "tuning solutions");
     config.solutions.resize(solution_views.size());
     std::transform(solution_views.begin(),
                    solution_views.end(),
                    config.solutions.begin(),
-                   [](auto solution) {
-                       return value(copy_string(solution, "tuning solution"));
-                   });
+                   [](auto solution) { return value(copy_string(solution, "tuning solution")); });
     config.detailed_problem_info =
         copy_string(v.detailed_problem_info, "detailed problem information");
     return config;

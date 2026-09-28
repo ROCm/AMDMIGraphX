@@ -74,6 +74,7 @@ struct mlir_backend_code_object_view
 
 struct mlir_backend_tuning_config_view
 {
+    // JSON-encoded tuning_config::problem, which is not always a string.
     mlir_backend_string_view problem;
     const mlir_backend_string_view* solutions;
     std::size_t solution_count;

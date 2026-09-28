@@ -351,6 +351,23 @@ struct analyze_reduce
                 return parallel_axis();
             return identity.has_value() ? contracted_axis(*identity) : axis_desc{};
         });
+        if(identity.has_value() and info.supported)
+            info.freezer = freeze;
+    }
+
+    static instruction_ref freeze(module& m,
+                                  instruction_ref source,
+                                  const std::vector<instruction_ref>& args,
+                                  const std::unordered_map<sym::expr, std::size_t>&)
+    {
+        auto identity = reduce_identity(source->name());
+        assert(identity.has_value());
+        auto padded_args = args;
+        for(auto& arg : padded_args)
+            if(arg->get_shape().dynamic())
+                arg = m.add_instruction(
+                    make_op("fixed_pad", {{"value", fill_value(*identity)}}), arg);
+        return m.add_instruction(source->get_operator(), padded_args);
     }
 };
 
@@ -610,6 +627,35 @@ struct analyze_gather
     }
 };
 
+struct analyze_gathernd
+{
+    bool matches(const operation& op) const { return op.name() == "gathernd"; }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        const auto& inputs = info.input_shapes;
+        if(inputs.size() != 2 or inputs.back().ndim() == 0)
+            return;
+        const auto& index_depth_dim = inputs.back().to_symbolic().dyn_dims().back();
+        auto index_depth            = sym::fixed_value(index_depth_dim.sym_expr);
+        if(not index_depth.has_value())
+            return;
+        auto batch_dims = info.ins->get_operator().to_value().at("batch_dims").to<int64_t>();
+        if(batch_dims < 0)
+            return;
+        auto batch_rank = static_cast<std::size_t>(batch_dims);
+        auto depth      = sym::to<std::size_t>(*index_depth);
+        if(batch_rank + depth > inputs.front().ndim())
+            return;
+        analyze_axes(info, [&](std::size_t input, std::size_t axis) {
+            if(input == 1)
+                return axis + 1 == inputs.back().ndim() ? axis_desc{} : parallel_axis();
+            return axis >= batch_rank and axis < batch_rank + depth ? axis_desc{}
+                                                                   : parallel_axis();
+        });
+    }
+};
+
 struct analyze_concat
 {
     bool matches(const operation& op) const { return op.name() == "concat"; }
@@ -629,6 +675,17 @@ struct analyze_concat
            }))
             return;
         analyze_axes(info);
+    }
+};
+
+struct analyze_concat_past_present
+{
+    bool matches(const operation& op) const { return op.name() == "concat_past_present"; }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        if(info.input_shapes.size() == 3)
+            analyze_axes(info);
     }
 };
 
@@ -1131,7 +1188,9 @@ symbolic_op_info analyze_instruction(instruction_ref ins)
     info.input_shapes = std::move(input_shapes);
     analyze_first(info,
                   analyze_gather{},
+                  analyze_gathernd{},
                   analyze_concat{},
+                  analyze_concat_past_present{},
                   analyze_slice{},
                   analyze_unit_axis_transform{},
                   analyze_fill{},
@@ -2159,7 +2218,7 @@ struct clone_context
         }
 
         if(clone->get_shape().dynamic())
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: clone body is not fully static");
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: clone body is not fully static: " + source->name());
         clone_map[source] = clone;
         if(not source->get_debug_symbols().empty())
             clone_module.add_debug_symbols(clone, source->get_debug_symbols());

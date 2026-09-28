@@ -101,7 +101,7 @@ struct miopen_apply
 #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
-        add_extend_op("fixed_pad");
+        add_fixed_pad_op();
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
@@ -338,6 +338,19 @@ struct miopen_apply
     }
 
     void add_extend_op(const std::string& name) { add_extend_op(name, "gpu::" + name); }
+
+    void add_fixed_pad_op()
+    {
+        apply_map.emplace("fixed_pad", [=](instruction_ref ins) {
+            const auto& input = ins->inputs().front();
+            if(not input->get_shape().dynamic())
+                return mod->replace_instruction(ins, input);
+
+            auto output = insert_allocation(ins, ins->get_shape());
+            return mod->replace_instruction(
+                ins, make_op("gpu::fixed_pad", ins->get_operator().to_value()), {input, output});
+        });
+    }
 
     void add_extend_op(const std::string& op_name, const std::string& gpu_name)
     {

@@ -1029,8 +1029,9 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
         main1->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select1);
     std::vector<se> starts1 = {migraphx::sym::lit(0)};
     std::vector<se> ends1   = {n};
-    auto start1             = main1->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+    auto start1             = main1->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(starts1)}}),
+        input1);
     auto end1 = main1->add_instruction(
         migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(ends1)}}),
         input1);

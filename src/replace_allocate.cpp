@@ -31,6 +31,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/op/allocate.hpp>
+#include <migraphx/op/get_tuple_elem.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/algorithm.hpp>
@@ -45,20 +46,18 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-bool aliases_allocation_tuple_subobject(instruction_ref ins)
+// select_module writes each submodule return into the subobject of its output tuple that the
+// get_tuple_elem reads, so that subobject is already output storage. Other tuple producers, such as
+// loop, can return buffers of their own instead of the subobjects of their output allocation.
+bool reads_select_module_output_allocation(instruction_ref ins)
 {
-    if(ins->name() != "get_tuple_elem" or ins->inputs().size() != 1)
+    if(ins->name() != "get_tuple_elem")
         return false;
-
     auto tuple = ins->inputs().front();
-    if(tuple->get_shape().type() != shape::tuple_type)
+    if(tuple->name() != "select_module")
         return false;
 
-    auto index             = ins->get_operator().to_value().at("index").to<std::size_t>();
-    const auto& sub_shapes = tuple->get_shape().sub_shapes();
-    if(index >= sub_shapes.size() or sub_shapes[index] != ins->get_shape())
-        return false;
-
+    auto index   = any_cast<op::get_tuple_elem>(ins->get_operator()).index;
     auto aliases = instruction::get_output_alias(tuple);
     return std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
         if(alias->name() != "allocate" or alias->get_shape().type() != shape::tuple_type)
@@ -255,10 +254,7 @@ void insert_copy(module& m, const allocation_model& model)
             continue;
         if(ins->get_shape().any_of_dynamic())
             continue;
-        // get_tuple_elem aliases a specific subobject even though the generic alias traversal
-        // reaches the whole tuple allocation. The subobject is already caller-owned output
-        // storage, so copying it to a second output allocation is unnecessary.
-        if(aliases_allocation_tuple_subobject(ins))
+        if(reads_select_module_output_allocation(ins))
             continue;
         auto aliases = instruction::get_output_alias(ins);
         if(std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {

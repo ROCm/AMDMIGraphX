@@ -30,6 +30,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,21 +38,31 @@ namespace onnx {
 
 namespace {
 
-// `sequence_length - 1`, the distance from the last query row back to the first. A known length
-// becomes a literal; otherwise it is read from the input at runtime, which folds back to that same
-// literal once the length has been specialized.
-instruction_ref last_row_offset(const onnx_parser::node_info& info,
-                                instruction_ref qkv,
-                                const sym::expr& sequence_length,
-                                shape::type_t index_type)
+// 1 when the call appends a single token and 0 when it passes a prompt, read from the symbolic
+// sequence length at runtime. It folds to a literal once the length has been specialized.
+instruction_ref
+single_token_flag(const onnx_parser::node_info& info, instruction_ref qkv, shape::type_t index_type)
 {
-    const auto value = sym::fixed_value(sequence_length);
-    if(value.has_value())
-        return info.add_literal(literal{shape{index_type, {1}}, {sym::to<int>(*value) - 1}});
-    auto len    = info.add_instruction(make_op("dimensions_of", {{"start", 1}, {"end", 2}}), qkv);
-    auto one    = info.add_literal(literal{shape{len->get_shape().type(), {1}}, {1}});
-    auto result = info.add_instruction(make_op("sub"), len, one);
-    return info.add_instruction(make_op("convert", {{"target_type", index_type}}), result);
+    auto len  = info.add_instruction(make_op("dimensions_of", {{"start", 1}, {"end", 2}}), qkv);
+    auto one  = info.add_literal(literal{shape{len->get_shape().type(), {1}}, {1}});
+    auto flag = info.add_instruction(make_op("equal"), len, one);
+    return info.add_instruction(make_op("convert", {{"target_type", index_type}}), flag);
+}
+
+// Broadcast a per-batch index to the {batch, heads, sequence, keys} mask shape through
+// {batch, heads}, so that a single-token step reads one scalar per batch inside the fused
+// attention kernel.
+instruction_ref broadcast_batch_index(const onnx_parser::node_info& info,
+                                      instruction_ref index,
+                                      std::size_t batch_size,
+                                      std::size_t num_heads,
+                                      const std::vector<sym::expr>& bnsm)
+{
+    auto result = info.add_instruction(
+        make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), index);
+    result =
+        info.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), result);
+    return info.add_instruction(make_multibroadcast(bnsm), result);
 }
 
 } // namespace
@@ -159,12 +170,23 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto slk              = args.at(5);
         const auto index_type = slk->get_shape().type();
 
-        // Absolute position of this call's first query token. seqlens_k is the index of the last
-        // valid key, so this is zero when the whole prompt arrives at once and the past length
-        // when a single token is appended. Deriving position from it rather than branching on
-        // sequence_length lets one graph serve both cases.
-        auto first_pos =
-            info.add_common_op("sub", slk, last_row_offset(info, qkv, sequence_length, index_type));
+        // concat_past_present writes a prompt to the start of the cache and a single token after
+        // the seqlens_k past tokens, so the first query row is at position 0 for a prompt and at
+        // seqlens_k for a single token. A symbolic length decides this at runtime.
+        const auto fixed_length = sym::fixed_value(sequence_length);
+        std::optional<instruction_ref> single_token;
+        bool fixed_single_token = false;
+        if(fixed_length.has_value())
+            fixed_single_token = sym::to<std::size_t>(*fixed_length) == 1;
+        else
+            single_token = single_token_flag(info, qkv, index_type);
+        instruction_ref first_pos;
+        if(single_token.has_value())
+            first_pos = info.add_common_op("mul", slk, *single_token);
+        else if(fixed_single_token)
+            first_pos = slk;
+        else
+            first_pos = info.add_literal(literal{shape{index_type, {1}}, {0}});
 
         if(do_rotary)
         {
@@ -236,45 +258,51 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         scale_ins      = info.add_instruction(make_multibroadcast(bnsm), scale_ins);
         auto mul       = info.add_instruction(make_op("mul"), gemm1, scale_ins);
 
-        // Absolute cache position of each query row. Shifting this call's rows by first_pos makes
-        // the causal mask correct for a fresh prompt and for a continuation alike, and it also
-        // subsumes the padding mask: every row index is at most seqlens_k, so masking keys beyond
-        // the row masks everything that masking keys beyond seqlens_k would have.
-        // Broadcast the offset through {batch, heads} so that a single-token step collapses to a
-        // per-batch scalar read inside the fused attention kernel once the all-zero range below
-        // folds away.
-        auto row_pos = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), first_pos);
-        row_pos = info.add_instruction(
-            make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), row_pos);
-        row_pos = info.add_instruction(make_multibroadcast(bnsm), row_pos);
-
-        auto seq_range = insert_iota(*info.mod,
-                                     info.mod->end(),
-                                     {sym::lit(1), sym::lit(1), sequence_length, sym::lit(1)},
-                                     2,
-                                     qkv,
-                                     1,
-                                     index_type);
-        seq_range      = info.add_instruction(make_multibroadcast(bnsm), seq_range);
-        row_pos        = info.add_instruction(make_op("add"), row_pos, seq_range);
+        // Cache position of each query row. The all-zero range of a symbolic length that turns
+        // out to be a single token folds away once the length is specialized.
+        auto row_pos = broadcast_batch_index(info, first_pos, batch_size, num_heads, bnsm);
+        if(not fixed_single_token)
+        {
+            auto seq_range = insert_iota(*info.mod,
+                                         info.mod->end(),
+                                         {sym::lit(1), sym::lit(1), sequence_length, sym::lit(1)},
+                                         2,
+                                         qkv,
+                                         1,
+                                         index_type);
+            seq_range      = info.add_instruction(make_multibroadcast(bnsm), seq_range);
+            row_pos        = info.add_instruction(make_op("add"), row_pos, seq_range);
+        }
 
         if(local_window_size > 0)
         {
-            // local_window_size counts the keys a row may attend to, including the row's own
-            // key, so the window opens local_window_size - 1 keys earlier. row_pos is an
-            // absolute cache position, which makes this bound the same for a fresh prompt and
-            // for a continuation and so independent of the sequence length.
-            auto window_size_lit =
-                info.add_literal(literal{shape{index_type, {1}}, {-(local_window_size - 1)}});
-            window_size_lit  = info.add_instruction(make_multibroadcast(bnsm), window_size_lit);
-            auto window_comp = info.add_instruction(make_op("add"), row_pos, window_size_lit);
+            // A prompt row attends to local_window_size keys before its own and a single token
+            // to one more.
+            instruction_ref window_offset;
+            if(single_token.has_value())
+                window_offset = info.add_common_op(
+                    "sub",
+                    info.add_literal(literal{shape{index_type, {1}}, {-local_window_size}}),
+                    *single_token);
+            else
+                window_offset = info.add_literal(literal{
+                    shape{index_type, {1}}, {-local_window_size - (fixed_single_token ? 1 : 0)}});
+            window_offset    = info.add_instruction(make_multibroadcast(bnsm), window_offset);
+            auto window_comp = info.add_instruction(make_op("add"), row_pos, window_offset);
             auto window_mask = info.add_instruction(make_op("greater"), window_comp, bc_range);
             window_mask      = info.add_instruction(
                 make_op("convert", {{"target_type", shape::bool_type}}), window_mask);
             mul = info.add_instruction(make_op("where"), window_mask, ninf, mul);
         }
-        auto mask = info.add_instruction(make_op("greater"), bc_range, row_pos);
+        // Mask keys after the row and keys past seqlens_k, which only differ for the padding rows
+        // of a prompt shorter than the sequence.
+        auto last_key = row_pos;
+        if(not fixed_single_token)
+            last_key =
+                info.add_instruction(make_op("min"),
+                                     row_pos,
+                                     broadcast_batch_index(info, slk, batch_size, num_heads, bnsm));
+        auto mask = info.add_instruction(make_op("greater"), bc_range, last_key);
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
         auto where   = info.add_instruction(make_op("where"), mask, ninf, mul);
         auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);

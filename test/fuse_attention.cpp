@@ -159,7 +159,7 @@ TEST_CASE(gemm_softmax_gemm)
                                  b1);
         auto group = add_group(
             p2,
-            "attn0",
+            "main:attn0",
             "attention",
             {a, b, b1},
             {"x0", "x1", "x2"},
@@ -237,7 +237,7 @@ TEST_CASE(gemm_pw_softmax_gemm)
         std::vector<float> eights(s1_elements, 0.125);
         std::vector<float> tens(s1_elements, 10);
         auto group = add_group(
-            p2, "attn0", "attention", {a, b, select, b1}, [=](auto* gm, const auto& inputs) {
+            p2, "main:attn0", "attention", {a, b, select, b1}, [=](auto* gm, const auto& inputs) {
                 auto eight = gm->add_literal(migraphx::literal{s1, eights});
                 auto ten   = gm->add_literal(migraphx::literal{s1, tens});
                 auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
@@ -312,7 +312,7 @@ TEST_CASE(gemm_causal_mask_softmax_gemm)
         b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
                                  b1);
         auto group = add_group(
-            p2, "attn0", "attention", {a, b, mask, b1}, [=](auto* gm, const auto& inputs) {
+            p2, "main:attn0", "attention", {a, b, mask, b1}, [=](auto* gm, const auto& inputs) {
                 auto ninf   = gm->add_literal(-std::numeric_limits<float>::infinity());
                 auto ninf_h = gm->add_instruction(
                     migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
@@ -589,8 +589,8 @@ TEST_CASE(kv_cache_attention_shared_broadcasts)
             return std::make_tuple(group, cpp_k, cpp_v);
         };
 
-        auto [out0, cpp_k0, cpp_v0] = build_layer_expected(qkv0, past_k0, past_v0, "attn0");
-        auto [out1, cpp_k1, cpp_v1] = build_layer_expected(qkv1, past_k1, past_v1, "attn1");
+        auto [out0, cpp_k0, cpp_v0] = build_layer_expected(qkv0, past_k0, past_v0, "main:attn0");
+        auto [out1, cpp_k1, cpp_v1] = build_layer_expected(qkv1, past_k1, past_v1, "main:attn1");
         mm->add_return({out0, cpp_k0, cpp_v0, out1, cpp_k1, cpp_v1});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -691,7 +691,7 @@ TEST_CASE(gemm_multi_use_pw_softmax_gemm)
                                     scale);
 
         auto group =
-            add_group(p2, "attn0", "attention", {x, where}, [=](auto* gm, const auto& inputs) {
+            add_group(p2, "main:attn0", "attention", {x, where}, [=](auto* gm, const auto& inputs) {
                 auto c1_lit = gm->add_literal(migraphx::literal(s2, c1_vec));
                 auto gemm1  = gm->add_instruction(migraphx::make_op("dot"), inputs[0], c1_lit);
                 auto add    = gm->add_instruction(migraphx::make_op("add"), gemm1, inputs[1]);
@@ -783,7 +783,7 @@ TEST_CASE(gemm_pw_softmax_lse_gemm)
         std::vector<float> eights(s1_elements, 0.125);
         std::vector<float> tens(s1_elements, 10);
         auto group = add_group(
-            p2, "attn0", "attention", {a, b, select, b1}, [=](auto* gm, const auto& inputs) {
+            p2, "main:attn0", "attention", {a, b, select, b1}, [=](auto* gm, const auto& inputs) {
                 auto eight = gm->add_literal(migraphx::literal{s1, eights});
                 auto ten   = gm->add_literal(migraphx::literal{s1, tens});
                 auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
@@ -872,7 +872,7 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
             migraphx::make_op("reshape", {{"dims", {1, 12, 2, 128, 256}}}), b1_transpose);
         auto group = add_group(
             p2,
-            "attn0_flash_decoding",
+            "main:attn0_flash_decoding",
             "attention",
             {a_broadcast, b_reshape, b1_reshape},
             {"x0", "x1", "x2"},
@@ -983,7 +983,7 @@ TEST_CASE(flash_decoding_3d)
 
         auto group = add_group(
             p2,
-            "attn0_flash_decoding",
+            "main:attn0_flash_decoding",
             "attention",
             {a_broadcast, b_reshape, b1_reshape},
             {"x0", "x1", "x2"},
@@ -1105,7 +1105,7 @@ TEST_CASE(flash_decoding_3d_rectangular)
 
         auto group = add_group(
             p2,
-            "attn0_flash_decoding",
+            "main:attn0_flash_decoding",
             "attention",
             {a_broadcast, b_reshape, b1_reshape},
             {"x0", "x1", "x2"},
@@ -1235,7 +1235,7 @@ TEST_CASE(flash_decoding_3d_padding)
 
         auto group = add_group(
             p2,
-            "attn0_flash_decoding",
+            "main:attn0_flash_decoding",
             "attention",
             {a_broadcast, b_reshape, b1_reshape},
             {"x0", "x1", "x2"},
@@ -1404,7 +1404,7 @@ TEST_CASE(kv_cache_attention)
             migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_v, slk, v);
         auto group = add_group(
             p2,
-            "attn0",
+            "main:attn0",
             "kv_cache_attention",
             {rope, cpp_k, slk, cpp_v},
             [=](auto* gm, const auto& inputs) {
@@ -1861,7 +1861,7 @@ TEST_CASE(kv_cache_attention_external_pointwise)
         // Group inputs: {rope, cpp_k, slk, cpp_v}
         auto group = add_group(
             p2,
-            "attn0",
+            "main:attn0",
             "kv_cache_attention",
             {rope, cpp_k, slk, cpp_v},
             [=](auto* gm, const auto& inputs) {
@@ -1994,7 +1994,7 @@ TEST_CASE(flash_decoding_3d_auto_split_large_sequence)
 
         auto group = add_group(
             p2,
-            "attn0_flash_decoding",
+            "main:attn0_flash_decoding",
             "attention",
             {a_broadcast, b_reshape, b1_reshape},
             {"x0", "x1", "x2"},
@@ -2090,7 +2090,7 @@ TEST_CASE(flash_decoding_3d_auto_split_small_sequence)
         b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), b1);
         auto group = add_group(
             p2,
-            "attn0",
+            "main:attn0",
             "attention",
             {a, b, b1},
             {"x0", "x1", "x2"},
@@ -2451,7 +2451,7 @@ TEST_CASE(transposed_attention)
         auto transposed_v =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), v);
         auto group = add_group(
-            p2, "attn0", "attention", {q, k, transposed_v}, [=](auto* gm, const auto& inputs) {
+            p2, "main:attn0", "attention", {q, k, transposed_v}, [=](auto* gm, const auto& inputs) {
                 auto dot1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), dot1);

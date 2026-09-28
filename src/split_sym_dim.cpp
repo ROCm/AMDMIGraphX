@@ -409,6 +409,8 @@ bool is_symbolic_broadcast(const operation& op, std::size_t ninputs)
         return false;
     if(op.name() == "broadcast_with_dims")
         return ninputs == 2;
+    if(op.name() == "multibroadcast")
+        return ninputs >= 1;
     return ninputs == 1 or ninputs == 2;
 }
 

@@ -78,27 +78,6 @@ bool escapes(const module& m, instruction_ref ins, const Set& inss)
     });
 }
 
-bool is_range_literal(const literal& l)
-{
-    const auto& s = l.get_shape();
-    if(s.elements() < 2 or not shape::is_computable(s.type()))
-        return false;
-    bool result = false;
-    l.visit([&](auto x) {
-        result = std::adjacent_find(x.begin(), x.end(), [](auto cur, auto next) {
-                     return next <= cur or not float_equal(next - cur, 1);
-                 }) == x.end();
-    });
-    return result;
-}
-
-bool is_inlinable_constant(instruction_ref ins)
-{
-    if(ins->name() != "@literal")
-        return true;
-    return ins->get_shape().elements() == 1 or is_range_literal(ins->get_literal());
-}
-
 // rocMLIR AttentionRewritePattern::isConstantRange(x, 1) asserts when the
 // peeled constant range has rank < 2 (TosaToRock.cpp:1804). KV-cache causal
 // masks compare against a 1-D iota; store that iota as {1, N} so the
@@ -403,8 +382,7 @@ struct find_attention
         auto expand = fix([&](auto self, auto ins) {
             for(auto input : ins->inputs())
             {
-                if(not contains(attn_inss, input) and input->can_eval() and
-                   is_inlinable_constant(input))
+                if(not contains(attn_inss, input) and input->can_eval())
                 {
                     attn_inss.insert(input);
                     self(input);

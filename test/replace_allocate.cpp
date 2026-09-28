@@ -759,7 +759,43 @@ TEST_CASE(allocate_out_no_debug_symbols)
     EXPECT(out_param->get_debug_symbols().empty());
 }
 
-TEST_CASE(allocate_tuple_subobjects_with_out)
+TEST_CASE(allocate_select_module_tuple_subobjects_with_out)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {5}};
+    migraphx::shape s1{migraphx::shape::int32_type, {3}};
+    migraphx::shape tuple_shape{{s0, s1}};
+    migraphx::program p;
+    auto* sub = p.create_module("sub");
+    {
+        auto x = sub->add_parameter("x", s0);
+        auto y = sub->add_parameter("y", s1);
+        sub->add_return({x, y});
+    }
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", s0);
+    auto alloc = mm->add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(tuple_shape)}}));
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(tuple_shape)}}),
+        {x, alloc},
+        {sub});
+    auto elem0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto elem1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
+    mm->add_return({elem0, elem1});
+
+    run_pass(p, allocation_with_out_model{});
+
+    EXPECT(std::none_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "test_copy";
+    }));
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
+               return ins.name() == "@param" and
+                      ins.get_shape().type() == migraphx::shape::tuple_type;
+           }) == 1);
+}
+
+TEST_CASE(allocate_tuple_subobjects_with_out_copies)
 {
     migraphx::shape s0{migraphx::shape::float_type, {5}};
     migraphx::shape s1{migraphx::shape::int32_type, {3}};
@@ -774,13 +810,9 @@ TEST_CASE(allocate_tuple_subobjects_with_out)
 
     run_pass(m, allocation_with_out_model{});
 
-    EXPECT(std::none_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
-        return ins.name() == "test_copy";
-    }));
     EXPECT(std::count_if(m.begin(), m.end(), [](const migraphx::instruction& ins) {
-               return ins.name() == "@param" and
-                      ins.get_shape().type() == migraphx::shape::tuple_type;
-           }) == 1);
+               return ins.name() == "test_copy";
+           }) == 2);
 }
 
 TEST_CASE(allocate_out_debug_symbols_size_mismatch)

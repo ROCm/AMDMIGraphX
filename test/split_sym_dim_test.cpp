@@ -318,7 +318,9 @@ TEST_CASE(split_sym_dim_supports_one_to_one_axis_transforms)
             "data", symbolic_shape({lit(1), var("n", {clone.min, clone.max}), lit(4)}));
         auto output = sm.add_instruction(fixed_pad(), input);
         output      = sm.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), output);
-        output      = sm.add_instruction(migraphx::make_op("reshape", {{"dims", {0, 0}}}), output);
+        output      = sm.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<std::size_t>{clone.max, 4}}}),
+            output);
         output =
             sm.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), output);
         sm.add_return({output});

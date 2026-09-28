@@ -27,12 +27,15 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/context.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS);
 
 std::string generate_make_shape(const shape& s)
 {
@@ -221,6 +224,8 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
         assert(options.global % options.local == 0);
     if(hip_workaround_broken_deduction_guide())
         options.emplace_param("-DMIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE");
+    if(enabled(MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS{}))
+        options.emplace_param("-DMIGRAPHX_NONTEMPORAL_LOADS=0");
 
     options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
     options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));

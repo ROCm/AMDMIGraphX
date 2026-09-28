@@ -29,6 +29,7 @@
 #include <migraphx/gpu/mlir_backend.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/json.hpp>
 #include <migraphx/module.hpp>
 #include <algorithm>
 #include <cassert>
@@ -204,14 +205,11 @@ static mlir_backend_result* plugin_get_tuning_config_mlir(const context* migraph
                                                           bool exhaustive) noexcept
 {
     return make_backend_result([&](auto& result) {
-        auto config = get_tuning_config_mlir(required(migraphx_ctx, "context"),
-                                             required(m, "module"),
-                                             copy_range(inputs, input_count),
-                                             exhaustive);
-        const auto* problem = config.problem.if_string();
-        if(problem == nullptr)
-            MIGRAPHX_THROW("MLIR tuning problem must be a string");
-        result.tuning_problem = *problem;
+        auto config           = get_tuning_config_mlir(required(migraphx_ctx, "context"),
+                                                       required(m, "module"),
+                                                       copy_range(inputs, input_count),
+                                                       exhaustive);
+        result.tuning_problem = to_json_string(config.problem);
         result.tuning_solutions.resize(config.solutions.size());
         std::transform(config.solutions.begin(),
                        config.solutions.end(),

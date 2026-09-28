@@ -1112,17 +1112,15 @@ struct find_kv_cache_attention
                                                                        "squeeze"};
 
         auto is_valid_attn_op = [&](auto i) {
-            // split_sym_dim pad/extent arithmetic must stay outside the fused
-            // body; pulling those int32 pointwise ops in makes rocMLIR set
-            // firstGemmIndices on a linalg.generic add instead of the QK gemm.
+            // Keep integer index arithmetic (padding extents, shape-derived values) out of the
+            // group: rocMLIR otherwise picks an integer elementwise op instead of the QK gemm
+            // as the attention's first gemm.
             if(contains({"fixed_pad", "eval_expr_from_shape"}, i->name()))
                 return false;
-            const auto t = i->get_shape().type();
-            if((t == shape::int32_type or t == shape::int64_type) and
-               i->get_operator().attributes().get("pointwise", false))
+            const bool pointwise = i->get_operator().attributes().get("pointwise", false);
+            if(pointwise and is_integer_mask_type(i->get_shape().type()))
                 return false;
-            return i->get_operator().attributes().get("pointwise", false) or
-                   contains(valid_attn_ops, i->get_operator().name());
+            return pointwise or contains(valid_attn_ops, i->get_operator().name());
         };
 
         // Start with instructions on data-dependency paths from start to end.
@@ -1146,8 +1144,8 @@ struct find_kv_cache_attention
                 return i == start or i == end or is_valid_attn_op(i);
             });
         inss = std::move(filtered);
-        // The QK gemm is not on a start->end path and may also escape (split_sym_dim clone
-        // returns); without it the group is softmax+V only, which rocMLIR cannot compile.
+        // The QK gemm is not on a start->end path and may also be used outside the group;
+        // without it the group is softmax+V only, which rocMLIR cannot compile.
         inss.insert(gemm1);
         // Expand by walking inputs of instructions already in the set.
         // An input is added when it is a valid attention op and all of
@@ -1245,7 +1243,7 @@ struct find_kv_cache_attention
         auto param_to_input = m_attn.get_ins_param_map(new_inputs, true);
 
         // Precompute integer where-conditions as bool in the parent. rocMLIR's
-        // rock.attention extra kernel otherwise emits i32→i8 truncate as
+        // rock.attention extra kernel otherwise emits an i32 to i8 truncate as
         // firstGemmIndices instead of the QK gemm.
         auto new_shapes     = m_attn.get_parameter_shapes();
         bool converted_mask = false;

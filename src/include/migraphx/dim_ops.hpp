@@ -49,19 +49,16 @@ inline std::size_t static_dim(const shape& s, std::size_t axis, const std::strin
     return s.max_lens().at(axis);
 }
 
-/// Shape-changing operators whose target dims may be partly symbolic. Each keeps the static
-/// attribute while every dim is known, so a graph that happens to be fully determined emits the
-/// same operator it would have without any symbolic dims in play.
+// make_multibroadcast and make_reshape take target dims that may be partly symbolic. Each keeps
+// the static attribute while every dim is known, so a fully determined graph emits the same
+// operator it would have without any symbolic dims in play.
 
 inline operation make_multibroadcast(const std::vector<sym::expr>& dims)
 {
     const auto entries = to_dim_like(dims);
     if(all_ints(entries))
         return make_op("multibroadcast", {{"out_lens", to_ints(entries)}});
-    std::vector<shape::dynamic_dimension> dyn_dims(dims.size());
-    std::transform(dims.begin(), dims.end(), dyn_dims.begin(), [](const sym::expr& e) {
-        return shape::dynamic_dimension{e};
-    });
+    std::vector<shape::dynamic_dimension> dyn_dims(dims.begin(), dims.end());
     return make_op("multibroadcast", {{"out_dyn_dims", to_value(dyn_dims)}});
 }
 
@@ -99,7 +96,7 @@ inline instruction_ref insert_iota(module& m,
     auto range            = m.insert_instruction(
         ins,
         make_op("dynamic_range",
-                           {{"output_dim", to_value(shape::dynamic_dimension{out_dims.at(length_axis)})}}),
+                {{"output_dim", to_value(shape::dynamic_dimension{out_dims.at(length_axis)})}}),
         zero,
         len,
         one);

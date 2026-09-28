@@ -240,9 +240,9 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         // the causal mask correct for a fresh prompt and for a continuation alike, and it also
         // subsumes the padding mask: every row index is at most seqlens_k, so masking keys beyond
         // the row masks everything that masking keys beyond seqlens_k would have.
-        // Broadcast the offset the same way the padding mask used to, so that a single-token step
-        // still collapses to the same cheap per-batch scalar read inside the fused attention
-        // kernel once the all-zero range below folds away.
+        // Broadcast the offset through {batch, heads} so that a single-token step collapses to a
+        // per-batch scalar read inside the fused attention kernel once the all-zero range below
+        // folds away.
         auto row_pos = info.add_instruction(
             make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), first_pos);
         row_pos = info.add_instruction(

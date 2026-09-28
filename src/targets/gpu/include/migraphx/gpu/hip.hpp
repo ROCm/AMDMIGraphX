@@ -178,7 +178,7 @@ struct hip_copy_to_gpu
 
 // Evaluates the expressions from the input shapes on the host and writes the values into the
 // last argument on the GPU, passing them as kernel arguments. Copying them with hip::copy_to_gpu
-// would register a new host buffer with HIP every run, which costs milliseconds.
+// would register a new host buffer with HIP every run, which is expensive.
 struct hip_eval_expr_from_shape
 {
     op::eval_expr_from_shape op;

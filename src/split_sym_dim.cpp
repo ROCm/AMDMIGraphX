@@ -405,7 +405,7 @@ operation reshape_from_shape(const shape& target,
 
 bool is_symbolic_broadcast(const operation& op, std::size_t ninputs)
 {
-    if(symbolic_broadcast_dims(op).empty() or ninputs == 0)
+    if(symbolic_broadcast_dims(op).empty())
         return false;
     if(op.name() == "broadcast_with_dims")
         return ninputs == 2;
@@ -2071,9 +2071,8 @@ std::optional<block_frame> find_block_frame(
                 add_block_value(input.source);
         }
     };
-    // Export only values the parent still reads. Force-exporting every planned op
-    // makes clone returns use QK/softmax intermediates, so fuse_attention will not
-    // capture both gemms and rocMLIR aborts on the leftover softmax+V gemm.
+    // Export only values the parent still reads; every extra clone return splits the fusible
+    // chain it comes from (e.g. attention) at the clone boundary.
     for(auto output : m.get_returns())
     {
         if(contains(planned_instructions, output) or contains(static_block_results, output))
@@ -2302,15 +2301,14 @@ struct clone_context
         }
 
         instruction_ref clone;
-        // Always emit a 1-input reshape with frozen dims. Copying a 2-input reshape
-        // with empty dims lets later simplify_reshapes walks invent 66-D all-ones
-        // layouts from the 1-arg descriptor path.
+        // Freeze a 2-input reshape to the static 1-input form. A copied 2-input reshape with
+        // empty dims makes simplify_reshapes derive its layout from the shape descriptor, which
+        // can split a length into many unit axes.
         if(source->name() == "reshape" and source->inputs().size() == 2)
         {
-            auto lens = source->get_shape().to_static(freeze).lens();
-            std::vector<int64_t> dims(lens.begin(), lens.end());
-            clone =
-                clone_module.add_instruction(make_op("reshape", {{"dims", dims}}), {args.front()});
+            clone = clone_module.add_instruction(
+                make_op("reshape", {{"dims", source->get_shape().to_static(freeze).lens()}}),
+                {args.front()});
         }
         else if(freezer)
             clone = freezer(clone_module, source, args, freeze);
@@ -2641,6 +2639,9 @@ void specialize_blocks(
     m.sort();
 }
 
+// Analysis of a 1-input reshape only sees max lengths, which cannot tell how a symbolic axis maps
+// to the output. Give symbolic reshapes their target as a shape operand, which analysis checks
+// against the symbolic output and freezes per block.
 void normalize_symbolic_reshapes(module& m)
 {
     auto root_sources = find_root_sources(m);
@@ -2651,11 +2652,7 @@ void normalize_symbolic_reshapes(module& m)
         const auto& output = ins->get_shape();
         if(not output.symbolic())
             continue;
-        std::vector<sym::expr> expressions;
-        std::transform(output.dyn_dims().begin(),
-                       output.dyn_dims().end(),
-                       std::back_inserter(expressions),
-                       [](const auto& d) { return d.sym_expr; });
+        auto expressions   = output.sym_dims();
         auto resolved_dims = m.insert_instruction(
             ins,
             make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),

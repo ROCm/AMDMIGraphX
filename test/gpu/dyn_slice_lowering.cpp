@@ -163,9 +163,8 @@ TEST_CASE(dyn_slice_lowering_literal_metadata_stays_on_host)
     {
         auto data   = m1.add_parameter("data", data_shape);
         auto ends   = m1.add_parameter("ends", index_shape);
-        auto starts = m1.add_literal(
-            migraphx::literal{index_shape, {0}});
-        auto slice = m1.add_instruction(slice_op, data, starts, ends);
+        auto starts = m1.add_literal(migraphx::literal{index_shape, {0}});
+        auto slice  = m1.add_instruction(slice_op, data, starts, ends);
         m1.add_return({slice});
     }
     run_lowering(m1);
@@ -174,8 +173,7 @@ TEST_CASE(dyn_slice_lowering_literal_metadata_stays_on_host)
     {
         auto data      = m2.add_parameter("data", data_shape);
         auto ends      = m2.add_parameter("ends", index_shape);
-        auto starts    = m2.add_literal(
-            migraphx::literal{index_shape, {0}});
+        auto starts    = m2.add_literal(migraphx::literal{index_shape, {0}});
         auto copy_ends = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
         auto sync      = m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_ends);
         auto slice     = m2.add_instruction(slice_op, data, starts, sync);

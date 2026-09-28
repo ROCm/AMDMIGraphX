@@ -219,23 +219,24 @@ TEST_CASE(select_module_symbolic_range_test)
 TEST_CASE(select_module_prefers_min_range_clone)
 {
     migraphx::program p;
-    auto create_submodule = [&](std::size_t min_n, std::size_t max_n, const std::string& module_name) {
-        auto* submod                                                 = p.create_module(module_name);
-        std::vector<migraphx::shape::dynamic_dimension> dims = {
-            {migraphx::sym::var("n", {min_n, max_n})}, {migraphx::sym::lit(2)}};
-        auto input =
-            submod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims});
-        auto output =
-            submod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), input);
-        submod->add_return({output});
-        return submod;
-    };
+    auto create_submodule =
+        [&](std::size_t min_n, std::size_t max_n, const std::string& module_name) {
+            auto* submod                                         = p.create_module(module_name);
+            std::vector<migraphx::shape::dynamic_dimension> dims = {
+                {migraphx::sym::var("n", {min_n, max_n})}, {migraphx::sym::lit(2)}};
+            auto input =
+                submod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims});
+            auto output =
+                submod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), input);
+            submod->add_return({output});
+            return submod;
+        };
     auto* min_clone = create_submodule(1, 1, "min_clone");
     auto* max_clone = create_submodule(2, 64, "max_clone");
 
     auto* mm                                                   = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> input_dims = {{migraphx::sym::var("n", {1, 64})},
-                                                                  {migraphx::sym::lit(2)}};
+    std::vector<migraphx::shape::dynamic_dimension> input_dims = {
+        {migraphx::sym::var("n", {1, 64})}, {migraphx::sym::lit(2)}};
     auto input =
         mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, input_dims});
     migraphx::shape output_shape{
@@ -269,14 +270,16 @@ TEST_CASE(select_module_tuple_output_maps_nonconsecutive_returns)
     migraphx::shape scalar_shape{migraphx::shape::int32_type, {1}};
     migraphx::shape seq_shape{migraphx::shape::int32_type, {64}};
     migraphx::shape tuple_shape{{seq_shape, seq_shape}};
-    auto data   = submod->add_parameter("data", seq_shape);
-    auto fused  = submod->add_parameter("#output_fused", tuple_shape);
-    auto zero   = submod->add_literal(migraphx::literal{scalar_shape, {0}});
-    auto first  = submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
-    auto second = submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+    auto data  = submod->add_parameter("data", seq_shape);
+    auto fused = submod->add_parameter("#output_fused", tuple_shape);
+    auto zero  = submod->add_literal(migraphx::literal{scalar_shape, {0}});
+    auto first =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+    auto second =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
     submod->add_return({zero, second, zero, first});
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("data", seq_shape);
     migraphx::shape output_dyn{
         std::vector<migraphx::shape>{scalar_shape, seq_shape, scalar_shape, seq_shape}};
@@ -299,12 +302,11 @@ TEST_CASE(select_module_tuple_output_maps_nonconsecutive_returns)
     std::vector<int32_t> seq3(64, 0);
     migraphx::parameter_map params;
     params["data"]      = migraphx::argument{seq_shape, data_vec.data()};
-    params["#output_0"] = migraphx::argument{
-        {migraphx::argument{scalar_shape, scalar0.data()},
-         migraphx::argument{seq_shape, seq1.data()},
-         migraphx::argument{scalar_shape, scalar2.data()},
-         migraphx::argument{seq_shape, seq3.data()}}};
-    auto results   = p.eval(params);
+    params["#output_0"] = migraphx::argument{{migraphx::argument{scalar_shape, scalar0.data()},
+                                              migraphx::argument{seq_shape, seq1.data()},
+                                              migraphx::argument{scalar_shape, scalar2.data()},
+                                              migraphx::argument{seq_shape, seq3.data()}}};
+    auto results        = p.eval(params);
     EXPECT(results.size() == 4);
     EXPECT(results[0].get_shape() == scalar_shape);
     EXPECT(results[1].get_shape() == seq_shape);

@@ -186,8 +186,8 @@ struct rotary_embedding : op_builder<rotary_embedding>
     {
         const auto in_dims = in->get_shape().sym_dims();
         const auto d       = static_dim(in->get_shape(),
-                                  in_dims.size() - 1,
-                                  "rotary_embedding: "
+                                        in_dims.size() - 1,
+                                        "rotary_embedding: "
                                         "head size");
         const auto half_d  = d / 2;
         const auto dtype   = in->get_shape().type();

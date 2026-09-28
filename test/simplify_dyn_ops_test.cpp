@@ -933,17 +933,17 @@ TEST_CASE(symbolic_eval_expr_from_shape_not_folded)
     using dd = migraphx::shape::dynamic_dimension;
     auto n   = migraphx::sym::var("n", {1, 4});
     migraphx::module m;
-    auto x = m.add_parameter("x",
-                             {migraphx::shape::float_type, {dd{n}, dd{migraphx::sym::lit(2)}}});
+    auto x =
+        m.add_parameter("x", {migraphx::shape::float_type, {dd{n}, dd{migraphx::sym::lit(2)}}});
     std::vector<migraphx::sym::expr> expressions = {n};
-    auto dims                                    = m.add_instruction(
-        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(expressions)}}),
-        x);
+    auto dims =
+        m.add_instruction(migraphx::make_op("eval_expr_from_shape",
+                                            {{"expressions", migraphx::to_value(expressions)}}),
+                          x);
     m.add_return({dims});
     run_pass(m);
-    EXPECT(std::any_of(m.begin(), m.end(), [](const auto& ins) {
-        return ins.name() == "eval_expr_from_shape";
-    }));
+    EXPECT(std::any_of(
+        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "eval_expr_from_shape"; }));
 }
 
 TEST_CASE(select_module_preserves_symbolic_output_shape)

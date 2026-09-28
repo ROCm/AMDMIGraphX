@@ -78,8 +78,7 @@ insert_auto_reshape(module& m, instruction_ref ins, const Dims& dims, instructio
     // Do not expand a scalar into a high-rank all-ones layout (e.g. 8-D or
     // 66-D from 1+64+1). That shape is not a useful tensor layout and breaks
     // MLIR gemm indexing in fused attention.
-    if(input->get_shape().elements() == 1 and
-       std::distance(dims.begin(), dims.end()) > 4 and
+    if(input->get_shape().elements() == 1 and std::distance(dims.begin(), dims.end()) > 4 and
        std::all_of(dims.begin(), dims.end(), [](auto d) { return d == 1; }))
     {
         return input;
@@ -479,9 +478,8 @@ struct find_op_shape_transform_op
         // splitting a real length (e.g. 64) into that many 1s. Skip rather than
         // materialize an 8-D or 66-D all-ones tensor that later MLIR cannot index.
         auto cdims = desc.common_dims();
-        if(cdims.size() > 4 and std::all_of(cdims.begin(), cdims.end(), [](auto d) {
-               return d == 1;
-           }))
+        if(cdims.size() > 4 and
+           std::all_of(cdims.begin(), cdims.end(), [](auto d) { return d == 1; }))
             return;
 
         if(not is_valid(x_ins, desc))

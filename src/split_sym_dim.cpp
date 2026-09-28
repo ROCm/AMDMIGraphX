@@ -1004,9 +1004,9 @@ struct analyze_conv
         std::size_t spatial_dimensions = 0;
         if(op.name() == "convolution" or op.name() == "quant_convolution")
         {
-            auto attributes    = op.to_value();
-            default_padding    = attributes.at("padding_mode").to<op::padding_mode_t>() ==
-                                 op::padding_mode_t::default_;
+            auto attributes = op.to_value();
+            default_padding = attributes.at("padding_mode").to<op::padding_mode_t>() ==
+                              op::padding_mode_t::default_;
             group              = attributes.at("group").to<std::size_t>();
             padding            = attributes.at("padding").to_vector<std::size_t>();
             spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
@@ -1752,9 +1752,9 @@ void prepare_clone_infos(
                 input.slice_axes = source_info->second->output_symbolic_axes;
 
             // Fixed symbolic dimensions and strides still require static clone metadata.
-            bool emit_pad =
-                operand.pad_value.has_value() or
-                needs_fixed_retarget(info.input_shapes.at(input_index), target_substitutions);
+            bool emit_pad = operand.pad_value.has_value() or
+                            needs_fixed_retarget(info.input_shapes.at(input_index),
+                                                 target_substitutions);
             if(source_in_same_block and operand.pad_value.has_value())
             {
                 assert(operand.retained_slice_axes.empty());
@@ -1948,14 +1948,14 @@ add_runtime_mask(module& m,
     auto lens = s.lens();
 
     auto index  = m.add_instruction(make_op("broadcast", {{"axis", mask.axis}, {"out_lens", lens}}),
-                                    index_literal(m, lens[mask.axis], cache));
+                                   index_literal(m, lens[mask.axis], cache));
     auto extent = m.add_instruction(
         make_op("multibroadcast", {{"out_lens", lens}}),
         resolved_extent(m, mask.extent.subs(fixed_substitutions), sources, cache));
     auto valid = m.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
                                    m.add_instruction(make_op("less"), index, extent));
     auto fill  = m.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}),
-                                   fill_literal(m, s.type(), mask.fill, cache));
+                                  fill_literal(m, s.type(), mask.fill, cache));
     return m.add_instruction(make_op("where"), valid, input, fill);
 }
 
@@ -2274,8 +2274,8 @@ struct clone_context
                 if(clone_inputs.at(index).operand.pad_value.has_value())
                     args.at(index) = add_or_reuse_pad(
                         clone_module,
-                        make_op("fixed_pad",
-                                {{"value", *clone_inputs.at(index).operand.pad_value}}),
+                        make_op(
+                            "fixed_pad", {{"value", *clone_inputs.at(index).operand.pad_value}}),
                         args.at(index),
                         reusable_pads);
             for(std::size_t index = 0; index < clone_inputs.size(); ++index)
@@ -2529,7 +2529,9 @@ void wire_select_module(
     std::transform(frame.params.begin(),
                    frame.params.end(),
                    std::back_inserter(selection_inputs),
-                   [&](const auto& input) { return frame.inputs.at(input.second).select_input; });
+                   [&](const auto& input) {
+                       return frame.inputs.at(input.second).select_input;
+                   });
     std::vector<shape> body_output_shapes;
     for(std::size_t output_index = 0; output_index < frame.outputs.size(); ++output_index)
     {
@@ -2612,8 +2614,8 @@ void specialize_blocks(
                 subranges[root->root]               = runtime_range;
             }
             assert(remaining == 0);
-            auto name  = m.name() + ":split_sym_dim_" + std::to_string(block_number) + "_" +
-                         std::to_string(clone_index);
+            auto name = m.name() + ":split_sym_dim_" + std::to_string(block_number) + "_" +
+                        std::to_string(clone_index);
             auto built = build_clone(
                 name, *frame, info_for_instruction, freeze, subranges, fixed_substitutions);
             clones.push_back(std::move(built.clone));

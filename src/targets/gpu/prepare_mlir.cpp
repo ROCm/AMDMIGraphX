@@ -151,10 +151,7 @@ MIGRAPHX_PRED_MATCHER(mlir_noncanonical_literal_shape, instruction_ref ins)
 
 struct find_nonstandard_literal
 {
-    auto matcher() const
-    {
-        return match::name("@literal")(mlir_noncanonical_literal_shape());
-    }
+    auto matcher() const { return match::name("@literal")(mlir_noncanonical_literal_shape()); }
 
     void apply(module& m, const match::matcher_result& r) const
     {

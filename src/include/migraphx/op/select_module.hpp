@@ -239,8 +239,8 @@ struct select_module
                         {
                             const auto nsub = parameter_shape.sub_shapes().size();
                             output_indices.assign(nsub, std::numeric_limits<std::size_t>::max());
-                            auto tuple_elem_index = [&](instruction_ref ins)
-                                -> std::optional<std::size_t> {
+                            auto tuple_elem_index =
+                                [&](instruction_ref ins) -> std::optional<std::size_t> {
                                 auto v = ins->get_operator().to_value();
                                 if(v.contains("index"))
                                     return v["index"].to<std::size_t>();
@@ -252,8 +252,8 @@ struct select_module
                                     return v["operator"]["index"].to<std::size_t>();
                                 return std::nullopt;
                             };
-                            auto tuple_index = [&](instruction_ref ret)
-                                -> std::optional<std::size_t> {
+                            auto tuple_index =
+                                [&](instruction_ref ret) -> std::optional<std::size_t> {
                                 auto cur = ret;
                                 while(true)
                                 {
@@ -269,22 +269,21 @@ struct select_module
                                 }
                             };
                             auto ret_indices = range(returns.size());
-                            migraphx::for_each(
-                                returns.begin(),
-                                returns.end(),
-                                ret_indices.begin(),
-                                [&](instruction_ref ret, std::ptrdiff_t r) {
-                                    if(not aliases_parameter(ret))
-                                        return;
-                                    auto i = tuple_index(ret);
-                                    if(i.has_value() and *i < output_indices.size())
-                                        output_indices[*i] = static_cast<std::size_t>(r);
-                                });
-                            if(std::any_of(output_indices.begin(),
-                                           output_indices.end(),
-                                           [](std::size_t i) {
-                                               return i == std::numeric_limits<std::size_t>::max();
-                                           }))
+                            migraphx::for_each(returns.begin(),
+                                               returns.end(),
+                                               ret_indices.begin(),
+                                               [&](instruction_ref ret, std::ptrdiff_t r) {
+                                                   if(not aliases_parameter(ret))
+                                                       return;
+                                                   auto i = tuple_index(ret);
+                                                   if(i.has_value() and *i < output_indices.size())
+                                                       output_indices[*i] =
+                                                           static_cast<std::size_t>(r);
+                                               });
+                            if(std::any_of(
+                                   output_indices.begin(), output_indices.end(), [](std::size_t i) {
+                                       return i == std::numeric_limits<std::size_t>::max();
+                                   }))
                             {
                                 MIGRAPHX_THROW(
                                     "SELECT_MODULE: tuple output parameter \"" + name +
@@ -294,19 +293,18 @@ struct select_module
                         }
                         else
                         {
-                            auto matched = std::find_if(
-                                returns.begin(), returns.end(), aliases_parameter);
-                            auto offset = matched == returns.end()
-                                              ? std::size_t{0}
-                                              : static_cast<std::size_t>(
-                                                    std::distance(returns.begin(), matched));
+                            auto matched =
+                                std::find_if(returns.begin(), returns.end(), aliases_parameter);
+                            auto offset    = matched == returns.end()
+                                                 ? std::size_t{0}
+                                                 : static_cast<std::size_t>(
+                                                       std::distance(returns.begin(), matched));
                             output_indices = {offset};
                         }
 
                         auto order               = param_orders.at(name);
                         result.parameters[order] = parameter_source{source_kind::output, index++};
-                        return parameter_metadata{
-                            name, parameter_shape, std::move(output_indices)};
+                        return parameter_metadata{name, parameter_shape, std::move(output_indices)};
                     });
                 return result;
             });
@@ -378,15 +376,14 @@ struct select_module
         auto module_iter =
             std::find_if(metadata->modules.begin(), metadata->modules.end(), [&](const auto& info) {
                 assert(info.inputs.size() <= argument_count);
-                return std::all_of(info.selector_indices.begin(),
-                                   info.selector_indices.end(),
-                                   [&](std::size_t index) {
-                                       return index < info.inputs.size() and
-                                              index < argument_count and
-                                              matches_input_shape(
-                                                  get_argument(index).get_shape(),
-                                                  info.inputs[index].parameter_shape);
-                                   });
+                return std::all_of(
+                    info.selector_indices.begin(),
+                    info.selector_indices.end(),
+                    [&](std::size_t index) {
+                        return index < info.inputs.size() and index < argument_count and
+                               matches_input_shape(get_argument(index).get_shape(),
+                                                   info.inputs[index].parameter_shape);
+                    });
             });
 
         if(module_iter == metadata->modules.end())
@@ -443,16 +440,15 @@ struct select_module
         std::vector<argument> result;
         result.reserve(output.output_indices.size());
         auto elem_indices = range(output.output_indices.size());
-        std::transform(elem_indices.begin(),
-                       elem_indices.end(),
-                       std::back_inserter(result),
-                       [&](std::ptrdiff_t index) {
-                           auto i = static_cast<std::size_t>(index);
-                           return prepare_output_shape(
-                               output,
-                               parameter_shapes[i],
-                               outputs.get_sub_object(output.output_indices[i]));
-                       });
+        std::transform(
+            elem_indices.begin(),
+            elem_indices.end(),
+            std::back_inserter(result),
+            [&](std::ptrdiff_t index) {
+                auto i = static_cast<std::size_t>(index);
+                return prepare_output_shape(
+                    output, parameter_shapes[i], outputs.get_sub_object(output.output_indices[i]));
+            });
         return argument{result};
     }
 

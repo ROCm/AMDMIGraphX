@@ -25,16 +25,15 @@
 #define MIGRAPHX_GUARD_OPERATORS_SELECT_MODULE_HPP
 
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/algorithm.hpp>
-#include <migraphx/builtin.hpp>
+#include <migraphx/config.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
+#include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <functional>
-#include <limits>
 #include <memory>
-#include <optional>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -77,25 +76,19 @@ struct select_module
         std::vector<parameter_metadata> outputs;
         std::vector<std::size_t> selector_indices;
         std::vector<parameter_source> parameters;
-        bool leaf_captures = true;
     };
 
     struct module_set_metadata
     {
+        std::vector<module_ref> candidates;
         std::vector<module_metadata> modules;
-    };
-
-    struct cache_entry
-    {
-        std::vector<module_ref> modules;
-        std::shared_ptr<const module_set_metadata> metadata;
     };
 
     struct metadata_cache
     {
         std::mutex mutex;
-        std::vector<std::shared_ptr<const cache_entry>> entries;
-        std::shared_ptr<const cache_entry> last_entry;
+        std::vector<std::shared_ptr<const module_set_metadata>> entries;
+        std::shared_ptr<const module_set_metadata> last_entry;
     };
 
     mutable std::shared_ptr<metadata_cache> cache = std::make_shared<metadata_cache>();
@@ -139,226 +132,28 @@ struct select_module
         return ret;
     }
 
+    MIGRAPHX_EXPORT module_set_metadata
+    build_module_metadata(const std::vector<module_ref>& candidates) const;
+
+    // Built once for each list of candidates and shared by copies of the operator. Evaluation
+    // almost always repeats the last list, which is checked without taking the lock.
     std::shared_ptr<const module_set_metadata>
     get_module_metadata(const std::vector<module_ref>& submodule_list) const
     {
         auto last_entry = std::atomic_load(&cache->last_entry);
-        if(last_entry != nullptr and last_entry->modules == submodule_list)
-            return last_entry->metadata;
+        if(last_entry != nullptr and last_entry->candidates == submodule_list)
+            return last_entry;
 
         std::lock_guard<std::mutex> lock{cache->mutex};
         auto entry = std::find_if(cache->entries.begin(), cache->entries.end(), [&](const auto& e) {
-            return e->modules == submodule_list;
+            return e->candidates == submodule_list;
         });
-        if(entry != cache->entries.end())
-        {
-            std::atomic_store(&cache->last_entry, *entry);
-            return (*entry)->metadata;
-        }
-
-        auto metadata = std::make_shared<module_set_metadata>();
-        metadata->modules.reserve(submodule_list.size());
-        std::transform(
-            submodule_list.begin(),
-            submodule_list.end(),
-            std::back_inserter(metadata->modules),
-            [&](module_ref mod) {
-                module_metadata result;
-                result.mod   = mod;
-                auto modules = mod->get_sub_modules();
-                modules.push_back(mod);
-                result.leaf_captures =
-                    std::all_of(modules.begin(), modules.end(), [](module_ref current) {
-                        return std::all_of(current->begin(), current->end(), [&](const auto& ins) {
-                            return std::all_of(ins.inputs().begin(),
-                                               ins.inputs().end(),
-                                               [&](instruction_ref input) {
-                                                   return current->has_instruction(input) or
-                                                          (input->inputs().empty() and
-                                                           input->module_inputs().empty());
-                                               });
-                        });
-                    });
-                auto param_shapes = mod->get_parameter_shapes();
-                auto parameters   = mod->get_parameters();
-                std::unordered_map<std::string, std::size_t> param_orders;
-                param_orders.reserve(parameters.size());
-                std::transform(parameters.begin(),
-                               parameters.end(),
-                               std::inserter(param_orders, param_orders.end()),
-                               [](instruction_ref ins) {
-                                   const auto& param =
-                                       any_cast<builtin::param>(ins->get_operator());
-                                   return std::make_pair(param.parameter, std::size_t{param.order});
-                               });
-                std::size_t parameter_slots = 0;
-                if(not param_orders.empty())
-                {
-                    auto max_order = std::max_element(
-                        param_orders.begin(), param_orders.end(), [](const auto& x, const auto& y) {
-                            return x.second < y.second;
-                        });
-                    parameter_slots = max_order->second + 1;
-                }
-                result.parameters.resize(parameter_slots, parameter_source{source_kind::unused, 0});
-                auto input_names = get_input_parameter_names(mod);
-                result.inputs.reserve(input_names.size());
-                std::transform(input_names.begin(),
-                               input_names.end(),
-                               std::back_inserter(result.inputs),
-                               [&, index = std::size_t{0}](const auto& name) mutable {
-                                   auto order = param_orders.at(name);
-                                   result.parameters[order] =
-                                       parameter_source{source_kind::input, index++};
-                                   return parameter_metadata{name, param_shapes.at(name)};
-                               });
-
-                auto output_names = get_output_parameter_names(mod);
-                auto returns      = mod->get_returns();
-                result.outputs.reserve(output_names.size());
-                std::transform(
-                    output_names.begin(),
-                    output_names.end(),
-                    std::back_inserter(result.outputs),
-                    [&, index = std::size_t{0}](const auto& name) mutable {
-                        auto parameter = std::find_if(
-                            parameters.begin(), parameters.end(), [&](instruction_ref ins) {
-                                return any_cast<builtin::param>(ins->get_operator()).parameter ==
-                                       name;
-                            });
-                        assert(parameter != parameters.end());
-                        const auto& parameter_shape = param_shapes.at(name);
-                        // Map each submodule output parameter to the return slots it aliases.
-                        // The main module's tuple is ordered the same way as those returns.
-                        std::vector<std::size_t> output_indices;
-                        auto aliases_parameter = [&](instruction_ref ret) {
-                            return contains(instruction::get_output_alias(ret), *parameter) or
-                                   contains(ret->inputs(), *parameter);
-                        };
-                        if(parameter_shape.type() == shape::tuple_type)
-                        {
-                            const auto nsub = parameter_shape.sub_shapes().size();
-                            output_indices.assign(nsub, std::numeric_limits<std::size_t>::max());
-                            auto tuple_elem_index =
-                                [&](instruction_ref ins) -> std::optional<std::size_t> {
-                                auto v = ins->get_operator().to_value();
-                                if(v.contains("index"))
-                                    return v["index"].to<std::size_t>();
-                                // ref::op wraps the original operator; the printed name is
-                                // ref::get_tuple_elem but instruction::name() is ref::op.
-                                if(v.contains("name") and v.contains("operator") and
-                                   contains(v["name"].to<std::string>(), "get_tuple_elem") and
-                                   v["operator"].contains("index"))
-                                    return v["operator"]["index"].to<std::size_t>();
-                                return std::nullopt;
-                            };
-                            auto tuple_index =
-                                [&](instruction_ref ret) -> std::optional<std::size_t> {
-                                auto cur = ret;
-                                while(true)
-                                {
-                                    if(cur == *parameter)
-                                        return std::nullopt;
-                                    if(auto i = tuple_elem_index(cur))
-                                        return i;
-                                    auto alias_idx =
-                                        cur->get_operator().output_alias(to_shapes(cur->inputs()));
-                                    if(alias_idx.empty())
-                                        return std::nullopt;
-                                    cur = cur->inputs().at(alias_idx.front());
-                                }
-                            };
-                            auto ret_indices = range(returns.size());
-                            migraphx::for_each(returns.begin(),
-                                               returns.end(),
-                                               ret_indices.begin(),
-                                               [&](instruction_ref ret, std::ptrdiff_t r) {
-                                                   if(not aliases_parameter(ret))
-                                                       return;
-                                                   auto i = tuple_index(ret);
-                                                   if(i.has_value() and *i < output_indices.size())
-                                                       output_indices[*i] =
-                                                           static_cast<std::size_t>(r);
-                                               });
-                            if(std::any_of(
-                                   output_indices.begin(), output_indices.end(), [](std::size_t i) {
-                                       return i == std::numeric_limits<std::size_t>::max();
-                                   }))
-                            {
-                                MIGRAPHX_THROW(
-                                    "SELECT_MODULE: tuple output parameter \"" + name +
-                                    "\" is not aliased by get_tuple_elem returns for every "
-                                    "subobject");
-                            }
-                        }
-                        else
-                        {
-                            auto matched =
-                                std::find_if(returns.begin(), returns.end(), aliases_parameter);
-                            auto offset    = matched == returns.end()
-                                                 ? std::size_t{0}
-                                                 : static_cast<std::size_t>(
-                                                       std::distance(returns.begin(), matched));
-                            output_indices = {offset};
-                        }
-
-                        auto order               = param_orders.at(name);
-                        result.parameters[order] = parameter_source{source_kind::output, index++};
-                        return parameter_metadata{name, parameter_shape, std::move(output_indices)};
-                    });
-                return result;
-            });
-        std::vector<std::vector<std::size_t>> selectors;
-        std::transform(metadata->modules.begin(),
-                       metadata->modules.end(),
-                       std::back_inserter(selectors),
-                       [&](const auto& candidate) {
-                           auto indices = range(candidate.inputs.size());
-                           std::vector<std::size_t> result;
-                           std::copy_if(indices.begin(),
-                                        indices.end(),
-                                        std::back_inserter(result),
-                                        [&](std::size_t index) {
-                                            const auto& expected = candidate.inputs[index];
-                                            return std::any_of(
-                                                metadata->modules.begin(),
-                                                metadata->modules.end(),
-                                                [&](const auto& info) {
-                                                    if(index >= info.inputs.size())
-                                                        return true;
-                                                    const auto& input = info.inputs[index];
-                                                    return input.name != expected.name or
-                                                           input.parameter_shape !=
-                                                               expected.parameter_shape;
-                                                });
-                                        });
-                           return result;
-                       });
-        auto module_indices = range(metadata->modules.size());
-        std::vector<module_metadata> modules;
-        modules.reserve(metadata->modules.size());
-        std::transform(module_indices.begin(),
-                       module_indices.end(),
-                       std::back_inserter(modules),
-                       [&](std::size_t index) {
-                           auto result             = std::move(metadata->modules[index]);
-                           result.selector_indices = std::move(selectors[index]);
-                           return result;
-                       });
-        metadata->modules = std::move(modules);
-        auto new_entry =
-            std::make_shared<const cache_entry>(cache_entry{submodule_list, std::move(metadata)});
-        cache->entries.push_back(new_entry);
-        std::atomic_store(&cache->last_entry, new_entry);
-        return new_entry->metadata;
-    }
-
-    bool has_only_leaf_captures(const std::vector<module_ref>& submodule_list) const
-    {
-        auto metadata = get_module_metadata(submodule_list);
-        return std::all_of(metadata->modules.begin(),
-                           metadata->modules.end(),
-                           [](const auto& info) { return info.leaf_captures; });
+        if(entry == cache->entries.end())
+            entry = cache->entries.insert(
+                cache->entries.end(),
+                std::make_shared<const module_set_metadata>(build_module_metadata(submodule_list)));
+        std::atomic_store(&cache->last_entry, *entry);
+        return *entry;
     }
 
     static bool matches_input_shape(const shape& actual, const shape& expected)
@@ -368,37 +163,32 @@ struct select_module
         return actual == expected;
     }
 
+    // Input arguments are ordered like the sorted input parameters, followed by the tuple of
+    // output buffers when the submodules have output parameters. Only the positions whose
+    // parameter differs between candidates are compared; the selected submodule still validates
+    // every parameter during evaluation.
     template <class GetArgument>
-    const module_metadata& find_module(const std::shared_ptr<const module_set_metadata>& metadata,
+    const module_metadata& find_module(const module_set_metadata& metadata,
                                        std::size_t argument_count,
                                        GetArgument get_argument) const
     {
         auto module_iter =
-            std::find_if(metadata->modules.begin(), metadata->modules.end(), [&](const auto& info) {
-                assert(info.inputs.size() <= argument_count);
-                return std::all_of(
-                    info.selector_indices.begin(),
-                    info.selector_indices.end(),
-                    [&](std::size_t index) {
-                        return index < info.inputs.size() and index < argument_count and
-                               matches_input_shape(get_argument(index).get_shape(),
-                                                   info.inputs[index].parameter_shape);
-                    });
+            std::find_if(metadata.modules.begin(), metadata.modules.end(), [&](const auto& info) {
+                return info.inputs.size() <= argument_count and
+                       std::all_of(info.selector_indices.begin(),
+                                   info.selector_indices.end(),
+                                   [&](std::size_t index) {
+                                       return matches_input_shape(
+                                           get_argument(index).get_shape(),
+                                           info.inputs[index].parameter_shape);
+                                   });
             });
 
-        if(module_iter == metadata->modules.end())
+        if(module_iter == metadata.modules.end())
         {
             MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for given input shapes");
         }
         return *module_iter;
-    }
-
-    const module_metadata& find_module(const std::shared_ptr<const module_set_metadata>& metadata,
-                                       const std::vector<argument>& args) const
-    {
-        return find_module(metadata, args.size(), [&](std::size_t index) -> const argument& {
-            return args[index];
-        });
     }
 
     argument prepare_output_shape(const parameter_metadata& output,
@@ -419,36 +209,28 @@ struct select_module
     argument prepare_output(const parameter_metadata& output, const argument& outputs) const
     {
         const auto& output_shapes = outputs.get_shape().sub_shapes();
-        if(output.output_indices.empty() or
-           std::any_of(output.output_indices.begin(),
+        if(std::any_of(output.output_indices.begin(),
                        output.output_indices.end(),
                        [&](std::size_t index) { return index >= output_shapes.size(); }))
             MIGRAPHX_THROW("SELECT_MODULE: selected submodule needs more output buffers than the "
                            "main module provides");
 
-        if(output.output_indices.size() == 1)
+        if(output.parameter_shape.type() != shape::tuple_type)
             return prepare_output_shape(output,
                                         output.parameter_shape,
                                         outputs.get_sub_object(output.output_indices.front()));
 
         const auto& parameter_shapes = output.parameter_shape.sub_shapes();
-        if(output.parameter_shape.type() != shape::tuple_type or
-           parameter_shapes.size() != output.output_indices.size())
-            MIGRAPHX_THROW("SELECT_MODULE: tuple output parameter \"" + output.name +
-                           "\" does not match the selected submodule returns");
-
         std::vector<argument> result;
-        result.reserve(output.output_indices.size());
-        auto elem_indices = range(output.output_indices.size());
-        std::transform(
-            elem_indices.begin(),
-            elem_indices.end(),
-            std::back_inserter(result),
-            [&](std::ptrdiff_t index) {
-                auto i = static_cast<std::size_t>(index);
-                return prepare_output_shape(
-                    output, parameter_shapes[i], outputs.get_sub_object(output.output_indices[i]));
-            });
+        result.reserve(parameter_shapes.size());
+        std::transform(parameter_shapes.begin(),
+                       parameter_shapes.end(),
+                       output.output_indices.begin(),
+                       std::back_inserter(result),
+                       [&](const shape& expected, std::size_t index) {
+                           return prepare_output_shape(
+                               output, expected, outputs.get_sub_object(index));
+                       });
         return argument{result};
     }
 
@@ -458,16 +240,16 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        // Find the submodule from the input positions whose parameter shapes differ between
-        // candidates. The selected submodule still validates every parameter during evaluation.
-        auto metadata           = get_module_metadata(submodule_list);
-        const auto& module_info = find_module(metadata, args);
-        auto module_to_run      = module_info.mod;
+        auto metadata = get_module_metadata(submodule_list);
+        const auto& module_info =
+            find_module(*metadata, args.size(), [&](std::size_t index) -> const argument& {
+                return args[index];
+            });
+        auto* module_to_run = module_info.mod;
         std::unordered_map<std::string, argument> p_map;
         p_map.reserve(module_info.inputs.size() + module_info.outputs.size());
 
         // add input parameters to parameter_map
-        assert(module_info.inputs.size() <= args.size());
         std::transform(
             module_info.inputs.begin(),
             module_info.inputs.end(),
@@ -512,12 +294,11 @@ struct select_module
                                                 Run run) const
     {
         auto metadata           = get_module_metadata(submodule_list);
-        const auto& module_info = find_module(metadata, argument_count, get_argument);
+        const auto& module_info = find_module(*metadata, argument_count, get_argument);
         assert(argument_count > 0);
-        assert(module_info.inputs.size() + 1 == argument_count);
         auto params = positional_parameter_view<GetArgument>{
             this, &module_info, get_argument, get_argument(argument_count - 1)};
-        auto module_to_run = module_info.mod;
+        auto* module_to_run = module_info.mod;
         return argument{run(module_to_run, params)};
     }
 

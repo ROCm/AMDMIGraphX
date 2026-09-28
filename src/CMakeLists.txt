@@ -140,6 +140,7 @@ add_library(migraphx
     reshape_dims.cpp
     rewrite_topk.cpp
     schedule.cpp
+    select_module.cpp
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp

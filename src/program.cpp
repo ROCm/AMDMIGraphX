@@ -529,33 +529,6 @@ static argument evaluate_parameter(instruction_ref ins, const Params& params)
     return result;
 }
 
-struct instruction_argument_accessor
-{
-    const std::vector<instruction_ref>& inputs;
-    const pmr::unordered_map<instruction_ref, argument>& results;
-
-    const argument& operator()(std::size_t index) const
-    {
-        assert(index < inputs.size());
-        assert(results.find(inputs[index]) != results.end());
-        return results.at(inputs[index]);
-    }
-};
-
-template <class GetArgument, class Run>
-static argument evaluate_select_module(instruction_ref ins,
-                                       std::vector<context>& ctx,
-                                       GetArgument get_argument,
-                                       Run run)
-{
-    auto oper = ins->normalized_operator();
-    if(ins->get_target_id() >= ctx.size())
-        MIGRAPHX_THROW("No context available for " + oper.name());
-    const auto& select = any_cast<op::select_module>(oper);
-    return select.compute_with_positional_parameters(
-        ins->inputs().size(), get_argument, ins->module_inputs(), run);
-}
-
 static argument compute_leaf_instruction(instruction_ref ins, std::vector<context>& ctx)
 {
     if(not ins->inputs().empty() or not ins->module_inputs().empty())
@@ -570,12 +543,58 @@ static argument compute_leaf_instruction(instruction_ref ins, std::vector<contex
     return oper.compute(ctx[ins->get_target_id()], ins->get_shape(), {});
 }
 
+// A leaf that only submodules read, which the parent module skips so that a select_module
+// candidate that does not run never materializes the values it captures. It is computed when a
+// submodule first reads it and then kept, so every reader sees the same argument.
+static bool only_read_by_submodules(const module& m, instruction_ref ins)
+{
+    if(not ins->inputs().empty() or not ins->module_inputs().empty() or ins->outputs().empty())
+        return false;
+    if(ins->name() != "@literal" and starts_with(ins->name(), "@"))
+        return false;
+    return std::none_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref output) {
+        return m.has_instruction(output);
+    });
+}
+
+static const argument& get_input_argument(instruction_ref input,
+                                          std::vector<context>& ctx,
+                                          pmr::unordered_map<instruction_ref, argument>& results)
+{
+    auto result = results.find(input);
+    if(result != results.end())
+        return result->second;
+    return results.emplace(input, compute_leaf_instruction(input, ctx)).first->second;
+}
+
+struct instruction_argument_accessor
+{
+    const std::vector<instruction_ref>& inputs;
+    std::vector<context>& ctx;
+    pmr::unordered_map<instruction_ref, argument>& results;
+
+    const argument& operator()(std::size_t index) const
+    {
+        assert(index < inputs.size());
+        return get_input_argument(inputs[index], ctx, results);
+    }
+};
+
+template <class GetArgument, class Run>
+static argument evaluate_select_module(instruction_ref ins, GetArgument get_argument, Run run)
+{
+    const auto& select = any_cast<op::select_module>(ins->get_operator());
+    return select.compute_with_positional_parameters(
+        ins->inputs().size(), get_argument, ins->module_inputs(), run);
+}
+
 template <class Params, class F>
 static std::vector<argument> generic_eval(const module* mod,
                                           std::vector<context>& ctx,
                                           const Params& params,
                                           pmr::unordered_map<instruction_ref, argument>& results,
-                                          F trace);
+                                          F trace,
+                                          bool lazy_leaves = false);
 
 // Evaluates one non-return instruction whose inputs are already in results (or are leaves of
 // another module) and stores its value in results.
@@ -615,9 +634,8 @@ static void evaluate_instruction([[maybe_unused]] const module* mod,
         };
         results.insert_or_assign(
             ins, trace(ins, [&] {
-                const auto& inputs = ins->inputs();
-                auto get_argument  = instruction_argument_accessor{inputs, results};
-                return evaluate_select_module(ins, ctx, get_argument, positional_module_eval);
+                auto get_argument = instruction_argument_accessor{ins->inputs(), ctx, results};
+                return evaluate_select_module(ins, get_argument, positional_module_eval);
             }));
     }
     else if(name == "get_tuple_elem" and contains(results, ins->inputs().front()))
@@ -635,11 +653,8 @@ static void evaluate_instruction([[maybe_unused]] const module* mod,
         values.resize(ins->inputs().size());
         std::transform(
             ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
-                auto result = results.find(i);
-                if(result != results.end())
-                    return result->second;
-                assert(not mod->has_instruction(i));
-                return compute_leaf_instruction(i, ctx);
+                assert(contains(results, i) or not mod->has_instruction(i));
+                return get_input_argument(i, ctx, results);
             });
         auto module_eval = [&](module_ref smod,
                                const std::unordered_map<std::string, argument>& inputs) {
@@ -681,7 +696,8 @@ static std::vector<argument> generic_eval(const module* mod,
                                           std::vector<context>& ctx,
                                           const Params& params,
                                           pmr::unordered_map<instruction_ref, argument>& results,
-                                          F trace)
+                                          F trace,
+                                          bool lazy_leaves)
 {
     assert(mod->validate() == mod->end());
     std::vector<argument> values;
@@ -690,102 +706,29 @@ static std::vector<argument> generic_eval(const module* mod,
     {
         if(ins->name() == "@return")
             return collect_returns(ins, results);
+        if(lazy_leaves and only_read_by_submodules(*mod, ins))
+            continue;
         evaluate_instruction(mod, ins, ctx, params, results, values, trace);
     }
     return {results.at(std::prev(mod->end()))};
 }
 
-// Every value a module reads from outside itself (and its own submodules) is a leaf that can
-// be computed on demand.
-static bool reads_only_foreign_leaves(module_ref mod)
+// The number of instructions the select_module candidates of a module can evaluate in one run,
+// which is the largest candidate of each select_module since only one of them runs. Zero when
+// the module has no select_module.
+static std::size_t select_module_candidates_size(const module& m)
 {
-    auto modules = mod->get_sub_modules();
-    modules.push_back(mod);
-    auto is_local = [&](instruction_ref i) {
-        return std::any_of(
-            modules.begin(), modules.end(), [&](module_ref m) { return m->has_instruction(i); });
-    };
-    return std::all_of(modules.begin(), modules.end(), [&](module_ref m) {
-        return std::all_of(m->begin(), m->end(), [&](const instruction& ins) {
-            return std::all_of(ins.inputs().begin(), ins.inputs().end(), [&](instruction_ref i) {
-                return is_local(i) or (i->inputs().empty() and i->module_inputs().empty());
-            });
+    return transform_accumulate(
+        m.begin(), m.end(), std::size_t{0}, std::plus<>{}, [](const instruction& ins) {
+            if(ins.name() != "select_module")
+                return std::size_t{0};
+            const auto& candidates = ins.module_inputs();
+            auto largest =
+                std::max_element(candidates.begin(),
+                                 candidates.end(),
+                                 by(std::less<>{}, [](module_ref c) { return c->size(); }));
+            return largest == candidates.end() ? std::size_t{0} : (*largest)->size();
         });
-    });
-}
-
-// A main module that dispatches to select_module candidates is evaluated on demand from its
-// returns. Only the values the outputs need are computed: the main-module literals the
-// candidates capture are computed lazily instead of being materialized every run, and the
-// whole-program result map is not built.
-static bool try_select_module_eval(const module* mod,
-                                   std::vector<context>& ctx,
-                                   const std::unordered_map<std::string, argument>& params,
-                                   std::vector<argument>& outputs)
-{
-    if(mod->begin() == mod->end())
-        return false;
-    auto ret = std::prev(mod->end());
-    if(ret->name() != "@return")
-        return false;
-
-    std::vector<instruction_ref> order;
-    std::unordered_set<instruction_ref> needed;
-    std::size_t evaluated_instructions = 0;
-    bool supported                     = true;
-    auto visit                         = fix([&](auto self, instruction_ref ins) -> void {
-        if(not supported or not needed.insert(ins).second)
-            return;
-        const auto& mod_args = ins->module_inputs();
-        if(ins->name() == "select_module")
-        {
-            const auto& select = any_cast<op::select_module>(ins->get_operator());
-            supported          = select.has_only_leaf_captures(mod_args);
-        }
-        else
-        {
-            supported = std::all_of(mod_args.begin(), mod_args.end(), &reads_only_foreign_leaves);
-        }
-        evaluated_instructions = transform_accumulate(mod_args.begin(),
-                                                      mod_args.end(),
-                                                      evaluated_instructions + 1,
-                                                      std::plus<>{},
-                                                      [](module_ref m) { return m->size(); });
-        for(auto input : ins->inputs())
-            self(input);
-        order.push_back(ins);
-    });
-    for(auto output : ret->inputs())
-        visit(output);
-    if(not supported or std::none_of(order.begin(), order.end(), [](instruction_ref ins) {
-           return ins->name() == "select_module";
-       }))
-        return false;
-    // Skipping an instruction is only safe when nothing it does can be observed: a leaf that no
-    // output reads.
-    auto instructions = iterator_for(*mod);
-    if(std::any_of(instructions.begin(), instructions.end(), [&](instruction_ref ins) {
-           return ins != ret and not ins->inputs().empty() and not contains(needed, ins);
-       }))
-        return false;
-
-#if MIGRAPHX_HAS_PMR
-    std::vector<char> buffer(evaluated_instructions * (sizeof(instruction_ref) + sizeof(argument)) *
-                             4);
-    std::pmr::monotonic_buffer_resource bres(
-        buffer.data(), buffer.size(), std::pmr::new_delete_resource());
-    pmr::unordered_map<instruction_ref, argument> results(&bres);
-    results.reserve(evaluated_instructions);
-#else
-    pmr::unordered_map<instruction_ref, argument> results;
-#endif
-    std::vector<argument> values;
-    values.reserve(16);
-    auto no_trace = [](auto&&, auto f) { return f(); };
-    for(auto ins : order)
-        evaluate_instruction(mod, ins, ctx, params, results, values, no_trace);
-    outputs = collect_returns(ret, results);
-    return true;
 }
 
 template <class F>
@@ -796,9 +739,24 @@ static std::vector<argument> generic_eval(const program& p,
                                           bool select_fast_path = false)
 {
     const module* mm = p.get_main_module();
-    std::vector<argument> outputs;
-    if(select_fast_path and try_select_module_eval(mm, ctx, params, outputs))
-        return outputs;
+    if(auto candidates_size = select_fast_path ? select_module_candidates_size(*mm) : 0;
+       candidates_size > 0)
+    {
+        // Main dispatches to select_module candidates, so the leaves they capture are computed
+        // on demand and the results only need room for main and the candidate that runs.
+        std::size_t n = mm->size() + candidates_size;
+#if MIGRAPHX_HAS_PMR
+        // Allocated on first use instead of zero-filled up front, and backed by the heap in case
+        // a candidate has submodules of its own.
+        std::pmr::monotonic_buffer_resource bres(n * (sizeof(instruction_ref) + sizeof(argument)) *
+                                                 4);
+        pmr::unordered_map<instruction_ref, argument> results(&bres);
+        results.reserve(n);
+#else
+        pmr::unordered_map<instruction_ref, argument> results;
+#endif
+        return generic_eval(mm, ctx, params, results, trace, true);
+    }
 #if MIGRAPHX_HAS_PMR
     std::size_t n = p.total_instructions();
     std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);

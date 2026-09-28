@@ -57,6 +57,7 @@ Full documentation for MIGraphX is available at
 * Fuse expert Silu Heads (MoE) into batched GEMM via fuse_horizontal (#5087).
 * Extended `find_concat_op` to treat `unsqueeze` as a fusable `concat` input so the concat can be folded through it (#5180).
 * Added `find_layout_broadcast` to `simplify_reshapes`, rewriting `layout(broadcast(x))` to `broadcast(layout(x))` so only the unique data is materialized instead of one full copy per broadcast output (#5141).
+* Disabled nested MLIR context threading during GPU tuning to reduce compile-time allocation and contention (#5322).
 
 
 ## MIGraphX 2.17 for ROCm 10.0.0

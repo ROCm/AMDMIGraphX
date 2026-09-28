@@ -460,6 +460,13 @@ struct MIGRAPHX_EXPORT shape
     shape with_lens(type_t t, const std::vector<dynamic_dimension>& dds) const;
     shape with_lens(const std::vector<dynamic_dimension>& dds) const;
 
+    /**
+     * Shape of an elementwise result over two broadcasted shapes with the same
+     * dims: packed over the axes either input varies along and broadcast on the
+     * rest, so it stays broadcasted rather than materializing a full layout.
+     */
+    static shape merge_broadcasts(const shape& x, const shape& y);
+
     shape with_type(type_t t) const;
 
     // convert the shape to an equivalent range-based dynamic shape: each static len becomes

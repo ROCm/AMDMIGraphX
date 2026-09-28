@@ -93,10 +93,151 @@ verify::tolerance get_tolerances(const program& p,
     return result;
 }
 
+namespace {
+
+using trace_function      = std::function<void(instruction_ref, const argument&)>;
+using substitute_function = std::function<optional<argument>(instruction_ref, const argument&)>;
+
+std::string source_name(instruction_ref ins, const std::string& label)
+{
+    const auto& symbols = ins->get_debug_symbols();
+    std::vector<std::string> names;
+    std::copy_if(symbols.begin(), symbols.end(), std::back_inserter(names), [](const auto& symbol) {
+        return not starts_with(symbol, "@verify:");
+    });
+    if(names.empty())
+        return "#" + remove_prefix(label, "@verify:");
+    return join_strings(std::move(names), ", ");
+}
+
+struct verify_callback
+{
+    struct layer_result
+    {
+        std::string name = {};
+        std::string op   = {};
+        double rms_error = 0;
+        bool passed      = false;
+    };
+
+    struct ref_output
+    {
+        argument output   = {};
+        std::string name  = {};
+        std::size_t order = 0;
+    };
+
+    using ref_map = std::unordered_map<std::string, ref_output>;
+
+    verify::tolerance tols = {};
+
+    std::size_t ref_count                       = 0;
+    ref_map ref_outputs                         = {};
+    std::map<std::size_t, layer_result> results = {};
+
+    std::vector<instruction_ref> source_instructions = {};
+
+    // Captures ref outputs for each instruction.
+    trace_function capture()
+    {
+        return [this](instruction_ref ins, const argument& output) {
+            if(output.get_shape().type() == shape::tuple_type)
+                return;
+            auto order = ref_count++;
+            for(const auto& symbol : ins->get_debug_symbols())
+                if(starts_with(symbol, "@verify:"))
+                    ref_outputs[symbol] = {output, source_name(ins, symbol), order};
+        };
+    }
+
+    // Returns the terminal reference output when compatible symbols form a chain.
+    ref_map::const_iterator terminal(instruction_ref ins, const shape& s) const
+    {
+        std::vector<ref_map::const_iterator> matches;
+        for(const auto& symbol : ins->get_debug_symbols())
+        {
+            auto it = ref_outputs.find(symbol);
+            if(it == ref_outputs.end())
+                continue;
+            const auto& rs = it->second.output.get_shape();
+            // quantization changes the type, so only check for float vs integer
+            if(not shape::same_lens(rs, s) or
+               shape::is_integral(rs.type()) != shape::is_integral(s.type()))
+                continue;
+            matches.push_back(it);
+        }
+        auto result = std::max_element(matches.begin(), matches.end(), [](auto x, auto y) {
+            return x->second.order < y->second.order;
+        });
+        if(result == matches.end())
+            return ref_outputs.end();
+        auto source = [&](auto x) {
+            return source_instructions.at(std::stoull(x->first.substr(x->first.find(':') + 1)));
+        };
+        if(any_of(matches, [&](auto other) {
+               return other->second.order != (*result)->second.order and
+                      not reaches(source(other), source(*result));
+           }))
+            return ref_outputs.end();
+        return *result;
+    }
+
+    // Scores the target output against the captured ref output, then returns the ref value so
+    // later layers read known-good inputs and each error is the layer's own.
+    substitute_function compare()
+    {
+        return [this](instruction_ref ins, const argument& output) -> optional<argument> {
+            if(ins->can_eval() or ends_with(ins->name(), "::literal") or
+               contains({"broadcast", "multibroadcast"}, ins->name()))
+                return nullopt;
+            if(output.get_shape().type() == shape::tuple_type)
+                return nullopt;
+            auto it = terminal(ins, output.get_shape());
+            if(it == ref_outputs.end())
+                return nullopt;
+            const auto& ref = it->second;
+            assert(ref.output.get_shape().elements() == output.get_shape().elements());
+            auto ref_arg = ref.output;
+            if(ref.output.get_shape() != output.get_shape())
+            {
+                ref_arg = argument{output.get_shape()};
+                ref.output.visit([&](auto s) { ref_arg.fill(s.begin(), s.end()); });
+            }
+            double rms  = 0;
+            bool passed = false;
+            visit_all(output, ref_arg)([&](auto t, auto r) {
+                passed = verify::verify_range_with_tolerance(t, verify::expected{r}, tols, &rms);
+            });
+            // NaN never compares greater, so rank it worst.
+            if(std::isnan(rms))
+                rms = std::numeric_limits<double>::infinity();
+            auto op            = ins->get_operator().attributes().get("group", ins->name());
+            results[ref.order] = {ref.name, op, rms, passed};
+            return ref_arg;
+        };
+    }
+
+    // Returns the layers that didn't meet tolerance.
+    std::vector<layer_result> failures() const
+    {
+        std::vector<layer_result> result;
+        transform_if(
+            results.begin(),
+            results.end(),
+            std::back_inserter(result),
+            [](const auto& r) { return not r.second.passed; },
+            [](const auto& r) { return r.second; });
+        return result;
+    }
+};
+
+} // namespace
+
 static std::vector<argument> run_ref(program p,
                                      const compile_options& options,
                                      const verify_options& vo,
-                                     const parameter_map& inputs)
+                                     const parameter_map& inputs,
+                                     trace_function trace = nullptr)
 {
     if(vo.ref_use_double)
     {
@@ -104,7 +245,9 @@ static std::vector<argument> run_ref(program p,
             p, {fp_to_double{}, simplify_qdq{.remove_qdq_only = true}, dead_code_elimination{}});
     }
     p.compile(migraphx::make_target("ref"), options);
-    auto out = p.eval(inputs);
+    execution_environment exec_env{};
+    exec_env.trace = std::move(trace);
+    auto out       = p.eval(inputs, exec_env);
     log::info() << p;
     return out;
 }
@@ -113,7 +256,8 @@ static std::vector<argument> run_target(program p,
                                         const target& t,
                                         const compile_options& options,
                                         const verify_options& vo,
-                                        const parameter_map& inputs)
+                                        const parameter_map& inputs,
+                                        substitute_function substitute = nullptr)
 {
     if(vo.compiled_model.empty())
     {
@@ -138,13 +282,53 @@ static std::vector<argument> run_target(program p,
         auto arg   = inputs.count(x.first) == 0 ? generate_argument(x.second) : inputs.at(x.first);
         m[x.first] = options.offload_copy ? arg : t.copy_to(arg);
     }
-    auto gpu_out = p.eval(m);
+    execution_environment exec_env{};
+    exec_env.substitute = std::move(substitute);
+    auto gpu_out        = p.eval(m, exec_env);
     std::vector<argument> output(gpu_out.size());
     log::info() << p;
     std::transform(gpu_out.begin(), gpu_out.end(), output.begin(), [&](auto& argu) {
         return options.offload_copy ? argu : t.copy_from(argu);
     });
     return output;
+}
+
+// Labels each instruction with a unique identifier.
+static program label_instructions(program p)
+{
+    std::size_t id = 0;
+    auto* m        = p.get_main_module();
+    for(auto ins : iterator_for(*m))
+    {
+        if(ins->name() == "@return")
+            continue;
+        m->add_debug_symbols(ins, {"@verify:" + std::to_string(id++)});
+    }
+    return p;
+}
+
+static optional<verify_callback> run_layerwise_compare(const program& p,
+                                                       const target& t,
+                                                       const compile_options& options,
+                                                       const verify_options& vo,
+                                                       const parameter_map& inputs,
+                                                       verify::tolerance tols)
+{
+    auto labeled = label_instructions(p);
+    verify_callback vcb{tols};
+    copy_if(iterator_for(*p.get_main_module()),
+            std::back_inserter(vcb.source_instructions),
+            [](auto ins) { return ins->name() != "@return"; });
+    run_ref(labeled, options, vo, inputs, vcb.capture());
+    run_target(std::move(labeled), t, options, vo, inputs, vcb.compare());
+    if(vcb.results.empty())
+    {
+        log::error() << "Layerwise comparison (--layerwise) matched no layers between the "
+                        "reference and the target.";
+        return nullopt;
+    }
+    log::info() << "Layers compared: " << vcb.results.size();
+    return vcb;
 }
 
 bool verify_program(const std::string& name,
@@ -356,6 +540,31 @@ void verify_bisected_program(const program& p,
     {
         std::cout << "Failure starts at: " << failed << std::endl;
     }
+}
+
+void verify_layerwise_program(const program& p,
+                              const target& t,
+                              const compile_options& options,
+                              const verify_options& vo,
+                              const parameter_map& inputs,
+                              verify::tolerance tols)
+{
+    auto vcb = run_layerwise_compare(p, t, options, vo, inputs, tols);
+    if(not vcb)
+        return;
+    auto failures = vcb->failures();
+    if(failures.empty())
+    {
+        log::info() << "MIGraphX verification passed successfully.";
+        return;
+    }
+    for(const auto& lr : failures)
+        log::error() << "FAILED at " << lr.name << " (" << lr.op << ")";
+    auto source = std::max_element(failures.begin(),
+                                   failures.end(),
+                                   by(std::less<>{}, [](const auto& lr) { return lr.rms_error; }));
+    std::cout << "Failure introduced at: " << source->name << " (" << source->op << ")"
+              << std::endl;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

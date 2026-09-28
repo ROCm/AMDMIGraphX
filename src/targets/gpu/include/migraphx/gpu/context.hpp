@@ -333,6 +333,12 @@ struct context
 
     void set_exhaustive_tune_flag(bool t) { exhaustive_tune = t; }
 
+    // When true, compile_hip_src skips spawning migraphx-hiprtc-driver and compiles in-process.
+    // Set via compile_options::backend_options["hiprtc_disable_processes"].
+    bool get_disable_processes() const { return disable_processes; }
+
+    void set_disable_processes(bool v) { disable_processes = v; }
+
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
 
@@ -484,8 +490,9 @@ struct context
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool exhaustive_tune = false;
-    bool measure_perf    = false;
+    bool exhaustive_tune   = false;
+    bool disable_processes = false;
+    bool measure_perf      = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;

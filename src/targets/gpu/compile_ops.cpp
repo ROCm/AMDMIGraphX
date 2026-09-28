@@ -28,7 +28,6 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -39,15 +38,22 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <functional>
+#include <string>
+#include <thread>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -57,16 +63,20 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_USE_SIMPLE);
 
-// Inner repeat count when timing a candidate, raised for split-k (kernel + prefill).
-static std::size_t compute_benchmark_bundle(const module& m)
+static const benchmark_candidate& run_benchmark(const context& ctx,
+                                                const std::vector<benchmark_candidate>& candidates)
 {
-    // Count context-requiring ops (kernel + prefills); skip context-free and @-builtins.
-    int n = std::count_if(m.begin(), m.end(), [](const auto& ins) {
-        return not migraphx::is_context_free(ins.get_operator()) and
-               not starts_with(ins.name(), "@");
-    });
-    return std::max(1, 4 * n - 2);
+    // A single candidate is already the winner, so skip timing it
+    if(candidates.size() == 1)
+        return candidates.front();
+    const auto& best = enabled(MIGRAPHX_BENCHMARKING_USE_SIMPLE{})
+                           ? simple_benchmark{/* bundle */ 10, /* nruns */ 20}.run(ctx, candidates)
+                           : adaptive_topk_benchmark{}.run(ctx, candidates);
+    // Let the GPU settle before the next tuning problem
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    return best;
 }
 
 struct precompile_op
@@ -144,15 +154,7 @@ struct dynamic_code_object_op
     std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,
                                                               const_module_ref mod) const
     {
-        auto pnames = mod->get_parameter_names();
-        assert(pnames.size() == args.size());
-        std::unordered_map<std::string, argument> param_map;
-        std::transform(pnames.begin(),
-                       pnames.end(),
-                       args.begin(),
-                       std::inserter(param_map, param_map.end()),
-                       [](const auto& name, const auto& arg) { return std::make_pair(name, arg); });
-        return param_map;
+        return make_parameter_map(mod, args);
     }
     argument compute(context& ctx,
                      const shape&,
@@ -272,6 +274,77 @@ struct compiled_result
         return os;
     }
 
+    struct candidate
+    {
+        const compiled_result* parent = nullptr;
+        value sol                     = value{};
+
+        // Parameters whose shape id (type + dims) is in the compiled result's fill_map hold that
+        // value, the rest random data. Each key leads with the fill value, or "random", so only
+        // parameters that hold the same data share a key.
+        std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const
+        {
+            assert(parent != nullptr);
+            const auto& fill_map = parent->replace.fill_map;
+            const auto* mm       = p.get_main_module();
+            auto names           = mm->get_parameter_names();
+            std::vector<std::pair<std::string, shape>> keys;
+            keys.reserve(names.size());
+            std::transform(
+                names.begin(), names.end(), std::back_inserter(keys), [&](const auto& name) {
+                    auto s         = mm->get_parameter_shape(name);
+                    std::string id = "";
+                    if(s.type() != shape::tuple_type)
+                        id = s.type_string() + shape::to_sizes_string({s.as_standard()});
+                    auto fill = fill_map.find(id);
+                    // Neither tag contains ':', so the first ':' ends the tag even if the name
+                    // has one
+                    auto tag =
+                        fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second);
+                    return std::make_pair(tag + ":" + name, s);
+                });
+            return keys;
+        }
+
+        // The key's tag gives the data: "random" is generated on the GPU, seeded by the key so a
+        // key always gives the same data; a hex float is filled on the host
+        argument generate_argument(context& ctx, const std::string& key, const shape& s) const
+        {
+            auto tag = key.substr(0, key.find(':'));
+            if(tag == "random")
+                return gpu_generate_random(ctx, s, std::hash<std::string>{}(key));
+            return to_gpu(fill_argument(s, std::stod(tag)));
+        }
+
+        program make_program() const
+        {
+            assert(parent != nullptr);
+            return parent->make_program();
+        }
+
+        // Set based on trace level
+        tracer trace() const
+        {
+            if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 1)
+                return {std::cout};
+            return {};
+        }
+
+        value solution() const { return sol; }
+
+        // Used to print the program and other info on higher trace levels
+        void before_run(const program& p) const
+        {
+            assert(parent != nullptr);
+            if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 2)
+                std::cout << *parent << "\n" << p << std::endl;
+        }
+    };
+
+    candidate make_benchmark_candidate(const value& solution) const { return {this, solution}; }
+
+    // Create a small program with the instruction being compiled and call "replace"
+    // on it, which inserts the compiled code objects, prefills, etc. needed to run it.
     program make_program() const
     {
         program bench_prog;
@@ -345,7 +418,8 @@ struct compile_plan
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
                 const auto& solution = sol.value();
-                // No solution yet until benchmarked so skip for now
+                // A null is a mark() sentinel: already being benchmarked, so skip it
+                // here and take the winning solution on the second pass.
                 if(solution.is_null())
                     return;
                 results.resize(1);
@@ -441,58 +515,35 @@ struct compile_plan
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
-        std::vector<double> times;
-        times.reserve(results.size());
-        std::transform(results.begin(),
-                       results.end(),
-                       config->solutions.begin(),
-                       std::back_inserter(times),
-                       [&](const auto& cr, const auto& solution) {
-                           if(trace_level > 1)
-                               std::cout << "Benchmarking solution: " << solution << std::endl;
-                           if(not cr.has_value())
-                           {
-                               if(trace_level > 1)
-                                   std::cout << "No binary" << std::endl;
-                               return std::numeric_limits<double>::max();
-                           }
-                           if(trace_level > 2)
-                               std::cout << *cr << std::endl;
-                           /*
-                           create a small program with insturction being compiled and call "replace"
-                           on that which would insert all the compiled code objects, prefills etc.
-                           necessary to run candidate code object
-                           */
-                           auto bench_prog = cr->make_program();
-                           if(trace_level > 2)
-                               std::cout << bench_prog << std::endl;
-                           auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
-                           auto t      = time_program(*ctx,
-                                                 std::move(bench_prog),
-                                                 cr->replace.fill_map,
-                                                 bundle,
-                                                 /* nrun */ 20);
-                           if(trace_level > 1)
-                               std::cout << t << "ms" << std::endl;
-                           return t;
-                       });
-        std::this_thread::sleep_for(std::chrono::milliseconds{50});
-        auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
-        if(trace_level > 0)
-        {
-            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
-            ctx->get_problem_cache().save();
-        }
-        if(not results[i].has_value())
+        std::vector<benchmark_candidate> candidates;
+        candidates.reserve(results.size());
+        assert(config->solutions.size() == results.size());
+        transform_if(
+            results.begin(),
+            results.end(),
+            config->solutions.begin(),
+            std::back_inserter(candidates),
+            [](const auto& cr, const auto&) { return cr.has_value(); },
+            [](const auto& cr, const auto& solution) {
+                return cr->make_benchmark_candidate(solution);
+            });
+        auto skipped = results.size() - candidates.size();
+        if(skipped > 0 and trace_level > 1)
+            std::cout << "No binary for " << skipped << " solutions" << std::endl;
+        if(candidates.empty())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                            problem_string() + "\n\n" + print_modules());
-        auto skipped = std::count_if(
-            results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
+        const auto& best = run_benchmark(*ctx, candidates);
+        ctx->get_problem_cache().insert(preop.name(), config->problem, best.solution());
+        if(trace_level > 0)
+        {
+            std::cout << "Fastest solution: " << best.solution() << std::endl;
+            ctx->get_problem_cache().save();
+        }
         if(skipped > 0)
             log::info() << "Skipped " << skipped << " configs for " << preop.name();
 
-        return *results[i];
+        return *any_cast<compiled_result::candidate>(best).parent;
     }
 
     void replace(module& m) const

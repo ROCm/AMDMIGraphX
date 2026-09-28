@@ -27,6 +27,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
+#include <migraphx/gpu/device/fill.hpp>
 #include <migraphx/gpu/device/generate_random.hpp>
 #if MIGRAPHX_USE_MIOPEN
 #include <miopen/miopen.h>
@@ -292,9 +293,17 @@ void gpu_fill(context& ctx, const argument& dst, int value)
 {
     if(dst.get_sub_objects().empty())
     {
-        // TODO: Handle non-packed tensor when value is not 0
-        assert(dst.get_shape().packed() and value == 0);
-        hip_async_memset(ctx, dst, value);
+        if(dst.get_shape().packed())
+        {
+            // A packed tensor can be zeroed bytewise; memset with other values
+            // would fill bytes, not elements
+            assert(value == 0);
+            hip_async_memset(ctx, dst, value);
+        }
+        else
+        {
+            device::fill(ctx.get_stream().get(), dst, value);
+        }
     }
     else
     {

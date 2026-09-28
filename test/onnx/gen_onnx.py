@@ -4479,6 +4479,26 @@ def gather_scalar_test():
 
 
 @onnx_test()
+def gather_empty_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, 8400, 84])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT64, [])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8400, 0])
+
+    slice_node = onnx.helper.make_node('Slice',
+                                       inputs=['data'],
+                                       axes=[2],
+                                       starts=[84],
+                                       ends=[84],
+                                       outputs=['empty'])
+    gather_node = onnx.helper.make_node('Gather',
+                                        inputs=['empty', 'indices'],
+                                        outputs=['y'],
+                                        axis=0)
+
+    return ([slice_node, gather_node], [x, i], [y])
+
+
+@onnx_test()
 def gather_dyn_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT,
                                       [None, 4, 5, 6])

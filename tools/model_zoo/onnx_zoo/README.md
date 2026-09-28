@@ -19,6 +19,7 @@ git clone https://github.com/onnx/models.git --depth 1
 ```bash
 # VERBOSE=1 DEBUG=1 # use these for more log
 # ATOL=0.001 RTOL=0.001 TARGET=gpu # are the default values
+# FP16_ATOL=0.04 FP16_RTOL=0.04 # looser tolerances used for the fp16 pass
 ./test_models.sh models/validated
 ```
 
@@ -28,9 +29,26 @@ You can also pass multiple folders, e.g.:
 ./test_models.sh models/validated/text/machine_comprehension/t5/ models/validated/vision/classification/shufflenet/
 ```
 
+## Running against pre-downloaded models
+
+```bash
+# Test every model found under the pre-downloaded location
+USE_LOCAL=1 ./test_models.sh /datasets/onnx-model-zoo
+
+# Or select a subset
+USE_LOCAL=1 ./test_models.sh \
+    /datasets/onnx-model-zoo/text/machine_comprehension/t5 \
+    /datasets/onnx-model-zoo/vision/classification/shufflenet
+```
+
 ## Results
 
-Result are separated by dtype: `logs/fp32` and `logs/fp16`
+Accuracy and performance logs are written under `logs/accuracy` and `logs/perf`.
+FP16 runs use an `_fp16` filename suffix.
+
+> [!NOTE]
+> `int8`/`qdq` models are already quantized in-graph, so they are only run in
+> their native precision; the fp16 pass is skipped for them.
 
 ### Helpers
 
@@ -40,7 +58,7 @@ grep -HRL PASSED logs
 # Runtime error
 grep -HRi RuntimeError logs/
 # Accuracy issue
-grep -HRl FAILED logs
+grep -HRl FAILED logs/accuracy
 ```
 
 ## Cleanup

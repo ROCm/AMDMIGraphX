@@ -43,6 +43,7 @@ struct rotary_parameters
     // true => [batch_size, num_heads, seq_len, head_size]
     // false => [batch_size, seq_len, hidden_size=num_heads*head_size]
     bool is_bnsh = false;
+    std::vector<shape::dynamic_dimension> input_dims;
 
     // Extracted from both
     std::size_t num_heads = 0;     // num_heads = hidden_size / head_size  or input
@@ -58,6 +59,32 @@ struct rotary_parameters
 struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 {
     std::vector<op_desc> operators() const { return {{"RotaryEmbedding"}}; }
+
+    static std::size_t
+    fixed_dimension(const shape& s, std::size_t axis, const std::string& name)
+    {
+        if(not s.dynamic())
+            return s.lens().at(axis);
+        auto result = sym::fixed_value(s.dyn_dims().at(axis).sym_expr);
+        if(not result.has_value())
+            MIGRAPHX_THROW("RotaryEmbedding: " + name + " must be fixed");
+        return sym::to<std::size_t>(*result);
+    }
+
+    static instruction_ref add_runtime_reshape(const onnx_parser::node_info& info,
+                                               instruction_ref input,
+                                               const std::vector<shape::dynamic_dimension>& dims)
+    {
+        std::vector<sym::expr> expressions(dims.size());
+        transform(dims, expressions.begin(), [](const auto& dim) { return dim.sym_expr; });
+        auto resolved_dims = info.add_instruction(
+            make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
+            info.mod->get_parameters());
+        auto allocation = info.add_instruction(
+            make_op("allocate", {{"shape", to_value(shape{input->get_shape().type(), dims})}}),
+            resolved_dims);
+        return info.add_instruction(make_op("reshape"), input, allocation);
+    }
 
     static void parse_attributes(const onnx_parser& parser,
                                  const onnx_parser::node_info& info,
@@ -114,8 +141,8 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 
     static void parse_input(const instruction_ref& input, rotary_parameters& param)
     {
-        auto input_lens = input->get_shape().lens();
-        auto input_dims = input_lens.size();
+        const auto& input_shape = input->get_shape();
+        auto input_dims         = input_shape.ndim();
 
         if(input_dims < 3 or input_dims > 4)
         {
@@ -124,6 +151,24 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                             4D (Batch, Num Heads, Sequence Length, Head Size))");
         }
 
+        if(input_shape.symbolic())
+        {
+            param.input_dims = input_shape.dyn_dims();
+            if(input_dims == 3)
+            {
+                param.hidden_size = fixed_dimension(input_shape, 2, "hidden size");
+            }
+            else
+            {
+                param.num_heads   = fixed_dimension(input_shape, 1, "number of heads");
+                param.head_size   = fixed_dimension(input_shape, 3, "head size");
+                param.hidden_size = param.num_heads * param.head_size;
+                param.is_bnsh     = true;
+            }
+            return;
+        }
+
+        auto input_lens   = input_shape.lens();
         param.batch_size = input_lens.at(0);
 
         if(input_dims == 3)
@@ -145,15 +190,32 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
     static void parse_position_ids(const instruction_ref& position_ids,
                                    const rotary_parameters& param)
     {
-        auto position_len = position_ids->get_shape().lens();
-        auto position_dim = position_ids->get_shape().lens().size();
+        const auto& position_shape = position_ids->get_shape();
+        auto position_dim          = position_shape.ndim();
 
-        if(position_dim > 2 or position_ids->get_shape().scalar())
+        if(position_dim > 2 or position_shape.scalar())
         {
             MIGRAPHX_THROW("RotaryEmbedding: Position_ids must be either 1D tensor of shape (1) or "
                            "2d (Batch, Sequence Length)");
         }
 
+        if(not param.input_dims.empty())
+        {
+            if(position_dim != 2)
+                MIGRAPHX_THROW(
+                    "RotaryEmbedding: symbolic position_ids must have shape (Batch, Sequence)");
+            auto position_dims = position_shape.to_symbolic().dyn_dims();
+            auto sequence_axis = param.is_bnsh ? 2 : 1;
+            if(not sym::same_symbol(position_dims.at(0).sym_expr,
+                                    param.input_dims.at(0).sym_expr) or
+               not sym::same_symbol(position_dims.at(1).sym_expr,
+                                    param.input_dims.at(sequence_axis).sym_expr))
+                MIGRAPHX_THROW("RotaryEmbedding: Position_id 2D dims must match input batch size "
+                               "and sequence length");
+            return;
+        }
+
+        auto position_len = position_shape.lens();
         if(position_dim == 1 and position_len.at(0) != 1)
         {
             MIGRAPHX_THROW("RotaryEmbedding: Position_id must have shape of 1 for 1D tensor");
@@ -169,11 +231,14 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 
     static void parse_cos_cache(const instruction_ref& cos_cache, rotary_parameters& param)
     {
-        auto cos_cache_len = cos_cache->get_shape().lens();
-        param.max_seq_len  = cos_cache_len.at(0);
+        const auto& cache_shape = cos_cache->get_shape();
+        if(cache_shape.ndim() != 2)
+            MIGRAPHX_THROW("RotaryEmbedding: cosine cache must be rank 2");
+        param.max_seq_len = fixed_dimension(cache_shape, 0, "cosine cache sequence length");
+        auto cache_width  = fixed_dimension(cache_shape, 1, "cosine cache width");
         if(param.num_heads == 0)
         {
-            param.head_size = cos_cache_len.at(1) * 2;
+            param.head_size = cache_width * 2;
             param.num_heads = param.hidden_size / param.head_size;
         }
         else
@@ -193,20 +258,24 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
             MIGRAPHX_THROW("RotaryEmbedding: rotary_embedding_dim must be <= head_size");
         }
 
-        compare_sin_cos_cache_dims(cos_cache_len.at(1), param);
+        compare_sin_cos_cache_dims(cache_width, param);
     }
 
     static void parse_sin_cache(const instruction_ref& sin_cache, const rotary_parameters& param)
     {
-        auto sin_cache_len = sin_cache->get_shape().lens();
+        const auto& cache_shape = sin_cache->get_shape();
+        if(cache_shape.ndim() != 2)
+            MIGRAPHX_THROW("RotaryEmbedding: sine cache must be rank 2");
+        auto max_seq_len = fixed_dimension(cache_shape, 0, "sine cache sequence length");
 
-        if(param.max_seq_len != sin_cache_len.at(0))
+        if(param.max_seq_len != max_seq_len)
         {
             MIGRAPHX_THROW(
                 "RotaryEmbedding: max_sequence_length must be the same between sin & cos caches!");
         }
 
-        compare_sin_cos_cache_dims(sin_cache_len.at(1), param);
+        compare_sin_cos_cache_dims(
+            fixed_dimension(cache_shape, 1, "sine cache width"), param);
     }
 
     static void compare_sin_cos_cache_dims(const size_t dim, const rotary_parameters& param)
@@ -250,12 +319,24 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 
         if(not params.is_bnsh)
         {
-            input = info.add_instruction(
-                make_op(
-                    "reshape",
-                    {{"dims",
-                      {params.batch_size, params.seq_len, params.num_heads, params.head_size}}}),
-                input);
+            if(params.input_dims.empty())
+            {
+                input = info.add_instruction(
+                    make_op("reshape",
+                            {{"dims",
+                              {params.batch_size,
+                               params.seq_len,
+                               params.num_heads,
+                               params.head_size}}}),
+                    input);
+            }
+            else
+            {
+                auto dims = params.input_dims;
+                dims.at(2) = shape::dynamic_dimension{sym::lit(params.num_heads)};
+                dims.push_back(shape::dynamic_dimension{sym::lit(params.head_size)});
+                input = add_runtime_reshape(info, input, dims);
+            }
             input =
                 info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), input);
         }
@@ -287,10 +368,17 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         {
             output =
                 info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), output);
-            output = info.add_instruction(
-                make_op("reshape",
-                        {{"dims", {params.batch_size, params.seq_len, params.hidden_size}}}),
-                output);
+            if(params.input_dims.empty())
+            {
+                output = info.add_instruction(
+                    make_op("reshape",
+                            {{"dims", {params.batch_size, params.seq_len, params.hidden_size}}}),
+                    output);
+            }
+            else
+            {
+                output = add_runtime_reshape(info, output, params.input_dims);
+            }
         }
 
         return {output};

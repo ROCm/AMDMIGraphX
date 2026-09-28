@@ -25,6 +25,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
+#include <algorithm>
 
 TEST_CASE(rotary_embedding_verify_test)
 {
@@ -502,4 +503,31 @@ TEST_CASE(rotary_embedding_dim_verify_test)
 
     EXPECT(migraphx::verify::verify_range_with_tolerance(
         result_vector, migraphx::verify::expected{gold}, migraphx::verify::tolerance{2e-3}));
+}
+
+TEST_CASE(rotary_embedding_symbolic_parse_test)
+{
+    auto sequence = migraphx::sym::var("sequence", {1, 2});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes = true;
+    options.map_dyn_input_dims["input"] =
+        sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(18)});
+    options.map_dyn_input_dims["pos_ids"] =
+        sym_dims({migraphx::sym::lit(1), sequence});
+
+    auto p = read_onnx("rotary_embedding_test.onnx", options);
+    auto expected =
+        migraphx::shape{migraphx::shape::half_type,
+                        sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(18)})};
+    EXPECT(p.get_output_shapes().back() == expected);
+    EXPECT(std::count_if(p.get_main_module()->begin(),
+                         p.get_main_module()->end(),
+                         [](auto ins) { return ins.name() == "gathernd"; }) == 2);
+    EXPECT(std::none_of(p.get_main_module()->begin(),
+                        p.get_main_module()->end(),
+                        [](auto ins) {
+                            return ins.name() == "reshape" and ins.get_shape().symbolic() and
+                                   ins.inputs().size() == 1;
+                        }));
 }

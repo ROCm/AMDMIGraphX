@@ -27,6 +27,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
+#include <algorithm>
 
 TEST_CASE(group_query_attention_decode_local_test)
 {
@@ -794,4 +795,46 @@ TEST_CASE(group_query_attention_prefill_test)
                                                          migraphx::verify::expected{gold_k}));
     EXPECT(migraphx::verify::verify_range_with_tolerance(pres_val_vector,
                                                          migraphx::verify::expected{gold_v}));
+}
+
+TEST_CASE(group_query_attention_symbolic_parse_test)
+{
+    auto sequence = migraphx::sym::var("sequence", {1, 8});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes = true;
+    options.map_dyn_input_dims["qkv"] =
+        sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(12288)});
+    options.map_dyn_input_dims["past_key_values_key"] =
+        sym_dims({migraphx::sym::lit(1),
+                  migraphx::sym::lit(32),
+                  sequence,
+                  migraphx::sym::lit(128)});
+    options.map_dyn_input_dims["past_key_values_value"] =
+        options.map_dyn_input_dims.at("past_key_values_key");
+
+    auto p = read_onnx("group_query_attention_defaults_test.onnx", options);
+    auto expected_output = migraphx::shape{
+        migraphx::shape::half_type,
+        sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(4096)})};
+    auto expected_cache = migraphx::shape{
+        migraphx::shape::half_type,
+        sym_dims({migraphx::sym::lit(1),
+                  migraphx::sym::lit(32),
+                  sequence,
+                  migraphx::sym::lit(128)})};
+    EXPECT(p.get_output_shapes() ==
+           std::vector<migraphx::shape>{expected_output, expected_cache, expected_cache});
+    EXPECT(std::count_if(p.get_main_module()->begin(),
+                         p.get_main_module()->end(),
+                         [](auto ins) { return ins.name() == "dynamic_range"; }) == 2);
+    EXPECT(std::count_if(p.get_main_module()->begin(),
+                         p.get_main_module()->end(),
+                         [](auto ins) { return ins.name() == "concat_past_present"; }) == 2);
+    EXPECT(std::none_of(p.get_main_module()->begin(),
+                        p.get_main_module()->end(),
+                        [](auto ins) {
+                            return ins.name() == "reshape" and ins.get_shape().symbolic() and
+                                   ins.inputs().size() == 1;
+                        }));
 }

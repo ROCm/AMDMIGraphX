@@ -33,6 +33,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 
@@ -1168,6 +1169,137 @@ TEST_CASE(reduce_mean_variance_sqdiff_diff_axes)
         auto variance = add_reduce_mean(m2, {0, 2}, sqdiff);
         m2.add_return({mean, variance});
     }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_mean_variance_sqdiff_reshaped)
+{
+    // Group norm pattern after simplify_reshapes: the pointwise ops run in the
+    // 4d space while each reduction has a private reshape in front of it
+    migraphx::shape s{migraphx::shape::float_type, {1, 8, 2, 3}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto xr   = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), x);
+        auto mean = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), xr);
+        auto unsq = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 4}}}), mean);
+        auto mb1  = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 1, 1}}}), unsq);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 1, 1}}}), mb1);
+        auto meanb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsp);
+        auto sqdiff = m1.add_instruction(migraphx::make_op("sqdiff"), x, meanb);
+        auto sqdiffr =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), sqdiff);
+        auto variance =
+            m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), sqdiffr);
+        m1.add_return({mean, variance});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", s);
+        auto xr      = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), x);
+        auto mean    = add_reduce_mean(m2, {2}, xr);
+        auto x2      = m2.add_instruction(migraphx::make_op("mul"), x, x);
+        auto x2r     = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), x2);
+        auto mean_x2 = add_reduce_mean(m2, {2}, x2r);
+        auto mean2   = m2.add_instruction(migraphx::make_op("mul"), mean, mean);
+        auto variance = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
+        m2.add_return({mean, variance});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_mean_variance_sqdiff_misaligned_broadcast)
+{
+    // The mean is broadcast back so channel c gets the mean of group c%2
+    // instead of its own group c/4, so the rewrite must not apply
+    migraphx::shape s{migraphx::shape::float_type, {1, 8, 2, 3}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto xr   = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), x);
+        auto mean = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), xr);
+        auto rsp1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 2}}}), mean);
+        auto mb1  = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2}}}), rsp1);
+        auto rsp2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 1, 1}}}), mb1);
+        auto meanb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsp2);
+        auto sqdiff = m1.add_instruction(migraphx::make_op("sqdiff"), x, meanb);
+        auto sqdiffr =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), sqdiff);
+        auto variance =
+            m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), sqdiffr);
+        m1.add_return({mean, variance});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto xr   = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), x);
+        auto mean = add_reduce_mean(m2, {2}, xr);
+        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 2}}}), mean);
+        auto mb1  = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2}}}), rsp1);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 1, 1}}}), mb1);
+        auto meanb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsp2);
+        auto sqdiff = m2.add_instruction(migraphx::make_op("sqdiff"), x, meanb);
+        auto sqdiffr =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), sqdiff);
+        auto variance = add_reduce_mean(m2, {2}, sqdiffr);
+        m2.add_return({mean, variance});
+    }
+    // rewrite_reduce canonicalizes the surviving broadcast chain internally
+    migraphx::run_passes(m2, {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_mean_variance_sqdiff_different_reshapes)
+{
+    // The two reductions see differently reshaped data, so the reduction
+    // groups differ and the rewrite must not apply
+    migraphx::shape s{migraphx::shape::float_type, {1, 8, 2, 3}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto xr   = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), x);
+        auto mean = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), xr);
+        auto unsq = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 4}}}), mean);
+        auto mb1  = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 1, 1}}}), unsq);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 1, 1}}}), mb1);
+        auto meanb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsp);
+        auto sqdiff = m1.add_instruction(migraphx::make_op("sqdiff"), x, meanb);
+        auto sqdiffr =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 12}}}), sqdiff);
+        auto variance =
+            m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), sqdiffr);
+        m1.add_return({mean, variance});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto xr   = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), x);
+        auto mean = add_reduce_mean(m2, {2}, xr);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 4}}}), mean);
+        auto mb1  = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 1, 1}}}), unsq);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 1, 1}}}), mb1);
+        auto meanb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsp);
+        auto sqdiff = m2.add_instruction(migraphx::make_op("sqdiff"), x, meanb);
+        auto sqdiffr =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 12}}}), sqdiff);
+        auto variance = add_reduce_mean(m2, {2}, sqdiffr);
+        m2.add_return({mean, variance});
+    }
+    // rewrite_reduce canonicalizes the surviving broadcast chain internally
+    migraphx::run_passes(m2, {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}});
     EXPECT(m1.sort() == m2.sort());
 }
 

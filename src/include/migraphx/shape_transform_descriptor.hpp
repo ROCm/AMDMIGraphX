@@ -105,6 +105,10 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
 
     std::set<std::size_t> find_broadcasted_axes() const;
     bool has_broadcast() const;
+    // Returns true if any non-trivial axes are reordered, requiring a transpose
+    bool is_transposed() const;
+    // Returns true if any dimension merges multiple non-trivial axes together
+    bool is_collapsing() const;
     void flatten_broadcast();
 
     std::vector<std::size_t> common_dims(const std::vector<std::size_t>& input_dims = {}) const;

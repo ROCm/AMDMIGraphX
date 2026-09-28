@@ -8,6 +8,18 @@ Full documentation for MIGraphX is available at
 ### Added
 
 * Optimized GridSample by adding a GPU JIT kernel for the ONNX `nearest`, `linear`/`bilinear`, and `cubic`/`bicubic` modes, replacing the `concat`+`gathernd` decomposition in the ONNX parser for those modes (#5139).
+### Changed
+
+### Resolved issues
+
+### Optimized
+
+### Removed
+
+## MIGraphX 2.18 for ROCm 10.1.0
+
+### Added
+
 * Added a layered problem-cache priority list (searched in order, first hit wins), delivered to the GPU target through the `problem_cache_files` backend option (#5117).
 * Added a `promote_storage_type` pass that treats the given types as storage-only, computing elementwise and reduction instructions of those types in float instead, and enabled it on the GPU target for `bf16` on architectures without native bf16 arithmetic instructions (#5138).
 * Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, whose symbolic `starts`/`ends` attributes describe the run-time bound inputs so a data-dependent slice keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5112).
@@ -16,7 +28,6 @@ Full documentation for MIGraphX is available at
 * Added find_concat_same_broadcast matcher to convert concat of identical broadcasts into a single multibroadcast to reduce hipCopy() (#5179).
 * Added a `find_slice_reshaped_concat` matcher to `simplify_reshapes` that forwards a slice reading exactly one segment of a concat through intervening reshape/transpose view ops, removing the concat entirely (#5183).
 * Added a `--layerwise` mode to `verify` that compares the reference and target layer by layer without recompiling (#5067).
-
 
 ### Changed
 
@@ -38,6 +49,7 @@ Full documentation for MIGraphX is available at
 * Fixed the reference `convolution_backwards` operator to use type-appropriate accumulator storage: double for floating-point tensors and `int64_t` or `uint64_t` for integral tensors (#5248).
 * Fixed host conversion of a float32 NaN to `migraphx::half` or `migraphx::bf16` producing an infinity when the NaN payload did not survive the narrowing, such as `0x7f800001` (#5193).
 * Fixed `fuse_horizontal` creating cyclic graphs when a fusion group contained dependent operations (#5250).
+* Fixed a GPU accuracy regression in unrolled GRU/LSTM graphs by partitioning `fuse_horizontal` key groups into independent subgroups, so dependent operations never fuse together while each independent subgroup still fuses (#5280).
 * Fixed the `has_value` matcher matching a neighbouring representable value in narrow types, where its `float`-sized tolerance window spans several `fp8`/`bf16` values; the window is now scaled per literal type (#5190).
 * Fixed accuracy issues resulting from LRN inputs being non-standard shapes (#5277).
 
@@ -46,6 +58,7 @@ Full documentation for MIGraphX is available at
 * Fuse expert Silu Heads (MoE) into batched GEMM via fuse_horizontal (#5087).
 * Extended `find_concat_op` to treat `unsqueeze` as a fusable `concat` input so the concat can be folded through it (#5180).
 * Added `find_layout_broadcast` to `simplify_reshapes`, rewriting `layout(broadcast(x))` to `broadcast(layout(x))` so only the unique data is materialized instead of one full copy per broadcast output (#5141).
+* Disabled nested MLIR context threading during GPU tuning to reduce compile-time allocation and contention (#5322).
 
 
 ## MIGraphX 2.17 for ROCm 10.0.0
@@ -109,7 +122,6 @@ Full documentation for MIGraphX is available at
 * Added slice squeeze matcher to propagate squeeze downstream and allow for parallel branches to merge together (#5004).
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
-* Added adaptive GPU JIT tuning that briefly benchmarks each valid candidate, then remeasures the fastest candidates with a larger timing budget.
 
 
 ### Changed

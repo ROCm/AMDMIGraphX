@@ -947,8 +947,18 @@ struct find_kv_cache_attention
         auto mask =
             match::opaque(match::name("where")(match::arg(0)(bc_greater), match::arg(2)(mask_val)));
         auto mask_cvt = match::opaque(match::skip(match::name("convert"))(mask));
-        auto attn_probabilities =
+        // Standard path: softmax(mask) or softmax(convert(mask)).
+        // Sink path (GPT-OSS attention sinks): slice(softmax(concat(masked_scores, sink_col))).
+        //   concat appends the per-head sink as an extra logit column so exp(sink) joins the
+        //   softmax denominator; slice drops it after. any() for concat arg(0) = any masked-where
+        //   node (window/causal); the valid_attn_ops instruction-walk below validates the subgraph.
+        auto attn_prob_standard =
             match::opaque(match::skip(match::name("convert"))(match::softmax_input(mask_cvt)));
+        auto attn_prob_sink =
+            match::opaque(match::name("slice")(match::arg(0)(
+                match::name("softmax")(match::arg(0)(
+                    match::name("concat")(match::arg(0)(match::any())))))));
+        auto attn_probabilities = match::any_of(attn_prob_standard, attn_prob_sink);
         auto values = match::opaque(
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v"));
         auto gemm2 = match::opaque(
@@ -978,6 +988,7 @@ struct find_kv_cache_attention
                                                                        "broadcast",
                                                                        "dot",
                                                                        "slice",
+                                                                       "concat", // attention sinks: concat(scores, sink_col)
                                                                        "transpose",
                                                                        "greater",
                                                                        "convert",

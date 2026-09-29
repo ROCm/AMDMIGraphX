@@ -219,11 +219,27 @@ struct find_dot_softmax_fp32
         auto step = [](instruction_ref current) -> std::optional<instruction_ref> {
             if(current->name() == "dot")
                 return std::nullopt;
+            // Stop before tuple-producing ops (e.g. topk) and tuple-element
+            // accessors. The decomposed-MoE router runs softmax over a path that
+            // traces back through topk (a tuple); walking into it and trying to
+            // upcast tuple shapes throws "Shapes are not tuple!". The attention
+            // dot path we actually target never contains tuples.
+            if(current->get_shape().type() == shape::tuple_type or
+               current->name() == "get_tuple_elem")
+                return std::nullopt;
             if(current->inputs().size() == 1)
-                return current->inputs().front();
+            {
+                auto next = current->inputs().front();
+                if(next->get_shape().type() == shape::tuple_type or
+                   next->name() == "get_tuple_elem")
+                    return std::nullopt;
+                return next;
+            }
             auto it = std::find_if(
                 current->inputs().begin(), current->inputs().end(), [](instruction_ref input) {
-                    return not input->can_eval() and input->get_shape().type() != shape::bool_type;
+                    return not input->can_eval() and input->get_shape().type() != shape::bool_type and
+                           input->get_shape().type() != shape::tuple_type and
+                           input->name() != "get_tuple_elem";
                 });
             if(it == current->inputs().end())
                 return std::nullopt;

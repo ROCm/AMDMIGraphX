@@ -543,44 +543,6 @@ struct test_group_query_attention_concat_full_cache_decode
     }
 };
 
-// Regression test for SWDEV-561768: concat_past_present OOB when seqlens_k = -1.
-// When attention_mask is all zeros, seqlens_k = sum(mask) - 1 = -1, which wraps
-// to a large unsigned value and causes out-of-bounds write before cache buffer.
-struct test_group_query_attention_concat_negative_seqlens_k
-    : verify_program<test_group_query_attention_concat_negative_seqlens_k>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-
-        const size_t batch_size          = 1;
-        const size_t kv_num_heads        = 2;
-        const size_t sequence_length     = 1; // decode mode
-        const size_t head_size           = 4;
-        const size_t max_sequence_length = 8;
-
-        auto dtype = migraphx::shape::half_type;
-        migraphx::shape present_s{dtype, {batch_size, kv_num_heads, sequence_length, head_size}};
-        migraphx::shape cache_s{dtype, {batch_size, kv_num_heads, max_sequence_length, head_size}};
-        migraphx::shape slk_s{migraphx::shape::int32_type, {batch_size, 1}};
-
-        auto present = mm->add_parameter("present", present_s);
-        auto cache   = mm->add_parameter("cache", cache_s);
-        // seqlens_k = -1 simulates attention_mask=[0] -> sum(0)-1 = -1
-        std::vector<int> slk_vec(batch_size, -1);
-        auto slk = mm->add_literal(slk_s, slk_vec);
-
-        std::vector<migraphx::instruction_ref> concat_inputs{present, slk, cache};
-        auto result = mm->add_instruction(
-            migraphx::make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-            concat_inputs);
-
-        mm->add_return({result});
-        return p;
-    }
-};
-
 // Regression test: multi-batch with mixed seqlens_k (one valid, one -1).
 // Verifies guard handles per-batch seqlens_k correctly: batch 0 writes, batch 1 skips.
 struct test_group_query_attention_concat_mixed_seqlens_k

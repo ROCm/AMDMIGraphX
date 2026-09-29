@@ -27,6 +27,8 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
@@ -147,9 +149,8 @@ TEST_CASE(skip_multi_use_producer)
     EXPECT(p1.sort() == p2.sort());
 }
 
-// The gpu target runs the pass by default and skips it when the
-// eliminate_concat_past_present backend option is false.
-static bool compiles_to_fused_append(bool enabled)
+// Unlowered decode append: mul(x, y) -> concat_past_present(mul, slk, cache)
+static migraphx::program make_decode_program()
 {
     migraphx::program p;
     auto* mm   = p.get_main_module();
@@ -161,18 +162,57 @@ static bool compiles_to_fused_append(bool enabled)
     auto mul   = mm->add_instruction(migraphx::make_op("mul"), x, y);
     mm->add_return({mm->add_instruction(
         migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), mul, slk, cache)});
+    return p;
+}
 
-    migraphx::compile_options options;
-    options.backend_options["eliminate_concat_past_present"] = enabled;
-    p.compile(migraphx::make_target("gpu"), options);
+static bool has_fused_append(const migraphx::program& p)
+{
     auto instructions = migraphx::iterator_for(*p.get_main_module());
     return std::any_of(instructions.begin(), instructions.end(), [](auto ins) {
         return ins->name() == "hip::load_scalar";
     });
 }
 
+// The gpu target runs the pass by default and skips it when the
+// eliminate_concat_past_present backend option is false.
+static bool compiles_to_fused_append(bool enabled)
+{
+    auto p = make_decode_program();
+    migraphx::compile_options options;
+    options.backend_options["eliminate_concat_past_present"] = enabled;
+    p.compile(migraphx::make_target("gpu"), options);
+    return has_fused_append(p);
+}
+
 TEST_CASE(backend_option_enabled) { EXPECT(compiles_to_fused_append(true)); }
 
 TEST_CASE(backend_option_disabled) { EXPECT(not compiles_to_fused_append(false)); }
+
+// The fused append rejects a position outside the cache, on either bound,
+// where the copy kernel would silently skip the write.
+TEST_CASE(out_of_range_position_throws)
+{
+    auto p = make_decode_program();
+    migraphx::compile_options options;
+    options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), options);
+    EXPECT(has_fused_append(p));
+
+    auto append = [&](int pos) {
+        migraphx::parameter_map params;
+        params["x"]     = migraphx::generate_argument(present_shape(1), 1);
+        params["y"]     = migraphx::generate_argument(present_shape(1), 2);
+        params["cache"] = migraphx::generate_argument(cache_shape, 3);
+        params["slk"]   = migraphx::literal{index_shape, {pos}}.get_argument();
+        p.eval(params);
+    };
+    auto cache_len = cache_shape.lens()[2];
+    append(0);
+    append(cache_len - 1);
+    EXPECT(test::throws([&] { append(-1); }));
+    EXPECT(test::throws([&] { append(cache_len); }));
+    // A rejected position leaves the program usable
+    append(0);
+}
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

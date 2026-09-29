@@ -33,14 +33,15 @@
 #include <migraphx/serialize.hpp>
 #include <algorithm>
 #include <cassert>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// A size-1 slice of the input along axis at a runtime index. The index is
-// clamped: concat_past_present skips out-of-range writes, but a view cannot
-// skip, so it must point at a valid slot.
+// A size-1 slice of the input along axis at a runtime index. An index outside
+// the axis is invalid input: concat_past_present skips such writes, but a view
+// cannot skip, so it throws instead of silently targeting another slot.
 struct slice_at
 {
     std::size_t axis = 0;
@@ -69,9 +70,12 @@ struct slice_at
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         const auto& s = args[0].get_shape();
-        assert(s.lens()[axis] > 0);
+        auto idx      = args[1].at<std::int64_t>();
+        if(idx < 0 or idx >= static_cast<std::int64_t>(s.lens()[axis]))
+            MIGRAPHX_THROW("SLICE_AT: index " + std::to_string(idx) + " out of range [0, " +
+                           std::to_string(s.lens()[axis]) + ")");
         std::vector<std::size_t> start(s.ndim(), 0);
-        start[axis] = std::clamp<std::int64_t>(args[1].at<std::int64_t>(), 0, s.lens()[axis] - 1);
+        start[axis] = idx;
         auto offset = s.index(start) * s.type_size();
         auto input  = args[0];
         return {output_shape, [=] { return input.data() + offset; }};

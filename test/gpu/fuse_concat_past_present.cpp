@@ -24,12 +24,16 @@
 #include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
+#include <algorithm>
 #include "make_precompile_op.hpp"
 
 static void run_pass(migraphx::program& p)
@@ -142,5 +146,33 @@ TEST_CASE(skip_multi_use_producer)
 
     EXPECT(p1.sort() == p2.sort());
 }
+
+// The gpu target runs the pass by default and skips it when the
+// eliminate_concat_past_present backend option is false.
+static bool compiles_to_fused_append(bool enabled)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto s     = present_shape(1);
+    auto x     = mm->add_parameter("x", s);
+    auto y     = mm->add_parameter("y", s);
+    auto slk   = mm->add_parameter("slk", index_shape);
+    auto cache = mm->add_parameter("cache", cache_shape);
+    auto mul   = mm->add_instruction(migraphx::make_op("mul"), x, y);
+    mm->add_return({mm->add_instruction(
+        migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), mul, slk, cache)});
+
+    migraphx::compile_options options;
+    options.backend_options["eliminate_concat_past_present"] = enabled;
+    p.compile(migraphx::make_target("gpu"), options);
+    auto instructions = migraphx::iterator_for(*p.get_main_module());
+    return std::any_of(instructions.begin(), instructions.end(), [](auto ins) {
+        return ins->name() == "hip::load_scalar";
+    });
+}
+
+TEST_CASE(backend_option_enabled) { EXPECT(compiles_to_fused_append(true)); }
+
+TEST_CASE(backend_option_disabled) { EXPECT(not compiles_to_fused_append(false)); }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -25,11 +25,11 @@
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/onehot.hpp>
 #include <migraphx/op/resize.hpp>
-#include <migraphx/sym.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/tensor_view.hpp>
 
 namespace migraphx {

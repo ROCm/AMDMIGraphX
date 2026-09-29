@@ -23,11 +23,10 @@
  */
 
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
-
-#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,19 +36,17 @@ void promote_literals::apply(module_pass_manager& mpm) const
     module& m              = mpm.get_module();
     module_ref root_module = mpm.get_root_module();
     if(m == *root_module)
+    {
+        // The root is visited last, after literals from every submodule have been promoted.
+        eliminate_common_subexpression{}.apply(m);
         return;
+    }
 
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {
-            const auto& literal = ins->get_literal();
-            auto existing       = std::find_if(
-                root_module->begin(), root_module->end(), [&](const instruction& root_ins) {
-                    return root_ins.name() == "@literal" and root_ins.get_literal() == literal;
-                });
-            auto new_lit =
-                existing == root_module->end() ? root_module->add_literal(literal) : existing;
+            auto new_lit     = root_module->add_literal(ins->get_literal());
             auto ins_outputs = ins->outputs();
             for(auto out_ins : ins_outputs)
             {

@@ -1050,6 +1050,33 @@ TEST_CASE(convolution_backwards_dyn_kernel_2d)
     expect_shape(output, migraphx::make_op("convolution_backwards"), input, weights);
 }
 
+TEST_CASE(convolution_backwards_symbolic_batch_2d)
+{
+    const auto batch = var("batch", {0, 100});
+    migraphx::shape input{migraphx::shape::float_type,
+                          std::vector<dd>{dd{batch}, dd{lit(4)}, dd{lit(4)}, dd{lit(4)}}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           std::vector<dd>{dd{batch}, dd{lit(3)}, dd{lit(9)}, dd{lit(9)}}};
+    expect_shape(output,
+                 migraphx::make_op("convolution_backwards",
+                                   {{"padding", {0, 0}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(convolution_backwards_symbolic_image_2d)
+{
+    const auto height = var("height", {2, 8});
+    const auto width  = var("width", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type,
+                          std::vector<dd>{dd{lit(1)}, dd{lit(4)}, dd{height}, dd{width}}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           std::vector<dd>{dd{lit(1)}, dd{lit(3)}, dd{height + 2}, dd{width + 2}}};
+    expect_shape(output, migraphx::make_op("convolution_backwards"), input, weights);
+}
+
 TEST_CASE(dimensions_of0)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 2, 1}};

@@ -2624,6 +2624,31 @@ def conv_transpose_dyn_batch_test():
     return ([node], [x, w], [y])
 
 
+@onnx_test(opset_version=13)
+def symbolic_conv_transpose_constant_of_shape_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      ['batch', 4, 4, 4])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [4, 3, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, ['batch'])
+
+    index = helper.make_tensor('index_value', TensorProto.INT64, [], [0])
+    axes = helper.make_tensor('axes_value', TensorProto.INT64, [1], [0])
+    fill = helper.make_tensor('fill_value', TensorProto.INT64, [1], [1])
+    nodes = [
+        helper.make_node('ConvTranspose', ['x', 'w'], ['conv'],
+                         strides=[2, 2]),
+        helper.make_node('Shape', ['conv'], ['conv_shape']),
+        helper.make_node('Constant', [], ['index'], value=index),
+        helper.make_node('Gather', ['conv_shape', 'index'], ['batch']),
+        helper.make_node('Constant', [], ['axes'], value=axes),
+        helper.make_node('Unsqueeze', ['batch', 'axes'], ['batch_vec']),
+        helper.make_node('Concat', ['batch_vec'], ['output_shape'], axis=0),
+        helper.make_node('ConstantOfShape', ['output_shape'], ['y'],
+                         value=fill),
+    ]
+    return (nodes, [x, w], [y])
+
+
 @onnx_test()
 def conv_transpose_dyn_img_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT,

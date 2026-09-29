@@ -23,9 +23,11 @@
  */
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -149,8 +151,7 @@ struct mlir_handle
 
 #define MIGRAPHX_MANAGE_MLIR_HANDLE(T, F) migraphx::gpu::mlir_handle<T, decltype(&F), &F> // NOLINT
 
-using mlir_context     = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
-using mlir_thread_pool = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirLlvmThreadPool, mlirLlvmThreadPoolDestroy);
+using mlir_context           = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
 using mlir_dialect_registry  = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirDialectRegistry,
                                                           mlirDialectRegistryDestroy);
 using mlir_module            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirModule, mlirModuleDestroy);
@@ -286,7 +287,8 @@ struct mlir_program
           mmodule(mlirModuleCreateEmpty(location)),
           logger(&ctx)
     {
-        mlirContextSetThreadPool(ctx.get(), get_thread_pool().get());
+        // Keep this context single-threaded because MIGraphX already compiles independent tuning
+        // candidates in parallel.
         mlirContextLoadAllAvailableDialects(ctx.get());
     }
 
@@ -304,15 +306,6 @@ struct mlir_program
             mlirRegisterRocMLIRPasses();
         });
         return the_registry;
-    }
-
-    static mlir_thread_pool& get_thread_pool()
-    {
-        // To save on overhead, we create one LLVM thread pool and reuse it
-        // across all MLIR contexts as recommended by MLIR upstream.
-        // Note that this is thread-safe as of C++11.
-        static mlir_thread_pool the_pool = mlirLlvmThreadPoolCreate();
-        return the_pool;
     }
 
     MlirType make_type(shape::type_t t) const
@@ -1144,18 +1137,63 @@ static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
+    // A string tuning solution is required here; a null one has no config and the
+    // MLIR backend pipeline rejects it downstream, so fail fast with a clear error.
+    const auto* tuning = solution.if_string();
+    if(tuning == nullptr)
+        MIGRAPHX_THROW("is_module_fusible requires a string tuning solution");
     auto mm = m;
     prepare(mm);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(mm);
     mp.run_high_level_pipeline();
-    return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
+    return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*tuning));
 }
 
-void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
+// rocMLIR can only map a layout with a unit stride to memory
+static bool has_unit_stride(const shape& s) { return s.standard() or contains(s.strides(), 1); }
+
+static shape append_unit_dim(const shape& s)
 {
-    auto names = m.get_parameter_names();
+    auto lens    = s.lens();
+    auto strides = s.strides();
+    lens.push_back(1);
+    strides.push_back(1);
+    return {s.type(), lens, strides};
+}
+
+// Unsqueeze the return values whose output layout has no unit stride
+static std::vector<shape> adjust_return_shapes(module& m, const std::vector<shape>& outputs)
+{
+    auto ret = std::prev(m.end());
+    assert(ret->name() == "@return");
+    auto returns = ret->inputs();
+    assert(returns.size() == outputs.size());
+    std::vector<instruction_ref> new_returns;
+    std::transform(returns.begin(),
+                   returns.end(),
+                   outputs.begin(),
+                   std::back_inserter(new_returns),
+                   [&](instruction_ref ins, const shape& s) {
+                       if(has_unit_stride(s))
+                           return ins;
+                       return m.insert_instruction(
+                           ret, make_op("unsqueeze", {{"axes", {s.ndim()}}}), ins);
+                   });
+    if(new_returns != returns)
+        m.replace_return(new_returns);
+    std::vector<shape> result;
+    std::transform(outputs.begin(), outputs.end(), std::back_inserter(result), [](const shape& s) {
+        return has_unit_stride(s) ? s : append_unit_dim(s);
+    });
+    return result;
+}
+
+std::vector<shape> adjust_param_shapes(module& m, const std::vector<shape>& inputs)
+{
+    auto result = inputs;
+    auto names  = m.get_parameter_names();
     std::sort(names.begin(), names.end());
     for(auto i : range(names.size()))
     {
@@ -1165,10 +1203,29 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
         assert(param->get_shape().standard());
         if(input.standard())
             continue;
-        auto new_param = m.add_parameter(name + ".0", input);
+        instruction_ref new_param;
+        if(has_unit_stride(input))
+        {
+            new_param = m.add_parameter(name + ".0", input);
+        }
+        else
+        {
+            // Give the buffer a trailing unit dimension and squeeze it away
+            // inside the kernel so the layout stays expressible
+            auto unit_param = m.add_parameter(name + ".0", append_unit_dim(input));
+            new_param       = m.insert_instruction(
+                std::next(unit_param), make_op("squeeze", {{"axes", {input.ndim()}}}), unit_param);
+        }
         m.replace_instruction(param, new_param);
         m.remove_instruction(param);
     }
+    // The output buffers are handled the same way with an unsqueeze before the return
+    const auto& output = inputs.back();
+    if(output.type() == shape::tuple_type)
+        result.back() = shape{adjust_return_shapes(m, output.sub_shapes())};
+    else
+        result.back() = adjust_return_shapes(m, {output}).front();
+    return result;
 }
 
 static void replace_params_with_literals(module& m, const std::vector<instruction_ref>& inputs)
@@ -1191,13 +1248,14 @@ static void replace_params_with_literals(module& m, const std::vector<instructio
 std::string dump_mlir(module m, const std::vector<shape>& inputs)
 {
     const_module_ref mr = &m;
+    auto shapes         = inputs;
     if(not inputs.empty())
     {
-        adjust_param_shapes(m, inputs);
+        shapes = adjust_param_shapes(m, inputs);
     }
     prepare(m);
     mlir_program mp;
-    mp.parse(*mr, inputs);
+    mp.parse(*mr, shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     return mlir_print(&mlirOperationPrint, mod_op);
 }
@@ -1252,9 +1310,10 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     static std::mutex mutex;
     const std::lock_guard<std::mutex> lock(mutex);
 
+    auto shapes = inputs;
     if(not inputs.empty())
     {
-        adjust_param_shapes(m, inputs);
+        shapes = adjust_param_shapes(m, inputs);
     }
     prepare(m);
 
@@ -1263,7 +1322,7 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     log::info() << "Dumping MLIR file to: " << f;
 
     mlir_program mp;
-    mp.parse(m, inputs);
+    mp.parse(m, shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
 
     std::string mlir_str = mlir_print(&mlirOperationPrint, mod_op);
@@ -1278,7 +1337,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               const std::vector<shape>& in_shapes,
                               const value& solution)
 {
-    adjust_param_shapes(m, in_shapes);
+    auto shapes = adjust_param_shapes(m, in_shapes);
     prepare(m);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
@@ -1292,7 +1351,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     mlir_program mp;
 
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m, in_shapes);
+    mp.parse(m, shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1317,12 +1376,23 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::transform(prefill_mlir_values.begin(),
                        prefill_mlir_values.end(),
                        prefill_values.begin(),
-                       [](const auto& v) {
-                           // mlir sets fill attribute as float but migx hip::fill operator only
-                           // supports integer type.
-                           // TODO: Need to add checks that it is indeed an integer.
-                           double dv = mlirFloatAttrGetValueDouble(v);
-                           return static_cast<int>(dv);
+                       [](const auto& v) -> value {
+                           // migx hip::fill only supports integer type. rocMLIR types the
+                           // prefill after the element type of the buffer being filled, so a
+                           // kernel writing an integer output (an int8 convolution
+                           // accumulating into i32, say) hands back an integer attribute
+                           // rather than a float one.
+                           if(mlirAttributeIsAInteger(v))
+                               return static_cast<int>(mlirIntegerAttrGetValueInt(v));
+                           if(mlirAttributeIsAFloat(v))
+                           {
+                               auto d = mlirFloatAttrGetValueDouble(v);
+                               if(not float_equal(std::trunc(d), d))
+                                   MIGRAPHX_THROW("rock.prefill value " + std::to_string(d) +
+                                                  " is not representable as an integer");
+                               return static_cast<int>(d);
+                           }
+                           MIGRAPHX_THROW("Unsupported rock.prefill attribute type");
                        });
         mco.prefill_indices = prefill_indices;
         mco.prefill_values  = prefill_values;
@@ -1351,11 +1421,11 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      const std::vector<shape>& inputs,
                                      bool exhaustive)
 {
-    adjust_param_shapes(m, inputs);
+    auto shapes = adjust_param_shapes(m, inputs);
     prepare(m);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m, inputs);
+    mp.parse(m, shapes);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
     {
@@ -1372,6 +1442,23 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     return tc;
+}
+
+bool mlir_lds_usage_fits_arch(int64_t gemm_o,
+                              const std::string& arch,
+                              shape::type_t elem_type,
+                              const module* m)
+{
+    mlir_program prog;
+    if(m != nullptr)
+    {
+        prog.parse(*m);
+        return mlirMIGraphXLDSUsageFitsArch(
+            0, nullptr, prog.make_type(elem_type), prog.mmodule.get());
+    }
+
+    return mlirMIGraphXLDSUsageFitsArch(
+        gemm_o, arch.c_str(), prog.make_type(elem_type), MlirModule{});
 }
 
 void dump_mlir_to_mxr(module m,
@@ -1431,6 +1518,22 @@ tuning_config get_tuning_config_mlir(const context&, module, const std::vector<s
 {
     return {};
 }
+
+bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const module*)
+{
+    return false;
+}
+
+// Conservative "MLIR unavailable" default: the module cannot be MLIR-fused, so callers
+// take their non-MLIR path. Present so libmigraphx_gpu.so has no dangling MLIR symbols
+// when MIGRAPHX_MLIR is disabled.
+bool is_module_fusible(const module&, const context&, const value&) { return false; }
+
+std::vector<shape> adjust_param_shapes(module&, const std::vector<shape>&) { return {}; }
+
+void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
+
+void dump_mlir_to_mxr(module, const std::vector<instruction_ref>&, const fs::path&) {}
 // NOLINTEND(performance-unnecessary-value-param)
 
 #endif

@@ -1621,6 +1621,22 @@ TEST_CASE(to_string_literal_double)
 
 TEST_CASE(to_string_variable) { EXPECT(var("x").to_string() == "x"); }
 
+TEST_CASE(to_string_variable_metadata)
+{
+    auto n = var("n",
+                 std::vector<interval>{{int64_t{2}, int64_t{4}}, {int64_t{1}, int64_t{8}}},
+                 std::set<scalar>{int64_t{4}, int64_t{2}});
+    EXPECT(n.to_string() == "n[1..8][2..4]{2, 4}");
+}
+
+TEST_CASE(to_string_variable_optional_metadata)
+{
+    EXPECT(var("n", interval{int64_t{1}, int64_t{4}}).to_string() == "n[1..4]");
+    EXPECT(
+        var("n", std::vector<interval>{}, std::set<scalar>{int64_t{2}, int64_t{4}}).to_string() ==
+        "n{2, 4}");
+}
+
 TEST_CASE(to_string_add)
 {
     auto x = var("x");
@@ -2681,6 +2697,98 @@ TEST_CASE(builtin_log_exp_nested)
     EXPECT(log(exp(x)) + log(exp(y)) == x + y);
 }
 
+TEST_CASE(builtin_min_max_same_operand)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // min/max of an operand with itself collapses to that operand, for both leaf and
+    // compound operands.
+    EXPECT(min(x, x) == x);
+    EXPECT(max(x, x) == x);
+    EXPECT(min(x + y, x + y) == x + y);
+    EXPECT(max(x + y, x + y) == x + y);
+    EXPECT(min(min(x, y), min(x, y)) == min(x, y));
+    EXPECT(max(max(x, y), max(x, y)) == max(x, y));
+}
+
+TEST_CASE(builtin_min_max_distinct_operands_not_folded)
+{
+    auto x = var("x");
+    auto y = var("y");
+    EXPECT(min(x, y) != x);
+    EXPECT(min(x, y).children().size() == 2);
+    EXPECT(max(x, y) != x);
+    EXPECT(max(x, y).children().size() == 2);
+}
+
+TEST_CASE(builtin_min_max_same_operand_eval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = min(x + y, x + y);
+    EXPECT(e.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{4}}}) == scalar{int64_t{7}});
+    auto f = max(x + y, x + y);
+    EXPECT(f.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{4}}}) == scalar{int64_t{7}});
+}
+
+TEST_CASE(builtin_min_max_already_clamped)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // Clamping against a bound that is already applied folds away, with the bound in either
+    // operand of the inner node.
+    EXPECT(min(min(x, y), y) == min(x, y));
+    EXPECT(max(max(x, y), y) == max(x, y));
+    EXPECT(min(min(y, x), y) == min(y, x));
+    EXPECT(max(max(y, x), y) == max(y, x));
+}
+
+TEST_CASE(builtin_min_max_already_clamped_literal_bound)
+{
+    auto x = var("x");
+    EXPECT(min(min(x, lit(5)), lit(5)) == min(x, lit(5)));
+    EXPECT(max(max(x, lit(0)), lit(0)) == max(x, lit(0)));
+    EXPECT(min(min(lit(5), x), lit(5)) == min(lit(5), x));
+    EXPECT(max(max(lit(0), x), lit(0)) == max(lit(0), x));
+}
+
+TEST_CASE(builtin_min_max_clamp_repeated)
+{
+    // Clamping a clamped expression any number of times keeps a single min/max node, as
+    // repeated attribute normalization does.
+    auto n    = var("n", interval{int64_t{1}, int64_t{8}});
+    auto once = min(n, lit(5));
+    EXPECT(min(once, lit(5)) == once);
+    EXPECT(min(min(once, lit(5)), lit(5)) == once);
+    auto once_from = max(n, lit(0));
+    EXPECT(max(once_from, lit(0)) == once_from);
+    EXPECT(max(max(once_from, lit(0)), lit(0)) == once_from);
+}
+
+TEST_CASE(builtin_min_max_different_bound_not_folded)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto z = var("z");
+    // The inner bound is not the outer bound, so the nesting is meaningful and kept
+    EXPECT(min(min(x, y), z) != min(x, y));
+    EXPECT(min(min(x, y), z).children().front() == min(x, y));
+    EXPECT(max(max(x, y), z) != max(x, y));
+    EXPECT(max(max(x, y), z).children().front() == max(x, y));
+}
+
+TEST_CASE(builtin_min_max_already_clamped_eval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = min(min(x, y), y);
+    EXPECT(e.eval({{var("x"), int64_t{7}}, {var("y"), int64_t{5}}}) == scalar{int64_t{5}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{5}}}) == scalar{int64_t{3}});
+    auto f = max(max(x, y), y);
+    EXPECT(f.eval({{var("x"), int64_t{7}}, {var("y"), int64_t{5}}}) == scalar{int64_t{7}});
+    EXPECT(f.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{5}}}) == scalar{int64_t{5}});
+}
+
 TEST_CASE(builtin_raw_no_leak)
 {
     auto x = var("x");
@@ -2717,6 +2825,62 @@ TEST_CASE(parse_variable)
 {
     auto e = parse("x");
     EXPECT(e == var("x"));
+}
+
+TEST_CASE(parse_variable_metadata)
+{
+    auto expected = var("n",
+                        std::vector<interval>{{int64_t{1}, int64_t{8}}, {int64_t{2}, int64_t{4}}},
+                        std::set<scalar>{int64_t{2}, int64_t{4}});
+    EXPECT(parse("n[1..8][2..4]{2, 4}") == expected);
+}
+
+TEST_CASE(parse_variable_metadata_optional)
+{
+    EXPECT(parse("n[1..4]") == var("n", interval{int64_t{1}, int64_t{4}}));
+    EXPECT(parse("n{2, 4}") ==
+           var("n", std::vector<interval>{}, std::set<scalar>{int64_t{2}, int64_t{4}}));
+    EXPECT(parse("n[1..4][2..6]{2, 4}") ==
+           var("n",
+               std::vector<interval>{{int64_t{1}, int64_t{4}}, {int64_t{2}, int64_t{6}}},
+               std::set<scalar>{int64_t{2}, int64_t{4}}));
+}
+
+TEST_CASE(parse_variable_metadata_scalars)
+{
+    EXPECT(parse("n[-4..1][2e0..6.0]{-2, 1.5}") ==
+           var("n",
+               std::vector<interval>{{int64_t{-4}, int64_t{1}}, {2.0, 6.0}},
+               std::set<scalar>{int64_t{-2}, 1.5}));
+}
+
+TEST_CASE(parse_variable_metadata_in_expression)
+{
+    auto n = var("n",
+                 std::vector<interval>{{int64_t{1}, int64_t{4}}, {int64_t{2}, int64_t{6}}},
+                 std::set<scalar>{int64_t{2}, int64_t{4}});
+    auto e = sin(n * 3) + 1;
+    EXPECT(parse(to_string(e)) == e);
+}
+
+TEST_CASE(parse_variable_metadata_disambiguates_function_name)
+{
+    auto sin_variable = var("sin", interval{int64_t{1}, int64_t{4}});
+    EXPECT(to_string(sin_variable) == "sin[1..4]");
+    EXPECT(parse("sin[1..4]") == sin_variable);
+    EXPECT(parse("sin(x)") == sin(var("x")));
+}
+
+TEST_CASE(parse_variable_metadata_errors)
+{
+    EXPECT(test::throws([] { parse("n(constraints={[1..4]})"); }));
+    EXPECT(test::throws([] { parse("n(optimals={2, 4})"); }));
+    EXPECT(test::throws([] { parse("n({[1..4]}, {2, 4})"); }));
+    EXPECT(test::throws([] { parse("n[1..4]{2}{4}"); }));
+    EXPECT(test::throws([] { parse("n{2, 4}[1..4]"); }));
+    EXPECT(test::throws([] { parse("n[1..4](x)"); }));
+    EXPECT(test::throws([] { parse("n[4..1]"); }));
+    EXPECT(test::throws([] { parse("n[1, 4]"); }));
 }
 
 TEST_CASE(parse_add)
@@ -3055,6 +3219,89 @@ TEST_CASE(var_with_constraint_and_optimals)
     EXPECT(x.eval({{x, int64_t{3}}}) == scalar{int64_t{3}});
 }
 
+// A name has to round trip through parse, since that is how a symbolic shape is spelled in
+// generated code.
+TEST_CASE(var_name_must_be_an_identifier)
+{
+    EXPECT(test::throws([] { return var("input.1_d0"); }));
+    EXPECT(test::throws([] { return var("0_d0"); }));
+    EXPECT(test::throws([] { return var("has space"); }));
+    // The check applies to every overload, not just the bare one.
+    EXPECT(test::throws([] { return var("input.1", interval{int64_t{1}, int64_t{8}}); }));
+    EXPECT(test::throws(
+        [] { return var("input.1", std::vector<interval>{interval{int64_t{1}, int64_t{8}}}); }));
+    EXPECT(parse(to_string(var("_n0"))) == var("_n0"));
+}
+
+TEST_CASE(symbol_name_registry_sanitizes_external_names)
+{
+    migraphx::sym::symbol_name_registry names;
+    EXPECT(names.resolve("input.1") == "input_1");
+    EXPECT(names.resolve("2d") == "_2d");
+    EXPECT(names.resolve("") == "_");
+
+    migraphx::sym::symbol_name_registry canonical_names;
+    EXPECT(canonical_names.resolve("batch_size") == "batch_size");
+}
+
+TEST_CASE(symbol_name_registry_resolves_collisions_stably)
+{
+    migraphx::sym::symbol_name_registry names;
+    EXPECT(names.resolve("batch.size") == "batch_size");
+    EXPECT(names.resolve("batch.size") == "batch_size");
+    EXPECT(names.resolve("batch_size") == "batch_size_2");
+    EXPECT(names.resolve("batch-size") == "batch_size_3");
+}
+
+// A double has to read back as the same value, which the six significant digits a stream
+// defaults to cannot promise.
+TEST_CASE(scalar_to_string_round_trips)
+{
+    EXPECT(to_string(lit(int64_t{42})) == "42");
+    EXPECT(to_string(lit(3.14)) == "3.14");
+    for(double d : {3.14, 0.1, 1.0 / 3.0, 1e-9, 1.7976931348623157})
+    {
+        auto e = lit(d);
+        EXPECT(parse(to_string(e)) == e);
+    }
+}
+
+// Adding two same-named variables merges their metadata by unioning the constraint sets, so this
+// is the only spelling for the result.
+TEST_CASE(var_with_multiple_constraints_matches_merge)
+{
+    auto c1 = interval{int64_t{1}, int64_t{20}};
+    auto c2 = interval{int64_t{2}, int64_t{10}};
+    // x{1,20} + x{2,10} folds to 2*x, where x asserts both intervals.
+    auto merged = var("x", c1) + var("x", c2);
+    EXPECT(merged == lit(2) * var("x", std::vector<interval>{c1, c2}));
+}
+
+// The constraint set is canonicalized, so the order it is given in does not change the variable.
+TEST_CASE(var_with_multiple_constraints_normalized)
+{
+    auto c1 = interval{int64_t{1}, int64_t{20}};
+    auto c2 = interval{int64_t{2}, int64_t{10}};
+    EXPECT(var("x", std::vector<interval>{c2, c1}) == var("x", std::vector<interval>{c1, c2}));
+    // A repeated assertion is the same as stating it once.
+    EXPECT(var("x", std::vector<interval>{c1, c1}) == var("x", c1));
+}
+
+TEST_CASE(var_with_multiple_constraints_serializes)
+{
+    auto x = var(
+        "x",
+        std::vector<interval>{interval{int64_t{1}, int64_t{20}}, interval{int64_t{2}, int64_t{10}}},
+        std::set<scalar>{int64_t{4}});
+    EXPECT(migraphx::from_value<expr>(migraphx::to_value(x)) == x);
+}
+
+TEST_CASE(var_with_invalid_constraint_throws)
+{
+    EXPECT(test::throws(
+        [] { return var("x", std::vector<interval>{interval{int64_t{10}, int64_t{1}}}); }));
+}
+
 TEST_CASE(eval_optimals_literal)
 {
     auto e      = lit(42);
@@ -3368,6 +3615,88 @@ TEST_CASE(ceildiv_to_string)
     auto s = e.to_string();
     // Just verify it produces something reasonable and roundtrips eval
     EXPECT(not s.empty());
+}
+
+TEST_CASE(interval_contains)
+{
+    interval bounds{int64_t{1}, int64_t{5}};
+    EXPECT(bounds.contains(int64_t{1}));
+    EXPECT(bounds.contains(int64_t{3}));
+    EXPECT(bounds.contains(int64_t{5}));
+    EXPECT(not bounds.contains(int64_t{0}));
+    EXPECT(not bounds.contains(int64_t{6}));
+}
+
+TEST_CASE(fixed_value_literal)
+{
+    auto result = fixed_value(lit(5));
+    EXPECT(result.has_value());
+    EXPECT(*result == scalar{int64_t{5}});
+}
+
+TEST_CASE(fixed_value_singleton_expression)
+{
+    auto result = fixed_value(var("x", interval{int64_t{5}, int64_t{5}}));
+    EXPECT(result.has_value());
+    EXPECT(*result == scalar{int64_t{5}});
+}
+
+TEST_CASE(fixed_value_compound_singleton_expression)
+{
+    auto x      = var("x", interval{int64_t{5}, int64_t{5}});
+    auto result = fixed_value((x * 2) + 1);
+    EXPECT(result.has_value());
+    EXPECT(*result == scalar{int64_t{11}});
+}
+
+TEST_CASE(fixed_value_rejects_collapsed_compound_interval)
+{
+    auto x         = var("x", interval{int64_t{0}, int64_t{10}});
+    auto remainder = x - ((x / 2) * 2);
+    EXPECT(not fixed_value(remainder).has_value());
+}
+
+TEST_CASE(fixed_value_indeterminate)
+{
+    EXPECT(not fixed_value(var("x", interval{int64_t{1}, int64_t{5}})).has_value());
+    EXPECT(not fixed_value(expr{}).has_value());
+}
+
+TEST_CASE(provable_equal_same_symbol)
+{
+    auto x      = var("x");
+    auto result = provable_equal(x + 1, x + 1);
+    EXPECT(result.has_value() and *result);
+}
+
+TEST_CASE(provable_equal_disjoint_ranges)
+{
+    auto x      = var("x", interval{int64_t{1}, int64_t{5}});
+    auto y      = var("y", interval{int64_t{10}, int64_t{20}});
+    auto result = provable_equal(x, y);
+    EXPECT(result.has_value() and not *result);
+}
+
+TEST_CASE(provable_equal_fixed_expressions)
+{
+    auto x = var("x", interval{int64_t{5}, int64_t{5}});
+    EXPECT(provable_equal(x + 1, lit(6)).value_or(false));
+    EXPECT(not provable_equal(x + 1, lit(7)).value_or(true));
+}
+
+TEST_CASE(provable_equal_rejects_collapsed_compound_interval)
+{
+    auto x         = var("x", interval{int64_t{0}, int64_t{10}});
+    auto remainder = x - ((x / 2) * 2);
+    EXPECT(not provable_equal(remainder, lit(1)).has_value());
+}
+
+TEST_CASE(provable_equal_indeterminate)
+{
+    auto x = var("x", interval{int64_t{1}, int64_t{10}});
+    auto y = var("y", interval{int64_t{5}, int64_t{15}});
+    EXPECT(not provable_equal(x, y).has_value());
+    EXPECT(not provable_equal(expr{}, expr{}).has_value());
 }
 
 // ---- strict_less tests ----

@@ -171,8 +171,8 @@ struct parse_gru : op_parser<parse_gru>
         }
 
         auto results       = op::builder::add("gru",
-                                        *info.mod,
-                                        args,
+                                              *info.mod,
+                                              args,
                                               {{"actv_func", to_value(vec_actv_funcs)},
                                                {"direction", dirct},
                                                {"linear_before_reset", linear_before_reset}});

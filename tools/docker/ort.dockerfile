@@ -1,6 +1,6 @@
 FROM ubuntu:24.04
 
-ARG ROCM_VERSION=7.14
+ARG ROCM_VERSION=10.0
 ARG GPU_ARCH=""
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
@@ -8,10 +8,10 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 # Install rocm key
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
     mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://repo.amd.com/rocm/packages/gpg/rocm.gpg | gpg --dearmor -o /etc/apt/keyrings/amdrocm.gpg
+    curl -fsSL https://stable.repo.amd.com/rocm/gpg/packages.gpg | gpg --dearmor -o /etc/apt/keyrings/amdrocm.gpg
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://repo.amd.com/rocm/packages-multi-arch/ubuntu2404 stable main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://stable.repo.amd.com/rocm/core/packages/ubuntu2404 stable main > /etc/apt/sources.list.d/rocm.list'
 
 ARG ONNXRUNTIME_REPO=https://github.com/microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main

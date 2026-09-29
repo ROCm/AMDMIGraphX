@@ -45,8 +45,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-// A lowered select_module writes each output into its own trailing buffer, which its operator
-// alias cannot distinguish because the alias covers every buffer at once.
+// A lowered select_module returns a tuple backed by one trailing buffer per tuple element.
+// Map get_tuple_elem directly to its corresponding buffer because generic alias traversal
+// returns every buffer backing the tuple.
 optional<instruction_ref> get_select_module_buffer(instruction_ref ins)
 {
     if(ins->name() != "get_tuple_elem")

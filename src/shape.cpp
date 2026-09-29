@@ -1121,19 +1121,22 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
             auto interval = s.eval_interval(symbol_intervals);
             auto fixed    = sym::scalar_invoke_common<std::optional<std::size_t>>(
                 [](auto min, auto max) -> std::optional<std::size_t> {
-                    if(min != max or min < 0)
-                        return std::nullopt;
                     if constexpr(std::is_integral_v<decltype(min)>)
                     {
+                        if(min != max or min < 0)
+                            return std::nullopt;
                         using unsigned_type = std::make_unsigned_t<decltype(min)>;
                         if(static_cast<unsigned_type>(min) >
                            std::numeric_limits<std::size_t>::max())
                             return std::nullopt;
                     }
-                    else if(not std::isfinite(min) or std::trunc(min) != min or
-                            min >= std::ldexp(1.0, std::numeric_limits<std::size_t>::digits))
+                    else
                     {
-                        return std::nullopt;
+                        auto integral = std::floor(min);
+                        if(not std::isfinite(min) or not std::isfinite(max) or min < 0 or
+                           min < max or max < min or integral < min or min < integral or
+                           min >= std::ldexp(1.0, std::numeric_limits<std::size_t>::digits))
+                            return std::nullopt;
                     }
                     return min;
                 },

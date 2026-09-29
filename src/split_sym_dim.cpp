@@ -104,9 +104,9 @@ std::vector<int64_t> reduce_axes(const operation& op, std::size_t ndim)
     if(attributes.contains("axes"))
         axes = attributes.at("axes").to_vector<int64_t>();
     int64_t rank = ndim;
-    for(auto& a : axes)
-        if(a < 0)
-            a += rank;
+    std::transform(axes.begin(), axes.end(), axes.begin(), [rank](auto axis) {
+        return axis < 0 ? axis + rank : axis;
+    });
     return axes;
 }
 
@@ -642,8 +642,8 @@ struct analyze_gathernd
         auto batch_dims = info.ins->get_operator().to_value().at("batch_dims").to<int64_t>();
         if(batch_dims < 0)
             return;
-        auto batch_rank = static_cast<std::size_t>(batch_dims);
-        auto depth      = sym::to<std::size_t>(*index_depth);
+        std::size_t batch_rank = batch_dims;
+        auto depth             = sym::to<std::size_t>(*index_depth);
         if(batch_rank + depth > inputs.front().ndim())
             return;
         analyze_axes(info, [&](std::size_t input, std::size_t axis) {
@@ -1320,8 +1320,10 @@ std::optional<std::vector<root_spec>> collect_roots(const module& m)
 
     std::vector<root_spec> roots;
     roots.reserve(root_specs.size());
-    for(auto& entry : root_specs)
-        roots.push_back(std::move(entry.second));
+    std::transform(root_specs.begin(),
+                   root_specs.end(),
+                   std::back_inserter(roots),
+                   [](auto& entry) { return std::move(entry.second); });
     std::sort(
         roots.begin(), roots.end(), [](const auto& x, const auto& y) { return x.name < y.name; });
     std::unordered_set<std::string> symbol_names;

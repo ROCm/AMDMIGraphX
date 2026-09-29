@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,8 +27,11 @@
 #include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 
 #include <test.hpp>
+#include <string>
+#include <vector>
 
 static void run_pass(migraphx::module& m, std::set<migraphx::shape::type_t> types)
 {
@@ -90,5 +93,63 @@ TEST_CASE(quant)
     }
     EXPECT(mm1 == mm2);
 }
+
+TEST_CASE(skip_convert_eval_expr_from_shape)
+{
+    auto n = migraphx::sym::var("n", {1, 4});
+    migraphx::shape input_shape{
+        migraphx::shape::int64_type,
+        std::vector<migraphx::shape::dynamic_dimension>{migraphx::shape::dynamic_dimension{n}}};
+    migraphx::module mm1;
+    auto x    = mm1.add_parameter("x", input_shape);
+    auto eval = mm1.add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}}),
+        x);
+    mm1.add_return({eval});
+
+    auto mm2 = mm1;
+    run_pass(mm1, {migraphx::shape::int64_type});
+    EXPECT(mm1 == mm2);
+}
+
+static void check_skip_convert_slice(const std::string& name)
+{
+    migraphx::shape data_shape{migraphx::shape::int64_type, {4}};
+    migraphx::shape index_shape{migraphx::shape::int64_type, {1}};
+    auto slice_op = name == "slice"
+                        ? migraphx::make_op(name, {{"axes", {0}}})
+                        : migraphx::make_op(name, {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}});
+
+    migraphx::module mm1;
+    {
+        auto data   = mm1.add_parameter("data", data_shape);
+        auto starts = mm1.add_parameter("starts", index_shape);
+        auto ends   = mm1.add_parameter("ends", index_shape);
+        auto slice  = mm1.add_instruction(slice_op, data, starts, ends);
+        mm1.add_instruction(migraphx::make_op("relu"), slice);
+    }
+    run_pass(mm1, {migraphx::shape::int64_type});
+
+    migraphx::module mm2;
+    {
+        auto data      = mm2.add_parameter("data", data_shape);
+        auto starts    = mm2.add_parameter("starts", index_shape);
+        auto ends      = mm2.add_parameter("ends", index_shape);
+        auto slice     = mm2.add_instruction(slice_op, data, starts, ends);
+        auto converted = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), slice);
+        auto relu = mm2.add_instruction(migraphx::make_op("relu"), converted);
+        mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), relu);
+    }
+
+    EXPECT(mm1 == mm2);
+}
+
+TEST_CASE(skip_convert_slice) { check_skip_convert_slice("slice"); }
+
+TEST_CASE(skip_convert_dyn_slice) { check_skip_convert_slice("dyn_slice"); }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

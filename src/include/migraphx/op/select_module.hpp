@@ -25,7 +25,9 @@
 #define MIGRAPHX_GUARD_OPERATORS_SELECT_MODULE_HPP
 
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,6 +44,8 @@ struct select_module
     }
 
     std::string name() const { return "select_module"; }
+
+    std::size_t num_outputs() const { return output_dyn_shapes.sub_shapes().size(); }
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
     {
@@ -80,9 +84,7 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        // Find submodule with input parameter shapes exactly the same as the input instruction
-        // arguments. Assuming instruction arguments are in the same order as the instruction
-        // parameters.
+        // Input arguments are ordered like the sorted input parameters.
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
                 auto in_param_names = get_input_parameter_names(mr);
@@ -92,7 +94,12 @@ struct select_module
                                   in_param_names.cend(),
                                   args.cbegin(),
                                   [&](const auto& p_name, const auto& a) {
-                                      return a.get_shape() == param_shapes[p_name];
+                                      const auto& actual   = a.get_shape();
+                                      const auto& expected = param_shapes.at(p_name);
+                                      if(expected.dynamic())
+                                          return actual.type() == expected.type() and
+                                                 shape::is_compatible_lens(actual, expected);
+                                      return actual == expected;
                                   });
             });
 
@@ -113,34 +120,47 @@ struct select_module
                        std::inserter(p_map, p_map.end()),
                        [&](auto&& name, auto&& a) { return std::make_pair(name, a); });
 
-        // One tuple output parameter in main module to multiple output parameters in submodule
-        auto out_param_names    = get_output_parameter_names(module_to_run);
-        auto param_shapes       = module_to_run->get_parameter_shapes();
-        auto output_sub_objects = args.back().get_sub_objects();
-        assert(out_param_names.size() == output_sub_objects.size());
-        std::transform(out_param_names.begin(),
-                       out_param_names.end(),
-                       output_sub_objects.begin(),
-                       std::inserter(p_map, p_map.end()),
-                       [&](auto&& name, auto&& a) {
-                           auto ps = param_shapes.at(name);
-                           if(a.get_shape() != ps)
-                           {
-                               assert(ps.bytes() <= a.get_shape().bytes());
-                               return std::make_pair(name, a.reshape(ps));
-                           }
-                           else
-                           {
-                               return std::make_pair(name, a);
-                           }
-                       });
+        // Each output of the submodule writes into the caller's buffer for that output
+        auto out_param_names = get_output_parameter_names(module_to_run);
+        auto param_shapes    = module_to_run->get_parameter_shapes();
+        auto module_outputs  = module_to_run->get_returns();
+        if(not out_param_names.empty())
+        {
+            if(args.size() != in_param_names.size() + num_outputs())
+                MIGRAPHX_THROW("SELECT_MODULE: missing output allocations");
+            if(module_outputs.size() != num_outputs())
+                MIGRAPHX_THROW(
+                    "SELECT_MODULE: output allocation count does not match module outputs");
+        }
+        auto output_start = args.size() - num_outputs();
+        for(const auto& name : out_param_names)
+        {
+            auto parameter = module_to_run->get_parameter(name);
+            auto output    = std::find_if(
+                module_outputs.begin(), module_outputs.end(), [&](instruction_ref result) {
+                    return contains(instruction::get_output_alias(result), parameter);
+                });
+            if(output == module_outputs.end())
+                MIGRAPHX_THROW("SELECT_MODULE: output parameter does not alias a module output");
+            const auto& allocation =
+                args.at(output_start + std::distance(module_outputs.begin(), output));
+            auto ps = param_shapes.at(name);
+            if(ps.bytes() > allocation.get_shape().bytes())
+                MIGRAPHX_THROW("SELECT_MODULE: output allocation is too small");
+            p_map.emplace(name, allocation.get_shape() == ps ? allocation : allocation.reshape(ps));
+        }
         auto results = run(module_to_run, p_map);
         return argument{results};
     }
 
+    // The caller's output buffers are appended after the input arguments during lowering.
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return {shapes.size() - 1};
+        if(shapes.size() <= num_outputs())
+            return {};
+        std::vector<std::size_t> result(num_outputs());
+        std::iota(result.begin(), result.end(), shapes.size() - num_outputs());
+        return result;
     }
 };
 

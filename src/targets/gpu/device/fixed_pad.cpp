@@ -26,18 +26,24 @@
 #include <migraphx/gpu/device/nary.hpp>
 #include <migraphx/gpu/device/fixed_pad.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
+#include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/launch.hpp>
+#include <migraphx/clamp.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/functional.hpp>
+#include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-static argument fixed_pad_base_impl(hipStream_t stream, const argument& result, const argument& arg)
+static argument
+fixed_pad_base_impl(hipStream_t stream, const argument& result, const argument& arg, float value)
 {
     hip_visit_all(result, arg)([&](auto output, auto input) {
+        using type     = typename decltype(output)::value_type;
+        auto pad_value = device_cast(pad_clamp<host_type<type>>(value));
         gs_launch(stream, result.get_shape().elements())([=](auto i) __device__ {
             auto input_bounds = input.get_shape().lens;
             auto idx          = output.get_shape().multi(i);
@@ -45,25 +51,29 @@ static argument fixed_pad_base_impl(hipStream_t stream, const argument& result, 
             bool in_bounds = sequence(
                 idx.size(), [&](auto... js) { return ((idx[js] < input_bounds[js]) and ...); });
 
-            output[idx] = in_bounds ? input[idx] : 0;
+            output[idx] = in_bounds ? input[idx] : pad_value;
         });
     });
     return result;
 }
 
-static argument
-fixed_pad_standard_impl(hipStream_t stream, const argument& result, const argument& arg)
+static argument fixed_pad_standard_impl(hipStream_t stream,
+                                        const argument& result,
+                                        const argument& arg,
+                                        float value)
 {
     index_int nelements = result.get_shape().elements();
     index_int ielements = arg.get_shape().elements();
     hip_pointer_visit_all(result, arg)([&](auto output, auto input) {
+        using type     = std::remove_pointer_t<decltype(output)>;
+        auto pad_value = device_cast(pad_clamp<host_type<type>>(value));
         gs_launch(stream, nelements)(
-            [=](auto i) __device__ { output[i] = (i < ielements) ? input[i] : 0; });
+            [=](auto i) __device__ { output[i] = (i < ielements) ? input[i] : pad_value; });
     });
     return result;
 }
 
-argument fixed_pad(hipStream_t stream, const argument& result, const argument& arg)
+argument fixed_pad(hipStream_t stream, const argument& result, const argument& arg, float value)
 {
     if(result.get_shape().standard() and arg.get_shape().standard())
     {
@@ -71,9 +81,9 @@ argument fixed_pad(hipStream_t stream, const argument& result, const argument& a
         auto olens            = result.get_shape().lens();
         auto [istart, ostart] = std::mismatch(ilens.begin(), ilens.end(), olens.begin());
         if(std::equal(istart, ilens.end(), ostart, olens.end()))
-            return fixed_pad_standard_impl(stream, result, arg);
+            return fixed_pad_standard_impl(stream, result, arg, value);
     }
-    return fixed_pad_base_impl(stream, result, arg);
+    return fixed_pad_base_impl(stream, result, arg, value);
 }
 
 } // namespace device

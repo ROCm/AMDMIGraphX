@@ -24,29 +24,34 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_FIXED_PAD_HPP
 #define MIGRAPHX_GUARD_OPERATORS_FIXED_PAD_HPP
 
-#include <array>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/clamp.hpp>
 #include <migraphx/config.hpp>
+#include <algorithm>
 #include <cmath>
-#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- * Pads an input with dynamic shape to its maximum dimensions.
- * No-op for a static shape input.
- * The main use for this op versus the standard pad op is that it can
- * accept a dynamic input shape and convert it to a padded static shape.
+ * Pads a dynamic input to its maximum dimensions, filling the pad with `value`.
+ * A static input is returned unchanged.
  */
 struct fixed_pad
 {
+    float value = 0.0f;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.value, "value"));
+    }
 
     std::string name() const { return "fixed_pad"; }
 
@@ -69,6 +74,8 @@ struct fixed_pad
 
         argument out{output_shape};
         visit_all(out, input_arg)([&](auto output, auto input) {
+            using type = typename decltype(output)::value_type;
+            std::fill(output.begin(), output.end(), pad_clamp<type>(value));
             par_for(input_shape.elements(), [&](auto i) {
                 auto idx    = input_shape.multi(i);
                 output[idx] = input[idx];

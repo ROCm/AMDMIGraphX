@@ -61,6 +61,10 @@ void adjust_allocation::apply(module& m) const
             continue;
 
         auto alias_ins = get_allocation(ins);
+        // A buffer holding one element of a tuple result cannot match the shape of the tuple
+        if(ins->get_shape().type() == shape::tuple_type and
+           alias_ins->get_shape().type() != shape::tuple_type)
+            continue;
         if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
         {
             if(alias_ins != ins and alias_ins->get_shape() != ins->get_shape())

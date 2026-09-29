@@ -154,8 +154,6 @@ std::vector<instruction_ref> insert_common_args(module& m,
                                                 std::vector<instruction_ref> inputs,
                                                 common_options options)
 {
-    // Symbolic inputs (with no range-dynamic mixed in) use single-input broadcasts + converts,
-    // mirroring the static path.
     bool any_symbolic = std::any_of(
         inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().symbolic(); });
     bool any_range = std::any_of(inputs.cbegin(), inputs.cend(), [](auto input) {
@@ -166,22 +164,45 @@ std::vector<instruction_ref> insert_common_args(module& m,
         auto input_shapes = to_shapes(inputs);
         auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
         auto c_type       = compute_common_types(input_shapes);
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-            auto s = input->get_shape();
-            if(options.common_lens and not(s.symbolic() and s.dyn_dims() == c_dyn_dims))
+        if(options.common_lens)
+        {
+            auto target = std::find_if(inputs.begin(), inputs.end(), [&](auto input) {
+                const auto& s = input->get_shape();
+                return s.symbolic() and s.dyn_dims() == c_dyn_dims;
+            });
+            instruction_ref common_input;
+            if(target == inputs.end())
             {
-                input = m.insert_instruction(
+                common_input = m.insert_instruction(
                     ins,
                     make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                    input);
+                    inputs);
+                inputs.front() = common_input;
             }
-            if(options.common_type and input->get_shape().type() != c_type)
+            else
             {
-                input =
-                    m.insert_instruction(ins, make_op("convert", {{"target_type", c_type}}), input);
+                common_input = *target;
             }
-            return input;
-        });
+            std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+                const auto& s = input->get_shape();
+                if(input == common_input or (s.symbolic() and s.dyn_dims() == c_dyn_dims))
+                    return input;
+                return m.insert_instruction(
+                    ins,
+                    make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                    input,
+                    common_input);
+            });
+        }
+        if(options.common_type)
+        {
+            std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+                if(input->get_shape().type() != c_type)
+                    input = m.insert_instruction(
+                        ins, make_op("convert", {{"target_type", c_type}}), input);
+                return input;
+            });
+        }
         return inputs;
     }
 

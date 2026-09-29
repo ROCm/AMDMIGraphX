@@ -37,7 +37,6 @@ TARGET="${TARGET:-gpu}"
 USE_LOCAL="${USE_LOCAL:-0}"
 MODEL_TIMEOUT="${MODEL_TIMEOUT:-20m}"
 DRIVER="${DRIVER:-migraphx-driver}"
-PERF_ITERATIONS="${PERF_ITERATIONS:-10}"
 KINDS="${KINDS:-accuracy perf}"
 MODEL_LIST="${MODEL_LIST:-}"
 TOTAL_CHECKS=0
@@ -216,7 +215,6 @@ function run_perf() {
         flag+=("--$TARGET")
         [[ "$dtype" = "fp16" ]] && flag+=(--fp16)
     fi
-    flag+=(-n "$PERF_ITERATIONS")
     run_logged "$file" perf "$dtype" \
         "$DRIVER" perf "$model_file" "${flag[@]}"
 }

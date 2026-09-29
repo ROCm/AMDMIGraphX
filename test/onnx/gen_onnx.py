@@ -16280,6 +16280,33 @@ def symbolic_reshape_constant_test():
 
 
 @onnx_test()
+def symbolic_reshape_data_root_test():
+    condition = helper.make_tensor_value_info('condition', TensorProto.BOOL,
+                                              [4])
+    output = helper.make_tensor_value_info('output', TensorProto.INT64,
+                                           ['count', 1, 1, 1])
+    target = helper.make_tensor('target_value', TensorProto.INT64, [4],
+                                [-1, 1, 1, 1])
+    nodes = [
+        helper.make_node('NonZero',
+                         inputs=['condition'],
+                         outputs=['nonzero_indices']),
+        helper.make_node('Transpose',
+                         inputs=['nonzero_indices'],
+                         outputs=['transposed'],
+                         perm=[1, 0]),
+        helper.make_node('Constant',
+                         inputs=[],
+                         outputs=['target'],
+                         value=target),
+        helper.make_node('Reshape',
+                         inputs=['transposed', 'target'],
+                         outputs=['output']),
+    ]
+    return (nodes, [condition], [output])
+
+
+@onnx_test()
 def scatternd_nonpacked_indices_test():
     n = 16
 

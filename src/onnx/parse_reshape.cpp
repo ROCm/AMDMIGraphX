@@ -27,10 +27,68 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/reshape_dims.hpp>
+#include <migraphx/iterator_for.hpp>
+
+#include <optional>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+bool directly_contains_symbol(instruction_ref source, const sym::expr& symbol)
+{
+    const auto& s = source->get_shape();
+    if(not s.symbolic())
+        return false;
+    return any_of(s.dyn_dims(), [&](const auto& d) {
+        return d.is_symbolic() and d.sym_expr.name() == "variable" and
+               sym::same_symbol(d.sym_expr, symbol);
+    });
+}
+
+std::optional<std::vector<instruction_ref>> find_expression_sources(
+    const module& m, instruction_ref data, const std::vector<sym::expr>& expressions)
+{
+    std::unordered_set<sym::expr> required;
+    for(const auto& expression : expressions)
+    {
+        auto variables = sym::find_variables(expression);
+        required.insert(variables.begin(), variables.end());
+    }
+
+    std::vector<std::pair<std::string, sym::expr>> ordered_variables;
+    std::transform(
+        required.begin(),
+        required.end(),
+        std::back_inserter(ordered_variables),
+        [](const auto& variable) { return std::make_pair(variable.to_string(), variable); });
+    std::sort(ordered_variables.begin(), ordered_variables.end(), [](const auto& x, const auto& y) {
+        return x.first < y.first;
+    });
+
+    std::vector<instruction_ref> candidates = {data};
+    auto parameters                         = m.get_parameters();
+    candidates.insert(candidates.end(), parameters.begin(), parameters.end());
+    auto instructions = iterator_for(m);
+    candidates.insert(candidates.end(), instructions.begin(), instructions.end());
+
+    std::vector<instruction_ref> result;
+    for(const auto& [name, variable] : ordered_variables)
+    {
+        (void)name;
+        auto source = std::find_if(candidates.begin(), candidates.end(), [&](auto candidate) {
+            return directly_contains_symbol(candidate, variable);
+        });
+        if(source == candidates.end())
+            return std::nullopt;
+        if(not contains(result, *source))
+            result.push_back(*source);
+    }
+    if(result.empty())
+        result.push_back(data);
+    return result;
+}
 
 struct parse_reshape : op_parser<parse_reshape>
 {
@@ -49,18 +107,36 @@ struct parse_reshape : op_parser<parse_reshape>
             transform(output_dims, output_expressions.begin(), [](const auto& dim) {
                 return dim.sym_expr;
             });
+            auto sources = find_expression_sources(*info.mod, args[0], output_expressions);
+            if(not sources.has_value())
+                return std::optional<instruction_ref>{};
             const auto resolved_dims = info.add_instruction(
                 make_op("eval_expr_from_shape", {{"expressions", to_value(output_expressions)}}),
-                info.mod->get_parameters());
+                *sources);
             const shape output_shape{input_shape.type(), output_dims};
             auto allocation = info.add_instruction(
                 make_op("allocate", {{"shape", to_value(output_shape)}}), resolved_dims);
+            return std::optional<instruction_ref>{
+                info.add_instruction(make_op("reshape"), args[0], allocation)};
+        };
+        auto add_shape_tensor_reshape = [&] {
+            assert(args.size() == 2);
+            const auto& input_shape = args[0]->get_shape();
+            auto allocation         = info.add_instruction(
+                make_op("allocate", {{"buf_type", input_shape.type()}}), args[1]);
             return info.add_instruction(make_op("reshape"), args[0], allocation);
         };
         auto add_evaluated_reshape = [&] {
             if(not args[0]->get_shape().symbolic())
                 return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
-            return add_runtime_reshape(std::vector<dim_like>{dims.begin(), dims.end()});
+            auto result = add_runtime_reshape(std::vector<dim_like>{dims.begin(), dims.end()});
+            if(not result.has_value())
+            {
+                if(args.size() == 2)
+                    return add_shape_tensor_reshape();
+                MIGRAPHX_THROW("PARSE_RESHAPE: symbolic dimension has no direct shape source");
+            }
+            return *result;
         };
 
         if(args.size() == 1)
@@ -80,10 +156,12 @@ struct parse_reshape : op_parser<parse_reshape>
                 const auto& input_shape  = args[0]->get_shape();
                 if(not symbolic_dims.empty() and
                    (not input_shape.dynamic() or input_shape.symbolic()))
-                    return add_runtime_reshape(symbolic_dims.get().to_vector());
-                auto alloc_ins = info.add_instruction(
-                    make_op("allocate", {{"buf_type", input_shape.type()}}), args[1]);
-                return info.add_instruction(make_op("reshape"), args[0], alloc_ins);
+                {
+                    auto result = add_runtime_reshape(symbolic_dims.get().to_vector());
+                    if(result.has_value())
+                        return *result;
+                }
+                return add_shape_tensor_reshape();
             }
             else
             {

@@ -53,7 +53,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto output, auto x, auto w, auto... inputs) {
-        channelwise_conv<index_ints<${tile}>, ${ntiles}, ${tile_c}>(index_ints<${tile}>{}, index_ints<${padding}>{}, ${post}, output, x, w, inputs...);
+        channelwise_conv<index_ints<${tile}>, ${ntiles}, ${tile_c}, ${nrows}>(index_ints<${tile}>{}, index_ints<${padding}>{}, ${post}, output, x, w, inputs...);
     });
 }
 
@@ -96,6 +96,8 @@ struct channelwise_conv_problem
     std::size_t multiplier() const { return channels() / inputs.front().lens()[1]; }
     // Channel is the fastest dim in memory, so tile over channels to coalesce accesses
     bool channels_last() const { return find_permutation(inputs.back()).back() == 1; }
+    // Filter taps along the first spatial dim; more than one lets row runs reuse the halo
+    std::size_t row_taps() const { return num_spatial > 1 ? inputs[1].lens()[2] : 1; }
 
     // Channel tiles must divide the channels and stay within one input channel
     std::vector<std::size_t> channel_tiles(std::size_t max_tile) const
@@ -111,10 +113,13 @@ struct channelwise_conv_problem
     std::size_t halo_bytes(std::size_t tile_h,
                            std::size_t tile_w,
                            std::size_t noutputs,
-                           std::size_t tile_c) const
+                           std::size_t tile_c,
+                           std::size_t nrows) const
     {
         const auto& w_lens = inputs[1].lens();
         auto tile          = spatial_tile(num_spatial, tile_h, tile_w);
+        if(num_spatial > 1)
+            tile.front() *= nrows;
         tile.back() *= noutputs;
         auto halo = std::inner_product(tile.begin(),
                                        tile.end(),
@@ -123,6 +128,126 @@ struct channelwise_conv_problem
                                        std::multiplies<>{},
                                        [](auto t, auto k) { return t + k - 1; });
         return halo * (multiplier() > 1 ? 1 : tile_c) * inputs.front().type_size();
+    }
+};
+
+// Candidate tuning solutions for a channelwise conv problem
+struct channelwise_conv_solutions
+{
+    channelwise_conv_problem problem;
+    std::size_t wave;
+    std::vector<value> solutions = {};
+
+    static constexpr std::size_t max_block = 1024;
+    static constexpr std::size_t max_lds   = 64 * 1024;
+
+    // Add a solution when its block fills whole waves and its halo fits in shared memory
+    void add(std::size_t tile_h,
+             std::size_t tile_w,
+             std::size_t noutputs,
+             std::size_t tile_c,
+             std::size_t nrows)
+    {
+        auto block_size = tile_h * tile_w * tile_c;
+        if(block_size < wave or block_size > max_block or (block_size % wave) != 0)
+            return;
+        if(problem.halo_bytes(tile_h, tile_w, noutputs, tile_c, nrows) > max_lds)
+            return;
+        solutions.push_back({{"tile_h", tile_h},
+                             {"tile_w", tile_w},
+                             {"noutputs", noutputs},
+                             {"tile_c", tile_c},
+                             {"nrows", nrows}});
+    }
+
+    // Row runs only pay off when the filter extends along the rows
+    std::vector<std::size_t> row_runs() const
+    {
+        if(problem.row_taps() > 1)
+            return {1, 2, 4, 8};
+        return {1};
+    }
+
+    void add_exhaustive()
+    {
+        std::vector<std::size_t> sizes;
+        if(problem.channels_last())
+            sizes = {1, 2};
+        transform(range(1, 64), std::back_inserter(sizes), [](auto i) { return i * 4; });
+        for(auto tile_c : problem.channel_tiles(64))
+        {
+            for(auto tile_h : sizes)
+            {
+                for(auto tile_w : sizes)
+                {
+                    for(auto opt : {1, 2, 4, 8})
+                    {
+                        for(auto nrows : row_runs())
+                            add(tile_h, tile_w, opt, tile_c, nrows);
+                    }
+                }
+            }
+        }
+    }
+
+    void add_channels_last()
+    {
+        // Lanes run over channels first, so blocks need fewer spatial lanes and
+        // more outputs per lane to amortize the per-lane setup
+        auto tile_c = problem.default_channel_tile();
+        for(auto tile_h : {2, 4, 8, 16})
+        {
+            for(auto tile_w : {16, 32, 64})
+            {
+                if(tile_h * tile_w * tile_c < 128)
+                    continue;
+                for(auto opt : {4, 8, 16})
+                    add(tile_h, tile_w, opt, tile_c, 1);
+            }
+        }
+        // Strided single-channel tiles still win when the data stays in cache and the
+        // filter is large enough for per-lane weights to dominate
+        add(8, 32, 1, 1, 1);
+        add(16, 16, 16, 1, 1);
+        add(32, 16, 8, 1, 1);
+        if(problem.row_taps() > 1)
+        {
+            add(4, 32, 4, tile_c, 2);
+            add(4, 32, 4, tile_c, 4);
+            add(2, 32, 4, tile_c, 4);
+            add(4, 16, 8, tile_c, 4);
+            add(8, 32, 1, 1, 2);
+            add(8, 32, 1, 1, 4);
+        }
+    }
+
+    void add_channels_first()
+    {
+        solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"noutputs", 1}});
+
+        solutions.push_back({{"tile_h", 8}, {"tile_w", 8}, {"noutputs", 8}});
+        solutions.push_back({{"tile_h", 8}, {"tile_w", 16}, {"noutputs", 2}});
+        solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 4}});
+        solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 8}});
+        solutions.push_back({{"tile_h", 16}, {"tile_w", 8}, {"noutputs", 4}});
+        solutions.push_back({{"tile_h", 16}, {"tile_w", 16}, {"noutputs", 2}});
+        solutions.push_back({{"tile_h", 16}, {"tile_w", 64}, {"noutputs", 4}});
+        solutions.push_back({{"tile_h", 32}, {"tile_w", 16}, {"noutputs", 8}});
+        solutions.push_back({{"tile_h", 32}, {"tile_w", 32}, {"noutputs", 1}});
+        solutions.push_back({{"tile_h", 40}, {"tile_w", 12}, {"noutputs", 1}});
+        solutions.push_back({{"tile_h", 48}, {"tile_w", 16}, {"noutputs", 1}});
+        solutions.push_back({{"tile_h", 56}, {"tile_w", 4}, {"noutputs", 1}});
+        solutions.push_back({{"tile_h", 76}, {"tile_w", 8}, {"noutputs", 8}});
+        solutions.push_back({{"tile_h", 128}, {"tile_w", 8}, {"noutputs", 8}});
+        if(problem.row_taps() > 1)
+        {
+            add(8, 32, 1, 1, 2);
+            add(8, 32, 1, 1, 4);
+            add(4, 32, 1, 1, 4);
+            add(8, 16, 2, 1, 4);
+            add(16, 16, 2, 1, 2);
+            add(8, 64, 4, 1, 2);
+        }
     }
 };
 
@@ -152,9 +277,14 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         auto noutputs = v.get("noutputs", std::size_t{4});
         // Channels per block
         auto tile_c = v.get("tile_c", problem.default_channel_tile());
+        // Consecutive output rows per lane
+        auto nrows = v.get("nrows", std::size_t{1});
 
-        // Output tile = lane tile with last dim scaled by noutputs
+        // Output tile = lane tile with the first spatial dim scaled by nrows and the
+        // last one by noutputs
         std::vector<std::size_t> output_tile_sizes = tile_sizes;
+        if(num_spatial > 1)
+            output_tile_sizes.front() *= nrows;
         output_tile_sizes.back() *= noutputs;
 
         std::size_t block_size =
@@ -179,6 +309,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
                                       {{"tile", to_string_range(tile_sizes)},
                                        {"ntiles", std::to_string(noutputs)},
                                        {"tile_c", std::to_string(tile_c)},
+                                       {"nrows", std::to_string(nrows)},
                                        {"padding", to_string_range(padding)},
                                        {"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
@@ -213,82 +344,16 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         tuning_config tc;
         auto shapes = to_shapes(ins->inputs());
         tc.problem  = to_value(shapes);
-        channelwise_conv_problem problem{shapes, op.to_value().at("num_spatial").to<std::size_t>()};
-
-        const std::size_t max_block = 1024;
-        const std::size_t max_lds   = 64 * 1024;
-        auto wave                   = ctx.get_current_device().get_wavefront_size();
-        auto add_solution =
-            [&](std::size_t tile_h, std::size_t tile_w, std::size_t noutputs, std::size_t tile_c) {
-                auto block_size = tile_h * tile_w * tile_c;
-                if(block_size < wave or block_size > max_block or (block_size % wave) != 0)
-                    return;
-                if(problem.halo_bytes(tile_h, tile_w, noutputs, tile_c) > max_lds)
-                    return;
-                tc.solutions.push_back({{"tile_h", tile_h},
-                                        {"tile_w", tile_w},
-                                        {"noutputs", noutputs},
-                                        {"tile_c", tile_c}});
-            };
-
+        channelwise_conv_solutions solutions{
+            {shapes, op.to_value().at("num_spatial").to<std::size_t>()},
+            ctx.get_current_device().get_wavefront_size()};
         if(exhaustive)
-        {
-            std::vector<std::size_t> sizes;
-            if(problem.channels_last())
-                sizes = {1, 2};
-            transform(range(1, 64), std::back_inserter(sizes), [](auto i) { return i * 4; });
-            for(auto tile_c : problem.channel_tiles(64))
-            {
-                for(auto tile_h : sizes)
-                {
-                    for(auto tile_w : sizes)
-                    {
-                        for(auto opt : {1, 2, 4, 8})
-                            add_solution(tile_h, tile_w, opt, tile_c);
-                    }
-                }
-            }
-        }
-        else if(problem.channels_last())
-        {
-            // Lanes run over channels first, so blocks need fewer spatial lanes and
-            // more outputs per lane to amortize the per-lane setup
-            auto tile_c = problem.default_channel_tile();
-            for(auto tile_h : {2, 4, 8, 16})
-            {
-                for(auto tile_w : {16, 32, 64})
-                {
-                    if(tile_h * tile_w * tile_c < 128)
-                        continue;
-                    for(auto opt : {4, 8, 16})
-                        add_solution(tile_h, tile_w, opt, tile_c);
-                }
-            }
-            // Strided single-channel tiles still win when the data stays in cache and the
-            // filter is large enough for per-lane weights to dominate
-            add_solution(8, 32, 1, 1);
-            add_solution(16, 16, 16, 1);
-            add_solution(32, 16, 8, 1);
-        }
+            solutions.add_exhaustive();
+        else if(solutions.problem.channels_last())
+            solutions.add_channels_last();
         else
-        {
-            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"noutputs", 1}});
-
-            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 8}, {"noutputs", 8}});
-            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 16}, {"noutputs", 2}});
-            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 4}});
-            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 8}});
-            tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 8}, {"noutputs", 4}});
-            tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 16}, {"noutputs", 2}});
-            tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 64}, {"noutputs", 4}});
-            tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 16}, {"noutputs", 8}});
-            tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 32}, {"noutputs", 1}});
-            tc.solutions.push_back({{"tile_h", 40}, {"tile_w", 12}, {"noutputs", 1}});
-            tc.solutions.push_back({{"tile_h", 48}, {"tile_w", 16}, {"noutputs", 1}});
-            tc.solutions.push_back({{"tile_h", 56}, {"tile_w", 4}, {"noutputs", 1}});
-            tc.solutions.push_back({{"tile_h", 76}, {"tile_w", 8}, {"noutputs", 8}});
-            tc.solutions.push_back({{"tile_h", 128}, {"tile_w", 8}, {"noutputs", 8}});
-        }
+            solutions.add_channels_first();
+        tc.solutions = std::move(solutions.solutions);
         return tc;
     }
 };

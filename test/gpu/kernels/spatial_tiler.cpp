@@ -527,3 +527,31 @@ TEST_CASE(halo_span_padded)
     EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 6, 1>{});
     EXPECT(tiler::template halo_span_dim_for<input_shape>() == 3);
 }
+
+// ======== row runs (NRows) ========
+
+// NRows scales the first spatial dim, NTiles the last: tile {4, 4} → region {1, 1, 8, 8}
+TEST_CASE(output_lens_nrows)
+{
+    using tiler = migraphx::spatial_tiler<2,
+                                          migraphx::index_ints<4, 4>,
+                                          decltype(make_4d_shape<1, 1, 8, 8>()),
+                                          migraphx::index_ints<0>,
+                                          1,
+                                          2>;
+    EXPECT(tiler::output_lens() == migraphx::index_ints<1, 1, 8, 8>{});
+    EXPECT(tiler::lane_lens() == migraphx::index_ints<1, 1, 4, 4>{});
+    EXPECT(tiler::tiles_per_dim() == migraphx::index_ints<1, 1, 1, 1>{});
+    EXPECT(not tiler::is_padded());
+}
+
+// The halo grows with the row run: 3x3 conv, 4 rows per lane → 2*4+2 = 10 rows
+TEST_CASE(halo_lens_nrows)
+{
+    using output_shape = decltype(make_4d_shape<1, 1, 8, 8>());
+    using input_shape  = decltype(make_4d_shape<1, 1, 10, 10>());
+    using tiler        = migraphx::
+        spatial_tiler<1, migraphx::index_ints<2, 8>, output_shape, migraphx::index_ints<0>, 1, 4>;
+    EXPECT(tiler::template halo_lens_for<input_shape>() == migraphx::index_ints<1, 1, 10, 10>{});
+    EXPECT(tiler::tiles_total() == 1);
+}

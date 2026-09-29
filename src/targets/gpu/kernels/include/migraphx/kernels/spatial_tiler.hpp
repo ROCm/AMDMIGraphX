@@ -42,16 +42,20 @@ constexpr bool has_nonzero(index_ints<Ps...>)
 
 // Tiles the spatial dims of an (N, C, spatial...) output across workgroups. Each block
 // covers ChannelTile channels of one batch; lanes and the shared-memory halo follow the
-// memory order of the tensors, so channels-last layouts get contiguous accesses.
+// memory order of the tensors, so channels-last layouts get contiguous accesses. A lane
+// owns NRows consecutive rows (first spatial dim) and NTiles strided columns (last dim).
 template <index_int NTiles,
           class TileLens,
           class OutputShape,
           class Padding         = index_ints<0>,
-          index_int ChannelTile = 1>
+          index_int ChannelTile = 1,
+          index_int NRows       = 1>
 struct spatial_tiler
 {
     static_assert(OutputShape{}.lens[1] % ChannelTile == 0,
                   "Channel tile must divide the output channels");
+    static_assert(NRows == 1 or TileLens{}.size() > 1,
+                  "Row runs need a spatial dim before the column dim");
 
     static constexpr auto keep_spatial()
     {
@@ -61,12 +65,14 @@ struct spatial_tiler
     // Tile owned by the lanes of a block: (1, ChannelTile, tile spatial...)
     static constexpr auto lane_lens() { return join(index_ints<1, ChannelTile>{}, TileLens{}); }
 
-    // Output region per block: lane tile with last dim scaled by NTiles
+    // Output region per block: lane tile with the first spatial dim scaled by NRows and
+    // the last one by NTiles
     static constexpr auto output_lens()
     {
         return return_array_c([] {
             auto result       = lane_lens();
             constexpr auto nd = result.size();
+            result[2] *= NRows;
             result[nd - 1] *= NTiles;
             return result;
         });
@@ -376,33 +382,54 @@ struct spatial_tiler
         return make_tensor_view(smem.data(), halo_view_shape_for<input_shape>());
     }
 
-    // Iterate over this lane's output positions with bounds checking. Outputs step by a
-    // constant along the last spatial dim so their offsets fold into immediates.
+    // Whether an output position lies inside the block's region (partial tiles)
+    __device__ bool contains(const array<index_int, ndim()>& pos) const
+    {
+        return in_bounds(pos, region_lens());
+    }
+
+    // Iterate over the first row of each run of NRows consecutive rows this lane owns.
+    // Runs step by a constant along the last spatial dim so offsets fold into immediates.
     template <class F>
-    __device__ void for_each(F f) const
+    __device__ void for_each_run(F f) const
     {
         repeat(_c<NTiles>, [&](auto k) {
             auto out_multi = lane;
             out_multi[ndim() - 1] += k * TileLens{}.back();
-            auto out_pos = tile_origin + out_multi;
-            if constexpr(is_padded())
-            {
-                if(not in_bounds(out_pos, region_lens()))
-                    return;
-            }
-            f(out_pos, out_multi);
+            f(tile_origin + out_multi, out_multi);
+        });
+    }
+
+    // Iterate over every output position of this lane with bounds checking
+    template <class F>
+    __device__ void for_each(F f) const
+    {
+        for_each_run([&](auto out_pos, auto out_multi) {
+            repeat(_c<NRows>, [&](auto r) {
+                auto pos   = out_pos;
+                auto multi = out_multi;
+                pos[2] += r;
+                multi[2] += r;
+                if constexpr(is_padded())
+                {
+                    if(not contains(pos))
+                        return;
+                }
+                f(pos, multi);
+            });
         });
     }
 };
 
 template <index_int NTiles,
           index_int ChannelTile = 1,
+          index_int NRows       = 1,
           class TileLens,
           class OutputShape,
           class Padding = index_ints<0>>
 __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape, Padding = {})
 {
-    using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape, Padding, ChannelTile>;
+    using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape, Padding, ChannelTile, NRows>;
 
     // Blocks: (N, C / ChannelTile, tiles...)
     constexpr auto block_shape = make_shape(return_array_c([] {
@@ -428,9 +455,11 @@ __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape, Padding = {
             return block_multi[d] * tiler_type::output_lens()[d];
     });
     MIGRAPHX_ASSERT(idx.nlocal() == tiler_type::lane_lens().product());
-    // Lanes are assigned in the output's memory order so a wave stays contiguous
+    // Lanes are assigned in the output's memory order so a wave stays contiguous; each
+    // lane starts its run of NRows rows at its own multiple of NRows
     auto lane =
         multi_from_permutation(tiler_type::lane_lens(), tiler_type::permutation(), idx.local);
+    lane[2] *= NRows;
 
     return tiler_type{idx, origin, tile_origin, lane};
 }

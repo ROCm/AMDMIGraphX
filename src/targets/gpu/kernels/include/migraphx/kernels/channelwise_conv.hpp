@@ -34,6 +34,7 @@ namespace migraphx {
 template <class TileLens,
           index_int NTiles,
           index_int ChannelTile = 1,
+          index_int NRows       = 1,
           class Padding,
           class F,
           class Output,
@@ -43,9 +44,9 @@ template <class TileLens,
 __device__ void
 channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inputs... inputs)
 {
-    auto idx = make_index();
-    auto tiler =
-        make_spatial_tiler<NTiles, ChannelTile>(idx, TileLens{}, get_shape_c<Output>{}, Padding{});
+    auto idx   = make_index();
+    auto tiler = make_spatial_tiler<NTiles, ChannelTile, NRows>(
+        idx, TileLens{}, get_shape_c<Output>{}, Padding{});
 
     __shared__ decltype(tiler.template shared_allocate<Input>()) smem;
 
@@ -61,14 +62,42 @@ channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inpu
 
     __syncthreads();
 
-    tiler.for_each([&](auto out_pos, auto out_multi) {
-        float acc = 0.0f;
-        repeat(wregs.get_shape().elements(), [&](auto ki) {
-            auto k_multi = wregs.get_shape().multi(ki);
-            acc +=
-                static_cast<float>(x_ch[out_multi + k_multi]) * static_cast<float>(wregs[k_multi]);
+    // Each lane computes NRows consecutive output rows, so a filter column's taps reuse
+    // the overlapping halo rows from registers instead of re-reading them from LDS.
+    constexpr auto k_shape   = get_shape_c<decltype(wregs)>{};
+    constexpr index_int kh   = k_shape.lens[2];
+    constexpr auto col_shape = make_shape(return_array_c([] {
+        auto result = get_shape_c<decltype(wregs)>{}.lens;
+        result[2]   = 1;
+        return result;
+    }));
+    tiler.for_each_run([&](auto out_pos, auto out_multi) {
+        array<float, NRows> acc{};
+        repeat(col_shape.elements(), [&](auto j) {
+            auto col_multi = col_shape.multi(j);
+            array<float, NRows + kh - 1> col;
+            repeat(_c<NRows + kh - 1>, [&](auto i) {
+                auto pos = out_multi + col_multi;
+                pos[2] += i;
+                col[i] = static_cast<float>(x_ch[pos]);
+            });
+            repeat(_c<kh>, [&](auto t) {
+                auto k_multi = col_multi;
+                k_multi[2]   = t;
+                auto wt      = static_cast<float>(wregs[k_multi]);
+                repeat(_c<NRows>, [&](auto r) { acc[r] += col[r + t] * wt; });
+            });
         });
-        xs_pack([&](auto... xs) { out_ch[out_pos] = f(static_cast<type>(acc), xs[out_pos]...); });
+        repeat(_c<NRows>, [&](auto r) {
+            auto pos = out_pos;
+            pos[2] += r;
+            if constexpr(decltype(tiler)::is_padded())
+            {
+                if(not tiler.contains(pos))
+                    return;
+            }
+            xs_pack([&](auto... xs) { out_ch[pos] = f(static_cast<type>(acc[r]), xs[pos]...); });
+        });
     });
 }
 

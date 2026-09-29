@@ -1263,6 +1263,40 @@ struct root_spec
     std::map<std::size_t, shape::dynamic_dimension::interval> specializations;
 };
 
+bool collect_root_dimension(const shape::dynamic_dimension& dimension,
+                            std::unordered_map<sym::expr, root_spec>& root_specs)
+{
+    if(not dimension.is_symbolic())
+        return true;
+    if(dimension.sym_expr.name() != "variable")
+        return not is_variable_axis(dimension);
+
+    auto root        = sym::as_symbol(dimension.sym_expr);
+    auto name        = root.to_string();
+    auto interval    = dimension.get_interval();
+    auto optimal_set = dimension.get_optimals();
+    if(any_of(optimal_set, [&](auto x) { return x < interval.min or x > interval.max; }))
+        return false;
+    optimal_set.insert(interval.min);
+    optimal_set.insert(interval.max);
+    std::map<std::size_t, shape::dynamic_dimension::interval> specializations;
+    auto lower = interval.min;
+    for(auto optimal : optimal_set)
+    {
+        specializations.emplace(optimal, shape::dynamic_dimension::interval{lower, optimal});
+        lower = optimal + 1;
+    }
+
+    auto found = root_specs.find(root);
+    if(found != root_specs.end())
+        return found->second.interval == interval and
+               found->second.specializations == specializations;
+
+    root_specs.emplace(root,
+                       root_spec{root, std::move(name), interval, {}, std::move(specializations)});
+    return true;
+}
+
 // Collect the independent symbols that enter through module parameters. Each symbol's min,
 // optimals, and max partition its runtime interval into specialization buckets.
 std::optional<std::vector<root_spec>> collect_roots(const module& m)
@@ -1276,45 +1310,10 @@ std::optional<std::vector<root_spec>> collect_roots(const module& m)
             return std::nullopt;
         if(not s.symbolic())
             continue;
-        const auto& dims = s.dyn_dims();
-        for(const auto& d : dims)
-        {
-            if(not d.is_symbolic())
-                continue;
-            if(d.sym_expr.name() != "variable")
-            {
-                if(is_variable_axis(d))
-                    return std::nullopt;
-                continue;
-            }
-            auto root        = sym::as_symbol(d.sym_expr);
-            auto name        = root.to_string();
-            auto interval    = d.get_interval();
-            auto optimal_set = d.get_optimals();
-            if(any_of(optimal_set, [&](auto x) { return x < interval.min or x > interval.max; }))
-                return std::nullopt;
-            optimal_set.insert(interval.min);
-            optimal_set.insert(interval.max);
-            std::map<std::size_t, shape::dynamic_dimension::interval> specializations;
-            auto lower = interval.min;
-            for(auto optimal : optimal_set)
-            {
-                specializations.emplace(optimal,
-                                        shape::dynamic_dimension::interval{lower, optimal});
-                lower = optimal + 1;
-            }
-
-            if(contains(root_specs, root))
-            {
-                const auto& existing = root_specs.at(root);
-                if(existing.interval != interval or existing.specializations != specializations)
-                    return std::nullopt;
-                continue;
-            }
-
-            root_specs.emplace(
-                root, root_spec{root, std::move(name), interval, {}, std::move(specializations)});
-        }
+        if(not all_of(s.dyn_dims(), [&](const auto& dimension) {
+               return collect_root_dimension(dimension, root_specs);
+           }))
+            return std::nullopt;
     }
     if(root_specs.empty())
         return std::nullopt;
@@ -2009,6 +2008,84 @@ std::size_t add_block_input(std::vector<block_input>& inputs, sliced_value clone
     return inputs.size() - 1;
 }
 
+void collect_frame_outputs(
+    const module& m,
+    const block_plan& block,
+    const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
+    const std::unordered_set<instruction_ref>& planned_instructions,
+    const std::unordered_set<instruction_ref>& body_instructions,
+    block_frame& frame)
+{
+    auto add_required_output = [&](sliced_value output) {
+        if(output.slice_axes.empty())
+            output = full_output_for(info_for_instruction, output.source);
+        if(not contains(frame.outputs, output))
+            frame.outputs.push_back(std::move(output));
+    };
+    for(auto output : m.get_returns())
+        if(contains(planned_instructions, output))
+            add_required_output({output, {}});
+
+    std::vector<instruction_ref> external_consumers;
+    for(const auto* info : block.ops)
+        for(auto consumer : info->ins->outputs())
+            if(not contains(body_instructions, consumer) and
+               not contains(external_consumers, consumer))
+                external_consumers.push_back(consumer);
+    for(auto consumer : external_consumers)
+        for(auto input : clone_inputs_for(info_for_instruction, consumer))
+            if(contains(planned_instructions, input.source))
+                add_required_output(std::move(input));
+}
+
+void add_frame_root_inputs(block_frame& frame,
+                           const block_plan& block,
+                           const std::unordered_map<sym::expr, instruction_ref>& root_sources)
+{
+    for(const auto* root : block.roots)
+    {
+        if(not contains(root_sources, root->root))
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: no parameter resolves block root " + root->name);
+        auto input_index = add_block_input(frame.inputs, {root_sources.at(root->root), {}});
+        if(not contains(frame.extent_sources, input_index))
+            frame.extent_sources.push_back(input_index);
+    }
+}
+
+void name_frame_inputs(block_frame& frame, const module& m, std::size_t block_number)
+{
+    std::unordered_set<std::string> used_names;
+    for(const auto& name : m.get_parameter_names())
+        used_names.insert(name);
+    const std::string input_prefix = "#split_sym_dim_input_";
+    std::size_t generated_suffix   = 0;
+    for(auto input_index : range(frame.inputs.size()))
+    {
+        auto source = frame.inputs.at(input_index).clone_value.source;
+        if(source->name() == "@param")
+        {
+            auto parameter_name =
+                source->get_operator().to_value().at("parameter").to<std::string>();
+            frame.params.emplace(std::move(parameter_name), input_index);
+            continue;
+        }
+        if(source->name() == "@literal")
+        {
+            frame.literals.push_back(input_index);
+            ++generated_suffix;
+            continue;
+        }
+        auto name =
+            input_prefix + std::to_string(block_number) + "_" + std::to_string(generated_suffix++);
+        while(not used_names.insert(name).second)
+            name = input_prefix + std::to_string(block_number) + "_" +
+                   std::to_string(generated_suffix++);
+        frame.params.emplace(std::move(name), input_index);
+    }
+    if(frame.params.size() + frame.literals.size() != frame.inputs.size())
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to collect every block input");
+}
+
 std::optional<block_frame> find_block_frame(
     const module& m,
     const block_plan& block,
@@ -2050,70 +2127,13 @@ std::optional<block_frame> find_block_frame(
                                        }),
                         result.inputs.end());
 
-    std::vector<sliced_value> required_outputs;
-    auto add_required_output = [&](sliced_value output) {
-        if(output.slice_axes.empty())
-            output = full_output_for(info_for_instruction, output.source);
-        if(not contains(required_outputs, output))
-            required_outputs.push_back(std::move(output));
-    };
-    for(auto output : m.get_returns())
-        if(contains(planned_instructions, output))
-            add_required_output({output, {}});
-    std::vector<instruction_ref> external_consumers;
-    for(const auto* info : block.ops)
-        for(auto consumer : info->ins->outputs())
-            if(not contains(body_instructions, consumer) and
-               not contains(external_consumers, consumer))
-                external_consumers.push_back(consumer);
-    for(auto consumer : external_consumers)
-        for(auto input : clone_inputs_for(info_for_instruction, consumer))
-            if(contains(planned_instructions, input.source))
-                add_required_output(std::move(input));
-    result.outputs = std::move(required_outputs);
+    collect_frame_outputs(
+        m, block, info_for_instruction, planned_instructions, body_instructions, result);
     if(result.outputs.empty())
         return std::nullopt;
 
-    for(const auto* root : block.roots)
-    {
-        if(not contains(root_sources, root->root))
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: no parameter resolves block root " + root->name);
-        auto source      = root_sources.at(root->root);
-        auto input_index = add_block_input(result.inputs, {source, {}});
-        if(not contains(result.extent_sources, input_index))
-            result.extent_sources.push_back(input_index);
-    }
-
-    std::unordered_set<std::string> used_names;
-    for(const auto& name : m.get_parameter_names())
-        used_names.insert(name);
-    const std::string input_prefix = "#split_sym_dim_input_";
-    std::size_t generated_suffix   = 0;
-    for(auto input_index : range(result.inputs.size()))
-    {
-        auto source = result.inputs.at(input_index).clone_value.source;
-        if(source->name() == "@param")
-        {
-            auto parameter_name =
-                source->get_operator().to_value().at("parameter").to<std::string>();
-            result.params.emplace(std::move(parameter_name), input_index);
-            continue;
-        }
-        if(source->name() == "@literal")
-        {
-            result.literals.push_back(input_index);
-            ++generated_suffix;
-            continue;
-        }
-        auto name =
-            input_prefix + std::to_string(block_number) + "_" + std::to_string(generated_suffix++);
-        while(not used_names.insert(name).second)
-            name = input_prefix + std::to_string(block_number) + "_" +
-                   std::to_string(generated_suffix++);
-        result.params.emplace(std::move(name), input_index);
-    }
-    if(result.params.size() + result.literals.size() != result.inputs.size())
-        MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to collect every block input");
+    add_frame_root_inputs(result, block, root_sources);
+    name_frame_inputs(result, m, block_number);
     return result;
 }
 
@@ -2421,9 +2441,8 @@ void resolve_frame_inputs(
     const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
     const std::vector<std::pair<sliced_value, instruction_ref>>& output_values)
 {
-    for(std::size_t index = 0; index < frame.inputs.size(); ++index)
+    for(auto& input : frame.inputs)
     {
-        auto& input = frame.inputs.at(index);
         input.select_input =
             input.clone_value.slice_axes.empty()
                 ? resolve_replacement(

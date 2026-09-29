@@ -76,8 +76,8 @@ struct slice_at
                            std::to_string(s.lens()[axis]) + ")");
         std::vector<std::size_t> start(s.ndim(), 0);
         start[axis] = idx;
-        auto offset = s.index(start) * s.type_size();
-        auto input  = args[0];
+        auto offset       = s.index(start) * s.type_size();
+        const auto& input = args[0];
         return {output_shape, [=] { return input.data() + offset; }};
     }
 

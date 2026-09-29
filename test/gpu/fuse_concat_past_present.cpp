@@ -44,8 +44,9 @@ static void run_pass(migraphx::program& p)
         p, {migraphx::gpu::fuse_concat_past_present{}, migraphx::dead_code_elimination{}});
 }
 
-static const migraphx::shape cache_shape{migraphx::shape::half_type, {1, 2, 8, 4}};
-static const migraphx::shape index_shape{migraphx::shape::int32_type, {1, 1}};
+static migraphx::shape cache_shape() { return {migraphx::shape::half_type, {1, 2, 8, 4}}; }
+
+static migraphx::shape index_shape() { return {migraphx::shape::int32_type, {1, 1}}; }
 
 static migraphx::shape present_shape(std::size_t seq)
 {
@@ -55,7 +56,7 @@ static migraphx::shape present_shape(std::size_t seq)
 // The cache slot the fused producer writes into
 static migraphx::shape slot_shape(std::size_t seq)
 {
-    return {migraphx::shape::half_type, present_shape(seq).lens(), cache_shape.strides()};
+    return {migraphx::shape::half_type, present_shape(seq).lens(), cache_shape().strides()};
 }
 
 // pointwise(x, y) -> concat_past_present(pw, slk, cache), returning the concat
@@ -65,15 +66,15 @@ static migraphx::instruction_ref add_concat_past_present(migraphx::program& p, s
     auto s     = present_shape(seq);
     auto x     = mm->add_parameter("x", s);
     auto y     = mm->add_parameter("y", s);
-    auto slk   = mm->add_parameter("slk", index_shape);
-    auto cache = mm->add_parameter("cache", cache_shape);
+    auto slk   = mm->add_parameter("slk", index_shape());
+    auto cache = mm->add_parameter("cache", cache_shape());
     auto* pm   = create_pointwise_module(p, "main:pointwise0", {x, y}, single_pointwise("mul"));
     auto alloc =
         mm->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
     auto pw = mm->add_instruction(make_precompile_op("pointwise"), {x, y, alloc}, {pm});
     return mm->add_instruction(
         make_precompile_op(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}),
-                           cache_shape),
+                           cache_shape()),
         pw,
         slk,
         cache);
@@ -94,8 +95,8 @@ TEST_CASE(fuse_decode)
         auto s     = present_shape(1);
         auto x     = mm->add_parameter("x", s);
         auto y     = mm->add_parameter("y", s);
-        auto slk   = mm->add_parameter("slk", index_shape);
-        auto cache = mm->add_parameter("cache", cache_shape);
+        auto slk    = mm->add_parameter("slk", index_shape());
+        auto cache  = mm->add_parameter("cache", cache_shape());
         auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
         auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
         auto view =
@@ -123,8 +124,8 @@ TEST_CASE(fuse_prefill)
         auto s   = present_shape(4);
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
-        mm->add_parameter("slk", index_shape);
-        auto cache = mm->add_parameter("cache", cache_shape);
+        mm->add_parameter("slk", index_shape());
+        auto cache = mm->add_parameter("cache", cache_shape());
         auto* pm  = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
         auto view = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), cache);
@@ -157,8 +158,8 @@ static migraphx::program make_decode_program()
     auto s     = present_shape(1);
     auto x     = mm->add_parameter("x", s);
     auto y     = mm->add_parameter("y", s);
-    auto slk   = mm->add_parameter("slk", index_shape);
-    auto cache = mm->add_parameter("cache", cache_shape);
+    auto slk   = mm->add_parameter("slk", index_shape());
+    auto cache = mm->add_parameter("cache", cache_shape());
     auto mul   = mm->add_instruction(migraphx::make_op("mul"), x, y);
     mm->add_return({mm->add_instruction(
         migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), mul, slk, cache)});
@@ -202,11 +203,11 @@ TEST_CASE(out_of_range_position_throws)
         migraphx::parameter_map params;
         params["x"]     = migraphx::generate_argument(present_shape(1), 1);
         params["y"]     = migraphx::generate_argument(present_shape(1), 2);
-        params["cache"] = migraphx::generate_argument(cache_shape, 3);
-        params["slk"]   = migraphx::literal{index_shape, {pos}}.get_argument();
+        params["cache"] = migraphx::generate_argument(cache_shape(), 3);
+        params["slk"]   = migraphx::literal{index_shape(), {pos}}.get_argument();
         p.eval(params);
     };
-    auto cache_len = cache_shape.lens()[2];
+    auto cache_len = cache_shape().lens()[2];
     append(0);
     append(cache_len - 1);
     EXPECT(test::throws([&] { append(-1); }));

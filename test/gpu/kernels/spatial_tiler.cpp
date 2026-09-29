@@ -555,3 +555,53 @@ TEST_CASE(halo_lens_nrows)
     EXPECT(tiler::template halo_lens_for<input_shape>() == migraphx::index_ints<1, 1, 10, 10>{});
     EXPECT(tiler::tiles_total() == 1);
 }
+
+// ======== channel vectors (ChannelVec) ========
+
+// Lanes along the channel dim shrink by the vector width; the region does not
+TEST_CASE(lane_lens_channel_vector)
+{
+    using tiler = migraphx::spatial_tiler<1,
+                                          migraphx::index_ints<4, 4>,
+                                          decltype(make_nhwc_shape<1, 16, 8, 8>()),
+                                          migraphx::index_ints<0>,
+                                          16,
+                                          1,
+                                          8>;
+    EXPECT(tiler::lane_lens() == migraphx::index_ints<1, 2, 4, 4>{});
+    EXPECT(tiler::output_lens() == migraphx::index_ints<1, 16, 4, 4>{});
+    EXPECT(tiler::region_lens() == migraphx::index_ints<1, 16, 8, 8>{});
+}
+
+// Channel vectors need a contiguous channel dim with all other strides aligned
+TEST_CASE(channel_vector_aligned)
+{
+    EXPECT(migraphx::channel_vector_aligned<8>(make_nhwc_shape<2, 16, 8, 8>()));
+    EXPECT(migraphx::channel_vector_aligned<4>(make_nhwc_shape<2, 16, 8, 8>()));
+    EXPECT(not migraphx::channel_vector_aligned<8>(make_nhwc_shape<2, 12, 8, 8>()));
+    EXPECT(not migraphx::channel_vector_aligned<8>(make_4d_shape<2, 16, 8, 8>()));
+    EXPECT(not migraphx::channel_vector_aligned<1>(make_nhwc_shape<2, 16, 8, 8>()));
+}
+
+// The halo copy moves whole vectors only when the halo spans every input channel
+TEST_CASE(halo_vector)
+{
+    using output_shape = decltype(make_nhwc_shape<1, 16, 8, 8>());
+    using input_shape  = decltype(make_nhwc_shape<1, 16, 10, 10>());
+    using whole        = migraphx::spatial_tiler<1,
+                                                 migraphx::index_ints<4, 4>,
+                                                 output_shape,
+                                                 migraphx::index_ints<0>,
+                                                 16,
+                                                 1,
+                                                 8>;
+    EXPECT(whole::template halo_vector_for<input_shape>() == 8);
+    using partial = migraphx::spatial_tiler<1,
+                                            migraphx::index_ints<4, 4>,
+                                            output_shape,
+                                            migraphx::index_ints<0>,
+                                            8,
+                                            1,
+                                            8>;
+    EXPECT(partial::template halo_vector_for<input_shape>() == 1);
+}

@@ -53,7 +53,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto output, auto x, auto w, auto... inputs) {
-        channelwise_conv<index_ints<${tile}>, ${ntiles}, ${tile_c}, ${nrows}>(index_ints<${tile}>{}, index_ints<${padding}>{}, ${post}, output, x, w, inputs...);
+        channelwise_conv<index_ints<${tile}>, ${ntiles}, ${tile_c}, ${nrows}, ${cvec}>(index_ints<${tile}>{}, index_ints<${padding}>{}, ${post}, output, x, w, inputs...);
     });
 }
 
@@ -109,6 +109,41 @@ struct channelwise_conv_problem
 
     std::size_t default_channel_tile() const { return channel_tiles(32).back(); }
 
+    // Filter taps per channel
+    std::size_t taps() const
+    {
+        const auto& w_lens = inputs[1].lens();
+        return std::accumulate(
+            w_lens.begin() + 2, w_lens.end(), std::size_t{1}, std::multiplies<>{});
+    }
+
+    // Channels per lane that form a native (at most 16-byte) vector along a contiguous
+    // channel dim and divide the channel tile
+    std::vector<std::size_t> channel_vectors(std::size_t tile_c) const
+    {
+        std::vector<std::size_t> result = {1};
+        if(not channels_last())
+            return result;
+        auto type_size = inputs.front().type_size();
+        for(auto v : {2, 4, 8})
+        {
+            if(tile_c % v == 0 and v * type_size <= 16)
+                result.push_back(v);
+        }
+        return result;
+    }
+
+    // Widest channel vector whose per-lane weights stay within a register budget
+    std::size_t default_channel_vector(std::size_t tile_c) const
+    {
+        auto candidates = channel_vectors(tile_c);
+        auto type_size  = inputs.front().type_size();
+        auto it         = std::find_if(candidates.rbegin(), candidates.rend(), [&](auto v) {
+            return v * taps() * type_size <= 256;
+        });
+        return it == candidates.rend() ? 1 : *it;
+    }
+
     // Shared memory needed for the input halo of one block
     std::size_t halo_bytes(std::size_t tile_h,
                            std::size_t tile_w,
@@ -146,9 +181,10 @@ struct channelwise_conv_solutions
              std::size_t tile_w,
              std::size_t noutputs,
              std::size_t tile_c,
-             std::size_t nrows)
+             std::size_t nrows,
+             std::size_t cvec)
     {
-        auto block_size = tile_h * tile_w * tile_c;
+        auto block_size = tile_h * tile_w * (tile_c / cvec);
         if(block_size < wave or block_size > max_block or (block_size % wave) != 0)
             return;
         if(problem.halo_bytes(tile_h, tile_w, noutputs, tile_c, nrows) > max_lds)
@@ -157,7 +193,17 @@ struct channelwise_conv_solutions
                              {"tile_w", tile_w},
                              {"noutputs", noutputs},
                              {"tile_c", tile_c},
-                             {"nrows", nrows}});
+                             {"nrows", nrows},
+                             {"cvec", cvec}});
+    }
+
+    void add(std::size_t tile_h,
+             std::size_t tile_w,
+             std::size_t noutputs,
+             std::size_t tile_c,
+             std::size_t nrows)
+    {
+        add(tile_h, tile_w, noutputs, tile_c, nrows, problem.default_channel_vector(tile_c));
     }
 
     // Row runs only pay off when the filter extends along the rows
@@ -166,6 +212,19 @@ struct channelwise_conv_solutions
         if(problem.row_taps() > 1)
             return {1, 2, 4, 8};
         return {1};
+    }
+
+    // Every outputs-per-lane, row-run and channel-vector variant of a lane tile
+    void add_variants(std::size_t tile_h, std::size_t tile_w, std::size_t tile_c)
+    {
+        for(auto opt : {1, 2, 4, 8})
+        {
+            for(auto nrows : row_runs())
+            {
+                for(auto cvec : problem.channel_vectors(tile_c))
+                    add(tile_h, tile_w, opt, tile_c, nrows, cvec);
+            }
+        }
     }
 
     void add_exhaustive()
@@ -179,13 +238,7 @@ struct channelwise_conv_solutions
             for(auto tile_h : sizes)
             {
                 for(auto tile_w : sizes)
-                {
-                    for(auto opt : {1, 2, 4, 8})
-                    {
-                        for(auto nrows : row_runs())
-                            add(tile_h, tile_w, opt, tile_c, nrows);
-                    }
-                }
+                    add_variants(tile_h, tile_w, tile_c);
             }
         }
     }
@@ -195,11 +248,12 @@ struct channelwise_conv_solutions
         // Lanes run over channels first, so blocks need fewer spatial lanes and
         // more outputs per lane to amortize the per-lane setup
         auto tile_c = problem.default_channel_tile();
+        auto lanes  = tile_c / problem.default_channel_vector(tile_c);
         for(auto tile_h : {2, 4, 8, 16})
         {
             for(auto tile_w : {16, 32, 64})
             {
-                if(tile_h * tile_w * tile_c < 128)
+                if(tile_h * tile_w * lanes < 128)
                     continue;
                 for(auto opt : {4, 8, 16})
                     add(tile_h, tile_w, opt, tile_c, 1);
@@ -279,6 +333,10 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         auto tile_c = v.get("tile_c", problem.default_channel_tile());
         // Consecutive output rows per lane
         auto nrows = v.get("nrows", std::size_t{1});
+        // Channels per lane
+        auto cvec = v.get("cvec", problem.default_channel_vector(tile_c));
+        if(tile_c % cvec != 0)
+            MIGRAPHX_THROW("channelwise_conv: channel vector must divide the channel tile");
 
         // Output tile = lane tile with the first spatial dim scaled by nrows and the
         // last one by noutputs
@@ -287,8 +345,8 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
             output_tile_sizes.front() *= nrows;
         output_tile_sizes.back() *= noutputs;
 
-        std::size_t block_size =
-            std::accumulate(tile_sizes.begin(), tile_sizes.end(), tile_c, std::multiplies<>());
+        std::size_t block_size = std::accumulate(
+            tile_sizes.begin(), tile_sizes.end(), tile_c / cvec, std::multiplies<>());
 
         // Blocks: N * (C_out / tile_c) * prod(ceil(out_spatial / output_tile))
         auto num_blocks = std::inner_product(
@@ -310,6 +368,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
                                        {"ntiles", std::to_string(noutputs)},
                                        {"tile_c", std::to_string(tile_c)},
                                        {"nrows", std::to_string(nrows)},
+                                       {"cvec", std::to_string(cvec)},
                                        {"padding", to_string_range(padding)},
                                        {"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},

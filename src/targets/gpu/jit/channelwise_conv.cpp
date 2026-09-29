@@ -184,6 +184,8 @@ struct channelwise_conv_solutions
              std::size_t nrows,
              std::size_t cvec)
     {
+        if(problem.num_spatial < 2)
+            nrows = 1;
         auto block_size = tile_h * tile_w * (tile_c / cvec);
         if(block_size < wave or block_size > max_block or (block_size % wave) != 0)
             return;
@@ -277,30 +279,31 @@ struct channelwise_conv_solutions
 
     void add_channels_first()
     {
-        solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"noutputs", 1}});
-
-        solutions.push_back({{"tile_h", 8}, {"tile_w", 8}, {"noutputs", 8}});
-        solutions.push_back({{"tile_h", 8}, {"tile_w", 16}, {"noutputs", 2}});
-        solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 4}});
-        solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 8}});
-        solutions.push_back({{"tile_h", 16}, {"tile_w", 8}, {"noutputs", 4}});
-        solutions.push_back({{"tile_h", 16}, {"tile_w", 16}, {"noutputs", 2}});
-        solutions.push_back({{"tile_h", 16}, {"tile_w", 64}, {"noutputs", 4}});
-        solutions.push_back({{"tile_h", 32}, {"tile_w", 16}, {"noutputs", 8}});
-        solutions.push_back({{"tile_h", 32}, {"tile_w", 32}, {"noutputs", 1}});
-        solutions.push_back({{"tile_h", 40}, {"tile_w", 12}, {"noutputs", 1}});
-        solutions.push_back({{"tile_h", 48}, {"tile_w", 16}, {"noutputs", 1}});
-        solutions.push_back({{"tile_h", 56}, {"tile_w", 4}, {"noutputs", 1}});
-        solutions.push_back({{"tile_h", 76}, {"tile_w", 8}, {"noutputs", 8}});
-        solutions.push_back({{"tile_h", 128}, {"tile_w", 8}, {"noutputs", 8}});
+        // The lane geometries of the original kernel: it swept the (rows, columns) tile
+        // row-major, so a block of L lanes over a row of R columns gave each lane a run
+        // of consecutive rows. Wide rows keep every wave inside one row.
+        add(8, 32, 1, 1, 1);
+        add(1, 64, 1, 1, 8);
+        add(4, 32, 1, 1, 2);
+        add(2, 256, 1, 1, 4);
+        add(1, 512, 1, 1, 8);
+        add(4, 32, 1, 1, 4);
+        add(8, 32, 1, 1, 2);
+        add(4, 256, 1, 1, 4);
+        add(4, 128, 1, 1, 8);
+        add(32, 32, 1, 1, 1);
+        add(40, 12, 1, 1, 1);
+        add(48, 16, 1, 1, 1);
+        add(56, 4, 1, 1, 1);
+        add(4, 64, 1, 1, 8);
+        add(8, 64, 1, 1, 8);
+        add(16, 64, 1, 1, 8);
         if(problem.row_taps() > 1)
         {
-            add(8, 32, 1, 1, 2);
+            // Longer row runs reuse more halo rows when the filter extends along them
             add(8, 32, 1, 1, 4);
-            add(4, 32, 1, 1, 4);
-            add(8, 16, 2, 1, 4);
-            add(16, 16, 2, 1, 2);
-            add(8, 64, 4, 1, 2);
+            add(4, 32, 1, 1, 8);
+            add(8, 64, 1, 1, 4);
         }
     }
 };

@@ -28,7 +28,7 @@
 #include <migraphx/program.hpp>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
-#include <graph.pb.h>
+#include <migraphx_tf_graph.pb.h>
 #include <unordered_map>
 #include <functional>
 #include <utility>

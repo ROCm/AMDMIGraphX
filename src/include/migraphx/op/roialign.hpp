@@ -29,6 +29,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/ranges.hpp>
@@ -65,37 +66,78 @@ struct roialign
 
     std::string name() const { return "roialign"; }
 
+    static shape::dynamic_dimension const_dim_like(const shape::dynamic_dimension& d, std::size_t v)
+    {
+        return d.is_symbolic() ? shape::dynamic_dimension{sym::lit(static_cast<int64_t>(v))}
+                               : shape::dynamic_dimension{v, v};
+    }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
-        auto x_lens   = inputs.at(0).lens();
-        auto roi_lens = inputs.at(1).lens();
-        auto bi_lens  = inputs.at(2).lens();
-        auto type     = inputs.at(0).type();
+        check_shapes{inputs, *this, true}.has(3);
+        const auto& x_shape   = inputs.at(0);
+        const auto& roi_shape = inputs.at(1);
+        const auto& bi_shape  = inputs.at(2);
 
-        // check input correct
-        if(bi_lens.size() != 1)
+        if(x_shape.ndim() != 4)
+        {
+            MIGRAPHX_THROW("ROIALIGN: input should be 4 dimensions!");
+        }
+
+        if(bi_shape.ndim() != 1)
         {
             MIGRAPHX_THROW("ROIALIGN: batch indices should be 1 dimension!");
         }
 
-        if(roi_lens.size() != 2 or roi_lens.at(1) != 4)
+        if(roi_shape.ndim() != 2)
         {
             MIGRAPHX_THROW(
                 "ROIALIGN: rois should be 2 dimensions, and the second dim should be 4!");
         }
 
-        if(roi_lens.front() != bi_lens.front())
+        if(x_shape.type() != roi_shape.type())
+        {
+            MIGRAPHX_THROW("ROIALIGN: input and rois should have the same type!");
+        }
+
+        if(bi_shape.type() != shape::int64_type)
+        {
+            MIGRAPHX_THROW("ROIALIGN: batch indices should have int64 type!");
+        }
+
+        auto unified         = shape::to_dynamic(inputs);
+        const auto& x_dims   = unified.at(0).dyn_dims();
+        const auto& roi_dims = unified.at(1).dyn_dims();
+        const auto& bi_dims  = unified.at(2).dyn_dims();
+
+        if(roi_dims.at(1) != 4)
+        {
+            MIGRAPHX_THROW(
+                "ROIALIGN: rois should be 2 dimensions, and the second dim should be 4!");
+        }
+
+        auto num_rois = roi_dims.front().intersection(bi_dims.front());
+        if(not num_rois.has_value())
         {
             MIGRAPHX_THROW("ROIALIGN: rois and batch indices inputs should have the same number!");
         }
 
-        std::vector<std::size_t> out_lens = x_lens;
-        out_lens[0]                       = roi_lens[0];
-        out_lens[2]                       = output_height;
-        out_lens[3]                       = output_width;
+        if(output_height <= 0 or output_width <= 0)
+        {
+            MIGRAPHX_THROW("ROIALIGN: output height and width should be greater than zero!");
+        }
 
-        return {type, out_lens};
+        const auto out_height                          = static_cast<std::size_t>(output_height);
+        const auto out_width                           = static_cast<std::size_t>(output_width);
+        std::vector<shape::dynamic_dimension> out_dims = {*num_rois,
+                                                          x_dims.at(1),
+                                                          const_dim_like(x_dims.at(1), out_height),
+                                                          const_dim_like(x_dims.at(1), out_width)};
+        shape result{x_shape.type(), out_dims};
+
+        if(any_of(inputs, [](const shape& s) { return s.dynamic(); }))
+            return result;
+        return result.to_static();
     }
 
     struct pos_weight
@@ -201,8 +243,9 @@ struct roialign
         return {output_val, index};
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
+        const auto& output_shape = dyn_out.computed_shape;
         argument result{output_shape};
         const auto& out_lens = output_shape.lens();
         int64_t n_rois       = out_lens[0];

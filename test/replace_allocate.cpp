@@ -302,8 +302,7 @@ TEST_CASE(allocate_out_select_module_dynamic_tuple_views)
         {
             if(use_output_param)
             {
-                auto output =
-                    mm->add_parameter("main:#output_" + std::to_string(i), capacity_s);
+                auto output = mm->add_parameter("main:#output_" + std::to_string(i), capacity_s);
                 mm->add_debug_symbols(output, {symbols.at(i)});
                 buffers.push_back(output);
             }
@@ -317,7 +316,7 @@ TEST_CASE(allocate_out_select_module_dynamic_tuple_views)
         select_inputs.insert(select_inputs.end(), buffers.begin(), buffers.end());
         auto select = mm->add_instruction(
             migraphx::make_op("select_module",
-                                  {{"output_dyn_shapes", migraphx::to_value(tuple_s)}}),
+                                                   {{"output_dyn_shapes", migraphx::to_value(tuple_s)}}),
             select_inputs,
             {branch});
         auto start = mm->add_literal(migraphx::literal{migraphx::shape::int64_type, {0}});

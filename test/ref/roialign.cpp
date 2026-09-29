@@ -195,3 +195,61 @@ TEST_CASE(roialign_test)
         EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 }
+
+TEST_CASE(roialign_dynamic_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 2, 2}});
+    auto rois =
+        mm->add_parameter("rois", migraphx::shape{migraphx::shape::float_type, {{0, 2}, {4, 4}}});
+    auto batch_ind =
+        mm->add_parameter("batch_ind",
+                          migraphx::shape{migraphx::shape::int64_type,
+                                          std::vector<migraphx::shape::dynamic_dimension>{{0, 2}}});
+    auto r = mm->add_instruction(migraphx::make_op("roialign",
+                                                   {{"output_height", int64_t{1}},
+                                                    {"output_width", int64_t{1}},
+                                                    {"sampling_ratio", int64_t{1}}}),
+                                 x,
+                                 rois,
+                                 batch_ind);
+    mm->add_return({r});
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> x_data           = {1.0f, 2.0f, 3.0f, 4.0f};
+    std::vector<float> roi_data_one     = {0.0f, 0.0f, 1.0f, 1.0f};
+    std::vector<int64_t> batch_data_one = {0};
+    migraphx::parameter_map params_one;
+    params_one["x"] =
+        migraphx::argument{{migraphx::shape::float_type, {1, 1, 2, 2}}, x_data.data()};
+    params_one["rois"] =
+        migraphx::argument{{migraphx::shape::float_type, {1, 4}}, roi_data_one.data()};
+    params_one["batch_ind"] =
+        migraphx::argument{{migraphx::shape::int64_type, {1}}, batch_data_one.data()};
+    auto result_one = p.eval(params_one).back();
+    EXPECT(result_one.get_shape() == migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}});
+    EXPECT(result_one.to_vector<float>() == std::vector<float>{1.0f});
+
+    std::vector<float> roi_data_two     = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f};
+    std::vector<int64_t> batch_data_two = {0, 0};
+    migraphx::parameter_map params_two;
+    params_two["x"] =
+        migraphx::argument{{migraphx::shape::float_type, {1, 1, 2, 2}}, x_data.data()};
+    params_two["rois"] =
+        migraphx::argument{{migraphx::shape::float_type, {2, 4}}, roi_data_two.data()};
+    params_two["batch_ind"] =
+        migraphx::argument{{migraphx::shape::int64_type, {2}}, batch_data_two.data()};
+    auto result_two = p.eval(params_two).back();
+    EXPECT(result_two.get_shape() == migraphx::shape{migraphx::shape::float_type, {2, 1, 1, 1}});
+    EXPECT(result_two.to_vector<float>() == std::vector<float>{1.0f, 1.0f});
+
+    migraphx::parameter_map params_empty;
+    params_empty["x"] =
+        migraphx::argument{{migraphx::shape::float_type, {1, 1, 2, 2}}, x_data.data()};
+    params_empty["rois"]      = migraphx::argument{{migraphx::shape::float_type, {0, 4}}};
+    params_empty["batch_ind"] = migraphx::argument{{migraphx::shape::int64_type, {0}}};
+    auto result_empty         = p.eval(params_empty).back();
+    EXPECT(result_empty.get_shape() == migraphx::shape{migraphx::shape::float_type, {0, 1, 1, 1}});
+    EXPECT(result_empty.get_shape().elements() == 0);
+}

@@ -323,7 +323,7 @@ Model performance tunable variables change the compilation behavior of a model. 
 
   * - | ``MIGRAPHX_REWRITE_LRN``
       | When set, transforms LRN to use pooling in the ``rewrite_pooling`` pass.
-      
+
     - | ``1``: Turns on LRN-to-pooling lowering.
       | ``0``: Returns to default behavior.
 
@@ -331,7 +331,7 @@ Model performance tunable variables change the compilation behavior of a model. 
 
   * - | ``MIGRAPHX_ENABLE_FULL_DYNAMIC``
       | Enables full dynamic shape support and disables certain passes that are incompatible with dynamic shapes.
-      
+
     - | ``1``: Full dynamic shape support is enabled.
       | ``0``: Returns to default behavior.
 
@@ -786,5 +786,4 @@ Advanced settings
       | ``0``: Returns to default behavior.
 
       | Default: Benchmarking is not skipped.
-
 

@@ -20,28 +20,30 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#ifndef MIGRAPHX_GUARD_SRC_INCLUDE_MIGRAPHX_REWRITE_REDUCE
-#define MIGRAPHX_GUARD_SRC_INCLUDE_MIGRAPHX_REWRITE_REDUCE
 
-#include <migraphx/config.hpp>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-struct MIGRAPHX_EXPORT rewrite_reduce
+// The convolution output is channels-last, so lrn still has to normalize across channels rather
+// than across the axis a packed reading of the buffer would imply.
+struct test_conv_lrn : verify_program<test_conv_lrn>
 {
-    // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with
-    // surrounding pointwise ops instead of launching a GEMM.
-    bool enable_skinny_dot = false;
-    std::string name() const { return "rewrite_reduce"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 8, 8, 8}});
+        auto w = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 3, 3}}, 1));
+        auto conv = mm->add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        mm->add_instruction(
+            migraphx::make_op("lrn",
+                              {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),
+            conv);
+        return p;
+    }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif

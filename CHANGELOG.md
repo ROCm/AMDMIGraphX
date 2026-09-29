@@ -55,6 +55,7 @@ Full documentation for MIGraphX is available at
 * Fixed a GPU accuracy regression in unrolled GRU/LSTM graphs by partitioning `fuse_horizontal` key groups into independent subgroups, so dependent operations never fuse together while each independent subgroup still fuses (#5280).
 * Fixed the `has_value` matcher matching a neighbouring representable value in narrow types, where its `float`-sized tolerance window spans several `fp8`/`bf16` values; the window is now scaled per literal type (#5190).
 * Fixed accuracy issues resulting from LRN inputs being non-standard shapes (#5277).
+* Fixed a GPU compile failure with `type 'float' cannot be used prior to '::'` when a pointwise fused into a reduce module had only broadcast reduce results as inputs. `prepare_reduce` now moves the broadcasts after such a pointwise so the reduce code generator sees a per-output scalar instead of a tensor.
 
 ### Optimized
 

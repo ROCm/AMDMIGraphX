@@ -40,27 +40,42 @@ static void run_pass(migraphx::module& m)
         {migraphx::normalize_ops{}, migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
 }
 
-static migraphx::instruction_ref
-create_im2col(migraphx::instruction_ref& l_img, size_t channels, migraphx::module& m)
+static migraphx::instruction_ref create_im2col(migraphx::instruction_ref l_img,
+                                               size_t channels,
+                                               migraphx::module& m,
+                                               const std::vector<size_t>& padding = {0, 0})
 {
     size_t f[2] = {1, 1};
     std::vector<int32_t> weights(channels * f[0] * f[1]);
     migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
     auto l_weights = m.add_literal(migraphx::literal{s_weights, weights});
-    return m.add_instruction(migraphx::make_op("im2col"), l_img, l_weights);
+    return m.add_instruction(migraphx::make_op("im2col", {{"padding", padding}}), l_img, l_weights);
 }
 
 static migraphx::instruction_ref
-create_conv(migraphx::instruction_ref& l_img,
+create_conv(migraphx::instruction_ref l_img,
             size_t channels,
             migraphx::module& m,
+            const std::vector<size_t>& padding        = {0, 0},
             migraphx::op::padding_mode_t padding_mode = migraphx::op::padding_mode_t::default_)
 {
     migraphx::shape s_weights{migraphx::shape::int32_type, {4, channels, 3, 3}};
     std::vector<int32_t> weights(4 * channels * 3 * 3);
     auto l_weights = m.add_literal(migraphx::literal{s_weights, weights});
     return m.add_instruction(
-        migraphx::make_op("convolution", {{"padding_mode", padding_mode}}), l_img, l_weights);
+        migraphx::make_op("convolution", {{"padding", padding}, {"padding_mode", padding_mode}}),
+        l_img,
+        l_weights);
+}
+
+static migraphx::instruction_ref create_max_pooling(migraphx::instruction_ref l_img,
+                                                    migraphx::module& m,
+                                                    const std::vector<size_t>& padding = {0, 0})
+{
+    return m.add_instruction(
+        migraphx::make_op("pooling",
+                          {{"mode", migraphx::op::pooling_mode::max}, {"padding", padding}}),
+        l_img);
 }
 
 TEST_CASE(eliminate_pad)
@@ -207,6 +222,195 @@ TEST_CASE(eliminate_pad_skip_edge)
     auto pooling = m1.add_instruction(
         migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}), padded_img);
     m1.add_return({im2col, conv, pooling});
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    migraphx::run_passes(m2, {migraphx::normalize_ops{}});
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(eliminate_pad_asymmetric)
+{
+    migraphx::shape s_img{migraphx::shape::int32_type, {1, 1, 2, 2}};
+    migraphx::module m1;
+    {
+        auto l_img      = m1.add_parameter("img", s_img);
+        auto padded_img = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 0, 1, 0, 0, 0, 0, 2}}}), l_img);
+        auto im2col  = create_im2col(padded_img, 1, m1);
+        auto conv    = create_conv(padded_img, 1, m1);
+        auto pooling = create_max_pooling(padded_img, m1);
+        m1.add_return({im2col, conv, pooling});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto l_img   = m2.add_parameter("img", s_img);
+        auto im2col  = create_im2col(l_img, 1, m2, {1, 0, 0, 2});
+        auto conv    = create_conv(l_img, 1, m2, {1, 0, 0, 2});
+        auto pooling = create_max_pooling(l_img, m2, {1, 0, 0, 2});
+        m2.add_return({im2col, conv, pooling});
+    }
+    migraphx::run_passes(m2, {migraphx::normalize_ops{}});
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(eliminate_pad_asymmetric_disabled)
+{
+    migraphx::shape s_img{migraphx::shape::int32_type, {1, 1, 2, 2}};
+    migraphx::module m1;
+    {
+        auto l_img   = m1.add_parameter("img", s_img);
+        auto sym_pad = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), l_img);
+        auto asym_pad = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 0, 1, 0, 0, 0, 0, 2}}}), l_img);
+        auto conv1 = create_conv(sym_pad, 1, m1);
+        auto conv2 = create_conv(asym_pad, 1, m1);
+        m1.add_return({conv1, conv2});
+    }
+    migraphx::run_passes(m1,
+                         {migraphx::normalize_ops{},
+                          migraphx::eliminate_pad{.asym_pad = false},
+                          migraphx::dead_code_elimination{}});
+
+    migraphx::module m2;
+    {
+        auto l_img    = m2.add_parameter("img", s_img);
+        auto asym_pad = m2.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 0, 1, 0, 0, 0, 0, 2}}}), l_img);
+        auto conv1 = create_conv(l_img, 1, m2, {1, 1, 1, 1});
+        auto conv2 = create_conv(asym_pad, 1, m2);
+        m2.add_return({conv1, conv2});
+    }
+    migraphx::run_passes(m2, {migraphx::normalize_ops{}});
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(eliminate_pad_existing_padding)
+{
+    migraphx::shape s_img{migraphx::shape::int32_type, {1, 1, 2, 2}};
+    migraphx::module m1;
+    {
+        auto l_img      = m1.add_parameter("img", s_img);
+        auto padded_img = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 0, 1, 0, 0, 0, 0, 1}}}), l_img);
+        auto im2col  = create_im2col(padded_img, 1, m1, {1, 1});
+        auto conv    = create_conv(padded_img, 1, m1, {1, 1});
+        auto pooling = create_max_pooling(padded_img, m1, {1, 1});
+        m1.add_return({im2col, conv, pooling});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto l_img   = m2.add_parameter("img", s_img);
+        auto im2col  = create_im2col(l_img, 1, m2, {2, 1, 1, 2});
+        auto conv    = create_conv(l_img, 1, m2, {2, 1, 1, 2});
+        auto pooling = create_max_pooling(l_img, m2, {2, 1, 1, 2});
+        m2.add_return({im2col, conv, pooling});
+    }
+    migraphx::run_passes(m2, {migraphx::normalize_ops{}});
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(eliminate_pad_dynamic)
+{
+    migraphx::shape s_img{migraphx::shape::int32_type, {{1, 4}, {1, 1}, {2, 2}, {2, 2}}};
+    migraphx::module m1;
+    {
+        auto l_img      = m1.add_parameter("img", s_img);
+        auto padded_img = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 0, 1, 0, 0, 0, 0, 2}}}), l_img);
+        auto conv = create_conv(padded_img, 1, m1);
+        m1.add_return({conv});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto l_img = m2.add_parameter("img", s_img);
+        auto conv  = create_conv(l_img, 1, m2, {1, 0, 0, 2});
+        m2.add_return({conv});
+    }
+    migraphx::run_passes(m2, {migraphx::normalize_ops{}});
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(eliminate_pad_skip_nonspatial)
+{
+    migraphx::module m1;
+    {
+        auto l_img      = m1.add_parameter("img", {migraphx::shape::int32_type, {1, 1, 2, 2}});
+        auto padded_img = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 1, 1, 1, 0, 1, 1, 1}}}), l_img);
+        auto im2col  = create_im2col(padded_img, 3, m1);
+        auto conv    = create_conv(padded_img, 3, m1);
+        auto pooling = create_max_pooling(padded_img, m1);
+        m1.add_return({im2col, conv, pooling});
+    }
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    migraphx::run_passes(m2, {migraphx::normalize_ops{}});
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(eliminate_pad_auto_padding_static)
+{
+    migraphx::shape s_img{migraphx::shape::int32_type, {1, 1, 2, 2}};
+    migraphx::module m1;
+    {
+        auto l_img      = m1.add_parameter("img", s_img);
+        auto padded_img = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 0, 1, 0, 0, 0, 0, 2}}}), l_img);
+        auto conv =
+            create_conv(padded_img, 1, m1, {0, 0}, migraphx::op::padding_mode_t::same_upper);
+        auto pooling = m1.add_instruction(
+            migraphx::make_op("pooling",
+                              {{"mode", migraphx::op::pooling_mode::max},
+                               {"padding_mode", migraphx::op::padding_mode_t::same_upper}}),
+            padded_img);
+        m1.add_return({conv, pooling});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto l_img   = m2.add_parameter("img", s_img);
+        auto conv    = create_conv(l_img, 1, m2, {1, 0, 0, 2});
+        auto pooling = create_max_pooling(l_img, m2, {1, 0, 0, 2});
+        m2.add_return({conv, pooling});
+    }
+    migraphx::run_passes(m2, {migraphx::normalize_ops{}});
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(eliminate_pad_skip_auto_padding_dynamic)
+{
+    migraphx::shape s_img{migraphx::shape::int32_type, {{1, 1}, {1, 1}, {2, 4}, {2, 4}}};
+    migraphx::module m1;
+    {
+        auto l_img      = m1.add_parameter("img", s_img);
+        auto padded_img = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), l_img);
+        auto conv =
+            create_conv(padded_img, 1, m1, {0, 0}, migraphx::op::padding_mode_t::same_upper);
+        auto pooling = m1.add_instruction(
+            migraphx::make_op("pooling",
+                              {{"mode", migraphx::op::pooling_mode::max},
+                               {"padding_mode", migraphx::op::padding_mode_t::same_upper}}),
+            padded_img);
+        m1.add_return({conv, pooling});
+    }
 
     migraphx::module m2 = m1;
     run_pass(m1);

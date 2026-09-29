@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -180,6 +180,18 @@ constexpr void each_args(F)
 {
 }
 
+template <class... Ts>
+constexpr auto pack(Ts... xs)
+{
+    return [=](auto f) { return f(xs...); };
+}
+
+template <class... Ts>
+constexpr auto pack_forward(Ts&&... xs)
+{
+    return [&](auto f) { return f(static_cast<Ts&&>(xs)...); };
+}
+
 template <class F, class Pack>
 constexpr void unpack_each(F f)
 {
@@ -298,18 +310,6 @@ constexpr auto partial(F f)
     };
 }
 
-template <class... Ts>
-constexpr auto pack(Ts... xs)
-{
-    return [=](auto f) { return f(xs...); };
-}
-
-template <class... Ts>
-constexpr auto pack_forward(Ts&&... xs)
-{
-    return [&](auto f) { return f(static_cast<Ts&&>(xs)...); };
-}
-
 template <class G, class F>
 constexpr auto join(G g, F f)
 {
@@ -344,7 +344,15 @@ constexpr auto pack_compare(Compare compare, P1 p1, P2 p2)
 template <index_int N>
 constexpr auto arg_c()
 {
-    return [](auto... xs) { return detail::args_at(detail::gens<N>{})(xs...); };
+    // N == 0 is special-cased to reduce template instantiations
+    if constexpr(N == 0)
+    {
+        return [](auto x, auto...) { return x; };
+    }
+    else
+    {
+        return [](auto... xs) { return detail::args_at(detail::gens<N>{})(xs...); };
+    }
 }
 
 template <class IntegralConstant>

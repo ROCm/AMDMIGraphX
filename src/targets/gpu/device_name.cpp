@@ -121,8 +121,6 @@ bool gfx_has_mx_intrinsics(const context& ctx)
     return gfx_has_mx_intrinsics_impl(get_gfx_name(ctx.get_current_device().get_device_name()));
 }
 
-#if MIGRAPHX_USE_HIPBLASLT
-
 static bool gfx_default_rocblas_impl(const std::string& gfx_name)
 {
     return ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "hipblaslt")
@@ -137,6 +135,7 @@ bool gfx_default_rocblas(const context& ctx)
     return gfx_default_rocblas_impl(get_gfx_name(ctx.get_current_device().get_device_name()));
 }
 
+#if MIGRAPHX_USE_HIPBLASLT
 static bool hipblaslt_supported_impl(const std::string& gfx_name)
 {
     return (gfx_name == "gfx90a" or (starts_with(gfx_name, "gfx94") and gfx_name >= "gfx942") or

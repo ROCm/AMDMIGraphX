@@ -84,12 +84,12 @@ TEST_CASE(fuse_decode)
         auto slk   = mm->add_parameter("slk", is);
         auto cache = mm->add_parameter("cache", cs);
         auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
-        auto scalar = mm->add_instruction(migraphx::make_op("gpu::load_scalar"), slk);
+        auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
         auto view =
             mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar);
         auto pw =
             mm->add_instruction(precompile(migraphx::make_op("pointwise"), vs), {x, y, view}, {pm});
-        auto dep = mm->add_instruction(migraphx::make_op("gpu::depends_on"), cache, pw);
+        auto dep = mm->add_instruction(migraphx::make_op("identity"), cache, pw);
         mm->add_return({dep});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -134,7 +134,7 @@ TEST_CASE(fuse_prefill)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), cache);
         auto pw =
             mm->add_instruction(precompile(migraphx::make_op("pointwise"), vs), {x, y, view}, {pm});
-        auto dep = mm->add_instruction(migraphx::make_op("gpu::depends_on"), cache, pw);
+        auto dep = mm->add_instruction(migraphx::make_op("identity"), cache, pw);
         mm->add_return({dep});
     }
     EXPECT(p1.sort() == p2.sort());

@@ -182,7 +182,17 @@ struct rewrite_reshapes
                            x_inputs.begin(),
                            reshape_input(x_ins, desc.to_common_from_src()));
             auto new_x_ins = insert(mpm, x_ins, x_inputs, desc.common_axes_map_from_src());
-            if(new_x_ins->get_shape().lens() != cdims)
+            // Only broadcast the op1 output to the common dims when op2 read
+            // duplicated elements to begin with: a pointwise needs matching
+            // lens, and a chain with a broadcast fed op2 the duplicates as
+            // data. Otherwise a fused_reduce reducing a broadcast axis would
+            // count each element once per duplicate, so it takes the output
+            // unbroadcast and broadcasts internally after the reduce.
+            bool chain_broadcasts = std::any_of(ops.begin(), ops.end(), [](const operation& op) {
+                return contains(op.name(), "broadcast");
+            });
+            if((ins->name() == "pointwise" or chain_broadcasts) and
+               new_x_ins->get_shape().lens() != cdims)
             {
                 new_x_ins = mpm.get_module().insert_instruction(
                     x_ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_x_ins);

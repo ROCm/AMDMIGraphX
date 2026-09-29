@@ -33,6 +33,7 @@ namespace migraphx {
 
 template <class TileLens,
           index_int NTiles,
+          index_int ChannelTile = 1,
           class Padding,
           class F,
           class Output,
@@ -42,13 +43,14 @@ template <class TileLens,
 __device__ void
 channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inputs... inputs)
 {
-    auto idx   = make_index();
-    auto tiler = make_spatial_tiler<NTiles>(idx, TileLens{}, get_shape_c<Output>{}, Padding{});
+    auto idx = make_index();
+    auto tiler =
+        make_spatial_tiler<NTiles, ChannelTile>(idx, TileLens{}, get_shape_c<Output>{}, Padding{});
 
     __shared__ decltype(tiler.template shared_allocate<Input>()) smem;
 
     auto x_ch    = tiler.copy(x, smem);
-    auto w_ch    = tiler.slice(w);
+    auto w_ch    = tiler.slice_weights(w);
     auto out_ch  = tiler.slice(output);
     auto xs_pack = pack(tiler.slice(inputs)...);
 

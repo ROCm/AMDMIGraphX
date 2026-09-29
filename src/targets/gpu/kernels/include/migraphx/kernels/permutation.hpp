@@ -66,6 +66,18 @@ constexpr auto invert_permutation(integral_const_array<T, Xs...>)
     });
 }
 
+// Decompose a linear index over `lens` so that consecutive indices walk the
+// dimensions in the memory order given by `permutation` (last entry fastest).
+template <class Lens, class Permutation>
+constexpr auto multi_from_permutation(Lens lens, Permutation permutation, index_int i)
+{
+    constexpr auto ordered_lens = reorder_dims(decltype(lens){}, decltype(permutation){});
+    auto ordered                = ordered_lens.multi(i);
+    // Gather with constant indices so the result stays in registers
+    return unpack(invert_permutation(permutation),
+                  [&](auto... ps) { return make_array(ordered[ps]...); });
+}
+
 template <class Shape>
 struct find_permutation_impl
 {

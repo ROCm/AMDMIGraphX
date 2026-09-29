@@ -37,7 +37,6 @@
 #include <test.hpp>
 #include <algorithm>
 #include <cstdint>
-#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
@@ -374,22 +373,6 @@ TEST_CASE(rebind_aliased_inputs)
     EXPECT(migraphx::verify::verify_rms_range(eval_gpu(v1, v1), eval_ref(1, 1)));
 }
 
-// n gathers that each rotate `axis` by one: separate kernels that fuse with
-// neither each other nor pointwise ops, so they form a capturable run.
-static migraphx::instruction_ref
-add_gathers(migraphx::module& m, migraphx::instruction_ref x, std::size_t axis, std::size_t n)
-{
-    auto len = x->get_shape().lens()[axis];
-    std::vector<int> indices(len);
-    std::iota(indices.begin(), indices.end(), 1);
-    indices.back() = 0;
-    auto idx       = m.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {len}}, indices});
-    for(std::size_t i = 0; i < n; ++i)
-        x = m.add_instruction(migraphx::make_op("gather", {{"axis", axis}}), x, idx);
-    return x;
-}
-
 // A decode kv-cache append fused into its pointwise producer writes through a
 // view placed by a host-read sequence length. The view and the writer must
 // stay outside the captured graphs: a replay would append at the first run's
@@ -406,11 +389,24 @@ TEST_CASE(runtime_view_replay)
     auto y     = mm->add_parameter("y", s);
     auto slk   = mm->add_parameter("slk", is);
     auto cache = mm->add_parameter("cache", cs);
-    auto xs    = add_gathers(*mm, x, 3, 4);
-    auto mul   = mm->add_instruction(migraphx::make_op("mul"), xs, y);
-    auto cpp   = mm->add_instruction(
+    // Gathers rotating an axis are separate kernels that fuse with neither
+    // each other nor pointwise ops, so four of them form a capturable run
+    auto head_idx = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {4}}, {1, 2, 3, 0}});
+    auto x1  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 3}}), x, head_idx);
+    auto x2  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 3}}), x1, head_idx);
+    auto x3  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 3}}), x2, head_idx);
+    auto x4  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 3}}), x3, head_idx);
+    auto mul = mm->add_instruction(migraphx::make_op("mul"), x4, y);
+    auto cpp = mm->add_instruction(
         migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), mul, slk, cache);
-    mm->add_return({add_gathers(*mm, cpp, 2, 4)});
+    auto seq_idx = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::int32_type, {8}}, {1, 2, 3, 4, 5, 6, 7, 0}});
+    auto c1      = mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), cpp, seq_idx);
+    auto c2      = mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), c1, seq_idx);
+    auto c3      = mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), c2, seq_idx);
+    auto c4      = mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), c3, seq_idx);
+    mm->add_return({c4});
 
     auto [p_gpu, p_ref] = compile_gpu_ref(p, false);
     // The append was fused; otherwise the plain copy kernel would pass trivially.

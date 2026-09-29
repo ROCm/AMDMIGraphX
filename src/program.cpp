@@ -120,24 +120,42 @@ static void remap_copied_refs(const std::vector<std::pair<const_module_ref, modu
     }
 }
 
+// Copy the submodules m references so the program owns every module it uses,
+// returning each copy paired with its source and the old-to-new module map
+static auto copy_sub_modules(program& p, const module& m)
+{
+    std::unordered_map<module_ref, module_ref> mod_map;
+    std::vector<std::pair<const_module_ref, module_ref>> copies;
+    for(auto* sm : m.get_sub_modules())
+    {
+        if(contains(mod_map, sm))
+            continue;
+        mod_map[sm] = p.create_module(sm->name(), *sm);
+        copies.emplace_back(sm, mod_map.at(sm));
+    }
+    return std::make_pair(std::move(copies), std::move(mod_map));
+}
+
 // Must take the module by const ref: submodules capture instructions of the
 // source root, so remapping them needs the source's instructions as map keys.
 // A by-value parameter would copy at the call site and discard that mapping.
 program::program(const module& m) : impl(std::make_unique<program_impl>())
 {
-    // Copy the module and the submodules it references so the program owns
-    // every module it uses
-    auto* root = this->create_module("main", m);
-    std::unordered_map<module_ref, module_ref> mod_map;
-    std::vector<std::pair<const_module_ref, module_ref>> copies = {{&m, root}};
-    for(auto* sm : m.get_sub_modules())
-    {
-        if(contains(mod_map, sm))
-            continue;
-        mod_map[sm] = this->create_module(sm->name(), *sm);
-        copies.emplace_back(sm, mod_map.at(sm));
-    }
+    auto* root             = this->create_module("main", m);
+    auto [copies, mod_map] = copy_sub_modules(*this, m);
+    copies.emplace_back(&m, root);
     remap_copied_refs(copies, mod_map);
+}
+
+// Moving keeps the root's instructions in place, so captures of them stay valid
+// and only the submodule copies need their instructions remapped
+program::program(module&& m) : impl(std::make_unique<program_impl>())
+{
+    auto* root             = this->create_module("main", std::move(m));
+    auto [copies, mod_map] = copy_sub_modules(*this, *root);
+    remap_copied_refs(copies, mod_map);
+    for(auto ins : iterator_for(*root))
+        instruction::replace_refs(ins, {}, mod_map);
 }
 
 program::program(program&&) noexcept = default;

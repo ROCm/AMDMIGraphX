@@ -63,6 +63,9 @@ struct MIGRAPHX_EXPORT program
     /// references, with cross-module references remapped to the copies
     explicit program(const module& m);
 
+    /// Same as above, but moves the module rather than copying it
+    explicit program(module&& m);
+
     // move constructor
     program(program&&) noexcept;
 

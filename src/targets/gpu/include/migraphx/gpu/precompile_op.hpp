@@ -21,30 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_FUSE_CONCAT_PAST_PRESENT_HPP
-#define MIGRAPHX_GUARD_GPU_FUSE_CONCAT_PAST_PRESENT_HPP
+#ifndef MIGRAPHX_GUARD_GPU_PRECOMPILE_OP_HPP
+#define MIGRAPHX_GUARD_GPU_PRECOMPILE_OP_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/gpu/export.h>
+#include <migraphx/instruction.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/ranges.hpp>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
 namespace gpu {
 
-// Eliminate the concat_past_present copy kernel by retargeting the producer
-// kernel to write directly into the kv-cache through a view of the append slot.
-struct MIGRAPHX_GPU_EXPORT fuse_concat_past_present
+// Match a gpu::precompile_op wrapping one of the named ops
+template <class... Strings>
+auto precompile_name(Strings... names) // NOLINT
 {
-    std::string name() const { return "gpu::fuse_concat_past_present"; }
-    void apply(module& m) const;
-};
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->name() != "gpu::precompile_op")
+            return false;
+        auto name = ins->get_operator().to_value().at("op").at("name").to<std::string>();
+        return contains({names...}, name);
+    });
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif // MIGRAPHX_GUARD_GPU_FUSE_CONCAT_PAST_PRESENT_HPP
+#endif // MIGRAPHX_GUARD_GPU_PRECOMPILE_OP_HPP

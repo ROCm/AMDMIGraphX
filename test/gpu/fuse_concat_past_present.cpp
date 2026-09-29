@@ -30,6 +30,7 @@
 #include <migraphx/serialize.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
+#include "make_precompile_op.hpp"
 
 static void run_pass(migraphx::program& p)
 {
@@ -37,58 +38,64 @@ static void run_pass(migraphx::program& p)
         p, {migraphx::gpu::fuse_concat_past_present{}, migraphx::dead_code_elimination{}});
 }
 
-static migraphx::operation precompile(const migraphx::operation& op)
+static const migraphx::shape cache_shape{migraphx::shape::half_type, {1, 2, 8, 4}};
+static const migraphx::shape index_shape{migraphx::shape::int32_type, {1, 1}};
+
+static migraphx::shape present_shape(std::size_t seq)
 {
-    return migraphx::make_op("gpu::precompile_op", {{"op", migraphx::to_value(op)}});
+    return {migraphx::shape::half_type, {1, 2, seq, 4}};
 }
 
-static migraphx::operation precompile(const migraphx::operation& op, const migraphx::shape& s)
+// The cache slot the fused producer writes into
+static migraphx::shape slot_shape(std::size_t seq)
 {
-    return migraphx::make_op(
-        "gpu::precompile_op",
-        {{"op", migraphx::to_value(op)}, {"output_shape", migraphx::to_value(s)}});
+    return {migraphx::shape::half_type, present_shape(seq).lens(), cache_shape.strides()};
+}
+
+// pointwise(x, y) -> concat_past_present(pw, slk, cache), returning the concat
+static migraphx::instruction_ref add_concat_past_present(migraphx::program& p, std::size_t seq)
+{
+    auto* mm   = p.get_main_module();
+    auto s     = present_shape(seq);
+    auto x     = mm->add_parameter("x", s);
+    auto y     = mm->add_parameter("y", s);
+    auto slk   = mm->add_parameter("slk", index_shape);
+    auto cache = mm->add_parameter("cache", cache_shape);
+    auto* pm   = create_pointwise_module(p, "main:pointwise0", {x, y}, single_pointwise("mul"));
+    auto alloc =
+        mm->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    auto pw = mm->add_instruction(make_precompile_op("pointwise"), {x, y, alloc}, {pm});
+    return mm->add_instruction(
+        make_precompile_op(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}),
+                           cache_shape),
+        pw,
+        slk,
+        cache);
 }
 
 TEST_CASE(fuse_decode)
 {
-    migraphx::shape s{migraphx::shape::half_type, {1, 2, 1, 4}};
-    migraphx::shape cs{migraphx::shape::half_type, {1, 2, 8, 4}};
-    migraphx::shape is{migraphx::shape::int32_type, {1, 1}};
-    migraphx::shape vs{migraphx::shape::half_type, {1, 2, 1, 4}, {64, 32, 4, 1}};
     migraphx::program p1;
     {
-        auto* mm   = p1.get_main_module();
-        auto x     = mm->add_parameter("x", s);
-        auto y     = mm->add_parameter("y", s);
-        auto slk   = mm->add_parameter("slk", is);
-        auto cache = mm->add_parameter("cache", cs);
-        auto* pm = create_pointwise_module(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
-        auto alloc =
-            mm->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-        auto pw =
-            mm->add_instruction(precompile(migraphx::make_op("pointwise")), {x, y, alloc}, {pm});
-        auto cpp = mm->add_instruction(
-            precompile(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cs),
-            pw,
-            slk,
-            cache);
-        mm->add_return({cpp});
+        auto cpp = add_concat_past_present(p1, 1);
+        p1.get_main_module()->add_return({cpp});
     }
     run_pass(p1);
 
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
+        auto s     = present_shape(1);
         auto x     = mm->add_parameter("x", s);
         auto y     = mm->add_parameter("y", s);
-        auto slk   = mm->add_parameter("slk", is);
-        auto cache = mm->add_parameter("cache", cs);
+        auto slk   = mm->add_parameter("slk", index_shape);
+        auto cache = mm->add_parameter("cache", cache_shape);
         auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
         auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
         auto view =
             mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar);
-        auto pw =
-            mm->add_instruction(precompile(migraphx::make_op("pointwise"), vs), {x, y, view}, {pm});
+        auto pw = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("pointwise"), slot_shape(1)), {x, y, view}, {pm});
         auto dep = mm->add_instruction(migraphx::make_op("identity"), cache, pw);
         mm->add_return({dep});
     }
@@ -97,43 +104,26 @@ TEST_CASE(fuse_decode)
 
 TEST_CASE(fuse_prefill)
 {
-    migraphx::shape s{migraphx::shape::half_type, {1, 2, 4, 4}};
-    migraphx::shape cs{migraphx::shape::half_type, {1, 2, 8, 4}};
-    migraphx::shape is{migraphx::shape::int32_type, {1, 1}};
-    migraphx::shape vs{migraphx::shape::half_type, {1, 2, 4, 4}, {64, 32, 4, 1}};
     migraphx::program p1;
     {
-        auto* mm   = p1.get_main_module();
-        auto x     = mm->add_parameter("x", s);
-        auto y     = mm->add_parameter("y", s);
-        auto slk   = mm->add_parameter("slk", is);
-        auto cache = mm->add_parameter("cache", cs);
-        auto* pm = create_pointwise_module(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
-        auto alloc =
-            mm->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-        auto pw =
-            mm->add_instruction(precompile(migraphx::make_op("pointwise")), {x, y, alloc}, {pm});
-        auto cpp = mm->add_instruction(
-            precompile(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cs),
-            pw,
-            slk,
-            cache);
-        mm->add_return({cpp});
+        auto cpp = add_concat_past_present(p1, 4);
+        p1.get_main_module()->add_return({cpp});
     }
     run_pass(p1);
 
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();
+        auto s   = present_shape(4);
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
-        mm->add_parameter("slk", is);
-        auto cache = mm->add_parameter("cache", cs);
+        mm->add_parameter("slk", index_shape);
+        auto cache = mm->add_parameter("cache", cache_shape);
         auto* pm  = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
         auto view = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), cache);
-        auto pw =
-            mm->add_instruction(precompile(migraphx::make_op("pointwise"), vs), {x, y, view}, {pm});
+        auto pw = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("pointwise"), slot_shape(4)), {x, y, view}, {pm});
         auto dep = mm->add_instruction(migraphx::make_op("identity"), cache, pw);
         mm->add_return({dep});
     }
@@ -142,27 +132,10 @@ TEST_CASE(fuse_prefill)
 
 TEST_CASE(skip_multi_use_producer)
 {
-    migraphx::shape s{migraphx::shape::half_type, {1, 2, 1, 4}};
-    migraphx::shape cs{migraphx::shape::half_type, {1, 2, 8, 4}};
-    migraphx::shape is{migraphx::shape::int32_type, {1, 1}};
     migraphx::program p1;
     {
-        auto* mm   = p1.get_main_module();
-        auto x     = mm->add_parameter("x", s);
-        auto y     = mm->add_parameter("y", s);
-        auto slk   = mm->add_parameter("slk", is);
-        auto cache = mm->add_parameter("cache", cs);
-        auto* pm = create_pointwise_module(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
-        auto alloc =
-            mm->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-        auto pw =
-            mm->add_instruction(precompile(migraphx::make_op("pointwise")), {x, y, alloc}, {pm});
-        auto cpp = mm->add_instruction(
-            precompile(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cs),
-            pw,
-            slk,
-            cache);
-        mm->add_return({cpp, pw});
+        auto cpp = add_concat_past_present(p1, 1);
+        p1.get_main_module()->add_return({cpp, cpp->inputs().front()});
     }
     migraphx::program p2 = p1;
     run_pass(p1);

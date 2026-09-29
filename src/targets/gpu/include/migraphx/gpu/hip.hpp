@@ -149,19 +149,30 @@ struct hip_sync_stream
 };
 
 // Copy a single scalar from the gpu to the host and wait for it so later
-// host-side view computations can read it
+// host-side view ops (e.g. gpu::slice_at) can read it during eval
 struct hip_load_scalar
 {
+    // Pinned host buffer allocated in finalize(); not reflected
+    argument result{};
+
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
     std::string name() const { return "hip::load_scalar"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).elements(1);
         return {inputs.front().type(), inputs.front().lens()};
     }
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    void finalize(context&, const shape& output_shape, const std::vector<shape>&)
     {
-        argument result{output_shape};
+        result = allocate_gpu(output_shape, true);
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
         copy_from_gpu(ctx, args.front(), result);
         gpu_spin_sync(ctx);
         return result;

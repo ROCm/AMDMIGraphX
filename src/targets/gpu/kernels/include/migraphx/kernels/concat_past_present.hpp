@@ -27,7 +27,7 @@
 #include <migraphx/kernels/group_query_attention.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/vec.hpp>
+#include <migraphx/kernels/vectorize.hpp>
 
 namespace migraphx {
 
@@ -97,23 +97,20 @@ __device__ void update_cache(const Present present,
     }
 }
 
-template <class Past, class Present, class SeqLensK, class Params>
+// N is the vector width along head_size chosen by the JIT, which sizes the launch to match
+template <index_int N, class Past, class Present, class SeqLensK, class Params>
 __device__ void
 concat_past_present(Past past, const Present present, SeqLensK seqlens_k, Params params)
 {
-    auto ind = make_index();
-    // Every chunk offset is a multiple of head_size, so copy in the widest
-    // vector that divides it. Memory coloring only guarantees an alignment of
-    // 4 elements, so the width is capped at 4. Keep the width selection in
-    // sync with the launch size in jit/concat_past_present.cpp.
-    constexpr index_int head_size = decltype(params.head_size){};
-    constexpr index_int n         = (head_size % 4 == 0) ? 4 : ((head_size % 2 == 0) ? 2 : 1);
-    auto* cache                   = as_vec<n>(past.data());
-    const auto* current           = as_vec<n>(present.data());
+    auto ind                          = make_index();
+    constexpr index_int head_size     = params.head_size;
+    constexpr index_int vec_head_size = head_size / N;
+    auto cache                        = as_vec<N>(past, _c<3>);
+    auto current                      = as_vec<N>(present, _c<3>);
     auto elements =
-        params.batch_size * params.kv_num_heads * params.sequence_length * (head_size / n);
+        params.batch_size * params.kv_num_heads * params.sequence_length * vec_head_size;
     ind.global_stride(elements, [&](auto idx) {
-        update_cache(current, seqlens_k, cache, params, head_size / n, idx);
+        update_cache(current.begin(), seqlens_k, cache.begin(), params, vec_head_size, idx);
     });
 }
 

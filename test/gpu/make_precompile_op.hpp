@@ -63,4 +63,12 @@ auto make_precompile_op(const T& x)
     return make_precompile_op(migraphx::rank<1>{}, x);
 }
 
+inline migraphx::operation make_precompile_op(const migraphx::operation& op,
+                                              const migraphx::shape& output_shape)
+{
+    return migraphx::make_op(
+        "gpu::precompile_op",
+        {{"op", migraphx::to_value(op)}, {"output_shape", migraphx::to_value(output_shape)}});
+}
+
 #endif // MIGRAPHX_GUARD_TEST_GPU_MAKE_PRECOMPILE_OP_HPP

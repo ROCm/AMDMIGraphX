@@ -120,6 +120,7 @@ TEST_CASE(topk_bounded_var_k_symbolic_test)
             return false;
         auto runtime_k = slice->inputs().at(2)->sym_eval();
         return not runtime_k.empty() and runtime_k.get().size() == 1 and
+               output.dyn_dims().at(1).sym_expr == runtime_k.get()[0] and
                runtime_k.get()[0].eval_interval_default().max ==
                    migraphx::sym::scalar{int64_t{200}};
     }));

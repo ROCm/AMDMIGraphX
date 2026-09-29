@@ -729,6 +729,13 @@ Advanced settings
 
       | Default: Unset. Benchmark MXR files aren't dumped and compilation proceeds normally.
 
+  * - | ``MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS``
+      | When set, GPU kernels are compiled with ``-DMIGRAPHX_NONTEMPORAL_LOADS=0``, replacing nontemporal (streaming) loads with regular cached loads.
+
+    - | ``1``: Nontemporal loads are disabled.
+
+      | Default: Nontemporal loads are enabled.
+
   * - | ``MIGRAPHX_GPU_HIP_FLAGS``
       | When set, the hip-clang compiler appends these extra flags for compilation.
 

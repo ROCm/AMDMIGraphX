@@ -38,7 +38,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace tf {
 
-// namespace tf = tf_for_migraphx;
+namespace tensorflow = tensorflow_for_migraphx;
 
 struct tf_parser
 {

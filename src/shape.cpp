@@ -534,12 +534,19 @@ bool shape::is_compatible_lens(const shape& actual, const shape& expected)
     {
         if(actual.ndim() != expected.ndim())
             return false;
+        std::unordered_map<sym::expr, std::size_t> symbol_values;
         return std::equal(actual.lens().begin(),
                           actual.lens().end(),
                           expected.dyn_dims().begin(),
                           [&](auto a, const auto& e) {
                               auto expected_interval = e.get_interval();
-                              return a >= expected_interval.min and a <= expected_interval.max;
+                              if(a < expected_interval.min or a > expected_interval.max)
+                                  return false;
+                              if(e.sym_expr.name() != "variable")
+                                  return true;
+                              auto [iter, inserted] =
+                                  symbol_values.emplace(sym::as_symbol(e.sym_expr), a);
+                              return inserted or iter->second == a;
                           });
     }
     return actual.lens() == expected.lens();

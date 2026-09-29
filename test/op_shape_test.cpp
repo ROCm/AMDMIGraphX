@@ -2755,6 +2755,19 @@ TEST_CASE(multibroadcast_2in_symbolic_target)
         target);
 }
 
+TEST_CASE(multibroadcast_2in_symbolic_target_mismatch_error)
+{
+    auto n = var("n", {2, 8});
+    auto m = var("m", {2, 8});
+    std::vector<dd> output_dims{dd{n}, dd{lit(4)}};
+    migraphx::shape input{migraphx::shape::float_type, output_dims};
+    migraphx::shape target{migraphx::shape::float_type, {dd{m}, dd{lit(4)}}};
+    throws_shape(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+        input,
+        target);
+}
+
 TEST_CASE(multibroadcast_2in_static_dyn0)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {4, 4}};

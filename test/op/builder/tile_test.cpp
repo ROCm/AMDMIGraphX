@@ -29,11 +29,10 @@
 #include <migraphx/verify.hpp>
 
 namespace {
-std::vector<float> run_with_data(const migraphx::module& m,
-                                 const migraphx::shape& input_shape,
-                                 std::vector<float> data)
+std::vector<float>
+run_with_data(migraphx::module m, const migraphx::shape& input_shape, std::vector<float> data)
 {
-    migraphx::program p{m};
+    migraphx::program p{std::move(m)};
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map pp;

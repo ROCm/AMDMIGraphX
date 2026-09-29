@@ -80,68 +80,54 @@ static migraphx::instruction_ref create_max_pooling(migraphx::instruction_ref l_
 
 TEST_CASE(eliminate_pad)
 {
-    migraphx::module m;
-    size_t img_dim[2] = {2, 2};
-    size_t channels   = 1;
-    std::vector<int32_t> input(channels * img_dim[0] * img_dim[1]);
-    std::iota(input.begin(), input.end(), 0);
+    migraphx::shape s_img{migraphx::shape::int32_type, {1, 1, 2, 2}};
+    migraphx::module m1;
+    {
+        auto l_img      = m1.add_parameter("img", s_img);
+        auto padded_img = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), l_img);
+        auto im2col  = create_im2col(padded_img, 1, m1);
+        auto conv    = create_conv(padded_img, 1, m1);
+        auto pooling = create_max_pooling(padded_img, m1);
+        m1.add_return({im2col, conv, pooling});
+    }
+    run_pass(m1);
 
-    migraphx::shape s_img{migraphx::shape::int32_type, {1, channels, img_dim[0], img_dim[1]}};
-    auto l_img = m.add_literal(migraphx::literal{s_img, input});
-    auto padded_img =
-        m.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), l_img);
+    migraphx::module m2;
+    {
+        auto l_img   = m2.add_parameter("img", s_img);
+        auto im2col  = create_im2col(l_img, 1, m2, {1, 1, 1, 1});
+        auto conv    = create_conv(l_img, 1, m2, {1, 1, 1, 1});
+        auto pooling = create_max_pooling(l_img, m2, {1, 1, 1, 1});
+        m2.add_return({im2col, conv, pooling});
+    }
+    migraphx::run_passes(m2, {migraphx::normalize_ops{}});
 
-    auto l0 = create_im2col(padded_img, channels, m);
-    auto l1 = create_conv(padded_img, channels, m);
-    auto l2 = m.add_instruction(
-        migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}), padded_img);
-    m.add_instruction(migraphx::make_op("identity"), l0, l1, l2);
-
-    auto s0 = l0->get_shape();
-    auto s1 = l1->get_shape();
-    auto s2 = l2->get_shape();
-    run_pass(m);
-    EXPECT(l0->get_shape() == s0);
-    EXPECT(l1->get_shape() == s1);
-    EXPECT(l2->get_shape() == s2);
-    auto op0 = l0->get_operator().to_value();
-    auto om1 = l1->get_operator().to_value();
-    auto om2 = l2->get_operator().to_value();
-
-    EXPECT(op0["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1, 1, 1});
-    EXPECT(om1["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1, 1, 1});
-    EXPECT(om2["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1, 1, 1});
-
-    EXPECT(std::none_of(
-        m.begin(), m.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(eliminate_pad_im2col_asymmetric)
 {
-    migraphx::module m;
+    migraphx::shape s_img{migraphx::shape::int32_type, {1, 1, 2, 2}};
+    migraphx::module m1;
+    {
+        auto l_img      = m1.add_parameter("img", s_img);
+        auto padded_img = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 2, 2}}}), l_img);
+        auto im2col = create_im2col(padded_img, 1, m1);
+        m1.add_return({im2col});
+    }
+    run_pass(m1);
 
-    size_t img_dim[2] = {2, 2};
-    size_t channels   = 1;
-    std::vector<int32_t> input(channels * img_dim[0] * img_dim[1]);
-    std::iota(input.begin(), input.end(), 0);
+    migraphx::module m2;
+    {
+        auto l_img  = m2.add_parameter("img", s_img);
+        auto im2col = create_im2col(l_img, 1, m2, {0, 0, 2, 2});
+        m2.add_return({im2col});
+    }
+    migraphx::run_passes(m2, {migraphx::normalize_ops{}});
 
-    migraphx::shape s_img{migraphx::shape::int32_type, {1, channels, img_dim[0], img_dim[1]}};
-    auto l_img = m.add_literal(migraphx::literal{s_img, input});
-    auto padded_img =
-        m.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 2, 2}}}), l_img);
-
-    auto l0 = create_im2col(padded_img, channels, m);
-
-    auto s0 = l0->get_shape();
-    run_pass(m);
-    EXPECT(l0->get_shape() == s0);
-    auto op0 = l0->get_operator().to_value();
-
-    EXPECT(op0["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{0, 0, 2, 2});
-
-    run_pass(m);
-    EXPECT(std::none_of(
-        m.begin(), m.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(eliminate_pad_nonzero_pad)

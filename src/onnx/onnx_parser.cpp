@@ -41,7 +41,9 @@
 #include <migraphx/env.hpp>
 #include <migraphx/logger.hpp>
 #include <onnx.pb.h>
+#include <algorithm>
 #include <iomanip>
+#include <iterator>
 #include <set>
 #include <sstream>
 
@@ -393,7 +395,7 @@ parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto
 }
 
 static std::unordered_map<std::string, instruction_ref>
-parse_inputs(const onnx_parser& parser,
+parse_inputs(onnx_parser& parser,
              module* mod,
              const onnx::GraphProto& graph,
              std::unordered_map<std::string, instruction_ref> mod_insts)
@@ -414,7 +416,7 @@ parse_inputs(const onnx_parser& parser,
             if(parser.map_input_dims.count(name) > 0)
             {
                 std::vector<std::size_t> dims = parser.map_input_dims.at(name);
-                s                             = parser.parse_type(input.type(), dims);
+                s                             = parser.parse_param_shape(input.type(), dims);
             }
             else if(parser.map_dyn_input_dims.count(name) > 0)
             {
@@ -423,7 +425,7 @@ parse_inputs(const onnx_parser& parser,
                 {
                     // Name each overridden axis from the model's dim_param so it
                     // becomes a symbol; bounds/optimals come from the override.
-                    s = parser.parse_type(input.type(), name, override_dims);
+                    s = parser.parse_param_shape(input.type(), name, override_dims);
                 }
                 else
                 {
@@ -433,7 +435,7 @@ parse_inputs(const onnx_parser& parser,
             }
             else
             {
-                s = parser.parse_type(input.type(), name);
+                s = parser.parse_param_shape(input.type(), name);
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -906,14 +908,16 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-static shape::dynamic_dimension make_symbol(const std::string& sym_name,
+static shape::dynamic_dimension make_symbol(onnx_parser& parser,
+                                            const std::string& sym_name,
                                             const shape::dynamic_dimension& bounds)
 {
     auto iv = bounds.get_interval();
-    return shape::dynamic_dimension{sym::var(sym_name, {iv.min, iv.max}, sym_optimals(bounds))};
+    return shape::dynamic_dimension{
+        sym::var(parser.symbol_names.resolve(sym_name), {iv.min, iv.max}, sym_optimals(bounds))};
 }
 
-static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,
+static shape::dynamic_dimension resolve_dim(onnx_parser& parser,
                                             const shape::dynamic_dimension& bounds,
                                             const std::string& name,
                                             int axis)
@@ -925,11 +929,11 @@ static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,
         return shape::dynamic_dimension{sym::lit(bounds.get_interval().min)};
     // A ranged bound becomes a per-axis symbol "<input>_d<axis>" (onnxruntime's scheme
     // for unnamed dims).
-    return make_symbol(name + "_d" + std::to_string(axis), bounds);
+    return make_symbol(parser, name + "_d" + std::to_string(axis), bounds);
 }
 
 static shape::dynamic_dimension
-resolve_default_dim(const onnx_parser& parser, const std::string& name, int axis)
+resolve_default_dim(onnx_parser& parser, const std::string& name, int axis)
 {
     return resolve_dim(parser, parser.default_dyn_dim_value, name, axis);
 }
@@ -945,7 +949,7 @@ static shape::dynamic_dimension dim_param_bounds(const onnx_parser& parser,
     return parser.default_dyn_dim_value;
 }
 
-static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
+static shape::dynamic_dimension map_dyn_dim(onnx_parser& parser,
                                             const onnx::TensorShapeProto::Dimension* model_dim,
                                             const shape::dynamic_dimension* override_dim,
                                             const std::string& name,
@@ -958,7 +962,8 @@ static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
     {
         const auto& dim_param = model_dim->dim_param();
         if(parser.use_symbolic_shapes)
-            return make_symbol(dim_param, dim_param_bounds(parser, dim_param, override_dim));
+            return make_symbol(
+                parser, dim_param, dim_param_bounds(parser, dim_param, override_dim));
         if(override_dim != nullptr)
             return *override_dim;
         if(contains(parser.dim_params, dim_param))
@@ -980,16 +985,16 @@ static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
     return resolve_default_dim(parser, name, axis);
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::string& name) const
+shape onnx_parser::parse_param_shape(const onnx::TypeProto& t, const std::string& name)
 {
-    return parse_type(t, name, {});
+    return parse_param_shape(t, name, {});
 }
 
 // Resolve an input's dims; a map_dyn_input_dims override (if any) supplies bounds while
 // the model supplies the symbol name.
-shape onnx_parser::parse_type(const onnx::TypeProto& t,
-                              const std::string& name,
-                              const std::vector<shape::dynamic_dimension>& override_dims) const
+shape onnx_parser::parse_param_shape(const onnx::TypeProto& t,
+                                     const std::string& name,
+                                     const std::vector<shape::dynamic_dimension>& override_dims)
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
     auto&& tensor_dims       = t.tensor_type().shape().dim();
@@ -1011,8 +1016,8 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
     return shape_from_dyn_dims(shape_type, dynamic_dims);
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t,
-                              const std::vector<std::size_t>& input_dims) const
+shape onnx_parser::parse_param_shape(const onnx::TypeProto& t,
+                                     const std::vector<std::size_t>& input_dims) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
     if(input_dims.empty())

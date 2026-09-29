@@ -1,0 +1,237 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+#include <migraphx/gpu/hipgraphify.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/param_utils.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
+#include <algorithm>
+#include <iterator>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+
+// Ops that cannot be stream-captured; they become partition boundaries.
+static bool is_unsupported(const std::string& name)
+{
+    static const std::unordered_set<std::string> unsupported = {
+        "hip::copy_from_gpu",
+        "hip::copy_to_gpu",
+        "hip::sync_stream",
+        // rocblas crashes with a capturing stream
+        "gpu::gemm",
+        "gpu::quant_gemm",
+        // nested stream capture fails, so a re-run of the pass leaves its own
+        // products alone
+        "hip::graph",
+    };
+    return contains(unsupported, name);
+}
+
+static bool is_capturable(instruction_ref ins)
+{
+    const auto& op = ins->get_operator();
+    // Builtins (@param/@return/...) are not real device work.
+    if(starts_with(op.name(), "@"))
+        return false;
+    if(is_unsupported(op.name()))
+        return false;
+    // A context-free op consuming inputs without aliasing them runs on the host
+    // and would not re-execute on replay; views and input-less sources
+    // (gpu::literal) issue no work and stay capturable.
+    if(not ins->inputs().empty() and op.is_context_free() and
+       op.output_alias(to_shapes(ins->inputs())).empty())
+        return false;
+    return true;
+}
+
+static bool is_allocation(instruction_ref ins) { return ins->name() == "hip::allocate"; }
+
+// An input that ultimately aliases a program parameter, so its buffer can move
+// between runs (allocations and constants keep a fixed address).
+static bool is_param_input(instruction_ref ins)
+{
+    auto roots = instruction::get_output_alias(ins, false);
+    return roots.size() == 1 and roots.front()->name() == "@param";
+}
+
+// True when some consumer of `ins` lies outside the run.
+static bool used_outside(instruction_ref ins, const std::unordered_set<instruction_ref>& run_set)
+{
+    return std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref out) {
+        return not contains(run_set, out);
+    });
+}
+
+// True when `buf` is directly consumed by an instruction in the run.
+static bool directly_used_in_run(instruction_ref buf,
+                                 const std::unordered_set<instruction_ref>& run_set)
+{
+    return std::any_of(buf->outputs().begin(), buf->outputs().end(), [&](instruction_ref ins) {
+        return contains(run_set, ins);
+    });
+}
+
+static void
+graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, std::size_t n)
+{
+    module& m = mpm.get_module();
+    std::unordered_set<instruction_ref> run_set(run.begin(), run.end());
+
+    // Input-less sources (literals, allocations) used outside the run stay in
+    // the parent; if also used inside the run they become graph inputs.
+    std::unordered_set<instruction_ref> keep;
+    std::copy_if(run.begin(), run.end(), std::inserter(keep, keep.end()), [&](instruction_ref ins) {
+        return ins->inputs().empty() and used_outside(ins, run_set);
+    });
+
+    // Captured outputs: run instructions consumed outside the run; allocations
+    // are buffers, never returned.
+    std::vector<instruction_ref> outputs;
+    std::copy_if(run.begin(), run.end(), std::back_inserter(outputs), [&](instruction_ref ins) {
+        return used_outside(ins, run_set) and not is_allocation(ins) and not contains(keep, ins);
+    });
+    // A run with no external outputs is pure dead code; leave it for dce.
+    if(outputs.empty())
+        return;
+
+    // @return cannot return internal scratch, so output-backing allocations are
+    // kept in the parent and written through a parameter (global lifetime).
+    // Either every output is allocation-backed or none are; a mix is uncaptured.
+    std::unordered_map<instruction_ref, instruction_ref> output_buffer;
+    // The backing allocation must become an input of the hip::graph op so the
+    // alias index can refer to it; a root reached only through pre-run views cannot.
+    for(auto out : outputs)
+    {
+        // Follow the alias chain down to the buffer the output writes into.
+        auto roots = instruction::get_output_alias(out, false);
+        if(roots.size() == 1 and is_allocation(roots.front()))
+        {
+            if(not contains(run_set, roots.front()) and
+               not directly_used_in_run(roots.front(), run_set))
+                return;
+            output_buffer[out] = roots.front();
+            if(contains(run_set, roots.front()))
+                keep.insert(roots.front());
+        }
+    }
+    if(not output_buffer.empty() and output_buffer.size() != outputs.size())
+        return;
+
+    auto* sub = mpm.create_module(m.name() + ":hipgraph" + std::to_string(n));
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    std::vector<instruction_ref> fused;
+    std::copy_if(run.begin(), run.end(), std::back_inserter(fused), [&](instruction_ref ins) {
+        return not contains(keep, ins);
+    });
+    // Keep exact input layouts: the captured kernels are compiled for specific
+    // strides, so parameters must not be standardized.
+    sub->fuse(fused, &map_ins, nullptr, [](const shape& s) { return s; });
+    std::vector<instruction_ref> sub_outputs;
+    std::transform(outputs.begin(),
+                   outputs.end(),
+                   std::back_inserter(sub_outputs),
+                   [&](instruction_ref ins) { return map_ins.at(ins); });
+    sub->add_return(sub_outputs);
+
+    auto inputs = find_inputs(map_ins, &m, sub);
+
+    // Inputs the caller can rebind between runs (the program parameters).
+    std::vector<std::size_t> replace_inputs;
+    auto indices = range(inputs.size());
+    std::copy_if(indices.begin(),
+                 indices.end(),
+                 std::back_inserter(replace_inputs),
+                 [&](std::size_t i) { return is_param_input(inputs[i]); });
+
+    // The captured outputs alias the kept output buffers (op inputs).
+    std::vector<std::size_t> aliases;
+    if(not output_buffer.empty())
+    {
+        std::transform(
+            outputs.begin(), outputs.end(), std::back_inserter(aliases), [&](instruction_ref out) {
+                auto buf = output_buffer.at(out);
+                auto it  = std::find(inputs.begin(), inputs.end(), buf);
+                assert(it != inputs.end());
+                return static_cast<std::size_t>(std::distance(inputs.begin(), it));
+            });
+    }
+
+    // Insert the hip::graph op right after the run; multiple outputs come back
+    // as a tuple unpacked with get_tuple_elem.
+    auto pos = std::next(run.back());
+    auto g   = m.insert_instruction(
+        pos,
+        make_op("hip::graph", {{"aliases", aliases}, {"replace_inputs", replace_inputs}}),
+        inputs,
+        {sub});
+    for(std::size_t i = 0; i < outputs.size(); ++i)
+    {
+        auto replacement = g;
+        if(outputs.size() > 1)
+            replacement = m.insert_instruction(pos, make_op("get_tuple_elem", {{"index", i}}), g);
+        // Only redirect uses outside the run to avoid a use-before-def in the parent.
+        auto consumers = outputs[i]->outputs();
+        for(auto consumer : consumers)
+        {
+            if(not contains(run_set, consumer))
+                instruction::replace_argument(consumer, outputs[i], replacement);
+        }
+    }
+}
+
+void hipgraphify::apply(module_pass_manager& mpm) const
+{
+    module& m = mpm.get_module();
+    // Only partition the root module.
+    if(&m != mpm.get_root_module())
+        return;
+
+    // Collect the maximal capturable runs first so rewriting does not
+    // invalidate iteration.
+    std::vector<std::vector<instruction_ref>> runs;
+    auto range = iterator_for(m);
+    group_find(range.begin(), range.end(), is_capturable, [&](auto start, auto last) {
+        if(std::distance(start, last) >= min_partition_size)
+            runs.emplace_back(start, last);
+    });
+
+    std::size_t n = 0;
+    for(const auto& run : runs)
+        graphify_run(mpm, run, n++);
+}
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

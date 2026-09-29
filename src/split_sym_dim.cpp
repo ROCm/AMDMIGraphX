@@ -636,8 +636,7 @@ struct analyze_gathernd
         const auto& inputs = info.input_shapes;
         if(inputs.size() != 2 or inputs.back().ndim() == 0)
             return;
-        const auto& index_depth_dim = inputs.back().to_symbolic().dyn_dims().back();
-        auto index_depth            = sym::fixed_value(index_depth_dim.sym_expr);
+        auto index_depth = sym::fixed_value(inputs.back().to_symbolic().dyn_dims().back().sym_expr);
         if(not index_depth.has_value())
             return;
         auto batch_dims = info.ins->get_operator().to_value().at("batch_dims").to<int64_t>();

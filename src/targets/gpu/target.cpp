@@ -79,6 +79,7 @@
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/hoist_kv_cache_attention_masks.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
@@ -239,6 +240,8 @@ struct pipeline_factory
             enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
                         fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+            enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
+                        hoist_kv_cache_attention_masks{}),
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},

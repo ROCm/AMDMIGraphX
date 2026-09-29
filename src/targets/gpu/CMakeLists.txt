@@ -221,6 +221,7 @@ add_library(migraphx_gpu
     gemm_impl.cpp
     hip.cpp
     hipblaslt.cpp
+    hoist_kv_cache_attention_masks.cpp
     hip_gemm_impl.cpp
     hsa_chiplet.cpp
     json_problem_cache.cpp

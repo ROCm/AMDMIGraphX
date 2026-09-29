@@ -31,7 +31,6 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
-#include <migraphx/builtin.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <algorithm>
 #include <iterator>
@@ -76,66 +75,6 @@ bool escapes(const module& m, instruction_ref ins, const Set& inss)
     return not std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto out) {
         return not m.has_instruction(out) or contains(inss, out);
     });
-}
-
-// rocMLIR AttentionRewritePattern::isConstantRange(x, 1) asserts when the
-// peeled constant range has rank < 2 (TosaToRock.cpp:1804). KV-cache causal
-// masks compare against a 1-D iota; store that iota as {1, N} so the
-// prefix-causal matcher sees rank 2. Unsqueeze wrapping is not enough:
-// rocMLIR skips tensor.expand_shape when looking up the constant.
-static void promote_1d_int_ranges(module& m)
-{
-    std::vector<instruction_ref> lits;
-    for(auto ins : iterator_for(m))
-    {
-        const auto& s = ins->get_shape();
-        if(ins->name() != "@literal" or s.ndim() != 1 or not shape::is_integral(s.type()))
-            continue;
-        lits.push_back(ins);
-    }
-    std::vector<instruction_ref> bcs;
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "broadcast" and ins->inputs().size() == 1)
-            bcs.push_back(ins);
-    }
-    for(auto ins : bcs)
-    {
-        m.replace_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), ins->inputs());
-    }
-    for(auto ins : lits)
-    {
-        auto n = ins->get_shape().lens().front();
-        auto new_lit =
-            m.add_literal(literal{shape{ins->get_shape().type(), {1, n}}, ins->eval().data()});
-        auto users = ins->outputs();
-        for(auto user : users)
-        {
-            if(user->name() == "broadcast" or user->name() == "multibroadcast")
-            {
-                m.replace_instruction(
-                    user,
-                    make_op("multibroadcast", {{"out_lens", user->get_shape().lens()}}),
-                    new_lit);
-                continue;
-            }
-            std::vector<instruction_ref> args;
-            std::transform(user->inputs().begin(),
-                           user->inputs().end(),
-                           std::back_inserter(args),
-                           [&](instruction_ref arg) -> instruction_ref {
-                               if(arg == ins)
-                                   return new_lit;
-                               if(arg->get_shape().ndim() == 1 and
-                                  shape::is_integral(arg->get_shape().type()))
-                                   return m.insert_instruction(
-                                       user, make_op("unsqueeze", {{"axes", {0}}}), arg);
-                               return arg;
-                           });
-            m.replace_instruction(user, user->get_operator(), args, user->module_inputs());
-        }
-    }
 }
 
 // env vars for flash decoding configuration
@@ -1033,29 +972,6 @@ struct find_kv_cache_attention
 
     std::string get_count() const { return std::to_string((*counter)++); }
 
-    static bool feeds_where_condition(instruction_ref ins)
-    {
-        static const std::unordered_set<std::string> skip = {"convert",
-                                                             "multibroadcast",
-                                                             "broadcast",
-                                                             "unsqueeze",
-                                                             "squeeze",
-                                                             "reshape",
-                                                             "contiguous"};
-        return any_of(ins->outputs(), [&](instruction_ref out) {
-            if(out->name() == "where")
-                return out->inputs().front() == ins;
-            if(contains(skip, out->name()))
-                return feeds_where_condition(out);
-            return false;
-        });
-    }
-
-    static bool is_integer_mask_type(shape::type_t t)
-    {
-        return t == shape::int32_type or t == shape::int64_type;
-    }
-
     std::unordered_map<instruction_ref, instruction_ref>
     invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
     {
@@ -1090,15 +1006,8 @@ struct find_kv_cache_attention
                                                                        "squeeze"};
 
         auto is_valid_attn_op = [&](auto i) {
-            // Keep integer index arithmetic (padding extents, shape-derived values) out of the
-            // group: rocMLIR otherwise picks an integer elementwise op instead of the QK gemm
-            // as the attention's first gemm.
-            if(contains({"fixed_pad", "eval_expr_from_shape"}, i->name()))
-                return false;
-            const bool pointwise = i->get_operator().attributes().get("pointwise", false);
-            if(pointwise and is_integer_mask_type(i->get_shape().type()))
-                return false;
-            return pointwise or contains(valid_attn_ops, i->get_operator().name());
+            return i->get_operator().attributes().get("pointwise", false) or
+                   contains(valid_attn_ops, i->get_operator().name());
         };
 
         // Start with instructions on data-dependency paths from start to end.
@@ -1164,13 +1073,6 @@ struct find_kv_cache_attention
         // Capture all instructions part of the attention op
         auto attn_inss =
             get_attn_instructions(mpm.get_module(), total_sl, reshape, r.instructions["gemm1"]);
-        const auto n_gemms =
-            std::count_if(attn_inss.begin(), attn_inss.end(), [](instruction_ref ins) {
-                return contains({"dot", "quant_dot"}, ins->name());
-            });
-        // rock.attention needs QK and PV. A softmax+V group is not legal for rocMLIR.
-        if(n_gemms < 2)
-            return;
 
         // Add captured instructions to new submodule
         module m_attn;
@@ -1216,32 +1118,7 @@ struct find_kv_cache_attention
 
         // Define inputs to m_attn
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
-        promote_1d_int_ranges(m_attn);
-        auto new_inputs     = m_attn.get_inputs(map_mattn_to_mm);
-        auto param_to_input = m_attn.get_ins_param_map(new_inputs, true);
-
-        // Precompute integer where-conditions as bool in the parent. rocMLIR's
-        // rock.attention extra kernel otherwise emits an i32 to i8 truncate as
-        // firstGemmIndices instead of the QK gemm.
-        auto new_shapes     = m_attn.get_parameter_shapes();
-        bool converted_mask = false;
-        for(auto param : m_attn.get_parameters())
-        {
-            if(not is_integer_mask_type(param->get_shape().type()) or
-               not feeds_where_condition(param))
-                continue;
-            auto parent  = param_to_input.at(param);
-            auto as_bool = mpm.get_module().insert_instruction(
-                required_outputs.back(),
-                make_op("convert", {{"target_type", shape::bool_type}}),
-                parent);
-            std::replace(new_inputs.begin(), new_inputs.end(), parent, as_bool);
-            auto pname        = any_cast<builtin::param>(param->get_operator()).parameter;
-            new_shapes[pname] = param->get_shape().with_type(shape::bool_type);
-            converted_mask    = true;
-        }
-        if(converted_mask)
-            m_attn = m_attn.with_static_shapes(new_shapes);
+        auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
         module_ref mpm_attn =
             mpm.create_module(mpm.get_module().name() + ":attn" + get_count(), std::move(m_attn));

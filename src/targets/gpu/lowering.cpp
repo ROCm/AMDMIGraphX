@@ -696,9 +696,7 @@ struct miopen_apply
                 // Copy only runtime metadata that was not already produced on the host.
                 for(std::size_t i = 1; i < inputs.size(); ++i)
                 {
-                    // Bounds computable on the host need no copy back from the GPU, which would
-                    // add a transfer and a stream sync per slice.
-                    if(inputs[i]->name() == "eval_expr_from_shape" or inputs[i]->can_eval())
+                    if(inputs[i]->name() == "eval_expr_from_shape")
                         continue;
                     inputs[i] =
                         mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[i]);

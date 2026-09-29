@@ -147,7 +147,7 @@ TEST_CASE(dyn_slice_lowering_mixed_host_and_device_metadata)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(dyn_slice_lowering_literal_metadata_stays_on_host)
+TEST_CASE(dyn_slice_lowering_literal_metadata_copied_from_gpu)
 {
     auto n    = migraphx::sym::var("N", {1, 4});
     auto zero = migraphx::sym::lit(0);
@@ -171,12 +171,14 @@ TEST_CASE(dyn_slice_lowering_literal_metadata_stays_on_host)
 
     migraphx::module m2;
     {
-        auto data      = m2.add_parameter("data", data_shape);
-        auto ends      = m2.add_parameter("ends", index_shape);
-        auto starts    = m2.add_literal(migraphx::literal{index_shape, {0}});
-        auto copy_ends = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
-        auto sync      = m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_ends);
-        auto slice     = m2.add_instruction(slice_op, data, starts, sync);
+        auto data        = m2.add_parameter("data", data_shape);
+        auto ends        = m2.add_parameter("ends", index_shape);
+        auto starts      = m2.add_literal(migraphx::literal{index_shape, {0}});
+        auto copy_starts = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), starts);
+        auto copy_ends   = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
+        auto sync =
+            m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_starts, copy_ends);
+        auto slice = m2.add_instruction(slice_op, data, sync, copy_ends);
         m2.add_return({slice});
     }
     EXPECT(m1 == m2);

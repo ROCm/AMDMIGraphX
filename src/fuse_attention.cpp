@@ -988,7 +988,14 @@ struct find_kv_cache_attention
                                                                        "broadcast",
                                                                        "dot",
                                                                        "slice",
-                                                                       "concat", // attention sinks: concat(scores, sink_col)
+                                                                       // NOTE: "concat" is intentionally NOT a valid backward-walk op.
+                                                                       // The GPT-OSS sink concat(scores, sink_col) sits on the direct
+                                                                       // start->end path and is captured by find_instructions_between
+                                                                       // regardless. Adding "concat" here (for sinks, #5260) also lets the
+                                                                       // walk pull a model's RoPE rotate-half concat -> the whole RoPE is
+                                                                       // dragged into the decode-attention submodule, which MLIR cannot
+                                                                       // tune ("No valid tuned compilation for gpu::mlir_op / no problem
+                                                                       // key"). Excluding it keeps sinks working and fixes the over-pull.
                                                                        "transpose",
                                                                        "greater",
                                                                        "convert",

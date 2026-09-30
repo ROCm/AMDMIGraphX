@@ -47,11 +47,14 @@ static bool skip_propagate(instruction_ref ins)
         return true;
     if(contains({"unpack_int4", "unpack_fp4"}, ins->name()))
         return true;
-    auto&& s = ins->get_shape();
-    if(s.broadcasted() and s.element_space() < s.elements())
+    // Skip broadcasted views since folding them saves no computation, but fold
+    // computed ops into a literal that keeps the broadcast shape
+    auto&& s           = ins->get_shape();
+    auto aliases       = instruction::get_output_alias(ins, true);
+    const bool is_view = aliases.front() != ins;
+    if(s.broadcasted() and s.element_space() < s.elements() and is_view)
         return true;
-    auto aliases = instruction::get_output_alias(ins, true);
-    if(aliases.size() == 1 and aliases.front() != ins)
+    if(aliases.size() == 1 and is_view)
         return skip_propagate(aliases.front());
     if(ins->is_undefined())
         return true;
@@ -66,7 +69,8 @@ static bool is_const_ins(instruction_ref ins, const std::unordered_set<std::stri
 
 static literal as_packed(const argument& c)
 {
-    if(c.get_shape().packed())
+    // A broadcasted result only stores its element space, so it is already minimal
+    if(c.get_shape().packed() or c.get_shape().broadcasted())
         return {c.get_shape(), c.data()};
     auto s = c.get_shape().with_lens(c.get_shape().lens());
     literal result;

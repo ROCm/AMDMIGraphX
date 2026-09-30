@@ -509,7 +509,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), ${transformers}, rotate_and_pack_last<${noutputs}>())(${args})([](auto y, auto... xs) {
-        fused_reduce<reduce::${algo}, ${reduced}>(y, ${assign}{}, partial(${lambda})(xs...));
+        fused_reduce<reduce::${algo}, ${reduced}>(y, ${assign}{}, ${lambda}, xs...);
     });
 }
     

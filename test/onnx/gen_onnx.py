@@ -32,7 +32,6 @@ from onnx.numpy_helper import from_array
 
 
 def onnx_test(external_data=False, opset_version=None):
-
     def create_onnx_test(op_test):
 
         def run_test():

@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Optimized GridSample by adding a GPU JIT kernel for the ONNX `nearest`, `linear`/`bilinear`, and `cubic`/`bicubic` modes, replacing the `concat`+`gathernd` decomposition in the ONNX parser for those modes (#5139).
 ### Changed
 
 ### Resolved issues

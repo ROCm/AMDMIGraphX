@@ -25,22 +25,23 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-TEST_CASE(gridsample_channel_test)
+// Opset-20 mode="linear" -- pairs with gridsample_opset16_bilinear_test.
+TEST_CASE(gridsample_opset20_linear_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 4}});
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 4, 4}});
     auto grid =
         mm->add_parameter("grid", migraphx::shape{migraphx::shape::float_type, {1, 6, 6, 2}});
 
     mm->add_instruction(
         migraphx::make_op(
             "gridsample",
-            {{"mode", "linear"}, {"padding_mode", "border"}, {"align_corners", true}}),
+            {{"mode", "linear"}, {"padding_mode", "zeros"}, {"align_corners", false}}),
         x,
         grid);
 
-    auto prog = optimize_onnx("gridsample_channel_test.onnx");
+    auto prog = optimize_onnx("gridsample_opset20_linear_test.onnx");
     EXPECT(p == prog);
 }

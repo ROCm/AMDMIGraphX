@@ -91,9 +91,8 @@ struct binary_cache_backend
     /// error, it is a cache miss, and the caller recompiles.
     ///
     /// Must not throw.
-    optional<std::vector<char>> load(const std::string& version,
-                                     const std::string& device,
-                                     const std::string& key_hash);
+    optional<std::vector<char>>
+    load(const std::string& version, const std::string& device, const std::string& key_hash);
 
     /// Persist `blob`, the msgpack encoding of `e`, under this key.
     ///

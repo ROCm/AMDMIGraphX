@@ -289,6 +289,87 @@ struct match_find_quantizable_ops
     }
 };
 
+// Rewrites the QLinearAdd pattern quantizelinear(add(dq(x1, s1, z1), dq(x2, s2, z2)), s, z) to
+// quantizelinear(add(dq(x1, s1/s, z1), dq(x2, s2/s, z2)), 1, z), the form used by the onnxruntime
+// kernel. The folded scales also keep remove_qdq_pairs from dropping the rounding around the add.
+struct match_find_quantizable_add
+{
+    static bool is_int8(shape::type_t t) { return t == shape::int8_type or t == shape::uint8_type; }
+
+    static bool is_unit_scale(instruction_ref scale)
+    {
+        bool result = false;
+        scale->eval().visit([&](auto v) {
+            result = std::all_of(v.begin(), v.end(), [](auto x) { return float_equal(x, 1); });
+        });
+        return result;
+    }
+
+    // Copy dq with its scale divided by out_scale and replay the ops between dq and the add
+    static instruction_ref requantize_input(module& m,
+                                            instruction_ref dq,
+                                            instruction_ref scale,
+                                            instruction_ref out_scale,
+                                            instruction_ref add_arg)
+    {
+        auto scale_shape = scale->get_shape();
+        if(out_scale->get_shape().type() != scale_shape.type())
+            out_scale = m.insert_instruction(
+                dq, make_op("convert", {{"target_type", scale_shape.type()}}), out_scale);
+        if(out_scale->get_shape().lens() != scale_shape.lens())
+            out_scale = m.insert_instruction(
+                dq, make_op("multibroadcast", {{"out_lens", scale_shape.lens()}}), out_scale);
+        auto ratio  = m.insert_instruction(dq, make_op("div"), scale, out_scale);
+        auto inputs = dq->inputs();
+        inputs[1]   = propagate_quantized_ins(m, dq, ratio, get_between_ins(scale, inputs[1]));
+        auto new_dq = m.insert_instruction(dq, dq->get_operator(), inputs);
+        return propagate_quantized_ins(m, dq, new_dq, get_between_ins(dq, add_arg));
+    }
+
+    static auto dequantizelinear_scale(const std::string& scale)
+    {
+        return match::name("dequantizelinear")(
+            match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))));
+    }
+
+    auto matcher() const
+    {
+        auto dq1 = match::arg(0)(skip_post_dq_ops(dequantizelinear_scale("scale1").bind("dq1")));
+        auto dq2 = match::arg(1)(skip_post_dq_ops(dequantizelinear_scale("scale2").bind("dq2")));
+        auto add = match::name("add")(dq1, dq2).bind("add");
+        auto out_scale =
+            match::arg(1)(match::skip_broadcasts(match::is_constant().bind("out_scale")));
+        return match::name("quantizelinear")(match::arg(0)(add), out_scale);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto q         = r.result;
+        auto add       = r.instructions["add"];
+        auto dq1       = r.instructions["dq1"];
+        auto dq2       = r.instructions["dq2"];
+        auto scale1    = r.instructions["scale1"];
+        auto scale2    = r.instructions["scale2"];
+        auto out_scale = r.instructions["out_scale"];
+
+        if(not is_int8(dq1->inputs().front()->get_shape().type()) or
+           not is_int8(dq2->inputs().front()->get_shape().type()))
+            return;
+        if(out_scale->get_shape().elements() != 1 or is_unit_scale(out_scale))
+            return;
+
+        auto x1     = requantize_input(m, dq1, scale1, out_scale, add->inputs().at(0));
+        auto x2     = requantize_input(m, dq2, scale2, out_scale, add->inputs().at(1));
+        auto sum    = m.insert_instruction(q, make_op("add"), x1, x2);
+        auto one    = m.add_literal(literal{shape{sum->get_shape().type()}, {1}});
+        auto inputs = q->inputs();
+        inputs[0]   = sum;
+        inputs[1]   = m.insert_instruction(
+            q, make_op("multibroadcast", {{"out_lens", sum->get_shape().lens()}}), one);
+        m.replace_instruction(q, q->get_operator(), inputs);
+    }
+};
+
 // Checks for block quantized scales by checking scales are not scalar or 1D.
 inline auto block_dq(const std::string& scale)
 {
@@ -653,6 +734,8 @@ void simplify_qdq::apply(module& m) const
         // first step: add pack/unpack pair between qdq for int4 weights
         add_int4_pack_unpack_pair(m);
         match::find_matches(m, match_find_quantizable_ops{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        match::find_matches(m, match_find_quantizable_add{});
         migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
         if(use_mx_quant)
         {

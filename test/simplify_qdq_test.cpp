@@ -36,6 +36,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
+#include <numeric>
 
 namespace match = migraphx::match;
 
@@ -2007,6 +2008,358 @@ TEST_CASE(qdq_computed_scale)
 
     run_pass(m1);
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(add_quantized)
+{
+    migraphx::shape sh{migraphx::shape::uint8_type, {2, 4}};
+
+    migraphx::module m1;
+    {
+        auto x1     = m1.add_parameter("x1", sh);
+        auto x2     = m1.add_parameter("x2", sh);
+        auto scale1 = m1.add_literal(0.02f);
+        auto zp1    = m1.add_literal(std::uint8_t{10});
+        auto scale2 = m1.add_literal(0.05f);
+        auto zp2    = m1.add_literal(std::uint8_t{5});
+        auto scale3 = m1.add_literal(0.03f);
+        auto zp3    = m1.add_literal(std::uint8_t{20});
+
+        auto d1  = add_quantize_op(m1, "dequantizelinear", x1, scale1, zp1);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", x2, scale2, zp2);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q   = add_quantize_op(m1, "quantizelinear", add, scale3, zp3);
+        m1.add_return({q});
+    }
+
+    migraphx::module m2;
+    {
+        auto x1     = m2.add_parameter("x1", sh);
+        auto x2     = m2.add_parameter("x2", sh);
+        auto scale1 = m2.add_literal(0.02f);
+        auto zp1    = m2.add_literal(std::uint8_t{10});
+        auto scale2 = m2.add_literal(0.05f);
+        auto zp2    = m2.add_literal(std::uint8_t{5});
+        auto scale3 = m2.add_literal(0.03f);
+        auto zp3    = m2.add_literal(std::uint8_t{20});
+        auto one    = m2.add_literal(1.0f);
+
+        auto zp1_b  = broadcast_shift(m2, zp1, sh.lens());
+        auto ratio1 = m2.add_instruction(migraphx::make_op("div"), scale1, scale3);
+        auto d1     = add_quantize_op(m2, "dequantizelinear", x1, ratio1, zp1_b);
+        auto zp2_b  = broadcast_shift(m2, zp2, sh.lens());
+        auto ratio2 = m2.add_instruction(migraphx::make_op("div"), scale2, scale3);
+        auto d2     = add_quantize_op(m2, "dequantizelinear", x2, ratio2, zp2_b);
+        auto zp3_b  = broadcast_shift(m2, zp3, sh.lens());
+        auto sum    = m2.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q      = add_quantize_op(m2, "quantizelinear", sum, one, zp3_b);
+        m2.add_return({q});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(add_quantized_per_channel_scale)
+{
+    migraphx::shape sh{migraphx::shape::uint8_type, {2, 4}};
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+
+    migraphx::module m1;
+    {
+        auto x1     = m1.add_parameter("x1", sh);
+        auto x2     = m1.add_parameter("x2", sh);
+        auto scale1 = m1.add_literal(migraphx::literal{ss, {0.01f, 0.02f, 0.03f, 0.04f}});
+        auto zp1    = m1.add_literal(std::uint8_t{10});
+        auto scale2 = m1.add_literal(0.05f);
+        auto zp2    = m1.add_literal(std::uint8_t{5});
+        auto scale3 = m1.add_literal(0.03f);
+        auto zp3    = m1.add_literal(std::uint8_t{20});
+
+        auto d1  = add_quantize_op(m1, "dequantizelinear", x1, scale1, zp1);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", x2, scale2, zp2);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q   = add_quantize_op(m1, "quantizelinear", add, scale3, zp3);
+        m1.add_return({q});
+    }
+
+    migraphx::module m2;
+    {
+        auto x1     = m2.add_parameter("x1", sh);
+        auto x2     = m2.add_parameter("x2", sh);
+        auto scale1 = m2.add_literal(migraphx::literal{ss, {0.01f, 0.02f, 0.03f, 0.04f}});
+        auto zp1    = m2.add_literal(std::uint8_t{10});
+        auto scale2 = m2.add_literal(0.05f);
+        auto zp2    = m2.add_literal(std::uint8_t{5});
+        auto scale3 = m2.add_literal(0.03f);
+        auto zp3    = m2.add_literal(std::uint8_t{20});
+        auto one    = m2.add_literal(1.0f);
+
+        auto zp1_b    = broadcast_shift(m2, zp1, sh.lens());
+        auto scale3_b = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", ss.lens()}}), scale3);
+        auto ratio1 = m2.add_instruction(migraphx::make_op("div"), scale1, scale3_b);
+        auto d1     = add_quantize_op(m2, "dequantizelinear", x1, ratio1, zp1_b);
+        auto zp2_b  = broadcast_shift(m2, zp2, sh.lens());
+        auto ratio2 = m2.add_instruction(migraphx::make_op("div"), scale2, scale3);
+        auto d2     = add_quantize_op(m2, "dequantizelinear", x2, ratio2, zp2_b);
+        auto zp3_b  = broadcast_shift(m2, zp3, sh.lens());
+        auto sum    = m2.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q      = add_quantize_op(m2, "quantizelinear", sum, one, zp3_b);
+        m2.add_return({q});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(add_quantized_broadcast)
+{
+    migraphx::shape sh1{migraphx::shape::uint8_type, {2, 4}};
+    migraphx::shape sh2{migraphx::shape::uint8_type, {4}};
+
+    migraphx::module m1;
+    {
+        auto x1     = m1.add_parameter("x1", sh1);
+        auto x2     = m1.add_parameter("x2", sh2);
+        auto scale1 = m1.add_literal(0.05f);
+        auto zp1    = m1.add_literal(std::uint8_t{2});
+        auto scale2 = m1.add_literal(0.02f);
+        auto zp2    = m1.add_literal(std::uint8_t{10});
+        auto scale3 = m1.add_literal(0.03f);
+        auto zp3    = m1.add_literal(std::uint8_t{20});
+
+        auto d1 = add_quantize_op(m1, "dequantizelinear", x1, scale1, zp1);
+        auto d2 = add_quantize_op(m1, "dequantizelinear", x2, scale2, zp2);
+        auto d2_b =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sh1.lens()}}), d2);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d1, d2_b);
+        auto q   = add_quantize_op(m1, "quantizelinear", add, scale3, zp3);
+        m1.add_return({q});
+    }
+
+    migraphx::module m2;
+    {
+        auto x1     = m2.add_parameter("x1", sh1);
+        auto x2     = m2.add_parameter("x2", sh2);
+        auto scale1 = m2.add_literal(0.05f);
+        auto zp1    = m2.add_literal(std::uint8_t{2});
+        auto scale2 = m2.add_literal(0.02f);
+        auto zp2    = m2.add_literal(std::uint8_t{10});
+        auto scale3 = m2.add_literal(0.03f);
+        auto zp3    = m2.add_literal(std::uint8_t{20});
+        auto one    = m2.add_literal(1.0f);
+
+        auto zp1_b  = broadcast_shift(m2, zp1, sh1.lens());
+        auto ratio1 = m2.add_instruction(migraphx::make_op("div"), scale1, scale3);
+        auto d1     = add_quantize_op(m2, "dequantizelinear", x1, ratio1, zp1_b);
+        auto zp2_b  = broadcast_shift(m2, zp2, sh2.lens());
+        auto ratio2 = m2.add_instruction(migraphx::make_op("div"), scale2, scale3);
+        auto d2     = add_quantize_op(m2, "dequantizelinear", x2, ratio2, zp2_b);
+        auto d2_b =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sh1.lens()}}), d2);
+        auto zp3_b = broadcast_shift(m2, zp3, sh1.lens());
+        auto sum   = m2.add_instruction(migraphx::make_op("add"), d1, d2_b);
+        auto q     = add_quantize_op(m2, "quantizelinear", sum, one, zp3_b);
+        m2.add_return({q});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(add_quantized_fp16)
+{
+    migraphx::shape sh{migraphx::shape::uint8_type, {2, 4}};
+    migraphx::literal half_scale{migraphx::shape{migraphx::shape::half_type}, {0.25f}};
+    migraphx::literal half_one{migraphx::shape{migraphx::shape::half_type}, {1}};
+
+    migraphx::module m1;
+    {
+        auto x1     = m1.add_parameter("x1", sh);
+        auto x2     = m1.add_parameter("x2", sh);
+        auto scale  = m1.add_literal(0.5f);
+        auto zp1    = m1.add_literal(std::uint8_t{3});
+        auto zp2    = m1.add_literal(std::uint8_t{4});
+        auto scale3 = m1.add_literal(half_scale);
+        auto zp3    = m1.add_literal(std::uint8_t{8});
+
+        auto d1  = add_quantize_op(m1, "dequantizelinear", x1, scale, zp1);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", x2, scale, zp2);
+        auto d1h = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d1);
+        auto d2h = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d2);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d1h, d2h);
+        auto q   = add_quantize_op(m1, "quantizelinear", add, scale3, zp3);
+        m1.add_return({q});
+    }
+
+    migraphx::module m2;
+    {
+        auto x1     = m2.add_parameter("x1", sh);
+        auto x2     = m2.add_parameter("x2", sh);
+        auto scale  = m2.add_literal(0.5f);
+        auto zp1    = m2.add_literal(std::uint8_t{3});
+        auto zp2    = m2.add_literal(std::uint8_t{4});
+        auto scale3 = m2.add_literal(half_scale);
+        auto zp3    = m2.add_literal(std::uint8_t{8});
+        auto one    = m2.add_literal(half_one);
+
+        auto zp1_b    = broadcast_shift(m2, zp1, sh.lens());
+        auto scale3_1 = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale3);
+        auto ratio1 = m2.add_instruction(migraphx::make_op("div"), scale, scale3_1);
+        auto d1     = add_quantize_op(m2, "dequantizelinear", x1, ratio1, zp1_b);
+        auto d1h    = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d1);
+        auto zp2_b    = broadcast_shift(m2, zp2, sh.lens());
+        auto scale3_2 = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale3);
+        auto ratio2 = m2.add_instruction(migraphx::make_op("div"), scale, scale3_2);
+        auto d2     = add_quantize_op(m2, "dequantizelinear", x2, ratio2, zp2_b);
+        auto d2h    = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d2);
+        auto zp3_b = broadcast_shift(m2, zp3, sh.lens());
+        auto sum   = m2.add_instruction(migraphx::make_op("add"), d1h, d2h);
+        auto q     = add_quantize_op(m2, "quantizelinear", sum, one, zp3_b);
+        m2.add_return({q});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(add_quantized_idempotent)
+{
+    migraphx::shape sh{migraphx::shape::uint8_type, {2, 4}};
+
+    migraphx::module m1;
+    {
+        auto x1     = m1.add_parameter("x1", sh);
+        auto x2     = m1.add_parameter("x2", sh);
+        auto scale1 = m1.add_literal(0.02f);
+        auto zp1    = m1.add_literal(std::uint8_t{10});
+        auto scale2 = m1.add_literal(0.05f);
+        auto zp2    = m1.add_literal(std::uint8_t{5});
+        auto scale3 = m1.add_literal(0.03f);
+        auto zp3    = m1.add_literal(std::uint8_t{20});
+
+        auto d1  = add_quantize_op(m1, "dequantizelinear", x1, scale1, zp1);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", x2, scale2, zp2);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q   = add_quantize_op(m1, "quantizelinear", add, scale3, zp3);
+        m1.add_return({q});
+    }
+    run_pass(m1);
+
+    migraphx::module m2 = m1;
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(add_quantized_no_output_quantize)
+{
+    migraphx::shape sh{migraphx::shape::uint8_type, {2, 4}};
+
+    migraphx::module m1;
+    {
+        auto x1     = m1.add_parameter("x1", sh);
+        auto x2     = m1.add_parameter("x2", sh);
+        auto scale1 = m1.add_literal(0.02f);
+        auto zp1    = m1.add_literal(std::uint8_t{10});
+        auto scale2 = m1.add_literal(0.05f);
+        auto zp2    = m1.add_literal(std::uint8_t{5});
+
+        auto d1  = add_quantize_op(m1, "dequantizelinear", x1, scale1, zp1);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", x2, scale2, zp2);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d1, d2);
+        m1.add_return({add});
+    }
+
+    migraphx::module m2 = m1;
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(add_quantized_int32_inputs)
+{
+    migraphx::shape sh{migraphx::shape::int32_type, {2, 4}};
+
+    migraphx::module m1;
+    {
+        auto x1     = m1.add_parameter("x1", sh);
+        auto x2     = m1.add_parameter("x2", sh);
+        auto scale1 = m1.add_literal(0.02f);
+        auto zp1    = m1.add_literal(std::int32_t{10});
+        auto scale2 = m1.add_literal(0.05f);
+        auto zp2    = m1.add_literal(std::int32_t{5});
+        auto scale3 = m1.add_literal(0.03f);
+        auto zp3    = m1.add_literal(std::uint8_t{20});
+
+        auto d1  = add_quantize_op(m1, "dequantizelinear", x1, scale1, zp1);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", x2, scale2, zp2);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q   = add_quantize_op(m1, "quantizelinear", add, scale3, zp3);
+        m1.add_return({q});
+    }
+
+    migraphx::module m2 = m1;
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(add_correctness)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 4}};
+
+    auto create_program = [&] {
+        migraphx::program p;
+        auto* mm    = p.get_main_module();
+        auto x1     = mm->add_parameter("x1", s);
+        auto x2     = mm->add_parameter("x2", s);
+        auto scale1 = mm->add_literal(0.02f);
+        auto zp1    = mm->add_literal(std::uint8_t{10});
+        auto scale2 = mm->add_literal(0.05f);
+        auto zp2    = mm->add_literal(std::uint8_t{5});
+        auto scale3 = mm->add_literal(0.03f);
+        auto zp3    = mm->add_literal(std::uint8_t{20});
+
+        auto q1  = add_quantize_op(*mm, "quantizelinear", x1, scale1, zp1);
+        auto d1  = add_quantize_op(*mm, "dequantizelinear", q1, scale1, zp1);
+        auto q2  = add_quantize_op(*mm, "quantizelinear", x2, scale2, zp2);
+        auto d2  = add_quantize_op(*mm, "dequantizelinear", q2, scale2, zp2);
+        auto add = mm->add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q3  = add_quantize_op(*mm, "quantizelinear", add, scale3, zp3);
+        mm->add_return({q3});
+        return p;
+    };
+
+    auto p1 = create_program();
+    run_pass(*p1.get_main_module());
+    auto p2 = create_program();
+
+    // Inputs inside the quantized ranges that do not land on rounding ties
+    std::vector<float> v1(s.elements());
+    std::iota(v1.begin(), v1.end(), 0);
+    std::vector<float> v2 = v1;
+    std::transform(v1.begin(), v1.end(), v1.begin(), [](float x) { return 0.13f * x + 0.007f; });
+    std::transform(v2.begin(), v2.end(), v2.begin(), [](float x) { return 0.1f * x - 0.19f; });
+    auto x1 = migraphx::argument(s, v1.data());
+    auto x2 = migraphx::argument(s, v2.data());
+    p1.compile(migraphx::target(migraphx::make_target("ref")));
+    p2.compile(migraphx::target(migraphx::make_target("ref")));
+
+    auto result1 = p1.eval({{"x1", x1}, {"x2", x2}}).back();
+    std::vector<float> rv1;
+    result1.visit([&](auto output) { rv1.assign(output.begin(), output.end()); });
+    auto result2 = p2.eval({{"x1", x1}, {"x2", x2}}).back();
+    std::vector<float> rv2;
+    result2.visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(rv1, rv2));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

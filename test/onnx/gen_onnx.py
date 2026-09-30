@@ -4269,6 +4269,89 @@ def external_constant_test():
 
 
 @onnx_test()
+def external_data_short_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [16])
+
+    weight_file = 'external_data_short_test.weight'
+    np.arange(16, dtype=np.float32).tofile(weight_file)
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([16])
+    tensor.data_location = TensorProto.EXTERNAL
+    for key, value in [('location', weight_file), ('offset', '0'),
+                       ('length', '4')]:
+        entry = tensor.external_data.add()
+        entry.key = key
+        entry.value = value
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def raw_data_short_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1024, 1024])
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([1024, 1024])
+    tensor.raw_data = np.array([1], dtype=np.float32).tobytes()
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def raw_data_long_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2])
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([2])
+    tensor.raw_data = np.array([1, 2, 3], dtype=np.float32).tobytes()
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def float_data_too_many_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1])
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([1])
+    tensor.float_data.extend(np.arange(1024, dtype=np.float32))
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def float_data_too_few_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4])
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([4])
+    tensor.float_data.extend([1.0])
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
 def eyelike_default_test():
     T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
     T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])

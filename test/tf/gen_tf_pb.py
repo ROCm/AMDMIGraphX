@@ -24,6 +24,7 @@
 # This script generates tf pb files for MIGraphX tf operator tests.
 # To generate an individual pb file, you can use the following
 # command: python -c "import gen_tf_pb; gen_tf_pb.{test_name}_test()"
+import struct
 import tensorflow as tf
 
 
@@ -260,6 +261,39 @@ def concat_test(g1):
 def const_test(g1):
     with g1.as_default():
         tf.constant(1.0, dtype=tf.float32, name='constant1')
+
+
+def float_val_too_many_test():
+    g = tf.compat.v1.GraphDef()
+    node = g.node.add()
+    node.name = 'constant1'
+    node.op = 'Const'
+    node.attr['dtype'].type = tf.float32.as_datatype_enum
+    tensor = node.attr['value'].tensor
+    tensor.dtype = tf.float32.as_datatype_enum
+    tensor.tensor_shape.dim.add(size=2)
+    tensor.float_val.extend(range(1024))
+    tf.io.write_graph(g,
+                      './models',
+                      'float_val_too_many_test.pb',
+                      as_text=False)
+
+
+def tensor_content_short_test():
+    g = tf.compat.v1.GraphDef()
+    node = g.node.add()
+    node.name = 'constant1'
+    node.op = 'Const'
+    node.attr['dtype'].type = tf.float32.as_datatype_enum
+    tensor = node.attr['value'].tensor
+    tensor.dtype = tf.float32.as_datatype_enum
+    tensor.tensor_shape.dim.add(size=1024)
+    tensor.tensor_shape.dim.add(size=1024)
+    tensor.tensor_content = struct.pack('<f', 1.0)
+    tf.io.write_graph(g,
+                      './models',
+                      'tensor_content_short_test.pb',
+                      as_text=False)
 
 
 @tf_test

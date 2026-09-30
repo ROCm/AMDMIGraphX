@@ -30,9 +30,11 @@
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/raw_data.hpp>
 #include <migraphx/make_shared_array.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/config.hpp>
 
 #include <memory>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -87,6 +89,16 @@ struct literal : raw_data<literal>
         std::copy(x, x + s.bytes(), buffer.get());
     }
 
+    // Copies buffer of x, which must hold exactly s.bytes() bytes
+    template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
+    literal(const shape& s, T* x, std::size_t n) : m_shape(s)
+    {
+        if(n != s.bytes())
+            MIGRAPHX_THROW("literal: buffer size " + std::to_string(n) +
+                           " does not match shape bytes " + std::to_string(s.bytes()));
+        buffer = make_shared_array<char>(x, x + n);
+    }
+
     /// Whether data is available
     bool empty() const { return this->buffer == nullptr; }
 
@@ -112,7 +124,11 @@ struct literal : raw_data<literal>
     template <class Iterator>
     void fill(Iterator start, Iterator end)
     {
-        assert(std::distance(start, end) == m_shape.elements());
+        if(std::distance(start, end) != m_shape.elements())
+            MIGRAPHX_THROW("literal: number of values " +
+                           std::to_string(std::distance(start, end)) +
+                           " does not match shape elements " +
+                           std::to_string(m_shape.elements()));
         m_shape.visit_type([&](auto as) {
             auto output = make_view(m_shape, as.from(buffer.get()));
             std::copy(start, end, output.begin());

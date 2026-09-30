@@ -47,7 +47,8 @@ void migraphx_from_value(const value& v, literal& l)
     auto s = migraphx::from_value<shape>(v.at("shape"));
     if(v.contains("data"))
     {
-        l = literal(s, v.at("data").get_binary().data());
+        const auto& data = v.at("data").get_binary();
+        l                = literal(s, data.data(), data.size());
     }
     else
     {

@@ -1014,6 +1014,7 @@ struct verify : command<verify>
     bool per_instruction = false;
     bool reduce          = false;
     bool bisect          = false;
+    bool layerwise       = false;
     verify_options vo;
     void parse(argument_parser& ap)
     {
@@ -1027,6 +1028,11 @@ struct verify : command<verify>
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
         ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
+        ap(layerwise,
+           {"-l", "--layerwise"},
+           ap.help("Compare outputs layer by layer in a single run instead of recompiling for each "
+                   "step"),
+           ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
            ap.help(
@@ -1075,6 +1081,10 @@ struct verify : command<verify>
         {
             verify_bisected_program(p, t, c.co, vo, m, tols);
         }
+        else if(layerwise)
+        {
+            verify_layerwise_program(p, t, c.co, vo, m, tols);
+        }
         else
         {
             verify_program(c.l.file, p, t, c.co, vo, m, tols);
@@ -1109,9 +1119,14 @@ struct time_cmd : command<time_cmd>
 {
     compiler c;
     unsigned n = 100;
+    unsigned nbuffers = 1;
     void parse(argument_parser& ap)
     {
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run."));
+        ap(nbuffers,
+           {"--buffers", "-b"},
+           ap.help("Number of parameter buffer sets to rotate through between iterations (avoids "
+                   "cache reuse)."));
         c.parse(ap);
     }
 
@@ -1119,9 +1134,12 @@ struct time_cmd : command<time_cmd>
     {
         auto p = c.compile();
         log::info() << "Allocating params ...";
-        auto m = c.params(p);
+        if(nbuffers == 0)
+            MIGRAPHX_THROW("--buffers must be at least 1");
+        std::vector<parameter_map> ms;
+        std::generate_n(std::back_inserter(ms), nbuffers, [&] { return c.params(p); });
         log::info() << "Running ...";
-        double t = time_run(p, m, n);
+        double t = time_run(p, ms, n);
         std::cout << "Total time: " << t << "ms" << std::endl;
     }
 };

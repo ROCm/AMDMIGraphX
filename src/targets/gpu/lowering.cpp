@@ -103,7 +103,7 @@ struct miopen_apply
 #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
-        add_extend_op("fixed_pad");
+        add_fixed_pad_op();
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
@@ -347,6 +347,19 @@ struct miopen_apply
     }
 
     void add_extend_op(const std::string& name) { add_extend_op(name, "gpu::" + name); }
+
+    void add_fixed_pad_op()
+    {
+        apply_map.emplace("fixed_pad", [=](instruction_ref ins) {
+            const auto& input = ins->inputs().front();
+            if(not input->get_shape().dynamic())
+                return mod->replace_instruction(ins, input);
+
+            auto output = insert_allocation(ins, ins->get_shape());
+            return mod->replace_instruction(
+                ins, make_op("gpu::fixed_pad", ins->get_operator().to_value()), {input, output});
+        });
+    }
 
     void add_extend_op(const std::string& op_name, const std::string& gpu_name)
     {
@@ -636,15 +649,24 @@ struct miopen_apply
     }
 
     /**
-     * Adds dynamic allocation for submodule output parameter.
+     * Adds one allocation per submodule output so each output is written in place. A ranged
+     * submodule writes the whole range, so a dynamic output is allocated at its maximum extent.
      */
     void add_select_module_op()
     {
         apply_map.emplace("select_module", [=](instruction_ref ins) {
-            auto s                              = ins->get_shape();
-            auto output                         = insert_allocation(ins, s);
+            const auto& sub_shapes = ins->get_shape().sub_shapes();
+            std::vector<instruction_ref> outputs;
+            std::transform(sub_shapes.begin(),
+                           sub_shapes.end(),
+                           std::back_inserter(outputs),
+                           [&](const shape& s) {
+                               return insert_allocation(
+                                   ins, s.dynamic() ? shape{s.type(), s.max_lens()} : s);
+                           });
+
             std::vector<instruction_ref> inputs = ins->inputs();
-            inputs.push_back(output);
+            inputs.insert(inputs.end(), outputs.begin(), outputs.end());
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });
     }

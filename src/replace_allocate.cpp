@@ -31,7 +31,6 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/op/allocate.hpp>
-#include <migraphx/op/get_tuple_elem.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/algorithm.hpp>
@@ -46,25 +45,36 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-// select_module writes each submodule return into the subobject of its output tuple that the
-// get_tuple_elem reads, so that subobject is already output storage. Other tuple producers, such as
-// loop, can return buffers of their own instead of the subobjects of their output allocation.
-bool reads_select_module_output_allocation(instruction_ref ins)
+// A lowered select_module writes each output into its own trailing buffer, which its operator
+// alias cannot distinguish because the alias covers every buffer at once.
+optional<instruction_ref> get_select_module_buffer(instruction_ref ins)
 {
     if(ins->name() != "get_tuple_elem")
-        return false;
-    auto tuple = ins->inputs().front();
-    if(tuple->name() != "select_module")
-        return false;
+        return nullopt;
+    auto producer = ins->inputs().front();
+    if(producer->name() != "select_module")
+        return nullopt;
+    const auto& inputs = producer->inputs();
+    auto noutputs      = producer->get_shape().sub_shapes().size();
+    if(inputs.size() <= noutputs)
+        return nullopt;
+    auto index = ins->get_operator().to_value()["index"].to<std::size_t>();
+    return inputs.at(inputs.size() - noutputs + index);
+}
 
-    auto index   = any_cast<op::get_tuple_elem>(ins->get_operator()).index;
-    auto aliases = instruction::get_output_alias(tuple);
-    return std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
-        if(alias->name() != "allocate" or alias->get_shape().type() != shape::tuple_type)
-            return false;
-        const auto& alias_sub_shapes = alias->get_shape().sub_shapes();
-        return index < alias_sub_shapes.size() and alias_sub_shapes[index] == ins->get_shape();
-    });
+std::vector<instruction_ref> get_output_alias(instruction_ref ins)
+{
+    if(auto buffer = get_select_module_buffer(ins))
+        return get_output_alias(*buffer);
+    auto aliases = instruction::get_output_alias(ins, true);
+    if(aliases.size() == 1 and aliases.front() == ins)
+        return {ins};
+    std::vector<instruction_ref> result;
+    std::transform(aliases.begin(),
+                   aliases.end(),
+                   join_back_inserter(result),
+                   [](instruction_ref alias) { return get_output_alias(alias); });
+    return result;
 }
 
 std::vector<instruction_ref> get_alloc_aliases(const module& mod)
@@ -76,7 +86,7 @@ std::vector<instruction_ref> get_alloc_aliases(const module& mod)
     std::transform(returns.begin(),
                    returns.end(),
                    join_back_inserter(alloc_aliases),
-                   [](const auto& i) { return instruction::get_output_alias(i); });
+                   [](const auto& i) { return get_output_alias(i); });
     return alloc_aliases;
 }
 
@@ -98,7 +108,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
         {
             for(auto ins : alloc_aliases)
             {
-                mod_output_names[ins] = "output_" + std::to_string(index++);
+                mod_output_names.emplace(ins, "output_" + std::to_string(index++));
             }
         }
     }
@@ -107,7 +117,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     {
         for(auto ins : alloc_aliases)
         {
-            mod_output_names[ins] = param_name(index++, mod.name() + ":#output_");
+            mod_output_names.emplace(ins, param_name(index++, mod.name() + ":#output_"));
         }
     }
 
@@ -135,7 +145,7 @@ get_output_debug_symbols(const module& mod)
         }
         for(const auto& os : range(output_symbols.begin(), output_symbols.end()))
         {
-            mod_output_debug_symbols[alloc_aliases.at(index)] = {os};
+            mod_output_debug_symbols[alloc_aliases.at(index)].insert(os);
             ++index;
         }
         return mod_output_debug_symbols;
@@ -253,8 +263,6 @@ void insert_copy(module& m, const allocation_model& model)
         if(not visited.insert(ins).second)
             continue;
         if(ins->get_shape().any_of_dynamic())
-            continue;
-        if(reads_select_module_output_allocation(ins))
             continue;
         auto aliases = instruction::get_output_alias(ins);
         if(std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {

@@ -35,6 +35,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <unordered_map>
 #include <vector>
 
@@ -75,6 +76,9 @@ struct select_module
         std::vector<parameter_metadata> inputs;
         std::vector<parameter_metadata> outputs;
         std::vector<std::size_t> selector_indices;
+        // Dynamic inputs that every candidate shares. Parameter evaluation does not check
+        // dynamic shapes, so these are checked once the module is selected.
+        std::vector<std::size_t> shared_dynamic_indices;
         std::vector<parameter_source> parameters;
     };
 
@@ -100,6 +104,8 @@ struct select_module
     }
 
     std::string name() const { return "select_module"; }
+
+    std::size_t num_outputs() const { return output_dyn_shapes.sub_shapes().size(); }
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
     {
@@ -163,10 +169,11 @@ struct select_module
         return actual == expected;
     }
 
-    // Input arguments are ordered like the sorted input parameters, followed by the tuple of
-    // output buffers when the submodules have output parameters. Only the positions whose
-    // parameter differs between candidates are compared; the selected submodule still validates
-    // every parameter during evaluation.
+    // Input arguments are ordered like the sorted input parameters, followed by one buffer per
+    // output when the submodules have output parameters. Only the positions whose parameter
+    // differs between candidates are compared to pick a module. A shared input that does not match
+    // would reject every candidate, so the shared dynamic inputs are only checked on the selected
+    // module; the static ones are checked when the submodule evaluates its parameters.
     template <class GetArgument>
     const module_metadata& find_module(const module_set_metadata& metadata,
                                        std::size_t argument_count,
@@ -184,10 +191,20 @@ struct select_module
                                    });
             });
 
-        if(module_iter == metadata.modules.end())
+        if(module_iter == metadata.modules.end() or
+           not std::all_of(module_iter->shared_dynamic_indices.begin(),
+                           module_iter->shared_dynamic_indices.end(),
+                           [&](std::size_t index) {
+                               return matches_input_shape(
+                                   get_argument(index).get_shape(),
+                                   module_iter->inputs[index].parameter_shape);
+                           }))
         {
             MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for given input shapes");
         }
+        if(not module_iter->outputs.empty() and
+           argument_count != module_iter->inputs.size() + num_outputs())
+            MIGRAPHX_THROW("SELECT_MODULE: missing output allocations");
         return *module_iter;
     }
 
@@ -206,19 +223,13 @@ struct select_module
         return arg.reshape(expected);
     }
 
-    argument prepare_output(const parameter_metadata& output, const argument& outputs) const
+    // get_output returns the caller's buffer for a return of the submodule.
+    template <class GetOutput>
+    argument prepare_output(const parameter_metadata& output, GetOutput get_output) const
     {
-        const auto& output_shapes = outputs.get_shape().sub_shapes();
-        if(std::any_of(output.output_indices.begin(),
-                       output.output_indices.end(),
-                       [&](std::size_t index) { return index >= output_shapes.size(); }))
-            MIGRAPHX_THROW("SELECT_MODULE: selected submodule needs more output buffers than the "
-                           "main module provides");
-
         if(output.parameter_shape.type() != shape::tuple_type)
-            return prepare_output_shape(output,
-                                        output.parameter_shape,
-                                        outputs.get_sub_object(output.output_indices.front()));
+            return prepare_output_shape(
+                output, output.parameter_shape, get_output(output.output_indices.front()));
 
         const auto& parameter_shapes = output.parameter_shape.sub_shapes();
         std::vector<argument> result;
@@ -228,8 +239,7 @@ struct select_module
                        output.output_indices.begin(),
                        std::back_inserter(result),
                        [&](const shape& expected, std::size_t index) {
-                           return prepare_output_shape(
-                               output, expected, outputs.get_sub_object(index));
+                           return prepare_output_shape(output, expected, get_output(index));
                        });
         return argument{result};
     }
@@ -257,13 +267,15 @@ struct select_module
             std::inserter(p_map, p_map.end()),
             [](const auto& input, const auto& arg) { return std::make_pair(input.name, arg); });
 
-        // Route the main module's tuple of output buffers to the selected submodule. A compiled
+        // Each output of the submodule writes into the caller's buffer for that output. A compiled
         // output parameter can itself be a tuple when one kernel produces multiple returns.
+        auto output_start = args.size() - num_outputs();
+        auto get_output   = [&](std::size_t index) { return args[output_start + index]; };
         std::transform(module_info.outputs.begin(),
                        module_info.outputs.end(),
                        std::inserter(p_map, p_map.end()),
                        [&](const auto& output) {
-                           return std::make_pair(output.name, prepare_output(output, args.back()));
+                           return std::make_pair(output.name, prepare_output(output, get_output));
                        });
         auto results = run(module_to_run, p_map);
         return argument{results};
@@ -275,7 +287,7 @@ struct select_module
         const select_module* select;
         const module_metadata* metadata;
         GetArgument get_argument;
-        argument output;
+        std::size_t output_start;
 
         argument get_parameter(std::size_t order) const
         {
@@ -283,7 +295,9 @@ struct select_module
             assert(source.kind != source_kind::unused);
             if(source.kind == source_kind::input)
                 return get_argument(source.index);
-            return select->prepare_output(metadata->outputs[source.index], output);
+            return select->prepare_output(metadata->outputs[source.index], [&](std::size_t index) {
+                return get_argument(output_start + index);
+            });
         }
     };
 
@@ -295,16 +309,20 @@ struct select_module
     {
         auto metadata           = get_module_metadata(submodule_list);
         const auto& module_info = find_module(*metadata, argument_count, get_argument);
-        assert(argument_count > 0);
-        auto params = positional_parameter_view<GetArgument>{
-            this, &module_info, get_argument, get_argument(argument_count - 1)};
+        auto params             = positional_parameter_view<GetArgument>{
+            this, &module_info, get_argument, argument_count - num_outputs()};
         auto* module_to_run = module_info.mod;
         return argument{run(module_to_run, params)};
     }
 
+    // The caller's output buffers are appended after the input arguments during lowering.
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return {shapes.size() - 1};
+        if(shapes.size() <= num_outputs())
+            return {};
+        std::vector<std::size_t> result(num_outputs());
+        std::iota(result.begin(), result.end(), shapes.size() - num_outputs());
+        return result;
     }
 };
 

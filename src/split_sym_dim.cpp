@@ -105,9 +105,9 @@ std::vector<int64_t> reduce_axes(const operation& op, std::size_t ndim)
     if(attributes.contains("axes"))
         axes = attributes.at("axes").to_vector<int64_t>();
     int64_t rank = ndim;
-    for(auto& a : axes)
-        if(a < 0)
-            a += rank;
+    std::transform(axes.begin(), axes.end(), axes.begin(), [rank](auto axis) {
+        return axis < 0 ? axis + rank : axis;
+    });
     return axes;
 }
 
@@ -352,6 +352,23 @@ struct analyze_reduce
                 return parallel_axis();
             return identity.has_value() ? contracted_axis(*identity) : axis_desc{};
         });
+        if(identity.has_value() and info.supported)
+            info.freezer = freeze;
+    }
+
+    static instruction_ref freeze(module& m,
+                                  instruction_ref source,
+                                  const std::vector<instruction_ref>& args,
+                                  const std::unordered_map<sym::expr, std::size_t>&)
+    {
+        auto identity = reduce_identity(source->name());
+        assert(identity.has_value());
+        auto padded_args = args;
+        for(auto& arg : padded_args)
+            if(arg->get_shape().dynamic())
+                arg = m.add_instruction(make_op("fixed_pad", {{"value", fill_value(*identity)}}),
+                                        arg);
+        return m.add_instruction(source->get_operator(), padded_args);
     }
 };
 
@@ -627,16 +644,22 @@ struct analyze_gathernd
     void analyze(symbolic_op_info& info) const
     {
         const auto& inputs = info.input_shapes;
-        if(inputs.size() != 2 or
-           info.ins->get_operator().to_value().at("batch_dims").to<int64_t>() != 0)
+        if(inputs.size() != 2 or inputs.back().ndim() == 0)
             return;
-        // Leading index axes map one-to-one to output axes. The data axes and the index-tuple
-        // axis are addressed through the index values, so they cannot be padded.
-        const auto index_tuple_axis = inputs.back().ndim() - 1;
+        auto index_depth = sym::fixed_value(inputs.back().to_symbolic().dyn_dims().back().sym_expr);
+        if(not index_depth.has_value())
+            return;
+        auto batch_dims = info.ins->get_operator().to_value().at("batch_dims").to<int64_t>();
+        if(batch_dims < 0)
+            return;
+        std::size_t batch_rank = batch_dims;
+        auto depth             = sym::to<std::size_t>(*index_depth);
+        if(batch_rank + depth > inputs.front().ndim())
+            return;
         analyze_axes(info, [&](std::size_t input, std::size_t axis) {
-            if(input == 1 and axis < index_tuple_axis)
-                return parallel_axis();
-            return axis_desc{};
+            if(input == 1)
+                return axis + 1 == inputs.back().ndim() ? axis_desc{} : parallel_axis();
+            return axis >= batch_rank and axis < batch_rank + depth ? axis_desc{} : parallel_axis();
         });
     }
 };
@@ -660,6 +683,17 @@ struct analyze_concat
            }))
             return;
         analyze_axes(info);
+    }
+};
+
+struct analyze_concat_past_present
+{
+    bool matches(const operation& op) const { return op.name() == "concat_past_present"; }
+
+    void analyze(symbolic_op_info& info) const
+    {
+        if(info.input_shapes.size() == 3)
+            analyze_axes(info);
     }
 };
 
@@ -1006,9 +1040,9 @@ struct analyze_conv
         std::size_t spatial_dimensions = 0;
         if(op.name() == "convolution" or op.name() == "quant_convolution")
         {
-            auto attributes = op.to_value();
-            default_padding = attributes.at("padding_mode").to<op::padding_mode_t>() ==
-                              op::padding_mode_t::default_;
+            auto attributes    = op.to_value();
+            default_padding    = attributes.at("padding_mode").to<op::padding_mode_t>() ==
+                                 op::padding_mode_t::default_;
             group              = attributes.at("group").to<std::size_t>();
             padding            = attributes.at("padding").to_vector<std::size_t>();
             spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
@@ -1190,6 +1224,7 @@ symbolic_op_info analyze_instruction(instruction_ref ins)
                   analyze_gather{},
                   analyze_gathernd{},
                   analyze_concat{},
+                  analyze_concat_past_present{},
                   analyze_slice{},
                   analyze_unit_axis_transform{},
                   analyze_fill{},
@@ -1264,6 +1299,42 @@ struct root_spec
     std::map<std::size_t, shape::dynamic_dimension::interval> specializations;
 };
 
+bool collect_root_dimension(const shape::dynamic_dimension& dimension,
+                            std::unordered_map<sym::expr, root_spec>& root_specs)
+{
+    if(not dimension.is_symbolic())
+        return true;
+    if(dimension.sym_expr.name() != "variable")
+        return not is_variable_axis(dimension);
+
+    auto root        = sym::as_symbol(dimension.sym_expr);
+    auto name        = root.to_string();
+    auto interval    = dimension.get_interval();
+    auto optimal_set = dimension.get_optimals();
+    if(any_of(optimal_set, [&](auto x) { return x < interval.min or x > interval.max; }))
+        return false;
+    optimal_set.insert(interval.min);
+    optimal_set.insert(interval.max);
+    std::map<std::size_t, shape::dynamic_dimension::interval> specializations;
+    auto lower = interval.min;
+    for(auto optimal : optimal_set)
+    {
+        specializations.emplace(optimal, shape::dynamic_dimension::interval{lower, optimal});
+        lower = optimal + 1;
+    }
+
+    auto found = root_specs.find(root);
+    if(found != root_specs.end())
+        return found->second.interval == interval and
+               found->second.specializations == specializations;
+
+    root_specs.emplace(root,
+                       root_spec{root, std::move(name), interval, {}, std::move(specializations)});
+    return true;
+}
+
+// Collect the independent symbols that enter through module parameters. Each symbol's min,
+// optimals, and max partition its runtime interval into specialization buckets.
 std::optional<std::vector<root_spec>> collect_roots(const module& m)
 {
     std::unordered_map<sym::expr, root_spec> root_specs;
@@ -1275,53 +1346,20 @@ std::optional<std::vector<root_spec>> collect_roots(const module& m)
             return std::nullopt;
         if(not s.symbolic())
             continue;
-        const auto& dims = s.dyn_dims();
-        for(const auto& d : dims)
-        {
-            if(not d.is_symbolic())
-                continue;
-            if(d.sym_expr.name() != "variable")
-            {
-                if(is_variable_axis(d))
-                    return std::nullopt;
-                continue;
-            }
-            auto root        = sym::as_symbol(d.sym_expr);
-            auto name        = root.to_string();
-            auto interval    = d.get_interval();
-            auto optimal_set = d.get_optimals();
-            if(any_of(optimal_set, [&](auto x) { return x < interval.min or x > interval.max; }))
-                return std::nullopt;
-            optimal_set.insert(interval.min);
-            optimal_set.insert(interval.max);
-            std::map<std::size_t, shape::dynamic_dimension::interval> specializations;
-            auto lower = interval.min;
-            for(auto optimal : optimal_set)
-            {
-                specializations.emplace(optimal,
-                                        shape::dynamic_dimension::interval{lower, optimal});
-                lower = optimal + 1;
-            }
-
-            if(contains(root_specs, root))
-            {
-                const auto& existing = root_specs.at(root);
-                if(existing.interval != interval or existing.specializations != specializations)
-                    return std::nullopt;
-                continue;
-            }
-
-            root_specs.emplace(
-                root, root_spec{root, std::move(name), interval, {}, std::move(specializations)});
-        }
+        if(not all_of(s.dyn_dims(), [&](const auto& dimension) {
+               return collect_root_dimension(dimension, root_specs);
+           }))
+            return std::nullopt;
     }
     if(root_specs.empty())
         return std::nullopt;
 
     std::vector<root_spec> roots;
     roots.reserve(root_specs.size());
-    for(auto& entry : root_specs)
-        roots.push_back(std::move(entry.second));
+    std::transform(root_specs.begin(),
+                   root_specs.end(),
+                   std::back_inserter(roots),
+                   [](auto& entry) { return std::move(entry.second); });
     std::sort(
         roots.begin(), roots.end(), [](const auto& x, const auto& y) { return x.name < y.name; });
     std::unordered_set<std::string> symbol_names;
@@ -1330,7 +1368,7 @@ std::optional<std::vector<root_spec>> collect_roots(const module& m)
 
     for(auto& root : roots)
     {
-        std::string target_name = "#split_sym_dim_" + root.name + "_target";
+        std::string target_name = "split_sym_dim_" + root.name + "_target";
         while(contains(symbol_names, target_name))
             target_name += "_";
         symbol_names.insert(target_name);
@@ -1533,7 +1571,10 @@ bool merge_block_into(block_plan& target, const block_plan& source, std::size_t 
     return true;
 }
 
-// During coalescing, block index preserves topological order and empty ops marks a merged block.
+// Coalescing turns per-instruction specialization candidates into larger regions so connected
+// operations share one select_module. A merge is accepted only when the combined region is closed
+// over its dynamic dependencies and the cartesian product of root buckets stays within max_clones.
+// Block index preserves topological order and empty ops marks a merged block.
 std::optional<std::size_t>
 merge_blocks(std::vector<block_plan>& blocks, std::size_t x, std::size_t y, std::size_t max_clones)
 {
@@ -1606,6 +1647,8 @@ void coalesce_connected_blocks(
     std::set<std::pair<std::size_t, std::size_t>>& connections,
     std::size_t max_clones)
 {
+    // Prefer producer-consumer merges. A successful merge can make an earlier rejected edge safe,
+    // so revisit affected edges until no additional connected blocks can be combined.
     std::set<std::pair<std::size_t, std::size_t>> retries;
     while(not connections.empty())
     {
@@ -1636,6 +1679,8 @@ void coalesce_independent_blocks(
     const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
     std::size_t max_clones)
 {
+    // Combine disconnected regions when doing so still forms a closed block. This avoids separate
+    // select_module dispatches for independent branches that use the same compatible root buckets.
     for(auto target : range(blocks.size()))
     {
         if(blocks.at(target).ops.empty())
@@ -1661,6 +1706,9 @@ std::vector<block_plan> discover_blocks(
     const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
     std::size_t max_clones)
 {
+    // Start with one block per operation that needs padding or a static rewrite. Attach the root
+    // symbols needed to specialize that operation, then coalesce both producer-consumer blocks and
+    // independent blocks when they can safely share one set of clones.
     std::vector<block_plan> blocks;
     for(auto& info : infos)
     {
@@ -1754,9 +1802,9 @@ void prepare_clone_infos(
                 input.slice_axes = source_info->second->output_symbolic_axes;
 
             // Fixed symbolic dimensions and strides still require static clone metadata.
-            bool emit_pad = operand.pad_value.has_value() or
-                            needs_fixed_retarget(info.input_shapes.at(input_index),
-                                                 target_substitutions);
+            bool emit_pad =
+                operand.pad_value.has_value() or
+                needs_fixed_retarget(info.input_shapes.at(input_index), target_substitutions);
             if(source_in_same_block and operand.pad_value.has_value())
             {
                 assert(operand.retained_slice_axes.empty());
@@ -1950,14 +1998,14 @@ add_runtime_mask(module& m,
     auto lens = s.lens();
 
     auto index  = m.add_instruction(make_op("broadcast", {{"axis", mask.axis}, {"out_lens", lens}}),
-                                   index_literal(m, lens[mask.axis], cache));
+                                    index_literal(m, lens[mask.axis], cache));
     auto extent = m.add_instruction(
         make_op("multibroadcast", {{"out_lens", lens}}),
         resolved_extent(m, mask.extent.subs(fixed_substitutions), sources, cache));
     auto valid = m.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
                                    m.add_instruction(make_op("less"), index, extent));
     auto fill  = m.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}),
-                                  fill_literal(m, s.type(), mask.fill, cache));
+                                   fill_literal(m, s.type(), mask.fill, cache));
     return m.add_instruction(make_op("where"), valid, input, fill);
 }
 
@@ -1996,6 +2044,111 @@ std::size_t add_block_input(std::vector<block_input>& inputs, sliced_value clone
     auto select_input = clone_value.source;
     inputs.push_back({std::move(clone_value), select_input});
     return inputs.size() - 1;
+}
+
+void collect_frame_outputs(
+    const module& m,
+    const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
+    const std::unordered_set<instruction_ref>& planned_instructions,
+    const std::unordered_set<instruction_ref>& body_instructions,
+    block_frame& frame)
+{
+    // Absorbed static instructions fed by planned values. The clone already computes them, so
+    // the parent reads the clone result instead of recomputing them from sliced block outputs.
+    std::unordered_set<instruction_ref> static_block_results;
+    for(auto ins : frame.body)
+    {
+        if(contains(planned_instructions, ins) or ins->get_shape().dynamic())
+            continue;
+        if(any_of(ins->inputs(), [&](auto input) {
+               return contains(planned_instructions, input) or
+                      contains(static_block_results, input);
+           }))
+            static_block_results.insert(ins);
+    }
+
+    auto add_required_output = [&](sliced_value output) {
+        if(output.slice_axes.empty() and contains(planned_instructions, output.source))
+            output = full_output_for(info_for_instruction, output.source);
+        if(not contains(frame.outputs, output))
+            frame.outputs.push_back(std::move(output));
+    };
+    auto add_block_value = [&](instruction_ref ins) {
+        if(contains(planned_instructions, ins) or contains(static_block_results, ins))
+            add_required_output({ins, {}});
+    };
+    auto add_planned_inputs = [&](instruction_ref ins) {
+        for(auto input : clone_inputs_for(info_for_instruction, ins))
+        {
+            if(contains(planned_instructions, input.source))
+                add_required_output(std::move(input));
+            else
+                add_block_value(input.source);
+        }
+    };
+    // Export only values the parent still reads; every extra clone return splits the fusible
+    // chain it comes from (e.g. attention) at the clone boundary.
+    for(auto output : m.get_returns())
+    {
+        if(contains(planned_instructions, output) or contains(static_block_results, output))
+            add_block_value(output);
+        else if(contains(body_instructions, output))
+            add_planned_inputs(output);
+    }
+    for(auto ins : iterator_for(m))
+    {
+        if(contains(body_instructions, ins))
+            continue;
+        add_planned_inputs(ins);
+    }
+}
+
+void add_frame_root_inputs(block_frame& frame,
+                           const block_plan& block,
+                           const std::unordered_map<sym::expr, instruction_ref>& root_sources)
+{
+    for(const auto* root : block.roots)
+    {
+        if(not contains(root_sources, root->root))
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: no parameter resolves block root " + root->name);
+        auto input_index = add_block_input(frame.inputs, {root_sources.at(root->root), {}});
+        if(not contains(frame.extent_sources, input_index))
+            frame.extent_sources.push_back(input_index);
+    }
+}
+
+void name_frame_inputs(block_frame& frame, const module& m, std::size_t block_number)
+{
+    std::unordered_set<std::string> used_names;
+    for(const auto& name : m.get_parameter_names())
+        used_names.insert(name);
+    const std::string input_prefix = "#split_sym_dim_input_";
+    std::size_t generated_suffix   = 0;
+    for(auto input_index : range(frame.inputs.size()))
+    {
+        auto source = frame.inputs.at(input_index).clone_value.source;
+        if(source->name() == "@param")
+        {
+            auto parameter_name =
+                source->get_operator().to_value().at("parameter").to<std::string>();
+            frame.params.emplace(std::move(parameter_name), input_index);
+            continue;
+        }
+        if(source->name() == "@literal")
+        {
+            frame.literals.push_back(input_index);
+            ++generated_suffix;
+            continue;
+        }
+        auto name =
+            input_prefix + std::to_string(block_number) + "_" + std::to_string(generated_suffix++);
+        while(not used_names.insert(name).second)
+            name = input_prefix + std::to_string(block_number) + "_" +
+                   std::to_string(generated_suffix++);
+        frame.params.emplace(std::move(name), input_index);
+    }
+    if(frame.params.size() + frame.literals.size() != frame.inputs.size())
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to collect every block input");
 }
 
 std::optional<block_frame> find_block_frame(
@@ -2039,99 +2192,12 @@ std::optional<block_frame> find_block_frame(
                                        }),
                         result.inputs.end());
 
-    // Absorbed static instructions fed by planned values. The clone already computes them, so
-    // the parent reads the clone result instead of recomputing them from sliced block outputs.
-    std::unordered_set<instruction_ref> static_block_results;
-    for(auto ins : result.body)
-    {
-        if(contains(planned_instructions, ins) or ins->get_shape().dynamic())
-            continue;
-        if(any_of(ins->inputs(), [&](auto input) {
-               return contains(planned_instructions, input) or
-                      contains(static_block_results, input);
-           }))
-            static_block_results.insert(ins);
-    }
-
-    std::vector<sliced_value> required_outputs;
-    auto add_required_output = [&](sliced_value output) {
-        if(output.slice_axes.empty() and contains(planned_instructions, output.source))
-            output = full_output_for(info_for_instruction, output.source);
-        if(not contains(required_outputs, output))
-            required_outputs.push_back(std::move(output));
-    };
-    auto add_block_value = [&](instruction_ref ins) {
-        if(contains(planned_instructions, ins) or contains(static_block_results, ins))
-            add_required_output({ins, {}});
-    };
-    auto add_planned_inputs = [&](instruction_ref ins) {
-        for(auto input : clone_inputs_for(info_for_instruction, ins))
-        {
-            if(contains(planned_instructions, input.source))
-                add_required_output(std::move(input));
-            else
-                add_block_value(input.source);
-        }
-    };
-    // Export only values the parent still reads; every extra clone return splits the fusible
-    // chain it comes from (e.g. attention) at the clone boundary.
-    for(auto output : m.get_returns())
-    {
-        if(contains(planned_instructions, output) or contains(static_block_results, output))
-            add_block_value(output);
-        else if(contains(body_instructions, output))
-            add_planned_inputs(output);
-    }
-    for(auto ins : iterator_for(m))
-    {
-        if(contains(body_instructions, ins))
-            continue;
-        add_planned_inputs(ins);
-    }
-    result.outputs = std::move(required_outputs);
+    collect_frame_outputs(m, info_for_instruction, planned_instructions, body_instructions, result);
     if(result.outputs.empty())
         return std::nullopt;
 
-    for(const auto* root : block.roots)
-    {
-        if(not contains(root_sources, root->root))
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: no parameter resolves block root " + root->name);
-        auto source      = root_sources.at(root->root);
-        auto input_index = add_block_input(result.inputs, {source, {}});
-        if(not contains(result.extent_sources, input_index))
-            result.extent_sources.push_back(input_index);
-    }
-
-    std::unordered_set<std::string> used_names;
-    for(const auto& name : m.get_parameter_names())
-        used_names.insert(name);
-    const std::string input_prefix = "#split_sym_dim_input_";
-    std::size_t generated_suffix   = 0;
-    for(auto input_index : range(result.inputs.size()))
-    {
-        auto source = result.inputs.at(input_index).clone_value.source;
-        if(source->name() == "@param")
-        {
-            auto parameter_name =
-                source->get_operator().to_value().at("parameter").to<std::string>();
-            result.params.emplace(std::move(parameter_name), input_index);
-            continue;
-        }
-        if(source->name() == "@literal")
-        {
-            result.literals.push_back(input_index);
-            ++generated_suffix;
-            continue;
-        }
-        auto name =
-            input_prefix + std::to_string(block_number) + "_" + std::to_string(generated_suffix++);
-        while(not used_names.insert(name).second)
-            name = input_prefix + std::to_string(block_number) + "_" +
-                   std::to_string(generated_suffix++);
-        result.params.emplace(std::move(name), input_index);
-    }
-    if(result.params.size() + result.literals.size() != result.inputs.size())
-        MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to collect every block input");
+    add_frame_root_inputs(result, block, root_sources);
+    name_frame_inputs(result, m, block_number);
     return result;
 }
 
@@ -2225,6 +2291,14 @@ find_cloned_input(const sliced_value& input,
     return found->second;
 }
 
+bool only_used_as_slice_metadata(instruction_ref ins)
+{
+    const auto& outputs = ins->outputs();
+    return not outputs.empty() and std::all_of(outputs.begin(), outputs.end(), [&](auto output) {
+        return contains({"slice", "dyn_slice"}, output->name()) and output->inputs().front() != ins;
+    });
+}
+
 struct clone_context
 {
     module& clone_module;
@@ -2276,8 +2350,8 @@ struct clone_context
                 if(clone_inputs.at(index).operand.pad_value.has_value())
                     args.at(index) = add_or_reuse_pad(
                         clone_module,
-                        make_op(
-                            "fixed_pad", {{"value", *clone_inputs.at(index).operand.pad_value}}),
+                        make_op("fixed_pad",
+                                {{"value", *clone_inputs.at(index).operand.pad_value}}),
                         args.at(index),
                         reusable_pads);
             for(std::size_t index = 0; index < clone_inputs.size(); ++index)
@@ -2330,12 +2404,54 @@ struct clone_context
     }
 };
 
+struct fold_fixed_clone_evaluations : match::supports_dynamic_shapes
+{
+    const std::unordered_map<sym::expr, std::size_t>& fixed_runtime_values;
+
+    auto matcher() const { return match::name("eval_expr_from_shape")(); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        if(only_used_as_slice_metadata(ins))
+            return;
+
+        auto expressions =
+            from_value<std::vector<sym::expr>>(ins->get_operator().to_value().at("expressions"));
+        std::unordered_set<sym::expr> required;
+        for(const auto& expression : expressions)
+        {
+            auto variables = sym::find_variables(expression);
+            required.merge(variables);
+        }
+        if(required.empty() or any_of(required, [&](const auto& variable) {
+               return not contains(fixed_runtime_values, variable);
+           }))
+            return;
+
+        std::vector<int64_t> values;
+        values.reserve(expressions.size());
+        std::transform(expressions.begin(),
+                       expressions.end(),
+                       std::back_inserter(values),
+                       [&](const auto& expression) {
+                           return static_cast<int64_t>(expression.eval_uint(fixed_runtime_values));
+                       });
+        m.replace_instruction(
+            ins, m.add_literal(literal{shape{shape::int64_type, {values.size()}}, values}));
+    }
+};
+
 struct clone_build
 {
     module clone;
     clone_output_case output_case;
 };
 
+// Materialize one block specialization. Parameters retain the runtime subrange accepted by this
+// clone, while every operation in the body is emitted for the bucket's fixed target extents.
+// Inputs are padded or masked as planned, and operators such as dyn_slice and symbolic broadcast
+// are rewritten to static forms. No dynamic operation may remain in the emitted clone body.
 clone_build build_clone(
     const std::string& name,
     const block_frame& frame,
@@ -2364,6 +2480,11 @@ clone_build build_clone(
         clone_map[source] = clone_module.add_literal(source->get_literal());
     }
 
+    std::unordered_map<sym::expr, std::size_t> fixed_runtime_values;
+    for(const auto& [root, interval] : subranges)
+        if(interval.min == interval.max)
+            fixed_runtime_values.emplace(root, interval.min);
+
     std::vector<instruction_ref> runtime_extent_sources;
     std::transform(frame.extent_sources.begin(),
                    frame.extent_sources.end(),
@@ -2381,6 +2502,8 @@ clone_build build_clone(
                           fixed_substitutions};
     for(auto source : frame.body)
         context.emit(source);
+    match::find_matches(clone_module,
+                        fold_fixed_clone_evaluations{.fixed_runtime_values = fixed_runtime_values});
 
     std::vector<instruction_ref> clone_outputs;
     std::transform(frame.outputs.begin(),
@@ -2395,6 +2518,24 @@ clone_build build_clone(
                    std::back_inserter(output_shapes),
                    [](instruction_ref output) { return output->get_shape(); });
     clone_module.add_return(clone_outputs);
+    run_passes(clone_module, {dead_code_elimination{}});
+    if(none_of(clone_module, [](const auto& ins) {
+           return ins.name() == "eval_expr_from_shape" and not ins.outputs().empty();
+       }))
+    {
+        auto static_clone = clone_module;
+        for(auto parameter : static_clone.get_parameters())
+        {
+            const auto& s = parameter->get_shape();
+            if(s.symbolic() and s.is_fixed() and all_of(s.dyn_strides(), [](const auto& stride) {
+                   return sym::fixed_value(stride).has_value();
+               }))
+                instruction::replace(
+                    parameter, parameter->get_operator(), s.to_static(), parameter->inputs());
+        }
+        if(static_clone.get_output_shapes() == output_shapes)
+            clone_module = std::move(static_clone);
+    }
     return {std::move(clone_module), {freeze, std::move(output_shapes)}};
 }
 
@@ -2452,9 +2593,8 @@ void resolve_frame_inputs(
     const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
     const std::vector<std::pair<sliced_value, instruction_ref>>& output_values)
 {
-    for(std::size_t index = 0; index < frame.inputs.size(); ++index)
+    for(auto& input : frame.inputs)
     {
-        auto& input = frame.inputs.at(index);
         input.select_input =
             input.clone_value.slice_axes.empty()
                 ? resolve_replacement(
@@ -2531,9 +2671,7 @@ void wire_select_module(
     std::transform(frame.params.begin(),
                    frame.params.end(),
                    std::back_inserter(selection_inputs),
-                   [&](const auto& input) {
-                       return frame.inputs.at(input.second).select_input;
-                   });
+                   [&](const auto& input) { return frame.inputs.at(input.second).select_input; });
     std::vector<shape> body_output_shapes;
     for(std::size_t output_index = 0; output_index < frame.outputs.size(); ++output_index)
     {
@@ -2572,6 +2710,9 @@ void specialize_blocks(
     const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
     const std::unordered_map<sym::expr, instruction_ref>& root_sources)
 {
+    // Replace each discovered block with one clone per cartesian product of its root buckets and a
+    // select_module that dispatches to the compatible clone. The selected fixed-size outputs are
+    // sliced back to their runtime extents before uses outside the block are rewired.
     module& m = mpm.get_module();
     std::unordered_map<instruction_ref, instruction_ref> replacements;
     std::vector<std::pair<sliced_value, instruction_ref>> output_values;
@@ -2616,8 +2757,8 @@ void specialize_blocks(
                 subranges[root->root]               = runtime_range;
             }
             assert(remaining == 0);
-            auto name = m.name() + ":split_sym_dim_" + std::to_string(block_number) + "_" +
-                        std::to_string(clone_index);
+            auto name  = m.name() + ":split_sym_dim_" + std::to_string(block_number) + "_" +
+                         std::to_string(clone_index);
             auto built = build_clone(
                 name, *frame, info_for_instruction, freeze, subranges, fixed_substitutions);
             clones.push_back(std::move(built.clone));
@@ -2676,9 +2817,9 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     if(not has_symbolic_param(m))
         return;
 
-    resolve_symbolic_dimensions_of_match resolve_symbolic_dimensions{.root_sources =
-                                                                         find_root_sources(m)};
-    match::find_matches(m, resolve_symbolic_dimensions);
+    // Rewrite shape expressions to read their runtime values directly from module parameters.
+    auto root_sources = find_root_sources(m);
+    match::find_matches(m, resolve_symbolic_dimensions_of_match{.root_sources = root_sources});
     // Shape-derived chains built per consumer (e.g. per-layer rotary position
     // ids) only become identical once dimensions_of is resolved; merge them
     // before block planning or each copy is exported as its own block output.
@@ -2686,6 +2827,8 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
         m, {dead_code_elimination{}, eliminate_common_subexpression{}, dead_code_elimination{}});
     normalize_symbolic_reshapes(m);
 
+    // Determine how each symbolic operation must be padded, masked, or rewritten for a fixed
+    // target extent.
     auto symbolic_instructions =
         find_all(iterator_for(m), [](instruction_ref ins) { return ins->get_shape().symbolic(); });
     if(symbolic_instructions.empty())
@@ -2707,17 +2850,22 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     }
     remove_redundant_masks(infos, info_for_instruction);
 
+    // Collect independent symbols from parameter dimensions and partition each symbol's interval
+    // into the target extents used to compile specialization clones.
     auto roots = collect_roots(m);
     if(not roots.has_value())
         return;
+
+    // Seed blocks with operations that require specialization, then coalesce compatible connected
+    // and independent blocks while preserving closed dependencies and the clone limit.
     auto blocks = discover_blocks(infos, *roots, info_for_instruction, max_clones);
     if(blocks.empty())
         return;
 
+    // Determine each block's boundary slices, padding, masks, and target-substituted output shapes.
     prepare_clone_infos(infos, info_for_instruction, *roots);
-    blocks = order_blocks_topologically(
-        std::move(blocks), m, info_for_instruction, resolve_symbolic_dimensions.root_sources);
-    specialize_blocks(mpm, blocks, info_for_instruction, resolve_symbolic_dimensions.root_sources);
+    blocks = order_blocks_topologically(std::move(blocks), m, info_for_instruction, root_sources);
+    specialize_blocks(mpm, blocks, info_for_instruction, root_sources);
     run_passes(m, {dead_code_elimination{}});
 }
 

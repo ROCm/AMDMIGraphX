@@ -25,6 +25,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/streamutils.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
@@ -81,7 +82,13 @@ struct shape_impl
     shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)
         : m_type(t), m_dyn_dims(std::move(dims))
     {
-        if(all_dims_symbolic())
+        const bool all_symbolic = all_dims_symbolic();
+        if(not all_symbolic and std::any_of(m_dyn_dims.begin(),
+                                            m_dyn_dims.end(),
+                                            [](const auto& d) { return d.is_symbolic(); }))
+            MIGRAPHX_THROW(
+                "SHAPE: dynamic dimensions must be either all symbolic or all range-based");
+        if(all_symbolic)
         {
             calculate_dyn_strides();
             m_standard = true;
@@ -94,6 +101,8 @@ struct shape_impl
         : m_type(t), m_dyn_dims(std::move(dims)), m_dyn_strides(std::move(dstrides))
     {
         assert(m_dyn_strides.size() == m_dyn_dims.size());
+        if(not m_dyn_dims.empty() and not all_dims_symbolic())
+            MIGRAPHX_THROW("SHAPE: dynamic strides require all dimensions to be symbolic");
         assert(std::all_of(m_dyn_strides.begin(), m_dyn_strides.end(), [](const auto& s) {
             return sym::to<int64_t>(s.eval_interval().min) >= 0;
         }));
@@ -534,12 +543,19 @@ bool shape::is_compatible_lens(const shape& actual, const shape& expected)
     {
         if(actual.ndim() != expected.ndim())
             return false;
+        std::unordered_map<sym::expr, std::size_t> symbol_values;
         return std::equal(actual.lens().begin(),
                           actual.lens().end(),
                           expected.dyn_dims().begin(),
                           [&](auto a, const auto& e) {
                               auto expected_interval = e.get_interval();
-                              return a >= expected_interval.min and a <= expected_interval.max;
+                              if(a < expected_interval.min or a > expected_interval.max)
+                                  return false;
+                              if(e.sym_expr.name() != "variable")
+                                  return true;
+                              auto [iter, inserted] =
+                                  symbol_values.emplace(sym::as_symbol(e.sym_expr), a);
+                              return inserted or iter->second == a;
                           });
     }
     return actual.lens() == expected.lens();
@@ -857,6 +873,49 @@ shape shape::with_lens(const std::vector<dynamic_dimension>& dds) const
     return this->with_lens(this->type(), dds);
 }
 
+// Keep the values on the varying axes and replace the rest with fill
+template <class T>
+static std::vector<T>
+select_axes(const std::vector<T>& xs, const std::vector<bool>& varying, const T& fill)
+{
+    assert(xs.size() == varying.size());
+    std::vector<T> result(xs.size());
+    std::transform(xs.begin(), xs.end(), varying.begin(), result.begin(), [&](const T& x, bool v) {
+        return v ? x : fill;
+    });
+    return result;
+}
+
+// Packed strides over the axes where either stride is nonzero, zero elsewhere
+template <class T>
+static std::vector<T> merge_broadcast_strides(const std::vector<T>& dims,
+                                              const std::vector<T>& xstrides,
+                                              const std::vector<T>& ystrides)
+{
+    assert(dims.size() == xstrides.size() and dims.size() == ystrides.size());
+    auto zero = shape_impl::make_identity<T>(0);
+    std::vector<bool> varying(dims.size());
+    std::transform(xstrides.begin(),
+                   xstrides.end(),
+                   ystrides.begin(),
+                   varying.begin(),
+                   [&](const T& a, const T& b) { return a != zero or b != zero; });
+    auto packed =
+        shape_impl::compute_strides(select_axes(dims, varying, shape_impl::make_identity<T>(1)));
+    return select_axes(packed, varying, zero);
+}
+
+shape shape::merge_broadcasts(const shape& x, const shape& y)
+{
+    if(x.ndim() != y.ndim() or x.symbolic() != y.symbolic())
+        MIGRAPHX_THROW("SHAPE: merge_broadcasts() shapes must have the same rank and kind");
+    if(x.symbolic())
+        return {x.type(),
+                x.dyn_dims(),
+                merge_broadcast_strides(x.sym_dims(), x.dyn_strides(), y.dyn_strides())};
+    return {x.type(), x.lens(), merge_broadcast_strides(x.lens(), x.strides(), y.strides())};
+}
+
 shape shape::with_type(type_t t) const
 {
     auto c    = impl->copy();
@@ -896,26 +955,58 @@ shape shape::to_dynamic() const
     return {type(), lens(), lens(), {}};
 }
 
+static sym::expr parse_bound(const std::string& expression, const std::string& what)
+{
+    auto e = sym::parse(expression);
+    if(e.empty())
+        MIGRAPHX_THROW("SHAPE: " + what + " expression is empty");
+    return e;
+}
+
 shape::dynamic_dimension shape::make_symbolic_dynamic_dimension(
     const std::string& expression,
     const std::unordered_map<std::string, dynamic_dimension>& symbols)
 {
-    auto e = sym::parse(expression);
-    if(e.empty())
-        MIGRAPHX_THROW("MAKE_SYMBOLIC_DYNAMIC_DIMENSION: symbolic expression is empty");
+    auto e = parse_bound(expression, "MAKE_SYMBOLIC_DYNAMIC_DIMENSION: symbolic");
+    if(symbols.empty())
+        return dynamic_dimension{std::move(e)};
+
     std::unordered_map<sym::expr, sym::expr> bindings;
     std::transform(symbols.begin(),
                    symbols.end(),
                    std::inserter(bindings, bindings.end()),
                    [](const auto& kv) {
-                       const auto& [name, dd] = kv;
-                       auto iv                = dd.get_interval();
-                       auto opts              = dd.get_optimals();
+                       const auto& [name, bound] = kv;
+                       auto opts                 = bound.get_optimals();
                        std::set<sym::scalar> optimals(opts.begin(), opts.end());
+                       auto iv = bound.get_interval();
                        return std::pair<sym::expr, sym::expr>{
                            sym::parse(name), sym::var(name, {iv.min, iv.max}, std::move(optimals))};
                    });
     return dynamic_dimension{e.subs(bindings)};
+}
+
+shape shape::make_symbolic_shape(type_t t,
+                                 const std::vector<std::string>& dims,
+                                 const std::vector<std::string>& strides)
+{
+    std::vector<dynamic_dimension> dyn_dims;
+    std::transform(
+        dims.begin(), dims.end(), std::back_inserter(dyn_dims), [&](const std::string& d) {
+            return dynamic_dimension{parse_bound(d, "MAKE_SYMBOLIC_SHAPE: dimension")};
+        });
+    if(strides.empty())
+        return {t, std::move(dyn_dims)};
+    if(strides.size() != dims.size())
+        MIGRAPHX_THROW(
+            "MAKE_SYMBOLIC_SHAPE: number of strides does not match number of dimensions");
+    // Stride expressions are self-contained and parsed independently of dimension expressions.
+    std::vector<sym::expr> dyn_strides;
+    std::transform(
+        strides.begin(), strides.end(), std::back_inserter(dyn_strides), [&](const std::string& s) {
+            return parse_bound(s, "MAKE_SYMBOLIC_SHAPE: stride");
+        });
+    return {t, std::move(dyn_dims), std::move(dyn_strides)};
 }
 
 static bool any_non_sym_dynamic(const shape& s)
@@ -1030,12 +1121,24 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
             auto interval = s.eval_interval(symbol_intervals);
             auto fixed    = sym::scalar_invoke_common<std::optional<std::size_t>>(
                 [](auto min, auto max) -> std::optional<std::size_t> {
-                    auto value    = static_cast<long double>(min);
-                    auto integral = std::floor(value);
-                    if(min < max or max < min or value < 0 or integral < value or
-                       value < integral or value > std::numeric_limits<std::size_t>::max())
-                        return std::nullopt;
-                    return static_cast<std::size_t>(value);
+                    if constexpr(std::is_integral_v<decltype(min)>)
+                    {
+                        if(min != max or min < 0)
+                            return std::nullopt;
+                        using unsigned_type = std::make_unsigned_t<decltype(min)>;
+                        if(static_cast<unsigned_type>(min) >
+                           std::numeric_limits<std::size_t>::max())
+                            return std::nullopt;
+                    }
+                    else
+                    {
+                        auto integral = std::floor(min);
+                        if(not std::isfinite(min) or not std::isfinite(max) or min < 0 or
+                           min < max or max < min or integral < min or min < integral or
+                           min >= std::ldexp(1.0, std::numeric_limits<std::size_t>::digits))
+                            return std::nullopt;
+                    }
+                    return min;
                 },
                 interval.min,
                 interval.max);
@@ -1358,16 +1461,7 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
         if(x.symbolic())
         {
             os << x.type_string() << ", {";
-            const auto& dd = x.dyn_dims();
-            for(std::size_t i = 0; i < dd.size(); ++i)
-            {
-                if(i > 0)
-                    os << ", ";
-                if(dd[i].is_symbolic())
-                    os << dd[i];
-                else
-                    os << dd[i].get_interval().min;
-            }
+            os << stream_range(x.dyn_dims());
             os << "}, ";
             os << "{" << to_string_range(x.dyn_strides()) << "}";
         }

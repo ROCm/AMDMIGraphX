@@ -3198,6 +3198,16 @@ def dim_param_test():
 
 
 @onnx_test()
+def dim_param_odd_names_test():
+    # A dim_param is an arbitrary string, but a symbol name has to be an identifier. The first
+    # two only differ where sanitizing rewrites them, so they also cover collision handling.
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      ["batch.size", "batch_size", "2d"])
+
+    return ([], [x], [x])
+
+
+@onnx_test()
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
@@ -4476,6 +4486,26 @@ def gather_scalar_test():
     )
 
     return ([node], [x, i], [y])
+
+
+@onnx_test()
+def gather_empty_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, 8400, 84])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT64, [])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8400, 0])
+
+    slice_node = onnx.helper.make_node('Slice',
+                                       inputs=['data'],
+                                       axes=[2],
+                                       starts=[84],
+                                       ends=[84],
+                                       outputs=['empty'])
+    gather_node = onnx.helper.make_node('Gather',
+                                        inputs=['empty', 'indices'],
+                                        outputs=['y'],
+                                        axis=0)
+
+    return ([slice_node, gather_node], [x, i], [y])
 
 
 @onnx_test()

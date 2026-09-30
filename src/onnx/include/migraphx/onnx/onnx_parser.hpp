@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/sym.hpp>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <onnx.pb.h>
@@ -54,7 +55,8 @@ struct onnx_parser
     {
         attribute_map attributes{};
         std::size_t num_outputs = 1;
-        // unique identifier for MIGX, not given ONNX node name
+        // Unique identifier for MIGX, not the given ONNX node name. Formatted as
+        // "<module_name>_<op_type>_<instruction_number>", so it is unique across modules.
         std::string name = "";
         module* mod      = nullptr;
         instruction_ref make_contiguous(instruction_ref ins) const;
@@ -113,6 +115,9 @@ struct onnx_parser
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     int64_t opset_version        = 13;
 
+    // Keep sanitized ONNX symbols stable and collision-free across every module in this model.
+    sym::symbol_name_registry symbol_names;
+
     std::unordered_map<std::string, op_func> ops;
 
     onnx_parser();
@@ -130,11 +135,12 @@ struct onnx_parser
     parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining = false);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
-    shape parse_type(const onnx::TypeProto& t, const std::string& name) const;
-    shape parse_type(const onnx::TypeProto& t,
-                     const std::string& name,
-                     const std::vector<shape::dynamic_dimension>& override_dims) const;
-    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
+    shape parse_param_shape(const onnx::TypeProto& t, const std::string& name);
+    shape parse_param_shape(const onnx::TypeProto& t,
+                            const std::string& name,
+                            const std::vector<shape::dynamic_dimension>& override_dims);
+    shape parse_param_shape(const onnx::TypeProto& t,
+                            const std::vector<std::size_t>& input_dims) const;
     std::string to_string(const onnx::AttributeProto& attr) const;
 };
 

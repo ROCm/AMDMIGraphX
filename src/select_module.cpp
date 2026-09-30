@@ -156,6 +156,8 @@ module_metadata make_module_metadata(const select_module& select, module_ref mod
 
     auto output_names = select.get_output_parameter_names(mod);
     auto returns      = mod->get_returns();
+    if(not output_names.empty() and returns.size() != select.num_outputs())
+        MIGRAPHX_THROW("SELECT_MODULE: output allocation count does not match module outputs");
     std::transform(output_names.begin(),
                    output_names.end(),
                    std::back_inserter(result.outputs),
@@ -190,6 +192,18 @@ std::vector<std::size_t> selector_indices(const std::vector<module_metadata>& mo
     return result;
 }
 
+std::vector<std::size_t> shared_dynamic_indices(const module_metadata& candidate)
+{
+    auto indices = range(candidate.inputs.size());
+    std::vector<std::size_t> result;
+    std::copy_if(
+        indices.begin(), indices.end(), std::back_inserter(result), [&](std::size_t index) {
+            return candidate.inputs[index].parameter_shape.dynamic() and
+                   not contains(candidate.selector_indices, index);
+        });
+    return result;
+}
+
 } // namespace
 
 select_module::module_set_metadata
@@ -214,7 +228,8 @@ select_module::build_module_metadata(const std::vector<module_ref>& candidates) 
                        result.modules.end(),
                        selectors.begin(),
                        [](module_metadata& candidate, std::vector<std::size_t>& indices) {
-                           candidate.selector_indices = std::move(indices);
+                           candidate.selector_indices       = std::move(indices);
+                           candidate.shared_dynamic_indices = shared_dynamic_indices(candidate);
                        });
     return result;
 }

@@ -220,6 +220,33 @@ static shape::dynamic_dimension make_symbolic_dynamic_dimension(
     return shape::make_symbolic_dynamic_dimension(expression, symbols);
 }
 
+// Build a symbolic shape from self-contained expression strings. The C API takes explicit string
+// arrays and sizes because declaring std::vector<std::string> in the API generator would select
+// its global migraphx_quantize_op_names_t mapping and expose that unrelated opaque handle here.
+static std::vector<std::string>
+make_expression_strings(const char* const* expressions, std::size_t size, const std::string& name)
+{
+    if(size == 0)
+        return {};
+    if(expressions == nullptr or
+       std::any_of(expressions, expressions + size, [](const char* expression) {
+           return expression == nullptr;
+       }))
+        MIGRAPHX_THROW("CREATE_SYMBOLIC_SHAPE: Null " + name + " expression");
+    return {expressions, expressions + size};
+}
+
+static shape create_symbolic_shape(shape::type_t t,
+                                   const char* const* dims,
+                                   std::size_t ndims,
+                                   const char* const* strides,
+                                   std::size_t nstrides)
+{
+    return shape::make_symbolic_shape(t,
+                                      make_expression_strings(dims, ndims, "dimension"),
+                                      make_expression_strings(strides, nstrides, "stride"));
+}
+
 #ifdef MIGRAPHX_ENABLE_ONNX
 
 static void set_default_dim_value(onnx_options& options, size_t value)
@@ -509,4 +536,6 @@ run_trace(program& p, const parameter_map& params, const std::function<void(trac
 
 } // namespace migraphx
 
-<% generate_c_api_body() %>
+<%
+    generate_c_api_body()
+%>

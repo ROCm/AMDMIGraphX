@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,6 +75,9 @@ static argument fixed_pad_standard_impl(hipStream_t stream,
 
 argument fixed_pad(hipStream_t stream, const argument& result, const argument& arg, float value)
 {
+    if(result.get_shape() == arg.get_shape())
+        return arg;
+
     if(result.get_shape().standard() and arg.get_shape().standard())
     {
         auto ilens            = arg.get_shape().lens();

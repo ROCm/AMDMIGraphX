@@ -61,11 +61,7 @@ struct concat_past_present
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        // The new keys or values carry the sequence length, which may be symbolic. The cache they
-        // are written into is always statically sized, so the output stays static.
         check_shapes{inputs, *this, true}.has(3);
-        if(inputs.back().dynamic())
-            MIGRAPHX_THROW("CONCAT_PAST_PRESENT: kv-cache must have a static shape");
         return inputs.back();
     }
 

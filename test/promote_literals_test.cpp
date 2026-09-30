@@ -32,6 +32,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <test.hpp>
+#include <algorithm>
 
 static void run_promote(migraphx::program& p)
 {
@@ -297,6 +298,51 @@ TEST_CASE(promote_and_ecs1)
     }
 
     EXPECT(p0 == p1);
+}
+
+TEST_CASE(promote_keeps_identical_allocations)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape lit_s{migraphx::shape::float_type, {1}};
+    auto* sm0     = p.create_module("sm0");
+    auto sm0_data = sm0->add_parameter("data", s);
+    auto sm0_lit  = sm0->add_literal(migraphx::literal{lit_s, {6}});
+    auto sm0_bcast =
+        sm0->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), sm0_lit);
+    sm0->add_return({sm0->add_instruction(migraphx::make_op("add"), sm0_data, sm0_bcast)});
+    auto* sm1     = p.create_module("sm1");
+    auto sm1_data = sm1->add_parameter("data", s);
+    auto sm1_lit  = sm1->add_literal(migraphx::literal{lit_s, {6}});
+    auto sm1_bcast =
+        sm1->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), sm1_lit);
+    sm1->add_return({sm1->add_instruction(migraphx::make_op("mul"), sm1_data, sm1_bcast)});
+
+    auto x = mm->add_parameter("x", s);
+    migraphx::shape out_attr{std::vector<migraphx::shape>{s}};
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module", {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+        {x},
+        {sm0, sm1});
+    auto selected =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto alloc0 =
+        mm->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    auto alloc1 =
+        mm->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    mm->add_return({selected, alloc0, alloc1});
+    run_promote(p);
+
+    auto returns = mm->get_returns();
+    EXPECT(returns.at(1) != returns.at(2));
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](const auto& ins) {
+               return ins.name() == "@literal";
+           }) == 1);
+    EXPECT(std::none_of(
+        sm0->begin(), sm0->end(), [](const auto& ins) { return ins.name() == "@literal"; }));
+    EXPECT(std::none_of(
+        sm1->begin(), sm1->end(), [](const auto& ins) { return ins.name() == "@literal"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

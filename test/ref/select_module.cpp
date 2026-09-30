@@ -283,10 +283,13 @@ TEST_CASE(select_module_tuple_output_maps_nonconsecutive_returns)
     auto input = mm->add_parameter("data", seq_shape);
     migraphx::shape output_dyn{
         std::vector<migraphx::shape>{scalar_shape, seq_shape, scalar_shape, seq_shape}};
-    auto outputs = mm->add_parameter("#output_0", output_dyn);
+    auto output0 = mm->add_parameter("output0", scalar_shape);
+    auto output1 = mm->add_parameter("output1", seq_shape);
+    auto output2 = mm->add_parameter("output2", scalar_shape);
+    auto output3 = mm->add_parameter("output3", seq_shape);
     auto select  = mm->add_instruction(
         migraphx::make_op("select_module", {{"output_dyn_shapes", migraphx::to_value(output_dyn)}}),
-        {input, outputs},
+        {input, output0, output1, output2, output3},
         {submod});
     auto out0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     auto out1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
@@ -301,12 +304,12 @@ TEST_CASE(select_module_tuple_output_maps_nonconsecutive_returns)
     std::vector<int32_t> scalar2(1, 0);
     std::vector<int32_t> seq3(64, 0);
     migraphx::parameter_map params;
-    params["data"]      = migraphx::argument{seq_shape, data_vec.data()};
-    params["#output_0"] = migraphx::argument{{migraphx::argument{scalar_shape, scalar0.data()},
-                                              migraphx::argument{seq_shape, seq1.data()},
-                                              migraphx::argument{scalar_shape, scalar2.data()},
-                                              migraphx::argument{seq_shape, seq3.data()}}};
-    auto results        = p.eval(params);
+    params["data"]    = migraphx::argument{seq_shape, data_vec.data()};
+    params["output0"] = migraphx::argument{scalar_shape, scalar0.data()};
+    params["output1"] = migraphx::argument{seq_shape, seq1.data()};
+    params["output2"] = migraphx::argument{scalar_shape, scalar2.data()};
+    params["output3"] = migraphx::argument{seq_shape, seq3.data()};
+    auto results      = p.eval(params);
     EXPECT(results.size() == 4);
     EXPECT(results[0].get_shape() == scalar_shape);
     EXPECT(results[1].get_shape() == seq_shape);
@@ -327,11 +330,11 @@ TEST_CASE(select_module_unaliased_output_error)
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("data", s);
     migraphx::shape output_shape{std::vector<migraphx::shape>{s}};
-    auto outputs = mm->add_parameter("#output_0", output_shape);
-    auto select  = mm->add_instruction(
+    auto output = mm->add_parameter("output", s);
+    auto select = mm->add_instruction(
         migraphx::make_op("select_module",
                           {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
-        {input, outputs},
+        {input, output},
         {submod});
     auto out = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     mm->add_return({out});
@@ -339,11 +342,52 @@ TEST_CASE(select_module_unaliased_output_error)
     std::vector<float> data_vec(4, 1);
     std::vector<float> output_vec(4, 0);
     migraphx::parameter_map params;
-    params["data"] = migraphx::argument{s, data_vec.data()};
-    params["#output_0"] =
-        migraphx::argument{std::vector<migraphx::argument>{{s, output_vec.data()}}};
+    params["data"]   = migraphx::argument{s, data_vec.data()};
+    params["output"] = migraphx::argument{s, output_vec.data()};
     EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval(params); },
                                              "does not alias a module output"));
+}
+
+TEST_CASE(select_module_repeated_symbol_mismatch_error)
+{
+    migraphx::program p;
+    auto* submod = p.create_module("square");
+    auto n       = migraphx::sym::var("n", {1, 4});
+    auto submod_input =
+        submod->add_parameter("data",
+                              migraphx::shape{migraphx::shape::float_type,
+                                              {migraphx::shape::dynamic_dimension{n},
+                                               migraphx::shape::dynamic_dimension{n}}});
+    auto submod_output =
+        submod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), submod_input);
+    submod->add_return({submod_output});
+
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1, 4}}});
+    migraphx::shape output_shape{
+        std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type, {1, 1}}}};
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
+        {input},
+        {submod});
+    auto output = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    mm->add_return({output});
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{1, 2, 3, 4, 5, 6};
+    migraphx::parameter_map params;
+    params["data"] =
+        migraphx::argument{migraphx::shape{migraphx::shape::float_type, {2, 2}}, data.data()};
+    auto result = p.eval(params).back();
+    std::vector<float> result_data;
+    result.visit([&](auto output) { result_data.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(result_data, std::vector<float>{10}));
+
+    params["data"] =
+        migraphx::argument{migraphx::shape{migraphx::shape::float_type, {2, 3}}, data.data()};
+    EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
 
 TEST_CASE(select_module_static_stride_mismatch_error)

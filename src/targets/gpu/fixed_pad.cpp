@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,9 +38,6 @@ shape hip_fixed_pad::compute_shape(std::vector<shape> inputs) const
 
 argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    if(args.front().get_shape() == args.back().get_shape())
-        return args.front();
-
     return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front(), op.value);
 }
 

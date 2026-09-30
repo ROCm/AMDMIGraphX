@@ -624,10 +624,10 @@ struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
             &migraphx_dynamic_dimension_create_min_max_optimals, min, max, opts.get_handle_ptr());
     }
 
-    /// Build a symbolic dimension by parsing an expression string and binding each named
-    /// symbol to the bounds/optimals supplied as range dynamic_dimensions.
+    /// Build a symbolic dimension by parsing an expression string. Variables can carry metadata
+    /// inline; the optional map binds bounds/optimals to bare variable names.
     dynamic_dimension(const std::string& expression,
-                      const std::unordered_map<std::string, dynamic_dimension>& symbols);
+                      const std::unordered_map<std::string, dynamic_dimension>& symbols = {});
 
     bool is_fixed() const
     {
@@ -760,6 +760,42 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
     shape(migraphx_shape_datatype_t type, const dynamic_dimensions& dyn_dims)
     {
         this->make_handle(&migraphx_shape_create_dynamic, type, dyn_dims.get_handle_ptr());
+    }
+
+    /// Construct a symbolic shape from dimension and optional stride expression strings. The
+    /// strides are packed standard when omitted.
+    shape(migraphx_shape_datatype_t type,
+          const std::vector<std::string>& dims,
+          const std::vector<std::string>& strides = {})
+    {
+        auto to_c = [](const std::vector<std::string>& xs) {
+            std::vector<const char*> result;
+            std::transform(xs.begin(),
+                           xs.end(),
+                           std::back_inserter(result),
+                           [](const std::string& x) { return x.c_str(); });
+            return result;
+        };
+        auto cdims    = to_c(dims);
+        auto cstrides = to_c(strides);
+        this->make_handle(&migraphx_shape_create_symbolic,
+                          type,
+                          cdims.data(),
+                          cdims.size(),
+                          cstrides.data(),
+                          cstrides.size());
+    }
+
+    shape(migraphx_shape_datatype_t type, std::initializer_list<std::string> dims)
+        : shape(type, std::vector<std::string>(dims))
+    {
+    }
+
+    shape(migraphx_shape_datatype_t type,
+          std::initializer_list<std::string> dims,
+          std::initializer_list<std::string> strides)
+        : shape(type, std::vector<std::string>(dims), std::vector<std::string>(strides))
+    {
     }
 
     std::vector<size_t> lengths() const

@@ -15,6 +15,7 @@ Full documentation for MIGraphX is available at
 * Added find_concat_same_broadcast matcher to convert concat of identical broadcasts into a single multibroadcast to reduce hipCopy() (#5179).
 * Added a `find_slice_reshaped_concat` matcher to `simplify_reshapes` that forwards a slice reading exactly one segment of a concat through intervening reshape/transpose view ops, removing the concat entirely (#5183).
 * Added a `--layerwise` mode to `verify` that compares the reference and target layer by layer without recompiling (#5067).
+* Added `verify::verify_program` to allow for running verify on a program from the API (#5334).
 
 
 ### Changed

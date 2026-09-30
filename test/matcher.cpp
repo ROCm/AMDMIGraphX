@@ -985,6 +985,52 @@ TEST_CASE(match_has_value_unsigned_not_wrapped)
     EXPECT(find_match(mm, match::has_value(255.0f)).result == max);
 }
 
+// An int64 value compares exactly in the common type: in double, 2^53 + 1
+// would round to the 2^53 the literal holds
+TEST_CASE(match_has_value_int64_exact)
+{
+    migraphx::module mm;
+    auto s         = migraphx::shape{migraphx::shape::int64_type, {1}, {0}};
+    std::int64_t x = std::int64_t{1} << 53;
+    auto lit       = mm.add_literal(migraphx::literal{s, {x}});
+    mm.add_instruction(pass_op{}, lit);
+    EXPECT(find_match(mm, match::has_value(x + 1)).result == mm.end());
+    EXPECT(find_match(mm, match::has_value(x)).result == lit);
+}
+
+// A negative x never matches an unsigned literal, even when the common type is
+// unsigned and x would wrap to the literal's maximum
+template <class T>
+static void match_has_value_negative_not_unsigned_max()
+{
+    migraphx::module mm;
+    auto s   = migraphx::shape{migraphx::shape::get_type<T>{}, {1}, {0}};
+    auto max = mm.add_literal(migraphx::literal{s, {std::numeric_limits<T>::max()}});
+    mm.add_instruction(pass_op{}, max);
+    EXPECT(find_match(mm, match::has_value(std::make_signed_t<T>{-1})).result == mm.end());
+    EXPECT(find_match(mm, match::has_value(std::numeric_limits<T>::max())).result == max);
+}
+TEST_CASE_REGISTER(match_has_value_negative_not_unsigned_max<std::uint32_t>);
+TEST_CASE_REGISTER(match_has_value_negative_not_unsigned_max<std::uint64_t>);
+
+// An unsigned x never matches a negative literal, even when the common type is
+// unsigned and the literal would wrap to x, but still matches a nonnegative one
+template <class T>
+static void match_has_value_unsigned_max_not_negative()
+{
+    using unsigned_type = std::make_unsigned_t<T>;
+    migraphx::module mm;
+    auto s    = migraphx::shape{migraphx::shape::get_type<T>{}, {1}, {0}};
+    auto neg  = mm.add_literal(migraphx::literal{s, {T{-1}}});
+    auto five = mm.add_literal(migraphx::literal{s, {T{5}}});
+    mm.add_instruction(pass_op{}, neg, five);
+    EXPECT(find_match(mm, match::has_value(std::numeric_limits<unsigned_type>::max())).result ==
+           mm.end());
+    EXPECT(find_match(mm, match::has_value(unsigned_type{5})).result == five);
+}
+TEST_CASE_REGISTER(match_has_value_unsigned_max_not_negative<std::int32_t>);
+TEST_CASE_REGISTER(match_has_value_unsigned_max_not_negative<std::int64_t>);
+
 // The same window let a pow exponent of 0.5, as in a batchnorm, report as 2.0 and trip the
 // variance rewrite.
 TEST_CASE(match_has_value_fp8_not_half_for_two)

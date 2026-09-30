@@ -292,6 +292,13 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_create_dynamic(migraphx_shape_t
                                                                 migraphx_shape_datatype_t type,
                                                                 migraphx_dynamic_dimensions_t dims);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_create_symbolic(migraphx_shape_t* shape,
+                                                                 migraphx_shape_datatype_t type,
+                                                                 const char* const* dims,
+                                                                 size_t ndims,
+                                                                 const char* const* strides,
+                                                                 size_t nstrides);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_lengths(const size_t** out,
                                                          size_t* out_size,
                                                          const_migraphx_shape_t shape);

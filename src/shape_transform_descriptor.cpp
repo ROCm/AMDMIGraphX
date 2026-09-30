@@ -1868,6 +1868,28 @@ bool shape_transform_descriptor::has_broadcast() const
                            [&](const dimension::sub& s) { return s.axis.empty() and s.len != 1; });
     });
 }
+bool shape_transform_descriptor::is_transposed() const
+{
+    auto subs = get_all_subdimensions(dimensions);
+    std::vector<std::vector<std::size_t>> axes;
+    transform_if(
+        subs.begin(),
+        subs.end(),
+        std::back_inserter(axes),
+        [](const dimension::sub& s) { return s.len > 1 and not s.origin_axis().empty(); },
+        [](const dimension::sub& s) { return s.origin_axis(); });
+    return not std::is_sorted(axes.begin(), axes.end());
+}
+
+bool shape_transform_descriptor::is_collapsing() const
+{
+    return std::any_of(dimensions.begin(), dimensions.end(), [](const dimension& d) {
+        return std::count_if(d.subdimensions.begin(),
+                             d.subdimensions.end(),
+                             [](const dimension::sub& s) { return s.len > 1; }) > 1;
+    });
+}
+
 void shape_transform_descriptor::flatten_broadcast()
 {
     for(auto& d : dimensions)

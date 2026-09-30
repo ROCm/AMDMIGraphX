@@ -134,22 +134,21 @@ struct binary_cache_backend
 #else
 
 <%
-    interface(
-        'binary_cache_backend',
-        virtual('load',
-                returns  = 'optional<std::vector<char>>',
-                version  = 'const std::string&',
-                device   = 'const std::string&',
-                key_hash = 'const std::string&'),
-        virtual('store',
-                returns  = 'void',
-                version  = 'const std::string&',
-                device   = 'const std::string&',
-                key_hash = 'const std::string&',
-                e        = 'const binary_cache_entry&',
-                blob     = 'const std::vector<char>&'),
-        virtual('begin_batch', returns = 'void', default = 'migraphx::nop'),
-        virtual('end_batch', returns = 'void', default = 'migraphx::nop'))
+    interface('binary_cache_backend',
+              virtual('load',
+                      returns  = 'optional<std::vector<char>>',
+                      version  = 'const std::string&',
+                      device   = 'const std::string&',
+                      key_hash = 'const std::string&'),
+              virtual('store',
+                      returns  = 'void',
+                      version  = 'const std::string&',
+                      device   = 'const std::string&',
+                      key_hash = 'const std::string&',
+                      e        = 'const binary_cache_entry&',
+                      blob     = 'const std::vector<char>&'),
+              virtual('begin_batch', returns = 'void', default = 'migraphx::nop'),
+              virtual('end_batch', returns = 'void', default = 'migraphx::nop'))
 %>
 
 #endif

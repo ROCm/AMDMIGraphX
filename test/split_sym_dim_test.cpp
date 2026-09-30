@@ -2916,6 +2916,56 @@ TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
                  {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f});
 }
 
+TEST_CASE(split_sym_dim_dyn_concat_count_root)
+{
+    auto a            = var("a", {0, 2});
+    auto b            = var("b", {0, 2});
+    auto concat_count = var("concat_count", {0, 4});
+    migraphx::program p;
+    auto& m      = *p.get_main_module();
+    auto x       = m.add_parameter("x", symbolic_shape({a, lit(2)}, migraphx::shape::float_type));
+    auto y       = m.add_parameter("y", symbolic_shape({b, lit(2)}, migraphx::shape::float_type));
+    auto a_count = m.add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{a})}}),
+        x);
+    auto b_count = m.add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{b})}}),
+        y);
+    auto concat =
+        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, a_count, b_count);
+    auto buffer   = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
+    auto total    = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
+    auto starts   = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto selected = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(concat_count)}},
+                           {"always_leq", true}}),
+        buffer,
+        starts,
+        total);
+    auto output = m.add_instruction(migraphx::make_op("relu"), selected);
+    m.add_return({output});
+
+    run_pass(p);
+
+    EXPECT(m.has_instruction(selected));
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 1);
+    if(selections.size() == 1)
+    {
+        EXPECT(migraphx::contains(selections.front()->inputs(), selected));
+        EXPECT(not migraphx::contains(selections.front()->inputs(), x));
+        EXPECT(not migraphx::contains(selections.front()->inputs(), y));
+    }
+}
+
 TEST_CASE(split_sym_dim_sequential_nonzero_nms_roots)
 {
     auto nonzero_count = var("nonzero_count", {0, 4});

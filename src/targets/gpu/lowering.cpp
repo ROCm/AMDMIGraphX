@@ -120,6 +120,7 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_lrn_op();
+        add_dyn_concat_op();
         add_nms_op();
         add_nonzero_op();
         add_convolution_backwards_op();
@@ -457,6 +458,15 @@ struct miopen_apply
 
             return mod->replace_instruction(
                 ins, make_op("gpu::loop", ins->get_operator().to_value()), inputs, mod_args);
+        });
+    }
+
+    void add_dyn_concat_op()
+    {
+        apply_map.emplace("dyn_concat", [=](instruction_ref ins) {
+            auto result = insert_precompile_op(ins);
+            insert_fill(result, 0);
+            return result;
         });
     }
 

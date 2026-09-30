@@ -217,6 +217,7 @@ register_migraphx_ops(
     dimensions_of
     div
     dot
+    dyn_concat
     dyn_slice
     elu
     equal

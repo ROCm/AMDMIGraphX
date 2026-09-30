@@ -75,6 +75,41 @@ TEST_CASE(output_path_no_outputs)
     EXPECT(collect(migraphx::get_output_path(x)) == instruction_refs{x});
 }
 
+TEST_CASE(input_path_linear)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x  = m.add_parameter("x", s);
+    auto p1 = m.add_instruction(pass_op{}, x);
+    auto p2 = m.add_instruction(pass_op{}, p1);
+    auto p3 = m.add_instruction(pass_op{}, p2);
+
+    EXPECT(collect(migraphx::get_input_path(p3)) == instruction_refs{p3, p2, p1, x});
+    EXPECT(collect(migraphx::get_input_path(p1)) == instruction_refs{p1, x});
+}
+
+// The path cannot be followed past an instruction with more than one input
+TEST_CASE(input_path_multiple_inputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x   = m.add_parameter("x", s);
+    auto y   = m.add_parameter("y", s);
+    auto sum = m.add_instruction(sum_op{}, x, y);
+    auto p1  = m.add_instruction(pass_op{}, sum);
+
+    EXPECT(collect(migraphx::get_input_path(p1)) == instruction_refs{p1, sum});
+}
+
+TEST_CASE(input_path_no_inputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x = m.add_parameter("x", s);
+
+    EXPECT(collect(migraphx::get_input_path(x)) == instruction_refs{x});
+}
+
 TEST_CASE(alias_path_allocation)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

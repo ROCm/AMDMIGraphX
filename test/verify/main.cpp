@@ -172,6 +172,9 @@ int main(int argc, const char* argv[])
                             "test_batch_quant_dot_1<migraphx::fp8::fp8e5m2, float>",
                             "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
                             "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
+                            // Disabled until HSA_STATUS_ERROR_MEMORY_APERTURE_VIOLATION
+                            // in the CK fused attention kernel is fixed.
+                            "test_ck_gemm_softmax_gemm_0<migraphx::shape::half_type>",
                         });
 
     rv.run(argc, argv);

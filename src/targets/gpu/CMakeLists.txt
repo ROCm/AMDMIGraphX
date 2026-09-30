@@ -258,6 +258,8 @@ add_library(migraphx_gpu
     hip.cpp
     hipblaslt.cpp
     hip_gemm_impl.cpp
+    hip_graph.cpp
+    hipgraphify.cpp
     hsa_chiplet.cpp
     json_problem_cache.cpp
     kernel.cpp

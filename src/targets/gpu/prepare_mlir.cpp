@@ -140,7 +140,7 @@ struct find_where
 // also rewrite those (and other packed-but-noncanonical stride sets).
 // True broadcasts (element_space < elements) are left alone; rocMLIR
 // accepts splat/broadcast attributes for those.
-static bool has_canonical_literal_strides(const shape& s)
+bool has_canonical_literal_strides(const shape& s)
 {
     if(s.dynamic() or not s.sub_shapes().empty())
         return true;

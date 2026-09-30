@@ -581,10 +581,10 @@ TEST_CASE(split_sym_dim_materializes_symbolic_multibroadcast_with_multiple_shape
         sm.add_return({clone_output});
     });
 
-    auto& expected_main       = *expected.get_main_module();
-    auto expected_data        = expected_main.add_parameter("data", symbolic_shape({n, lit(3)}));
-    auto expected_shape_input = expected_main.add_parameter(
-        "shape_input", migraphx::shape{migraphx::shape::float_type, {1, 3}});
+    auto& expected_main = *expected.get_main_module();
+    auto expected_data  = expected_main.add_parameter("data", symbolic_shape({n, lit(3)}));
+    expected_main.add_parameter("shape_input",
+                                migraphx::shape{migraphx::shape::float_type, {1, 3}});
     auto expected_bias =
         expected_main.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
     auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
@@ -741,8 +741,8 @@ TEST_CASE(split_sym_dim_materializes_symbolic_broadcast_with_dims)
     auto& expected_main = *expected.get_main_module();
     auto expected_data =
         expected_main.add_parameter("data", symbolic_shape({lit(1), lit(1), n, n}));
-    auto expected_dims = expected_main.add_parameter(
-        "dims", migraphx::shape{migraphx::shape::int64_type, {std::size_t{4}}});
+    expected_main.add_parameter("dims",
+                                migraphx::shape{migraphx::shape::int64_type, {std::size_t{4}}});
     auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = add_select_module(expected_main,
                                       {expected_data},
@@ -786,8 +786,8 @@ TEST_CASE(split_sym_dim_coalesces_into_symbolic_broadcast_with_dims)
 
     auto& expected_main = *expected.get_main_module();
     auto expected_data  = expected_main.add_parameter("data", symbolic_shape({lit(1), n}));
-    auto expected_dims  = expected_main.add_parameter(
-        "dims", migraphx::shape{migraphx::shape::int64_type, {std::size_t{3}}});
+    expected_main.add_parameter("dims",
+                                migraphx::shape{migraphx::shape::int64_type, {std::size_t{3}}});
     auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     migraphx::shape output_shape{migraphx::shape::float_type,
                                  {dd{lit(1)}, dd{target_n}, dd{target_n}},
@@ -829,8 +829,8 @@ TEST_CASE(split_sym_dim_materializes_symbolic_allocate)
 
     auto& expected_main  = *expected.get_main_module();
     auto expected_source = expected_main.add_parameter("source", symbolic_shape({n}));
-    auto expected_dims   = expected_main.add_parameter(
-        "dims", migraphx::shape{migraphx::shape::int64_type, {std::size_t{2}}});
+    expected_main.add_parameter("dims",
+                                migraphx::shape{migraphx::shape::int64_type, {std::size_t{2}}});
     auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = add_select_module(
         expected_main, {expected_source}, modules, {symbolic_shape({target_n, lit(4)})});
@@ -869,8 +869,7 @@ TEST_CASE(split_sym_dim_materializes_two_input_symbolic_reshape)
 
     auto& expected_main = *expected.get_main_module();
     auto expected_data  = expected_main.add_parameter("data", symbolic_shape({batch, n, lit(16)}));
-    auto expected_target =
-        expected_main.add_parameter("target", symbolic_shape({lit(1), n, lit(4), lit(4)}));
+    expected_main.add_parameter("target", symbolic_shape({lit(1), n, lit(4), lit(4)}));
     auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = add_select_module(expected_main,
                                       {expected_data},

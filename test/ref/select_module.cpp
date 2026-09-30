@@ -270,7 +270,7 @@ TEST_CASE(select_module_tuple_output_maps_nonconsecutive_returns)
     migraphx::shape scalar_shape{migraphx::shape::int32_type, {1}};
     migraphx::shape seq_shape{migraphx::shape::int32_type, {64}};
     migraphx::shape tuple_shape{{seq_shape, seq_shape}};
-    auto data  = submod->add_parameter("data", seq_shape);
+    submod->add_parameter("data", seq_shape);
     auto fused = submod->add_parameter("#output_fused", tuple_shape);
     auto zero  = submod->add_literal(migraphx::literal{scalar_shape, {0}});
     auto first =

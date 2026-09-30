@@ -111,7 +111,7 @@ struct rotary_embedding : op_builder<rotary_embedding>
         const auto single_token = sym::fixed_value(seq_len);
         const bool pos_per_token =
             surplus.has_value() and sym::to<int64_t>(*surplus) == 0 and
-            not(single_token.has_value() and sym::to<int64_t>(*single_token) == 1);
+            (not single_token.has_value() or sym::to<int64_t>(*single_token) != 1);
 
         instruction_ref indices;
 

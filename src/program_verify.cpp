@@ -289,9 +289,21 @@ program_result verify_outputs(const program& p,
     auto ref_outs    = run_ref(p, options.compile, options.ref_use_double, inputs);
     auto target_outs = run_target(p, t, options, inputs);
 
+    program_result result;
+    if(ref_outs.size() != target_outs.size())
+    {
+        auto message = "Output count mismatch {" + std::to_string(ref_outs.size()) + "} != {" +
+                       std::to_string(target_outs.size()) + "}";
+        log::error() << "FAILED: " << options.name;
+        log::error() << message;
+        result.success = false;
+        result.results.push_back(
+            {.name = options.name, .op = "@return", .message = std::move(message)});
+        return result;
+    }
+
     std::size_t output_num = ref_outs.size();
     bool passed            = true;
-    program_result result;
     for(std::size_t i = 0; i < output_num; ++i)
     {
         layer_result layer{.name = options.name, .op = "@return", .index = i};
@@ -306,8 +318,8 @@ program_result verify_outputs(const program& p,
         {
             layer.passed =
                 verify_args(options.name, target_outs[i], expected{ref_outs[i]}, options.tols);
-            passed &= layer.passed;
         }
+        passed &= layer.passed;
         result.results.push_back(std::move(layer));
     }
     if(passed)
@@ -483,7 +495,7 @@ program_result verify_bisected(const program& p,
     const auto* mm = p.get_main_module();
 
     std::vector<std::size_t> trims = find_trim_instructions(*mm);
-    std::int64_t right             = trims.size();
+    std::int64_t right             = static_cast<std::int64_t>(trims.size()) - 1;
     std::int64_t left              = 0;
     std::int64_t failed            = -1;
     program_result result;

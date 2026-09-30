@@ -11,6 +11,8 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed mixed `uint8` and `int8` quantization (#5075).
+
 ### Optimized
 
 ### Removed
@@ -169,7 +171,6 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing (#4969).
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE` (#4991).
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions (#5038).
-
 
 ### Optimized
 

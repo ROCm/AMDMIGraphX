@@ -1444,6 +1444,38 @@ def concat_dyn_test():
 
 
 @onnx_test()
+def concat_symbolic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['a', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['b', 4])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, ['c', 4])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['x', 'y'],
+        axis=0,
+        outputs=['z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def concat_single_symbolic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['a', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 4])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, ['c', 4])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['x', 'y'],
+        axis=0,
+        outputs=['z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def constant_test():
     x = np.array([0, 1, 2])
     y = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])

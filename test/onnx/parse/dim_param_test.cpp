@@ -114,6 +114,28 @@ TEST_CASE(dim_param_symbolic_map_dyn_input_optimals_test)
     EXPECT(p == prog);
 }
 
+// A dim_param is an arbitrary string but a symbol name has to be an identifier, so the parser
+// rewrites it. "batch.size" and "batch_size" sanitize alike, so the second to be seen gains a
+// counter rather than silently sharing the first one's symbol.
+TEST_CASE(dim_param_symbolic_odd_names_test)
+{
+    using migraphx::sym::var;
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter("0",
+                                   migraphx::shape{migraphx::shape::float_type,
+                                                   sym_dims({var("batch_size", {1, 4}),
+                                                             var("batch_size_2", {1, 4}),
+                                                             var("_2d", {1, 4})})});
+    mm->add_return({input});
+
+    migraphx::onnx_options opt;
+    opt.use_symbolic_shapes   = true;
+    opt.default_dyn_dim_value = {1, 4};
+    auto prog                 = read_onnx("dim_param_odd_names_test.onnx", opt);
+    EXPECT(p == prog);
+}
+
 TEST_CASE(dim_param_symbolic_map_dyn_input_explicit_sym_test)
 {
     using migraphx::sym::var;

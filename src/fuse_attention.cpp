@@ -278,18 +278,20 @@ struct find_quant_attention
 // reductions and becomes a second output of the fused attention group.
 struct find_attention_sinks
 {
+    // ext and exp are each matched twice, so erase each level with opaque to
+    // keep the nested matcher type from growing exponentially (gcc/msvc OOM)
     auto matcher() const
     {
         auto scores = match::any().bind("scores");
         auto sinks  = match::any().bind("sinks");
-        auto ext    = match::name("concat")(match::args(scores, sinks)).bind("concat");
-        auto rmax   = match::name("reduce_max")(match::arg(0)(ext)).bind("rmax");
-        auto sub =
-            match::name("sub")(match::arg(0)(ext), match::arg(1)(match::skip_broadcasts(rmax)));
-        auto exp  = match::name("exp")(match::arg(0)(sub));
-        auto rsum = match::name("reduce_sum")(match::arg(0)(exp)).bind("rsum");
-        auto sm =
-            match::name("div")(match::arg(0)(exp), match::arg(1)(match::skip_broadcasts(rsum)));
+        auto ext  = match::opaque(match::name("concat")(match::args(scores, sinks)).bind("concat"));
+        auto rmax = match::opaque(match::name("reduce_max")(match::arg(0)(ext)).bind("rmax"));
+        auto sub  = match::opaque(
+            match::name("sub")(match::arg(0)(ext), match::arg(1)(match::skip_broadcasts(rmax))));
+        auto exp  = match::opaque(match::name("exp")(match::arg(0)(sub)));
+        auto rsum = match::opaque(match::name("reduce_sum")(match::arg(0)(exp)).bind("rsum"));
+        auto sm   = match::opaque(
+            match::name("div")(match::arg(0)(exp), match::arg(1)(match::skip_broadcasts(rsum))));
         return match::name("slice")(match::arg(0)(match::skip(match::name("convert"))(sm)));
     }
 

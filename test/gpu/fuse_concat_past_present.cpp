@@ -95,8 +95,8 @@ TEST_CASE(fuse_decode)
         auto s     = present_shape(1);
         auto x     = mm->add_parameter("x", s);
         auto y     = mm->add_parameter("y", s);
-        auto slk    = mm->add_parameter("slk", index_shape());
-        auto cache  = mm->add_parameter("cache", cache_shape());
+        auto slk   = mm->add_parameter("slk", index_shape());
+        auto cache = mm->add_parameter("cache", cache_shape());
         auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
         auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
         auto view =

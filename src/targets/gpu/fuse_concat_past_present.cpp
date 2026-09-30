@@ -75,7 +75,7 @@ struct slice_at
             MIGRAPHX_THROW("SLICE_AT: index " + std::to_string(idx) + " out of range [0, " +
                            std::to_string(s.lens()[axis]) + ")");
         std::vector<std::size_t> start(s.ndim(), 0);
-        start[axis] = idx;
+        start[axis]       = idx;
         auto offset       = s.index(start) * s.type_size();
         const auto& input = args[0];
         return {output_shape, [=] { return input.data() + offset; }};

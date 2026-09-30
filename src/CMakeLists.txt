@@ -238,6 +238,7 @@ register_migraphx_ops(
     get_tuple_elem
     gptoss_moe
     greater
+    gridsample
     group
     identity
     if_op

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,9 @@ struct module;
 
 struct MIGRAPHX_EXPORT rewrite_reduce
 {
+    // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with
+    // surrounding pointwise ops instead of launching a GEMM.
+    bool enable_skinny_dot = false;
     std::string name() const { return "rewrite_reduce"; }
     void apply(module& m) const;
 };

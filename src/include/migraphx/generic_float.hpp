@@ -167,8 +167,9 @@ struct __attribute__((packed, may_alias)) generic_float
             return significand;
         if(drop >= int(sizeof(std::uint32_t) * 8))
             return 0;
-        const auto lsb = (significand >> drop) & 1u;
-        return (significand + (1u << (drop - 1u)) - 1u + lsb) >> drop;
+        const auto udrop = std::uint32_t(drop);
+        const auto lsb   = (significand >> udrop) & 1u;
+        return (significand + (1u << (udrop - 1u)) - 1u + lsb) >> udrop;
     }
 
     constexpr void from_float(float32_parts f) noexcept
@@ -182,7 +183,7 @@ struct __attribute__((packed, may_alias)) generic_float
         {
             exponent = all_ones<ExponentSize>();
             // Narrowing the payload must not turn a nan into an infinity.
-            std::uint32_t payload = f.mantissa >> drop;
+            std::uint32_t payload = f.mantissa >> std::uint32_t(drop);
             if(f.mantissa != 0 and payload == 0)
                 payload = 1u << (MantissaSize - 1);
             mantissa = payload;

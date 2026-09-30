@@ -34,8 +34,11 @@
 #include <migraphx/common.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_convert.hpp>
+#include <migraphx/instruction_traversal.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/unfold.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <unordered_set>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
 
@@ -43,6 +46,115 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+// Walk forward through single-consumer ops looking for an instruction with
+// the given name. Returns start itself if it already matches.
+std::optional<instruction_ref> find_downstream_named(instruction_ref start,
+                                                     const std::string& target)
+{
+    auto path = get_output_path(start);
+    auto it   = std::find_if(
+        path.begin(), path.end(), [&](instruction_ref ins) { return ins->name() == target; });
+    if(it == path.end())
+        return std::nullopt;
+    return *it;
+}
+
+// Walk backward through the data-flow chain looking for an instruction with
+// the given name. Returns start itself if it already matches. Single-input ops
+// are followed directly; multi-input ops follow the first non-constant,
+// non-bool input.
+std::optional<instruction_ref> find_upstream_named(instruction_ref start, const std::string& target)
+{
+    auto path = unfold(start, [](instruction_ref current) -> std::optional<instruction_ref> {
+        const auto& inputs = current->inputs();
+        if(inputs.empty())
+            return std::nullopt;
+        if(inputs.size() == 1)
+            return inputs.front();
+        auto it = std::find_if(inputs.begin(), inputs.end(), [](instruction_ref i) {
+            return not i->can_eval() and i->get_shape().type() != shape::bool_type;
+        });
+        if(it == inputs.end())
+            return std::nullopt;
+        return *it;
+    });
+    auto it   = std::find_if(
+        path.begin(), path.end(), [&](instruction_ref ins) { return ins->name() == target; });
+    if(it == path.end())
+        return std::nullopt;
+    return *it;
+}
+
+// Scan the module for attention dots by matching the decomposed softmax
+// pattern (match::softmax matches the final div). A softmax whose input
+// reaches a dot upstream and whose output reaches another dot downstream
+// identifies the Q*K^T and softmax*V dots of attention; both are marked so
+// find_dot leaves them alone.
+std::unordered_set<instruction_ref> collect_attention_dots(module& m)
+{
+    std::unordered_set<instruction_ref> result;
+    for(auto ins : iterator_for(m))
+    {
+        auto r = match::match_instruction(m, ins, match::softmax());
+        if(r.result == m.end())
+            continue;
+        auto x     = r.instructions["x"];
+        auto q_dot = find_upstream_named(x, "dot");
+        auto v_dot = find_downstream_named(ins, "dot");
+        if(q_dot.has_value() and v_dot.has_value())
+        {
+            result.insert(*q_dot);
+            result.insert(*v_dot);
+        }
+    }
+    return result;
+}
+
+struct find_dot
+{
+    std::unordered_set<instruction_ref> attention_dots;
+
+    auto matcher() const { return match::name("dot"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        if(attention_dots.count(ins) != 0)
+            return;
+        auto a_mat   = ins->inputs().front();
+        auto b_mat   = ins->inputs().back();
+        auto a_shape = a_mat->get_shape();
+        auto b_shape = b_mat->get_shape();
+        auto ndim    = a_shape.ndim();
+        auto rows    = a_shape.lens().at(ndim - 2);
+        if(rows > 2)
+            return;
+
+        std::vector<int64_t> permutation(ndim);
+        std::iota(permutation.begin(), permutation.end(), 0);
+        std::swap(permutation.back(), permutation.at(ndim - 2));
+
+        // If the b matrix is const foldable then make sure its a transposed layout unless its
+        // broadcasting
+        if(b_mat->can_eval() and not b_shape.transposed())
+        {
+            b_mat =
+                m.insert_instruction(ins, make_op("layout", {{"permutation", permutation}}), b_mat);
+        }
+
+        auto a_unsqueeze =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim - 1}}}), a_mat);
+        auto b_transpose =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), b_mat);
+        auto b_unsqueeze =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim - 2}}}), b_transpose);
+        auto mul    = insert_common_op(m, ins, make_op("mul"), {a_unsqueeze, b_unsqueeze});
+        auto reduce = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {ndim}}}), mul);
+        m.replace_instruction(ins, make_op("squeeze", {{"axes", {ndim}}}), reduce);
+    }
+};
+
 struct find_logsoftmax
 {
     auto matcher() const { return match::name("logsoftmax"); }
@@ -212,35 +324,132 @@ struct find_softmax_base_ops
 
 struct find_reduce_mean_variance
 {
+    // Shape transforms that preserve the linear element order, so equal-shaped
+    // reductions through them group the elements identically on both sides of
+    // the pattern.
+    static const auto& reshaper_names()
+    {
+        static const std::unordered_set<std::string> names = {
+            "reshape", "squeeze", "unsqueeze", "flatten", "contiguous"};
+        return names;
+    }
+
+    static const auto& broadcast_names()
+    {
+        static const std::unordered_set<std::string> names = {
+            "broadcast", "multibroadcast", "contiguous"};
+        return names;
+    }
+
+    static const auto& broadcaster_names()
+    {
+        static const auto names = [] {
+            auto ns = reshaper_names();
+            ns.insert(broadcast_names().begin(), broadcast_names().end());
+            return ns;
+        }();
+        return names;
+    }
+
     auto matcher() const
     {
-        auto reduce_mean          = match::name("reduce_mean");
-        auto skip_broadcasts_mean = match::skip_broadcasts(reduce_mean.bind("mean"));
-        auto x_minus_mean         = match::name("sub")(match::arg(0)(match::any().bind("x")),
-                                               match::arg(1)(skip_broadcasts_mean));
+        auto reduce_mean  = match::name("reduce_mean");
+        auto mean         = match::skip(match::name(broadcaster_names()))(reduce_mean.bind("mean"));
+        auto mean_operand = match::all_of(match::any().bind("mean_head"), mean);
+        auto x_minus_mean =
+            match::name("sub")(match::arg(0)(match::any().bind("x")), match::arg(1)(mean_operand));
         auto pow_x_minus_mean =
-            match::name("pow")(match::arg(0)(x_minus_mean), match::arg(1)(match::has_value(2.0f)));
+            match::name("pow")(match::arg(0)(x_minus_mean), match::arg(1)(match::has_value(2.0f)))
+                .bind("sq");
         auto mul_x_minus_mean =
-            match::name("mul")(match::arg(0)(x_minus_mean), match::arg(1)(x_minus_mean));
-        auto sqdiff = match::name("sqdiff")(
-            match::either_arg(0, 1)(match::any().bind("x"), skip_broadcasts_mean));
-        return reduce_mean(
-            match::arg(0)(match::any_of(pow_x_minus_mean, mul_x_minus_mean, sqdiff)));
+            match::name("mul")(match::same_inputs(), match::arg(0)(x_minus_mean)).bind("sq");
+        auto sqdiff =
+            match::name("sqdiff")(match::either_arg(0, 1)(match::any().bind("x"), mean_operand))
+                .bind("sq");
+        auto squared_diff  = match::any_of(pow_x_minus_mean, mul_x_minus_mean, sqdiff);
+        auto skip_reshapes = match::skip(match::name(reshaper_names()));
+        return reduce_mean(match::arg(0)(skip_reshapes(squared_diff)));
+    }
+
+    // The ops that transform last into start, found by walking the
+    // single-input chain upstream from start and returned in application
+    // order; nullopt if an op is not in allowed or last is never reached.
+    static std::optional<std::vector<operation>> chain_transform_ops(
+        instruction_ref start, instruction_ref last, const std::unordered_set<std::string>& allowed)
+    {
+        auto path = get_input_path(start);
+        auto it   = std::find_if(path.begin(), path.end(), [&](instruction_ref ins) {
+            return ins == last or not contains(allowed, ins->name());
+        });
+        if(it == path.end() or *it != last)
+            return std::nullopt;
+        std::vector<operation> ops;
+        std::transform(path.begin(), it, std::back_inserter(ops), [](instruction_ref ins) {
+            return ins->get_operator();
+        });
+        std::reverse(ops.begin(), ops.end());
+        return ops;
+    }
+
+    // The mean must be broadcast back so that every element of x is paired
+    // with the mean of its own reduction group: the broadcast chain must be
+    // equivalent to broadcasting in the reduction space and reshaping to x.
+    static bool
+    aligned_mean_broadcast(instruction_ref mean_head, instruction_ref x_ins, instruction_ref mean)
+    {
+        auto bcast_ops = chain_transform_ops(mean_head, mean, broadcaster_names());
+        if(not bcast_ops.has_value())
+            return false;
+        const auto& reduce_lens         = mean->inputs().front()->get_shape().lens();
+        std::vector<operation> expected = {
+            make_op("multibroadcast", {{"out_lens", reduce_lens}}),
+            make_op("reshape", {{"dims", x_ins->get_shape().lens()}})};
+        const auto& mean_lens = mean->get_shape().lens();
+        return optimize_shape_transforms(mean_lens, *bcast_ops) ==
+               optimize_shape_transforms(mean_lens, expected);
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins   = r.result;
-        auto x_ins = r.instructions["x"];
-        auto mean  = r.instructions["mean"];
+        auto ins       = r.result;
+        auto x_ins     = r.instructions["x"];
+        auto mean      = r.instructions["mean"];
+        auto sq        = r.instructions["sq"];
+        auto mean_head = r.instructions["mean_head"];
 
         if(ins->get_operator() != mean->get_operator())
             return;
 
-        if(mean->inputs().front() != x_ins)
-            return;
+        auto reduce_input = ins->inputs().front();
+        auto mean_input   = mean->inputs().front();
 
-        auto x2       = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
+        // A plain broadcast back onto x itself is aligned by construction and
+        // needs no shape queries, so it also works for dynamic shapes
+        bool direct = reduce_input == sq and mean_input == x_ins and
+                      chain_transform_ops(mean_head, mean, broadcast_names()).has_value();
+        if(not direct)
+        {
+            if(ins->get_shape().dynamic() or x_ins->get_shape().dynamic())
+                return;
+            // Both reductions must group elements identically: same input dims,
+            // reached only through order-preserving reshapes
+            if(reduce_input->get_shape().lens() != mean_input->get_shape().lens())
+                return;
+            if(x_ins->get_shape().lens() != sq->get_shape().lens())
+                return;
+            if(not chain_transform_ops(mean_input, x_ins, reshaper_names()).has_value())
+                return;
+            if(not aligned_mean_broadcast(mean_head, x_ins, mean))
+                return;
+        }
+
+        auto x2 = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
+        if(not direct)
+        {
+            const auto& rlens = reduce_input->get_shape().lens();
+            if(x2->get_shape().lens() != rlens)
+                x2 = m.insert_instruction(ins, make_op("reshape", {{"dims", rlens}}), x2);
+        }
         auto mean_x2  = m.insert_instruction(ins, mean->get_operator(), x2);
         auto mean_x_2 = m.insert_instruction(ins, make_op("mul"), mean, mean);
         m.replace_instruction(ins, make_op("sub"), mean_x2, mean_x_2);
@@ -355,6 +564,10 @@ void rewrite_reduce::apply(module& m) const
 {
     match::find_matches(m, find_logsoftmax{});
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
+    // Match the decomposed softmax pattern to identify dots participating in
+    // attention (Q*K^T and softmax*V) so find_dot can skip them.
+    if(enable_skinny_dot)
+        match::find_matches(m, find_dot{collect_attention_dots(m)});
 
     if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
     {

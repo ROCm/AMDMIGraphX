@@ -83,8 +83,8 @@ static std::string make_version_id(bool use_short_digest)
         return {};
     // The version numbers make the id readable; the hash of the full version string
     // separates builds that share them, since it also covers the source revision.
-    return std::string{binary_cache_format} + "-hip" + compiler.major + "." + compiler.minor +
-           "." + digest(compiler.version, use_short_digest) + "-kernels" +
+    return std::string{binary_cache_format} + "-hip" + compiler.major + "." + compiler.minor + "." +
+           digest(compiler.version, use_short_digest) + "-kernels" +
            digest(kernels_source(), use_short_digest) + "-rocmlir" + rocmlir_id;
 }
 

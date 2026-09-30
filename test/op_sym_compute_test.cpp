@@ -214,7 +214,7 @@ TEST_CASE(op_sym_slice_with_input_bounds)
 {
     const auto s = var("S", {1, 16});
     auto result  = symbolic_compute(migraphx::make_op("slice"),
-                                   shape{shape::int64_type, {2}},
+                                    shape{shape::int64_type, {2}},
                                     {shape{shape::int64_type, {4}},
                                      shape{shape::int64_type, {1}},
                                      shape{shape::int64_type, {1}},
@@ -342,7 +342,7 @@ TEST_CASE(op_sym_where)
 {
     const auto s = var("S", {1, 16});
     auto result  = symbolic_compute(migraphx::make_op("where"),
-                                   shape{shape::int64_type, {2}},
+                                    shape{shape::int64_type, {2}},
                                     {shape{shape::bool_type, {2}},
                                      shape{shape::int64_type, {2}},
                                      shape{shape::int64_type, {2}}},

@@ -28,7 +28,6 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -39,18 +38,25 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <exception>
 #include <functional>
 #include <memory>
+#include <string>
+#include <thread>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -60,6 +66,21 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_USE_SIMPLE);
+
+static const benchmark_candidate& run_benchmark(const context& ctx,
+                                                const std::vector<benchmark_candidate>& candidates)
+{
+    // A single candidate is already the winner, so skip timing it
+    if(candidates.size() == 1)
+        return candidates.front();
+    const auto& best = enabled(MIGRAPHX_BENCHMARKING_USE_SIMPLE{})
+                           ? simple_benchmark{/* bundle */ 10, /* nruns */ 20}.run(ctx, candidates)
+                           : adaptive_topk_benchmark{}.run(ctx, candidates);
+    // Let the GPU settle before the next tuning problem
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    return best;
+}
 
 struct precompile_op
 {
@@ -274,15 +295,7 @@ struct dynamic_code_object_op
     std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,
                                                               const_module_ref mod) const
     {
-        auto pnames = mod->get_parameter_names();
-        assert(pnames.size() == args.size());
-        std::unordered_map<std::string, argument> param_map;
-        std::transform(pnames.begin(),
-                       pnames.end(),
-                       args.begin(),
-                       std::inserter(param_map, param_map.end()),
-                       [](const auto& name, const auto& arg) { return std::make_pair(name, arg); });
-        return param_map;
+        return make_parameter_map(mod, args);
     }
     argument compute(context& ctx,
                      const shape&,
@@ -401,7 +414,7 @@ static void replace_inserted_device_ops(context& ctx, module& m);
 /// written by exactly one worker during the parallel compile; sharers read it after the join.
 struct compile_cell
 {
-    explicit compile_cell(value s) : solution(std::move(s)) {}
+    explicit compile_cell(const value& s) : solution(s) {}
 
     value solution = {};
     /// Identifies the code the compile would produce, or an invented private key when the
@@ -450,17 +463,6 @@ struct compile_plan
         verify_reuse(*ctx, ins, preop, solution, reused);
     }
 
-    /// Inner repeat count when timing a candidate, raised for split-k (kernel + prefill).
-    static std::size_t benchmark_bundle(const module& m)
-    {
-        // Count context-requiring ops (kernel + prefills); skip context-free and @-builtins.
-        int n = std::count_if(m.begin(), m.end(), [](const auto& ins2) {
-            return not migraphx::is_context_free(ins2.get_operator()) and
-                   not starts_with(ins2.name(), "@");
-        });
-        return std::max(1, 4 * n - 2);
-    }
-
     /// Compile without touching the cache, so this can run in parallel with other compiles.
     optional<compiler_replace> run_compile(const value& solution) const
     {
@@ -480,6 +482,77 @@ struct compile_plan
             return nullopt;
         }
     }
+
+    struct candidate
+    {
+        const compile_plan* plan   = nullptr;
+        const compiler_replace* cr = nullptr;
+        value sol                  = value{};
+
+        // Parameters whose shape id (type + dims) is in the compiled result's fill_map hold that
+        // value, the rest random data. Each key leads with the fill value, or "random", so only
+        // parameters that hold the same data share a key.
+        std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const
+        {
+            assert(cr != nullptr);
+            const auto& fill_map = cr->code.fill_map;
+            const auto* mm       = p.get_main_module();
+            auto names           = mm->get_parameter_names();
+            std::vector<std::pair<std::string, shape>> keys;
+            keys.reserve(names.size());
+            std::transform(
+                names.begin(), names.end(), std::back_inserter(keys), [&](const auto& name) {
+                    auto s         = mm->get_parameter_shape(name);
+                    std::string id = "";
+                    if(s.type() != shape::tuple_type)
+                        id = s.type_string() + shape::to_sizes_string({s.as_standard()});
+                    auto fill = fill_map.find(id);
+                    // Neither tag contains ':', so the first ':' ends the tag even if the name
+                    // has one
+                    auto tag =
+                        fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second);
+                    return std::make_pair(tag + ":" + name, s);
+                });
+            return keys;
+        }
+
+        // The key's tag gives the data: "random" is generated on the GPU, seeded by the key so a
+        // key always gives the same data; a hex float is filled on the host
+        argument generate_argument(context& gctx, const std::string& key, const shape& s) const
+        {
+            auto tag = key.substr(0, key.find(':'));
+            if(tag == "random")
+                return gpu_generate_random(gctx, s, std::hash<std::string>{}(key));
+            return to_gpu(fill_argument(s, std::stod(tag)));
+        }
+
+        program make_program() const
+        {
+            assert(plan != nullptr and cr != nullptr);
+            return plan->make_program(*cr);
+        }
+
+        // Set based on trace level
+        tracer trace() const
+        {
+            if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 1)
+                return {std::cout};
+            return {};
+        }
+
+        value solution() const { return sol; }
+
+        // Used to print the program and other info on higher trace levels
+        void before_run(const program& p) const
+        {
+            assert(plan != nullptr and cr != nullptr);
+            if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 2)
+            {
+                cr->trace(std::cout, plan->ins);
+                std::cout << "\n" << p << std::endl;
+            }
+        }
+    };
 
     /// A standalone program with just this instruction and its compiled code objects inserted.
     program make_program(const compiler_replace& cr) const
@@ -517,7 +590,8 @@ struct compile_plan
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
                 const auto& solution = sol.value();
-                // No solution yet until benchmarked so skip for now
+                // A null is a mark() sentinel: already being benchmarked, so skip it
+                // here and take the winning solution on the second pass.
                 if(solution.is_null())
                     return;
                 results.push_back(std::make_shared<compile_cell>(solution));
@@ -613,70 +687,44 @@ struct compile_plan
             std::cout << "Problem: " << config->problem << std::endl;
         // One slot per solution; grouping only redirects slots.
         assert(results.size() == config->solutions.size());
-        std::vector<double> times;
-        times.reserve(results.size());
-        std::transform(results.begin(),
-                       results.end(),
-                       config->solutions.begin(),
-                       std::back_inserter(times),
-                       [&](const auto& cell, const auto& solution) {
-                           if(trace_level > 1)
-                               std::cout << "Benchmarking solution: " << solution << std::endl;
-                           if(not cell->result.has_value())
-                           {
-                               if(trace_level > 1)
-                                   std::cout << "No binary" << std::endl;
-                               return std::numeric_limits<double>::max();
-                           }
-                           if(trace_level > 2)
-                           {
-                               cell->result->trace(std::cout, ins);
-                               std::cout << std::endl;
-                           }
-                           /*
-                           create a small program with insturction being compiled and call "replace"
-                           on that which would insert all the compiled code objects, prefills etc.
-                           necessary to run candidate code object
-                           */
-                           auto bench_prog = make_program(*cell->result);
-                           if(trace_level > 2)
-                               std::cout << bench_prog << std::endl;
-                           auto bundle = benchmark_bundle(*bench_prog.get_main_module());
-                           auto t      = time_program(*ctx,
-                                                 std::move(bench_prog),
-                                                 cell->result->code.fill_map,
-                                                 bundle,
-                                                 /* nrun */ 20);
-                           if(trace_level > 1)
-                               std::cout << t << "ms" << std::endl;
-                           return t;
-                       });
-        std::this_thread::sleep_for(std::chrono::milliseconds{50});
-        auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
-        if(trace_level > 0)
-        {
-            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
-            ctx->get_problem_cache().save();
-        }
-        if(not results[i]->result.has_value())
+        std::vector<benchmark_candidate> candidates;
+        candidates.reserve(results.size());
+        // The solution comes from this plan, since a shared cell may belong to another plan.
+        transform_if(
+            results.begin(),
+            results.end(),
+            config->solutions.begin(),
+            std::back_inserter(candidates),
+            [](const auto& cell, const auto&) { return cell->result.has_value(); },
+            [&](const auto& cell, const auto& solution) {
+                return candidate{this, &*cell->result, solution};
+            });
+        auto skipped = results.size() - candidates.size();
+        if(skipped > 0 and trace_level > 1)
+            std::cout << "No binary for " << skipped << " solutions" << std::endl;
+        if(candidates.empty())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                            problem_string() + "\n\n" + print_modules());
-        auto skipped = std::count_if(results.begin(), results.end(), [](const auto& cell) {
-            return not cell->result.has_value();
-        });
+        const auto& best = run_benchmark(*ctx, candidates);
+        ctx->get_problem_cache().insert(preop.name(), config->problem, best.solution());
+        if(trace_level > 0)
+        {
+            std::cout << "Fastest solution: " << best.solution() << std::endl;
+            ctx->get_problem_cache().save();
+        }
         if(skipped > 0)
             log::info() << "Skipped " << skipped << " configs for " << preop.name();
 
-        return *results[i]->result;
+        return *any_cast<candidate>(best).cr;
     }
 
     void replace(module& m) const { benchmark().replace(m, ins); }
 
-    void save_binaries(const fs::path& mxr_dir) const
+    std::size_t save_binaries(const fs::path& mxr_dir) const
     {
+        std::size_t saved_files = 0;
         if(not config.has_value())
-            return;
+            return saved_files;
         for(auto i : range(results.size()))
         {
             if(not results[i]->result.has_value())
@@ -701,7 +749,9 @@ struct compile_plan
                                        std::to_string(problem_hash) + ".mxr");
             log::info() << "Saving benchmark binary: " << mxr_file;
             save(bench_prog, mxr_file.string());
+            ++saved_files;
         }
+        return saved_files;
     }
 };
 
@@ -759,11 +809,10 @@ struct compile_manager
         }
     }
 
-    void compile(module& m, bool is_root)
+    /// Fill every cell's result, from the cache or by compiling, sharing one compile among
+    /// the cells with the same key.
+    void compile_cells()
     {
-        for(auto& cp : cps)
-            cp.add_cells(skip_benchmark);
-
         {
             // Every slot is collected so the keys can be computed in parallel.
             std::vector<std::pair<compile_plan*, compile_cell*>> slots;
@@ -831,9 +880,17 @@ struct compile_manager
         });
 
         store_results(tasks);
+    }
+
+    void compile(module& m, bool is_root)
+    {
+        for(auto& cp : cps)
+            cp.add_cells(skip_benchmark);
+        compile_cells();
 
         static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
         bool dump_mxr              = not mxr_path.empty();
+        std::size_t dumped_mxr_files = 0;
 
         if(dump_mxr)
         {
@@ -846,7 +903,7 @@ struct compile_manager
                 continue;
             if(dump_mxr and cp.results.size() > 1)
             {
-                cp.save_binaries(fs::path(mxr_path));
+                dumped_mxr_files += cp.save_binaries(fs::path(mxr_path));
             }
             else
             {
@@ -854,15 +911,21 @@ struct compile_manager
             }
         }
 
-        // Only throw on the root module so that submodules (which are processed
-        // first by the pass manager and may legitimately have no precompile ops
-        // or no multi-solution candidates) don't abort compilation before the
-        // root module has had a chance to dump its benchmark MXR files.
+        // Exit on the root module so all submodules get processed first.
         if(dump_mxr and is_root)
         {
-            log::info() << "Benchmark MXR files dumped to " << mxr_path
-                        << ". Run the MXR files to create a problem cache, then recompile with the "
-                           "cache.";
+            if(dumped_mxr_files > 0)
+            {
+                log::info()
+                    << "Benchmark MXR files dumped to " << mxr_path
+                    << ". Run the MXR files to create a problem cache, then recompile with the "
+                       "cache.";
+            }
+            else
+            {
+                log::info() << "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR is set to " << mxr_path
+                            << ", but no benchmark files were dumped.";
+            }
             std::exit(0);
         }
 

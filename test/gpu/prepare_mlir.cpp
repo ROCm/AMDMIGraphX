@@ -116,7 +116,7 @@ TEST_CASE(kv_cache_mask_seq_len)
         auto iota    = m2.add_literal(migraphx::literal{migraphx::shape{i, {4}}, {0, 1, 2, 3}});
         auto biota   = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), iota);
-        auto flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1}}}), seq_len);
+        auto flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1}}}), seq_len);
         auto lead =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3}}}), flat);
         auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), lead);
@@ -169,6 +169,64 @@ TEST_CASE(kv_cache_mask_seq_len_idempotent)
     run_pass(m1);
     auto m2 = m1;
     run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A batched sequence length holds one value per batch; it is broadcast over
+// the heads only, so each batch keeps its own length after rocMLIR folds the
+// heads into the attention batch.
+TEST_CASE(kv_cache_mask_seq_len_batched)
+{
+    const auto f = migraphx::shape::float_type;
+    const auto i = migraphx::shape::int32_type;
+    migraphx::shape ss{i, {2, 1}};
+    migraphx::shape scores_s{f, {2, 3, 1, 4}};
+
+    migraphx::module m1;
+    {
+        auto scores  = m1.add_parameter("scores", scores_s);
+        auto seq_len = m1.add_parameter("seq_len", ss);
+        auto iota    = m1.add_literal(migraphx::literal{migraphx::shape{i, {4}}, {0, 1, 2, 3}});
+        auto biota   = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), iota);
+        auto rsl =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 1, 1}}}), seq_len);
+        auto bsl = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), rsl);
+        auto gt  = m1.add_instruction(migraphx::make_op("greater"), biota, bsl);
+        auto cvt = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), gt);
+        auto ninf = m1.add_literal(migraphx::literal{migraphx::shape{f, {1}}, {-1e9f}});
+        auto binf = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), ninf);
+        auto w = m1.add_instruction(migraphx::make_op("where"), cvt, binf, scores);
+        m1.add_return({w});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto scores  = m2.add_parameter("scores", scores_s);
+        auto seq_len = m2.add_parameter("seq_len", ss);
+        auto iota    = m2.add_literal(migraphx::literal{migraphx::shape{i, {4}}, {0, 1, 2, 3}});
+        auto biota   = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), iota);
+        auto flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1}}}), seq_len);
+        auto lead =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), flat);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), lead);
+        auto bsl  = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), unsq);
+        auto gt  = m2.add_instruction(migraphx::make_op("greater"), biota, bsl);
+        auto cvt = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), gt);
+        auto ninf = m2.add_literal(migraphx::literal{migraphx::shape{f, {1}}, {-1e9f}});
+        auto binf = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", scores_s.lens()}}), ninf);
+        auto w = m2.add_instruction(migraphx::make_op("where"), cvt, binf, scores);
+        m2.add_return({w});
+    }
 
     EXPECT(m1.sort() == m2.sort());
 }

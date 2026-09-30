@@ -116,11 +116,11 @@ struct find_leaky_relu
 
 // rocMLIR resolves the kv-cache sequence length by unwrapping a single
 // broadcast from the mask compare, and requires one entry per gemm batch once
-// the attention heads are folded into it. When the sequence length is a
-// scalar input the trace ends at a one-element tensor, which fails to
-// verify. Broadcast the sequence length over the leading batch and heads
-// dimensions in a separate step so rocMLIR binds a {batch, heads} tensor it
-// can collapse to match the attention batch.
+// the attention heads are folded into it. The sequence length input holds one
+// value per batch (concat_past_present indexes it by batch), so the trace ends
+// at a {batch}-element tensor, which fails to verify. Broadcast the sequence
+// length over the heads dimension in a separate step so rocMLIR binds a
+// {batch, heads} tensor it can collapse to match the attention batch.
 struct find_kv_cache_mask_seq_len
 {
     static const std::unordered_set<std::string>& view_ops()
@@ -148,13 +148,14 @@ struct find_kv_cache_mask_seq_len
 
         if(seq_len->get_shape().type() != shape::int32_type)
             return;
-        if(seq_len->get_shape().elements() != 1)
-            return;
         const auto& mask_lens = where_ins->get_shape().lens();
         if(mask_lens.size() != 4)
             return;
         std::vector<std::size_t> lead_lens(mask_lens.begin(), mask_lens.end() - 2);
-        if(lead_lens[0] * lead_lens[1] == 1)
+        // One sequence length per batch, with heads to broadcast it over
+        if(seq_len->get_shape().elements() != lead_lens[0])
+            return;
+        if(lead_lens[1] == 1)
             return;
         // Already rewritten if the sequence length is broadcast over the
         // leading dimensions in a separate step
@@ -180,7 +181,9 @@ struct find_kv_cache_mask_seq_len
 
         auto new_col = m.insert_instruction(
             greater, make_op("multibroadcast", {{"out_lens", mask_lens}}), col_ins);
-        auto flat = m.insert_instruction(greater, make_op("reshape", {{"dims", {1}}}), seq_len);
+        std::vector<std::size_t> batch_lens{lead_lens[0], 1};
+        auto flat =
+            m.insert_instruction(greater, make_op("reshape", {{"dims", batch_lens}}), seq_len);
         auto lead = m.insert_instruction(
             greater, make_op("multibroadcast", {{"out_lens", lead_lens}}), flat);
         auto unsq = m.insert_instruction(greater, make_op("unsqueeze", {{"axes", {2, 3}}}), lead);

@@ -69,8 +69,6 @@ struct layer_result
     std::string name    = {};
     std::string op      = {};
     std::string message = {};
-    argument target     = {};
-    argument reference  = {};
     std::size_t index   = 0;
     double rms_error    = 0;
     bool passed         = false;

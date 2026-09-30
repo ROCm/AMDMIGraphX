@@ -36,6 +36,12 @@ MIGRAPHX_EXPORT bool verify_args(const std::string& name,
                                  const verify::expected<argument>& ref_arg,
                                  verify::tolerance);
 
+MIGRAPHX_EXPORT bool verify_args(const std::string& name,
+                                 const argument& target_arg,
+                                 const verify::expected<argument>& ref_arg,
+                                 verify::tolerance,
+                                 double* rms_error);
+
 MIGRAPHX_EXPORT bool verify_args_with_tolerance(const std::string& name,
                                                 const argument& target_arg,
                                                 const verify::expected<argument>& ref_arg,

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program_verify.hpp>
 #include <migraphx/register_target.hpp>
@@ -47,6 +48,49 @@ TEST_CASE(verify_program_outputs)
     auto result = migraphx::verify::verify_program(
         make_program(), migraphx::make_target("ref"), migraphx::verify::program_mode::outputs);
     EXPECT(result.passed());
+}
+
+TEST_CASE(verify_program_output_mismatch)
+{
+    migraphx::tmp_dir td{"program_verify_output_mismatch"};
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    mm->add_return({x});
+
+    migraphx::program compiled;
+    auto* compiled_mm = compiled.get_main_module();
+    auto compiled_x   = compiled_mm->add_parameter("x", s);
+    auto neg          = compiled_mm->add_instruction(migraphx::make_op("neg"), compiled_x);
+    compiled_mm->add_return({neg});
+    auto ref = migraphx::make_target("ref");
+    compiled.compile(ref);
+    auto path = (td.path / "output_mismatch.mxr").string();
+    migraphx::save(compiled, path);
+
+    migraphx::parameter_map inputs{
+        {"x", migraphx::literal{s, {-2.0f, -1.0f, 1.0f, 2.0f}}.get_argument()}};
+    migraphx::verify::program_options options;
+    options.compiled_model = path;
+    auto result            = migraphx::verify::verify_program(
+        p, ref, migraphx::verify::program_mode::outputs, inputs, options);
+    EXPECT(not result.passed());
+    EXPECT(result.failures().size() == 1);
+    EXPECT(result.results.front().rms_error > 0);
+}
+
+TEST_CASE(verify_program_compiled_model_unsupported_mode)
+{
+    migraphx::verify::program_options options;
+    options.compiled_model = "unused.mxr";
+    EXPECT(test::throws([&] {
+        migraphx::verify::verify_program(make_program(),
+                                         migraphx::make_target("ref"),
+                                         migraphx::verify::program_mode::layerwise,
+                                         {},
+                                         options);
+    }));
 }
 
 TEST_CASE(verify_program_instructions)
@@ -97,17 +141,12 @@ TEST_CASE(verify_program_layers)
 
 TEST_CASE(verify_program_reduce_exception)
 {
-    migraphx::tmp_dir td{"program_verify"};
-    migraphx::verify::program_options options;
-    options.compiled_model = (td.path / "missing.mxr").string();
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    migraphx::parameter_map inputs{
-        {"x", migraphx::literal{s, {-2.0f, -1.0f, 1.0f, 2.0f}}.get_argument()}};
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    migraphx::parameter_map inputs{{"x", migraphx::literal{s, {-2.0f}}.get_argument()}};
     auto result = migraphx::verify::verify_program(make_program(),
                                                    migraphx::make_target("ref"),
                                                    migraphx::verify::program_mode::reduce,
-                                                   inputs,
-                                                   options);
+                                                   inputs);
     EXPECT(not result.passed());
     EXPECT(not result.results.empty());
     EXPECT(result.results.front().exception);

@@ -25,6 +25,7 @@
 #include <migraphx/program_verify.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/execution_environment.hpp>
 #include <migraphx/fp_to_double.hpp>
 #include <migraphx/functional.hpp>
@@ -316,8 +317,11 @@ program_result verify_outputs(const program& p,
         }
         else
         {
-            layer.passed =
-                verify_args(options.name, target_outs[i], expected{ref_outs[i]}, options.tols);
+            layer.passed = verify_args(options.name,
+                                       target_outs[i],
+                                       expected{ref_outs[i]},
+                                       options.tols,
+                                       &layer.rms_error);
         }
         passed &= layer.passed;
         result.results.push_back(std::move(layer));
@@ -590,6 +594,8 @@ program_result verify_program(const program& p,
                               const parameter_map& inputs,
                               const program_options& options)
 {
+    if(mode != program_mode::outputs and not options.compiled_model.empty())
+        MIGRAPHX_THROW("Compiled models are only supported for output verification.");
     program_result result;
     auto values = inputs;
     if(mode != program_mode::instructions)

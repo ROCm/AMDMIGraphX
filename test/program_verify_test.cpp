@@ -25,6 +25,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program_verify.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <test.hpp>
 
 static migraphx::program make_program()
@@ -41,18 +42,10 @@ static migraphx::program make_program()
     return p;
 }
 
-static migraphx::parameter_map make_inputs()
-{
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    return {{"x", migraphx::literal{s, {-2.0f, -1.0f, 1.0f, 2.0f}}.get_argument()}};
-}
-
 TEST_CASE(verify_program_outputs)
 {
-    auto result = migraphx::verify::verify_program(make_program(),
-                                                   migraphx::make_target("ref"),
-                                                   migraphx::verify::program_mode::outputs,
-                                                   make_inputs());
+    auto result = migraphx::verify::verify_program(
+        make_program(), migraphx::make_target("ref"), migraphx::verify::program_mode::outputs);
     EXPECT(result.passed());
 }
 
@@ -65,19 +58,25 @@ TEST_CASE(verify_program_instructions)
 
 TEST_CASE(verify_program_reduce)
 {
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    migraphx::parameter_map inputs{
+        {"x", migraphx::literal{s, {-2.0f, -1.0f, 1.0f, 2.0f}}.get_argument()}};
     auto result = migraphx::verify::verify_program(make_program(),
                                                    migraphx::make_target("ref"),
                                                    migraphx::verify::program_mode::reduce,
-                                                   make_inputs());
+                                                   inputs);
     EXPECT(result.passed());
 }
 
 TEST_CASE(verify_program_bisect)
 {
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    migraphx::parameter_map inputs{
+        {"x", migraphx::literal{s, {-2.0f, -1.0f, 1.0f, 2.0f}}.get_argument()}};
     auto result = migraphx::verify::verify_program(make_program(),
                                                    migraphx::make_target("ref"),
                                                    migraphx::verify::program_mode::bisect,
-                                                   make_inputs());
+                                                   inputs);
     EXPECT(result.passed());
     EXPECT(not result.failure_step.has_value());
     EXPECT(not result.results.empty());
@@ -85,12 +84,33 @@ TEST_CASE(verify_program_bisect)
 
 TEST_CASE(verify_program_layers)
 {
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    migraphx::parameter_map inputs{
+        {"x", migraphx::literal{s, {-2.0f, -1.0f, 1.0f, 2.0f}}.get_argument()}};
     auto result = migraphx::verify::verify_program(make_program(),
                                                    migraphx::make_target("ref"),
                                                    migraphx::verify::program_mode::layerwise,
-                                                   make_inputs());
+                                                   inputs);
     EXPECT(result.passed());
     EXPECT(not result.results.empty());
+}
+
+TEST_CASE(verify_program_reduce_exception)
+{
+    migraphx::tmp_dir td{"program_verify"};
+    migraphx::verify::program_options options;
+    options.compiled_model = (td.path / "missing.mxr").string();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    migraphx::parameter_map inputs{
+        {"x", migraphx::literal{s, {-2.0f, -1.0f, 1.0f, 2.0f}}.get_argument()}};
+    auto result = migraphx::verify::verify_program(make_program(),
+                                                   migraphx::make_target("ref"),
+                                                   migraphx::verify::program_mode::reduce,
+                                                   inputs,
+                                                   options);
+    EXPECT(not result.passed());
+    EXPECT(not result.results.empty());
+    EXPECT(result.results.front().exception);
 }
 
 TEST_CASE(verify_program_empty_output)

@@ -42,6 +42,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <iterator>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -57,6 +58,21 @@ namespace {
 
 using trace_function      = std::function<void(instruction_ref, const argument&)>;
 using substitute_function = std::function<optional<argument>(instruction_ref, const argument&)>;
+
+parameter_map make_inputs(const program& p, const parameter_map& inputs)
+{
+    parameter_map result = inputs;
+    auto shapes          = p.get_parameter_shapes();
+    transform_if(
+        shapes.begin(),
+        shapes.end(),
+        std::inserter(result, result.end()),
+        [&](const auto& item) { return not contains(inputs, item.first); },
+        [](const auto& item) {
+            return std::make_pair(item.first, generate_argument(item.second));
+        });
+    return result;
+}
 
 std::vector<argument> run_ref(program p,
                               const compile_options& options,
@@ -374,8 +390,10 @@ program_result verify_reduced(
         log::error() << "Exception: " << e.what();
         program_result result;
         result.success = false;
-        result.results.push_back(
-            {.name = std::to_string(n), .message = e.what(), .index = static_cast<std::size_t>(n)});
+        result.results.push_back({.name      = std::to_string(n),
+                                  .message   = e.what(),
+                                  .index     = static_cast<std::size_t>(n),
+                                  .exception = true});
         return result;
     }
 }
@@ -561,13 +579,16 @@ program_result verify_program(const program& p,
                               const program_options& options)
 {
     program_result result;
+    auto values = inputs;
+    if(mode != program_mode::instructions)
+        values = make_inputs(p, inputs);
     switch(mode)
     {
-    case program_mode::outputs: result = verify_outputs(p, t, inputs, options); break;
+    case program_mode::outputs: result = verify_outputs(p, t, values, options); break;
     case program_mode::instructions: result = verify_instructions(p, t, options); break;
-    case program_mode::reduce: result = verify_reduced_program(p, t, options, inputs); break;
-    case program_mode::bisect: result = verify_bisected(p, t, options, inputs); break;
-    case program_mode::layerwise: result = verify_layerwise(p, t, inputs, options); break;
+    case program_mode::reduce: result = verify_reduced_program(p, t, options, values); break;
+    case program_mode::bisect: result = verify_bisected(p, t, options, values); break;
+    case program_mode::layerwise: result = verify_layerwise(p, t, values, options); break;
     }
     result.mode = mode;
     return result;

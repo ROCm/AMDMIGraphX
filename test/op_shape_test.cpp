@@ -312,6 +312,48 @@ TEST_CASE(binary_sym_same_packed)
     expect_shape(s, migraphx::make_op("add"), s, s);
 }
 
+TEST_CASE(binary_sym_different_expressions)
+{
+    auto n = var("n", {0, 100});
+    auto m = var("m", {0, 100});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}, dd{lit(4)}}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_overlapping_expressions)
+{
+    auto n = var("n", {0, 100});
+    auto m = var("m", {50, 150});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}}};
+    expect_shape(sx, migraphx::make_op("mul"), sx, sy);
+}
+
+TEST_CASE(binary_sym_disjoint_expressions_error)
+{
+    auto n = var("n", {0, 10});
+    auto m = var("m", {20, 30});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_mismatch_error)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{lit(5)}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_one_requires_broadcast)
+{
+    auto n = var("n", {1, 100});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(1)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
 TEST_CASE(binary_sym_packed_vs_broadcasted)
 {
     auto n = var("n", {2, 8});

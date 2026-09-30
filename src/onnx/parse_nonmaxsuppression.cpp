@@ -35,7 +35,7 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
     std::vector<op_desc> operators() const { return {{"NonMaxSuppression", "nonmaxsuppression"}}; }
 
     instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& parser,
+                          onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
@@ -52,9 +52,10 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
         auto indices = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nms_ins);
         auto num_selected =
             info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
-        auto max_selected     = indices->get_shape().max_lens().front();
-        auto num_selected_var = sym::var(info.name, {0, max_selected});
-        auto starts_lit       = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
+        auto max_selected = indices->get_shape().max_lens().front();
+        auto num_selected_var =
+            sym::var(parser.symbol_names.allocate(info.name), {0, max_selected});
+        auto starts_lit = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
         return info.add_instruction(make_op("dyn_slice",
                                             {{"axes", {0}},
                                              {"starts", {0}},

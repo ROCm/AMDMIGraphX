@@ -51,6 +51,7 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_symbolic_dimensions.hpp>
 
 #include <migraphx/ranges.hpp>
 #include <unordered_map>
@@ -91,6 +92,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         simplify_dyn_ops{},
         simplify_qdq{},
         simplify_reshapes{},
+        simplify_symbolic_dimensions{},
     };
     // clang-format on
     for(const auto& pass : passes)

@@ -31,6 +31,39 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+namespace {
+
+bool is_symbolic_literal(const shape::dynamic_dimension& d)
+{
+    return d.is_symbolic() and d.sym_expr.name() == "literal";
+}
+
+bool intervals_overlap(const shape::dynamic_dimension& a, const shape::dynamic_dimension& b)
+{
+    const auto a_interval = a.get_interval();
+    const auto b_interval = b.get_interval();
+    return std::max(a_interval.min, b_interval.min) <= std::min(a_interval.max, b_interval.max);
+}
+
+bool elementwise_dims_match_without_broadcast(const std::vector<shape::dynamic_dimension>& input,
+                                              const std::vector<shape::dynamic_dimension>& target)
+{
+    if(input.size() != target.size())
+        return false;
+    return std::equal(input.begin(), input.end(), target.begin(), [](const auto& a, const auto& b) {
+        if(a == b)
+            return true;
+        if(a == 1 or b == 1)
+            return false;
+        if(is_symbolic_literal(a) and is_symbolic_literal(b))
+            return false;
+        return intervals_overlap(a, b);
+    });
+}
+
+} // namespace
+
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1)
 {
@@ -73,6 +106,15 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                        else if(a == 1)
                        {
                            return b;
+                       }
+                       else if(a.is_symbolic() and b.is_symbolic())
+                       {
+                           if(not(is_symbolic_literal(a) and is_symbolic_literal(b)) and
+                              intervals_overlap(a, b))
+                               return a;
+                           MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
+                                          migraphx::to_string_range(dds0) + "} and {" +
+                                          migraphx::to_string_range(dds1) + "} mismatch!");
                        }
                        else
                        {
@@ -168,7 +210,8 @@ std::vector<instruction_ref> insert_common_args(module& m,
         {
             auto target = std::find_if(inputs.begin(), inputs.end(), [&](auto input) {
                 const auto& s = input->get_shape();
-                return s.symbolic() and s.dyn_dims() == c_dyn_dims;
+                return s.symbolic() and
+                       elementwise_dims_match_without_broadcast(s.dyn_dims(), c_dyn_dims);
             });
             instruction_ref common_input;
             if(target == inputs.end())
@@ -185,7 +228,9 @@ std::vector<instruction_ref> insert_common_args(module& m,
             }
             std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
                 const auto& s = input->get_shape();
-                if(input == common_input or (s.symbolic() and s.dyn_dims() == c_dyn_dims))
+                if(input == common_input or
+                   (s.symbolic() and
+                    elementwise_dims_match_without_broadcast(s.dyn_dims(), c_dyn_dims)))
                     return input;
                 return m.insert_instruction(
                     ins,

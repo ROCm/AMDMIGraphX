@@ -28,14 +28,15 @@
 
 // Decode-mode kv-cache append with a pointwise producer, which the gpu target
 // fuses so the producer writes directly into the cache
-struct test_concat_past_present_mul : verify_program<test_concat_past_present_mul>
+template <migraphx::shape::type_t DType>
+struct test_concat_past_present_mul : verify_program<test_concat_past_present_mul<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::half_type, {1, 2, 1, 4}};
-        migraphx::shape cs{migraphx::shape::half_type, {1, 2, 8, 4}};
+        migraphx::shape s{DType, {1, 2, 1, 4}};
+        migraphx::shape cs{DType, {1, 2, 8, 4}};
         auto x     = mm->add_parameter("x", s);
         auto y     = mm->add_parameter("y", s);
         auto cache = mm->add_parameter("cache", cs);
@@ -47,3 +48,6 @@ struct test_concat_past_present_mul : verify_program<test_concat_past_present_mu
         return p;
     }
 };
+
+template struct test_concat_past_present_mul<migraphx::shape::half_type>;
+template struct test_concat_past_present_mul<migraphx::shape::fp8e4m3fn_type>;

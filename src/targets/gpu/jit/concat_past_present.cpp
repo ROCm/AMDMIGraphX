@@ -29,6 +29,7 @@
 
 #include <migraphx/env.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
@@ -88,10 +89,10 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
 
         // Every chunk offset is a multiple of head_size, so copy in the widest
         // vector dividing it, capped at 4 since memory coloring only aligns
-        // buffers to 4 elements
-        const std::size_t vec_size = params.head_size % 4 == 0   ? 4
-                                     : params.head_size % 2 == 0 ? 2
-                                                                 : 1;
+        // buffers to 4 elements. The fp8 class types cannot form a vector type.
+        std::size_t vec_size = 1;
+        if(not contains(fp8_types{}.get(), inputs.front().type()))
+            vec_size = params.head_size % 4 == 0 ? 4 : params.head_size % 2 == 0 ? 2 : 1;
         auto nelements = params.batch_size * params.kv_num_heads * params.sequence_length *
                          params.head_size / vec_size;
         // Large copies take 4 vectors per thread (global_stride loop): one load

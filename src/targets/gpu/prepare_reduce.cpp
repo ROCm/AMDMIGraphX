@@ -30,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/serialize.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -99,6 +100,59 @@ struct make_indices
 MIGRAPHX_REGISTER_OP(make_indices);
 
 namespace {
+
+// The reduce code generator evaluates a pointwise over the tensor slice of its
+// non-broadcast inputs, so a pointwise whose inputs are all broadcasts is
+// computed once per output as a scalar. Move the broadcasts after the
+// pointwise so its shape says so:
+//     pointwise(broadcast(x), broadcast(y)) -> broadcast(pointwise(x, y))
+struct find_pointwise_broadcast_inputs
+{
+    auto matcher() const
+    {
+        return match::name("pointwise")(
+            match::all_of[match::inputs()](match::name("multibroadcast", "broadcast")));
+    }
+
+    // The pointwise lens with each axis that every input broadcasts set to 1
+    static std::vector<std::size_t> inner_lens(instruction_ref ins)
+    {
+        const auto& out_lens = ins->get_shape().lens();
+        std::vector<std::size_t> lens(out_lens.size());
+        auto axes = range(out_lens.size());
+        std::transform(axes.begin(), axes.end(), lens.begin(), [&](auto axis) {
+            bool broadcasted =
+                std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
+                    return input->get_shape().strides()[axis] == 0;
+                });
+            return broadcasted ? 1 : out_lens[axis];
+        });
+        return lens;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto lens = inner_lens(ins);
+        if(lens == ins->get_shape().lens())
+            return;
+        std::vector<instruction_ref> inputs;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(inputs),
+                       [&](instruction_ref broadcast) {
+                           auto input = broadcast->inputs().front();
+                           if(input->get_shape().lens() == lens)
+                               return input;
+                           auto v        = broadcast->get_operator().to_value();
+                           v["out_lens"] = to_value(lens);
+                           return m.insert_instruction(ins, make_op(broadcast->name(), v), input);
+                       });
+        auto pw = m.insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), pw);
+    }
+};
 
 // find argmin/argmax operations
 std::vector<instruction_ref> find_arg_reduce(module& m)
@@ -188,6 +242,7 @@ void fuse_reductions(module& m)
 
 void prepare_reduce::apply(module& m) const
 {
+    match::find_matches(m, find_pointwise_broadcast_inputs{});
     // rewrite argmin/argmax to handle tuples
     rewrite_arg_reduce(m);
     fuse_reductions(m);

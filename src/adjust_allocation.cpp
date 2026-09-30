@@ -61,7 +61,8 @@ void adjust_allocation::apply(module& m) const
             continue;
 
         auto alias_ins = get_allocation(ins);
-        // A buffer holding one element of a tuple result cannot match the shape of the tuple
+        // Tuple outputs use separate tensor buffers; do not resize one to the aggregate tuple
+        // shape.
         if(ins->get_shape().type() == shape::tuple_type and
            alias_ins->get_shape().type() != shape::tuple_type)
             continue;

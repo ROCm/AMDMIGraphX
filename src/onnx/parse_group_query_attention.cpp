@@ -65,88 +65,131 @@ instruction_ref broadcast_batch_index(const onnx_parser::node_info& info,
     return info.add_instruction(make_multibroadcast(bnsm), result);
 }
 
-struct gqa_attributes
-{
-    bool do_rotary           = false;
-    std::size_t kv_num_heads = 0;
-    int local_window_size    = -1;
-    std::size_t num_heads    = 0;
-    bool rotary_interleaved  = false;
-    float scale              = 0.0;
-};
-
-gqa_attributes parse_attributes(const onnx_parser& parser, const onnx_parser::node_info& info)
-{
-    gqa_attributes attrs;
-    if(contains(info.attributes, "do_rotary"))
-    {
-        attrs.do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();
-    }
-    if(contains(info.attributes, "kv_num_heads"))
-    {
-        attrs.kv_num_heads =
-            parser.parse_value(info.attributes.at("kv_num_heads")).at<std::size_t>();
-    }
-    else
-    {
-        MIGRAPHX_THROW(
-            "GroupQueryAttention: Attribute 'kv_num_heads' is required but was not provided.");
-    }
-    if(contains(info.attributes, "local_window_size"))
-    {
-        attrs.local_window_size =
-            parser.parse_value(info.attributes.at("local_window_size")).at<int>();
-    }
-    if(contains(info.attributes, "num_heads"))
-    {
-        attrs.num_heads = parser.parse_value(info.attributes.at("num_heads")).at<std::size_t>();
-    }
-    else
-    {
-        MIGRAPHX_THROW(
-            "GroupQueryAttention: Attribute 'num_heads' is required but was not provided.");
-    }
-    if(contains(info.attributes, "rotary_interleaved"))
-    {
-        attrs.rotary_interleaved =
-            parser.parse_value(info.attributes.at("rotary_interleaved")).at<bool>();
-    }
-    if(contains(info.attributes, "scale"))
-    {
-        attrs.scale = parser.parse_value(info.attributes.at("scale")).at<float>();
-    }
-    if(contains(info.attributes, "softcap"))
-    {
-        if(not float_equal(parser.parse_value(info.attributes.at("softcap")).at<float>(), 0.0))
-        {
-            MIGRAPHX_THROW("GroupQueryAttention: non-zero softcap is not yet supported.");
-        }
-    }
-    return attrs;
-}
-
 } // namespace
 
 struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
 
+    static bool has_input(const std::vector<instruction_ref>& args, std::size_t index)
+    {
+        return args.size() > index and not args.at(index)->is_undefined();
+    }
+
+    struct gqa_attributes
+    {
+        bool do_rotary           = false;
+        std::size_t kv_num_heads = 0;
+        int local_window_size    = -1;
+        std::size_t num_heads    = 0;
+        bool rotary_interleaved  = false;
+        float scale              = 0.0;
+    };
+
+    static gqa_attributes parse_attributes(const onnx_parser& parser,
+                                           const onnx_parser::node_info& info)
+    {
+        gqa_attributes attrs;
+        auto& [do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale] =
+            attrs;
+        if(contains(info.attributes, "do_rotary"))
+        {
+            do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();
+        }
+        if(contains(info.attributes, "kv_num_heads"))
+        {
+            kv_num_heads = parser.parse_value(info.attributes.at("kv_num_heads")).at<std::size_t>();
+        }
+        else
+        {
+            MIGRAPHX_THROW(
+                "GroupQueryAttention: Attribute 'kv_num_heads' is required but was not provided.");
+        }
+        if(contains(info.attributes, "local_window_size"))
+        {
+            local_window_size =
+                parser.parse_value(info.attributes.at("local_window_size")).at<int>();
+        }
+        if(contains(info.attributes, "num_heads"))
+        {
+            num_heads = parser.parse_value(info.attributes.at("num_heads")).at<std::size_t>();
+        }
+        else
+        {
+            MIGRAPHX_THROW(
+                "GroupQueryAttention: Attribute 'num_heads' is required but was not provided.");
+        }
+        if(contains(info.attributes, "rotary_interleaved"))
+        {
+            rotary_interleaved =
+                parser.parse_value(info.attributes.at("rotary_interleaved")).at<bool>();
+        }
+        if(contains(info.attributes, "scale"))
+        {
+            scale = parser.parse_value(info.attributes.at("scale")).at<float>();
+        }
+        if(contains(info.attributes, "softcap"))
+        {
+            if(not float_equal(parser.parse_value(info.attributes.at("softcap")).at<float>(), 0.0))
+            {
+                MIGRAPHX_THROW("GroupQueryAttention: non-zero softcap is not yet supported.");
+            }
+        }
+        return attrs;
+    }
+
+    static void validate_inputs(const std::vector<instruction_ref>& args)
+    {
+        if(args.size() < 7 or args.size() > 12)
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
+        }
+        if(has_input(args, 9))
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: position_ids input is not yet supported.");
+        }
+        if(has_input(args, 10))
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: attention_bias input is not yet supported.");
+        }
+    }
+
+    // head_sink adds a per-head logit to the softmax denominator only (attention sinks):
+    // append it as an extra score column, then drop that column after the softmax
+    static instruction_ref insert_softmax_with_head_sink(const onnx_parser::node_info& info,
+                                                         instruction_ref scores,
+                                                         instruction_ref sink)
+    {
+        const auto& s              = scores->get_shape();
+        const auto dims            = s.sym_dims();
+        const std::size_t nheads   = static_dim(s, 1, "GroupQueryAttention: number of heads");
+        const std::int64_t columns = static_dim(s, 3, "GroupQueryAttention: key length");
+        if(sink->get_shape().elements() != nheads)
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: head_sink must have num_heads elements");
+        }
+        if(sink->get_shape().type() != scores->get_shape().type())
+        {
+            sink = info.add_instruction(
+                make_op("convert", {{"target_type", scores->get_shape().type()}}), sink);
+        }
+        sink = info.add_instruction(make_op("reshape", {{"dims", {1, nheads, 1, 1}}}), sink);
+        sink = info.add_instruction(
+            make_multibroadcast({dims.at(0), dims.at(1), dims.at(2), sym::lit(1)}), sink);
+        auto padded  = info.add_instruction(make_op("concat", {{"axis", 3}}), scores, sink);
+        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), padded);
+        return info.add_instruction(
+            make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {columns}}}), softmax);
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
                                        const std::vector<instruction_ref>& args) const
     {
-        const auto [do_rotary,
-                    kv_num_heads,
-                    local_window_size,
-                    num_heads,
-                    rotary_interleaved,
-                    attr_scale] = parse_attributes(parser, info);
-
-        if(args.size() < 7 or args.size() > 11)
-        {
-            MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
-        }
+        auto [do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale] =
+            parse_attributes(parser, info);
+        validate_inputs(args);
 
         auto qkv = args.at(0);
         if(args.at(1)->get_shape().ndim() > 1)
@@ -267,12 +310,13 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto ninf = info.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
         ninf      = info.add_instruction(make_multibroadcast(bnsm), ninf);
 
-        const float scale = float_equal(attr_scale, 0.0)
-                                ? 1.0f / std::sqrt(static_cast<float>(head_size))
-                                : attr_scale;
-        auto scale_ins    = info.add_literal(literal{scalar_s, {scale}});
-        scale_ins         = info.add_instruction(make_multibroadcast(bnsm), scale_ins);
-        auto mul          = info.add_instruction(make_op("mul"), gemm1, scale_ins);
+        if(float_equal(scale, 0.0))
+        {
+            scale = 1.0f / std::sqrt(static_cast<float>(head_size));
+        }
+        auto scale_ins = info.add_literal(literal{scalar_s, {scale}});
+        scale_ins      = info.add_instruction(make_multibroadcast(bnsm), scale_ins);
+        auto mul       = info.add_instruction(make_op("mul"), gemm1, scale_ins);
 
         // Cache position of each query row. The all-zero range of a symbolic length that turns
         // out to be a single token folds away once the length is specialized.
@@ -321,7 +365,9 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto mask = info.add_instruction(make_op("greater"), bc_range, last_key);
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
         auto where   = info.add_instruction(make_op("where"), mask, ninf, mul);
-        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+        auto softmax = has_input(args, 11)
+                           ? insert_softmax_with_head_sink(info, where, args.at(11))
+                           : info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
         auto scores  = info.add_instruction(make_op("dot"), softmax, v);
         auto out =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);

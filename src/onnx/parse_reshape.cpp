@@ -44,9 +44,8 @@ struct parse_reshape : op_parser<parse_reshape>
         const auto& input_shape = input->get_shape();
         const auto output_dims  = resolve_reshape_dims(input_shape.to_symbolic(), reshape_dims);
         std::vector<sym::expr> output_expressions(output_dims.size());
-        transform(output_dims, output_expressions.begin(), [](const auto& dim) {
-            return dim.sym_expr;
-        });
+        transform(
+            output_dims, output_expressions.begin(), [](const auto& dim) { return dim.sym_expr; });
         const auto resolved_dims = info.add_instruction(
             make_op("eval_expr_from_shape", {{"expressions", to_value(output_expressions)}}),
             info.mod->get_parameters());
@@ -62,8 +61,7 @@ struct parse_reshape : op_parser<parse_reshape>
     {
         if(not input->get_shape().symbolic())
             return info.add_instruction(make_op("reshape", {{"dims", dims}}), input);
-        return add_runtime_reshape(
-            info, input, std::vector<dim_like>{dims.begin(), dims.end()});
+        return add_runtime_reshape(info, input, std::vector<dim_like>{dims.begin(), dims.end()});
     }
 
     instruction_ref parse(const op_desc& /*opd*/,

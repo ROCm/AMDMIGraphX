@@ -1332,7 +1332,7 @@ std::optional<std::vector<root_spec>> collect_roots(const module& m)
 
     for(auto& root : roots)
     {
-        std::string target_name = "#split_sym_dim_" + root.name + "_target";
+        std::string target_name = "split_sym_dim_" + root.name + "_target";
         while(contains(symbol_names, target_name))
             target_name += "_";
         symbol_names.insert(target_name);

@@ -118,27 +118,19 @@ migraphx::instruction_ref add_back_slice(migraphx::module& m,
                                          const std::vector<se>& ends)
 {
     std::vector<se> starts(ends.size(), lit(0));
-    auto output_dims = input->get_shape().to_symbolic().dyn_dims();
-    for(std::size_t i = 0; i < axes.size(); ++i)
-        output_dims.at(axes.at(i)) = dd{ends.at(i)};
     auto start = m.add_instruction(
         migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(starts)}}),
         sources);
     auto end = m.add_instruction(
         migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(ends)}}),
         sources);
-    auto result       = m.add_instruction(migraphx::make_op("dyn_slice",
-                                                            {{"axes", axes},
-                                                             {"starts", migraphx::to_value(starts)},
-                                                             {"ends", migraphx::to_value(ends)}}),
-                                          input,
-                                          start,
-                                          end);
-    auto output_shape = migraphx::shape{
-        input->get_shape().type(), output_dims, input->get_shape().to_symbolic().dyn_strides()};
-    migraphx::instruction::replace(result, result->get_operator(), output_shape, result->inputs());
-    result->set_normalized();
-    return result;
+    return m.add_instruction(migraphx::make_op("dyn_slice",
+                                               {{"axes", axes},
+                                                {"starts", migraphx::to_value(starts)},
+                                                {"ends", migraphx::to_value(ends)}}),
+                             input,
+                             start,
+                             end);
 }
 
 migraphx::instruction_ref add_iota(migraphx::module& m, std::size_t elements)
@@ -656,15 +648,6 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_multibroadcast)
                                      {expected_target, expected_weights, expected_data},
                                      {1},
                                      {sequence});
-    auto expected_output_shape =
-        migraphx::shape{migraphx::shape::float_type,
-                        {dd{fixed_batch}, dd{sequence}, dd{lit(4)}},
-                        expected_output->get_shape().to_symbolic().dyn_strides()};
-    migraphx::instruction::replace(expected_output,
-                                   expected_output->get_operator(),
-                                   expected_output_shape,
-                                   expected_output->inputs());
-    expected_output->set_normalized();
     expected_main.add_return({expected_output});
 
     EXPECT(p.sort() == expected.sort());
@@ -946,15 +929,6 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_reshape)
                                      {expected_target, expected_weights, expected_data},
                                      {1},
                                      {sequence});
-    auto expected_output_shape =
-        migraphx::shape{migraphx::shape::float_type,
-                        {dd{fixed_batch}, dd{sequence}, dd{lit(4)}},
-                        expected_output->get_shape().to_symbolic().dyn_strides()};
-    migraphx::instruction::replace(expected_output,
-                                   expected_output->get_operator(),
-                                   expected_output_shape,
-                                   expected_output->inputs());
-    expected_output->set_normalized();
     expected_main.add_return({expected_output});
 
     EXPECT(p.sort() == expected.sort());
@@ -1575,15 +1549,6 @@ TEST_CASE(split_sym_dim_pads_absorbed_reduction_input)
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     expected_output =
         add_back_slice(expected_main, expected_output, {expected_values, expected_mask}, {1}, {n});
-    auto expected_output_shape =
-        migraphx::shape{migraphx::shape::int64_type,
-                        {dd{batch}, dd{n}},
-                        expected_output->get_shape().to_symbolic().dyn_strides()};
-    migraphx::instruction::replace(expected_output,
-                                   expected_output->get_operator(),
-                                   expected_output_shape,
-                                   expected_output->inputs());
-    expected_output->set_normalized();
     expected_main.add_return({expected_output});
 
     EXPECT(p.sort() == expected.sort());
@@ -1684,9 +1649,10 @@ TEST_CASE(split_sym_dim_splits_windowed_boundary)
     auto pooling_modules = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
         auto clone_s = var("s", {clone.min, clone.max});
         sm.add_parameter("data", symbolic_shape({lit(1), lit(1), clone_s, clone_s}));
+        auto clone_extent         = migraphx::sym::min(clone_s - 2, lit(clone.max - 2));
         auto clone_boundary_shape = migraphx::shape{
             migraphx::shape::float_type,
-            {dd{lit(1)}, dd{lit(1)}, dd{clone_s - 2}, dd{clone_s - 2}},
+            {dd{lit(1)}, dd{lit(1)}, dd{clone_extent}, dd{clone_extent}},
             {conv_extent * conv_extent, conv_extent * conv_extent, conv_extent, lit(1)}};
         auto boundary = sm.add_parameter("#split_sym_dim_input_1_0", clone_boundary_shape);
         auto pad = sm.add_instruction(fixed_pad(std::numeric_limits<float>::lowest()), boundary);
@@ -1778,9 +1744,10 @@ TEST_CASE(split_sym_dim_retains_only_nonparallel_boundary_axes)
         auto clone_spatial = var("spatial", {clone.spatial_min, clone.spatial_max});
         sm.add_parameter("data",
                          symbolic_shape({clone_batch, lit(1), clone_spatial, clone_spatial}));
+        auto clone_extent = migraphx::sym::min(clone_spatial - 2, lit(clone.spatial_max - 2));
         auto clone_boundary_shape = migraphx::shape{
             migraphx::shape::float_type,
-            {dd{lit(clone.batch)}, dd{lit(1)}, dd{clone_spatial - 2}, dd{clone_spatial - 2}},
+            {dd{lit(clone.batch)}, dd{lit(1)}, dd{clone_extent}, dd{clone_extent}},
             {conv_extent * conv_extent, conv_extent * conv_extent, conv_extent, lit(1)}};
         auto boundary = sm.add_parameter("#split_sym_dim_input_1_0", clone_boundary_shape);
         auto pad = sm.add_instruction(fixed_pad(std::numeric_limits<float>::lowest()), boundary);

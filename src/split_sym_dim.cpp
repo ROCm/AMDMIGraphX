@@ -2458,21 +2458,16 @@ instruction_ref add_output_slice(module& m,
                                  instruction_ref selected_output,
                                  const symbolic_op_info& info)
 {
-    const auto& source_shape = output.source->get_shape();
-    const auto& source_dims  = source_shape.dyn_dims();
-    auto dimensions          = source_dims;
+    const auto& source_dims = output.source->get_shape().dyn_dims();
     std::vector<int64_t> axes;
     std::vector<sym::expr> end_expressions;
     for(auto axis : info.output_symbolic_axes)
     {
         assert(axis < source_dims.size());
-        if(contains(output.slice_axes, axis))
-        {
-            axes.push_back(static_cast<int64_t>(axis));
-            end_expressions.push_back(source_dims.at(axis).sym_expr);
-        }
-        else
-            dimensions.at(axis) = info.dispatch_output.dyn_dims().at(axis);
+        if(not contains(output.slice_axes, axis))
+            continue;
+        axes.push_back(static_cast<int64_t>(axis));
+        end_expressions.push_back(source_dims.at(axis).sym_expr);
     }
     std::vector<sym::expr> start_expressions(axes.size(), sym::lit(int64_t{0}));
     auto sources = m.get_parameters();
@@ -2487,11 +2482,6 @@ instruction_ref add_output_slice(module& m,
                                     selected_output,
                                     starts,
                                     ends);
-    shape output_shape{source_shape.type(),
-                       std::move(dimensions),
-                       selected_output->get_shape().to_symbolic().dyn_strides()};
-    instruction::replace(result, result->get_operator(), output_shape, result->inputs());
-    result->set_normalized();
     if(not output.source->get_debug_symbols().empty())
         m.add_debug_symbols(result, output.source->get_debug_symbols());
     return result;

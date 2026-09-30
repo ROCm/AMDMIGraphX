@@ -124,9 +124,13 @@ TEST_CASE(verify_program_empty_output)
     migraphx::parameter_map inputs{
         {"x", migraphx::literal{s, std::vector<float>{}}.get_argument()}};
 
+    auto outputs = migraphx::verify::verify_program(
+        p, migraphx::make_target("ref"), migraphx::verify::program_mode::outputs, inputs);
+    EXPECT(outputs.passed());
+
     auto layers = migraphx::verify::verify_program(
         p, migraphx::make_target("ref"), migraphx::verify::program_mode::layerwise, inputs);
-    EXPECT(not layers.passed());
+    EXPECT(layers.passed());
     EXPECT(not layers.results.empty());
 }
 

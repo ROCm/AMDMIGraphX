@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
+#include <algorithm>
 #include <utility>
 
 namespace migraphx {
@@ -120,6 +121,15 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
     module_ref mm     = &mpm.get_module();
     auto param_names  = mm->get_parameter_names();
     auto param_shapes = mm->get_parameter_shapes();
+    // Symbolic dimensions are specialized by split_sym_dim
+    if(std::any_of(param_shapes.begin(), param_shapes.end(), [](const auto& p) {
+           return p.second.symbolic();
+       }))
+        return;
+    // fixed_pad pads to the maximum of the dynamic range, which a static submodule no longer has
+    if(std::any_of(
+           mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "fixed_pad"; }))
+        return;
     optional<std::vector<dynamic_dimensions_check>> dd_check_vec =
         has_one_unique_dyn_dim(param_shapes);
     if(dd_check_vec.has_value() and not any_sm_next(mm, dd_check_vec.value()))

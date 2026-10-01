@@ -31,6 +31,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/builtin.hpp>
+#include <migraphx/sym.hpp>
 #include <test.hpp>
 
 static void run_pass(migraphx::program& p)
@@ -246,6 +247,41 @@ TEST_CASE(empty_param_shapes)
     run_pass(p0);
     EXPECT(p0 == p1);
 };
+
+// symbolic dimensions are left for split_sym_dim
+TEST_CASE(symbolic_param_skipped)
+{
+    migraphx::program p0;
+    {
+        auto* mm0 = p0.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type,
+                          {migraphx::shape::dynamic_dimension{migraphx::sym::var("n", {1, 4})},
+                           migraphx::shape::dynamic_dimension{migraphx::sym::lit(4)}}};
+        auto input0   = mm0->add_parameter("data", s);
+        auto relu_ins = mm0->add_instruction(migraphx::make_op("relu"), input0);
+        mm0->add_return({relu_ins});
+    }
+    migraphx::program p1 = p0;
+    run_pass(p0);
+    EXPECT(p0 == p1);
+}
+
+// fixed_pad depends on the dynamic range, so the module is not split
+TEST_CASE(fixed_pad_skipped)
+{
+    migraphx::program p0;
+    {
+        auto* mm0 = p0.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {3, 3}}};
+        auto input0 = mm0->add_parameter("x", s);
+        auto pad_ins =
+            mm0->add_instruction(migraphx::make_op("fixed_pad", {{"value", -2.0f}}), input0);
+        mm0->add_return({pad_ins});
+    }
+    migraphx::program p1 = p0;
+    run_pass(p0);
+    EXPECT(p0 == p1);
+}
 
 // code coverage, does nothing
 TEST_CASE(multiple_non_fixed_dd_in_a_param)

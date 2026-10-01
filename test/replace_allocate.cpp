@@ -451,6 +451,29 @@ TEST_CASE(allocate_out_shared_alloc_copy)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(allocate_out_repeated_return_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1("sub");
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        m1.add_return({p1, p1});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2("sub");
+    {
+        auto output0 = m2.add_parameter("sub:#output_0", s);
+        auto output1 = m2.add_parameter("sub:#output_1", s);
+        auto p1      = m2.add_instruction(pass_op{}, output0);
+        auto copy    = m2.add_instruction(migraphx::make_op("test_copy"), p1, output1);
+        m2.add_return({p1, copy});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // A broadcast is not a bijection, so the output buffer still needs a copy
 TEST_CASE(allocate_out_broadcast_copy)
 {

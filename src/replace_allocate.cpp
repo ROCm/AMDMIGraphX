@@ -279,6 +279,22 @@ void insert_copy(module& m, const allocation_model& model)
         auto copy = m.insert_instruction(insert_ins, make_op(model.copy()), ins, alloc);
         m.replace_instruction(ins, copy);
     }
+    // A value returned more than once, such as a loop state that is also a scan output, would
+    // share one output parameter, so each later occurrence is copied into its own buffer
+    auto returns = m.get_returns();
+    std::unordered_set<instruction_ref> returned;
+    auto last    = std::prev(m.end());
+    bool changed = false;
+    std::transform(returns.begin(), returns.end(), returns.begin(), [&](instruction_ref ins) {
+        if(returned.insert(ins).second or ins->get_shape().any_of_dynamic())
+            return ins;
+        changed    = true;
+        auto alloc = m.insert_instruction(
+            last, make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
+        return m.insert_instruction(last, make_op(model.copy()), ins, alloc);
+    });
+    if(changed)
+        m.replace_return(returns);
 }
 
 void insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)

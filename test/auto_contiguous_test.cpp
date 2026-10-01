@@ -29,9 +29,9 @@
 
 #include <test.hpp>
 
-static void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m, migraphx::auto_contiguous pass = {})
 {
-    migraphx::run_passes(m, {migraphx::auto_contiguous{}});
+    migraphx::run_passes(m, {pass});
 }
 
 // TODO: Add this test case
@@ -107,6 +107,55 @@ TEST_CASE(after_param_transpose)
     run_pass(m);
     EXPECT(m.get_output_shapes().back().standard());
     EXPECT(not m.get_output_shapes().back().transposed());
+}
+
+TEST_CASE(standardize_external_output)
+{
+    migraphx::module m1;
+    auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    auto layout =
+        m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+    m1.add_return({layout});
+    migraphx::module m2 = m1;
+
+    run_pass(m1);
+    EXPECT(not m1.get_output_shapes().back().standard());
+
+    run_pass(m2, migraphx::auto_contiguous{.standardize_outputs = true});
+    EXPECT(m2.get_output_shapes().back().standard());
+    EXPECT(m2.get_returns().front()->name() == "contiguous");
+
+    migraphx::module m3;
+    auto y = m3.add_parameter("y", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    m3.add_return({y});
+    auto m4 = m3;
+    run_pass(m3, migraphx::auto_contiguous{.standardize_outputs = true});
+    EXPECT(m3 == m4);
+}
+
+TEST_CASE(standardize_module_without_return)
+{
+    migraphx::module m1;
+    auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+    auto m2 = m1;
+
+    run_pass(m1, migraphx::auto_contiguous{.standardize_outputs = true});
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(standardize_only_nonstandard_outputs)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    auto layout =
+        m.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+    m.add_return({x, layout});
+
+    run_pass(m, migraphx::auto_contiguous{.standardize_outputs = true});
+    const auto outputs = m.get_returns();
+    EXPECT(outputs.front() == x);
+    EXPECT(outputs.back()->name() == "contiguous");
 }
 
 TEST_CASE(after_param_broadcast)

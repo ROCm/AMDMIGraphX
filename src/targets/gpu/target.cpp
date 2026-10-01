@@ -77,6 +77,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/hipgraphify.hpp>
@@ -129,21 +130,21 @@ struct backend_options
     bool enable_skinny_dot = false;
     // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
     bool hiprtc_disable_processes = false;
-    compile_ops_tuning_overrides tuning{};
+    // Fuse the concat_past_present kv-cache append into its producer kernel.
+    bool eliminate_concat_past_present = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack_join(
-            pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
-                 f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
-                 f(self.hip_graph, "hip_graph"),
-                 f(self.convolution_layout, "convolution_layout"),
-                 f(self.enable_skinny_dot, "enable_skinny_dot"),
-                 f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
-                 f(self.problem_cache_files, "problem_cache_files"),
-                 f(self.read_only_problem_cache_files, "read_only_problem_cache_files")),
-            migraphx::reflect(self.tuning, f));
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
+                    f(self.hip_graph, "hip_graph"),
+                    f(self.convolution_layout, "convolution_layout"),
+                    f(self.enable_skinny_dot, "enable_skinny_dot"),
+                    f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
+                    f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
+                    f(self.problem_cache_files, "problem_cache_files"),
+                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
 };
 
@@ -299,6 +300,8 @@ struct pipeline_factory
 #endif
             fuse_ops{get_context(), options.fast_math},
             dead_code_elimination{},
+            enable_pass(backend_opts.eliminate_concat_past_present, fuse_concat_past_present{}),
+            dead_code_elimination{},
 #if MIGRAPHX_USE_HIPBLASLT
             compile_hipblaslt{get_generic_context()},
             dead_code_elimination{},
@@ -310,8 +313,7 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager,
-                        backend_opts.tuning.resolve()},
+                        options.compile_mode == compile_modes::eager},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},

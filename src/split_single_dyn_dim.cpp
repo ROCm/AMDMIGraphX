@@ -50,6 +50,8 @@ struct dynamic_dimensions_check
 static optional<std::vector<dynamic_dimensions_check>>
 has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes)
 {
+    if(any_of(param_shapes, [](const auto& p) { return p.second.symbolic(); }))
+        return std::nullopt;
     auto is_dynamic = [](const auto& p) { return p.second.dynamic(); };
     std::vector<std::decay_t<decltype(param_shapes)>::value_type> dyn_params{};
     std::copy_if(

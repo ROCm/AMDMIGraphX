@@ -38,6 +38,21 @@ static void run_pass(migraphx::program& p)
     migraphx::run_passes(p, {migraphx::split_single_dyn_dim{}, migraphx::dead_code_elimination{}});
 }
 
+TEST_CASE(symbolic_shape_is_ignored)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter(
+        "data",
+        migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n[1..4]", "4"}));
+    mm->add_return({input});
+    auto expected = p;
+
+    run_pass(p);
+
+    EXPECT(p == expected);
+}
+
 TEST_CASE(dynamic_batch)
 {
     // Slightly different from ref_ops_test in that the literal is copied over the submodules.

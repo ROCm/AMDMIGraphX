@@ -21,26 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_GPU_FUSE_CONCAT_PAST_PRESENT_HPP
+#define MIGRAPHX_GUARD_GPU_FUSE_CONCAT_PAST_PRESENT_HPP
 
-#include <onnx_test.hpp>
-#include <onnx_test_utils.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/gpu/export.h>
+#include <string>
 
-TEST_CASE(gridsample_channel_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+
+namespace gpu {
+
+// Eliminate the concat_past_present copy kernel by retargeting the producer
+// kernel to write directly into the kv-cache through a view of the append slot.
+struct MIGRAPHX_GPU_EXPORT fuse_concat_past_present
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
+    std::string name() const { return "gpu::fuse_concat_past_present"; }
+    void apply(module& m) const;
+};
 
-    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 4}});
-    auto grid =
-        mm->add_parameter("grid", migraphx::shape{migraphx::shape::float_type, {1, 6, 6, 2}});
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
-    mm->add_instruction(
-        migraphx::make_op(
-            "gridsample",
-            {{"mode", "linear"}, {"padding_mode", "border"}, {"align_corners", true}}),
-        x,
-        grid);
-
-    auto prog = optimize_onnx("gridsample_channel_test.onnx");
-    EXPECT(p == prog);
-}
+#endif // MIGRAPHX_GUARD_GPU_FUSE_CONCAT_PAST_PRESENT_HPP

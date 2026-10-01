@@ -21,26 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <onnx_test.hpp>
-#include <onnx_test_utils.hpp>
-
-TEST_CASE(gridsample_channel_test)
+// Decode-mode kv-cache append fed straight from a parameter, so nothing fuses
+// and the copy kernel runs; fp8 covers its unvectorized path
+template <migraphx::shape::type_t DType>
+struct test_concat_past_present : verify_program<test_concat_past_present<DType>>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{DType, {1, 2, 1, 4}};
+        migraphx::shape cs{DType, {1, 2, 8, 4}};
+        auto present = mm->add_parameter("present", s);
+        auto cache   = mm->add_parameter("cache", cs);
+        auto slk     = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1, 1}}, {3}});
+        mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), present, slk, cache);
+        return p;
+    }
+};
 
-    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 4}});
-    auto grid =
-        mm->add_parameter("grid", migraphx::shape{migraphx::shape::float_type, {1, 6, 6, 2}});
-
-    mm->add_instruction(
-        migraphx::make_op(
-            "gridsample",
-            {{"mode", "linear"}, {"padding_mode", "border"}, {"align_corners", true}}),
-        x,
-        grid);
-
-    auto prog = optimize_onnx("gridsample_channel_test.onnx");
-    EXPECT(p == prog);
-}
+template struct test_concat_past_present<migraphx::shape::half_type>;
+template struct test_concat_past_present<migraphx::shape::fp8e4m3fn_type>;

@@ -21,26 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_GPU_PRECOMPILE_OP_HPP
+#define MIGRAPHX_GUARD_GPU_PRECOMPILE_OP_HPP
 
-#include <onnx_test.hpp>
-#include <onnx_test_utils.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/ranges.hpp>
+#include <string>
 
-TEST_CASE(gridsample_channel_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+
+// Match a gpu::precompile_op wrapping one of the named ops
+template <class... Strings>
+auto precompile_name(Strings... names) // NOLINT
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 4}});
-    auto grid =
-        mm->add_parameter("grid", migraphx::shape{migraphx::shape::float_type, {1, 6, 6, 2}});
-
-    mm->add_instruction(
-        migraphx::make_op(
-            "gridsample",
-            {{"mode", "linear"}, {"padding_mode", "border"}, {"align_corners", true}}),
-        x,
-        grid);
-
-    auto prog = optimize_onnx("gridsample_channel_test.onnx");
-    EXPECT(p == prog);
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->name() != "gpu::precompile_op")
+            return false;
+        auto name = ins->get_operator().to_value().at("op").at("name").to<std::string>();
+        return contains({names...}, name);
+    });
 }
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif // MIGRAPHX_GUARD_GPU_PRECOMPILE_OP_HPP

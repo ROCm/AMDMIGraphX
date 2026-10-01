@@ -22,25 +22,28 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
-#include <onnx_test_utils.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
 
-TEST_CASE(gridsample_channel_test)
+// Prompt-mode kv-cache append with a pointwise producer, which the gpu target
+// fuses so the producer writes directly into the cache through a static slice
+struct test_concat_past_present_mul_prefill : verify_program<test_concat_past_present_mul_prefill>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 4}});
-    auto grid =
-        mm->add_parameter("grid", migraphx::shape{migraphx::shape::float_type, {1, 6, 6, 2}});
-
-    mm->add_instruction(
-        migraphx::make_op(
-            "gridsample",
-            {{"mode", "linear"}, {"padding_mode", "border"}, {"align_corners", true}}),
-        x,
-        grid);
-
-    auto prog = optimize_onnx("gridsample_channel_test.onnx");
-    EXPECT(p == prog);
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::half_type, {1, 2, 4, 4}};
+        migraphx::shape cs{migraphx::shape::half_type, {1, 2, 8, 4}};
+        auto x     = mm->add_parameter("x", s);
+        auto y     = mm->add_parameter("y", s);
+        auto cache = mm->add_parameter("cache", cs);
+        auto slk   = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1, 1}}, {4}});
+        auto mul = mm->add_instruction(migraphx::make_op("mul"), x, y);
+        mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), mul, slk, cache);
+        return p;
+    }
+};

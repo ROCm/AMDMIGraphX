@@ -152,8 +152,10 @@ sqlite_stmt sqlite::prepare(const std::string& sql)
     result.impl->ptr = sqlite3_stmt_ptr{stmt_tmp};
     if(rc != SQLITE_OK)
         MIGRAPHX_THROW("error preparing '" + sql + "': " + impl->error_message());
-    // sqlite succeeds without a statement for text that holds none, such as only a comment.
-    assert(stmt_tmp != nullptr);
+    // sqlite succeeds without a statement for text that holds none, such as only a comment, and
+    // a statement with no handle would pass null into sqlite on its first call.
+    if(stmt_tmp == nullptr)
+        MIGRAPHX_THROW("error preparing '" + sql + "': no statement in the text");
     return result;
 }
 

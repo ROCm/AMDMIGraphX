@@ -56,7 +56,7 @@ struct MIGRAPHX_GPU_EXPORT sqlite_binary_cache
     load(const std::string& version, const std::string& device, const std::string& key) const;
 
     /// Store the entries in one transaction, so they cost one commit rather than one each. A
-    /// failure rolls the whole transaction back and rethrows.
+    /// failure rolls the whole transaction back, leaves the cache read-only and rethrows.
     void store(const std::string& version,
                const std::string& device,
                const std::vector<binary_cache_entry>& entries);

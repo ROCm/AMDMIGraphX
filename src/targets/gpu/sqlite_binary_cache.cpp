@@ -191,9 +191,9 @@ void sqlite_binary_cache::store(const std::string& version,
     // Not prepared for a read-only database, whose stores are skipped.
     if(not store_stmt.valid() or entries.empty())
         return;
-    db.execute(begin_sql);
     try
     {
+        db.execute(begin_sql);
         for(const auto& e : entries)
         {
             store_stmt(version,
@@ -219,6 +219,11 @@ void sqlite_binary_cache::store(const std::string& version,
         {
             log::warn() << "Failed to roll back binary cache entries: " << ex.what();
         }
+        // A database that refused one write, often after waiting out the busy timeout, would
+        // most likely refuse the next one as well, so later stores are skipped and the cache
+        // carries on read-only. Lookups keep working.
+        store_stmt = {};
+        log::warn() << "Binary cache is read-only from now on";
         throw;
     }
 }

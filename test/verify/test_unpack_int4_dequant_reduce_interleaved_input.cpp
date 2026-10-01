@@ -50,17 +50,17 @@ struct test_unpack_int4_dequant_reduce_interleaved_input
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), pairs);
         auto up = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), pairs);
-        auto sigmoid = mm->add_instruction(migraphx::make_op("sigmoid"), gate);
-        auto silu    = mm->add_instruction(migraphx::make_op("mul"), gate, sigmoid);
-        auto h       = mm->add_instruction(migraphx::make_op("mul"), silu, up);
-        auto hs      = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), h);
-        auto unpack  = mm->add_instruction(migraphx::make_op("unpack_int4"), packed);
+        auto sigmoid      = mm->add_instruction(migraphx::make_op("sigmoid"), gate);
+        auto silu         = mm->add_instruction(migraphx::make_op("mul"), gate, sigmoid);
+        auto h            = mm->add_instruction(migraphx::make_op("mul"), silu, up);
+        auto hs           = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), h);
+        auto unpack       = mm->add_instruction(migraphx::make_op("unpack_int4"), packed);
         auto scales_bcast = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {64, 2, 32}}}), scales);
-        auto scales_flat = mm->add_instruction(
-            migraphx::make_op("reshape", {{"dims", {64, 64}}}), scales_bcast);
-        auto zp_bcast = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {64, 64}}}), zp);
+        auto scales_flat =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {64, 64}}}), scales_bcast);
+        auto zp_bcast =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 64}}}), zp);
         auto dq = mm->add_instruction(
             migraphx::make_op("dequantizelinear"), unpack, scales_flat, zp_bcast);
         auto hu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), hs);

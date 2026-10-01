@@ -29,7 +29,6 @@
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/ops.hpp>
-#include <migraphx/kernels/bit.hpp>
 #include <migraphx/kernels/ranges.hpp>
 #include <migraphx/kernels/slice.hpp>
 #include <migraphx/kernels/sort.hpp>
@@ -70,9 +69,8 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
     using type       = typename X::type;
     constexpr auto n = _c<get_shape_c<X>{}.get_shape().lens[Axis]>;
     constexpr auto k = _c<get_shape_c<Y>{}.get_shape().lens[Axis]>;
-    using pair =
-        topk_pair<type, conditional_t<(n > 32768), index_int, decltype(get_index_type(x_idxs...))>>;
-    auto get_index = make_get_index(x_idxs...);
+    using pair       = topk_pair<type, topk_index_type<n, decltype(get_index_type(x_idxs...))>>;
+    auto get_index   = make_get_index(x_idxs...);
     select_topk<k>(
         idx,
         compare,

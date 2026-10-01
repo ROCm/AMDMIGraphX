@@ -91,6 +91,11 @@ MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(context& ctx,
 MIGRAPHX_GPU_EXPORT std::size_t
 compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size = 1024);
 
+/// Block size for n lanes of work selecting the top k of each reduction, capped
+/// so the per-wave candidates fit in lds
+MIGRAPHX_GPU_EXPORT std::size_t
+compute_topk_block_size(const context& ctx, std::size_t k, std::size_t n);
+
 template <class T>
 std::string generate_index_ints(const std::vector<T>& v)
 {

@@ -24,7 +24,7 @@
 #include <migraphx/fuse_topk.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/fuse_reduce.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -43,14 +43,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-bool is_topk(const instruction& ins) { return ins.name() == "topk"; }
-
 /// A fused_reduce that already selects a topk
 MIGRAPHX_PRED_MATCHER(fused_topk, instruction_ref ins)
 {
     if(ins->name() != "fused_reduce")
         return false;
-    return any_of(*ins->module_inputs().front(), &is_topk);
+    return any_of(*ins->module_inputs().front(),
+                  [](const instruction& i) { return i.name() == "topk"; });
 }
 
 std::vector<std::int64_t> get_axes(instruction_ref reduce)
@@ -71,26 +70,24 @@ std::size_t get_tuple_index(instruction_ref elem)
     return elem->get_operator().to_value().at("index").to<std::size_t>();
 }
 
-/// The topk can be selected in the workgroup of a reduction over the same
-/// axis when it is small enough to sort in one workgroup
+/// A topk fuses with a reduction over the same axes when its input is short
+/// enough to sort in one workgroup
 bool is_fusable_topk(instruction_ref topk,
                      const std::vector<std::int64_t>& axes,
                      std::size_t max_size)
 {
+    if(get_topk_axes(topk) != axes)
+        return false;
+    // A topk-carrying fused_reduce was checked when its topk was fused
+    if(topk->name() == "fused_reduce")
+        return true;
     // The topk split by rewrite_topk carries an index input
     if(topk->inputs().size() != 1)
         return false;
     const auto& input = topk->inputs().front()->get_shape();
     if(input.dynamic())
         return false;
-    if(get_topk_axes(topk) != axes)
-        return false;
-    if(axes.front() < 0)
-        return false;
-    std::size_t axis = axes.front();
-    if(axis >= input.ndim())
-        return false;
-    return input.lens()[axis] <= max_size;
+    return input.lens()[axes.front()] <= max_size;
 }
 
 /// The fused_reduce output layout follows its inputs, so the fused outputs
@@ -105,19 +102,10 @@ bool same_output_shapes(const std::vector<instruction_ref>& inputs,
 }
 
 /// Whether ins is defined before pos in the module
-bool is_before(module& m, instruction_ref ins, instruction_ref pos)
+bool is_before(const module& m, instruction_ref ins, instruction_ref pos)
 {
-    auto r   = iterator_for(m);
-    auto end = std::find(r.begin(), r.end(), pos);
-    return std::find(r.begin(), end, ins) != end;
-}
-
-std::vector<instruction_ref>
-insert_module_in_submodule(module_ref sm,
-                           instruction_ref ins,
-                           std::unordered_map<instruction_ref, instruction_ref>* map_ins)
-{
-    return sm->fuse(*ins->module_inputs().front(), ins->inputs(), map_ins);
+    auto r = range(m.begin(), pos);
+    return any_of(iterator_for(r), [&](instruction_ref it) { return it == ins; });
 }
 
 /// Copies the topk or the topk-carrying fused_reduce into the submodule,
@@ -136,12 +124,6 @@ insert_topk_in_submodule(module_ref sm,
         return sm->add_instruction(make_op("get_tuple_elem", {{"index", i}}), t);
     });
     return result;
-}
-
-void finalize_module(module_ref m)
-{
-    eliminate_common_subexpression{}.apply(*m);
-    dead_code_elimination{}.apply(*m);
 }
 
 /// fused_reduce -> topk: the topk selects from the reduction output
@@ -170,7 +152,7 @@ struct find_reduce_topk
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         map_ins[reduce] = insert_module_in_submodule(rm, reduce, &map_ins).front();
         rm->add_return(insert_topk_in_submodule(rm, topk, &map_ins));
-        finalize_module(rm);
+        finalize_reduce_module(rm);
 
         auto new_inputs = find_inputs(map_ins, &mpm.get_module(), rm);
         mpm.get_module().replace_instruction(topk, reduce->get_operator(), new_inputs, {rm});
@@ -197,17 +179,14 @@ struct find_topk_reduce
         auto& m     = mpm.get_module();
         if(reduce->get_shape().type() == shape::tuple_type)
             return;
-        auto axes = get_axes(reduce);
-        if(get_topk_axes(topk) != axes)
-            return;
-        if(topk->name() == "topk" and not is_fusable_topk(topk, axes, max_size))
+        if(not is_fusable_topk(topk, get_axes(reduce), max_size))
             return;
         if(not all_of(topk->outputs(),
                       [](instruction_ref out) { return out->name() == "get_tuple_elem"; }))
             return;
 
-        // The elements read by the reduce are consumed by the fusion, so its
-        // other inputs must be available where the topk is
+        // The fused reduce is inserted at the topk, so its other inputs must
+        // already be defined there
         std::vector<instruction_ref> elems;
         std::vector<instruction_ref> others;
         std::partition_copy(reduce->inputs().begin(),
@@ -230,14 +209,12 @@ struct find_topk_reduce
                          return not out->outputs().empty() and not contains(elems, out);
                      });
 
+        // The reduce and the remaining elements become the outputs of the fusion
+        std::vector<instruction_ref> outs = {reduce};
+        outs.insert(outs.end(), remaining.begin(), remaining.end());
         auto inputs = topk->inputs();
         inputs.insert(inputs.end(), others.begin(), others.end());
-        std::vector<shape> output_shapes = {reduce->get_shape()};
-        std::transform(remaining.begin(),
-                       remaining.end(),
-                       std::back_inserter(output_shapes),
-                       [](instruction_ref out) { return out->get_shape(); });
-        if(not same_output_shapes(inputs, output_shapes))
+        if(not same_output_shapes(inputs, to_shapes(outs)))
             return;
 
         std::string prefix = topk->name() == "fused_reduce" ? topk->module_inputs().front()->name()
@@ -258,19 +235,14 @@ struct find_topk_reduce
                        std::back_inserter(returns),
                        [&](instruction_ref out) { return touts.at(get_tuple_index(out)); });
         rm->add_return(returns);
-        finalize_module(rm);
+        finalize_reduce_module(rm);
 
         auto new_inputs = find_inputs(map_ins, &m, rm);
         auto fused      = m.insert_instruction(topk, reduce->get_operator(), new_inputs, {rm});
-        m.replace_instruction(reduce, make_op("get_tuple_elem", {{"index", 0}}), fused);
-        auto indices = range(std::size_t{1}, remaining.size() + 1);
-        for_each(remaining.begin(),
-                 remaining.end(),
-                 indices.begin(),
-                 [&](instruction_ref out, auto index) {
-                     m.replace_instruction(
-                         out, make_op("get_tuple_elem", {{"index", index}}), fused);
-                 });
+        auto indices    = range(outs.size());
+        for_each(outs.begin(), outs.end(), indices.begin(), [&](instruction_ref out, auto index) {
+            m.replace_instruction(out, make_op("get_tuple_elem", {{"index", index}}), fused);
+        });
     }
 };
 

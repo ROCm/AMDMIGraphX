@@ -34,6 +34,7 @@
 #include <migraphx/kernels/ranges.hpp>
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/uninitialized_buffer.hpp>
 
 namespace migraphx {
 
@@ -312,19 +313,22 @@ constexpr auto compare_topk_pair(Compare compare)
     };
 }
 
-/// Selects the top K elements in a workgroup. read(j, d) returns an array of
-/// the topk_pairs of the elements read at position j in local_stride order,
-/// and the sorted top K are passed as arrays of the same width to
-/// write(i, d, ps) in local_stride order. Each wave sorts its elements in
-/// registers and the per-wave candidates are merged through lds, unless
-/// there would be as many candidates as elements, in which case all the
-/// elements are merged through lds directly.
+/// The index of a topk candidate, kept at 16 bits when the selection is short enough
+template <index_int N, class Small = uint16_t>
+using topk_index_type = conditional_t<(N > 32768), index_int, Small>;
+
+/// Selects the top K elements in a workgroup. read(j, d) returns the width
+/// topk_pairs at position j of a local_stride over N, and the sorted top K are
+/// passed width at a time to write(i, d, ps) in local_stride order. Each wave
+/// sorts in registers and the per-wave candidates are merged through lds,
+/// unless several waves would hold no fewer candidates than elements, in which
+/// case all the elements are sorted through lds directly.
 template <index_int K, class Compare, class T, class N, class Read, class Write>
 __device__ void select_topk(index idx, Compare compare, T init, N, Read read, Write write)
 {
     using reads                  = decltype(read(index_int{0}, _c<0>));
     using pair                   = typename reads::value_type;
-    constexpr auto width         = decltype(reads{}.size()){};
+    constexpr auto width         = reads{}.size();
     constexpr auto nreads        = N{};
     constexpr auto n             = nreads * width;
     constexpr auto k             = _c<K>;
@@ -338,40 +342,36 @@ __device__ void select_topk(index idx, Compare compare, T init, N, Read read, Wr
     static_assert(K <= n, "K must not be larger than n");
     static_assert(K % width == 0, "K must be a multiple of the read width");
     const auto sentinel = make_topk_pair<pair>(init, -1);
-    __shared__ pair buf[buf_size];
+    __shared__ uninitialized_buffer<pair, buf_size> buf;
     // Wait for any previous selection to finish reading the buffer
     __syncthreads();
     if constexpr(wave_select)
     {
-        constexpr auto nper_lane =
-            _c<bit_ceil(decltype(idx.max_local_stride_iterations(nreads)){} * width)>;
+        constexpr auto nper_lane = _c<bit_ceil(idx.max_local_stride_iterations(nreads) * width)>;
+        static_assert(nper_lane * idx.nlocal_wave() >= K,
+                      "Each wave must hold at least K candidates");
         array<pair, nper_lane> local_buf;
-        for(index_int i : range(nper_lane))
-            local_buf[i] = sentinel;
+        fill(local_buf.begin(), local_buf.end(), sentinel);
         idx.local_stride(nreads, [&](auto j, auto d) {
             auto ps = read(j, d);
             repeat_c<width>([&](auto i) { local_buf[d * width + i] = ps[i]; });
         });
         bitonic_sort{compare_topk_pair(compare)}.wave_sort(idx, local_buf);
         // Each wave keeps its top K candidates
-        const auto base = idx.local_wave() * nper_lane;
+        const auto wave_shape = make_shape(index_ints<nwave, k>{});
+        const auto base       = idx.local_wave() * nper_lane;
         for(index_int i : range(nper_lane))
         {
             auto ibase = i + base;
             if(ibase >= k)
                 continue;
-            buf[idx.wave() * k + ibase] = local_buf[i];
+            buf[wave_shape.index({idx.wave(), ibase})] = local_buf[i];
         }
+        idx.local_stride(aligned_m - m, [&](auto i) { buf[m + i] = sentinel; });
+        __syncthreads();
         if constexpr(nwave > 1)
-        {
-            idx.local_stride(aligned_m - m, [&](auto i) { buf[m + i] = sentinel; });
-            __syncthreads();
-            bitonic_topk{aligned_m, aligned_k, compare_topk_pair(compare)}.block_topk(idx, buf);
-        }
-        else
-        {
-            __syncthreads();
-        }
+            bitonic_topk{aligned_m, aligned_k, compare_topk_pair(compare)}.block_topk(idx,
+                                                                                      buf.data());
     }
     else
     {
@@ -381,7 +381,7 @@ __device__ void select_topk(index idx, Compare compare, T init, N, Read read, Wr
         });
         idx.local_stride(aligned_n - n, [&](auto i) { buf[n + i] = sentinel; });
         __syncthreads();
-        bitonic_topk{aligned_n, aligned_k, compare_topk_pair(compare)}.block_topk(idx, buf);
+        bitonic_topk{aligned_n, aligned_k, compare_topk_pair(compare)}.block_topk(idx, buf.data());
     }
     idx.local_stride(k / width, [&](auto i, auto d) {
         write(i, d, generate_array<pair>(width, [&](index_int e) { return buf[i * width + e]; }));

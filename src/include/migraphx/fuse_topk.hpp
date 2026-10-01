@@ -38,7 +38,7 @@ struct module_pass_manager;
 /// the workgroup that holds the reduction. Runs after the reduce fusions.
 struct MIGRAPHX_EXPORT fuse_topk
 {
-    /// The selection is sorted within one workgroup, so larger topk are not fused
+    /// Longest reduction a workgroup can sort; topk over longer inputs are not fused
     std::size_t max_size = 8192;
     std::string name() const { return "fuse_topk"; }
     void apply(module_pass_manager& mpm) const;

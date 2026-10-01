@@ -672,12 +672,11 @@ struct block_reducer_base : reducer_base<Derived>
         constexpr index_int vsize     = vec_size<type>();
         constexpr index_int width     = vsize == 0 ? 1 : vsize;
         constexpr index_int nelements = N{} * width;
-        static_assert(K % width == 0, "topk k must be a multiple of the vector width");
-        using index_type       = conditional_t<(nelements > 32768), index_int, uint16_t>;
-        using pair             = topk_pair<elem, index_type>;
-        using index_vec        = conditional_t<(width == 1), int64_t, vec<int64_t, width>>;
-        constexpr auto nwrites = index_c<K / width>;
-        using max_iterations   = decltype(idx.max_local_stride_iterations(nwrites));
+        using index_type              = topk_index_type<nelements>;
+        using pair                    = topk_pair<elem, index_type>;
+        using index_vec               = vec_or_scalar_t<int64_t, vsize>;
+        constexpr auto nwrites        = index_c<K / width>;
+        using max_iterations          = decltype(idx.max_local_stride_iterations(nwrites));
         inner_storage<type, max_iterations{}, decltype(nwrites)> values;
         inner_storage<index_vec, max_iterations{}, decltype(nwrites)> indices;
         select_topk<K>(
@@ -701,7 +700,7 @@ struct block_reducer_base : reducer_base<Derived>
                 {
                     values(i, d) = generate_vec(_c<width>, [&](auto e) { return ps[e].key; });
                     indices(i, d) =
-                        generate_vec(_c<width>, [&](auto e) { return int64_t{ps[e].val}; });
+                        generate_vec(_c<width>, [&](auto e) -> int64_t { return ps[e].val; });
                 }
             });
         return make_tuple(values, indices);

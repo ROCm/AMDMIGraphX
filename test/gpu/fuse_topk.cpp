@@ -43,7 +43,7 @@ static std::vector<std::string> get_kernel_names(migraphx::program& p)
         [](auto ins) {
             if(ins->name() != "gpu::code_object")
                 return false;
-            auto op = migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator());
+            const auto& op = migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator());
             return op.symbol_name != "hip_copy_kernel";
         },
         [](auto ins) {

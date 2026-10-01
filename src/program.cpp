@@ -744,8 +744,8 @@ static std::vector<argument> generic_eval(const program& p,
     {
         // Main dispatches to select_module candidates, so the leaves they capture are computed
         // on demand and the results only need room for main and the candidate that runs.
-        std::size_t n = mm->size() + candidates_size;
 #if MIGRAPHX_HAS_PMR
+        std::size_t n = mm->size() + candidates_size;
         // Allocated on first use instead of zero-filled up front, and backed by the heap in case
         // a candidate has submodules of its own.
         std::pmr::monotonic_buffer_resource bres(n * (sizeof(instruction_ref) + sizeof(argument)) *

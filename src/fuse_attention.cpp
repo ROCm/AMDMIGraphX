@@ -335,7 +335,7 @@ struct find_attention
     }
 
     std::vector<instruction_ref>
-    get_attn_instructions(module& m, instruction_ref gemm1, instruction_ref gemm2) const
+    get_attn_instructions(const module& m, instruction_ref gemm1, instruction_ref gemm2) const
     {
         auto attn_inss = find_instructions_between(gemm1, gemm2, &m);
 
@@ -1005,7 +1005,7 @@ struct find_kv_cache_attention
         return inverse_map;
     }
 
-    std::vector<instruction_ref> get_attn_instructions(module& m,
+    std::vector<instruction_ref> get_attn_instructions(const module& m,
                                                        instruction_ref start,
                                                        instruction_ref end,
                                                        instruction_ref gemm1) const

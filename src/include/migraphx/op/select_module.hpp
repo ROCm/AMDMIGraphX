@@ -95,7 +95,7 @@ struct select_module
         std::shared_ptr<const module_set_metadata> last_entry;
     };
 
-    mutable std::shared_ptr<metadata_cache> cache = std::make_shared<metadata_cache>();
+    std::shared_ptr<metadata_cache> cache = std::make_shared<metadata_cache>();
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -113,7 +113,7 @@ struct select_module
         return shape{output_dyn_shapes};
     }
 
-    std::vector<std::string> get_input_parameter_names(module_ref mod) const
+    std::vector<std::string> get_input_parameter_names(const_module_ref mod) const
     {
         auto param_names = mod->get_parameter_names();
         std::vector<std::string> ret;
@@ -125,7 +125,7 @@ struct select_module
         return ret;
     }
 
-    std::vector<std::string> get_output_parameter_names(module_ref mod) const
+    std::vector<std::string> get_output_parameter_names(const_module_ref mod) const
     {
         auto param_names = mod->get_parameter_names();
         std::vector<std::string> ret;

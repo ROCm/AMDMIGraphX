@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-
     curl -fsSL https://rc.repo.amd.com/rocm/gpg/packages.gpg | gpg --dearmor -o /etc/apt/keyrings/amdrocm.gpg
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://rc.repo.amd.com/rocm/core/packages/ubuntu2404 rc main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://rc.repo.amd.com/rocm/core/packages/ubuntu2404 stable main > /etc/apt/sources.list.d/rocm.list'
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \

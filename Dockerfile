@@ -48,7 +48,7 @@ RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-
 
 # Add rocm repository
 
-RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://rc.repo.amd.com/rocm/core/packages/ubuntu2404 rc main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://rc.repo.amd.com/rocm/core/packages/ubuntu2404 stable main > /etc/apt/sources.list.d/rocm.list'
 
 # Add LLVM repository for Clang 17 (ROCm 7.x ships with Clang 20 which has ODR false positives in ASAN)
 RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \

@@ -217,23 +217,22 @@ static optional<compiler_replace> cache_lookup(context& ctx, const std::string& 
     return cr;
 }
 
-/// Record a freshly compiled result, under the same restriction as cache_lookup.
-static void cache_store(context& ctx,
-                        const operation& preop,
-                        const value& solution,
-                        const std::string& key,
-                        const value& problem,
-                        const compiled_code& code)
+/// What to record for a freshly compiled result, or nullopt when its key must not be cached.
+static optional<binary_cache::entry> make_cache_entry(const operation& preop,
+                                                      const value& solution,
+                                                      const std::string& key,
+                                                      const value& problem,
+                                                      const compiled_code& code)
 {
     if(is_private_key(key))
-        return;
+        return nullopt;
     binary_cache::entry e;
     e.key      = key;
     e.op_name  = preop.name();
     e.problem  = problem;
     e.solution = solution;
     e.code     = code;
-    ctx.get_binary_cache().insert(ctx, std::move(e));
+    return e;
 }
 
 /// Reuse an earlier result for this key, or compile and record one. For callers with a single
@@ -252,7 +251,8 @@ static compiler_replace compile_cached(context& ctx,
         return *cached;
     }
     auto cr = compile_fragment(ctx, ins, preop, solution);
-    cache_store(ctx, preop, solution, key, problem, cr.code);
+    if(auto e = make_cache_entry(preop, solution, key, problem, cr.code))
+        ctx.get_binary_cache().insert(ctx, {std::move(*e)});
     return cr;
 }
 
@@ -448,9 +448,10 @@ struct compile_plan
         return cache_lookup(*ctx, key);
     }
 
-    void store(const value& solution, const std::string& key, const compiled_code& code) const
+    optional<binary_cache::entry>
+    cache_entry(const value& solution, const std::string& key, const compiled_code& code) const
     {
-        cache_store(*ctx, preop, solution, key, config ? config->problem : value{}, code);
+        return make_cache_entry(preop, solution, key, config ? config->problem : value{}, code);
     }
 
     /// True when the cache was configured to check reused results against a fresh compile.
@@ -789,24 +790,26 @@ struct compile_manager
     {
         if(tasks.empty())
             return;
-        // Every plan compiles with the same context, so the stores all go to one cache, and
-        // batching them lets its storage commit them together rather than one at a time.
+        // Every plan compiles with the same context, so the entries all go to one cache in a
+        // single insert, letting its storage commit them together rather than one at a time.
         auto* ctx = tasks.front().first->ctx;
         assert(std::all_of(
             tasks.begin(), tasks.end(), [&](const auto& task) { return task.first->ctx == ctx; }));
-        binary_cache::store_batch batch{ctx->get_binary_cache()};
+        std::vector<binary_cache::entry> entries;
         for(const auto& [cp, cell] : tasks)
         {
             if(not cell->result.has_value())
                 continue;
             // When verifying, reused results are stored again, rewriting the same bytes
             // harmlessly.
-            cp->store(cell->solution, cell->key, cell->result->code);
+            if(auto e = cp->cache_entry(cell->solution, cell->key, cell->result->code))
+                entries.push_back(std::move(*e));
             assert(not cell->result->code.empty());
             // Only the serializable code is used from here on; dropping the replace function
             // releases what its closure holds and keeps it off other instructions.
             cell->result->replace_fn = nullptr;
         }
+        ctx->get_binary_cache().insert(*ctx, std::move(entries));
     }
 
     /// Fill every cell's result, from the cache or by compiling, sharing one compile among

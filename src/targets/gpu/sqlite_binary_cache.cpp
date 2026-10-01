@@ -27,7 +27,9 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/logger.hpp>
-#include <cassert>
+#include <migraphx/md5.hpp>
+#include <migraphx/msgpack.hpp>
+#include <migraphx/serialize.hpp>
 #include <type_traits>
 #include <utility>
 
@@ -52,6 +54,10 @@ constexpr int busy_timeout_ms = 5000;
 // stores the payload inside the index B-tree, which suits short JSON but not a whole serialized
 // program fragment, which would spill into overflow chains hanging off the index.
 //
+// Rows are addressed by a hash of the key rather than the key itself, which is the whole compile
+// source and would otherwise be stored a second time in the index. The full key is kept in its
+// own column and checked on load, so a collision is a miss rather than a wrong kernel.
+//
 // The primary key leads with version so that dropping everything belonging to a superseded
 // toolchain is a range scan rather than a full table scan. Point lookups bind all three and do
 // not care about the order.
@@ -60,27 +66,28 @@ CREATE TABLE IF NOT EXISTS cache_v1 (
   version   TEXT    NOT NULL,
   device    TEXT    NOT NULL,
   key_hash  TEXT    NOT NULL,
+  key       TEXT    NOT NULL,
   op_name   TEXT    NOT NULL,
   problem   TEXT    NOT NULL,
   solution  TEXT    NOT NULL,
-  entry     BLOB    NOT NULL,
+  code      BLOB    NOT NULL,
   timestamp INTEGER NOT NULL,
   PRIMARY KEY (version, device, key_hash)
 );
 )__migraphx__";
 
-constexpr const char* get_sql =
-    "SELECT entry FROM cache_v1 WHERE version = ?1 AND device = ?2 AND key_hash = ?3;";
+constexpr const char* get_sql = "SELECT key, op_name, problem, solution, code FROM cache_v1"
+                                " WHERE version = ?1 AND device = ?2 AND key_hash = ?3;";
 
 // INSERT OR REPLACE is the analogue of the file backend's publish-by-rename: the content is
 // decided entirely by the key, so two processes compiling the same kernel is benign and the
-// last writer wins with equivalent bytes. The timestamp is computed by the database rather
+// last writer wins with an equivalent row. The timestamp is computed by the database rather
 // than the process so that rows written by different machines stay comparable. MIGraphX never
 // reads it; it lets a cache be pruned by age.
 constexpr const char* store_sql =
     "INSERT OR REPLACE INTO cache_v1"
-    " (version, device, key_hash, op_name, problem, solution, entry, timestamp)"
-    " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, CAST(STRFTIME('%s','now') AS INTEGER));";
+    " (version, device, key_hash, key, op_name, problem, solution, code, timestamp)"
+    " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, CAST(STRFTIME('%s','now') AS INTEGER));";
 
 // Stores come in a burst after each round of compiles, and outside a transaction every one of
 // them is its own commit, each waiting for the disk. IMMEDIATE takes the write lock up front, so
@@ -140,86 +147,79 @@ optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path)
     return r;
 }
 
-optional<std::vector<char>> sqlite_binary_cache::load(const std::string& version,
-                                                      const std::string& device,
-                                                      const std::string& key_hash) const
+optional<binary_cache_entry> sqlite_binary_cache::load(const std::string& version,
+                                                       const std::string& device,
+                                                       const std::string& key) const
 {
     try
     {
         // The primary key makes this at most one row.
-        auto rows = get_stmt(version, device, key_hash);
+        auto rows = get_stmt(version, device, md5(key));
         auto it   = rows.begin();
         if(it == rows.end())
             return nullopt;
-        auto row          = *it;
-        const auto& entry = row.at("entry").get_binary();
-        return std::vector<char>(entry.begin(), entry.end());
+        auto row = *it;
+        binary_cache_entry e;
+        e.key = row.at("key").get_string();
+        // Rows are addressed by a hash of the key, so the full key is checked here to make a
+        // collision a miss rather than a wrong kernel.
+        if(e.key != key)
+        {
+            log::warn() << "Ignoring binary cache entry with mismatched key: " << md5(key);
+            return nullopt;
+        }
+        e.op_name        = row.at("op_name").get_string();
+        e.problem        = from_json_string(row.at("problem").get_string());
+        e.solution       = from_json_string(row.at("solution").get_string());
+        const auto& code = row.at("code").get_binary();
+        migraphx::from_value(from_msgpack(std::vector<char>(code.begin(), code.end())), e.code);
+        return e;
     }
     catch(const std::exception& ex)
     {
-        // A cache that cannot be read is a miss, which costs a recompile and nothing else.
-        log::warn() << "Failed to read binary cache entry " << key_hash << ": " << ex.what();
+        // A cache that cannot be read, or a damaged row, is a miss, which costs a recompile and
+        // nothing else.
+        log::warn() << "Ignoring unreadable binary cache entry " << md5(key) << ": " << ex.what();
         return nullopt;
     }
 }
 
 void sqlite_binary_cache::store(const std::string& version,
                                 const std::string& device,
-                                const std::string& key_hash,
-                                const binary_cache_entry& e,
-                                const std::vector<char>& blob) const
+                                const std::vector<binary_cache_entry>& entries)
 {
     // Not prepared for a read-only database, whose stores are skipped.
-    if(not store_stmt.valid())
+    if(not store_stmt.valid() or entries.empty())
         return;
-    store_stmt(version,
-               device,
-               key_hash,
-               e.op_name,
-               to_json_string(e.problem),
-               to_json_string(e.solution),
-               blob);
-}
-
-void sqlite_binary_cache::begin_batch()
-{
-    assert(not in_batch);
-    if(not store_stmt.valid())
-        return;
+    db.execute(begin_sql);
     try
     {
-        db.execute(begin_sql);
-        in_batch = true;
-    }
-    catch(const std::exception& ex)
-    {
-        // Without a transaction each store commits on its own, which is slower but still works.
-        log::warn() << "Binary cache stores will be committed one at a time: " << ex.what();
-    }
-}
-
-void sqlite_binary_cache::end_batch()
-{
-    if(not in_batch)
-        return;
-    in_batch = false;
-    try
-    {
+        for(const auto& e : entries)
+        {
+            store_stmt(version,
+                       device,
+                       md5(e.key),
+                       e.key,
+                       e.op_name,
+                       to_json_string(e.problem),
+                       to_json_string(e.solution),
+                       to_msgpack(migraphx::to_value(e.code)));
+        }
         db.execute(commit_sql);
     }
-    catch(const std::exception& ex)
+    catch(...)
     {
-        // A commit that fails leaves the transaction open, holding the write lock against every
-        // other process, so it is rolled back and the batch's entries are lost instead.
-        log::warn() << "Failed to commit binary cache entries: " << ex.what();
+        // A transaction left open would hold the write lock against every other process, so it
+        // is rolled back and the entries are lost instead. The caller reports the original error.
         try
         {
             db.execute(rollback_sql);
         }
-        catch(const std::exception& rex)
+        catch(const std::exception& ex)
         {
-            log::warn() << "Failed to roll back binary cache entries: " << rex.what();
+            log::warn() << "Failed to roll back binary cache entries: " << ex.what();
         }
+        throw;
     }
 }
 

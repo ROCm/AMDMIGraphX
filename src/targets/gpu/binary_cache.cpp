@@ -28,10 +28,9 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/md5.hpp>
-#include <migraphx/msgpack.hpp>
-#include <migraphx/serialize.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx_kernels.hpp>
+#include <algorithm>
 #include <sstream>
 
 namespace migraphx {
@@ -105,31 +104,6 @@ static std::string device_dir(const context& ctx)
            "_wf" + std::to_string(device.get_wavefront_size());
 }
 
-/// Turn a stored blob back into an entry. Any failure is a miss, so a damaged entry costs a
-/// recompile.
-static optional<binary_cache::entry>
-decode_entry(const std::vector<char>& blob, const std::string& key, const std::string& key_hash)
-{
-    binary_cache::entry e;
-    try
-    {
-        migraphx::from_value(from_msgpack(blob), e);
-    }
-    catch(const std::exception& ex)
-    {
-        log::warn() << "Ignoring unreadable binary cache entry " << key_hash << ": " << ex.what();
-        return nullopt;
-    }
-    // Entries are addressed by a hash of the key, so the full key is checked here to make a
-    // collision a miss rather than a wrong kernel.
-    if(e.key != key)
-    {
-        log::warn() << "Ignoring binary cache entry with mismatched key: " << key_hash;
-        return nullopt;
-    }
-    return e;
-}
-
 binary_cache::binary_cache(binary_cache_settings s) : settings(std::move(s)) {}
 
 // The storage backend is selected by file type, the same rule make_problem_cache_backend applies
@@ -157,18 +131,6 @@ binary_cache_backend* binary_cache::get_backend()
     return backend.has_value() ? &*backend : nullptr;
 }
 
-binary_cache::store_batch::store_batch(binary_cache& c) : backend(c.get_backend())
-{
-    if(backend != nullptr)
-        backend->begin_batch();
-}
-
-binary_cache::store_batch::~store_batch()
-{
-    if(backend != nullptr)
-        backend->end_batch();
-}
-
 optional<compiled_code> binary_cache::get(const context& ctx, const std::string& key)
 {
     if(key.empty())
@@ -181,44 +143,39 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
     }
     if(auto* b = get_backend())
     {
-        // The key is the whole compile source, so it is hashed once for the lookup and any
-        // diagnostics.
-        auto key_hash = md5(key);
-        auto blob     = b->load(version, device_dir(ctx), key_hash);
-        if(blob.has_value())
+        auto e = b->load(version, device_dir(ctx), key);
+        if(e.has_value())
         {
-            auto e = decode_entry(*blob, key, key_hash);
-            if(e.has_value())
-            {
-                counters.hits++;
-                return memo.emplace(key, std::move(e->code)).first->second;
-            }
+            counters.hits++;
+            return memo.emplace(key, std::move(e->code)).first->second;
         }
     }
     counters.misses++;
     return nullopt;
 }
 
-void binary_cache::insert(const context& ctx, entry e)
+void binary_cache::insert(const context& ctx, std::vector<entry> es)
 {
-    if(e.key.empty())
+    es.erase(std::remove_if(es.begin(), es.end(), [](const entry& e) { return e.key.empty(); }),
+             es.end());
+    if(es.empty())
         return;
-    counters.compiled++;
+    counters.compiled += es.size();
     if(auto* b = get_backend())
     {
-        auto key_hash = md5(e.key);
         try
         {
-            // A failure to serialize or store is a warning, not a failed compile.
-            auto blob = to_msgpack(migraphx::to_value(e));
-            b->store(version, device_dir(ctx), key_hash, e, blob);
+            // A failure to store is a warning, not a failed compile.
+            b->store(version, device_dir(ctx), es);
         }
         catch(const std::exception& ex)
         {
-            log::warn() << "Failed to store binary cache entry " << key_hash << ": " << ex.what();
+            log::warn() << "Failed to store " << es.size()
+                        << " binary cache entries: " << ex.what();
         }
     }
-    memo[std::move(e.key)] = std::move(e.code);
+    for(auto& e : es)
+        memo[std::move(e.key)] = std::move(e.code);
 }
 
 } // namespace gpu

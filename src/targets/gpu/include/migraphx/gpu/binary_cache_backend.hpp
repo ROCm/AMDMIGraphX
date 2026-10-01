@@ -30,8 +30,7 @@
 // into the gpu target tree). Do not edit the generated header by hand.
 //
 // Any type T satisfies the binary_cache_backend concept if it provides the
-// member functions listed below; begin_batch and end_batch are optional and
-// default to doing nothing. The wrapper holds T by shared_ptr and forwards
+// member functions listed below. The wrapper holds T by shared_ptr and forwards
 // each call through a virtual dispatch, matching problem_cache_backend.
 //
 // Notes:
@@ -40,8 +39,6 @@
 //   * Backends must be copyable: the wrapper shares T and clones it on a
 //     non-const call while the handle is shared. sqlite_binary_cache shares its
 //     connection across copies.
-//   * The members are non-const so a backend can track an open batch; a backend
-//     may still declare them const.
 //
 #ifndef MIGRAPHX_GUARD_GPU_BINARY_CACHE_BACKEND_HPP
 #define MIGRAPHX_GUARD_GPU_BINARY_CACHE_BACKEND_HPP
@@ -68,67 +65,46 @@ namespace gpu {
 
 /// Type-erased interface for binary-cache storage backends.
 ///
-/// A backend persists serialized binary_cache_entry blobs to some medium (a
-/// directory of files or a SQLite database). Entries are addressed by three
-/// strings the caller has already computed:
+/// A backend persists binary_cache_entry values to some medium (a directory of
+/// files or a SQLite database), and decides for itself how to serialize them.
+/// Entries are addressed by their key, scoped by two strings the caller has
+/// already computed:
 ///
 ///   * `version` -- binary_cache::version_id(), identifying the toolchain and
 ///     the embedded kernel sources that produced the entry. Never empty; the
 ///     caller skips persistence entirely when it is.
 ///   * `device`  -- the GPU the entry was compiled for.
-///   * `key_hash` -- md5 of the compile key. A hash rather than the key itself
-///     because a file backend needs a short name; a collision is harmless,
-///     since the caller re-checks the full key against the decoded entry.
 ///
-/// Together these three form the identity of an entry. A backend must keep
-/// entries with different scopes distinct rather than overwriting across them.
+/// A backend must keep entries with different scopes distinct rather than
+/// overwriting across them. It may address entries by a hash of the key, for
+/// instance to keep file names short, but must then check the full key when
+/// loading so that a collision is a miss rather than a wrong kernel.
 struct binary_cache_backend
 {
-    /// Return the serialized entry for this key, or nullopt for a miss.
+    /// Return the entry stored for this key, or nullopt for a miss.
     ///
     /// nullopt also covers every failure: a missing file, an unreadable
-    /// database, a permissions problem. A cache that cannot be read is not an
-    /// error, it is a cache miss, and the caller recompiles.
+    /// database, a damaged entry, a permissions problem. A cache that cannot be
+    /// read is not an error, it is a cache miss, and the caller recompiles.
     ///
     /// Must not throw.
-    optional<std::vector<char>>
-    load(const std::string& version, const std::string& device, const std::string& key_hash);
+    optional<binary_cache_entry>
+    load(const std::string& version, const std::string& device, const std::string& key);
 
-    /// Persist `blob`, the msgpack encoding of `e`, under this key.
-    ///
-    /// `e` is passed alongside `blob` so a backend may denormalize op_name,
-    /// problem and solution into queryable columns. Those fields are also
-    /// inside `blob`, which stays the authoritative record -- a backend that
-    /// stores them separately must still be able to answer a load() with the
-    /// blob alone.
+    /// Persist every entry in `entries` under its key. The entries arrive
+    /// together so a backend can commit them at once, such as in one database
+    /// transaction, rather than one at a time.
     ///
     /// Overwriting an existing entry is expected and safe: the content is
     /// decided entirely by the key, so a writer that loses a race replaces the
-    /// entry with equivalent bytes.
+    /// entry with an equivalent one.
     ///
     /// May throw: the caller reports a failed store as a warning. It costs a
-    /// recompile next run, nothing more, and the caller still keeps the result
-    /// in memory.
+    /// recompile next run, nothing more, and the caller still keeps the results
+    /// in memory. A backend that throws must not leave anything locked.
     void store(const std::string& version,
                const std::string& device,
-               const std::string& key_hash,
-               const binary_cache_entry& e,
-               const std::vector<char>& blob);
-
-    /// Mark the start of a run of stores that may be committed together, such as
-    /// a database transaction, rather than one at a time. Every begin_batch is
-    /// followed by an end_batch, and the two are never nested. Optional: a
-    /// backend without them stores each entry as it comes.
-    ///
-    /// Must not throw. A backend that cannot start a batch stores entries one
-    /// at a time instead.
-    void begin_batch();
-
-    /// Commit the stores made since begin_batch.
-    ///
-    /// Must not throw. A failed commit costs those entries a recompile next
-    /// run, nothing more, and must not leave anything locked.
-    void end_batch();
+               const std::vector<binary_cache_entry>& entries);
 };
 
 #else
@@ -139,18 +115,12 @@ struct binary_cache_backend
 struct MIGRAPHX_EXPORT binary_cache_backend
 {
     //
-    optional<std::vector<char>>
-    load(const std::string& version, const std::string& device, const std::string& key_hash);
+    optional<binary_cache_entry>
+    load(const std::string& version, const std::string& device, const std::string& key);
     //
     void store(const std::string& version,
                const std::string& device,
-               const std::string& key_hash,
-               const binary_cache_entry& e,
-               const std::vector<char>& blob);
-    // (optional)
-    void begin_batch();
-    // (optional)
-    void end_batch();
+               const std::vector<binary_cache_entry>& entries);
 };
 
 #else
@@ -158,32 +128,6 @@ struct MIGRAPHX_EXPORT binary_cache_backend
 struct binary_cache_backend
 {
     private:
-    template <class T>
-    static auto private_detail_te_default_begin_batch(char, T&& private_detail_te_self)
-        -> decltype(private_detail_te_self.begin_batch())
-    {
-        private_detail_te_self.begin_batch();
-    }
-
-    template <class T>
-    static void private_detail_te_default_begin_batch(float, T&& private_detail_te_self)
-    {
-        migraphx::nop(private_detail_te_self);
-    }
-
-    template <class T>
-    static auto private_detail_te_default_end_batch(char, T&& private_detail_te_self)
-        -> decltype(private_detail_te_self.end_batch())
-    {
-        private_detail_te_self.end_batch();
-    }
-
-    template <class T>
-    static void private_detail_te_default_end_batch(float, T&& private_detail_te_self)
-    {
-        migraphx::nop(private_detail_te_self);
-    }
-
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
     {
@@ -206,13 +150,7 @@ struct binary_cache_backend
                  std::declval<PrivateDetailTypeErasedT>().store(
                      std::declval<const std::string&>(),
                      std::declval<const std::string&>(),
-                     std::declval<const std::string&>(),
-                     std::declval<const binary_cache_entry&>(),
-                     std::declval<const std::vector<char>&>()),
-                 private_detail_te_default_begin_batch(char(0),
-                                                       std::declval<PrivateDetailTypeErasedT>()),
-                 private_detail_te_default_end_batch(char(0),
-                                                     std::declval<PrivateDetailTypeErasedT>()),
+                     std::declval<const std::vector<binary_cache_entry>&>()),
                  void());
 
     template <class PrivateDetailTypeErasedT>
@@ -289,33 +227,19 @@ struct binary_cache_backend
             return private_detail_te_get_handle().type();
     }
 
-    optional<std::vector<char>>
-    load(const std::string& version, const std::string& device, const std::string& key_hash)
+    optional<binary_cache_entry>
+    load(const std::string& version, const std::string& device, const std::string& key)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().load(version, device, key_hash);
+        return (*this).private_detail_te_get_handle().load(version, device, key);
     }
 
     void store(const std::string& version,
                const std::string& device,
-               const std::string& key_hash,
-               const binary_cache_entry& e,
-               const std::vector<char>& blob)
+               const std::vector<binary_cache_entry>& entries)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().store(version, device, key_hash, e, blob);
-    }
-
-    void begin_batch()
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().begin_batch();
-    }
-
-    void end_batch()
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().end_batch();
+        (*this).private_detail_te_get_handle().store(version, device, entries);
     }
 
     friend bool is_shared(const binary_cache_backend& private_detail_x,
@@ -332,16 +256,11 @@ struct binary_cache_backend
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual optional<std::vector<char>> load(const std::string& version,
-                                                 const std::string& device,
-                                                 const std::string& key_hash) = 0;
+        virtual optional<binary_cache_entry>
+        load(const std::string& version, const std::string& device, const std::string& key) = 0;
         virtual void store(const std::string& version,
                            const std::string& device,
-                           const std::string& key_hash,
-                           const binary_cache_entry& e,
-                           const std::vector<char>& blob)                     = 0;
-        virtual void begin_batch()                                            = 0;
-        virtual void end_batch()                                              = 0;
+                           const std::vector<binary_cache_entry>& entries)                  = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -371,34 +290,19 @@ struct binary_cache_backend
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        optional<std::vector<char>> load(const std::string& version,
-                                         const std::string& device,
-                                         const std::string& key_hash) override
+        optional<binary_cache_entry>
+        load(const std::string& version, const std::string& device, const std::string& key) override
         {
 
-            return private_detail_te_value.load(version, device, key_hash);
+            return private_detail_te_value.load(version, device, key);
         }
 
         void store(const std::string& version,
                    const std::string& device,
-                   const std::string& key_hash,
-                   const binary_cache_entry& e,
-                   const std::vector<char>& blob) override
+                   const std::vector<binary_cache_entry>& entries) override
         {
 
-            private_detail_te_value.store(version, device, key_hash, e, blob);
-        }
-
-        void begin_batch() override
-        {
-
-            private_detail_te_default_begin_batch(char(0), private_detail_te_value);
-        }
-
-        void end_batch() override
-        {
-
-            private_detail_te_default_end_batch(char(0), private_detail_te_value);
+            private_detail_te_value.store(version, device, entries);
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

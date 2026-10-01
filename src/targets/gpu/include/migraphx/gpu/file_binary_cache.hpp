@@ -36,18 +36,16 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// A binary_cache_backend that keeps entries as files under a root directory, laid out
-// <root>/<version>/<device>/<key_hash>.mxr. The version directory is named after the build that
-// wrote it, so the tree is self-describing.
+// A binary_cache_backend that keeps each entry as a msgpack file under a root directory, laid
+// out <root>/<version>/<device>/<md5 of key>.mxr. The version directory is named after the build
+// that wrote it, so the tree is self-describing.
 struct MIGRAPHX_GPU_EXPORT file_binary_cache
 {
-    optional<std::vector<char>>
-    load(const std::string& version, const std::string& device, const std::string& key_hash) const;
+    optional<binary_cache_entry>
+    load(const std::string& version, const std::string& device, const std::string& key) const;
     void store(const std::string& version,
                const std::string& device,
-               const std::string& key_hash,
-               const binary_cache_entry& e,
-               const std::vector<char>& blob) const;
+               const std::vector<binary_cache_entry>& entries) const;
 
     fs::path root = {};
 };

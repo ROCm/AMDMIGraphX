@@ -27,6 +27,8 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/md5.hpp>
+#include <migraphx/msgpack.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <system_error>
 #include <type_traits>
@@ -38,14 +40,15 @@ namespace gpu {
 static_assert(std::is_constructible<binary_cache_backend, file_binary_cache>{},
               "file_binary_cache must satisfy the binary_cache_backend concept");
 
-/// Where an entry lives. The caller guarantees a non-empty version, so entries compiled by
-/// different toolchains can never land on the same path.
+/// Where an entry lives. The key is the whole compile source, so it is hashed to keep the name
+/// short. The caller guarantees a non-empty version, so entries compiled by different toolchains
+/// can never land on the same path.
 static fs::path entry_path(const fs::path& root,
                            const std::string& version,
                            const std::string& device,
-                           const std::string& key_hash)
+                           const std::string& key)
 {
-    return root / version / device / (key_hash + ".mxr");
+    return root / version / device / (md5(key) + ".mxr");
 }
 
 /// Publish by rename so a reader never sees a half-written file. The temporary stays beside
@@ -69,36 +72,46 @@ static void write_atomically(const fs::path& dest, const std::vector<char>& cont
     }
 }
 
-optional<std::vector<char>> file_binary_cache::load(const std::string& version,
-                                                    const std::string& device,
-                                                    const std::string& key_hash) const
+optional<binary_cache_entry> file_binary_cache::load(const std::string& version,
+                                                     const std::string& device,
+                                                     const std::string& key) const
 {
-    auto path = entry_path(root, version, device, key_hash);
+    auto path = entry_path(root, version, device, key);
+    binary_cache_entry e;
     try
     {
         if(not fs::exists(path))
             return nullopt;
-        return read_buffer(path);
+        migraphx::from_value(from_msgpack(read_buffer(path)), e);
     }
     catch(const std::exception& ex)
     {
-        // An unreadable entry is a miss, which costs a recompile and nothing else.
-        log::warn() << "Failed to read binary cache entry " << path << ": " << ex.what();
+        // An unreadable or damaged entry is a miss, which costs a recompile and nothing else.
+        log::warn() << "Ignoring unreadable binary cache entry " << path << ": " << ex.what();
         return nullopt;
     }
+    // Files are named by a hash of the key, so the full key is checked here to make a collision
+    // a miss rather than a wrong kernel.
+    if(e.key != key)
+    {
+        log::warn() << "Ignoring binary cache entry with mismatched key: " << path;
+        return nullopt;
+    }
+    return e;
 }
 
 void file_binary_cache::store(const std::string& version,
                               const std::string& device,
-                              const std::string& key_hash,
-                              const binary_cache_entry&,
-                              const std::vector<char>& blob) const
+                              const std::vector<binary_cache_entry>& entries) const
 {
-    auto path = entry_path(root, version, device, key_hash);
-    // The content is decided entirely by the key, so a writer that loses the publish race
-    // replaces the file with the same bytes and no locking is needed.
-    fs::create_directories(path.parent_path());
-    write_atomically(path, blob);
+    for(const auto& e : entries)
+    {
+        auto path = entry_path(root, version, device, e.key);
+        // The content is decided entirely by the key, so a writer that loses the publish race
+        // replaces the file with the same bytes and no locking is needed.
+        fs::create_directories(path.parent_path());
+        write_atomically(path, to_msgpack(migraphx::to_value(e)));
+    }
 }
 
 } // namespace gpu

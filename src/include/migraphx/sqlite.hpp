@@ -56,14 +56,100 @@ struct sqlite_stmt_impl;
 /// Not thread safe: use a statement from one thread at a time.
 struct MIGRAPHX_EXPORT sqlite_stmt
 {
-    struct rows;
+    /// The rows produced by one call of a statement, as an input range of values.
+    ///
+    /// The first row is fetched when the call is made, so a statement that returns nothing, such
+    /// as an insert, has already run by the time the call returns, whether or not the range is
+    /// iterated. The statement is reset when the range is destroyed: an unfinished select holds
+    /// a read lock on the database until then, which would stall writers in other processes.
+    ///
+    /// Refers to the statement it came from, which must outlive it.
+    struct rows
+    {
+        // Only ever a prvalue returned from a call, so it never needs copying or moving, and a
+        // copy would reset the statement out from under the original.
+        rows(const rows&)            = delete;
+        rows(rows&&)                 = delete;
+        rows& operator=(const rows&) = delete;
+        rows& operator=(rows&&)      = delete;
+        ~rows() { stmt->reset(); }
+
+        struct iterator : iterator_operators<iterator>
+        {
+            using value_type        = value;
+            using reference         = value_type;
+            using difference_type   = std::ptrdiff_t;
+            using iterator_category = std::input_iterator_tag;
+            using pointer           = value*;
+
+            iterator() = default;
+
+            iterator(const rows* pparent, bool pavailable) : parent(pparent), available(pavailable)
+            {
+            }
+
+            reference operator*() const
+            {
+                assert(parent != nullptr and available);
+                return parent->stmt->to_value();
+            }
+
+            static void increment(iterator& x)
+            {
+                assert(x.parent != nullptr and x.available);
+                x.available = x.parent->stmt->step();
+            }
+
+            static bool equal(const iterator& x, const iterator& y)
+            {
+                return x.parent == y.parent and x.available == y.available;
+            }
+
+            private:
+            const rows* parent = nullptr;
+            bool available     = false;
+        };
+
+        iterator begin() const { return {this, first}; }
+        iterator end() const { return {this, false}; }
+
+        private:
+        friend struct sqlite_stmt;
+
+        explicit rows(const sqlite_stmt& s) : stmt(&s)
+        {
+            // The destructor does not run when the constructor throws, so a failed first step
+            // resets the statement here instead.
+            try
+            {
+                first = stmt->step();
+            }
+            catch(...)
+            {
+                stmt->reset();
+                throw;
+            }
+        }
+
+        const sqlite_stmt* stmt = nullptr;
+        bool first              = false;
+    };
 
     sqlite_stmt() = default;
 
-    /// Run the statement with xs bound to its parameters in order, and return its rows. Defined
-    /// after rows, which has to be complete for a function returning it to be defined.
+    /// Run the statement with xs bound to its parameters in order, and return its rows.
     template <class... Ts>
-    rows operator()(const Ts&... xs) const;
+    rows operator()(const Ts&... xs) const
+    {
+        if(not valid())
+            MIGRAPHX_THROW("sqlite: calling a statement that was never prepared");
+        assert(sizeof...(Ts) == parameter_count());
+        // Anything left from the previous call, bindings or an unfinished result, goes first.
+        reset();
+        int i = 0;
+        each_args([&](const auto& x) { bind(++i, x); }, xs...);
+        return rows{*this};
+    }
 
     bool valid() const { return impl != nullptr; }
 
@@ -89,82 +175,6 @@ struct MIGRAPHX_EXPORT sqlite_stmt
     friend struct sqlite;
     std::shared_ptr<sqlite_stmt_impl> impl;
 };
-
-/// The rows produced by one call of a statement, as an input range of values.
-///
-/// The first row is fetched when the call is made, so a statement that returns nothing, such as
-/// an insert, has already run by the time the call returns, whether or not the range is
-/// iterated. The statement is reset when the range is destroyed: an unfinished select holds a
-/// read lock on the database until then, which would stall writers in other processes.
-struct sqlite_stmt::rows
-{
-    // Only ever a prvalue returned from a call, so it never needs copying or moving, and a copy
-    // would reset the statement out from under the original.
-    rows(const rows&)            = delete;
-    rows(rows&&)                 = delete;
-    rows& operator=(const rows&) = delete;
-    rows& operator=(rows&&)      = delete;
-    ~rows() { stmt.reset(); }
-
-    struct iterator : iterator_operators<iterator>
-    {
-        using value_type        = value;
-        using reference         = value_type;
-        using difference_type   = std::ptrdiff_t;
-        using iterator_category = std::input_iterator_tag;
-        using pointer           = value*;
-
-        iterator() = default;
-
-        iterator(const rows* pparent, bool pavailable) : parent(pparent), available(pavailable) {}
-
-        reference operator*() const
-        {
-            assert(parent != nullptr and available);
-            return parent->stmt.to_value();
-        }
-
-        template <class U>
-        static void increment(U& x)
-        {
-            assert(x.parent != nullptr and x.available);
-            x.available = x.parent->stmt.step();
-        }
-
-        template <class U, class V>
-        static auto equal(const U& x, const V& y)
-        {
-            return x.parent == y.parent and x.available == y.available;
-        }
-
-        private:
-        const rows* parent = nullptr;
-        bool available     = false;
-    };
-
-    iterator begin() const { return {this, first}; }
-    iterator end() const { return {this, false}; }
-
-    private:
-    friend struct sqlite_stmt;
-    explicit rows(sqlite_stmt s) : stmt(std::move(s)), first(stmt.step()) {}
-
-    sqlite_stmt stmt;
-    bool first = false;
-};
-
-template <class... Ts>
-sqlite_stmt::rows sqlite_stmt::operator()(const Ts&... xs) const
-{
-    if(not valid())
-        MIGRAPHX_THROW("sqlite: calling a statement that was never prepared");
-    assert(sizeof...(Ts) == parameter_count());
-    // Anything left from the previous call, bindings or an unfinished result, goes first.
-    reset();
-    int i = 0;
-    each_args([&](const auto& x) { bind(++i, x); }, xs...);
-    return rows{*this};
-}
 
 struct MIGRAPHX_EXPORT sqlite
 {

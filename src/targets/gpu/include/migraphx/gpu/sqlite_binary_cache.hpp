@@ -37,9 +37,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 // A binary_cache_backend that keeps entries as rows in a SQLite database, one row per
-// (version, device, key_hash). The stored blob is byte-identical to what the file backend
-// writes into a .mxr file, so the two are interchangeable payloads; op_name, problem and
-// solution are additionally denormalized into columns so a cache can be inspected with SQL.
+// (version, device, md5 of key), with each field of the entry in its own column so a cache can
+// be inspected with SQL. The compiled code, a program fragment, is stored as a msgpack blob.
 //
 // Holding sqlite and sqlite_stmt by value does not leak the SQLite dependency into this
 // target: migraphx/sqlite.hpp forward-declares both impl types and never includes sqlite3.h.
@@ -53,25 +52,19 @@ struct MIGRAPHX_GPU_EXPORT sqlite_binary_cache
     /// memory-only rather than raising an error.
     static optional<sqlite_binary_cache> open(const std::string& path);
 
-    optional<std::vector<char>>
-    load(const std::string& version, const std::string& device, const std::string& key_hash) const;
+    optional<binary_cache_entry>
+    load(const std::string& version, const std::string& device, const std::string& key) const;
+
+    /// Store the entries in one transaction, so they cost one commit rather than one each. A
+    /// failure rolls the whole transaction back and rethrows.
     void store(const std::string& version,
                const std::string& device,
-               const std::string& key_hash,
-               const binary_cache_entry& e,
-               const std::vector<char>& blob) const;
-
-    /// Open a transaction, so the stores that follow cost one commit rather than one each.
-    void begin_batch();
-    /// Commit the transaction begin_batch opened, or roll it back if the commit fails.
-    void end_batch();
+               const std::vector<binary_cache_entry>& entries);
 
     private:
     sqlite db              = {};
     sqlite_stmt get_stmt   = {};
     sqlite_stmt store_stmt = {};
-    /// Whether begin_batch opened a transaction that end_batch still has to close.
-    bool in_batch = false;
 };
 
 } // namespace gpu

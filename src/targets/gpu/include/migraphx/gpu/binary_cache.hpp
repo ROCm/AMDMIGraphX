@@ -33,6 +33,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -82,31 +83,16 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         std::size_t compiled = 0;
     };
 
-    /// Groups the inserts made while it lives, so the storage backend can commit them together
-    /// rather than one at a time. Scope it tightly around a run of inserts: a database holds a
-    /// write lock against other processes until it ends.
-    struct MIGRAPHX_GPU_EXPORT store_batch
-    {
-        explicit store_batch(binary_cache& c);
-        store_batch(const store_batch&)            = delete;
-        store_batch(store_batch&&)                 = delete;
-        store_batch& operator=(const store_batch&) = delete;
-        store_batch& operator=(store_batch&&)      = delete;
-        ~store_batch();
-
-        private:
-        binary_cache_backend* backend;
-    };
-
-    /// Nothing is opened here; storage is set up by the first lookup, insert or store_batch, so
-    /// a context that never compiles never touches the disk or probes the compiler.
+    /// Nothing is opened here; storage is set up by the first lookup or insert, so a context that
+    /// never compiles never touches the disk or probes the compiler.
     explicit binary_cache(binary_cache_settings s = {});
 
     /// Look up a key, consulting memory first and then the storage backend.
     optional<compiled_code> get(const context& ctx, const std::string& key);
 
-    /// Record a compiled result under its key.
-    void insert(const context& ctx, entry e);
+    /// Record compiled results under their keys. They are handed to the storage backend
+    /// together, so it can commit them at once rather than one at a time.
+    void insert(const context& ctx, std::vector<entry> es);
 
     /// True when reused results should be checked against a fresh compile.
     bool verify() const { return settings.verify; }

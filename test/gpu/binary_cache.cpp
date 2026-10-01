@@ -128,32 +128,42 @@ static std::size_t row_count(const std::string& path, const std::string& table)
     return std::stoul(rows.front().at("n"));
 }
 
-using stored_entries = std::map<std::string, std::vector<char>>;
+/// The full key of every stored entry, keyed by the key hash that addresses it.
+using stored_entries = std::map<std::string, std::string>;
 
-/// Every entry a cache directory holds, keyed by key hash, which names each file.
+/// Every entry a cache directory holds. Each file is named by its key hash and holds the msgpack
+/// of the whole entry.
 static stored_entries dir_entries(const migraphx::fs::path& dir)
 {
     stored_entries result;
     auto files = entry_files(dir);
     std::transform(
         files.begin(), files.end(), std::inserter(result, result.end()), [](const auto& f) {
-            return std::make_pair(f.stem().string(), migraphx::read_buffer(f));
+            auto v = migraphx::from_msgpack(migraphx::read_buffer(f));
+            return std::make_pair(f.stem().string(), v.at("key").get_string());
         });
     return result;
 }
 
-/// Every entry a cache database holds, keyed by key hash.
+/// Every entry a cache database holds.
 static stored_entries db_entries(const std::string& path)
 {
     stored_entries result;
-    auto select = migraphx::sqlite::read(path).prepare("SELECT key_hash, entry FROM cache_v1;");
+    auto select = migraphx::sqlite::read(path).prepare("SELECT key_hash, key FROM cache_v1;");
     auto rows   = select();
     std::transform(rows.begin(), rows.end(), std::inserter(result, result.end()), [](auto row) {
-        const auto& blob = row.at("entry").get_binary();
-        return std::make_pair(row.at("key_hash").get_string(),
-                              std::vector<char>(blob.begin(), blob.end()));
+        return std::make_pair(row.at("key_hash").get_string(), row.at("key").get_string());
     });
     return result;
+}
+
+/// Whether two entries hold the same thing.
+static bool same_entry(const migraphx::gpu::binary_cache::entry& x,
+                       const migraphx::gpu::binary_cache::entry& y)
+{
+    return x.key == y.key and x.op_name == y.op_name and x.problem == y.problem and
+           x.solution == y.solution and x.code.fill_map == y.code.fill_map and
+           *x.code.fragment.get_main_module() == *y.code.fragment.get_main_module();
 }
 
 // What a case that must hold for both backends needs to know about each, so the case can be
@@ -179,7 +189,8 @@ struct database_backend
     /// Overwrite every stored entry with bytes that do not decode.
     static void damage(const std::string& p)
     {
-        migraphx::sqlite::write(p).execute("UPDATE cache_v1 SET entry = zeroblob(8);");
+        // 0xc1 is never used in msgpack, so the code cannot be decoded.
+        migraphx::sqlite::write(p).execute("UPDATE cache_v1 SET code = X'c1c1c1c1';");
     }
 };
 
@@ -213,7 +224,7 @@ TEST_CASE(memory_lookup_records_reuse)
     migraphx::gpu::context ctx;
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}};
 
-    cache.insert(ctx, make_entry("a-key"));
+    cache.insert(ctx, {make_entry("a-key")});
     EXPECT(cache.get_stats().compiled == 1);
 
     auto found = cache.get(ctx, "a-key");
@@ -235,7 +246,7 @@ static void disk_lookup_records_a_hit()
     migraphx::gpu::binary_cache_settings settings{Backend::path(td), false};
 
     migraphx::gpu::binary_cache writer{settings};
-    writer.insert(ctx, make_entry("shared-key"));
+    writer.insert(ctx, {make_entry("shared-key")});
 
     migraphx::gpu::binary_cache reader{settings};
 
@@ -258,7 +269,7 @@ static void corrupt_entry_is_ignored()
     migraphx::gpu::binary_cache_settings settings{path, false};
 
     migraphx::gpu::binary_cache writer{settings};
-    writer.insert(ctx, make_entry("damaged"));
+    writer.insert(ctx, {make_entry("damaged")});
     EXPECT(Backend::stored(path) == 1);
     Backend::damage(path);
 
@@ -277,7 +288,7 @@ TEST_CASE(no_directory_writes_nothing)
     migraphx::gpu::context ctx;
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{.path = ""}};
 
-    cache.insert(ctx, make_entry("in-memory-only"));
+    cache.insert(ctx, {make_entry("in-memory-only")});
     EXPECT(cache.get(ctx, "in-memory-only").has_value());
     EXPECT(cache.get_stats().reused == 1);
     EXPECT(migraphx::fs::is_empty(td.path));
@@ -399,7 +410,7 @@ TEST_CASE(extension_selects_the_backend)
     migraphx::tmp_dir dir_td{"binary-cache"};
     migraphx::gpu::binary_cache dir_cache{
         migraphx::gpu::binary_cache_settings{dir_path(dir_td), false}};
-    dir_cache.insert(ctx, make_entry("in-a-directory"));
+    dir_cache.insert(ctx, {make_entry("in-a-directory")});
     auto files = entry_files(dir_td.path);
     EXPECT(files.size() == 1);
     EXPECT(migraphx::fs::is_directory(dir_td.path / version_dir));
@@ -412,7 +423,7 @@ TEST_CASE(extension_selects_the_backend)
         migraphx::tmp_dir db_td{"binary-cache"};
         auto path = (db_td.path / name).string();
         migraphx::gpu::binary_cache db_cache{migraphx::gpu::binary_cache_settings{path, false}};
-        db_cache.insert(ctx, make_entry("in-a-database"));
+        db_cache.insert(ctx, {make_entry("in-a-database")});
 
         EXPECT(migraphx::fs::is_regular_file(path));
         EXPECT(row_count(path, "cache_v1") == 1);
@@ -433,7 +444,7 @@ TEST_CASE(unusable_database_degrades_to_memory)
     migraphx::gpu::binary_cache_settings settings{(blocker / "cache.db").string(), false};
 
     migraphx::gpu::binary_cache cache{settings};
-    cache.insert(ctx, make_entry("nowhere"));
+    cache.insert(ctx, {make_entry("nowhere")});
     EXPECT(cache.get(ctx, "nowhere").has_value());
     EXPECT(cache.get_stats().reused == 1);
 
@@ -454,7 +465,7 @@ TEST_CASE(not_a_database_degrades_to_memory)
     migraphx::write_buffer(path, garbage);
 
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
-    cache.insert(ctx, make_entry("in-memory"));
+    cache.insert(ctx, {make_entry("in-memory")});
     EXPECT(cache.get(ctx, "in-memory").has_value());
     EXPECT(cache.get_stats().reused == 1);
     EXPECT((migraphx::read_buffer(path) == garbage));
@@ -472,13 +483,13 @@ TEST_CASE(incompatible_schema_degrades_to_memory)
     EXPECT(not migraphx::gpu::sqlite_binary_cache::open(path).has_value());
 
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
-    cache.insert(ctx, make_entry("in-memory"));
+    cache.insert(ctx, {make_entry("in-memory")});
     EXPECT(cache.get(ctx, "in-memory").has_value());
     EXPECT(row_count(path, "cache_v1") == 0);
 }
 
-// Both backends store the same serialized entry, so a cache can move between them.
-TEST_CASE(backends_store_identical_bytes)
+// Both backends address an entry by the same key hash, and give back what they were given.
+TEST_CASE(backends_store_the_same_entry)
 {
     migraphx::gpu::context ctx;
     auto e = make_entry("interchange");
@@ -486,24 +497,30 @@ TEST_CASE(backends_store_identical_bytes)
     migraphx::tmp_dir dir_td{"binary-cache"};
     migraphx::gpu::binary_cache dir_cache{
         migraphx::gpu::binary_cache_settings{dir_path(dir_td), false}};
-    dir_cache.insert(ctx, e);
-    auto files = entry_files(dir_td.path);
-    EXPECT(files.size() == 1);
-    auto from_file = migraphx::read_buffer(files.front());
-    EXPECT(not from_file.empty());
+    dir_cache.insert(ctx, {e});
+    auto from_dir = dir_entries(dir_td.path);
+    EXPECT(from_dir.size() == 1);
+    EXPECT(from_dir.begin()->first == migraphx::md5(e.key));
+    EXPECT(from_dir.begin()->second == e.key);
 
     migraphx::tmp_dir db_td{"binary-cache"};
     auto path = db_path(db_td);
     migraphx::gpu::binary_cache db_cache{migraphx::gpu::binary_cache_settings{path, false}};
-    db_cache.insert(ctx, e);
+    db_cache.insert(ctx, {e});
+    EXPECT((db_entries(path) == from_dir));
 
-    auto from_db = db_entries(path);
-    EXPECT(from_db.size() == 1);
-    EXPECT((from_db.begin()->second == from_file));
+    migraphx::tmp_dir td{"binary-cache"};
+    for(auto& backend : both_backends(td))
+    {
+        backend.store("v", "dev", {e});
+        auto got = backend.load("v", "dev", e.key);
+        EXPECT(got.has_value());
+        EXPECT(same_entry(*got, e));
+    }
 }
 
-// A whole compile against each backend has to leave the same kernels behind: the same key
-// hashes, each with the same bytes. That makes the choice of backend purely a storage decision.
+// A whole compile against each backend has to leave the same kernels behind, under the same key
+// hashes. That makes the choice of backend purely a storage decision.
 TEST_CASE(backends_hold_the_same_entries_after_a_compile)
 {
     migraphx::tmp_dir dir_td{"binary-cache"};
@@ -522,9 +539,9 @@ TEST_CASE(backends_hold_the_same_entries_after_a_compile)
     EXPECT((from_dir == from_db));
 }
 
-// An entry copied from one backend into the other is a hit there and decodes to the same code,
-// so an existing cache can be converted rather than rebuilt. The only translation is the
-// version, which a directory names with the short id and a database records in full.
+// An entry loaded from one backend and stored into the other is a hit there and decodes to the
+// same code, so an existing cache can be converted rather than rebuilt. The only translation is
+// the version, which a directory names with the short id and a database records in full.
 TEST_CASE(entries_move_between_backends)
 {
     migraphx::gpu::context ctx;
@@ -539,15 +556,17 @@ TEST_CASE(entries_move_between_backends)
         migraphx::tmp_dir db_td{"binary-cache"};
         migraphx::gpu::binary_cache writer{
             migraphx::gpu::binary_cache_settings{dir_path(dir_td), false}};
-        writer.insert(ctx, e);
+        writer.insert(ctx, {e});
         auto files = entry_files(dir_td.path);
         EXPECT(files.size() == 1);
 
-        const auto& file = files.front();
-        auto device      = file.parent_path().filename().string();
-        auto db          = migraphx::gpu::sqlite_binary_cache::open(db_path(db_td));
+        auto device = files.front().parent_path().filename().string();
+        migraphx::gpu::file_binary_cache dir{dir_td.path};
+        auto loaded = dir.load(short_version, device, e.key);
+        EXPECT(loaded.has_value());
+        auto db = migraphx::gpu::sqlite_binary_cache::open(db_path(db_td));
         EXPECT(db.has_value());
-        db->store(long_version, device, file.stem().string(), e, migraphx::read_buffer(file));
+        db->store(long_version, device, {*loaded});
 
         migraphx::gpu::binary_cache reader{
             migraphx::gpu::binary_cache_settings{db_path(db_td), false}};
@@ -563,22 +582,19 @@ TEST_CASE(entries_move_between_backends)
         migraphx::tmp_dir dir_td{"binary-cache"};
         migraphx::gpu::binary_cache writer{
             migraphx::gpu::binary_cache_settings{db_path(db_td), false}};
-        writer.insert(ctx, e);
+        writer.insert(ctx, {e});
 
-        auto select = migraphx::sqlite::read(db_path(db_td))
-                          .prepare("SELECT version, device, key_hash, entry FROM cache_v1;");
-        auto result = select();
-        auto rows   = std::vector<migraphx::value>(result.begin(), result.end());
+        auto rows =
+            migraphx::sqlite::read(db_path(db_td)).execute("SELECT version, device FROM cache_v1;");
         EXPECT(rows.size() == 1);
-        const auto& row = rows.front();
-        EXPECT(row.at("version").get_string() == long_version);
-        const auto& blob = row.at("entry").get_binary();
-        migraphx::gpu::file_binary_cache files{dir_td.path};
-        files.store(short_version,
-                    row.at("device").get_string(),
-                    row.at("key_hash").get_string(),
-                    e,
-                    std::vector<char>(blob.begin(), blob.end()));
+        EXPECT(rows.front().at("version") == long_version);
+        const auto& device = rows.front().at("device");
+        auto db            = migraphx::gpu::sqlite_binary_cache::open(db_path(db_td));
+        EXPECT(db.has_value());
+        auto loaded = db->load(long_version, device, e.key);
+        EXPECT(loaded.has_value());
+        migraphx::gpu::file_binary_cache dir{dir_td.path};
+        dir.store(short_version, device, {*loaded});
 
         migraphx::gpu::binary_cache reader{
             migraphx::gpu::binary_cache_settings{dir_path(dir_td), false}};
@@ -601,18 +617,15 @@ TEST_CASE(two_connections_share_a_database)
     EXPECT(a.has_value());
     EXPECT(b.has_value());
 
-    const std::vector<char> first{'f', 'i', 'r', 's', 't'};
-    const std::vector<char> second{'s', 'e', 'c', 'o', 'n', 'd'};
-
-    a->store("v", "dev", "k1", make_entry("k1"), first);
+    a->store("v", "dev", {make_entry("k1")});
     auto from_b = b->load("v", "dev", "k1");
     EXPECT(from_b.has_value());
-    EXPECT((*from_b == first));
+    EXPECT(from_b->key == "k1");
 
-    b->store("v", "dev", "k2", make_entry("k2"), second);
+    b->store("v", "dev", {make_entry("k2")});
     auto from_a = a->load("v", "dev", "k2");
     EXPECT(from_a.has_value());
-    EXPECT((*from_a == second));
+    EXPECT(from_a->key == "k2");
 
     EXPECT(not a->load("v", "dev", "absent").has_value());
 }
@@ -627,8 +640,8 @@ TEST_CASE(sqlite_records_the_full_version_id)
     auto path = db_path(td);
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
 
-    cache.insert(ctx, make_entry("one"));
-    cache.insert(ctx, make_entry("two"));
+    cache.insert(ctx, {make_entry("one")});
+    cache.insert(ctx, {make_entry("two")});
     EXPECT(row_count(path, "cache_v1") == 2);
 
     auto rows = migraphx::sqlite::read(path).execute("SELECT DISTINCT version FROM cache_v1;");
@@ -636,8 +649,7 @@ TEST_CASE(sqlite_records_the_full_version_id)
     EXPECT(rows.front().at("version") == migraphx::gpu::binary_cache::version_id(false));
 }
 
-// The op name, problem and solution are copied into columns only so a cache can be inspected
-// with SQL; loads never read them, so nothing else would notice them being wrong.
+// Each field of an entry has its own column, so a cache can be inspected with SQL.
 TEST_CASE(sqlite_records_what_each_entry_was_compiled_for)
 {
     migraphx::tmp_dir td{"binary-cache"};
@@ -645,13 +657,14 @@ TEST_CASE(sqlite_records_what_each_entry_was_compiled_for)
     auto path = db_path(td);
     auto e    = make_entry("described");
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
-    cache.insert(ctx, e);
+    cache.insert(ctx, {e});
 
     auto rows = migraphx::sqlite::read(path).execute(
-        "SELECT key_hash, op_name, problem, solution FROM cache_v1;");
+        "SELECT key_hash, key, op_name, problem, solution FROM cache_v1;");
     EXPECT(rows.size() == 1);
     const auto& row = rows.front();
     EXPECT(row.at("key_hash") == migraphx::md5(e.key));
+    EXPECT(row.at("key") == e.key);
     EXPECT(row.at("op_name") == e.op_name);
     EXPECT(migraphx::from_json_string(row.at("problem")) == e.problem);
     EXPECT(migraphx::from_json_string(row.at("solution")) == e.solution);
@@ -667,7 +680,7 @@ TEST_CASE(sqlite_read_only_database_still_serves_hits)
     migraphx::gpu::binary_cache_settings settings{path, false};
     {
         migraphx::gpu::binary_cache writer{settings};
-        writer.insert(ctx, make_entry("existing"));
+        writer.insert(ctx, {make_entry("existing")});
     }
 
     const auto writable = migraphx::fs::perms::owner_write | migraphx::fs::perms::group_write |
@@ -681,7 +694,7 @@ TEST_CASE(sqlite_read_only_database_still_serves_hits)
     EXPECT(reader.get(ctx, "existing").has_value());
     EXPECT(reader.get_stats().hits == 1);
 
-    reader.insert(ctx, make_entry("new"));
+    reader.insert(ctx, {make_entry("new")});
     EXPECT(reader.get(ctx, "new").has_value());
     if(protected_file)
     {
@@ -698,10 +711,9 @@ TEST_CASE(sqlite_read_only_database_still_serves_hits)
 TEST_CASE(backends_scope_entries_by_version_and_device)
 {
     migraphx::tmp_dir td{"binary-cache"};
-    const std::vector<char> blob{'p', 'a', 'y'};
     for(auto& backend : both_backends(td))
     {
-        backend.store("v1", "dev1", "k", make_entry("k"), blob);
+        backend.store("v1", "dev1", {make_entry("k")});
 
         EXPECT(backend.load("v1", "dev1", "k").has_value());
         EXPECT(not backend.load("v2", "dev1", "k").has_value());
@@ -714,15 +726,17 @@ TEST_CASE(backends_scope_entries_by_version_and_device)
 TEST_CASE(backends_store_overwrites_in_place)
 {
     migraphx::tmp_dir td{"binary-cache"};
-    const std::vector<char> replacement{'n', 'e', 'w'};
+    auto original        = make_entry("k");
+    auto replacement     = make_entry("k");
+    replacement.solution = migraphx::value{{"algo", "replaced"}};
     for(auto& backend : both_backends(td))
     {
-        backend.store("v", "dev", "k", make_entry("k"), {'o', 'l', 'd'});
-        backend.store("v", "dev", "k", make_entry("k"), replacement);
+        backend.store("v", "dev", {original});
+        backend.store("v", "dev", {replacement});
 
         auto got = backend.load("v", "dev", "k");
         EXPECT(got.has_value());
-        EXPECT((*got == replacement));
+        EXPECT(got->solution == replacement.solution);
     }
     EXPECT(row_count(db_path(td), "cache_v1") == 1);
     EXPECT(entry_files(td.path / "files").size() == 1);
@@ -737,11 +751,11 @@ TEST_CASE(file_store_leaves_only_entries_behind)
     migraphx::gpu::binary_cache_settings settings{dir_path(td), false};
 
     migraphx::gpu::binary_cache first{settings};
-    first.insert(ctx, make_entry("one"));
-    first.insert(ctx, make_entry("two"));
+    first.insert(ctx, {make_entry("one")});
+    first.insert(ctx, {make_entry("two")});
     // A second cache stores the same key again, over the file the first one published.
     migraphx::gpu::binary_cache second{settings};
-    second.insert(ctx, make_entry("one"));
+    second.insert(ctx, {make_entry("one")});
 
     std::vector<migraphx::fs::directory_entry> items{
         migraphx::fs::recursive_directory_iterator{td.path},
@@ -768,20 +782,16 @@ TEST_CASE(storage_is_opened_on_first_use)
     EXPECT(migraphx::fs::exists(path));
 }
 
-// Inserts made inside a batch are all there once it ends. The database commits them together;
-// the directory backend has no batching and stores each one as it comes.
+// Entries inserted together are all there afterwards. The database commits them in one
+// transaction; the directory backend writes each file as it comes.
 template <class Backend>
-static void batched_inserts_are_all_stored()
+static void inserts_of_many_entries_are_all_stored()
 {
     migraphx::tmp_dir td{"binary-cache"};
     migraphx::gpu::context ctx;
     auto path = Backend::path(td);
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
-    {
-        migraphx::gpu::binary_cache::store_batch batch{cache};
-        cache.insert(ctx, make_entry("first"));
-        cache.insert(ctx, make_entry("second"));
-    }
+    cache.insert(ctx, {make_entry("first"), make_entry("second")});
     EXPECT(Backend::stored(path) == 2);
 
     migraphx::gpu::binary_cache reader{migraphx::gpu::binary_cache_settings{path, false}};
@@ -790,43 +800,54 @@ static void batched_inserts_are_all_stored()
     EXPECT(reader.get_stats().hits == 2);
 }
 
-TEST_CASE_REGISTER(batched_inserts_are_all_stored<directory_backend>);
-TEST_CASE_REGISTER(batched_inserts_are_all_stored<database_backend>);
+TEST_CASE_REGISTER(inserts_of_many_entries_are_all_stored<directory_backend>);
+TEST_CASE_REGISTER(inserts_of_many_entries_are_all_stored<database_backend>);
 
-// A batch holds the database's write lock, so another connection must be able to write again as
-// soon as it ends.
-TEST_CASE(sqlite_batch_releases_the_database)
+// A store holds the database's write lock for its transaction, so another connection must be
+// able to write again as soon as it returns.
+TEST_CASE(sqlite_store_releases_the_database)
 {
     migraphx::tmp_dir td{"binary-cache"};
     migraphx::gpu::context ctx;
     auto path = db_path(td);
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
-    {
-        migraphx::gpu::binary_cache::store_batch batch{cache};
-        cache.insert(ctx, make_entry("batched"));
-    }
+    cache.insert(ctx, {make_entry("first"), make_entry("second")});
 
     auto other = migraphx::gpu::sqlite_binary_cache::open(path);
     EXPECT(other.has_value());
-    other->store("v", "dev", "k", make_entry("k"), {'x'});
-    EXPECT(row_count(path, "cache_v1") == 2);
+    other->store("v", "dev", {make_entry("k")});
+    EXPECT(row_count(path, "cache_v1") == 3);
 }
 
-// The backend layer moves opaque bytes and never decodes them, so a payload that is not even
-// msgpack still round-trips. Both backends go through the same type-erased wrapper here.
+// Rows are addressed by a hash of the key, so a row whose stored key differs from the one asked
+// for, as a hash collision would leave, is a miss rather than a wrong kernel.
+TEST_CASE(sqlite_mismatched_key_is_a_miss)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    auto db   = migraphx::gpu::sqlite_binary_cache::open(path);
+    EXPECT(db.has_value());
+    db->store("v", "dev", {make_entry("k")});
+    EXPECT(db->load("v", "dev", "k").has_value());
+
+    migraphx::sqlite::write(path).execute("UPDATE cache_v1 SET key = 'another';");
+    EXPECT(not db->load("v", "dev", "k").has_value());
+}
+
+// Both backends go through the same type-erased wrapper and give back the entry they were
+// given, field for field.
 TEST_CASE(backends_round_trip_through_the_wrapper)
 {
     migraphx::tmp_dir td{"binary-cache"};
-    const std::vector<char> blob{'\0', 'n', 'o', 't', '\0', 'm', 's', 'g', '\xff'};
-    auto e = make_entry("opaque");
+    auto e = make_entry("round-trip");
 
     for(auto& backend : both_backends(td))
     {
-        EXPECT(not backend.load("v", "dev", "k").has_value());
-        backend.store("v", "dev", "k", e, blob);
-        auto got = backend.load("v", "dev", "k");
+        EXPECT(not backend.load("v", "dev", e.key).has_value());
+        backend.store("v", "dev", {e});
+        auto got = backend.load("v", "dev", e.key);
         EXPECT(got.has_value());
-        EXPECT((*got == blob));
+        EXPECT(same_entry(*got, e));
     }
 }
 

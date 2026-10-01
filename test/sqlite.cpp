@@ -33,7 +33,7 @@
 /// Every row a call produced, so a test can count and inspect them.
 static std::vector<migraphx::value> collect(const migraphx::sqlite_stmt::rows& r)
 {
-    return std::vector<migraphx::value>(r.begin(), r.end());
+    return {r.begin(), r.end()};
 }
 
 TEST_CASE(read_write)

@@ -109,7 +109,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
         {
             for(auto ins : alloc_aliases)
             {
-                mod_output_names.emplace(ins, "output_" + std::to_string(index++));
+                mod_output_names[ins] = "output_" + std::to_string(index++);
             }
         }
     }
@@ -118,7 +118,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     {
         for(auto ins : alloc_aliases)
         {
-            mod_output_names.emplace(ins, param_name(index++, mod.name() + ":#output_"));
+            mod_output_names[ins] = param_name(index++, mod.name() + ":#output_");
         }
     }
 

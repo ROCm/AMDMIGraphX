@@ -264,6 +264,19 @@ TEST_CASE(allocate_copy_with_out)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(allocate_out_duplicate_return_uses_last_output_index)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    auto alloc =
+        m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    m.add_return({alloc, alloc});
+
+    run_pass(m, allocation_with_out_model{});
+
+    EXPECT(m.get_parameter_names() == std::vector<std::string>{"output_1"});
+}
+
 TEST_CASE(allocate_out_select_module_dynamic_tuple_views)
 {
     using dd  = migraphx::shape::dynamic_dimension;

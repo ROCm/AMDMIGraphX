@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,6 +46,21 @@ TEST_CASE(symbolic_shape_is_ignored)
         "data",
         migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n[1..4]", "4"}));
     mm->add_return({input});
+    auto expected = p;
+
+    run_pass(p);
+
+    EXPECT(p == expected);
+}
+
+TEST_CASE(incompatible_clone_output_is_ignored)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {{1, 3}, {3, 3}}});
+    auto output = mm->add_instruction(migraphx::make_op("fixed_pad", {{"value", -2.0f}}), input);
+    mm->add_return({output});
     auto expected = p;
 
     run_pass(p);

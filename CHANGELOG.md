@@ -13,6 +13,7 @@ Full documentation for MIGraphX is available at
 ### Resolved issues
 
 * Fixed mixed `uint8` and `int8` quantization (#5075).
+* Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
 
 ### Optimized
 
@@ -45,6 +46,7 @@ Full documentation for MIGraphX is available at
 * Parsed ONNX `TopK` with a run-time `k` into `dyn_slice`, so the output shape carries `k` as a symbol instead of the widest possible dimension. A range-based dynamic input shape is now rejected; parse with symbolic shapes instead (#5150).
 * Made the ONNX parser's per-node identifier unique across modules by prefixing it with the module name, which also renames parsed subgraph modules (for example `If_5_if` is now `main_If_5_if`) (#5150).
 * The 1 arg `slice` operator accepts symbolic input shapes when every sliced axis has a fixed length. Slicing a non-fixed symbolic axis, or supplying the bounds as inputs, needs `dyn_slice` since the integer bounds cannot express a symbolic output extent (#5112).
+* Flash decoding is skipped when the KV sequence length is not divisible by the split count; uneven-split padding was removed (#5114).
 
 ### Resolved issues
 

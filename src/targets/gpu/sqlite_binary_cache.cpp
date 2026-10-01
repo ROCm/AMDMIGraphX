@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS cache_v1 (
 constexpr const char* get_sql = "SELECT key, op_name, problem, solution, code FROM cache_v1"
                                 " WHERE version = ?1 AND device = ?2 AND key_hash = ?3;";
 
-// INSERT OR REPLACE is the analogue of the file backend's publish-by-rename: the content is
+// INSERT OR REPLACE is the analog of the file backend's publish-by-rename: the content is
 // decided entirely by the key, so two processes compiling the same kernel is benign and the
 // last writer wins with an equivalent row. The timestamp is computed by the database rather
 // than the process so that rows written by different machines stay comparable. MIGraphX never

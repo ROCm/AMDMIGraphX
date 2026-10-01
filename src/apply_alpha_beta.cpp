@@ -49,28 +49,26 @@ instruction_ref insert_apply_alpha_beta(module& m,
         }
     }
     auto op_res = m.insert_instruction(pos, op, a, b);
-    if(args.size() == 3)
+    if(args.size() == 3 and not float_equal(beta.at<float>(0), 0.0) and
+       args[2]->get_shape().elements() > 0)
     {
-        if(not float_equal(beta.at<float>(0), 0.0) and args[2]->get_shape().elements() > 0)
+        auto out_lens = op_res->get_shape().lens();
+        auto c        = args[2];
+        auto c_lens   = c->get_shape().lens();
+        input_type    = c->get_shape().type();
+        if(out_lens != c_lens)
         {
-            auto out_lens = op_res->get_shape().lens();
-            auto c        = args[2];
-            auto c_lens   = c->get_shape().lens();
-            input_type    = c->get_shape().type();
-            if(out_lens != c_lens)
-            {
-                c = m.insert_instruction(
-                    pos, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), args[2]);
-            }
-            auto beta_literal = m.add_literal(beta);
-            auto beta_c = insert_common_op(m, pos, migraphx::make_op("mul"), {c, beta_literal});
-            if(beta_c->get_shape().type() != input_type)
-            {
-                beta_c = m.insert_instruction(
-                    pos, migraphx::make_op("convert", {{"target_type", input_type}}), beta_c);
-            }
-            return m.insert_instruction(pos, migraphx::make_op("add"), op_res, beta_c);
+            c = m.insert_instruction(
+                pos, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), args[2]);
         }
+        auto beta_literal = m.add_literal(beta);
+        auto beta_c       = insert_common_op(m, pos, migraphx::make_op("mul"), {c, beta_literal});
+        if(beta_c->get_shape().type() != input_type)
+        {
+            beta_c = m.insert_instruction(
+                pos, migraphx::make_op("convert", {{"target_type", input_type}}), beta_c);
+        }
+        return m.insert_instruction(pos, migraphx::make_op("add"), op_res, beta_c);
     }
     return op_res;
 }

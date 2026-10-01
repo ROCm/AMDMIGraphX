@@ -40,20 +40,17 @@ struct parse_mod : op_parser<parse_mod>
                           std::vector<instruction_ref> args) const
     {
         std::string mod = "mod";
-        if(is_type_float(args[0]->get_shape().type()) or is_type_float(args[1]->get_shape().type()))
+        if((is_type_float(args[0]->get_shape().type()) or
+            is_type_float(args[1]->get_shape().type())) and
+           not contains(info.attributes, "fmod"))
         {
-            if(not contains(info.attributes, "fmod"))
-            {
-                MIGRAPHX_THROW("Mod operator with float args and fmod=0 invalid");
-            }
+            MIGRAPHX_THROW("Mod operator with float args and fmod=0 invalid");
         }
 
-        if(contains(info.attributes, "fmod"))
+        if(contains(info.attributes, "fmod") and
+           parser.parse_value(info.attributes.at("fmod")).at<int>() == 1)
         {
-            if(parser.parse_value(info.attributes.at("fmod")).at<int>() == 1)
-            {
-                mod = "fmod";
-            }
+            mod = "fmod";
         }
         return info.add_common_op(mod, args[0], args[1]);
     }

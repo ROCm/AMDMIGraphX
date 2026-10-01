@@ -133,6 +133,17 @@ TEST_CASE(standardize_external_output)
     EXPECT(m3 == m4);
 }
 
+TEST_CASE(standardize_module_without_return)
+{
+    migraphx::module m1;
+    auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+    auto m2 = m1;
+
+    run_pass(m1, migraphx::auto_contiguous{.standardize_outputs = true});
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(standardize_only_nonstandard_outputs)
 {
     migraphx::module m;

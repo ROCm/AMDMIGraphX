@@ -119,6 +119,9 @@ struct backend_options
     std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
+    // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with pointwise ops.
+    bool enable_skinny_dot   = false;
+    bool standardize_outputs = false;
     // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
     bool hiprtc_disable_processes = false;
     compile_ops_tuning_overrides tuning{};
@@ -129,6 +132,7 @@ struct backend_options
         return pack_join(
             pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
                  f(self.convolution_layout, "convolution_layout"),
+                 f(self.standardize_outputs, "standardize_outputs"),
                  f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                  f(self.problem_cache_files, "problem_cache_files"),
                  f(self.read_only_problem_cache_files, "read_only_problem_cache_files")),
@@ -270,7 +274,7 @@ struct pipeline_factory
         std::size_t max_memory =
             get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
         return {
-            auto_contiguous{},
+            auto_contiguous{.standardize_outputs = backend_opts.standardize_outputs},
             dead_code_elimination{},
             lowering{get_context(), options.offload_copy},
             eliminate_contiguous{"gpu::contiguous"},

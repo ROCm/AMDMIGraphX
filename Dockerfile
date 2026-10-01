@@ -129,9 +129,9 @@ RUN curl -fsSL -o /tmp/clangd.zip \
 
 # Install pytorch
 RUN pip3 install --index-url "${INDEX_URL}" \
-        "torch==2.11.0+rocm${ROCM_VERSION}.0" \
-        "torchvision==0.26.0+rocm${ROCM_VERSION}.0" \
-        "torchaudio==2.11.0+rocm${ROCM_VERSION}.0"
+        "torch==2.12.0+rocm${ROCM_VERSION}.0rc3" \
+        "torchvision==0.27.0+rocm${ROCM_VERSION}.0rc3" \
+        "torchaudio==2.11.0+rocm${ROCM_VERSION}.0rc3"
 
 # Location where onnx unit tests models are cached
 ENV ONNX_HOME=/.onnx

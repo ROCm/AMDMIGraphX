@@ -188,6 +188,13 @@ void split_reduce::apply(module_pass_manager& mpm) const
                return contains({"unpack_int4", "gather"}, i.name());
            }))
             continue;
+        // The reductions of the module must all cover the same axes to split
+        if(std::any_of(rm->begin(), rm->end(), [&](const auto& i) {
+               return is_reduce(i) and
+                      i.get_operator() !=
+                          std::find_if(rm->begin(), rm->end(), &is_reduce)->get_operator();
+           }))
+            continue;
         if(get_reduce_size(rm) < split_size)
             continue;
         splitter s{rm};

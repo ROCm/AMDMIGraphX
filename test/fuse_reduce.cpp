@@ -637,6 +637,91 @@ TEST_CASE(reduce_reduce)
     EXPECT(p1 == p2);
 }
 
+// A reduce over a subset of the axes of another whose inputs are unit along
+// the other axes joins it: every output slice holds both reductions
+TEST_CASE(reduce_reduce_subset_axes)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {4, 8, 16}};
+    migraphx::shape bs{migraphx::shape::float_type, {4, 8, 1}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", xs);
+        auto b    = mm->add_parameter("b", bs);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), x);
+        auto bsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), b);
+        auto add  = add_pointwise(p1, "main:pointwise0", {rsum, bsum}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", xs);
+        auto b   = mm->add_parameter("b", bs);
+        // The bias sum is copied in first as the input of the fused epilogue
+        auto add =
+            add_reduce(p2,
+                       "main:reduce_sum0:main:pointwise0:main:reduce_sum1",
+                       {b, x},
+                       {0, 2},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           auto bsum = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", {0}}}), inputs[0]);
+                           auto rsum = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[1]);
+                           return add_pointwise(
+                               p2, rm, "main:pointwise0", {rsum, bsum}, single_pointwise("add"));
+                       });
+        mm->add_return({add});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A reduce over other axes whose inputs span them stays separate
+TEST_CASE(reduce_reduce_different_axes)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {4, 8, 16}};
+    migraphx::shape bs{migraphx::shape::float_type, {4, 8, 16}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", xs);
+        auto b    = mm->add_parameter("b", bs);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), x);
+        auto bsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), b);
+        auto bsb  = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 8, 16}}}), rsum);
+        auto add = add_pointwise(p1, "main:pointwise0", {bsb, bsum}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", xs);
+        auto b    = mm->add_parameter("b", bs);
+        auto rsum = add_reduce(p2, "main:reduce_sum0", {x}, {0, 2}, single_reduce("reduce_sum"));
+        auto bsb  = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 8, 16}}}), rsum);
+        auto add = add_reduce(
+            p2,
+            "main:reduce_sum1:main:pointwise0",
+            {b, bsb},
+            {0},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto bsum = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                inputs[0]);
+                return add_pointwise(
+                    p2, rm, "main:pointwise0", {inputs[1], bsum}, single_pointwise("add"));
+            });
+        mm->add_return({add});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(reduce_reduce_unfusable_broadcast)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 1, 3}};

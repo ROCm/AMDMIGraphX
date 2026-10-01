@@ -674,6 +674,36 @@ struct find_reduce_pointwise
     }
 };
 
+/// The fused_reduce over the axes of both reduces when one covers the axes
+/// of the other and the inputs of the smaller one are unit along the rest,
+/// so every output slice holds the elements of both reductions
+optional<operation> merge_reduce_axes(instruction_ref reduce1, instruction_ref reduce2)
+{
+    if(reduce1->get_operator() == reduce2->get_operator())
+        return reduce1->get_operator();
+    auto axes_of = [](instruction_ref reduce) {
+        auto axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        std::sort(axes.begin(), axes.end());
+        return axes;
+    };
+    auto axes1 = axes_of(reduce1);
+    auto axes2 = axes_of(reduce2);
+    auto small = axes1.size() < axes2.size() ? reduce1 : reduce2;
+    auto big   = small == reduce1 ? reduce2 : reduce1;
+    auto saxes = axes_of(small);
+    auto baxes = axes_of(big);
+    if(not std::includes(baxes.begin(), baxes.end(), saxes.begin(), saxes.end()))
+        return nullopt;
+    std::vector<std::size_t> extra;
+    std::set_difference(
+        baxes.begin(), baxes.end(), saxes.begin(), saxes.end(), std::back_inserter(extra));
+    if(not all_of(reduce_tensor_inputs(small), [&](instruction_ref input) {
+           return all_of(extra, [&](auto axis) { return input->get_shape().lens()[axis] == 1; });
+       }))
+        return nullopt;
+    return big->get_operator();
+}
+
 struct find_reduce_reduce
 {
     auto matcher() const
@@ -687,7 +717,8 @@ struct find_reduce_reduce
         auto reduce2 = r.instructions["reduce"];
         auto input   = r.instructions["input"];
 
-        if(reduce1->get_operator() != reduce2->get_operator())
+        auto op = merge_reduce_axes(reduce1, reduce2);
+        if(not op.has_value())
             return;
 
         const auto* rm1 = reduce1->module_inputs().front();
@@ -715,7 +746,7 @@ struct find_reduce_reduce
         finalize_reduce_module(rm);
 
         auto new_inputs = find_inputs(map_ins, &mpm.get_module(), rm);
-        mpm.get_module().replace_instruction(reduce1, reduce1->get_operator(), new_inputs, {rm});
+        mpm.get_module().replace_instruction(reduce1, *op, new_inputs, {rm});
     }
 };
 
@@ -1156,12 +1187,12 @@ struct find_reduce_slice
     }
 };
 
-/// Fuse a gather along a non-reduced axis feeding a fused_reduce into the
-/// submodule, so the kernel reads the gathered rows of the data in place
-/// instead of copying them first, eg the weights of the selected experts of
-/// a MoE layer. The data takes the place of the gather in the chain of views
-/// to the reduce, with the gather axis at the data length, and the gather
-/// moves inside reading the data view and the indices.
+/// Fuse a gather feeding a fused_reduce into the submodule, so the kernel
+/// reads the gathered rows of the data in place instead of copying them
+/// first, eg the weights of the selected experts of a MoE layer. The data
+/// takes the place of the gather in the chain of views to the reduce, with
+/// the gather axis at the data length, and the gather moves inside reading
+/// the data view and the indices.
 struct find_gather_reduce
 {
     /// The views the gather can be moved through
@@ -1294,11 +1325,10 @@ struct find_gather_reduce
         lens[axis]    = data_len;
         if(view->get_shape().lens() != lens)
             return nullopt;
-        // The gather axis must reach the reduce whole, not broadcast and not reduced
-        if(s.lens()[axis] != indices->get_shape().elements() or s.strides()[axis] == 0)
-            return nullopt;
-        auto reduce_axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
-        if(contains(reduce_axes, axis))
+        // The gather axis must reach the reduce whole and not broadcast. It may
+        // be reduced, the kernel then resolves the index per element, but not
+        // along the fastest axis which the kernel reads in vectors.
+        if(s.lens()[axis] != indices->get_shape().elements() or s.strides()[axis] < 2)
             return nullopt;
         return m.insert_instruction(reduce, make_op("gather", {{"axis", axis}}), view, indices);
     }

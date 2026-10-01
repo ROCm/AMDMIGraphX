@@ -80,6 +80,74 @@ TEST_CASE(softmax_upcast)
 }
 
 // The skinny dot rewrite is off by default so the dot is left alone.
+// A small reduction of an affine function of a reduction folds into one
+// reduction over both sets of axes plus the reduction of the shift, in the
+// space of the inner reduce; the views between them are looked through
+TEST_CASE(reduce_affine_reduce)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {4, 1, 8, 16}};
+    migraphx::shape bs{migraphx::shape::float_type, {4, 1, 8}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", xs);
+        auto b    = m1.add_parameter("b", bs);
+        auto w    = m1.add_parameter("w", {migraphx::shape::float_type, {4, 1, 1}});
+        auto rsum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), x);
+        auto sq   = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), rsum);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), sq, b);
+        auto wb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 8}}}), w);
+        auto mul   = m1.add_instruction(migraphx::make_op("mul"), add, wb);
+        auto r     = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 8}}}), mul);
+        auto rsum2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), r);
+        m1.add_return({rsum2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", xs);
+        auto b  = m2.add_parameter("b", bs);
+        auto w  = m2.add_parameter("w", {migraphx::shape::float_type, {4, 1, 1}});
+        auto wu = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), w);
+        auto wx =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", xs.lens()}}), wu);
+        auto xw   = m2.add_instruction(migraphx::make_op("mul"), x, wx);
+        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 3}}}), xw);
+        auto wb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 8}}}), w);
+        auto bw   = m2.add_instruction(migraphx::make_op("mul"), b, wb);
+        auto bwu  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), bw);
+        auto bsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), bwu);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), rsum, bsum);
+        auto out  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 8}}}), add);
+        m2.add_return({out});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A large outer reduction is left alone since it would collapse the
+// parallelism of the inner reduction, and so is a non-affine chain
+TEST_CASE(reduce_affine_reduce_unfused)
+{
+    auto create = [](std::size_t n, bool affine) {
+        migraphx::module m;
+        auto x     = m.add_parameter("x", {migraphx::shape::float_type, {n, 8, 16}});
+        auto rsum  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto f     = affine ? m.add_instruction(migraphx::make_op("neg"), rsum)
+                            : m.add_instruction(migraphx::make_op("sigmoid"), rsum);
+        auto rsum2 = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), f);
+        m.add_return({rsum2});
+        return m;
+    };
+    auto m1 = create(128, true);
+    run_pass(m1);
+    EXPECT(m1 == create(128, true));
+    auto m2 = create(4, false);
+    run_pass(m2);
+    EXPECT(m2 == create(4, false));
+}
+
 TEST_CASE(dot_skinny_disabled_by_default)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 128}};

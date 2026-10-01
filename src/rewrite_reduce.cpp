@@ -25,6 +25,8 @@
 #include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/module.hpp>
@@ -152,6 +154,232 @@ struct find_dot
         auto mul    = insert_common_op(m, ins, make_op("mul"), {a_unsqueeze, b_unsqueeze});
         auto reduce = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {ndim}}}), mul);
         m.replace_instruction(ins, make_op("squeeze", {{"axes", {ndim}}}), reduce);
+    }
+};
+
+// Fold a small reduction of an affine function of another reduction into one
+// reduction over both sets of axes, so the combining sum runs in the kernel
+// of the first one: sum_j w_j (sum_i x_ij + b_j) = sum_ij w_j x_ij + sum_j w_j b_j,
+// eg the weighted sum over the selected experts of a MoE layer.
+struct find_reduce_affine_reduce
+{
+    /// A larger outer reduction would collapse the parallelism of the inner one
+    static constexpr std::size_t max_outer_elements = 64;
+
+    auto matcher() const { return match::name("reduce_sum")(match::used_once()); }
+
+    static std::vector<std::size_t> reduce_axes(instruction_ref reduce)
+    {
+        return reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+    }
+
+    static bool is_view(instruction_ref ins)
+    {
+        return contains({"reshape", "squeeze", "unsqueeze"}, ins->name());
+    }
+
+    /// The ops from the inner reduce up to the outer reduce_sum reading the
+    /// chain: pointwise ops affine in the chain value and views keeping its
+    /// elements in order
+    static optional<std::pair<std::vector<instruction_ref>, instruction_ref>>
+    find_chain(instruction_ref inner)
+    {
+        const std::size_t max_length = 8;
+        std::vector<instruction_ref> chain;
+        auto cur = inner;
+        while(chain.size() <= max_length)
+        {
+            if(cur->outputs().size() != 1)
+                return nullopt;
+            auto out = cur->outputs().front();
+            if(out->name() == "reduce_sum")
+                return std::make_pair(chain, out);
+            if(not contains({"add", "sub", "mul", "neg"}, out->name()) and not is_view(out))
+                return nullopt;
+            // Both operands reading the chain is not affine
+            if(out->inputs().size() == 2 and out->inputs().front() == out->inputs().back())
+                return nullopt;
+            chain.push_back(out);
+            cur = out;
+        }
+        return nullopt;
+    }
+
+    /// The axes of the outer reduce on the inner reduce output: the views
+    /// between them must keep each reduced axis a whole axis
+    static optional<std::vector<std::size_t>> map_outer_axes(
+        const std::vector<instruction_ref>& chain, instruction_ref inner, instruction_ref outer)
+    {
+        std::vector<operation> views;
+        transform_if(
+            chain.begin(),
+            chain.end(),
+            std::back_inserter(views),
+            [](instruction_ref ins) { return is_view(ins); },
+            [](instruction_ref ins) { return ins->get_operator(); });
+        const auto& ilens = inner->get_shape().lens();
+        const auto& olens = outer->inputs().front()->get_shape().lens();
+        auto desc         = shape_transform_descriptor::create(ilens, views);
+        if(desc.empty())
+            return nullopt;
+        // The unit dims of the views are attributed to the axes next to them
+        auto dst_axes = [&](std::size_t i) {
+            auto dst = desc.get_dst_axes_from_src(i);
+            dst.erase(std::remove_if(dst.begin(), dst.end(), [&](auto a) { return olens[a] == 1; }),
+                      dst.end());
+            return dst;
+        };
+        std::vector<std::size_t> result;
+        for(auto axis : reduce_axes(outer))
+        {
+            if(olens[axis] == 1)
+                continue;
+            auto is = range(ilens.size());
+            auto it = std::find_if(is.begin(), is.end(), [&](auto i) {
+                return dst_axes(i) == std::vector<std::size_t>{axis};
+            });
+            if(it == is.end())
+                return nullopt;
+            result.push_back(*it);
+        }
+        return result;
+    }
+
+    /// The scale and shift of the affine chain, absent when 1 and 0
+    struct affine
+    {
+        optional<instruction_ref> scale = nullopt;
+        optional<instruction_ref> shift = nullopt;
+    };
+
+    struct affine_builder
+    {
+        module* m;
+        instruction_ref pos;
+
+        instruction_ref insert(const operation& op,
+                               const std::vector<instruction_ref>& inputs) const
+        {
+            return m->insert_instruction(pos, op, inputs);
+        }
+
+        /// The negated scale, a literal when the scale is one
+        instruction_ref negate(const optional<instruction_ref>& x, const shape& s) const
+        {
+            if(x.has_value())
+                return insert(make_op("neg"), {*x});
+            auto one = m->add_literal(literal{shape{s.type(), {1}}, {-1}});
+            return insert(make_op("multibroadcast", {{"out_lens", s.lens()}}), {one});
+        }
+
+        /// The affine value after the op reading cur
+        optional<affine> apply(const affine& a, instruction_ref ins, instruction_ref cur) const
+        {
+            affine r = a;
+            if(is_view(ins))
+            {
+                if(a.scale.has_value())
+                    r.scale = insert(ins->get_operator(), {*a.scale});
+                if(a.shift.has_value())
+                    r.shift = insert(ins->get_operator(), {*a.shift});
+                return r;
+            }
+            if(ins->name() == "neg")
+            {
+                r.scale = negate(a.scale, cur->get_shape());
+                if(a.shift.has_value())
+                    r.shift = insert(make_op("neg"), {*a.shift});
+                return r;
+            }
+            bool cur_first = ins->inputs().front() == cur;
+            auto c         = cur_first ? ins->inputs().back() : ins->inputs().front();
+            if(ins->name() == "add")
+            {
+                r.shift = a.shift.has_value() ? insert(make_op("add"), {*a.shift, c}) : c;
+            }
+            else if(ins->name() == "mul")
+            {
+                r.scale = a.scale.has_value() ? insert(make_op("mul"), {*a.scale, c}) : c;
+                if(a.shift.has_value())
+                    r.shift = insert(make_op("mul"), {*a.shift, c});
+            }
+            else if(ins->name() == "sub" and cur_first)
+            {
+                r.shift = a.shift.has_value() ? insert(make_op("sub"), {*a.shift, c})
+                                              : insert(make_op("neg"), {c});
+            }
+            else if(ins->name() == "sub")
+            {
+                r.shift = a.shift.has_value() ? insert(make_op("sub"), {c, *a.shift}) : c;
+                r.scale = negate(a.scale, cur->get_shape());
+            }
+            else
+            {
+                return nullopt;
+            }
+            return r;
+        }
+    };
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto inner = r.result;
+        auto chain = find_chain(inner);
+        if(not chain.has_value())
+            return;
+        auto [ops, outer] = *chain;
+        auto inner_axes   = reduce_axes(inner);
+        auto outer_elements =
+            outer->inputs().front()->get_shape().elements() / outer->get_shape().elements();
+        if(outer_elements > max_outer_elements)
+            return;
+        auto outer_axes = map_outer_axes(ops, inner, outer);
+        if(not outer_axes.has_value())
+            return;
+        if(any_of(*outer_axes, [&](auto axis) { return contains(inner_axes, axis); }))
+            return;
+        affine_builder builder{&m, outer};
+        affine a;
+        auto cur = inner;
+        for(auto ins : ops)
+        {
+            auto next = builder.apply(a, ins, cur);
+            if(not next.has_value())
+                return;
+            a   = *next;
+            cur = ins;
+        }
+        auto x = inner->inputs().front();
+        if(a.scale.has_value())
+        {
+            // The scale is at the shape of the outer input, which only
+            // differs from the inner reduce output by unit dims
+            auto scale = m.insert_instruction(
+                outer, make_op("reshape", {{"dims", inner->get_shape().lens()}}), *a.scale);
+            scale = m.insert_instruction(
+                outer, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), scale);
+            x = m.insert_instruction(outer, make_op("mul"), x, scale);
+        }
+        std::vector<std::int64_t> axes(inner_axes.begin(), inner_axes.end());
+        axes.insert(axes.end(), outer_axes->begin(), outer_axes->end());
+        std::sort(axes.begin(), axes.end());
+        auto result = m.insert_instruction(outer, make_op("reduce_sum", {{"axes", axes}}), x);
+        if(a.shift.has_value())
+        {
+            // The shift is summed over the outer axes in the space of the
+            // inner reduce as well, so the two reductions share their layout
+            // and the reduce fusion can place them in one kernel
+            auto shift = m.insert_instruction(
+                outer, make_op("reshape", {{"dims", inner->get_shape().lens()}}), *a.shift);
+            std::vector<std::int64_t> shift_axes(outer_axes->begin(), outer_axes->end());
+            shift =
+                m.insert_instruction(outer, make_op("reduce_sum", {{"axes", shift_axes}}), shift);
+            result = m.insert_instruction(outer, make_op("add"), result, shift);
+        }
+        const auto& lens = outer->get_shape().lens();
+        if(result->get_shape().lens() != lens)
+            result = m.insert_instruction(outer, make_op("reshape", {{"dims", lens}}), result);
+        m.replace_instruction(outer, result);
     }
 };
 
@@ -568,6 +796,7 @@ void rewrite_reduce::apply(module& m) const
     // attention (Q*K^T and softmax*V) so find_dot can skip them.
     if(enable_skinny_dot)
         match::find_matches(m, find_dot{collect_attention_dots(m)});
+    match::find_matches(m, find_reduce_affine_reduce{});
 
     if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
     {

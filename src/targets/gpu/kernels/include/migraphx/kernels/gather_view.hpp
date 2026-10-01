@@ -130,6 +130,26 @@ constexpr auto as_const(gather_view<Axis, Data, Indices> x)
     return make_gather_view<Axis>(as_const(x.base), x.indices);
 }
 
+/// The slice of a gathered view at the multi-index i: when the gather axis is
+/// not sliced the index is resolved once and the slice is a plain view,
+/// otherwise the axis is reduced and the slice stays a gathered view
+/// resolving the index per element
+template <index_int Axis, class Data, class Indices, class T, class Shape>
+constexpr auto make_slice_view(gather_view<Axis, Data, Indices> input, T i, Shape s)
+{
+    if constexpr(Shape{}.lens[Axis] == 1)
+    {
+        return make_tensor_view(&input[i], s);
+    }
+    else
+    {
+        i[Axis] = 0;
+        auto* p = input.base.data() + input.base.get_shape().index(i);
+        return make_gather_view<Axis>(make_tensor_view(p, ungather_shape<Axis>(s, input.base)),
+                                      input.indices);
+    }
+}
+
 /// Replace the data argument with the view of it gathered by the indices
 /// argument along the axis. The indices argument stays in place unused so
 /// the arguments keep their positions.

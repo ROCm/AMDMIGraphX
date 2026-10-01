@@ -912,6 +912,9 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
         else
             plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {8, 4, 2}, true);
     }
+    // The gathered rows are not contiguous along the gather axis
+    if(plan.vec.size > 1 and plan.is_gather_axis(plan.vec.axis))
+        MIGRAPHX_THROW("fused_reduce: cant vectorize along a gathered axis");
     plan.relements = plan.reduction_shape.elements() / plan.vec.size;
     return plan;
 }

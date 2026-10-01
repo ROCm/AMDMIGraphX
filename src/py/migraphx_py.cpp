@@ -27,6 +27,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>
 #include <migraphx/program.hpp>
+#include <migraphx/program_verify.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
@@ -48,6 +49,8 @@
 #include <migraphx/compile_modes.hpp>
 #include <migraphx/version.h>
 #include <migraphx/iterator_for.hpp>
+#include <algorithm>
+#include <iterator>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -362,6 +365,21 @@ struct py_macro
     std::string op_name;
     migraphx::value options;
 };
+
+migraphx::parameter_map to_parameter_map(const py::dict& params)
+{
+    migraphx::parameter_map result;
+    std::transform(
+        params.begin(), params.end(), std::inserter(result, result.end()), [](auto item) {
+            auto key = item.first.template cast<std::string>();
+            if(py::isinstance<migraphx::argument>(item.second))
+                return std::make_pair(key, item.second.template cast<migraphx::argument>());
+            py::buffer buffer    = item.second.template cast<py::buffer>();
+            py::buffer_info info = buffer.request();
+            return std::make_pair(key, migraphx::argument(to_shape(info), info.ptr));
+        });
+    return result;
+}
 } // namespace
 
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
@@ -619,6 +637,102 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .value("balanced", migraphx::compile_modes::balanced)
         .value("max", migraphx::compile_modes::max);
 
+    py::enum_<migraphx::verify::program_mode>(m, "program_verify_mode")
+        .value("outputs", migraphx::verify::program_mode::outputs)
+        .value("instructions", migraphx::verify::program_mode::instructions)
+        .value("reduce", migraphx::verify::program_mode::reduce)
+        .value("bisect", migraphx::verify::program_mode::bisect)
+        .value("layerwise", migraphx::verify::program_mode::layerwise);
+
+    py::enum_<migraphx::verify::program_precision>(m, "program_verify_precision")
+        .value("fp32", migraphx::verify::program_precision::fp32)
+        .value("fp16", migraphx::verify::program_precision::fp16)
+        .value("bf16", migraphx::verify::program_precision::bf16);
+
+    py::class_<migraphx::verify::program_options>(m, "program_verify_options")
+        .def(py::init<>())
+        .def_property(
+            "rms_tol",
+            [](const migraphx::verify::program_options& options) { return options.tols.rms_tol; },
+            [](migraphx::verify::program_options& options, double value) {
+                options.tols.rms_tol = value;
+            })
+        .def_property(
+            "atol",
+            [](const migraphx::verify::program_options& options) { return options.tols.atol; },
+            [](migraphx::verify::program_options& options, double value) {
+                options.tols.atol = value;
+            })
+        .def_property(
+            "rtol",
+            [](const migraphx::verify::program_options& options) { return options.tols.rtol; },
+            [](migraphx::verify::program_options& options, double value) {
+                options.tols.rtol = value;
+            })
+        .def_readwrite("precision", &migraphx::verify::program_options::quantize)
+        .def_readwrite("ref_use_double", &migraphx::verify::program_options::ref_use_double)
+        .def_readwrite("compiled_model", &migraphx::verify::program_options::compiled_model)
+        .def_readwrite("name", &migraphx::verify::program_options::name)
+        .def_property(
+            "offload_copy",
+            [](const migraphx::verify::program_options& options) {
+                return options.compile.offload_copy;
+            },
+            [](migraphx::verify::program_options& options, bool value) {
+                options.compile.offload_copy = value;
+            })
+        .def_property(
+            "fast_math",
+            [](const migraphx::verify::program_options& options) {
+                return options.compile.fast_math;
+            },
+            [](migraphx::verify::program_options& options, bool value) {
+                options.compile.fast_math = value;
+            })
+        .def_property(
+            "exhaustive_tune",
+            [](const migraphx::verify::program_options& options) {
+                return options.compile.exhaustive_tune;
+            },
+            [](migraphx::verify::program_options& options, bool value) {
+                options.compile.exhaustive_tune = value;
+            })
+        .def_property(
+            "compile_mode",
+            [](const migraphx::verify::program_options& options) {
+                return options.compile.compile_mode;
+            },
+            [](migraphx::verify::program_options& options, migraphx::compile_modes value) {
+                options.compile.compile_mode = value;
+            })
+        .def(
+            "set_backend_option",
+            [](migraphx::verify::program_options& options,
+               const std::string& name,
+               const py::object& value) {
+                migraphx::visit_py(value, [&](auto converted) {
+                    options.compile.backend_options[name] = converted;
+                });
+            },
+            py::arg("name"),
+            py::arg("value"));
+
+    py::class_<migraphx::verify::layer_result>(m, "program_verify_layer_result")
+        .def_readonly("name", &migraphx::verify::layer_result::name)
+        .def_readonly("operator", &migraphx::verify::layer_result::op)
+        .def_readonly("message", &migraphx::verify::layer_result::message)
+        .def_readonly("index", &migraphx::verify::layer_result::index)
+        .def_readonly("rms_error", &migraphx::verify::layer_result::rms_error)
+        .def_readonly("passed", &migraphx::verify::layer_result::passed)
+        .def_readonly("exception", &migraphx::verify::layer_result::exception);
+
+    py::class_<migraphx::verify::program_result>(m, "program_verify_result")
+        .def("passed", &migraphx::verify::program_result::passed)
+        .def("failures", &migraphx::verify::program_result::failures)
+        .def_readonly("mode", &migraphx::verify::program_result::mode)
+        .def_readonly("results", &migraphx::verify::program_result::results)
+        .def_readonly("failure_step", &migraphx::verify::program_result::failure_step);
+
     py::class_<migraphx::program>(m, "program")
         .def(py::init([]() { return migraphx::program(); }))
         .def("get_parameter_names", &migraphx::program::get_parameter_names)
@@ -664,50 +778,30 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             "create_module",
             [](migraphx::program& p, const std::string& name) { return p.create_module(name); },
             py::arg("name"))
+        .def(
+            "verify",
+            [](const migraphx::program& p,
+               const migraphx::target& target,
+               migraphx::verify::program_mode mode,
+               const py::dict& params,
+               const migraphx::verify::program_options& options) {
+                return migraphx::verify::verify_program(
+                    p, target, mode, to_parameter_map(params), options);
+            },
+            py::arg("target"),
+            py::arg("mode")    = migraphx::verify::program_mode::outputs,
+            py::arg("params")  = py::dict(),
+            py::arg("options") = migraphx::verify::program_options{})
         .def("run",
-             [](migraphx::program& p, py::dict params) {
-                 migraphx::parameter_map pm;
-                 for(auto x : params)
-                 {
-                     std::string key = x.first.cast<std::string>();
-                     // Accept a migraphx.argument directly (preserves tuple-typed shapes
-                     // which can't round-trip through the Python buffer protocol).
-                     if(py::isinstance<migraphx::argument>(x.second))
-                     {
-                         pm[key] = x.second.cast<migraphx::argument>();
-                     }
-                     else
-                     {
-                         py::buffer b         = x.second.cast<py::buffer>();
-                         py::buffer_info info = b.request();
-                         pm[key]              = migraphx::argument(to_shape(info), info.ptr);
-                     }
-                 }
-                 return p.eval(pm);
-             })
+             [](migraphx::program& p, py::dict params) { return p.eval(to_parameter_map(params)); })
         .def("run_async",
              [](migraphx::program& p,
                 py::dict params,
                 std::uintptr_t stream,
                 std::string stream_name) {
-                 migraphx::parameter_map pm;
-                 for(auto x : params)
-                 {
-                     std::string key = x.first.cast<std::string>();
-                     if(py::isinstance<migraphx::argument>(x.second))
-                     {
-                         pm[key] = x.second.cast<migraphx::argument>();
-                     }
-                     else
-                     {
-                         py::buffer b         = x.second.cast<py::buffer>();
-                         py::buffer_info info = b.request();
-                         pm[key]              = migraphx::argument(to_shape(info), info.ptr);
-                     }
-                 }
                  migraphx::execution_environment exec_env{
                      migraphx::any_ptr(reinterpret_cast<void*>(stream), stream_name), true};
-                 return p.eval(pm, exec_env);
+                 return p.eval(to_parameter_map(params), exec_env);
              })
         .def("to_py",
              [](const migraphx::program& p) {

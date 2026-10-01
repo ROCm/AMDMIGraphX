@@ -774,16 +774,9 @@ shape gather_axis_marker(const shape& s, std::size_t axis)
     return {s.type(), s.lens(), strides};
 }
 
-// Computes the virtual inputs, default reduction algorithm, vectorization, and vectorized
-// number of reduction elements. This is shared by both compilation and tuning so that the
-// tuning config's default solution matches what compile_op would pick on its own.
-fused_reduce_plan
-compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const value& v)
+/// The packed and gathered inputs of the plan from the compile values
+void parse_plan_args(fused_reduce_plan& plan, const value& v)
 {
-    fused_reduce_plan plan;
-    plan.assign  = v.get("assign", "assign_none");
-    auto axes    = v.at("axes").to_vector<std::size_t>();
-    plan.finputs = flatten_tuple_shapes(inputs);
     if(v.contains("packed_args"))
     {
         for(const auto& pa : v.at("packed_args"))
@@ -793,7 +786,6 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
             plan.packed_args[index] = pa.at("axis").to<std::size_t>();
         }
     }
-    std::set<std::size_t> index_args;
     if(v.contains("gather_args"))
     {
         for(const auto& ga : v.at("gather_args"))
@@ -803,12 +795,21 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
             plan.gather_args[index] = {ga.at("indices").to<std::size_t>(),
                                        ga.at("axis").to<std::size_t>(),
                                        ga.at("len").to<std::size_t>()};
-            index_args.insert(plan.gather_args[index].indices);
         }
     }
-    // Plan on the logical shapes so every input shares the same dimensions:
-    // the packed inputs unpacked, the gathered inputs at the gathered shape,
-    // and the gather indices left out
+}
+
+/// The normalized virtual inputs of the plan, followed by the reduction and
+/// output shapes. Every input shares the same dimensions: the packed inputs
+/// are unpacked, the gathered inputs at the gathered shape with their axis
+/// tracked through the normalization, and the gather indices left out.
+void plan_virtual_inputs(fused_reduce_plan& plan, const std::vector<std::size_t>& axes)
+{
+    std::set<std::size_t> index_args;
+    std::transform(plan.gather_args.begin(),
+                   plan.gather_args.end(),
+                   std::inserter(index_args, index_args.end()),
+                   [](const auto& p) { return p.second.indices; });
     auto is = range(plan.finputs.size());
     std::copy_if(is.begin(), is.end(), std::back_inserter(plan.arg_indices), [&](std::size_t i) {
         return not contains(index_args, i);
@@ -843,6 +844,20 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
             MIGRAPHX_THROW("fused_reduce: gather axis was merged");
         it->second.axis = *axis;
     }
+}
+
+// Computes the virtual inputs, default reduction algorithm, vectorization, and vectorized
+// number of reduction elements. This is shared by both compilation and tuning so that the
+// tuning config's default solution matches what compile_op would pick on its own.
+fused_reduce_plan
+compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const value& v)
+{
+    fused_reduce_plan plan;
+    plan.assign  = v.get("assign", "assign_none");
+    auto axes    = v.at("axes").to_vector<std::size_t>();
+    plan.finputs = flatten_tuple_shapes(inputs);
+    parse_plan_args(plan, v);
+    plan_virtual_inputs(plan, axes);
     if(plan.assign != "assign_none")
     {
         if(not plan.gather_args.empty())

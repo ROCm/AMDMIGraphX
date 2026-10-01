@@ -520,6 +520,62 @@ static std::vector<std::size_t> get_rlens(const module& m)
     return reduce->get_shape().lens();
 }
 
+/// The call of a pointwise inside the reduce: inputs at the reduce shape or
+/// broadcast are read at the output index, the others through the inner
+/// slices of the reduction
+static std::string
+generate_reduce_pointwise(instruction_ref ins,
+                          const std::unordered_map<instruction_ref, std::string>& names,
+                          const std::vector<std::size_t>& rlens,
+                          const std::string& pointwise_name)
+{
+    std::vector<instruction_ref> tensors;
+    std::copy_if(
+        ins->inputs().begin(), ins->inputs().end(), std::back_inserter(tensors), [&](auto input) {
+            return input->get_shape().lens() != rlens and not input->get_shape().broadcasted() and
+                   not contains(tensors, input);
+        });
+    auto inner_names = names;
+    for(auto input : ins->inputs())
+    {
+        if(input->name() != "@param")
+            continue;
+        if(contains(tensors, input))
+            continue;
+        inner_names[input] += "[out_idx]";
+    }
+    for(auto input : tensors)
+        inner_names[input] += "_lambda_param";
+    auto call_function = pointwise_name + "(" +
+                         join_strings(cpp_generator::to_args(ins->inputs(), inner_names), ", ") +
+                         ")";
+    if(tensors.empty())
+        return call_function;
+    const std::string inner_template = "r.${inner}([=](${params}) { return ${call}; })(${args})";
+    std::string inner_name           = use_lazy_inner(ins) ? "lazy_inner" : "inner";
+    auto args                        = cpp_generator::to_args(tensors, names);
+    auto params                      = cpp_generator::to_args(tensors, inner_names);
+    std::transform(
+        params.begin(), params.end(), params.begin(), [](const auto& s) { return "auto " + s; });
+    return interpolate_string(inner_template,
+                              {{"inner", inner_name},
+                               {"params", join_strings(params, ", ")},
+                               {"args", join_strings(args, ", ")},
+                               {"call", call_function}});
+}
+
+/// A parameter the module never reads, such as the indices of an erased
+/// gather, is still an argument of the kernel
+static void mark_unused_params(cpp_generator::function& f, const module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "@param" or not ins->outputs().empty())
+            continue;
+        f.unused_param(to_c_id(any_cast<builtin::param>(ins->get_operator()).parameter));
+    }
+}
+
 std::string generate_reduce(const module& m, const std::string& name)
 {
     // Copy into a private program so the rewrites dont touch the module being
@@ -550,44 +606,7 @@ std::string generate_reduce(const module& m, const std::string& name)
             auto pointwise_name = "pointwise" + std::to_string(i);
             i++;
             generate_prepared_pointwise(g, *ins->module_inputs().front(), pointwise_name);
-            std::vector<instruction_ref> tensors;
-            std::copy_if(ins->inputs().begin(),
-                         ins->inputs().end(),
-                         std::back_inserter(tensors),
-                         [&](auto input) {
-                             return input->get_shape().lens() != rlens and
-                                    not input->get_shape().broadcasted() and
-                                    not contains(tensors, input);
-                         });
-            auto inner_names = names;
-            for(auto input : ins->inputs())
-            {
-                if(input->name() != "@param")
-                    continue;
-                if(contains(tensors, input))
-                    continue;
-                inner_names[input] += "[out_idx]";
-            }
-            for(auto input : tensors)
-                inner_names[input] += "_lambda_param";
-            auto call_function =
-                pointwise_name + "(" +
-                join_strings(cpp_generator::to_args(ins->inputs(), inner_names), ", ") + ")";
-            if(tensors.empty())
-                return call_function;
-            const std::string inner_template =
-                "r.${inner}([=](${params}) { return ${call}; })(${args})";
-            std::string inner_name = use_lazy_inner(ins) ? "lazy_inner" : "inner";
-            auto args              = cpp_generator::to_args(tensors, names);
-            auto params            = cpp_generator::to_args(tensors, inner_names);
-            std::transform(params.begin(), params.end(), params.begin(), [](const auto& s) {
-                return "auto " + s;
-            });
-            return interpolate_string(inner_template,
-                                      {{"inner", inner_name},
-                                       {"params", join_strings(params, ", ")},
-                                       {"args", join_strings(args, ", ")},
-                                       {"call", call_function}});
+            return generate_reduce_pointwise(ins, names, rlens, pointwise_name);
         }
         if(ins->name() == "multibroadcast")
         {
@@ -647,14 +666,7 @@ std::string generate_reduce(const module& m, const std::string& name)
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });
     f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
-    // A parameter the module never reads, such as the indices of an erased
-    // gather, is still an argument of the kernel
-    for(auto ins : iterator_for(rm))
-    {
-        if(ins->name() != "@param" or not ins->outputs().empty())
-            continue;
-        f.unused_param(to_c_id(any_cast<builtin::param>(ins->get_operator()).parameter));
-    }
+    mark_unused_params(f, rm);
     f.add_generic_param("r");
 
     // caller is fused_reduce_op(..., f(r, out_idx)), so the function `f` must take out_idx even if

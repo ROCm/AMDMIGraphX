@@ -7,9 +7,12 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Optimized GridSample by adding a GPU JIT kernel for the ONNX `nearest`, `linear`/`bilinear`, and `cubic`/`bicubic` modes, replacing the `concat`+`gathernd` decomposition in the ONNX parser for those modes (#5139).
 ### Changed
 
 ### Resolved issues
+
+* Fixed mixed `uint8` and `int8` quantization (#5075).
 
 ### Optimized
 
@@ -33,6 +36,7 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
+* Replaced the rocMLIR backend compiler with rocmlirTriton to improve inference and compile time performance (#5215).
 * `migraphx::sym::var` now requires valid identifier names. The ONNX parser sanitizes external names and disambiguates collisions; for example, unnamed axis 0 of input `0` becomes `_0_d0`, while a `dim_param` of `batch.size` becomes `batch_size` (#5205).
 * Changed `propagate_constant` to skip folding a `convert` to a wider type, since that would enlarge the literal and lose the smaller storage type (#5138).
 * The 1 arg `slice` operator accepts symbolic input shapes when every sliced axis has a fixed length. Slicing a non-fixed symbolic axis, or supplying the bounds as inputs, needs `dyn_slice` since the integer bounds cannot express a symbolic output extent (#5112).
@@ -168,7 +172,6 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing (#4969).
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE` (#4991).
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions (#5038).
-
 
 ### Optimized
 

@@ -668,7 +668,7 @@ struct block_reducer_base : reducer_base<Derived>
     template <index_int K, class Compare, class T, class N, class X>
     __device__ auto topk_impl(Compare compare, T init, N n, X&& x) const
     {
-        using type                    = typename remove_reference_t<X>::type;
+        using type                    = remove_cv_t<typename remove_reference_t<X>::type>;
         using elem                    = vec_type<type>;
         constexpr index_int vsize     = vec_size<type>();
         constexpr index_int width     = vsize == 0 ? 1 : vsize;

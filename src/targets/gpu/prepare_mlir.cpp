@@ -34,6 +34,7 @@
 #include <migraphx/ranges.hpp>
 #include <algorithm>
 #include <numeric>
+#include <optional>
 #include <unordered_set>
 #include <vector>
 
@@ -195,6 +196,69 @@ struct find_kv_cache_mask_seq_len
     }
 };
 
+// rocmlirTriton rebuilds the per-group kv-cache sequence length from the
+// collapse_shape that feeds Q into the first gemm. When Q is a plain parameter
+// that collapse folds into the parameter's own reshape, the sequence length is
+// passed through unbroadcast and the kernel reads it out of bounds for every
+// group after the first. Give a decode-shaped Q a transpose producer that only
+// moves its unit sequence dimension: it costs nothing and keeps the collapse.
+struct find_kv_cache_plain_q
+{
+    auto matcher() const
+    {
+        auto seq_len =
+            match::skip(match::name(find_kv_cache_mask_seq_len::view_ops()))(match::name("@param"));
+        auto compare = match::name("greater")(match::arg(1)(seq_len));
+        auto cond    = match::skip(match::name(
+            "convert", "multibroadcast", "broadcast", "reshape", "unsqueeze", "squeeze"))(compare);
+        return match::name("where")(match::arg(0)(cond));
+    }
+
+    // The masked scores are the first gemm, possibly scaled, converted, or
+    // wrapped by an earlier mask
+    static std::optional<instruction_ref> find_scores_gemm(instruction_ref ins)
+    {
+        while(ins->name() != "dot")
+        {
+            const auto& inputs = ins->inputs();
+            if(ins->name() == "where")
+            {
+                ins = inputs.at(2);
+                continue;
+            }
+            if(not ins->get_operator().attributes().get("pointwise", false))
+                return std::nullopt;
+            auto data = std::find_if(inputs.begin(), inputs.end(), [](instruction_ref input) {
+                return not input->get_shape().broadcasted() and not input->can_eval();
+            });
+            if(data == inputs.end())
+                return std::nullopt;
+            ins = *data;
+        }
+        return ins;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto gemm = find_scores_gemm(r.result);
+        if(not gemm.has_value())
+            return;
+        auto q = (*gemm)->inputs().front();
+        if(q->name() != "@param")
+            return;
+        // Only {batch, heads, 1, dim} needs the per-head broadcast and can swap
+        // the unit dimension for free
+        const auto& lens = q->get_shape().lens();
+        if(lens.size() != 4 or lens[1] == 1 or lens[2] != 1)
+            return;
+        std::vector<std::size_t> swapped{lens[0], lens[2], lens[1], lens[3]};
+        auto rsp = m.insert_instruction(*gemm, make_op("reshape", {{"dims", swapped}}), q);
+        auto tsp =
+            m.insert_instruction(*gemm, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), rsp);
+        m.replace_instruction(*gemm, (*gemm)->get_operator(), {tsp, (*gemm)->inputs().back()});
+    }
+};
+
 // mlir has issues sometime when the condition to `where` is not a bool. So this will convert the
 // condition to a bool.
 struct find_where
@@ -242,6 +306,8 @@ struct find_nonstandard_literal
 void prepare_mlir::apply(module& m) const
 {
     match::find_matches(m, find_reduce{}, find_leaky_relu{}, find_kv_cache_mask_seq_len{});
+    // Matches the same where as find_kv_cache_mask_seq_len, so it needs its own pass
+    match::find_matches(m, find_kv_cache_plain_q{});
     match::find_matches(m, find_where{}, find_nonstandard_literal{});
     run_passes(m, {dead_code_elimination{}});
 }

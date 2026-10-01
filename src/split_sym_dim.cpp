@@ -25,6 +25,7 @@
 #include <migraphx/split_sym_dim.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/dim_like.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -215,17 +216,6 @@ struct symbolic_op_info
     std::vector<clone_input_plan> clone_inputs;
     shape dispatch_output;
 };
-
-std::vector<instruction_ref> select_data_inputs(const std::vector<instruction_ref>& inputs,
-                                                const std::vector<std::size_t>& shape_input_indices)
-{
-    assert(all_of(shape_input_indices, [&](auto index) { return index < inputs.size(); }));
-    std::vector<instruction_ref> result;
-    for(std::size_t index = 0; index < inputs.size(); ++index)
-        if(not contains(shape_input_indices, index))
-            result.push_back(inputs.at(index));
-    return result;
-}
 
 bool supports_mask(shape::type_t type, fill_kind fill)
 {
@@ -517,8 +507,25 @@ struct analyze_shape_transform
         const auto& inputs = info.input_shapes;
         auto descriptor_op = op;
         const auto& output = info.output_shape;
-        if(op.name() == "reshape" and inputs.size() == 1)
+        if(op.name() == "reshape")
         {
+            if(inputs.size() == 2 and inputs.back().symbolic())
+            {
+                auto target_reshape = reshape_from_shape(inputs.back(), {});
+                descriptor_op = make_op("reshape", {{"dims", to_value(inputs.back().max_lens())}});
+                auto input_elements  = inputs.front().sym_elements();
+                auto output_elements = output.sym_elements();
+                if(sym::strict_less(input_elements, output_elements).value_or(false) or
+                   sym::strict_less(output_elements, input_elements).value_or(false))
+                    return;
+                if(target_reshape.compute_shape({inputs.front()}) != output)
+                    return;
+                info.freezer             = freeze;
+                info.shape_input_indices = {1};
+            }
+            else if(inputs.size() != 1)
+                return;
+
             auto non_unit_dims = [](const shape& s) {
                 std::vector<sym::expr> result;
                 std::transform(s.dyn_dims().begin(),
@@ -533,20 +540,6 @@ struct analyze_shape_transform
                 analyze_axes(info);
                 return;
             }
-        }
-        if(op.name() == "reshape" and inputs.size() == 2 and inputs.back().symbolic())
-        {
-            auto target_reshape = reshape_from_shape(inputs.back(), {});
-            descriptor_op = make_op("reshape", {{"dims", to_value(inputs.back().max_lens())}});
-            auto input_elements  = inputs.front().sym_elements();
-            auto output_elements = output.sym_elements();
-            if(sym::strict_less(input_elements, output_elements).value_or(false) or
-               sym::strict_less(output_elements, input_elements).value_or(false))
-                return;
-            if(target_reshape.compute_shape({inputs.front()}) != output)
-                return;
-            info.freezer             = freeze;
-            info.shape_input_indices = {1};
         }
         else if(inputs.size() != 1)
             return;
@@ -1146,6 +1139,31 @@ std::unordered_map<sym::expr, instruction_ref> find_root_sources(const module& m
     return result;
 }
 
+std::optional<std::vector<instruction_ref>>
+find_expression_sources(const std::vector<sym::expr>& expressions,
+                        const std::unordered_map<sym::expr, instruction_ref>& root_sources,
+                        const std::vector<instruction_ref>& sources)
+{
+    std::unordered_set<instruction_ref> required_sources;
+    if(any_of(expressions, [&](const auto& expression) {
+           auto variables = sym::find_variables(expression);
+           return any_of(variables, [&](const auto& variable) {
+               if(not contains(root_sources, variable))
+                   return true;
+               required_sources.insert(root_sources.at(variable));
+               return false;
+           });
+       }))
+        return std::nullopt;
+
+    std::vector<instruction_ref> result;
+    std::copy_if(sources.begin(),
+                 sources.end(),
+                 std::back_inserter(result),
+                 [&](instruction_ref source) { return contains(required_sources, source); });
+    return result;
+}
+
 struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
 {
     std::unordered_map<sym::expr, instruction_ref> root_sources;
@@ -1162,18 +1180,42 @@ struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
         const auto symbolic_value = ins->sym_eval();
         if(symbolic_value.empty())
             return;
-        const auto expressions = symbolic_value.get().to_vector();
-        if(any_of(expressions, [&](const auto& expression) {
-               auto variables = sym::find_variables(expression);
-               return any_of(variables, [&](const auto& variable) {
-                   return not contains(root_sources, variable);
-               });
-           }))
+        const auto expressions  = symbolic_value.get().to_vector();
+        auto expression_sources = find_expression_sources(expressions, root_sources, sources);
+        if(not expression_sources.has_value())
+            return;
+        if(expression_sources->empty())
+            expression_sources = sources;
+        m.replace_instruction(
+            ins,
+            make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
+            *expression_sources);
+    }
+};
+
+struct find_eval_expr_from_intermediate_ins : match::supports_dynamic_shapes
+{
+    std::unordered_map<sym::expr, instruction_ref> root_sources;
+    std::vector<instruction_ref> sources;
+
+    auto matcher() const
+    {
+        return match::name("eval_expr_from_shape")(
+            match::any_of[match::inputs()](match::none_of(match::name("@param"))));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        auto expressions =
+            from_value<std::vector<sym::expr>>(ins->get_operator().to_value().at("expressions"));
+        auto expression_sources = find_expression_sources(expressions, root_sources, sources);
+        if(not expression_sources.has_value() or expression_sources->empty())
             return;
         m.replace_instruction(
             ins,
             make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
-            sources);
+            *expression_sources);
     }
 };
 
@@ -1442,7 +1484,8 @@ bool absorbable_dependency(instruction_ref ins, const std::unordered_set<instruc
 {
     if(contains(planned, ins))
         return true;
-    if(starts_with(ins->name(), "@") or not ins->module_inputs().empty())
+    if(starts_with(ins->name(), "@") or ins->name() == "eval_expr_from_shape" or
+       not ins->module_inputs().empty())
         return false;
     const auto& s = ins->get_shape();
     if(not s.dynamic())
@@ -1898,10 +1941,15 @@ std::vector<sliced_value> clone_inputs_for(
         return result;
     }
     std::vector<sliced_value> result;
-    std::transform(ins->inputs().begin(),
-                   ins->inputs().end(),
-                   std::back_inserter(result),
-                   [](instruction_ref source) { return sliced_value{source, {}}; });
+    auto inputs         = ins->inputs();
+    auto is_shape_input = [&](auto index) {
+        return found != info_for_instruction.end() and found->second->freezer and
+               contains(found->second->shape_input_indices, index);
+    };
+    auto input_indices = range(inputs.size());
+    for(auto&& [index, input] : views::zip(input_indices, inputs))
+        if(not is_shape_input(index))
+            result.push_back({input, {}});
     return result;
 }
 
@@ -2234,8 +2282,6 @@ struct clone_context
             // Every absorbed dynamic instruction is symbolic, so it has an analysis entry.
             assert(found != info_for_instruction.end());
             freezer = found->second->freezer;
-            if(freezer)
-                args = select_data_inputs(args, found->second->shape_input_indices);
         }
 
         instruction_ref clone;
@@ -2627,7 +2673,10 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     match::find_matches(m,
                         resolve_symbolic_dimensions_of_match{.root_sources = root_sources,
                                                              .sources      = m.get_parameters()});
-    run_passes(m, {dead_code_elimination{}});
+    match::find_matches(m,
+                        find_eval_expr_from_intermediate_ins{.root_sources = root_sources,
+                                                             .sources      = m.get_parameters()});
+    run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
 
     // Determine how each symbolic operation must be padded, masked, or rewritten for a fixed
     // target extent.

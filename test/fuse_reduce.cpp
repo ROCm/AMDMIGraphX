@@ -2167,6 +2167,206 @@ TEST_CASE(unpack_int4_broadcast_reduce_pointwise)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// The gather of the rows selected by the indices moves into the reduce,
+// which reads the selected rows of the data in place
+TEST_CASE(gather_reduce)
+{
+    migraphx::shape ws{migraphx::shape::float_type, {8, 3, 8}};
+    migraphx::shape is{migraphx::shape::int32_type, {2}};
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3, 8}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto w    = mm->add_parameter("w", ws);
+        auto idx  = mm->add_parameter("idx", is);
+        auto x    = mm->add_parameter("x", xs);
+        auto g    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto mul  = add_pointwise(p1, "main:pointwise0", {g, x}, single_pointwise("mul"));
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto w    = mm->add_parameter("w", ws);
+        auto idx  = mm->add_parameter("idx", is);
+        auto x    = mm->add_parameter("x", xs);
+        auto rsum = add_reduce(
+            p2,
+            "main:pointwise0:main:reduce_sum0:gather",
+            {w, idx, x},
+            {2},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto g = rm->add_instruction(
+                    migraphx::make_op("gather", {{"axis", 0}}), inputs[0], inputs[1]);
+                auto mul = add_pointwise(
+                    p2, rm, "main:pointwise0", {g, inputs[2]}, single_pointwise("mul"));
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+            });
+        mm->add_return({rsum});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The gather moves through the views to the reduce: the data is viewed the
+// same way with the gather axis at the data length, including a leading
+// unit dim, and the gathers share the indices input
+TEST_CASE(gather_reshape_reduce)
+{
+    migraphx::shape ws{migraphx::shape::float_type, {8, 3, 8}};
+    migraphx::shape bs{migraphx::shape::float_type, {8, 3}};
+    migraphx::shape is{migraphx::shape::int32_type, {2}};
+    migraphx::shape xs{migraphx::shape::float_type, {1, 2, 3, 2, 4}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto w   = mm->add_parameter("w", ws);
+        auto b   = mm->add_parameter("b", bs);
+        auto idx = mm->add_parameter("idx", is);
+        auto x   = mm->add_parameter("x", xs);
+        auto g   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto gr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 2, 4}}}), g);
+        auto gb = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx);
+        auto gbu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 3, 4}}}), gb);
+        auto mul  = add_pointwise(p1, "main:pointwise0", {gr, x}, single_pointwise("mul"));
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3, 4}}}), mul);
+        auto add  = add_pointwise(p1, "main:pointwise1", {rsum, gbu}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto w   = mm->add_parameter("w", ws);
+        auto b   = mm->add_parameter("b", bs);
+        auto idx = mm->add_parameter("idx", is);
+        auto x   = mm->add_parameter("x", xs);
+        auto wr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 3, 2, 4}}}), w);
+        auto br = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 3, 1, 1}}}), b);
+        auto add =
+            add_reduce(p2,
+                       "main:pointwise0:main:reduce_sum0:main:pointwise1:gather",
+                       {wr, idx, br, x},
+                       {3, 4},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           auto g = rm->add_instruction(
+                               migraphx::make_op("gather", {{"axis", 1}}), inputs[0], inputs[1]);
+                           auto gb = rm->add_instruction(
+                               migraphx::make_op("gather", {{"axis", 1}}), inputs[2], inputs[1]);
+                           auto mul = add_pointwise(
+                               p2, rm, "main:pointwise0", {g, inputs[3]}, single_pointwise("mul"));
+                           auto rsum = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+                           return add_pointwise(
+                               p2, rm, "main:pointwise1", {rsum, gb}, single_pointwise("add"));
+                       });
+        mm->add_return({add});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A gather broadcast over a reduced axis, such as per-row scales, is viewed
+// from the data broadcast the same way
+TEST_CASE(gather_broadcast_reduce)
+{
+    migraphx::shape ws{migraphx::shape::float_type, {8, 3, 8}};
+    migraphx::shape ss{migraphx::shape::float_type, {8, 3, 1}};
+    migraphx::shape is{migraphx::shape::int32_type, {2}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto w   = mm->add_parameter("w", ws);
+        auto s   = mm->add_parameter("s", ss);
+        auto idx = mm->add_parameter("idx", is);
+        auto g   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto gs  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), s, idx);
+        auto gsb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 8}}}), gs);
+        auto mul  = add_pointwise(p1, "main:pointwise0", {g, gsb}, single_pointwise("mul"));
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto w   = mm->add_parameter("w", ws);
+        auto s   = mm->add_parameter("s", ss);
+        auto idx = mm->add_parameter("idx", is);
+        auto sb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 3, 8}}}), s);
+        auto rsum = add_reduce(
+            p2,
+            "main:pointwise0:main:reduce_sum0:gather",
+            {w, idx, sb},
+            {2},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto g = rm->add_instruction(
+                    migraphx::make_op("gather", {{"axis", 0}}), inputs[0], inputs[1]);
+                auto gs = rm->add_instruction(
+                    migraphx::make_op("gather", {{"axis", 0}}), inputs[2], inputs[1]);
+                auto mul =
+                    add_pointwise(p2, rm, "main:pointwise0", {g, gs}, single_pointwise("mul"));
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+            });
+        mm->add_return({rsum});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A gather along a reduced axis, or with a single index, stays outside: the
+// kernel reads the gathered rows as whole non-reduced rows
+TEST_CASE(gather_reduce_unfused)
+{
+    migraphx::shape ws{migraphx::shape::float_type, {2, 3, 8}};
+    auto create = [&](const migraphx::shape& is, int axis, const migraphx::shape& xs) {
+        migraphx::program p;
+        auto* mm  = p.get_main_module();
+        auto w    = mm->add_parameter("w", ws);
+        auto idx  = mm->add_parameter("idx", is);
+        auto x    = mm->add_parameter("x", xs);
+        auto g    = mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), w, idx);
+        auto mul  = add_pointwise(p, "main:pointwise0", {g, x}, single_pointwise("mul"));
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+        mm->add_return({rsum});
+        return p;
+    };
+    auto expected = [&](const migraphx::shape& is, int axis, const migraphx::shape& xs) {
+        migraphx::program p;
+        auto* mm  = p.get_main_module();
+        auto w    = mm->add_parameter("w", ws);
+        auto idx  = mm->add_parameter("idx", is);
+        auto x    = mm->add_parameter("x", xs);
+        auto g    = mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), w, idx);
+        auto rsum = add_reduce(
+            p,
+            "main:pointwise0:main:reduce_sum0",
+            {g, x},
+            {2},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto mul = add_pointwise(
+                    p, rm, "main:pointwise0", {inputs[0], inputs[1]}, single_pointwise("mul"));
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+            });
+        mm->add_return({rsum});
+        return p;
+    };
+    migraphx::shape is8{migraphx::shape::int32_type, {8}};
+    migraphx::shape xs8{migraphx::shape::float_type, {2, 3, 8}};
+    auto p1 = create(is8, 2, xs8);
+    run_pass(p1);
+    EXPECT(p1.sort() == expected(is8, 2, xs8).sort());
+    migraphx::shape is1{migraphx::shape::int32_type, {1}};
+    migraphx::shape xs1{migraphx::shape::float_type, {1, 3, 8}};
+    auto p2 = create(is1, 0, xs1);
+    run_pass(p2);
+    EXPECT(p2.sort() == expected(is1, 0, xs1).sort());
+}
+
 TEST_CASE(reduce_slice_pointwise)
 {
     migraphx::shape xs{migraphx::shape::float_type, {1, 8}};

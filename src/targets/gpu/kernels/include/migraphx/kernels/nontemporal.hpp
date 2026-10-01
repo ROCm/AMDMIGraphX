@@ -82,6 +82,52 @@ __device__ T stream_load(const T* x, I i)
     return nontemporal_load(x + i);
 }
 
+// Read the N elements S apart at p as one vector: the S-aligned block of N*S
+// elements holding them is loaded whole and the lanes at the phase of p
+// within the block are selected, so the load stays wide and aligned
+template <bool Stream, class T, index_int N, index_int S>
+__device__ vec<T, N> load_strided(const strided_vec<T, N, S>* p)
+{
+    using block_type  = vec<T, N * S>;
+    const T* elements = reinterpret_cast<const T*>(p);
+    index_int phase   = (reinterpret_cast<uintptr_t>(elements) / sizeof(T)) % S;
+    const auto* block = reinterpret_cast<const block_type*>(elements - phase);
+    block_type v;
+    if constexpr(Stream)
+        v = nontemporal_load(block);
+    else
+        v = *block;
+    vec<T, N> result = {0};
+    repeat_c<S>([&](auto s) {
+        if(phase == s)
+        {
+            result = generate_vec(_c<N>, [&](auto i) {
+                constexpr index_int lane = decltype(s){} + decltype(i){} * S;
+                return v[lane];
+            });
+        }
+    });
+    return result;
+}
+
+// Read element i of the input view: a strided vector element is read as the
+// vector of its lanes, everything else is streamed
+template <class T, class I>
+__device__ auto load_element(const T& x, I i)
+{
+    using type = remove_cv_t<typename T::type>;
+    if constexpr(is_strided_vec<type>{})
+    {
+        constexpr bool stream = not(is_same<typename T::memory_tag, lds_memory_tag>{} or
+                                    get_shape_c<T>{}.broadcasted());
+        return load_strided<stream>(&x[i]);
+    }
+    else
+    {
+        return stream_load(x, i);
+    }
+}
+
 // Function objects selecting the load used when copying a tensor
 struct cached_load
 {

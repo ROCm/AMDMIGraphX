@@ -39,9 +39,11 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/builtin.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/bit.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -58,9 +60,24 @@ static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
     return {4, 2};
 }
 
+/// Whether the stride of the input along the axis can be read as strided
+/// vectors: the kernel loads the block of stride elements around each lane,
+/// which stays inside the allocation when the block is a power of two of
+/// bytes, and a larger stride would load too many unused elements per lane
+static bool strided_vectorizable(const shape& input, std::size_t axis)
+{
+    const std::size_t max_stride = 4;
+    auto stride                  = input.strides()[axis];
+    if(stride < 2 or stride > max_stride)
+        return false;
+    auto bytes = stride * input.type_size();
+    return bit_ceil(bytes) == bytes;
+}
+
 vectorize vectorize::elements(std::size_t axis,
                               const std::vector<shape>& inputs,
-                              const std::vector<std::size_t>& sizes)
+                              const std::vector<std::size_t>& sizes,
+                              bool strided)
 {
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
@@ -77,7 +94,8 @@ vectorize vectorize::elements(std::size_t axis,
                    [&](const auto& input) -> std::size_t {
                        auto stride = input.strides()[axis];
                        auto len    = input.lens()[axis];
-                       if(not contains({0, 1}, stride))
+                       if(not contains({0, 1}, stride) and
+                          not(strided and strided_vectorizable(input, axis)))
                            return 1;
                        if(len == 1 and input.elements() > sizes.front())
                            return sizes.front();
@@ -88,17 +106,21 @@ vectorize vectorize::elements(std::size_t axis,
                            // vectorized, which leaves its other strides unchanged
                            if(stride == 0)
                                return true;
-                           // All the strides are divisible by the size
-                           return std::all_of(
-                               input.strides().begin(), input.strides().end(), [&](auto i) {
-                                   return contains({0, 1}, i) or i % vsize == 0;
-                               });
+                           // The other strides are divisible by the elements a vector
+                           // spans along the axis
+                           auto span = vsize * stride;
+                           auto is   = range(input.ndim());
+                           return std::all_of(is.begin(), is.end(), [&](auto i) {
+                               if(i == axis or input.lens()[i] == 1)
+                                   return true;
+                               return input.strides()[i] % span == 0;
+                           });
                        });
                        if(it != sizes.end())
                            return *it;
                        return 1;
                    });
-    return {*std::min_element(max_vec_size.begin(), max_vec_size.end()), axis};
+    return {*std::min_element(max_vec_size.begin(), max_vec_size.end()), axis, strided};
 }
 
 vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<shape>& inputs)
@@ -135,7 +157,8 @@ vectorize vectorize::elements(std::size_t axis, const std::vector<shape>& inputs
 
 std::string vectorize::str() const
 {
-    return "vectorize<" + to_string(size) + ", " + to_string(axis) + ">()";
+    return "vectorize<" + to_string(size) + ", " + to_string(axis) + (strided ? ", true" : "") +
+           ">()";
 }
 
 preload preload::broadcasts(std::size_t axis, const std::vector<shape>& inputs)
@@ -624,6 +647,14 @@ std::string generate_reduce(const module& m, const std::string& name)
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });
     f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
+    // A parameter the module never reads, such as the indices of an erased
+    // gather, is still an argument of the kernel
+    for(auto ins : iterator_for(rm))
+    {
+        if(ins->name() != "@param" or not ins->outputs().empty())
+            continue;
+        f.unused_param(to_c_id(any_cast<builtin::param>(ins->get_operator()).parameter));
+    }
     f.add_generic_param("r");
 
     // caller is fused_reduce_op(..., f(r, out_idx)), so the function `f` must take out_idx even if

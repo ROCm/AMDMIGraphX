@@ -22,6 +22,8 @@
  * THE SOFTWARE.
  */
 #include <migraphx/fuse_reduce.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/builtin.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
@@ -50,6 +52,23 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
 
+/// The names of the submodule parameters read as the indices of a gather
+static std::unordered_set<std::string> gather_index_params(const module& sm)
+{
+    std::unordered_set<std::string> result;
+    transform_if(
+        sm.begin(),
+        sm.end(),
+        std::inserter(result, result.end()),
+        [](const instruction& ins) {
+            return ins.name() == "gather" and ins.inputs().back()->name() == "@param";
+        },
+        [](const instruction& ins) {
+            return any_cast<builtin::param>(ins.inputs().back()->get_operator()).parameter;
+        });
+    return result;
+}
+
 struct fused_reduce
 {
     std::vector<std::int64_t> axes{};
@@ -71,7 +90,7 @@ struct fused_reduce
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
-        check_shapes{inputs, *this, true}.has(names.size()).same_ndims();
+        check_shapes{inputs, *this, true}.has(names.size());
         std::sort(names.begin(), names.end());
         auto shapes = sm->get_parameter_shapes();
         // Check dimension matches for each input
@@ -80,12 +99,24 @@ struct fused_reduce
                return shape::same_lens(input, s);
            }))
             MIGRAPHX_THROW("Input dimension does not match the submodule.");
+        // The indices of a gather in the submodule are not inputs of the
+        // reduction, so they dont take part in the dimensions and the layout
+        auto index_names = gather_index_params(*sm);
+        std::vector<shape> tensors;
+        auto is = range(names.size());
+        transform_if(
+            is.begin(),
+            is.end(),
+            std::back_inserter(tensors),
+            [&](auto i) { return not contains(index_names, names[i]); },
+            [&](auto i) { return inputs[i]; });
+        check_shapes{tensors, *this, true}.same_ndims();
 
         if(outputs.front().dynamic())
             return outputs.size() == 1 ? outputs.front() : shape{outputs};
 
         // The output layout follows the inputs
-        auto perm = find_permutation(inputs);
+        auto perm = find_permutation(tensors);
         std::vector<shape> result;
         std::transform(
             outputs.begin(), outputs.end(), std::back_inserter(result), [&](const shape& s) {
@@ -280,6 +311,56 @@ bool has_unpack(instruction_ref ins)
         sm->begin(), sm->end(), [](const auto& i) { return i.name() == "unpack_int4"; });
 }
 
+std::vector<std::size_t> broadcast_input_lens(const shape& s);
+
+bool has_gather(instruction_ref ins)
+{
+    const auto* sm = ins->module_inputs().front();
+    return std::any_of(sm->begin(), sm->end(), [](const auto& i) { return i.name() == "gather"; });
+}
+
+/// Whether the submodule reads its inputs through a layout the fusions cant
+/// remap: packed inputs or gathered inputs
+bool has_fixed_layout(instruction_ref ins) { return has_unpack(ins) or has_gather(ins); }
+
+/// The inputs of the reduce that are reduced over, leaving out the indices
+/// of the gathers in the submodule
+std::vector<instruction_ref> reduce_tensor_inputs(instruction_ref reduce)
+{
+    const auto* sm   = reduce->module_inputs().front();
+    auto index_names = gather_index_params(*sm);
+    auto names       = sm->get_parameter_names();
+    std::sort(names.begin(), names.end());
+    assert(names.size() == reduce->inputs().size());
+    std::vector<instruction_ref> result;
+    auto is = range(names.size());
+    transform_if(
+        is.begin(),
+        is.end(),
+        std::back_inserter(result),
+        [&](auto i) { return not contains(index_names, names[i]); },
+        [&](auto i) { return reduce->inputs()[i]; });
+    return result;
+}
+
+/// The axes of the reduce inputs gathered in the submodule
+std::vector<std::size_t> gather_axes(instruction_ref reduce)
+{
+    const auto* sm = reduce->module_inputs().front();
+    std::vector<std::size_t> result;
+    transform_if(
+        sm->begin(),
+        sm->end(),
+        std::back_inserter(result),
+        [](const instruction& ins) { return ins.name() == "gather"; },
+        [](const instruction& ins) {
+            return tune_axis(ins.inputs().front()->get_shape().ndim(),
+                             ins.get_operator().to_value().at("axis").to<int>(),
+                             ins.name());
+        });
+    return result;
+}
+
 // Hoist a broadcast above a fused_reduce when it expands axes that were
 // already size 1 on the reduce inputs rather than reduced axes. The leftover
 // broadcast then only expands the reduced axes, which the fusion matchers
@@ -306,8 +387,9 @@ struct find_reduce_broadcast
         // The leftover broadcast can only fuse into a reduce over the same axes
         if(ins->name() == "fused_reduce" and ins->get_operator() != reduce->get_operator())
             return;
-        // Rebuilding the submodule at expanded shapes cant remap packed inputs
-        if(has_unpack(reduce))
+        // Rebuilding the submodule at expanded shapes cant remap packed or
+        // gathered inputs
+        if(has_fixed_layout(reduce))
             return;
 
         auto axes         = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
@@ -586,7 +668,7 @@ struct find_unpack_reduce
         if(not contains(axes, axis))
             return;
         static const auto fp8 = fp8_types{}.get();
-        if(not std::all_of(reduce->inputs().begin(), reduce->inputs().end(), [&](auto ri) {
+        if(not all_of(reduce_tensor_inputs(reduce), [&](auto ri) {
                if(contains(fp8, ri->get_shape().type()))
                    return false;
                return is_vectorizable_by_two(ri->get_shape(), axis);
@@ -614,8 +696,9 @@ struct reduce_reshape : rewrite_reshapes_base
     {
         if(ins->name() != name())
             return true;
-        // Submodules with packed inputs cant be remapped to the common dims
-        return not has_unpack(ins);
+        // Submodules with packed or gathered inputs cant be remapped to the
+        // common dims
+        return not has_fixed_layout(ins);
     }
 
     template <class Transform>
@@ -720,6 +803,37 @@ struct find_reduce_slice
         return slice->get_operator().to_value().at("axes").to_vector<std::size_t>();
     }
 
+    /// The axis of the reduce output that the sliced axis maps to through the
+    /// unit reshapes between them, with those reshapes, when nothing else
+    /// reads the chain
+    static optional<std::pair<std::size_t, std::vector<operation>>>
+    find_reduce_axis(instruction_ref input, instruction_ref reduce, std::size_t axis)
+    {
+        std::vector<operation> ops;
+        for(auto ins = input; ins != reduce; ins = ins->inputs().front())
+        {
+            if(ins != input and ins->outputs().size() != 1)
+                return nullopt;
+            ops.push_back(ins->get_operator());
+        }
+        if(input != reduce and reduce->outputs().size() != 1)
+            return nullopt;
+        std::reverse(ops.begin(), ops.end());
+        if(ops.empty())
+            return std::make_pair(axis, ops);
+        const auto& rlens = reduce->get_shape().lens();
+        auto desc         = shape_transform_descriptor::create(rlens, ops);
+        if(desc.empty())
+            return nullopt;
+        auto is = range(rlens.size());
+        auto it = std::find_if(is.begin(), is.end(), [&](auto i) {
+            return desc.get_dst_axes_from_src(i) == std::vector<std::size_t>{axis};
+        });
+        if(it == is.end())
+            return nullopt;
+        return std::make_pair(*it, ops);
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto& m     = mpm.get_module();
@@ -740,44 +854,30 @@ struct find_reduce_slice
                return out->name() == "slice" and slice_axes(out) == axes;
            }))
             return;
-        std::vector<operation> ops;
-        for(auto ins = input; ins != reduce; ins = ins->inputs().front())
-        {
-            if(ins != input and ins->outputs().size() != 1)
-                return;
-            ops.push_back(ins->get_operator());
-        }
-        if(input != reduce and reduce->outputs().size() != 1)
+        auto chain = find_reduce_axis(input, reduce, axes.front());
+        if(not chain.has_value())
             return;
-        std::reverse(ops.begin(), ops.end());
+        auto [raxis, ops] = *chain;
         const auto& rlens = reduce->get_shape().lens();
-        std::size_t raxis = axes.front();
-        if(not ops.empty())
-        {
-            auto desc = shape_transform_descriptor::create(rlens, ops);
-            if(desc.empty())
-                return;
-            auto is = range(rlens.size());
-            auto it = std::find_if(is.begin(), is.end(), [&](auto i) {
-                return desc.get_dst_axes_from_src(i) == std::vector<std::size_t>{axes.front()};
-            });
-            if(it == is.end())
-                return;
-            raxis = *it;
-        }
         auto reduce_axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
         if(contains(reduce_axes, raxis))
+            return;
+        // Slicing the gathered axis would slice the data rows, not the indices
+        if(contains(gather_axes(reduce), raxis))
             return;
         std::int64_t len = rlens[raxis];
         if(start < 0 or end <= start or end > len or end - start == len)
             return;
-        if(not all_of(reduce->inputs(), [&](instruction_ref x) {
+        auto tensors = reduce_tensor_inputs(reduce);
+        if(not all_of(tensors, [&, &raxis = raxis](instruction_ref x) {
                return x->get_shape().lens()[raxis] == rlens[raxis];
            }))
             return;
         auto slice_op = make_op("slice", {{"axes", {raxis}}, {"starts", {start}}, {"ends", {end}}});
         auto inputs   = reduce->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](instruction_ref x) {
+            if(not contains(tensors, x))
+                return x;
             return m.insert_instruction(slice, slice_op, x);
         });
         // Broadcasts inside the submodule expand to the full axis
@@ -785,17 +885,20 @@ struct find_reduce_slice
         const auto* oldm    = reduce->module_inputs().front();
         auto* sm            = mpm.create_module(oldm->name() + "_slice" + std::to_string(start));
         sm->set_bypass();
-        auto outs = sm->fuse(
-            *oldm, inputs, nullptr, reduce_reshape::transform_op([&](const operation& sop) {
-                if(not contains({"multibroadcast", "broadcast"}, sop.name()))
-                    return sop;
-                auto sv       = sop.to_value();
-                auto out_lens = sv.at("out_lens").to_vector<std::size_t>();
-                if(raxis < out_lens.size() and out_lens[raxis] == rlens[raxis])
-                    out_lens[raxis] = new_len;
-                sv["out_lens"] = out_lens;
-                return make_op(sop.name(), sv);
-            }));
+        auto outs =
+            sm->fuse(*oldm,
+                     inputs,
+                     nullptr,
+                     reduce_reshape::transform_op([&, &raxis = raxis](const operation& sop) {
+                         if(not contains({"multibroadcast", "broadcast"}, sop.name()))
+                             return sop;
+                         auto sv       = sop.to_value();
+                         auto out_lens = sv.at("out_lens").to_vector<std::size_t>();
+                         if(raxis < out_lens.size() and out_lens[raxis] == rlens[raxis])
+                             out_lens[raxis] = new_len;
+                         sv["out_lens"] = out_lens;
+                         return make_op(sop.name(), sv);
+                     }));
         sm->add_return(outs);
         auto new_reduce = m.insert_instruction(slice, reduce->get_operator(), inputs, {sm});
         auto y          = std::accumulate(
@@ -804,6 +907,153 @@ struct find_reduce_slice
             });
         assert(y->get_shape().lens() == slice->get_shape().lens());
         m.replace_instruction(slice, y);
+    }
+};
+
+/// Fuse a gather along a non-reduced axis feeding a fused_reduce into the
+/// submodule, so the kernel reads the gathered rows of the data in place
+/// instead of copying them first, eg the weights of the selected experts of
+/// a MoE layer. The data takes the place of the gather in the chain of views
+/// to the reduce, with the gather axis at the data length, and the gather
+/// moves inside reading the data view and the indices.
+struct find_gather_reduce
+{
+    /// The views the gather can be moved through
+    static const std::unordered_set<std::string>& view_names()
+    {
+        static const std::unordered_set<std::string> names = {
+            "reshape", "squeeze", "unsqueeze", "flatten", "multibroadcast", "broadcast"};
+        return names;
+    }
+
+    auto matcher() const
+    {
+        auto gather = match::name("gather")(match::used_once(), match::nargs(2));
+        auto views  = match::name(view_names())(match::used_once());
+        return match::name("fused_reduce")(
+            any_input(match::skip(views)(gather), match::used_once()));
+    }
+
+    /// The gather at the end of the chain of views from the input, if the
+    /// input is a view of a gather of the shapes the kernel can read
+    static optional<instruction_ref> find_gather(instruction_ref input)
+    {
+        if(input->outputs().size() != 1)
+            return nullopt;
+        auto ins = input;
+        while(ins->name() != "gather")
+        {
+            if(ins->inputs().size() != 1 or ins->outputs().size() != 1)
+                return nullopt;
+            if(not contains(view_names(), ins->name()))
+                return nullopt;
+            ins = ins->inputs().front();
+        }
+        if(ins->outputs().size() != 1 or ins->inputs().size() != 2)
+            return nullopt;
+        const auto& ishape = ins->inputs().back()->get_shape();
+        // The kernel reads the indices as a vector, and the gather axis must
+        // keep more than one element so it survives the merging of the
+        // dimensions in the kernel
+        if(ishape.dynamic() or ishape.ndim() != 1 or ishape.elements() < 2)
+            return nullopt;
+        if(ins->inputs().front()->get_shape().dynamic())
+            return nullopt;
+        return ins;
+    }
+
+    /// Insert a gather of the data viewed like the input in place of the
+    /// input: the views are order preserving, so the data reshapes to the
+    /// input lens with the gather axis at the data length and broadcasts like
+    /// the input
+    static optional<instruction_ref> insert_gather_view(module& m,
+                                                        instruction_ref reduce,
+                                                        instruction_ref input,
+                                                        instruction_ref gather)
+    {
+        auto data    = gather->inputs().front();
+        auto indices = gather->inputs().back();
+        std::vector<operation> ops;
+        for(auto ins = input; ins != gather; ins = ins->inputs().front())
+            ops.push_back(ins->get_operator());
+        std::reverse(ops.begin(), ops.end());
+        auto desc = shape_transform_descriptor::create(gather->get_shape().lens(), ops);
+        if(desc.empty())
+            return nullopt;
+        auto gaxis    = tune_axis(data->get_shape().ndim(),
+                                  gather->get_operator().to_value().at("axis").to<int>(),
+                                  gather->name());
+        const auto& s = input->get_shape();
+        // The unit dims inserted by the views are attributed to the gather
+        // axis as well, which has more than one element
+        auto axes = desc.get_dst_axes_from_src(gaxis);
+        axes.erase(std::remove_if(
+                       axes.begin(), axes.end(), [&](auto axis) { return s.lens()[axis] == 1; }),
+                   axes.end());
+        if(axes.size() != 1)
+            return nullopt;
+        auto axis = axes.front();
+        // The gather axis must reach the reduce whole, not broadcast and not reduced
+        if(s.lens()[axis] != indices->get_shape().elements() or s.strides()[axis] == 0)
+            return nullopt;
+        auto reduce_axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        if(contains(reduce_axes, axis))
+            return nullopt;
+        auto data_len = data->get_shape().lens()[gaxis];
+        auto lens     = s.lens();
+        lens[axis]    = data_len;
+        auto blens    = broadcast_input_lens(s);
+        blens[axis]   = data_len;
+        if(elements(blens) != data->get_shape().elements())
+            return nullopt;
+        auto view = data;
+        if(blens != data->get_shape().lens())
+            view = m.insert_instruction(reduce, make_op("reshape", {{"dims", blens}}), data);
+        if(blens != lens)
+            view =
+                m.insert_instruction(reduce, make_op("multibroadcast", {{"out_lens", lens}}), view);
+        return m.insert_instruction(reduce, make_op("gather", {{"axis", axis}}), view, indices);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m     = mpm.get_module();
+        auto reduce = r.result;
+        // Every gathered input moves in at once so the submodule is rebuilt once
+        std::vector<instruction_ref> gathers;
+        std::vector<instruction_ref> inputs;
+        for(auto input : reduce->inputs())
+        {
+            auto gather = find_gather(input);
+            if(not gather.has_value())
+                continue;
+            auto gathered = insert_gather_view(m, reduce, input, *gather);
+            if(not gathered.has_value())
+                continue;
+            gathers.push_back(*gathered);
+            inputs.push_back(input);
+        }
+        if(gathers.empty())
+            return;
+
+        const auto* old_rm = reduce->module_inputs().front();
+        auto* rm           = mpm.create_module(old_rm->name() + ":gather");
+        rm->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        rm->fuse(gathers, &map_ins);
+        // The inputs read the fused gathers
+        std::transform(inputs.begin(),
+                       inputs.end(),
+                       gathers.begin(),
+                       std::inserter(map_ins, map_ins.end()),
+                       [&](instruction_ref input, instruction_ref gathered) {
+                           return std::make_pair(input, map_ins.at(gathered));
+                       });
+        rm->add_return(insert_module_in_submodule(rm, reduce, &map_ins));
+        finalize_reduce_module(rm);
+
+        auto new_inputs = find_inputs(map_ins, &m, rm);
+        m.replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
     }
 };
 
@@ -970,7 +1220,7 @@ struct find_unpack_broadcast_reduce
         if(not contains(reduce_axes, *axis))
             return nullopt;
         // An epilogue input at the output shape is unit along the axis
-        if(not all_of(reduce->inputs(), [&](instruction_ref input) {
+        if(not all_of(reduce_tensor_inputs(reduce), [&](instruction_ref input) {
                auto len = input->get_shape().lens()[*axis];
                return len == bshape.lens()[*axis] or len == 1;
            }))
@@ -1065,7 +1315,7 @@ struct find_unpack_broadcast_reduce
                 auto v = sop.to_value();
                 if(contains(sop.name(), "reduce"))
                     return make_op(sop.name(), {{"axes", axes}});
-                if(contains({"argmin", "argmax", "unpack_int4"}, sop.name()))
+                if(contains({"argmin", "argmax", "unpack_int4", "gather"}, sop.name()))
                 {
                     v["axis"] = remap_axis(op_axis(sop, broadcast->get_shape().ndim()));
                     return make_op(sop.name(), v);
@@ -1097,11 +1347,18 @@ struct find_unpack_broadcast_reduce
         // The split inputs in the reduce input order, the packed bytes in
         // place of the broadcast, then the nibble select
         std::vector<instruction_ref> inputs;
+        auto tensors = reduce_tensor_inputs(reduce);
         for(auto input : reduce->inputs())
         {
             if(input == broadcast)
             {
                 inputs.push_back(bytes);
+                continue;
+            }
+            // Gather indices are not reduce inputs, so they are not split
+            if(not contains(tensors, input))
+            {
+                inputs.push_back(input);
                 continue;
             }
             auto split = insert_split_axis(m, reduce, input, *axis);
@@ -1135,8 +1392,11 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
         return;
     create_reduce_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
-    for(int i = 0; i < 4; i++)
+    // Each fusion can expose the next one, so fuse until nothing changes
+    const int max_iterations = 8;
+    for(int i = 0; i < max_iterations; i++)
     {
+        auto before = to_string(mpm.get_module());
         if(enable_rewrite_reshapes)
             mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
         if(enable_rewrite_broadcasts)
@@ -1152,6 +1412,15 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
                             find_unpack_broadcast_reduce{},
                             find_reduce_slice{},
                             find_reduce_squeeze_pointwise{});
+        mpm.run_pass(dead_code_elimination{});
+        if(to_string(mpm.get_module()) == before)
+            break;
+    }
+    // The gathers move in last: a reduce reading gathered inputs cant be
+    // remapped by the reshape and broadcast rewrites the other fusions need
+    if(enable_gather)
+    {
+        match::find_matches(mpm, find_gather_reduce{});
         mpm.run_pass(dead_code_elimination{});
     }
 }

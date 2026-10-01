@@ -183,9 +183,10 @@ void split_reduce::apply(module_pass_manager& mpm) const
         if(ins->name() != "fused_reduce")
             continue;
         auto* rm = ins->module_inputs().front();
-        // TODO: Support splitting reductions with packed inputs
-        if(std::any_of(
-               rm->begin(), rm->end(), [](const auto& i) { return i.name() == "unpack_int4"; }))
+        // TODO: Support splitting reductions with packed or gathered inputs
+        if(std::any_of(rm->begin(), rm->end(), [](const auto& i) {
+               return contains({"unpack_int4", "gather"}, i.name());
+           }))
             continue;
         if(get_reduce_size(rm) < split_size)
             continue;

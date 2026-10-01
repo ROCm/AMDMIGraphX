@@ -31,6 +31,9 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/builtin.hpp>
+#include <migraphx/ranges.hpp>
+#include <unordered_map>
 #include <migraphx/instruction.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/bit.hpp>
@@ -531,6 +534,7 @@ static const char* const fused_reduce_kernel = R"__migraphx__(
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/vectorize.hpp>
 #include <migraphx/kernels/unpack_int4.hpp>
+#include <migraphx/kernels/gather_view.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -555,17 +559,96 @@ namespace {
 
 bool is_unpack(instruction_ref ins) { return ins->name() == "unpack_int4"; }
 
-/// The submodule parameters read by an unpack_int4 (two int4 values per
-/// byte) as {input index, unpack axis}
-value find_packed_args(const module& rm)
+bool is_gather(const instruction& ins) { return ins.name() == "gather"; }
+
+/// The parameters of the submodule in the order of the inputs
+std::vector<instruction_ref> sorted_params(const module& rm)
 {
-    value result = value::array{};
-    auto names   = rm.get_parameter_names();
+    auto names = rm.get_parameter_names();
     std::sort(names.begin(), names.end());
     std::vector<instruction_ref> params;
     std::transform(names.begin(), names.end(), std::back_inserter(params), [&](const auto& name) {
         return rm.get_parameter(name);
     });
+    return params;
+}
+
+std::size_t param_index(const std::vector<instruction_ref>& params, instruction_ref param)
+{
+    auto it = std::find(params.begin(), params.end(), param);
+    assert(it != params.end());
+    return it - params.begin();
+}
+
+std::size_t gather_axis(const instruction& gather)
+{
+    return tune_axis(gather.inputs().front()->get_shape().ndim(),
+                     gather.get_operator().to_value().at("axis").to<int>(),
+                     gather.name());
+}
+
+/// The gathers of parameters in the submodule as {data index, indices index,
+/// axis, data length along the axis}
+value find_gather_args(const module& rm)
+{
+    value result = value::array{};
+    auto params  = sorted_params(rm);
+    transform_if(rm.begin(),
+                 rm.end(),
+                 std::back_inserter(result),
+                 &is_gather,
+                 [&](const instruction& ins) -> value {
+                     auto data    = ins.inputs().front();
+                     auto indices = ins.inputs().back();
+                     auto axis    = gather_axis(ins);
+                     return {{"data", param_index(params, data)},
+                             {"indices", param_index(params, indices)},
+                             {"axis", axis},
+                             {"len", data->get_shape().lens()[axis]}};
+                 });
+    return result;
+}
+
+/// The shape of the data gathered along the axis by n indices: the axis
+/// counts the indices and the strides of the data are kept
+shape gathered_shape(const shape& data, std::size_t axis, std::size_t n)
+{
+    auto lens  = data.lens();
+    lens[axis] = n;
+    return {data.type(), lens, data.strides()};
+}
+
+/// The submodule with each gather of parameters erased, since the kernel
+/// passes the gathered view of the data in place of the data parameter: the
+/// data parameter takes the gathered shape and the indices parameter is
+/// left unused
+module erase_gathers(const module& rm)
+{
+    module result{rm.name()};
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    for(auto ins : iterator_for(rm))
+    {
+        if(not is_gather(*ins))
+            continue;
+        auto data    = ins->inputs().front();
+        auto indices = ins->inputs().back();
+        auto name    = any_cast<builtin::param>(data->get_operator()).parameter;
+        auto gathered =
+            gathered_shape(data->get_shape(), gather_axis(*ins), indices->get_shape().elements());
+        map_ins[data] = result.add_parameter(name, gathered);
+        map_ins[ins]  = map_ins[data];
+    }
+    result.add_return(result.add_instructions(&rm, &map_ins));
+    result.set_bypass(rm.bypass());
+    return result;
+}
+
+/// The submodule parameters read by an unpack_int4 (two int4 values per
+/// byte) as {input index, unpack axis}
+value find_packed_args(const module& rm)
+{
+    value result = value::array{};
+    auto params  = sorted_params(rm);
     auto is = range(params.size());
     transform_if(
         is.begin(),
@@ -651,7 +734,45 @@ struct fused_reduce_plan
     std::size_t topk = 0;
     // Packed input index to its unpack axis on the original input shape
     std::map<std::size_t, std::size_t> packed_args = {};
+    struct gather_arg
+    {
+        /// The input holding the indices
+        std::size_t indices = 0;
+        /// The gather axis on the normalized virtual shapes
+        std::size_t axis = 0;
+        /// The length of the data along the gather axis
+        std::size_t len = 0;
+    };
+    // Gathered input index to its gather
+    std::map<std::size_t, gather_arg> gather_args = {};
+    /// The input index of each virtual input: the gather indices are not
+    /// inputs of the reduction, so they have no virtual input
+    std::vector<std::size_t> arg_indices = {};
+
+    std::size_t virtual_index(std::size_t input) const
+    {
+        auto it = std::find(arg_indices.begin(), arg_indices.end(), input);
+        assert(it != arg_indices.end());
+        return it - arg_indices.begin();
+    }
+
+    bool is_gather_axis(std::size_t axis) const
+    {
+        return std::any_of(gather_args.begin(), gather_args.end(), [&](const auto& p) {
+            return p.second.axis == axis;
+        });
+    }
 };
+
+/// A shape to normalize along with the virtual inputs that tracks the gather
+/// axis: the only non-zero stride is on that axis, so it neither merges with
+/// its neighbours nor votes on the layout
+shape gather_axis_marker(const shape& s, std::size_t axis)
+{
+    std::vector<std::size_t> strides(s.ndim(), 0);
+    strides[axis] = 1;
+    return {s.type(), s.lens(), strides};
+}
 
 // Computes the virtual inputs, default reduction algorithm, vectorization, and vectorized
 // number of reduction elements. This is shared by both compilation and tuning so that the
@@ -672,17 +793,62 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
             plan.packed_args[index] = pa.at("axis").to<std::size_t>();
         }
     }
-    // Plan on the logical unpacked shapes so the packed inputs share the
-    // same dimensions as the other inputs
-    plan.virtual_inputs = plan.finputs;
-    for(const auto& [index, axis] : plan.packed_args)
-        plan.virtual_inputs[index] = unpack_shape(plan.virtual_inputs[index], axis);
+    std::set<std::size_t> index_args;
+    if(v.contains("gather_args"))
+    {
+        for(const auto& ga : v.at("gather_args"))
+        {
+            auto index = ga.at("data").to<std::size_t>();
+            assert(index < plan.finputs.size());
+            plan.gather_args[index] = {ga.at("indices").to<std::size_t>(),
+                                       ga.at("axis").to<std::size_t>(),
+                                       ga.at("len").to<std::size_t>()};
+            index_args.insert(plan.gather_args[index].indices);
+        }
+    }
+    // Plan on the logical shapes so every input shares the same dimensions:
+    // the packed inputs unpacked, the gathered inputs at the gathered shape,
+    // and the gather indices left out
+    auto is = range(plan.finputs.size());
+    std::copy_if(is.begin(), is.end(), std::back_inserter(plan.arg_indices), [&](std::size_t i) {
+        return not contains(index_args, i);
+    });
+    std::transform(plan.arg_indices.begin(),
+                   plan.arg_indices.end(),
+                   std::back_inserter(plan.virtual_inputs),
+                   [&](std::size_t i) {
+                       auto s   = plan.finputs[i];
+                       auto git = plan.gather_args.find(i);
+                       if(git != plan.gather_args.end())
+                           s = gathered_shape(
+                               s, git->second.axis, plan.finputs[git->second.indices].elements());
+                       auto pit = plan.packed_args.find(i);
+                       if(pit != plan.packed_args.end())
+                           s = unpack_shape(s, pit->second);
+                       return s;
+                   });
     auto input_shape = get_input_shape(plan.virtual_inputs);
     plan.virtual_inputs.push_back(get_reduced_shape(input_shape, axes));
     plan.virtual_inputs.push_back(get_output_shape(input_shape, axes));
+    for(const auto& [index, ga] : plan.gather_args)
+        plan.virtual_inputs.push_back(
+            gather_axis_marker(plan.virtual_inputs[plan.virtual_index(index)], ga.axis));
     plan.virtual_inputs = reduce_dims(normalize_permutation(plan.virtual_inputs));
+    // The markers were pushed in map order
+    for(auto it = plan.gather_args.rbegin(); it != plan.gather_args.rend(); ++it)
+    {
+        auto axis = find_unit_axis(plan.virtual_inputs.back());
+        plan.virtual_inputs.pop_back();
+        if(not axis.has_value())
+            MIGRAPHX_THROW("fused_reduce: gather axis was merged");
+        it->second.axis = *axis;
+    }
     if(plan.assign != "assign_none")
+    {
+        if(not plan.gather_args.empty())
+            MIGRAPHX_THROW("fused_reduce: gathered inputs cant be split");
         plan.virtual_inputs = split_reduce(plan.virtual_inputs);
+    }
     plan.reduce_output_shape = plan.virtual_inputs.back();
     plan.virtual_inputs.pop_back();
     plan.reduction_shape = plan.virtual_inputs.back();
@@ -693,7 +859,8 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     {
         // The vectorization axis must be the unpack axis so the packed
         // input lines up when read at half the vector size
-        auto uaxis = find_unit_axis(plan.virtual_inputs[plan.packed_args.begin()->first]);
+        auto uaxis = find_unit_axis(
+            plan.virtual_inputs[plan.virtual_index(plan.packed_args.begin()->first)]);
         if(not uaxis.has_value())
             MIGRAPHX_THROW("fused_reduce: unsupported packed input layout");
         faxis = *uaxis;
@@ -712,9 +879,9 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
         // A packed input holds two elements per byte, so it always needs a
         // vector of at least two; a full 16-byte load is 32 logical elements
         if(vectorizable)
-            plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {32, 16, 8, 4, 2});
+            plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {32, 16, 8, 4, 2}, true);
         if(plan.vec.size < 2)
-            plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {2});
+            plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {2}, true);
         if(plan.vec.size < 2)
             MIGRAPHX_THROW("fused_reduce: packed inputs require vectorization");
     }
@@ -728,7 +895,7 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
             plan.vec =
                 topk_vectorize(ctx, faxis, plan.virtual_inputs, plan.reduction_shape.lens()[faxis]);
         else
-            plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {8, 4, 2});
+            plan.vec = vectorize::elements(faxis, plan.virtual_inputs, {8, 4, 2}, true);
     }
     plan.relements = plan.reduction_shape.elements() / plan.vec.size;
     return plan;
@@ -844,23 +1011,47 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto nelements = plan.reduce_output_shape.elements();
 
         hip_compile_options options;
-        options.inputs         = plan.finputs;
-        options.output         = inputs.back();
-        options.virtual_inputs = plan.virtual_inputs;
+        options.inputs = plan.finputs;
+        options.output = inputs.back();
+        // The gather indices keep their shape, the reduce inputs are emitted
+        // at their normalized shape
+        options.virtual_inputs = plan.finputs;
+        for(auto i : range(plan.virtual_inputs.size()))
+            options.virtual_inputs[plan.arg_indices[i]] = plan.virtual_inputs[i];
+        std::vector<std::string> transformers;
+        // The gathered inputs are emitted at the data length along the gather
+        // axis and the kernel reads them through the view gathered by the
+        // indices input
+        for(const auto& [index, ga] : plan.gather_args)
+        {
+            const auto& s                 = options.virtual_inputs[index];
+            auto lens                     = s.lens();
+            lens[ga.axis]                 = ga.len;
+            options.virtual_inputs[index] = shape{s.type(), lens, s.strides()};
+            transformers.push_back("gather_arg<" + std::to_string(ga.axis) + ", " +
+                                   std::to_string(index) + ", " + std::to_string(ga.indices) +
+                                   ">()");
+        }
         // Emit the packed inputs at their packed shape with a packed element
         // type so the vectorizer reads them at half the vector size
         for(const auto& pa : plan.packed_args)
         {
             auto index = pa.first;
-            auto uaxis = find_unit_axis(plan.virtual_inputs[index]);
+            auto uaxis = find_unit_axis(plan.virtual_inputs[plan.virtual_index(index)]);
             if(not uaxis.has_value() or *uaxis != plan.vec.axis)
                 MIGRAPHX_THROW("fused_reduce: unsupported packed input layout");
-            options.virtual_inputs[index] = pack_shape(plan.virtual_inputs[index], *uaxis);
+            options.virtual_inputs[index] = pack_shape(options.virtual_inputs[index], *uaxis);
             assert(contains({shape::int8_type, shape::uint8_type}, plan.finputs[index].type()));
             options.type_overrides[index] = plan.finputs[index].type() == shape::int8_type
                                                 ? "migraphx::int4x2_t"
                                                 : "migraphx::uint4x2_t";
         }
+        transformers.push_back(plan.vec.str());
+        // A tile along the gather axis would read adjacent data rows instead
+        // of the gathered ones, so a cached solution tiling it falls back
+        if(contains({"block_tile", "block_batch"}, algo) and
+           plan.is_gather_axis(v.at("tile_axis").to<std::size_t>()))
+            algo = "block";
         if(contains({"block", "block_tile", "block_batch"}, algo))
         {
             auto n_per_block = v.get("n_per_block", std::size_t{1});
@@ -929,7 +1120,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                                 {"algo", algo},
                                 {"reduced", reduced},
                                 {"lambda", v.at("lambda").to<std::string>()},
-                                {"transformers", make_transformer_args(plan.vec)},
+                                {"transformers", make_transformer_args(transformers)},
                                 {"noutputs", std::to_string(noutputs)},
                                 {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
@@ -945,17 +1136,22 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             v.insert(x);
         auto* rm         = ins->module_inputs().front();
         auto shapes      = to_shapes(ins->inputs());
-        auto packed_args = find_packed_args(*rm);
+        auto gather_args = find_gather_args(*rm);
+        if(not gather_args.empty())
+            v["gather_args"] = gather_args;
+        // The kernel reads the gathered inputs as plain inputs
+        auto erased      = erase_gathers(*rm);
+        auto packed_args = find_packed_args(erased);
         if(not packed_args.empty())
             v["packed_args"] = packed_args;
         // A cached solution can be for a different module with the same
         // shapes, so recheck that the module supports the batched algorithm
-        if(v.get("algo", std::string{}) == "block_batch" and not can_batch_reduce(*rm))
+        if(v.get("algo", std::string{}) == "block_batch" and not can_batch_reduce(erased))
             v["algo"] = "block_tile";
-        auto topk = find_topk(*rm);
+        auto topk = find_topk(erased);
         if(topk.has_value())
             v["topk"] = *topk;
-        v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
+        v["preamble"] = generate_reduce(erased, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
         return compile_op(ctx, shapes, v);
@@ -1146,10 +1342,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(not contains({"fused_reduce", "split_fused_reduce"}, op.name()))
             return nullopt;
         assert(not ins->module_inputs().empty());
-        const auto& rm = *ins->module_inputs().front();
-        auto shapes    = to_shapes(ins->inputs());
-        auto v         = op.to_value();
-        auto topk      = find_topk(rm);
+        auto shapes      = to_shapes(ins->inputs());
+        auto v           = op.to_value();
+        auto gather_args = find_gather_args(*ins->module_inputs().front());
+        if(not gather_args.empty())
+            v["gather_args"] = gather_args;
+        auto rm   = erase_gathers(*ins->module_inputs().front());
+        auto topk = find_topk(rm);
         if(topk.has_value())
             v["topk"] = *topk;
         auto packed_args = find_packed_args(rm);
@@ -1167,6 +1366,10 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                                              ts.plan.reduce_output_shape,
                                              ts.plan.reduction_shape.lens(),
                                              ts.plan.relements);
+        // Tiling the gather axis would read adjacent data rows instead of
+        // the gathered ones
+        if(ts.tile.has_value() and ts.plan.is_gather_axis(ts.tile->axis))
+            ts.tile = nullopt;
         ts.batchable  = ts.tile.has_value() and ts.noutputs == 1 and can_batch_reduce(rm);
         ts.tc.problem = to_value(shapes);
         if(ts.plan.topk > 0)

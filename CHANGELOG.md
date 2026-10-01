@@ -13,6 +13,7 @@ Full documentation for MIGraphX is available at
 ### Resolved issues
 
 * Fixed mixed `uint8` and `int8` quantization (#5075).
+* Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors.
 
 ### Optimized
 

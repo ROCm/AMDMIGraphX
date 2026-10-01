@@ -241,11 +241,15 @@ static void set_compile_mode(compile_options& options, int8_t value)
 
 static void set_program_verify_compiled_model(verify::program_options& options, const char* value)
 {
+    if(value == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Compiled model path cannot be null");
     options.compiled_model = value;
 }
 
 static void set_program_verify_name(verify::program_options& options, const char* value)
 {
+    if(value == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Verification name cannot be null");
     options.name = value;
 }
 

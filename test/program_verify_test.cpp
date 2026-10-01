@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/load_save.hpp>
+#include <migraphx/logger.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program_verify.hpp>
 #include <migraphx/register_target.hpp>
@@ -73,8 +74,10 @@ TEST_CASE(verify_program_output_mismatch)
         {"x", migraphx::literal{s, {-2.0f, -1.0f, 1.0f, 2.0f}}.get_argument()}};
     migraphx::verify::program_options options;
     options.compiled_model = path;
-    auto result            = migraphx::verify::verify_program(
+    migraphx::log::set_severity(migraphx::log::severity::none);
+    auto result = migraphx::verify::verify_program(
         p, ref, migraphx::verify::program_mode::outputs, inputs, options);
+    migraphx::log::set_severity(migraphx::log::severity::info);
     EXPECT(not result.passed());
     EXPECT(result.failures().size() == 1);
     EXPECT(result.results.front().rms_error > 0);
@@ -143,10 +146,12 @@ TEST_CASE(verify_program_reduce_exception)
 {
     migraphx::shape s{migraphx::shape::float_type, {1}};
     migraphx::parameter_map inputs{{"x", migraphx::literal{s, {-2.0f}}.get_argument()}};
+    migraphx::log::set_severity(migraphx::log::severity::none);
     auto result = migraphx::verify::verify_program(make_program(),
                                                    migraphx::make_target("ref"),
                                                    migraphx::verify::program_mode::reduce,
                                                    inputs);
+    migraphx::log::set_severity(migraphx::log::severity::info);
     EXPECT(not result.passed());
     EXPECT(not result.results.empty());
     EXPECT(result.results.front().exception);

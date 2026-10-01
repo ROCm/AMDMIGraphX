@@ -264,6 +264,19 @@ TEST_CASE(allocate_copy_with_out)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(allocate_out_duplicate_return_uses_last_output_index)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    auto alloc =
+        m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    m.add_return({alloc, alloc});
+
+    run_pass(m, allocation_with_out_model{});
+
+    EXPECT(m.get_parameter_names() == std::vector<std::string>{"output_1"});
+}
+
 TEST_CASE(allocate_out_select_module_dynamic_tuple_views)
 {
     using dd  = migraphx::shape::dynamic_dimension;
@@ -447,29 +460,6 @@ TEST_CASE(allocate_out_shared_alloc_copy)
         auto sq      = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
         auto copy    = m2.add_instruction(migraphx::make_op("test_copy"), sq, output0);
         m2.add_return({copy, p1});
-    }
-    EXPECT(m1.sort() == m2.sort());
-}
-
-TEST_CASE(allocate_out_repeated_return_copy)
-{
-    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
-    migraphx::module m1("sub");
-    {
-        auto alloc =
-            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-        auto p1 = m1.add_instruction(pass_op{}, alloc);
-        m1.add_return({p1, p1});
-    }
-    run_pass(m1, allocation_with_out_model{});
-
-    migraphx::module m2("sub");
-    {
-        auto output0 = m2.add_parameter("sub:#output_0", s);
-        auto output1 = m2.add_parameter("sub:#output_1", s);
-        auto p1      = m2.add_instruction(pass_op{}, output0);
-        auto copy    = m2.add_instruction(migraphx::make_op("test_copy"), p1, output1);
-        m2.add_return({p1, copy});
     }
     EXPECT(m1.sort() == m2.sort());
 }

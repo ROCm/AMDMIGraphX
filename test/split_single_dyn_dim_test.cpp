@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,12 +31,41 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/builtin.hpp>
-#include <migraphx/sym.hpp>
 #include <test.hpp>
 
 static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::split_single_dyn_dim{}, migraphx::dead_code_elimination{}});
+}
+
+TEST_CASE(symbolic_shape_is_ignored)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter(
+        "data",
+        migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n[1..4]", "4"}));
+    mm->add_return({input});
+    auto expected = p;
+
+    run_pass(p);
+
+    EXPECT(p == expected);
+}
+
+TEST_CASE(incompatible_clone_output_is_ignored)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {{1, 3}, {3, 3}}});
+    auto output = mm->add_instruction(migraphx::make_op("fixed_pad", {{"value", -2.0f}}), input);
+    mm->add_return({output});
+    auto expected = p;
+
+    run_pass(p);
+
+    EXPECT(p == expected);
 }
 
 TEST_CASE(dynamic_batch)
@@ -247,41 +276,6 @@ TEST_CASE(empty_param_shapes)
     run_pass(p0);
     EXPECT(p0 == p1);
 };
-
-// symbolic dimensions are left for split_sym_dim
-TEST_CASE(symbolic_param_skipped)
-{
-    migraphx::program p0;
-    {
-        auto* mm0 = p0.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type,
-                          {migraphx::shape::dynamic_dimension{migraphx::sym::var("n", {1, 4})},
-                           migraphx::shape::dynamic_dimension{migraphx::sym::lit(4)}}};
-        auto input0   = mm0->add_parameter("data", s);
-        auto relu_ins = mm0->add_instruction(migraphx::make_op("relu"), input0);
-        mm0->add_return({relu_ins});
-    }
-    migraphx::program p1 = p0;
-    run_pass(p0);
-    EXPECT(p0 == p1);
-}
-
-// fixed_pad depends on the dynamic range, so the module is not split
-TEST_CASE(fixed_pad_skipped)
-{
-    migraphx::program p0;
-    {
-        auto* mm0 = p0.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {3, 3}}};
-        auto input0 = mm0->add_parameter("x", s);
-        auto pad_ins =
-            mm0->add_instruction(migraphx::make_op("fixed_pad", {{"value", -2.0f}}), input0);
-        mm0->add_return({pad_ins});
-    }
-    migraphx::program p1 = p0;
-    run_pass(p0);
-    EXPECT(p0 == p1);
-}
 
 // code coverage, does nothing
 TEST_CASE(multiple_non_fixed_dd_in_a_param)

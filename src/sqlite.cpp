@@ -25,7 +25,6 @@
 #include <migraphx/sqlite.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/errors.hpp>
-#include <migraphx/ranges.hpp>
 #include <sqlite3.h>
 #include <algorithm>
 #include <cassert>
@@ -144,6 +143,7 @@ std::vector<std::unordered_map<std::string, std::string>> sqlite::execute(const 
 
 sqlite_stmt sqlite::prepare(const std::string& sql)
 {
+    assert(impl != nullptr);
     sqlite3_stmt* stmt_tmp = nullptr;
     int rc                 = sqlite3_prepare_v2(impl->get(), sql.c_str(), -1, &stmt_tmp, nullptr);
     sqlite_stmt result;
@@ -159,9 +159,17 @@ sqlite_stmt sqlite::prepare(const std::string& sql)
     return result;
 }
 
-void sqlite::set_busy_timeout(int ms) { sqlite3_busy_timeout(impl->get(), ms); }
+void sqlite::set_busy_timeout(int ms)
+{
+    assert(impl != nullptr);
+    sqlite3_busy_timeout(impl->get(), ms);
+}
 
-bool sqlite::read_only() const { return sqlite3_db_readonly(impl->get(), "main") == 1; }
+bool sqlite::read_only() const
+{
+    assert(impl != nullptr);
+    return sqlite3_db_readonly(impl->get(), "main") == 1;
+}
 
 void sqlite_stmt::bind(int i, std::string_view s) const
 {
@@ -222,8 +230,10 @@ void sqlite_stmt::reset() const noexcept
 /// Column i of the current row, keyed by its name.
 static value column_value(sqlite3_stmt* stmt, int i)
 {
-    std::string name = sqlite3_column_name(stmt, i);
-    auto type        = sqlite3_column_type(stmt, i);
+    // Null only when sqlite runs out of memory, which would make the string below undefined.
+    const char* name = sqlite3_column_name(stmt, i);
+    assert(name != nullptr);
+    auto type = sqlite3_column_type(stmt, i);
     switch(type)
     {
     case SQLITE_INTEGER: return value::pair(name, std::int64_t{sqlite3_column_int64(stmt, i)});
@@ -249,8 +259,9 @@ value sqlite_stmt::to_value() const
 {
     auto* stmt    = impl->get();
     value columns = value::object{};
-    for(auto i : range(sqlite3_column_count(stmt)))
-        columns.insert(column_value(stmt, static_cast<int>(i)));
+    const int n   = sqlite3_column_count(stmt);
+    for(int i = 0; i < n; ++i)
+        columns.insert(column_value(stmt, i));
     return columns;
 }
 

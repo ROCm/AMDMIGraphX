@@ -40,15 +40,19 @@ namespace gpu {
 static_assert(std::is_constructible<binary_cache_backend, file_binary_cache>{},
               "file_binary_cache must satisfy the binary_cache_backend concept");
 
-/// Where an entry lives. The key is the whole compile source, so it is hashed to keep the name
-/// short. The caller guarantees a non-empty version, so entries compiled by different toolchains
-/// can never land on the same path.
-static fs::path entry_path(const fs::path& root,
-                           const std::string& version,
-                           const std::string& device,
-                           const std::string& key)
+/// The directory holding one device's entries for one toolchain. The caller guarantees a
+/// non-empty version, so entries compiled by different toolchains can never land in the same one.
+static fs::path
+entry_dir(const fs::path& root, const std::string& version, const std::string& device)
 {
-    return root / version / device / (md5(key) + ".mxr");
+    return root / version / device;
+}
+
+/// Where an entry lives in its directory. The key is the whole compile source, so it is hashed to
+/// keep the name short.
+static fs::path entry_path(const fs::path& dir, const std::string& key)
+{
+    return dir / (md5(key) + ".mxr");
 }
 
 /// Publish by rename so a reader never sees a half-written file. The temporary stays beside
@@ -76,7 +80,7 @@ optional<binary_cache_entry> file_binary_cache::load(const std::string& version,
                                                      const std::string& device,
                                                      const std::string& key) const
 {
-    auto path = entry_path(root, version, device, key);
+    auto path = entry_path(entry_dir(root, version, device), key);
     binary_cache_entry e;
     try
     {
@@ -104,14 +108,13 @@ void file_binary_cache::store(const std::string& version,
                               const std::string& device,
                               const std::vector<binary_cache_entry>& entries) const
 {
+    // Every entry shares one directory, so it is created once for the whole batch.
+    auto dir = entry_dir(root, version, device);
+    fs::create_directories(dir);
+    // The content is decided entirely by the key, so a writer that loses the publish race
+    // replaces the file with the same bytes and no locking is needed.
     for(const auto& e : entries)
-    {
-        auto path = entry_path(root, version, device, e.key);
-        // The content is decided entirely by the key, so a writer that loses the publish race
-        // replaces the file with the same bytes and no locking is needed.
-        fs::create_directories(path.parent_path());
-        write_atomically(path, to_msgpack(migraphx::to_value(e)));
-    }
+        write_atomically(entry_path(dir, e.key), to_msgpack(migraphx::to_value(e)));
 }
 
 } // namespace gpu

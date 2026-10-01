@@ -48,7 +48,7 @@ constexpr int busy_timeout_ms = 5000;
 
 // The table name carries the schema version, so an incompatible change is a new table that old
 // binaries ignore rather than a migration. This is orthogonal to binary_cache_format, which
-// versions the entry payload and reaches the row through the version column.
+// versions how entries are serialized and reaches each row through the version column.
 //
 // Deliberately not WITHOUT ROWID, unlike the sibling table in sqlite_problem_cache: that clause
 // stores the payload inside the index B-tree, which suits short JSON but not a whole serialized
@@ -151,35 +151,37 @@ optional<binary_cache_entry> sqlite_binary_cache::load(const std::string& versio
                                                        const std::string& device,
                                                        const std::string& key) const
 {
+    auto key_hash = md5(key);
     try
     {
         // The primary key makes this at most one row.
-        auto rows = get_stmt(version, device, md5(key));
+        auto rows = get_stmt(version, device, key_hash);
         auto it   = rows.begin();
         if(it == rows.end())
             return nullopt;
         auto row = *it;
-        binary_cache_entry e;
-        e.key = row.at("key").get_string();
         // Rows are addressed by a hash of the key, so the full key is checked here to make a
         // collision a miss rather than a wrong kernel.
-        if(e.key != key)
+        if(row.at("key").get_string() != key)
         {
-            log::warn() << "Ignoring binary cache entry with mismatched key: " << md5(key);
+            log::warn() << "Ignoring binary cache entry with mismatched key: " << key_hash;
             return nullopt;
         }
+        binary_cache_entry e;
+        e.key            = key;
         e.op_name        = row.at("op_name").get_string();
         e.problem        = from_json_string(row.at("problem").get_string());
         e.solution       = from_json_string(row.at("solution").get_string());
         const auto& code = row.at("code").get_binary();
-        migraphx::from_value(from_msgpack(std::vector<char>(code.begin(), code.end())), e.code);
+        migraphx::from_value(from_msgpack(reinterpret_cast<const char*>(code.data()), code.size()),
+                             e.code);
         return e;
     }
     catch(const std::exception& ex)
     {
         // A cache that cannot be read, or a damaged row, is a miss, which costs a recompile and
         // nothing else.
-        log::warn() << "Ignoring unreadable binary cache entry " << md5(key) << ": " << ex.what();
+        log::warn() << "Ignoring unreadable binary cache entry " << key_hash << ": " << ex.what();
         return nullopt;
     }
 }
@@ -188,8 +190,9 @@ void sqlite_binary_cache::store(const std::string& version,
                                 const std::string& device,
                                 const std::vector<binary_cache_entry>& entries)
 {
-    // Not prepared for a read-only database, whose stores are skipped.
-    if(not store_stmt.valid() or entries.empty())
+    // Never prepared for a read-only database, and cleared after a failed store; either way
+    // stores are skipped.
+    if(not store_stmt.valid())
         return;
     try
     {

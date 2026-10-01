@@ -70,8 +70,9 @@ namespace gpu {
 /// Entries are addressed by their key, scoped by two strings the caller has
 /// already computed:
 ///
-///   * `version` -- binary_cache::version_id(), identifying the toolchain and
-///     the embedded kernel sources that produced the entry. Never empty; the
+///   * `version` -- binary_cache::version_id(), short for the directory
+///     backend and full for the database, identifying the toolchain and the
+///     embedded kernel sources that produced the entry. Never empty; the
 ///     caller skips persistence entirely when it is.
 ///   * `device`  -- the GPU the entry was compiled for.
 ///

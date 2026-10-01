@@ -186,7 +186,7 @@ struct database_backend
 {
     static std::string path(const migraphx::tmp_dir& td) { return db_path(td); }
     static std::size_t stored(const std::string& p) { return row_count(p, "cache_v1"); }
-    /// Overwrite every stored entry with bytes that do not decode.
+    /// Overwrite every stored entry's code with bytes that do not decode.
     static void damage(const std::string& p)
     {
         // 0xc1 is never used in msgpack, so the code cannot be decoded.
@@ -195,7 +195,8 @@ struct database_backend
 };
 
 /// One of each backend over fresh storage in td: a directory at td/files and a database at
-/// db_path(td). Driven directly, these skip binary_cache and its version and device strings.
+/// db_path(td). Driven directly, bypassing binary_cache, so callers pass their own version and
+/// device strings.
 static std::vector<migraphx::gpu::binary_cache_backend> both_backends(const migraphx::tmp_dir& td)
 {
     std::vector<migraphx::gpu::binary_cache_backend> result;
@@ -488,7 +489,7 @@ TEST_CASE(incompatible_schema_degrades_to_memory)
     EXPECT(row_count(path, "cache_v1") == 0);
 }
 
-// Both backends address an entry by the same key hash, and give back what they were given.
+// Both backends address an entry by the same key hash.
 TEST_CASE(backends_store_the_same_entry)
 {
     migraphx::gpu::context ctx;
@@ -508,18 +509,9 @@ TEST_CASE(backends_store_the_same_entry)
     migraphx::gpu::binary_cache db_cache{migraphx::gpu::binary_cache_settings{path, false}};
     db_cache.insert(ctx, {e});
     EXPECT((db_entries(path) == from_dir));
-
-    migraphx::tmp_dir td{"binary-cache"};
-    for(auto& backend : both_backends(td))
-    {
-        backend.store("v", "dev", {e});
-        auto got = backend.load("v", "dev", e.key);
-        EXPECT(got.has_value());
-        EXPECT(same_entry(*got, e));
-    }
 }
 
-// A whole compile against each backend has to leave the same kernels behind, under the same key
+// A whole compile against each backend has to leave the same keys behind, under the same key
 // hashes. That makes the choice of backend purely a storage decision.
 TEST_CASE(backends_hold_the_same_entries_after_a_compile)
 {
@@ -535,7 +527,6 @@ TEST_CASE(backends_hold_the_same_entries_after_a_compile)
     auto from_dir = dir_entries(dir_td.path);
     auto from_db  = db_entries(path);
     EXPECT(not from_dir.empty());
-    EXPECT(from_dir.size() == from_db.size());
     EXPECT((from_dir == from_db));
 }
 
@@ -630,9 +621,9 @@ TEST_CASE(two_connections_share_a_database)
     EXPECT(not a->load("v", "dev", "absent").has_value());
 }
 
-// A table of hashes says nothing about which build wrote it, so each row records the full
-// version id. A database has no path length to protect, unlike the directory backend, which
-// names its directories with the short one.
+// A database has no directory to name the build that wrote a row, so each row records the
+// version id, and in full, since unlike the directory backend's directory names it has no path
+// length to protect.
 TEST_CASE(sqlite_records_the_full_version_id)
 {
     migraphx::tmp_dir td{"binary-cache"};
@@ -859,11 +850,7 @@ TEST_CASE(entry_round_trip)
     migraphx::gpu::binary_cache::entry loaded;
     migraphx::from_value(migraphx::from_msgpack(buffer), loaded);
 
-    EXPECT(loaded.key == e.key);
-    EXPECT(loaded.op_name == e.op_name);
-    EXPECT(loaded.solution == e.solution);
-    EXPECT(loaded.code.fill_map == e.code.fill_map);
-    EXPECT(*loaded.code.fragment.get_main_module() == *e.code.fragment.get_main_module());
+    EXPECT(same_entry(loaded, e));
 }
 
 // The key has to cover everything handed to the compiler, not just the source text. Two

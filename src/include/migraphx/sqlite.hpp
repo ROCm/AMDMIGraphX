@@ -46,8 +46,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct sqlite_impl;
 struct sqlite_stmt_impl;
 
-/// A prepared statement, holding a reference to the connection it was prepared on so it can
-/// never outlive it. Copies share the same statement.
+/// A prepared statement. It shares ownership of the connection it was prepared on, which stays
+/// open for as long as the statement exists. Copies share the same statement.
 ///
 /// Calling it with arguments runs it: the arguments are bound to the parameters in order and the
 /// result comes back as a range of rows. Since copies share one statement, only the rows of one

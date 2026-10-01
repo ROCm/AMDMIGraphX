@@ -252,7 +252,12 @@ static compiler_replace compile_cached(context& ctx,
     }
     auto cr = compile_fragment(ctx, ins, preop, solution);
     if(auto e = make_cache_entry(preop, solution, key, problem, cr.code))
-        ctx.get_binary_cache().insert(ctx, {std::move(*e)});
+    {
+        // Built by push_back, since an initializer list would copy the entry rather than move it.
+        std::vector<binary_cache::entry> es;
+        es.push_back(std::move(*e));
+        ctx.get_binary_cache().insert(ctx, std::move(es));
+    }
     return cr;
 }
 
@@ -796,12 +801,13 @@ struct compile_manager
         assert(std::all_of(
             tasks.begin(), tasks.end(), [&](const auto& task) { return task.first->ctx == ctx; }));
         std::vector<binary_cache::entry> entries;
+        entries.reserve(tasks.size());
         for(const auto& [cp, cell] : tasks)
         {
             if(not cell->result.has_value())
                 continue;
-            // When verifying, reused results are stored again, rewriting the same bytes
-            // harmlessly.
+            // When verifying, reused results are stored again, harmlessly replacing each entry
+            // with an equivalent one.
             if(auto e = cp->cache_entry(cell->solution, cell->key, cell->result->code))
                 entries.push_back(std::move(*e));
             assert(not cell->result->code.empty());

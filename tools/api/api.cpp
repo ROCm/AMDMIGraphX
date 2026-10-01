@@ -28,6 +28,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/program_verify.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
@@ -132,6 +133,44 @@ static migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 
+static verify::program_mode to_program_verify_mode(migraphx_program_verify_mode_t mode)
+{
+    switch(mode)
+    {
+    case migraphx_program_verify_mode_outputs: return verify::program_mode::outputs;
+    case migraphx_program_verify_mode_instructions: return verify::program_mode::instructions;
+    case migraphx_program_verify_mode_reduce: return verify::program_mode::reduce;
+    case migraphx_program_verify_mode_bisect: return verify::program_mode::bisect;
+    case migraphx_program_verify_mode_layerwise: return verify::program_mode::layerwise;
+    }
+    MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown program verification mode");
+}
+
+static migraphx_program_verify_mode_t to_program_verify_mode(verify::program_mode mode)
+{
+    switch(mode)
+    {
+    case verify::program_mode::outputs: return migraphx_program_verify_mode_outputs;
+    case verify::program_mode::instructions: return migraphx_program_verify_mode_instructions;
+    case verify::program_mode::reduce: return migraphx_program_verify_mode_reduce;
+    case verify::program_mode::bisect: return migraphx_program_verify_mode_bisect;
+    case verify::program_mode::layerwise: return migraphx_program_verify_mode_layerwise;
+    }
+    MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown program verification mode");
+}
+
+static verify::program_precision
+to_program_verify_precision(migraphx_program_verify_precision_t precision)
+{
+    switch(precision)
+    {
+    case migraphx_program_verify_precision_fp32: return verify::program_precision::fp32;
+    case migraphx_program_verify_precision_fp16: return verify::program_precision::fp16;
+    case migraphx_program_verify_precision_bf16: return verify::program_precision::bf16;
+    }
+    MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown program verification precision");
+}
+
 template <class T>
 static auto to_obj_vector(const T* x, std::size_t n)
 {
@@ -198,6 +237,16 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
 static void set_compile_mode(compile_options& options, int8_t value)
 {
     options.compile_mode = convert_to_compile_mode(value);
+}
+
+static void set_program_verify_compiled_model(verify::program_options& options, const char* value)
+{
+    options.compiled_model = value;
+}
+
+static void set_program_verify_name(verify::program_options& options, const char* value)
+{
+    options.name = value;
 }
 
 // Parse the backend options from `options_json` and merge them into the

@@ -245,19 +245,6 @@ struct verify_callback
             return ref_arg;
         };
     }
-
-    // Returns the layers that didn't meet tolerance.
-    std::vector<layer_result> failures() const
-    {
-        std::vector<layer_result> result;
-        transform_if(
-            results.begin(),
-            results.end(),
-            std::back_inserter(result),
-            [](const auto& r) { return not r.second.passed; },
-            [](const auto& r) { return r.second; });
-        return result;
-    }
 };
 
 program label_instructions(program p)
@@ -285,7 +272,8 @@ parameter_map make_instruction_inputs(const program& p)
 program_result verify_outputs(const program& p,
                               const target& t,
                               const parameter_map& inputs,
-                              const program_options& options)
+                              const program_options& options,
+                              const std::string& name)
 {
     auto ref_outs    = run_ref(p, options.compile, options.ref_use_double, inputs);
     auto target_outs = run_target(p, t, options, inputs);
@@ -295,11 +283,10 @@ program_result verify_outputs(const program& p,
     {
         auto message = "Output count mismatch {" + std::to_string(ref_outs.size()) + "} != {" +
                        std::to_string(target_outs.size()) + "}";
-        log::error() << "FAILED: " << options.name;
+        log::error() << "FAILED: " << name;
         log::error() << message;
         result.success = false;
-        result.results.push_back(
-            {.name = options.name, .op = "@return", .message = std::move(message)});
+        result.results.push_back({.name = name, .op = "@return", .message = std::move(message)});
         return result;
     }
 
@@ -307,21 +294,18 @@ program_result verify_outputs(const program& p,
     bool passed            = true;
     for(std::size_t i = 0; i < output_num; ++i)
     {
-        layer_result layer{.name = options.name, .op = "@return", .index = i};
+        layer_result layer{.name = name, .op = "@return", .index = i};
         if(ref_outs[i].get_shape().type() != target_outs[i].get_shape().type() or
            ref_outs[i].get_shape().lens() != target_outs[i].get_shape().lens())
         {
-            log::error() << "FAILED: " << options.name;
+            log::error() << "FAILED: " << name;
             log::error() << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {"
                          << target_outs[i].get_shape() << "}";
         }
         else
         {
-            layer.passed = verify_args(options.name,
-                                       target_outs[i],
-                                       expected{ref_outs[i]},
-                                       options.tols,
-                                       &layer.rms_error);
+            layer.passed = verify_args(
+                name, target_outs[i], expected{ref_outs[i]}, options.tols, &layer.rms_error);
         }
         passed &= layer.passed;
         result.results.push_back(std::move(layer));
@@ -365,10 +349,8 @@ verify_instructions(const program& prog, const target& t, const program_options&
         {
             log::info() << "Verify: " << ins.name();
             std::cout << p << std::endl;
-            auto instruction_options = options;
-            instruction_options.name = ins.name();
             auto verification =
-                verify_outputs(p, t, make_instruction_inputs(p), instruction_options);
+                verify_outputs(p, t, make_instruction_inputs(p), options, ins.name());
             result.success = result.success and verification.success;
             result.results.insert(result.results.end(),
                                   std::make_move_iterator(verification.results.begin()),
@@ -383,8 +365,11 @@ verify_instructions(const program& prog, const target& t, const program_options&
     return result;
 }
 
-program_result verify_reduced(
-    program p, int n, const target& t, const program_options& options, const parameter_map& inputs)
+program_result verify_reduced(program p,
+                              std::size_t n,
+                              const target& t,
+                              const program_options& options,
+                              const parameter_map& inputs)
 {
     auto* mm  = p.get_main_module();
     auto last = std::prev(mm->end(), n);
@@ -393,9 +378,8 @@ program_result verify_reduced(
     log::info() << p;
     try
     {
-        auto reduced_options = options;
-        reduced_options.name = std::to_string(n);
-        auto result          = verify_outputs(p, t, inputs, reduced_options);
+        auto name   = std::to_string(n);
+        auto result = verify_outputs(p, t, inputs, options, name);
         for(auto& layer : result.results)
             layer.index = n;
         return result;
@@ -406,10 +390,8 @@ program_result verify_reduced(
         log::error() << "Exception: " << e.what();
         program_result result;
         result.success = false;
-        result.results.push_back({.name      = std::to_string(n),
-                                  .message   = e.what(),
-                                  .index     = static_cast<std::size_t>(n),
-                                  .exception = true});
+        result.results.push_back(
+            {.name = std::to_string(n), .message = e.what(), .index = n, .exception = true});
         return result;
     }
 }
@@ -501,14 +483,13 @@ program_result verify_bisected(const program& p,
     std::vector<std::size_t> trims = find_trim_instructions(*mm);
     std::int64_t right             = static_cast<std::int64_t>(trims.size()) - 1;
     std::int64_t left              = 0;
-    std::int64_t failed            = -1;
     program_result result;
 
     while(left <= right)
     {
         std::int64_t mid = left + (right - left) / 2;
         assert(mid < trims.size() and mid >= 0);
-        std::int64_t trim = trims.rbegin()[mid];
+        auto trim         = trims.rbegin()[mid];
         auto verification = verify_reduced(p, trim, t, options, inputs);
         result.results.insert(result.results.end(),
                               std::make_move_iterator(verification.results.begin()),
@@ -519,16 +500,15 @@ program_result verify_bisected(const program& p,
         }
         else
         {
-            failed = trim;
-            right  = mid - 1;
+            result.failure_step = trim;
+            right               = mid - 1;
         }
     }
-    if(failed > 0)
+    if(result.failure_step)
     {
-        std::cout << "Failure starts at: " << failed << std::endl;
-        result.failure_step = static_cast<std::size_t>(failed);
+        std::cout << "Failure starts at: " << *result.failure_step << std::endl;
     }
-    result.success = failed <= 0;
+    result.success = not result.failure_step.has_value();
     return result;
 }
 
@@ -556,8 +536,8 @@ program_result verify_layerwise(const program& p,
     std::transform(vcb.results.begin(),
                    vcb.results.end(),
                    std::back_inserter(result.results),
-                   [](auto&& item) { return item.second; });
-    auto failures = vcb.failures();
+                   [](auto& item) { return std::move(item.second); });
+    auto failures = result.failures();
     if(failures.empty())
     {
         log::info() << "MIGraphX verification passed successfully.";
@@ -597,12 +577,12 @@ program_result verify_program(const program& p,
     if(mode != program_mode::outputs and not options.compiled_model.empty())
         MIGRAPHX_THROW("Compiled models are only supported for output verification.");
     program_result result;
-    auto values = inputs;
+    parameter_map values;
     if(mode != program_mode::instructions)
         values = make_inputs(p, inputs);
     switch(mode)
     {
-    case program_mode::outputs: result = verify_outputs(p, t, values, options); break;
+    case program_mode::outputs: result = verify_outputs(p, t, values, options, options.name); break;
     case program_mode::instructions: result = verify_instructions(p, t, options); break;
     case program_mode::reduce: result = verify_reduced_program(p, t, options, values); break;
     case program_mode::bisect: result = verify_bisected(p, t, options, values); break;

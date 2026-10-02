@@ -1002,6 +1002,36 @@ TEST_CASE(split_sym_dim_exports_absorbed_static_result)
     EXPECT(static_caches == 3);
 }
 
+// The static weights reshape feeds the symbolic dot and is also returned, so the parent keeps it
+// and passes it into the block
+TEST_CASE(split_sym_dim_returns_static_input_of_block)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m      = *p.get_main_module();
+    auto data    = m.add_parameter("data", symbolic_shape({n, lit(4)}));
+    auto weights = m.add_parameter("weights", {migraphx::shape::float_type, {16}});
+    auto w       = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4}}}), weights);
+    auto y       = m.add_instruction(migraphx::make_op("dot"), data, w);
+    m.add_return({y, w});
+
+    run_pass(p);
+
+    std::size_t selects = 0;
+    for(auto&& ins : *p.get_main_module())
+    {
+        EXPECT(ins.name() != "dot");
+        if(ins.name() == "select_module")
+            ++selects;
+    }
+    EXPECT(selects == 1);
+    auto returns = p.get_main_module()->get_returns();
+    EXPECT(returns.size() == 2);
+    EXPECT(returns.front()->get_shape().symbolic());
+    EXPECT(returns.front()->get_shape().max_lens() == std::vector<std::size_t>{4, 4});
+    EXPECT(returns.back()->get_shape() == migraphx::shape{migraphx::shape::float_type, {4, 4}});
+}
+
 TEST_CASE(split_sym_dim_coalesces_across_unit_axis_symbolic_reshape)
 {
     auto n = var("n", {1, 4}, {2});

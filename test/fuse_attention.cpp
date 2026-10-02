@@ -2631,6 +2631,181 @@ TEST_CASE(kv_cache_attention_shared_total_sl_stacked_layers)
                          [](const auto& i) { return i.name() == "dot"; }) == 1);
 }
 
+// The query is offset by a value read from total_sl, so the path from total_sl to the output also
+// runs through the query. Those instructions are upstream of the QK gemm and stay outside the
+// group.
+TEST_CASE(kv_cache_attention_query_from_total_sl)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1}};
+    migraphx::shape s2{migraphx::shape::int32_type, {4}};
+    migraphx::shape s3{migraphx::shape::half_type, {4, 1}};
+    migraphx::shape s4{migraphx::shape::int32_type, {2, 1}};
+    migraphx::shape s5{migraphx::shape::half_type, {2, 2, 4, 2}};
+    migraphx::shape s6{migraphx::shape::half_type, {2, 1, 12}};
+
+    migraphx::program p;
+    {
+        auto* mm  = p.get_main_module();
+        auto half = mm->add_literal(migraphx::literal{s1, {0.5}});
+        auto ninf =
+            mm->add_literal(migraphx::literal{s1, {-std::numeric_limits<float>::infinity()}});
+        auto range     = mm->add_literal(migraphx::literal{s2, {1, 2, 3, 4}});
+        auto sin_cache = mm->add_parameter("sin_cache", s3);
+        auto cos_cache = mm->add_parameter("cos_cache", s3);
+        auto slk       = mm->add_parameter("slk", s4);
+        auto v         = mm->add_parameter("v", s5);
+        auto k         = mm->add_parameter("k", s5);
+        auto query     = mm->add_parameter("query", s6);
+
+        auto bc_range = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 4}}}), range);
+        auto bc_slk =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), slk);
+        auto grtr      = mm->add_instruction(migraphx::make_op("greater"), bc_range, bc_slk);
+        auto conv_grtr = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), grtr);
+        auto unsq_grtr = mm->add_instruction(
+            migraphx::make_op("unsqueeze", {{"axes", {1, 2}}, {"steps", {}}}), conv_grtr);
+        auto bc_grtr = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), unsq_grtr);
+        auto bc_ninf = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), ninf);
+        auto bc_half = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), half);
+
+        auto slc_sl = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), bc_slk);
+        auto cvt_sl = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), slc_sl);
+        auto rsp_sl =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 1}}}), cvt_sl);
+        auto bc_sl = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 12}}}), rsp_sl);
+        auto offset_q = mm->add_instruction(migraphx::make_op("max"), query, bc_sl);
+
+        auto rsp_q =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 6, 2}}}), offset_q);
+        auto tsp_q = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), rsp_q);
+        auto rope  = migraphx::op::builder::add("rotary_embedding",
+                                                *mm,
+                                                {tsp_q, slk, cos_cache, sin_cache},
+                                                {{"interleaved", false}})
+                         .at(0);
+        auto slc_k = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), rope);
+        auto slc_v = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), rope);
+        auto cpp_k = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, slk, k);
+        auto cpp_v = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_v, slk, v);
+        auto slc_q = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), rope);
+        auto tsp_k = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), cpp_k);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), slc_q, tsp_k);
+        auto scaled  = mm->add_instruction(migraphx::make_op("mul"), gemm1, bc_half);
+        auto mask    = mm->add_instruction(migraphx::make_op("where"), bc_grtr, bc_ninf, scaled);
+        auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mask);
+        auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), softmax, cpp_v);
+        auto tsp_out = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);
+        auto rsp_out =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 4}}}), tsp_out);
+        mm->add_return({rsp_out, cpp_k, cpp_v});
+    }
+    migraphx::run_passes(*p.get_main_module(),
+                         {migraphx::rewrite_reduce{}, migraphx::dead_code_elimination{}});
+    run_pass(p);
+
+    const auto* mm = p.get_main_module();
+    auto group =
+        std::find_if(mm->begin(), mm->end(), [](const auto& i) { return i.name() == "group"; });
+    EXPECT(group != mm->end());
+    EXPECT(group->get_operator().to_value()["tag"].to<std::string>() == "kv_cache_attention");
+    const auto* attn = group->module_inputs().front();
+    EXPECT(
+        std::none_of(attn->begin(), attn->end(), [](const auto& i) { return i.name() == "max"; }));
+    EXPECT(std::count_if(
+               attn->begin(), attn->end(), [](const auto& i) { return i.name() == "dot"; }) == 2);
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& i) { return i.name() == "max"; }));
+}
+
+// The attention is in a submodule and scales by a literal of the parent module, which the group
+// takes as its own literal
+TEST_CASE(gemm_parent_literal_softmax_gemm_in_submodule)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 2, 4, 4}};
+    migraphx::shape s_scale{migraphx::shape::half_type, {1}};
+
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto scale = mm->add_literal(migraphx::literal{s_scale, {0.5}});
+        auto a     = mm->add_parameter("1", s1);
+        auto b     = mm->add_parameter("2", s1);
+        auto b1    = mm->add_parameter("3", s1);
+        auto* sub  = p1.create_module("sub");
+        auto sa    = sub->add_parameter("x", s1);
+        auto sb    = sub->add_parameter("y", s1);
+        auto sb1   = sub->add_parameter("z", s1);
+        auto gemm1 = sub->add_instruction(migraphx::make_op("dot"), sa, sb);
+        auto bc    = sub->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), scale);
+        auto scaled = sub->add_instruction(migraphx::make_op("mul"), gemm1, bc);
+        auto rmax = sub->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scaled);
+        rmax = sub->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                    rmax);
+        auto diff = sub->add_instruction(migraphx::make_op("sub"), scaled, rmax);
+        auto exp  = sub->add_instruction(migraphx::make_op("exp"), diff);
+        auto rsum = sub->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = sub->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                    rsum);
+        auto div = sub->add_instruction(migraphx::make_op("div"), exp, rsum);
+        sub->add_return({sub->add_instruction(migraphx::make_op("dot"), div, sb1)});
+        mm->add_return({mm->add_instruction(mod_pass_op{}, {a, b, b1}, {sub})});
+    }
+    run_pass(p1, {.attn_enabled = true});
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto a    = mm->add_parameter("1", s1);
+        auto b    = mm->add_parameter("2", s1);
+        auto b1   = mm->add_parameter("3", s1);
+        auto* sub = p2.create_module("sub");
+        auto sa   = sub->add_parameter("x", s1);
+        auto sb   = sub->add_parameter("y", s1);
+        auto sb1  = sub->add_parameter("z", s1);
+        auto* gm  = p2.create_module("sub:attn0");
+        gm->set_bypass();
+        auto x0    = gm->add_parameter("x0", s1);
+        auto x1    = gm->add_parameter("x1", s1);
+        auto x2    = gm->add_parameter("x2", s1);
+        auto scale = gm->add_literal(migraphx::literal{s_scale, {0.5}});
+        auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), x0, x1);
+        auto bc    = gm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), scale);
+        auto scaled = gm->add_instruction(migraphx::make_op("mul"), gemm1, bc);
+        auto rmax   = gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scaled);
+        rmax = gm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rmax);
+        auto diff = gm->add_instruction(migraphx::make_op("sub"), scaled, rmax);
+        auto exp  = gm->add_instruction(migraphx::make_op("exp"), diff);
+        auto rsum = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = gm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rsum);
+        auto div = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        gm->add_return({gm->add_instruction(migraphx::make_op("dot"), div, x2)});
+        auto group = sub->add_instruction(
+            migraphx::make_op("group", {{"tag", "attention"}}), {sa, sb, sb1}, {gm});
+        sub->add_return({group});
+        mm->add_return({mm->add_instruction(mod_pass_op{}, {a, b, b1}, {sub})});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 // Verify that pointwise ops (add/mul from rotary embedding) that feed both
 // the attention Q path and the K cache path are NOT fused into the attention
 // group. Based on build/attn.py model structure.

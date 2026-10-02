@@ -792,4 +792,31 @@ TEST_CASE(channels_auto_counts_nonlazy_reshapes)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// A dynamic reshape cannot be checked for a view, so it is not scored, and the already
+// channels-last graph still selects channels_last
+TEST_CASE(channels_auto_skips_dynamic_reshapes)
+{
+    auto transpose = migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}});
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", {migraphx::shape::float_type, {1, 16, 16, 8}});
+        auto y          = m1.add_parameter("y", {migraphx::shape::float_type, {{1, 4}, {8, 8}}});
+        auto xtranspose = m1.add_instruction(transpose, x);
+        auto w          = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 3, 3, 8}}));
+        auto wtranspose = m1.add_instruction(transpose, w);
+        auto conv       = m1.add_instruction(
+            migraphx::make_op("convolution",
+                                    {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            xtranspose,
+            wtranspose);
+        auto relu    = m1.add_instruction(migraphx::make_op("relu"), conv);
+        auto reshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {0, 2, 4}}}), y);
+        m1.add_return({relu, reshape});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

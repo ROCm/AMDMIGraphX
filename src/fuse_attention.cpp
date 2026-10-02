@@ -1124,10 +1124,19 @@ struct find_kv_cache_attention
                     return false;
                 return i == start or i == end or is_valid_attn_op(i);
             });
-        inss = std::move(filtered);
         // The QK gemm is not on a start->end path and may also be used outside the group;
         // without it the group is softmax+V only, which rocMLIR cannot compile.
-        inss.insert(gemm1);
+        filtered.insert(gemm1);
+        // Filtering can strand an instruction whose path to end ran through a dropped one (such as
+        // a V slice feeding concat_past_present), so keep only what still feeds end.
+        inss = {end};
+        fix([&](auto self, instruction_ref ins) {
+            for(auto input : ins->inputs())
+            {
+                if(contains(filtered, input) and inss.insert(input).second)
+                    self(input);
+            }
+        })(end);
         // Expand by walking inputs of instructions already in the set.
         // An input is added when it is a valid attention op and all of
         // its outputs are already in the set. This pulls in constants,

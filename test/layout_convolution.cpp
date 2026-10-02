@@ -807,7 +807,7 @@ TEST_CASE(channels_auto_skips_dynamic_reshapes)
         auto wtranspose = m1.add_instruction(transpose, w);
         auto conv       = m1.add_instruction(
             migraphx::make_op("convolution",
-                                    {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             xtranspose,
             wtranspose);
         auto relu    = m1.add_instruction(migraphx::make_op("relu"), conv);

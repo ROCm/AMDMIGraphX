@@ -684,10 +684,14 @@ struct program_params
                 load_arg_names.insert(x.substr(1));
         std::set<std::string> unset;
         for(const auto& param : param_shapes)
-            if(shape::is_integral(param.second.type()) and not contains(param.first, "#output_") and
-               not contains(fill0, param.first) and not contains(fill1, param.first) and
-               not contains(load_arg_names, param.first))
+        {
+            // Output allocations are not user inputs, and a tuple has no single type to check.
+            if(contains(param.first, "#output_") or param.second.type() == shape::tuple_type)
+                continue;
+            if(shape::is_integral(param.second.type()) and not contains(fill0, param.first) and
+               not contains(fill1, param.first) and not contains(load_arg_names, param.first))
                 unset.insert(param.first);
+        }
         if(unset.empty())
             return;
         log::warn() << "Input(s) without explicit values: " << join_strings(std::move(unset), ", ")

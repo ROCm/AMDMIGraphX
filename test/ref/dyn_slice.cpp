@@ -418,3 +418,30 @@ TEST_CASE(dyn_slice_end_before_start_error_test)
 
     EXPECT(test::throws([&] { p.eval(params); }));
 }
+
+TEST_CASE(dyn_slice_identity_returns_input)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int32_type, {2, 3}};
+    std::vector<int> data(s.elements());
+    std::iota(data.begin(), data.end(), 0);
+    auto input = mm->add_parameter("x", s);
+    migraphx::shape bounds_shape{migraphx::shape::int64_type, {1}};
+    auto starts = mm->add_literal(migraphx::literal{bounds_shape, {0}});
+    auto ends   = mm->add_literal(migraphx::literal{bounds_shape, {3}});
+    mm->add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}),
+        input,
+        starts,
+        ends);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(s, data.data());
+    auto result = p.eval(params).back();
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector == data);
+    EXPECT(result.get_shape() == s);
+}

@@ -37,8 +37,11 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/iterator.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/get_tuple_elem.hpp>
+#include <migraphx/op/select_module.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
 #include <migraphx/pmr/unordered_map.hpp>
@@ -538,109 +541,261 @@ static bool is_compatible_shape(const shape& actual, const shape& expected)
 }
 #endif
 
-template <class F>
+static argument get_parameter_argument(const std::unordered_map<std::string, argument>& params,
+                                       const builtin::param& param)
+{
+    auto result = params.find(param.parameter);
+    if(result == params.end())
+        MIGRAPHX_THROW("Parameter not found: " + param.parameter);
+    return result->second;
+}
+
+template <class Params>
+static auto get_parameter_argument(const Params& params, const builtin::param& param)
+    -> decltype(params.get_parameter(param.order))
+{
+    return params.get_parameter(param.order);
+}
+
+template <class Params>
+static argument evaluate_parameter(instruction_ref ins, const Params& params)
+{
+    const auto& param_op = any_cast<builtin::param>(ins->get_operator());
+    auto result          = get_parameter_argument(params, param_op);
+    if(not ins->get_shape().any_of_dynamic() and result.get_shape() != ins->get_shape())
+        MIGRAPHX_THROW("Incorrect shape {" + to_string(result.get_shape()) + "} for parameter: " +
+                       param_op.parameter + " should be: " + to_string(ins->get_shape()));
+    return result;
+}
+
+static argument compute_leaf_instruction(instruction_ref ins, std::vector<context>& ctx)
+{
+    if(not ins->inputs().empty() or not ins->module_inputs().empty())
+        MIGRAPHX_THROW("Cannot lazily evaluate non-leaf foreign instruction: " + ins->name());
+    if(ins->name() == "@literal")
+        return ins->get_literal().get_argument();
+    auto oper = ins->normalized_operator();
+    if(oper.is_context_free())
+        return oper.compute(ins->get_shape(), {});
+    if(ins->get_target_id() >= ctx.size())
+        MIGRAPHX_THROW("No context available for " + oper.name());
+    return oper.compute(ctx[ins->get_target_id()], ins->get_shape(), {});
+}
+
+// A leaf that only submodules read, which the parent module skips so that a select_module
+// candidate that does not run never materializes the values it captures. It is computed when a
+// submodule first reads it and then kept, so every reader sees the same argument.
+static bool only_read_by_submodules(const module& m, instruction_ref ins)
+{
+    if(not ins->inputs().empty() or not ins->module_inputs().empty() or ins->outputs().empty())
+        return false;
+    if(ins->name() != "@literal" and starts_with(ins->name(), "@"))
+        return false;
+    return std::none_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref output) {
+        return m.has_instruction(output);
+    });
+}
+
+static const argument& get_input_argument(instruction_ref input,
+                                          std::vector<context>& ctx,
+                                          pmr::unordered_map<instruction_ref, argument>& results)
+{
+    auto result = results.find(input);
+    if(result != results.end())
+        return result->second;
+    return results.emplace(input, compute_leaf_instruction(input, ctx)).first->second;
+}
+
+struct instruction_argument_accessor
+{
+    const std::vector<instruction_ref>& inputs;
+    std::vector<context>& ctx;
+    pmr::unordered_map<instruction_ref, argument>& results;
+
+    const argument& operator()(std::size_t index) const
+    {
+        assert(index < inputs.size());
+        return get_input_argument(inputs[index], ctx, results);
+    }
+};
+
+template <class GetArgument, class Run>
+static argument evaluate_select_module(instruction_ref ins, GetArgument get_argument, Run run)
+{
+    const auto& select = any_cast<op::select_module>(ins->get_operator());
+    return select.compute_with_positional_parameters(
+        ins->inputs().size(), get_argument, ins->module_inputs(), run);
+}
+
+template <class Params, class F>
 static std::vector<argument> generic_eval(const module* mod,
                                           std::vector<context>& ctx,
-                                          const std::unordered_map<std::string, argument>& params,
+                                          const Params& params,
                                           pmr::unordered_map<instruction_ref, argument>& results,
-                                          F trace)
+                                          F trace,
+                                          bool lazy_leaves = false);
+
+// Evaluates one non-return instruction whose inputs are already in results (or are leaves of
+// another module) and stores its value in results.
+template <class Params, class F>
+static void evaluate_instruction([[maybe_unused]] const module* mod,
+                                 instruction_ref ins,
+                                 std::vector<context>& ctx,
+                                 const Params& params,
+                                 pmr::unordered_map<instruction_ref, argument>& results,
+                                 std::vector<argument>& values,
+                                 F trace)
+{
+    assert(mod->name() != "main" or results.find(ins) == results.end());
+#ifndef NDEBUG
+    results.emplace(ins, argument{});
+#endif
+    const auto& name = ins->name();
+    auto guard       = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
+    if(name == "@literal")
+    {
+        results.insert_or_assign(ins,
+                                 trace(ins, [&] { return ins->get_literal().get_argument(); }));
+    }
+    else if(name == "@param")
+    {
+        results.insert_or_assign(ins, trace(ins, [&] { return evaluate_parameter(ins, params); }));
+    }
+    else if(name == "@outline" or name == "@comment")
+    {
+        results.insert_or_assign(ins,
+                                 trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+    }
+    else if(name == "select_module")
+    {
+        auto positional_module_eval = [&](module_ref smod, const auto& inputs) {
+            return generic_eval(smod, ctx, inputs, results, trace);
+        };
+        results.insert_or_assign(
+            ins, trace(ins, [&] {
+                auto get_argument = instruction_argument_accessor{ins->inputs(), ctx, results};
+                return evaluate_select_module(ins, get_argument, positional_module_eval);
+            }));
+    }
+    else if(name == "get_tuple_elem" and contains(results, ins->inputs().front()))
+    {
+        // Avoids copying every element of the tuple just to extract one of them
+        results.insert_or_assign(
+            ins, trace(ins, [&] {
+                const auto& op = any_cast<op::get_tuple_elem>(ins->get_operator());
+                return results.at(ins->inputs().front()).get_sub_object(op.index);
+            }));
+    }
+    else
+    {
+        const auto& mod_args = ins->module_inputs();
+        values.resize(ins->inputs().size());
+        std::transform(
+            ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
+                assert(contains(results, i) or not mod->has_instruction(i));
+                return get_input_argument(i, ctx, results);
+            });
+        auto module_eval = [&](module_ref smod,
+                               const std::unordered_map<std::string, argument>& inputs) {
+            return generic_eval(smod, ctx, inputs, results, trace);
+        };
+
+        results.insert_or_assign(
+            ins, trace(ins, [&] {
+                auto oper = ins->normalized_operator();
+                if(oper.is_context_free())
+                    return oper.compute(ins->get_shape(), values, mod_args, module_eval);
+                if(ins->get_target_id() >= ctx.size())
+                    MIGRAPHX_THROW("No context available for " + oper.name());
+                return oper.compute(
+                    ctx[ins->get_target_id()], ins->get_shape(), values, mod_args, module_eval);
+            }));
+    }
+    assert(results.find(ins) != results.end());
+    assert(is_compatible_shape(results.at(ins).get_shape(), ins->get_shape()));
+}
+
+static std::vector<argument>
+collect_returns(instruction_ref ret, const pmr::unordered_map<instruction_ref, argument>& results)
+{
+    std::vector<argument> outputs;
+    outputs.reserve(ret->inputs().size());
+    std::transform(ret->inputs().begin(),
+                   ret->inputs().end(),
+                   std::back_inserter(outputs),
+                   [&](instruction_ref i) {
+                       assert(results.find(i) != results.end());
+                       return results.at(i);
+                   });
+    return outputs;
+}
+
+template <class Params, class F>
+static std::vector<argument> generic_eval(const module* mod,
+                                          std::vector<context>& ctx,
+                                          const Params& params,
+                                          pmr::unordered_map<instruction_ref, argument>& results,
+                                          F trace,
+                                          bool lazy_leaves)
 {
     assert(mod->validate() == mod->end());
     std::vector<argument> values;
     values.reserve(16);
     for(auto ins : iterator_for(*mod))
     {
-        assert(mod->name() != "main" or results.find(ins) == results.end());
-#ifndef NDEBUG
-        results.emplace(ins, argument{});
-#endif
-        const auto& name = ins->name();
-        auto guard       = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
-        if(name == "@literal")
-        {
-            results.insert_or_assign(ins,
-                                     trace(ins, [&] { return ins->get_literal().get_argument(); }));
-        }
-        else if(name == "@param")
-        {
-            results.insert_or_assign(
-                ins, trace(ins, [&] {
-                    auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
-                    if(not contains(params, param_name))
-                        MIGRAPHX_THROW("Parameter not found: " + param_name);
-                    auto param = params.at(param_name);
-                    // TODO: may want to check correct number of dimensions and/or was within bounds
-                    if(not ins->get_shape().any_of_dynamic() and
-                       param.get_shape() != ins->get_shape())
-                    {
-                        MIGRAPHX_THROW("Incorrect shape {" + to_string(param.get_shape()) +
-                                       "} for parameter: " + param_name +
-                                       " should be: " + to_string(ins->get_shape()));
-                    }
-                    return param;
-                }));
-        }
-        else if(name == "@outline")
-        {
-            results.insert_or_assign(
-                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
-        }
-        else if(name == "@comment")
-        {
-            results.insert_or_assign(
-                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
-        }
-        else if(name == "@return")
-        {
-            std::vector<argument> prog_outputs;
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           std::back_inserter(prog_outputs),
-                           [&](instruction_ref i) {
-                               assert(results.find(i) != results.end());
-                               return results[i];
-                           });
-
-            return prog_outputs;
-        }
-        else
-        {
-            values.resize(ins->inputs().size());
-            std::transform(
-                ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
-                    assert(results.find(i) != results.end());
-                    return results[i];
-                });
-            const auto& mod_args = ins->module_inputs();
-            auto module_eval     = [&](module_ref smod,
-                                   const std::unordered_map<std::string, argument>& inputs) {
-                return generic_eval(smod, ctx, inputs, results, trace);
-            };
-
-            results.insert_or_assign(
-                ins, trace(ins, [&] {
-                    auto op = ins->normalized_operator();
-                    if(op.is_context_free())
-                        return op.compute(ins->get_shape(), values, mod_args, module_eval);
-                    if(ins->get_target_id() >= ctx.size())
-                        MIGRAPHX_THROW("No context available for " + op.name());
-                    return op.compute(
-                        ctx[ins->get_target_id()], ins->get_shape(), values, mod_args, module_eval);
-                }));
-        }
-        assert(results.find(ins) != results.end());
-        assert(is_compatible_shape(results.at(ins).get_shape(), ins->get_shape()));
+        if(ins->name() == "@return")
+            return collect_returns(ins, results);
+        if(lazy_leaves and only_read_by_submodules(*mod, ins))
+            continue;
+        evaluate_instruction(mod, ins, ctx, params, results, values, trace);
     }
     return {results.at(std::prev(mod->end()))};
+}
+
+// The number of instructions the select_module candidates of a module can evaluate in one run,
+// which is the largest candidate of each select_module since only one of them runs. Zero when
+// the module has no select_module.
+static std::size_t select_module_candidates_size(const module& m)
+{
+    return transform_accumulate(
+        m.begin(), m.end(), std::size_t{0}, std::plus<>{}, [](const instruction& ins) {
+            if(ins.name() != "select_module")
+                return std::size_t{0};
+            const auto& candidates = ins.module_inputs();
+            auto largest =
+                std::max_element(candidates.begin(),
+                                 candidates.end(),
+                                 by(std::less<>{}, [](module_ref c) { return c->size(); }));
+            return largest == candidates.end() ? std::size_t{0} : (*largest)->size();
+        });
 }
 
 template <class F>
 static std::vector<argument> generic_eval(const program& p,
                                           std::vector<context>& ctx,
                                           const std::unordered_map<std::string, argument>& params,
-                                          F trace)
+                                          F trace,
+                                          bool select_fast_path = false)
 {
     const module* mm = p.get_main_module();
+    if(auto candidates_size = select_fast_path ? select_module_candidates_size(*mm) : 0;
+       candidates_size > 0)
+    {
+        // Main dispatches to select_module candidates, so the leaves they capture are computed
+        // on demand and the results only need room for main and the candidate that runs.
+#if MIGRAPHX_HAS_PMR
+        std::size_t n = mm->size() + candidates_size;
+        // Allocated on first use instead of zero-filled up front, and backed by the heap in case
+        // a candidate has submodules of its own.
+        std::pmr::monotonic_buffer_resource bres(n * (sizeof(instruction_ref) + sizeof(argument)) *
+                                                 4);
+        pmr::unordered_map<instruction_ref, argument> results(&bres);
+        results.reserve(n);
+#else
+        pmr::unordered_map<instruction_ref, argument> results;
+#endif
+        return generic_eval(mm, ctx, params, results, trace, true);
+    }
 #if MIGRAPHX_HAS_PMR
     std::size_t n = p.total_instructions();
     std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);
@@ -666,7 +821,7 @@ std::size_t program::total_instructions() const
 std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
                                                  const parameter_map& params) const
 {
-    return generic_eval(*this, ctx, params, [](auto&&, auto f) { return f(); });
+    return generic_eval(*this, ctx, params, [](auto&&, auto f) { return f(); }, true);
 }
 
 static void print_trace_buffer(const argument& buffer, int trace_level)
@@ -782,7 +937,7 @@ std::vector<argument> program::eval(const parameter_map& params,
     }
     else
     {
-        ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
+        ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); }, true);
     }
 
     if(exec_env.async)

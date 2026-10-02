@@ -49,6 +49,7 @@
 #include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
+#include <migraphx/split_sym_dim.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 
@@ -91,6 +92,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         simplify_dyn_ops{},
         simplify_qdq{},
         simplify_reshapes{},
+        split_sym_dim{},
     };
     // clang-format on
     for(const auto& pass : passes)

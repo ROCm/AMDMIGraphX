@@ -285,11 +285,16 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
                                                {"ends", {num_heads + (2 * kv_num_heads)}}}),
                             transposed_qkv);
 
+    auto first_pos =
+        sequence_length == 1
+            ? slk_lit
+            : mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {1}}, {0}});
+
     if(do_rotary)
     {
         qk = migraphx::op::builder::add("rotary_embedding",
                                         *mm,
-                                        {qk, slk_lit, cos_cache, sin_cache},
+                                        {qk, first_pos, cos_cache, sin_cache},
                                         {{"interleaved", false}})
                  .at(0);
     }
@@ -314,8 +319,6 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
 
     auto kv_num_heads_factor = num_heads / kv_num_heads;
     auto max_seq_len         = kv_s.lens()[2];
-    auto past_sl             = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk_lit);
 
     if(kv_num_heads_factor != 1)
     {
@@ -354,28 +357,32 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
     auto mul = mm->add_instruction(migraphx::make_op("mul"), gemm1, scale_ins);
 
+    auto row_pos = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), first_pos);
+    row_pos = mm->add_instruction(
+        migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), row_pos);
+    row_pos =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), row_pos);
+    auto last_key = row_pos;
     if(sequence_length > 1)
     {
         std::vector<int> seq_range_vec(sequence_length);
         std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
-        migraphx::shape seq_range_s{slk_s.type(), {sequence_length}};
+        migraphx::shape seq_range_s{slk_s.type(), {1, 1, sequence_length, 1}};
         auto seq_range = mm->add_literal(seq_range_s, seq_range_vec);
-        seq_range      = mm->add_instruction(
-            migraphx::make_op("reshape", {{"dims", {sequence_length, 1}}}), seq_range);
         seq_range = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}),
                                         seq_range);
-        auto causal_mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, seq_range);
-        causal_mask      = mm->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
-            causal_mask);
-        mul = mm->add_instruction(migraphx::make_op("where"), causal_mask, ninf, mul);
-    }
+        row_pos        = mm->add_instruction(migraphx::make_op("add"), row_pos, seq_range);
 
-    auto bc_past_sl = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
-    auto mask_comp =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
-    auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, mask_comp);
+        auto past_sl = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk_lit);
+        past_sl = mm->add_instruction(
+            migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
+        past_sl =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), past_sl);
+        last_key = mm->add_instruction(migraphx::make_op("min"), row_pos, past_sl);
+    }
+    auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, last_key);
     mask      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), mask);
     auto where = mm->add_instruction(migraphx::make_op("where"), mask, ninf, mul);

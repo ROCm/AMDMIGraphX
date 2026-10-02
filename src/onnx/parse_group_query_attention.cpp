@@ -26,11 +26,46 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/dim_ops.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+namespace {
+
+// 1 when the call appends a single token and 0 when it passes a prompt, read from the symbolic
+// sequence length at runtime. It folds to a literal once the length has been specialized.
+instruction_ref
+single_token_flag(const onnx_parser::node_info& info, instruction_ref qkv, shape::type_t index_type)
+{
+    auto len  = info.add_instruction(make_op("dimensions_of", {{"start", 1}, {"end", 2}}), qkv);
+    auto one  = info.add_literal(literal{shape{len->get_shape().type(), {1}}, {1}});
+    auto flag = info.add_instruction(make_op("equal"), len, one);
+    return info.add_instruction(make_op("convert", {{"target_type", index_type}}), flag);
+}
+
+// Broadcast a per-batch index to the {batch, heads, sequence, keys} mask shape through
+// {batch, heads}, so that a single-token step reads one scalar per batch inside the fused
+// attention kernel.
+instruction_ref broadcast_batch_index(const onnx_parser::node_info& info,
+                                      instruction_ref index,
+                                      std::size_t batch_size,
+                                      std::size_t num_heads,
+                                      const std::vector<sym::expr>& bnsm)
+{
+    auto result = info.add_instruction(
+        make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), index);
+    result =
+        info.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), result);
+    return info.add_instruction(make_multibroadcast(bnsm), result);
+}
+
+} // namespace
 
 struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
@@ -39,20 +74,6 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
     static bool has_input(const std::vector<instruction_ref>& args, std::size_t index)
     {
         return args.size() > index and not args.at(index)->is_undefined();
-    }
-
-    static instruction_ref insert_rotary(module& m,
-                                         bool interleaved,
-                                         std::size_t sequence_length,
-                                         std::vector<instruction_ref> args)
-    {
-        // GQA position semantics: prefill starts from 0, decode uses seqlens_k
-        auto& pos_ids = args.at(1);
-        if(sequence_length > 1)
-        {
-            pos_ids = m.add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
-        }
-        return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
     }
 
     struct gqa_attributes
@@ -139,9 +160,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                                          instruction_ref scores,
                                                          instruction_ref sink)
     {
-        const auto lens            = scores->get_shape().lens();
-        const std::size_t nheads   = lens.at(1);
-        const std::int64_t columns = lens.at(3);
+        const auto& s              = scores->get_shape();
+        const auto dims            = s.sym_dims();
+        const std::size_t nheads   = static_dim(s, 1, "GroupQueryAttention: number of heads");
+        const std::int64_t columns = static_dim(s, 3, "GroupQueryAttention: key length");
         if(sink->get_shape().elements() != nheads)
         {
             MIGRAPHX_THROW("GroupQueryAttention: head_sink must have num_heads elements");
@@ -153,7 +175,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         sink = info.add_instruction(make_op("reshape", {{"dims", {1, nheads, 1, 1}}}), sink);
         sink = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", {lens.at(0), nheads, lens.at(2), 1}}}), sink);
+            make_multibroadcast({dims.at(0), dims.at(1), dims.at(2), sym::lit(1)}), sink);
         auto padded  = info.add_instruction(make_op("concat", {{"axis", 3}}), scores, sink);
         auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), padded);
         return info.add_instruction(
@@ -170,23 +192,27 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         validate_inputs(args);
 
         auto qkv = args.at(0);
-        if(args.at(1)->get_shape().lens().size() > 1)
+        if(args.at(1)->get_shape().ndim() > 1)
         {
             qkv = info.add_instruction(
                 make_op("concat", {{"axis", 2}}), args.at(0), args.at(1), args.at(2));
         }
 
-        auto q_shape                      = qkv->get_shape();
-        const auto& q_lens                = q_shape.lens();
-        const std::size_t batch_size      = q_lens[0];
-        const std::size_t sequence_length = q_lens[1];
-        std::size_t q_hidden_size         = q_lens[2];
-        std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);
+        // The sequence length is the only axis that may be symbolic; heads are partitioned out of
+        // the hidden dimension while parsing, so every other axis has to be known by then.
+        auto q_shape                 = qkv->get_shape();
+        const auto sequence_length   = q_shape.sym_dims().at(1);
+        const std::size_t batch_size = static_dim(q_shape, 0, "GroupQueryAttention: batch size");
+        const std::size_t q_hidden_size =
+            static_dim(q_shape, 2, "GroupQueryAttention: hidden size");
+        const std::size_t head_size = q_hidden_size / (num_heads + 2 * kv_num_heads);
 
-        std::vector<std::size_t> bsnh{
-            batch_size, sequence_length, num_heads + 2 * kv_num_heads, head_size};
+        const std::vector<sym::expr> bsnh{sym::lit(batch_size),
+                                          sequence_length,
+                                          sym::lit(num_heads + 2 * kv_num_heads),
+                                          sym::lit(head_size)};
 
-        auto transposed_qkv = info.add_instruction(make_op("reshape", {{"dims", bsnh}}), qkv);
+        auto transposed_qkv = info.add_instruction(make_reshape(bsnh), qkv);
 
         transposed_qkv = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                               transposed_qkv);
@@ -201,12 +227,34 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                                    {"ends", {num_heads + (2 * kv_num_heads)}}}),
                                           transposed_qkv);
 
+        auto slk              = args.at(5);
+        const auto index_type = slk->get_shape().type();
+
+        // concat_past_present writes a prompt to the start of the cache and a single token after
+        // the seqlens_k past tokens, so the first query row is at position 0 for a prompt and at
+        // seqlens_k for a single token. A symbolic length decides this at runtime.
+        const auto fixed_length = sym::fixed_value(sequence_length);
+        std::optional<instruction_ref> single_token;
+        bool fixed_single_token = false;
+        if(fixed_length.has_value())
+            fixed_single_token = sym::to<std::size_t>(*fixed_length) == 1;
+        else
+            single_token = single_token_flag(info, qkv, index_type);
+        instruction_ref first_pos;
+        if(single_token.has_value())
+            first_pos = info.add_common_op("mul", slk, *single_token);
+        else if(fixed_single_token)
+            first_pos = slk;
+        else
+            first_pos = info.add_literal(literal{shape{index_type, {1}}, {0}});
+
         if(do_rotary)
         {
-            qk = insert_rotary(*info.mod,
-                               rotary_interleaved,
-                               sequence_length,
-                               {qk, args.at(5), args.at(7), args.at(8)});
+            qk = op::builder::add("rotary_embedding",
+                                  *info.mod,
+                                  {qk, first_pos, args.at(7), args.at(8)},
+                                  {{"interleaved", rotary_interleaved}})
+                     .at(0);
         }
 
         auto q = info.add_instruction(
@@ -216,9 +264,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                     {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
             qk);
 
-        auto k   = args.at(3);
-        auto v   = args.at(4);
-        auto slk = args.at(5);
+        auto k = args.at(3);
+        auto v = args.at(4);
         std::vector<instruction_ref> concat_k_inputs{cur_k, slk, k};
         std::vector<instruction_ref> concat_v_inputs{cur_v, slk, v};
 
@@ -232,8 +279,6 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         auto kv_num_heads_factor = num_heads / kv_num_heads;
         auto max_seq_len         = k->get_shape().lens()[2];
-        auto past_sl             = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
 
         if(kv_num_heads_factor != 1)
         {
@@ -255,64 +300,69 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         std::vector<int> range_vec(max_seq_len);
         std::iota(range_vec.begin(), range_vec.end(), 0);
-        shape range_s{past_sl->get_shape().type(), {max_seq_len}};
+        shape range_s{index_type, {max_seq_len}};
         auto range = info.add_literal(range_s, range_vec);
-        std::vector<std::size_t> bnsm{batch_size, num_heads, sequence_length, max_seq_len};
-        auto bc_range =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), range);
+        const std::vector<sym::expr> bnsm{
+            sym::lit(batch_size), sym::lit(num_heads), sequence_length, sym::lit(max_seq_len)};
+        auto bc_range = info.add_instruction(make_multibroadcast(bnsm), range);
 
         auto scalar_s = shape{transposed_qkv->get_shape().type(), {1}};
         auto ninf = info.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
-        ninf      = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
+        ninf      = info.add_instruction(make_multibroadcast(bnsm), ninf);
 
         if(float_equal(scale, 0.0))
         {
             scale = 1.0f / std::sqrt(static_cast<float>(head_size));
         }
         auto scale_ins = info.add_literal(literal{scalar_s, {scale}});
-        scale_ins =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
-        auto mul = info.add_instruction(make_op("mul"), gemm1, scale_ins);
+        scale_ins      = info.add_instruction(make_multibroadcast(bnsm), scale_ins);
+        auto mul       = info.add_instruction(make_op("mul"), gemm1, scale_ins);
 
-        instruction_ref seq_range;
-        if(sequence_length > 1)
+        // Cache position of each query row. The all-zero range of a symbolic length that turns
+        // out to be a single token folds away once the length is specialized.
+        auto row_pos = broadcast_batch_index(info, first_pos, batch_size, num_heads, bnsm);
+        if(not fixed_single_token)
         {
-            std::vector<int> seq_range_vec(sequence_length);
-            std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
-            shape seq_range_s{past_sl->get_shape().type(), {sequence_length}};
-            seq_range = info.add_literal(seq_range_s, seq_range_vec);
-            seq_range = info.add_instruction(make_op("reshape", {{"dims", {sequence_length, 1}}}),
-                                             seq_range);
-            seq_range =
-                info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
-            auto causal_mask = info.add_instruction(make_op("greater"), bc_range, seq_range);
-            causal_mask      = info.add_instruction(
-                make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
-            mul = info.add_instruction(make_op("where"), causal_mask, ninf, mul);
+            auto seq_range = insert_iota(*info.mod,
+                                         info.mod->end(),
+                                         {sym::lit(1), sym::lit(1), sequence_length, sym::lit(1)},
+                                         2,
+                                         qkv,
+                                         1,
+                                         index_type);
+            seq_range      = info.add_instruction(make_multibroadcast(bnsm), seq_range);
+            row_pos        = info.add_instruction(make_op("add"), row_pos, seq_range);
         }
 
-        auto bc_past_sl = info.add_instruction(
-            make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
-        auto mask_comp =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
         if(local_window_size > 0)
         {
-            bool is_prompt       = sequence_length > 1;
-            auto window_size_lit = info.add_literal(
-                migraphx::literal{migraphx::shape{past_sl->get_shape().type(), {1}},
-                                  {is_prompt ? -local_window_size : -(local_window_size + 1)}});
-            window_size_lit = info.add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
-            auto window_comp = info.add_instruction(
-                migraphx::make_op("add"), is_prompt ? seq_range : mask_comp, window_size_lit);
-            auto window_mask =
-                info.add_instruction(migraphx::make_op("greater"), window_comp, bc_range);
-            window_mask = info.add_instruction(
-                migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
-                window_mask);
-            mul = info.add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
+            // A prompt row attends to local_window_size keys before its own and a single token
+            // to one more.
+            instruction_ref window_offset;
+            if(single_token.has_value())
+                window_offset = info.add_common_op(
+                    "sub",
+                    info.add_literal(literal{shape{index_type, {1}}, {-local_window_size}}),
+                    *single_token);
+            else
+                window_offset = info.add_literal(literal{
+                    shape{index_type, {1}}, {-local_window_size - (fixed_single_token ? 1 : 0)}});
+            window_offset    = info.add_instruction(make_multibroadcast(bnsm), window_offset);
+            auto window_comp = info.add_instruction(make_op("add"), row_pos, window_offset);
+            auto window_mask = info.add_instruction(make_op("greater"), window_comp, bc_range);
+            window_mask      = info.add_instruction(
+                make_op("convert", {{"target_type", shape::bool_type}}), window_mask);
+            mul = info.add_instruction(make_op("where"), window_mask, ninf, mul);
         }
-        auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
+        // Mask keys after the row and keys past seqlens_k, which only differ for the padding rows
+        // of a prompt shorter than the sequence.
+        auto last_key = row_pos;
+        if(not fixed_single_token)
+            last_key =
+                info.add_instruction(make_op("min"),
+                                     row_pos,
+                                     broadcast_batch_index(info, slk, batch_size, num_heads, bnsm));
+        auto mask = info.add_instruction(make_op("greater"), bc_range, last_key);
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
         auto where   = info.add_instruction(make_op("where"), mask, ninf, mul);
         auto softmax = has_input(args, 11)
@@ -322,7 +372,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto out =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
         out = info.add_instruction(
-            make_op("reshape", {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
+            make_reshape({sym::lit(batch_size), sequence_length, sym::lit(head_size * num_heads)}),
             out);
 
         return {out, k_out, v_out};

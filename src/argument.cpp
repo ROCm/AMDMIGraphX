@@ -208,6 +208,12 @@ std::vector<argument> argument::get_sub_objects() const
     return result;
 }
 
+argument argument::get_sub_object(std::size_t index) const
+{
+    assert(m_shape.sub_shapes().size() == m_data.sub.size());
+    return {m_shape.sub_shapes().at(index), m_data.sub.at(index)};
+}
+
 argument argument::element(std::size_t i) const
 {
     assert(this->get_shape().sub_shapes().empty());

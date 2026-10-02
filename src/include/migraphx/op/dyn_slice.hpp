@@ -188,6 +188,8 @@ struct dyn_slice
         });
 
         shape output_shape{input_shape.type(), std::move(new_lens), input_shape.strides()};
+        if(output_shape == input_shape)
+            return input;
         // A start may be clipped to the axis length, which puts start_indices out of bounds when
         // the slice is empty. There is nothing to point at in that case, so leave the offset at 0.
         std::size_t offset = 0;

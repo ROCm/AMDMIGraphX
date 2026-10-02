@@ -413,9 +413,11 @@ bool is_symbolic_broadcast(const operation& op, std::size_t ninputs)
 {
     if(symbolic_broadcast_dims(op).empty())
         return false;
+    if(op.name() == "broadcast_with_dims")
+        return ninputs == 2;
     if(op.name() == "multibroadcast")
-        return ninputs >= 2;
-    return ninputs == 2;
+        return ninputs >= 1;
+    return ninputs == 1 or ninputs == 2;
 }
 
 struct analyze_broadcast
@@ -1162,6 +1164,21 @@ find_expression_sources(const std::vector<sym::expr>& expressions,
                  std::back_inserter(result),
                  [&](instruction_ref source) { return contains(required_sources, source); });
     return result;
+}
+
+// The parameters an eval_expr_from_shape over expressions needs, in module order. Passing every
+// parameter would make it depend on unrelated inputs (and on their type conversions).
+std::vector<instruction_ref>
+find_parameter_sources(const module& m,
+                       const std::unordered_map<sym::expr, instruction_ref>& root_sources,
+                       const std::vector<sym::expr>& expressions)
+{
+    auto parameters = m.get_parameters();
+    auto sources    = find_expression_sources(expressions, root_sources, parameters);
+    // eval_expr_from_shape requires an input even when nothing needs to be bound
+    if(not sources.has_value() or sources->empty())
+        return parameters;
+    return *sources;
 }
 
 struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
@@ -2061,32 +2078,59 @@ std::size_t add_block_input(std::vector<block_input>& inputs, sliced_value clone
 
 void collect_frame_outputs(
     const module& m,
-    const block_plan& block,
     const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
     const std::unordered_set<instruction_ref>& planned_instructions,
     const std::unordered_set<instruction_ref>& body_instructions,
     block_frame& frame)
 {
+    // Absorbed static instructions fed by planned values. The clone already computes them, so
+    // the parent reads the clone result instead of recomputing them from sliced block outputs.
+    std::unordered_set<instruction_ref> static_block_results;
+    for(auto ins : frame.body)
+    {
+        if(contains(planned_instructions, ins) or ins->get_shape().dynamic())
+            continue;
+        if(any_of(ins->inputs(), [&](auto input) {
+               return contains(planned_instructions, input) or
+                      contains(static_block_results, input);
+           }))
+            static_block_results.insert(ins);
+    }
+
     auto add_required_output = [&](sliced_value output) {
-        if(output.slice_axes.empty())
+        if(output.slice_axes.empty() and contains(planned_instructions, output.source))
             output = full_output_for(info_for_instruction, output.source);
         if(not contains(frame.outputs, output))
             frame.outputs.push_back(std::move(output));
     };
-    for(auto output : m.get_returns())
-        if(contains(planned_instructions, output))
-            add_required_output({output, {}});
-
-    std::vector<instruction_ref> external_consumers;
-    for(const auto* info : block.ops)
-        for(auto consumer : info->ins->outputs())
-            if(not contains(body_instructions, consumer) and
-               not contains(external_consumers, consumer))
-                external_consumers.push_back(consumer);
-    for(auto consumer : external_consumers)
-        for(auto input : clone_inputs_for(info_for_instruction, consumer))
+    auto add_block_value = [&](instruction_ref ins) {
+        if(contains(planned_instructions, ins) or contains(static_block_results, ins))
+            add_required_output({ins, {}});
+    };
+    auto add_planned_inputs = [&](instruction_ref ins) {
+        for(auto input : clone_inputs_for(info_for_instruction, ins))
+        {
             if(contains(planned_instructions, input.source))
                 add_required_output(std::move(input));
+            else
+                add_block_value(input.source);
+        }
+    };
+    // Export only values the parent still reads; every extra clone return splits the fusible
+    // chain it comes from (e.g. attention) at the clone boundary.
+    for(auto output : m.get_returns())
+    {
+        if(contains(planned_instructions, output) or contains(static_block_results, output))
+            add_block_value(output);
+        else if(contains(body_instructions, output))
+            add_planned_inputs(output);
+    }
+    for(auto ins : iterator_for(m))
+    {
+        if(contains(body_instructions, ins))
+            continue;
+        add_planned_inputs(ins);
+    }
 }
 
 void add_frame_root_inputs(block_frame& frame,
@@ -2178,14 +2222,89 @@ std::optional<block_frame> find_block_frame(
                                        }),
                         result.inputs.end());
 
-    collect_frame_outputs(
-        m, block, info_for_instruction, planned_instructions, body_instructions, result);
+    collect_frame_outputs(m, info_for_instruction, planned_instructions, body_instructions, result);
     if(result.outputs.empty())
         return std::nullopt;
 
     add_frame_root_inputs(result, block, root_sources);
     name_frame_inputs(result, m, block_number);
     return result;
+}
+
+void add_producer_block_edges(
+    instruction_ref ins,
+    std::size_t consumer,
+    const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
+    std::unordered_set<instruction_ref>& visited,
+    std::vector<std::set<std::size_t>>& outgoing,
+    std::vector<std::size_t>& indegree)
+{
+    if(not visited.insert(ins).second)
+        return;
+    auto found = info_for_instruction.find(ins);
+    if(found != info_for_instruction.end() and found->second->block.has_value())
+    {
+        auto producer = *found->second->block;
+        if(producer != consumer and outgoing.at(producer).insert(consumer).second)
+            ++indegree.at(consumer);
+        return;
+    }
+    for(auto input : ins->inputs())
+        add_producer_block_edges(
+            input, consumer, info_for_instruction, visited, outgoing, indegree);
+}
+
+std::vector<block_plan> order_blocks_topologically(
+    std::vector<block_plan> blocks,
+    const module& m,
+    const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
+    const std::unordered_map<sym::expr, instruction_ref>& root_sources)
+{
+    const auto n = blocks.size();
+    std::vector<std::set<std::size_t>> outgoing(n);
+    std::vector<std::size_t> indegree(n, 0);
+    for(auto consumer : range(n))
+    {
+        auto frame =
+            find_block_frame(m, blocks.at(consumer), info_for_instruction, consumer, root_sources);
+        if(not frame.has_value())
+            continue;
+        for(const auto& input : frame->inputs)
+        {
+            std::unordered_set<instruction_ref> visited;
+            add_producer_block_edges(input.clone_value.source,
+                                     consumer,
+                                     info_for_instruction,
+                                     visited,
+                                     outgoing,
+                                     indegree);
+        }
+    }
+
+    std::set<std::size_t> ready;
+    for(auto i : range(n))
+        if(indegree.at(i) == 0)
+            ready.insert(i);
+
+    std::vector<block_plan> ordered;
+    ordered.reserve(n);
+    while(not ready.empty())
+    {
+        auto i = *ready.begin();
+        ready.erase(ready.begin());
+        ordered.push_back(std::move(blocks.at(i)));
+        for(auto consumer : outgoing.at(i))
+        {
+            if(--indegree.at(consumer) == 0)
+                ready.insert(consumer);
+        }
+    }
+    if(ordered.size() != n)
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: cyclic block dependency");
+    for(std::size_t block_index = 0; block_index < ordered.size(); ++block_index)
+        for(auto* info : ordered.at(block_index).ops)
+            info->block = block_index;
+    return ordered;
 }
 
 instruction_ref
@@ -2286,7 +2405,16 @@ struct clone_context
         }
 
         instruction_ref clone;
-        if(freezer)
+        // Freeze a 2-input reshape to the static 1-input form. A copied 2-input reshape with
+        // empty dims makes simplify_reshapes derive its layout from the shape descriptor, which
+        // can split a length into many unit axes.
+        if(source->name() == "reshape" and source->inputs().size() == 2)
+        {
+            clone = clone_module.add_instruction(
+                make_op("reshape", {{"dims", source->get_shape().to_static(freeze).lens()}}),
+                {args.front()});
+        }
+        else if(freezer)
             clone = freezer(clone_module, source, args, freeze);
         else
         {
@@ -2295,7 +2423,8 @@ struct clone_context
         }
 
         if(clone->get_shape().dynamic())
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: clone body is not fully static: " + source->name());
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: clone body is not fully static: " + source->name() +
+                           " -> " + to_string(clone->get_shape()));
         clone_map[source] = clone;
         if(not source->get_debug_symbols().empty())
             clone_module.add_debug_symbols(clone, source->get_debug_symbols());
@@ -2449,7 +2578,9 @@ instruction_ref resolve_replacement(
         return found->second;
     auto info = info_for_instruction.find(source);
     if(info != info_for_instruction.end() and info->second->block.has_value())
-        MIGRAPHX_THROW("SPLIT_SYM_DIM: block dependency was not specialized before use");
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: block dependency was not specialized before use: " +
+                       source->name() + " in block " + std::to_string(*info->second->block) +
+                       " shape " + to_string(source->get_shape()));
 
     auto args    = source->inputs();
     bool changed = false;
@@ -2503,7 +2634,8 @@ void resolve_frame_inputs(
 instruction_ref add_output_slice(module& m,
                                  const sliced_value& output,
                                  instruction_ref selected_output,
-                                 const symbolic_op_info& info)
+                                 const symbolic_op_info& info,
+                                 const std::unordered_map<sym::expr, instruction_ref>& root_sources)
 {
     const auto& source_dims = output.source->get_shape().dyn_dims();
     std::vector<int64_t> axes;
@@ -2517,7 +2649,7 @@ instruction_ref add_output_slice(module& m,
         end_expressions.push_back(source_dims.at(axis).sym_expr);
     }
     std::vector<sym::expr> start_expressions(axes.size(), sym::lit(int64_t{0}));
-    auto sources = m.get_parameters();
+    auto sources = find_parameter_sources(m, root_sources, end_expressions);
     auto starts  = m.add_instruction(
         make_op("eval_expr_from_shape", {{"expressions", to_value(start_expressions)}}), sources);
     auto ends = m.add_instruction(
@@ -2541,7 +2673,8 @@ void wire_select_module(
     std::vector<module> clones,
     const std::vector<clone_output_case>& clone_outputs,
     std::unordered_map<instruction_ref, instruction_ref>& replacements,
-    std::vector<std::pair<sliced_value, instruction_ref>>& output_values)
+    std::vector<std::pair<sliced_value, instruction_ref>>& output_values,
+    const std::unordered_map<sym::expr, instruction_ref>& root_sources)
 {
     module& m = mpm.get_module();
     std::vector<module_ref> submodules;
@@ -2561,8 +2694,11 @@ void wire_select_module(
     for(std::size_t output_index = 0; output_index < frame.outputs.size(); ++output_index)
     {
         auto source = frame.outputs.at(output_index).source;
-        body_output_shapes.push_back(dispatch_shape_for_clones(
-            info_for_instruction.at(source)->dispatch_output, clone_outputs, output_index));
+        if(not source->get_shape().dynamic())
+            body_output_shapes.push_back(source->get_shape());
+        else
+            body_output_shapes.push_back(dispatch_shape_for_clones(
+                info_for_instruction.at(source)->dispatch_output, clone_outputs, output_index));
     }
     auto selection = m.add_instruction(
         make_op("select_module", {{"output_dyn_shapes", to_value(shape{body_output_shapes})}}),
@@ -2574,11 +2710,15 @@ void wire_select_module(
         const auto& output = frame.outputs.at(output_index);
         auto selected_output =
             m.add_instruction(make_op("get_tuple_elem", {{"index", output_index}}), selection);
-        auto sliced =
-            add_output_slice(m, output, selected_output, *info_for_instruction.at(output.source));
+        auto sliced = output.source->get_shape().dynamic()
+                          ? add_output_slice(m,
+                                             output,
+                                             selected_output,
+                                             *info_for_instruction.at(output.source),
+                                             root_sources)
+                          : selected_output;
         output_values.emplace_back(output, sliced);
-        if(output == full_output_for(info_for_instruction, output.source))
-            replacements.emplace(output.source, sliced);
+        replacements.emplace(output.source, sliced);
     }
 }
 
@@ -2601,7 +2741,8 @@ void specialize_blocks(
     {
         auto frame = find_block_frame(m, block, info_for_instruction, block_number, root_sources);
         if(not frame.has_value())
-            continue;
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: block frame could not be built for block " +
+                           std::to_string(block_number));
         resolve_frame_inputs(m, *frame, replacements, info_for_instruction, output_values);
 
         std::unordered_map<sym::expr, sym::expr> fixed_substitutions;
@@ -2647,7 +2788,8 @@ void specialize_blocks(
                            std::move(clones),
                            clone_outputs,
                            replacements,
-                           output_values);
+                           output_values,
+                           root_sources);
     }
     std::vector<instruction_ref> outputs;
     std::transform(original_outputs.begin(),
@@ -2658,6 +2800,30 @@ void specialize_blocks(
                    });
     m.replace_return(outputs);
     m.sort();
+}
+
+// Analysis of a 1-input reshape only sees max lengths, which cannot tell how a symbolic axis maps
+// to the output. Give symbolic reshapes their target as a shape operand, which analysis checks
+// against the symbolic output and freezes per block.
+void normalize_symbolic_reshapes(module& m)
+{
+    auto root_sources = find_root_sources(m);
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "reshape" or ins->inputs().size() != 1)
+            continue;
+        const auto& output = ins->get_shape();
+        if(not output.symbolic())
+            continue;
+        auto expressions   = output.sym_dims();
+        auto resolved_dims = m.insert_instruction(
+            ins,
+            make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
+            find_parameter_sources(m, root_sources, expressions));
+        auto allocation = m.insert_instruction(
+            ins, make_op("allocate", {{"shape", to_value(output)}}), resolved_dims);
+        m.replace_instruction(ins, make_op("reshape"), ins->inputs().front(), allocation);
+    }
 }
 
 } // namespace
@@ -2677,7 +2843,12 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     match::find_matches(m,
                         find_eval_expr_from_intermediate_ins{.root_sources = root_sources,
                                                              .sources      = m.get_parameters()});
-    run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
+    // Shape-derived chains built per consumer (e.g. per-layer rotary position
+    // ids) only become identical once dimensions_of is resolved; merge them
+    // before block planning or each copy is exported as its own block output.
+    run_passes(
+        m, {dead_code_elimination{}, eliminate_common_subexpression{}, dead_code_elimination{}});
+    normalize_symbolic_reshapes(m);
 
     // Determine how each symbolic operation must be padded, masked, or rewritten for a fixed
     // target extent.
@@ -2716,9 +2887,7 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
 
     // Determine each block's boundary slices, padding, masks, and target-substituted output shapes.
     prepare_clone_infos(infos, info_for_instruction, *roots);
-
-    // Materialize one clone for each target combination, dispatch through select_module, slice
-    // fixed-size outputs back to their runtime extents, and rewire uses outside each block.
+    blocks = order_blocks_topologically(std::move(blocks), m, info_for_instruction, root_sources);
     specialize_blocks(mpm, blocks, info_for_instruction, root_sources);
     run_passes(m, {dead_code_elimination{}});
 }

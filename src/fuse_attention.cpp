@@ -33,6 +33,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/split_factor.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/literal.hpp>
 #include <algorithm>
@@ -45,6 +46,41 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+// Parent-captured literals live outside this module. Walk the module in order and
+// splice those captures in just before their first use so fuse() stays dependency-ordered.
+template <class Set>
+std::vector<instruction_ref> in_module_order(const module& m, const Set& inss)
+{
+    std::vector<instruction_ref> result;
+    result.reserve(inss.size());
+    std::unordered_set<instruction_ref> placed;
+    for(auto ins : iterator_for(m))
+    {
+        if(not contains(inss, ins))
+            continue;
+        for(auto input : ins->inputs())
+        {
+            if(contains(inss, input) and not m.has_instruction(input) and
+               placed.insert(input).second)
+                result.push_back(input);
+        }
+        placed.insert(ins);
+        result.push_back(ins);
+    }
+    return result;
+}
+
+// Whether an instruction feeds anything outside the given set. Consumers in another module are
+// ignored: a captured constant is still reachable there through the capture, so it does not need
+// to become an output of the fused group.
+template <class Set>
+bool escapes(const module& m, instruction_ref ins, const Set& inss)
+{
+    return not std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto out) {
+        return not m.has_instruction(out) or contains(inss, out);
+    });
+}
 
 // env vars for flash decoding configuration
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
@@ -303,7 +339,7 @@ struct find_attention
     }
 
     std::vector<instruction_ref>
-    get_attn_instructions(module& m, instruction_ref gemm1, instruction_ref gemm2) const
+    get_attn_instructions(const module& m, instruction_ref gemm1, instruction_ref gemm2) const
     {
         auto attn_inss = find_instructions_between(gemm1, gemm2, &m);
 
@@ -323,13 +359,7 @@ struct find_attention
         for(auto ins : starts)
             expand(ins);
 
-        std::vector<instruction_ref> sorted_inss(attn_inss.begin(), attn_inss.end());
-        std::sort(
-            sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
-                return std::distance(m.begin(), x) < std::distance(m.begin(), y);
-            });
-
-        return sorted_inss;
+        return in_module_order(m, attn_inss);
     }
 
     static bool has_lse_out(std::vector<instruction_ref>& group_outs)
@@ -429,7 +459,8 @@ struct find_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        module_ref mpm_attn =
+            mpm.create_module(mpm.get_module().name() + ":attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(
@@ -995,9 +1026,9 @@ struct find_kv_cache_attention
 
         auto keys = match::opaque(
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k"));
-        auto keys_transpose  = match::opaque(match::name("transpose")(match::arg(0)(keys)));
-        auto k_transpose     = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
-        auto gemm1           = match::opaque(match::name("dot")(match::arg(1)(k_transpose)));
+        auto keys_transpose = match::opaque(match::name("transpose")(match::arg(0)(keys)));
+        auto k_transpose    = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
+        auto gemm1 = match::opaque(match::name("dot")(match::arg(1)(k_transpose)).bind("gemm1"));
         auto gemm1_maybe_cvt = match::opaque(match::skip(match::name("convert"))(gemm1));
         auto scale    = match::opaque(match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt)));
         auto constant = match::opaque(match::is_constant());
@@ -1047,8 +1078,10 @@ struct find_kv_cache_attention
         return inverse_map;
     }
 
-    std::vector<instruction_ref>
-    get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
+    std::vector<instruction_ref> get_attn_instructions(const module& m,
+                                                       instruction_ref start,
+                                                       instruction_ref end,
+                                                       instruction_ref gemm1) const
     {
         static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
                                                                        "broadcast",
@@ -1073,6 +1106,37 @@ struct find_kv_cache_attention
 
         // Start with instructions on data-dependency paths from start to end.
         auto inss = find_instructions_between(start, end, &m);
+        // When start is shared across layers (one total_sl for the whole model), those paths
+        // also run through earlier layers into this layer's Q/K; drop everything upstream of
+        // the QK gemm.
+        std::unordered_set<instruction_ref> upstream_of_gemm1;
+        fix([&](auto self, instruction_ref ins) {
+            for(auto input : ins->inputs())
+            {
+                if(contains(inss, input) and upstream_of_gemm1.insert(input).second)
+                    self(input);
+            }
+        })(gemm1);
+        std::unordered_set<instruction_ref> filtered;
+        std::copy_if(
+            inss.begin(), inss.end(), std::inserter(filtered, filtered.end()), [&](auto i) {
+                if(contains(upstream_of_gemm1, i))
+                    return false;
+                return i == start or i == end or is_valid_attn_op(i);
+            });
+        // The QK gemm is not on a start->end path and may also be used outside the group;
+        // without it the group is softmax+V only, which rocMLIR cannot compile.
+        filtered.insert(gemm1);
+        // Filtering can strand an instruction whose path to end ran through a dropped one (such as
+        // a V slice feeding concat_past_present), so keep only what still feeds end.
+        inss = {end};
+        fix([&](auto self, instruction_ref ins) {
+            for(auto input : ins->inputs())
+            {
+                if(contains(filtered, input) and inss.insert(input).second)
+                    self(input);
+            }
+        })(end);
         // Expand by walking inputs of instructions already in the set.
         // An input is added when it is a valid attention op and all of
         // its outputs are already in the set. This pulls in constants,
@@ -1101,12 +1165,7 @@ struct find_kv_cache_attention
             expand(ins);
         }
 
-        std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());
-        std::sort(
-            sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
-                return std::distance(m.begin(), x) < std::distance(m.begin(), y);
-            });
-        return sorted_inss;
+        return in_module_order(m, inss);
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -1115,7 +1174,8 @@ struct find_kv_cache_attention
         auto reshape  = r.result;
 
         // Capture all instructions part of the attention op
-        auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
+        auto attn_inss =
+            get_attn_instructions(mpm.get_module(), total_sl, reshape, r.instructions["gemm1"]);
 
         // Add captured instructions to new submodule
         module m_attn;
@@ -1144,12 +1204,10 @@ struct find_kv_cache_attention
 
         // Define outputs based on instructions that are used elsewhere in the graph
         std::vector<instruction_ref> required_outputs;
-        std::copy_if(
-            attn_inss.begin(), attn_inss.end(), std::back_inserter(required_outputs), [&](auto i) {
-                return not std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
-                    return contains(attn_inss, o);
-                });
-            });
+        std::copy_if(attn_inss.begin(),
+                     attn_inss.end(),
+                     std::back_inserter(required_outputs),
+                     [&](auto i) { return escapes(mpm.get_module(), i, attn_inss); });
 
         assert(not required_outputs.empty());
 
@@ -1165,7 +1223,8 @@ struct find_kv_cache_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        module_ref mpm_attn =
+            mpm.create_module(mpm.get_module().name() + ":attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
         // Construct group op with the attention module

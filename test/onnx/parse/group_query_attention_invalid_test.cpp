@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,4 +42,14 @@ TEST_CASE(group_query_attention_num_heads_test)
 TEST_CASE(group_query_attention_kv_num_heads_test)
 {
     EXPECT(test::throws([&] { read_onnx("group_query_attention_kv_num_heads_test.onnx"); }));
+}
+
+TEST_CASE(group_query_attention_symbolic_hidden_size_test)
+{
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes       = true;
+    options.map_dyn_input_dims["qkv"] = {{1, 1}, {1, 8}, {96, 192}};
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { read_onnx("group_query_attention_prefill_local_test.onnx", options); },
+        "GroupQueryAttention: hidden size must be a fixed dimension"));
 }

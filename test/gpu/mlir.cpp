@@ -1085,4 +1085,115 @@ TEST_CASE_SKIP(prefill_integer_reduce, "temporarily disabled")
     }));
 }
 
+// Every module below is a {1,5,4}x{1,4,3} gemm with some epilogue, so rocMLIR hands back the
+// same tuning key for all of them and only the graph digest can tell them apart.
+static const migraphx::shape problem_key_a{migraphx::shape::float_type, {1, 5, 4}};
+static const migraphx::shape problem_key_b{migraphx::shape::float_type, {1, 4, 3}};
+static const migraphx::shape problem_key_c{migraphx::shape::float_type, {1, 5, 3}};
+
+// get_tuning_config_mlir takes the parameter shapes in name order with the output shape last.
+static migraphx::value problem_key_of(const migraphx::module& m)
+{
+    auto names = m.get_parameter_names();
+    std::vector<migraphx::shape> shapes;
+    std::transform(names.begin(), names.end(), std::back_inserter(shapes), [&](const auto& name) {
+        return m.get_parameter_shape(name);
+    });
+    shapes.push_back(m.get_output_shapes().front());
+    migraphx::gpu::context ctx;
+    return get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false).problem;
+}
+
+// dot(a, b) followed by relu when requested; the parameter names are configurable so the
+// test can show they do not leak into the digest.
+static migraphx::module
+problem_key_dot(bool relu, const std::string& a_name = "a", const std::string& b_name = "b")
+{
+    migraphx::module m;
+    auto a   = m.add_parameter(a_name, problem_key_a);
+    auto b   = m.add_parameter(b_name, problem_key_b);
+    auto dot = m.add_instruction(migraphx::make_op("dot"), a, b);
+    if(relu)
+        dot = m.add_instruction(migraphx::make_op("relu"), dot);
+    m.add_return({dot});
+    return m;
+}
+
+// Same operators and shapes in the same order, but wired differently: either the add takes the
+// extra input and the mul reuses the gemm, or the add doubles the gemm and the mul takes the
+// extra input.
+static migraphx::module problem_key_wiring(bool add_takes_c)
+{
+    migraphx::module m;
+    auto a   = m.add_parameter("a", problem_key_a);
+    auto b   = m.add_parameter("b", problem_key_b);
+    auto c   = m.add_parameter("c", problem_key_c);
+    auto dot = m.add_instruction(migraphx::make_op("dot"), a, b);
+    auto add = m.add_instruction(migraphx::make_op("add"), dot, add_takes_c ? c : dot);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), add, add_takes_c ? dot : c);
+    m.add_return({mul});
+    return m;
+}
+
+static migraphx::module problem_key_scaled(float scale)
+{
+    migraphx::module m;
+    auto a   = m.add_parameter("a", problem_key_a);
+    auto b   = m.add_parameter("b", problem_key_b);
+    auto dot = m.add_instruction(migraphx::make_op("dot"), a, b);
+    auto lit = m.add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {scale}});
+    auto bc  = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", problem_key_c.lens()}}), lit);
+    m.add_return({m.add_instruction(migraphx::make_op("mul"), dot, bc)});
+    return m;
+}
+
+TEST_CASE(tuning_config_problem_key)
+{
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(problem_key_dot(false)).empty())
+        return;
+    auto plain = problem_key_of(problem_key_dot(false));
+    auto fused = problem_key_of(problem_key_dot(true));
+
+    EXPECT(plain.is_object());
+    EXPECT(plain.contains("key"));
+    EXPECT(plain.contains("hash"));
+    EXPECT(plain.at("key").is_string());
+    EXPECT(not plain.at("key").get_string().empty());
+    EXPECT(plain.at("hash").is_string());
+    EXPECT(plain.at("hash").get_string().size() == 32);
+
+    // Same gemm, so rocMLIR hands back the same key; the digest is what tells them apart.
+    EXPECT(plain.at("key") == fused.at("key"));
+    EXPECT(plain.at("hash") != fused.at("hash"));
+    EXPECT(plain != fused);
+
+    // Deterministic across calls, since it is used as a persistent cache key.
+    EXPECT(plain == problem_key_of(problem_key_dot(false)));
+}
+
+TEST_CASE(tuning_config_problem_key_wiring)
+{
+    if(migraphx::gpu::dump_mlir(problem_key_dot(false)).empty())
+        return;
+    auto add_c = problem_key_of(problem_key_wiring(true));
+    auto mul_c = problem_key_of(problem_key_wiring(false));
+    EXPECT(add_c.at("key") == mul_c.at("key"));
+    EXPECT(add_c.at("hash") != mul_c.at("hash"));
+}
+
+TEST_CASE(tuning_config_problem_key_ignores_names_and_constants)
+{
+    if(migraphx::gpu::dump_mlir(problem_key_dot(false)).empty())
+        return;
+    // Parameter names are not part of the graph structure.
+    EXPECT(problem_key_of(problem_key_dot(true)) ==
+           problem_key_of(problem_key_dot(true, "x", "y")));
+    // Neither is the value of a constant, only its shape.
+    EXPECT(problem_key_of(problem_key_scaled(2.0f)) == problem_key_of(problem_key_scaled(3.0f)));
+    // But a constant is still a different graph from a bare gemm.
+    EXPECT(problem_key_of(problem_key_scaled(2.0f)) != problem_key_of(problem_key_dot(false)));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

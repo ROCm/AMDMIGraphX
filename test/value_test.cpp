@@ -1072,4 +1072,75 @@ TEST_CASE(value_normalize_nested_array)
     EXPECT(n[1] == migraphx::value(std::int64_t{3}));
 }
 
+// value::md5 is persisted in problem caches, so its encoding must never change. This golden
+// digest covers every value type; if it fails, the encoding changed and on-disk keys are stale.
+TEST_CASE(value_md5_golden)
+{
+    migraphx::value v = {{"int", std::int64_t{-3}},
+                         {"uint", std::uint64_t{7}},
+                         {"float", 1.5},
+                         {"bool", true},
+                         {"string", "abc"},
+                         {"null", nullptr},
+                         {"binary", migraphx::value::binary{std::vector<std::uint8_t>{1, 2, 3}}},
+                         {"array", {std::int64_t{1}, std::int64_t{2}}},
+                         {"object", {{"nested", "x"}}}};
+    EXPECT(v.md5().size() == 32);
+    EXPECT(v.md5() == "407c42bb13cbecfa9c027bffd1c2de81");
+}
+
+TEST_CASE(value_md5_matches_equality)
+{
+    migraphx::value a = {{"x", std::int64_t{1}}, {"y", {std::int64_t{2}, "s"}}};
+    migraphx::value b = {{"x", std::int64_t{1}}, {"y", {std::int64_t{2}, "s"}}};
+    EXPECT(a == b);
+    EXPECT(a.md5() == b.md5());
+    EXPECT(migraphx::value{}.md5() == migraphx::value{}.md5());
+}
+
+TEST_CASE(value_md5_distinguishes_types)
+{
+    EXPECT(migraphx::value{std::int64_t{2}}.md5() != migraphx::value{std::uint64_t{2}}.md5());
+    EXPECT(migraphx::value{std::int64_t{2}}.md5() != migraphx::value{2.0}.md5());
+    EXPECT(migraphx::value{std::int64_t{1}}.md5() != migraphx::value{true}.md5());
+    EXPECT(migraphx::value{"1"}.md5() != migraphx::value{std::int64_t{1}}.md5());
+    EXPECT(
+        migraphx::value{"abc"}.md5() !=
+        migraphx::value{migraphx::value::binary{std::vector<std::uint8_t>{'a', 'b', 'c'}}}.md5());
+    EXPECT(migraphx::value{}.md5() != migraphx::value{migraphx::value::array{}}.md5());
+    EXPECT(migraphx::value{migraphx::value::array{}}.md5() !=
+           migraphx::value{migraphx::value::object{}}.md5());
+}
+
+TEST_CASE(value_md5_distinguishes_keys)
+{
+    migraphx::value bare = std::int64_t{1};
+    EXPECT(bare.md5() != bare.with_key("k").md5());
+    EXPECT(bare.with_key("k").md5() != bare.with_key("j").md5());
+    migraphx::value a = {{"k", std::int64_t{1}}};
+    migraphx::value b = {{"j", std::int64_t{1}}};
+    EXPECT(a.md5() != b.md5());
+}
+
+TEST_CASE(value_md5_distinguishes_adjacent_strings)
+{
+    migraphx::value a = {"ab", "c"};
+    migraphx::value b = {"a", "bc"};
+    migraphx::value c = {"abc"};
+    EXPECT(a.md5() != b.md5());
+    EXPECT(a.md5() != c.md5());
+    EXPECT(b.md5() != c.md5());
+}
+
+TEST_CASE(value_md5_distinguishes_structure)
+{
+    migraphx::value flat   = {std::int64_t{1}, std::int64_t{2}};
+    migraphx::value nested = {{std::int64_t{1}}, std::int64_t{2}};
+    migraphx::value order  = {std::int64_t{2}, std::int64_t{1}};
+    EXPECT(flat.md5() != nested.md5());
+    EXPECT(flat.md5() != order.md5());
+    EXPECT(migraphx::value{{"x", std::int64_t{1}}, {"y", std::int64_t{2}}}.md5() !=
+           migraphx::value{{"y", std::int64_t{2}}, {"x", std::int64_t{1}}}.md5());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

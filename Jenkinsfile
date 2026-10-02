@@ -160,6 +160,44 @@ def resolveSha() {
     return null
 }
 
+def checkoutWithRetry = { int maxAttempts = 3 ->
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            checkout([
+                $class: 'GitSCM',
+                branches: scm.branches,
+                // new ArrayList() ensures the extensions list is a serializable
+                // type; concatenating directly onto scm.extensions (a live SCM
+                // descriptor) can produce a non-serializable result that causes
+                // the workspace to appear empty after an apparently successful clone.
+                extensions: new ArrayList(scm.extensions) + [
+                    [$class: 'CloneOption', timeout: 30, shallow: true, depth: 1, retryFetchCount: 3],
+                    [$class: 'CheckoutOption', timeout: 30],
+                ],
+                userRemoteConfigs: scm.userRemoteConfigs,
+            ])
+            return
+        } catch (Exception e) {
+            if (e instanceof InterruptedException ||
+                e.class.name == 'org.jenkinsci.plugins.workflow.steps.FlowInterruptedException' ||
+                e.class.name == 'hudson.AbortException') {
+                throw e
+            }
+            if (attempt == maxAttempts) {
+                // Exclude url keys to avoid leaking embedded credentials.
+                sh 'git config --list | grep -v -i "token\\|password\\|auth\\|header\\|url" || true'
+                sh 'ip route || true'
+                sh 'curl -sv https://github.com 2>&1 | tail -20 || true'
+                throw e
+            }
+            // Linear backoff: 15 s, 30 s, 45 s, ...
+            def delay = 15 * attempt
+            echo "checkout scm failed (attempt ${attempt}/${maxAttempts}): ${e.message}. Retrying in ${delay}s..."
+            sleep(time: delay, unit: 'SECONDS')
+        }
+    }
+}
+
 def autoSetGitStatus = { Map conf = [:], Closure body ->
     def statusContext = conf.get("gitHubContext", "Unknown")
     def description = conf.get("description", "Building")
@@ -256,7 +294,7 @@ def rocmtest = { Map conf = [:], Closure body ->
         def docker_opts
         stage("setup ${variant}") {
             sh 'printenv'
-            checkout scm
+            checkoutWithRetry()
             setup()
 
             def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
@@ -317,7 +355,7 @@ pipeline {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             sh 'printenv'
-                            checkout scm
+                            checkoutWithRetry()
                             def calculateImageTagScript = """
                                 shopt -s globstar
                                 sha256sum Dockerfile **/*requirements.txt tools/requirements-py.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
@@ -340,7 +378,7 @@ pipeline {
                     autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build image", account: 'ROCm', repo: 'AMDMIGraphX', description: 'Building image', failureDescription: 'Failed to build image', successDescription: 'Image build succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
-                            checkout scm
+                            checkoutWithRetry()
                             def builtImage
 
                             try {
@@ -507,7 +545,7 @@ pipeline {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             sh 'printenv'
-                            checkout scm
+                            checkoutWithRetry()
                             def calculateOrtImageTagScript = """
                                 sha256sum tools/docker/ort.dockerfile test/onnx/.onnxrt-commit tools/build_and_test_onnxrt.sh tools/pai_test_launcher.sh tools/pai_provider_test_launcher.sh | sha256sum | cut -d " " -f 1
                             """
@@ -528,7 +566,7 @@ pipeline {
                     autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build ORT image", account: 'ROCm', repo: 'AMDMIGraphX', description: 'Building ORT image', failureDescription: 'Failed to build ORT image', successDescription: 'ORT image build succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
-                            checkout scm
+                            checkoutWithRetry()
                             def builtOrtImage
 
                             try {

@@ -89,14 +89,19 @@ struct literal : raw_data<literal>
         std::copy(x, x + s.bytes(), buffer.get());
     }
 
-    // Copies buffer of x, which must hold exactly s.bytes() bytes
+    // x holds nbytes: the elements of s in row-major order of s.lens(), regardless of s's strides
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
-    literal(const shape& s, T* x, std::size_t n) : m_shape(s)
+    literal(const shape& s, T* x, std::size_t nbytes) : m_shape(s)
     {
-        if(n != s.bytes())
-            MIGRAPHX_THROW("literal: buffer size " + std::to_string(n) +
-                           " does not match shape bytes " + std::to_string(s.bytes()));
-        buffer = make_shared_array<char>(x, x + n);
+        if(nbytes != s.elements() * s.type_size())
+            MIGRAPHX_THROW("literal: buffer size " + std::to_string(nbytes) +
+                           " does not hold shape elements " + std::to_string(s.elements()) +
+                           " of type size " + std::to_string(s.type_size()));
+        buffer = make_shared_array<char>(s.bytes());
+        s.visit_type([&](auto as) {
+            const auto* values = as.from(x);
+            fill(values, values + s.elements());
+        });
     }
 
     /// Whether data is available

@@ -48,7 +48,10 @@ void migraphx_from_value(const value& v, literal& l)
     if(v.contains("data"))
     {
         const auto& data = v.at("data").get_binary();
-        l                = literal(s, data.data(), data.size());
+        if(data.size() != s.bytes())
+            MIGRAPHX_THROW("literal: data size " + std::to_string(data.size()) +
+                           " does not match shape bytes " + std::to_string(s.bytes()));
+        l = literal(s, data.data());
     }
     else
     {

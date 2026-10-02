@@ -37,6 +37,7 @@
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
+#include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/json.hpp>
@@ -274,6 +275,8 @@ struct pipeline_factory
             enable_pass(mlir_enabled(),
                         fuse_mlir{.ctx              = get_context(),
                                   .use_specific_ops = backend_opts.mlir_use_specific_ops}),
+            dead_code_elimination{},
+            fuse_topk{},
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},

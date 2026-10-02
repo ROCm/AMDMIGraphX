@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,8 +40,9 @@ static void cse_range(module& m, Range&& r)
     std::unordered_set<instruction_ref> processed_ins;
     for(auto ins : r)
     {
-        // Skip dead instructions
-        if(ins->outputs().empty())
+        // Skip dead or context-dependent instructions
+        if(ins->outputs().empty() or
+           (not ins->get_operator().is_context_free() and not ins->can_eval()))
             continue;
 
         // Find instruction with the same name

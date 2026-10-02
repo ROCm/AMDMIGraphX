@@ -21,40 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_FIXED_PAD_HPP
-#define MIGRAPHX_GUARD_RTGLIB_FIXED_PAD_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_SPLIT_SYM_DIM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SPLIT_SYM_DIM_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/fixed_pad.hpp>
-#include <migraphx/gpu/device/fixed_pad.hpp>
+#include <cstddef>
+#include <string>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct context;
-
-struct hip_fixed_pad
+/**
+ * Precompile a graph carrying symbolic (dynamic) dimensions into a small set of
+ * fully-static submodules, one per optimal size combination, referenced by a
+ * `select_module`. Each submodule pads its symbolic inputs up to a fixed
+ * optimal size and runs the ahead-of-time-compiled static body. Runtime
+ * symbolic extents drive clone-local masks and main-module output slices.
+ *
+ * Supports multiple simultaneous symbolic dimensions. `max_clones` limits the
+ * cartesian product; zero disables the limit.
+ */
+struct MIGRAPHX_EXPORT split_sym_dim
 {
-    op::fixed_pad op;
+    std::size_t max_clones = 64;
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::fixed_pad"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {0, shapes.size() - 1};
-    }
+    std::string name() const { return "split_sym_dim"; }
+    void apply(module_pass_manager& mpm) const;
 };
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

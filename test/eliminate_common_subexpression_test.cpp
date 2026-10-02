@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,6 +41,23 @@ static void run_pass(migraphx::module& m)
         m, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
 }
 
+struct context_dependent_allocate
+{
+    std::string name() const { return "context_dependent_allocate"; }
+
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        return {migraphx::shape::float_type, {4}};
+    }
+
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape& output_shape,
+                               const std::vector<migraphx::argument>&) const
+    {
+        return migraphx::argument{output_shape};
+    }
+};
+
 TEST_CASE(cse_test1)
 {
     migraphx::module m1;
@@ -62,6 +79,23 @@ TEST_CASE(cse_test1)
         auto sum3 = m2.add_instruction(migraphx::make_op("add"), sum1, sum1);
         m2.add_instruction(pass_op{}, sum3);
     }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(cse_context_dependent_instruction)
+{
+    migraphx::module m1;
+    auto x1 = m1.add_instruction(context_dependent_allocate{});
+    auto y1 = m1.add_instruction(context_dependent_allocate{});
+    m1.add_return({x1, y1});
+
+    migraphx::module m2;
+    auto x2 = m2.add_instruction(context_dependent_allocate{});
+    auto y2 = m2.add_instruction(context_dependent_allocate{});
+    m2.add_return({x2, y2});
+
+    run_pass(m1);
+
     EXPECT(m1 == m2);
 }
 

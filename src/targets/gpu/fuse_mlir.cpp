@@ -1310,12 +1310,8 @@ struct find_pointwise_mlir
                 if(not match::instruction_matches(mpm.get_module(), input, supported_pointwise()))
                     return false;
                 auto* pm = input->module_inputs().front();
-                if(input->inputs().size() > 1 and not is_simple_op(pm, {"dequantizelinear"}) and
-                   not enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
-                {
-                    return false;
-                }
-                return true;
+                return input->inputs().size() <= 1 or is_simple_op(pm, {"dequantizelinear"}) or
+                       enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{});
             });
         if(pws.empty())
             return;

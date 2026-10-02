@@ -69,6 +69,14 @@ static bool is_navi_gpu()
            migraphx::starts_with(device_name, "gfx12");
 }
 
+// Keep in sync with get_supported_mlir_reduce_types in src/targets/gpu/fuse_mlir.cpp
+static bool is_bf16_reduce_supported_gpu()
+{
+    const auto device_name = migraphx::gpu::get_device_name();
+    return migraphx::starts_with(device_name, "gfx12") or
+           migraphx::starts_with(device_name, "gfx950");
+}
+
 template <class F>
 static migraphx::instruction_ref add_mlir(migraphx::program& p,
                                           const std::string& name,
@@ -1024,7 +1032,8 @@ TEST_CASE(conv_split_reduce_invalid_type)
         mm->add_return({var, mean});
     }
 
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}) or
+       is_bf16_reduce_supported_gpu())
         return;
 
     run_pass(p1);

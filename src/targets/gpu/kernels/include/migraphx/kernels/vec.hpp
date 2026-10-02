@@ -187,7 +187,7 @@ using safe_vec = vec<conditional_t<is_same<T, bool>{}, uint8_t, T>, N>;
 // strided along the vector axis is still read with wide loads. It is never
 // read through the struct: load_strided loads the S-aligned block of N*S
 // elements holding the lanes and selects them by the phase of the pointer
-// within the block, so the block covers exactly the memory of the input.
+// within the block.
 template <class T, index_int N, index_int S>
 struct strided_vec
 {
@@ -226,9 +226,8 @@ struct load_type_impl<strided_vec<T, N, S>>
 };
 
 template <class T, index_int N, index_int S>
-struct load_type_impl<const strided_vec<T, N, S>>
+struct load_type_impl<const strided_vec<T, N, S>> : load_type_impl<strided_vec<T, N, S>>
 {
-    using type = vec<T, N>;
 };
 
 template <class T>

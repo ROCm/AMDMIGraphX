@@ -360,7 +360,7 @@ struct find_reduce_affine_reduce
                 outer, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), scale);
             x = m.insert_instruction(outer, make_op("mul"), x, scale);
         }
-        std::vector<std::int64_t> axes(inner_axes.begin(), inner_axes.end());
+        auto axes = inner_axes;
         axes.insert(axes.end(), outer_axes->begin(), outer_axes->end());
         std::sort(axes.begin(), axes.end());
         auto result = m.insert_instruction(outer, make_op("reduce_sum", {{"axes", axes}}), x);
@@ -371,9 +371,9 @@ struct find_reduce_affine_reduce
             // and the reduce fusion can place them in one kernel
             auto shift = m.insert_instruction(
                 outer, make_op("reshape", {{"dims", inner->get_shape().lens()}}), *a.shift);
-            std::vector<std::int64_t> shift_axes(outer_axes->begin(), outer_axes->end());
             shift =
-                m.insert_instruction(outer, make_op("reduce_sum", {{"axes", shift_axes}}), shift);
+                m.insert_instruction(outer, make_op("reduce_sum", {{"axes", *outer_axes}}), shift);
+
             result = m.insert_instruction(outer, make_op("add"), result, shift);
         }
         const auto& lens = outer->get_shape().lens();

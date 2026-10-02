@@ -29,30 +29,25 @@
 
 namespace migraphx {
 
-/// The shape of the data shape gathered by the indices shape along Axis: the
-/// axis counts the indices and the strides of the data are kept
-template <index_int Axis, class DataShape, class IndicesShape>
-constexpr auto gather_view_shape(DataShape, IndicesShape)
-{
-    constexpr auto lens = return_array_c([] {
-        auto result  = DataShape{}.lens.base();
-        result[Axis] = IndicesShape{}.elements();
-        return result;
-    });
-    return make_shape(lens, DataShape{}.strides);
-}
-
-/// The shape of the data behind a gathered view: the gather axis has the
-/// data length again and the strides are kept
-template <index_int Axis, class Shape, class Data>
-constexpr auto ungather_shape(Shape, Data)
+/// The shape with the axis at the length n and the strides kept: the
+/// gathered view of the data has the number of indices along the axis, and
+/// the data behind a gathered view has the data length again
+template <index_int Axis, class Shape, class N>
+constexpr auto shape_with_axis_len(Shape, N)
 {
     constexpr auto lens = return_array_c([] {
         auto result  = Shape{}.lens.base();
-        result[Axis] = get_shape_c<Data>{}.lens[Axis];
+        result[Axis] = N{};
         return result;
     });
     return make_shape(lens, Shape{}.strides);
+}
+
+/// The length of the data along Axis
+template <index_int Axis, class Data>
+constexpr auto data_axis_len()
+{
+    return _c<get_shape_c<Data>{}.lens[Axis]>;
 }
 
 template <index_int Axis, class Data, class Indices>
@@ -71,7 +66,8 @@ struct gather_view
 {
     using type = typename Data::type;
     using shape_type =
-        decltype(gather_view_shape<Axis>(get_shape_c<Data>{}, get_shape_c<Indices>{}));
+        decltype(shape_with_axis_len<Axis>(get_shape_c<Data>{}, get_shape_c<Indices>{}.elements()));
+
     using memory_tag  = typename Data::memory_tag;
     using index_array = typename shape_type::index_array;
 
@@ -87,11 +83,12 @@ struct gather_view
     /// runs with arbitrary indices in bounds.
     constexpr index_int offset(index_array i) const
     {
-        constexpr index_int len = get_shape_c<Data>{}.lens[Axis];
+        constexpr index_int len = data_axis_len<Axis, Data>();
         auto g                  = indices[i[Axis]];
         if(g < 0)
             g += len;
         i[Axis] = g < 0 ? 0 : (g < len ? index_int(g) : len - 1);
+
         return base.get_shape().index(i);
     }
 
@@ -114,7 +111,8 @@ struct gather_view
     template <class U, class Shape2>
     constexpr auto with(U* y, Shape2 s) const
     {
-        return make_gather_view<Axis>(base.with(y, ungather_shape<Axis>(s, base)), indices);
+        return make_gather_view<Axis>(
+            base.with(y, shape_with_axis_len<Axis>(s, data_axis_len<Axis, Data>())), indices);
     }
 };
 
@@ -130,10 +128,10 @@ constexpr auto as_const(gather_view<Axis, Data, Indices> x)
     return make_gather_view<Axis>(as_const(x.base), x.indices);
 }
 
-/// The slice of a gathered view at the multi-index i: when the gather axis is
-/// not sliced the index is resolved once and the slice is a plain view,
-/// otherwise the axis is reduced and the slice stays a gathered view
-/// resolving the index per element
+/// The slice of a gathered view at the multi-index i: a slice of one element
+/// along the gather axis resolves the index once and is a plain view into the
+/// data, while a slice spanning the gather axis, which is then reduced, stays
+/// a gathered view resolving the index per element
 template <index_int Axis, class Data, class Indices, class T, class Shape>
 constexpr auto make_slice_view(gather_view<Axis, Data, Indices> input, T i, Shape s)
 {
@@ -143,10 +141,14 @@ constexpr auto make_slice_view(gather_view<Axis, Data, Indices> input, T i, Shap
     }
     else
     {
+        static_assert(Shape{}.lens[Axis] == decltype(input.get_shape()){}.lens[Axis],
+                      "A slice of a gathered view must span the whole gather axis");
         i[Axis] = 0;
         auto* p = input.base.data() + input.base.get_shape().index(i);
-        return make_gather_view<Axis>(make_tensor_view(p, ungather_shape<Axis>(s, input.base)),
-                                      input.indices);
+        return make_gather_view<Axis>(
+            make_tensor_view(p, shape_with_axis_len<Axis>(s, data_axis_len<Axis, Data>())),
+
+            input.indices);
     }
 }
 

@@ -83,8 +83,9 @@ __device__ __host__ auto as_vec(T x, Axis axis)
 }
 
 /// The shape of an input with stride S along the axis read as strided
-/// vectors: each vector spans N*S elements along the axis, so the axis counts
-/// vectors and the other strides count vectors as well
+/// vectors: each vector spans N*S elements of memory along the axis, so the
+/// axis counts vectors and the other strides count vectors as well
+
 template <index_int N, index_int S, class Shape, class Axis>
 constexpr auto shape_strided_step(Shape s, Axis)
 {

@@ -189,12 +189,12 @@ void split_reduce::apply(module_pass_manager& mpm) const
            }))
             continue;
         // The reductions of the module must all cover the same axes to split
+        auto first_reduce = std::find_if(rm->begin(), rm->end(), &is_reduce);
         if(std::any_of(rm->begin(), rm->end(), [&](const auto& i) {
-               return is_reduce(i) and
-                      i.get_operator() !=
-                          std::find_if(rm->begin(), rm->end(), &is_reduce)->get_operator();
+               return is_reduce(i) and i.get_operator() != first_reduce->get_operator();
            }))
             continue;
+
         if(get_reduce_size(rm) < split_size)
             continue;
         splitter s{rm};

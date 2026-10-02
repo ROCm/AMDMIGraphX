@@ -82,6 +82,13 @@ __device__ T stream_load(const T* x, I i)
     return nontemporal_load(x + i);
 }
 
+// The position of the element at p within its block of S elements
+template <index_int S, class T>
+__device__ index_int block_phase(const T* p)
+{
+    return (bit_cast<uintptr_t>(p) / sizeof(T)) % S;
+}
+
 // Read the N elements S apart at p as one vector: the S-aligned block of N*S
 // elements holding them is loaded whole and the lanes at the phase of p
 // within the block are selected, so the load stays wide and aligned
@@ -89,10 +96,12 @@ template <bool Stream, class T, index_int N, index_int S>
 __device__ vec<T, N> load_strided(const strided_vec<T, N, S>* p)
 {
     using block_type  = vec<T, N * S>;
-    const T* elements = reinterpret_cast<const T*>(p);
-    index_int phase   = (reinterpret_cast<uintptr_t>(elements) / sizeof(T)) % S;
-    const auto* block = reinterpret_cast<const block_type*>(elements - phase);
+    const T* elements = p->data;
+    index_int phase   = block_phase<S>(elements);
+    const auto* block = as_vec<N * S>(elements - phase);
+    MIGRAPHX_ASSERT(bit_cast<uintptr_t>(block) % alignof(block_type) == 0);
     block_type v;
+
     if constexpr(Stream)
         v = nontemporal_load(block);
     else
@@ -111,7 +120,8 @@ __device__ vec<T, N> load_strided(const strided_vec<T, N, S>* p)
 }
 
 // Read element i of the input view: a strided vector element is read as the
-// vector of its lanes, everything else is streamed
+// vector of its lanes, any other element through stream_load
+
 template <class T, class I>
 __device__ auto load_element(const T& x, I i)
 {

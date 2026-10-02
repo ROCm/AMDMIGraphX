@@ -571,11 +571,13 @@ std::vector<instruction_ref> sorted_params(const module& rm)
     return params;
 }
 
-std::size_t param_index(const std::vector<instruction_ref>& params, instruction_ref param)
+/// The position of x in the range, which must hold it
+template <class Range, class T>
+std::size_t index_of(const Range& r, const T& x)
 {
-    auto it = std::find(params.begin(), params.end(), param);
-    assert(it != params.end());
-    return it - params.begin();
+    auto it = std::find(r.begin(), r.end(), x);
+    assert(it != r.end());
+    return std::distance(r.begin(), it);
 }
 
 std::size_t gather_axis(const instruction& gather)
@@ -599,8 +601,8 @@ value find_gather_args(const module& rm)
                      auto data    = ins.inputs().front();
                      auto indices = ins.inputs().back();
                      auto axis    = gather_axis(ins);
-                     return {{"data", param_index(params, data)},
-                             {"indices", param_index(params, indices)},
+                     return {{"data", index_of(params, data)},
+                             {"indices", index_of(params, indices)},
                              {"axis", axis},
                              {"len", data->get_shape().lens()[axis]}};
                  });
@@ -630,7 +632,8 @@ module erase_gathers(const module& rm)
             continue;
         auto data    = ins->inputs().front();
         auto indices = ins->inputs().back();
-        auto name    = any_cast<builtin::param>(data->get_operator()).parameter;
+        assert(data->name() == "@param");
+        auto name = any_cast<builtin::param>(data->get_operator()).parameter;
         auto gathered =
             gathered_shape(data->get_shape(), gather_axis(*ins), indices->get_shape().elements());
         map_ins[data] = result.add_parameter(name, gathered);
@@ -747,12 +750,7 @@ struct fused_reduce_plan
     /// inputs of the reduction, so they have no virtual input
     std::vector<std::size_t> arg_indices = {};
 
-    std::size_t virtual_index(std::size_t input) const
-    {
-        auto it = std::find(arg_indices.begin(), arg_indices.end(), input);
-        assert(it != arg_indices.end());
-        return it - arg_indices.begin();
-    }
+    std::size_t virtual_index(std::size_t input) const { return index_of(arg_indices, input); }
 
     bool is_gather_axis(std::size_t axis) const
     {
@@ -788,11 +786,12 @@ void parse_plan_args(fused_reduce_plan& plan, const value& v)
     {
         for(const auto& ga : v.at("gather_args"))
         {
-            auto index = ga.at("data").to<std::size_t>();
+            auto index   = ga.at("data").to<std::size_t>();
+            auto indices = ga.at("indices").to<std::size_t>();
             assert(index < plan.finputs.size());
-            plan.gather_args[index] = {ga.at("indices").to<std::size_t>(),
-                                       ga.at("axis").to<std::size_t>(),
-                                       ga.at("len").to<std::size_t>()};
+            assert(indices < plan.finputs.size());
+            plan.gather_args[index] = {
+                indices, ga.at("axis").to<std::size_t>(), ga.at("len").to<std::size_t>()};
         }
     }
 }
@@ -842,6 +841,22 @@ void plan_virtual_inputs(fused_reduce_plan& plan, const std::vector<std::size_t>
             MIGRAPHX_THROW("fused_reduce: gather axis was merged");
         it->second.axis = *axis;
     }
+}
+
+/// The compile values of the gathers and packed inputs of the submodule and
+/// the topk, with the module the kernel is generated from: the gathers are
+/// erased since the kernel reads the gathered inputs as plain inputs
+module prepare_reduce_module(const module& rm, value& v)
+{
+    auto gather_args = find_gather_args(rm);
+    if(not gather_args.empty())
+        v["gather_args"] = gather_args;
+    auto erased      = erase_gathers(rm);
+    auto packed_args = find_packed_args(erased);
+    if(not packed_args.empty())
+        v["packed_args"] = packed_args;
+    v["topk"] = find_topk(erased);
+    return erased;
 }
 
 // Computes the virtual inputs, default reduction algorithm, vectorization, and vectorized
@@ -920,7 +935,7 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
 
 /// Like the standalone topk kernel, about 4 elements per lane are sorted in
 /// registers, or one vector per lane when the vectors are wider
-std::size_t topk_block_size(context& ctx, const fused_reduce_plan& plan)
+std::size_t topk_block_size(const context& ctx, const fused_reduce_plan& plan)
 {
     auto per_lane = std::max<std::size_t>(4, plan.vec.size);
     auto n        = plan.reduction_shape.elements();
@@ -1029,18 +1044,19 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         // The gather indices keep their shape, the reduce inputs are emitted
         // at their normalized shape
         options.virtual_inputs = plan.finputs;
-        for(auto i : range(plan.virtual_inputs.size()))
-            options.virtual_inputs[plan.arg_indices[i]] = plan.virtual_inputs[i];
+        assert(plan.arg_indices.size() == plan.virtual_inputs.size());
+        for_each(plan.arg_indices.begin(),
+                 plan.arg_indices.end(),
+                 plan.virtual_inputs.begin(),
+                 [&](std::size_t index, const shape& s) { options.virtual_inputs[index] = s; });
         std::vector<std::string> transformers;
         // The gathered inputs are emitted at the data length along the gather
         // axis and the kernel reads them through the view gathered by the
         // indices input
         for(const auto& [index, ga] : plan.gather_args)
         {
-            const auto& s                 = options.virtual_inputs[index];
-            auto lens                     = s.lens();
-            lens[ga.axis]                 = ga.len;
-            options.virtual_inputs[index] = shape{s.type(), lens, s.strides()};
+            options.virtual_inputs[index] =
+                gathered_shape(options.virtual_inputs[index], ga.axis, ga.len);
             transformers.push_back("gather_arg<" + std::to_string(ga.axis) + ", " +
                                    std::to_string(index) + ", " + std::to_string(ga.indices) +
                                    ">()");
@@ -1149,21 +1165,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto v = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
-        auto* rm         = ins->module_inputs().front();
-        auto shapes      = to_shapes(ins->inputs());
-        auto gather_args = find_gather_args(*rm);
-        if(not gather_args.empty())
-            v["gather_args"] = gather_args;
-        // The kernel reads the gathered inputs as plain inputs
-        auto erased      = erase_gathers(*rm);
-        auto packed_args = find_packed_args(erased);
-        if(not packed_args.empty())
-            v["packed_args"] = packed_args;
+        auto* rm    = ins->module_inputs().front();
+        auto shapes = to_shapes(ins->inputs());
+        auto erased = prepare_reduce_module(*rm, v);
         // A cached solution can be for a different module with the same
         // shapes, so recheck that the module supports the batched algorithm
         if(v.get("algo", std::string{}) == "block_batch" and not can_batch_reduce(erased))
             v["algo"] = "block_tile";
-        v["topk"]     = find_topk(erased);
         v["preamble"] = generate_reduce(erased, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
@@ -1304,7 +1312,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         /// 4 elements per lane), one element per lane, and with exhaustive tuning
         /// every size the block algorithm fits. The extra parameters are included
         /// in each solution.
-        void add_topk_block_sizes(context& ctx,
+        void add_topk_block_sizes(const context& ctx,
+
                                   bool exhaustive,
                                   std::size_t n,
                                   std::size_t block_size,
@@ -1332,7 +1341,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 
         /// Only the block algorithm fits a topk, so tune the block size (more waves
         /// vs. more elements sorted per lane) with and without vectorized loads
-        void add_topk_solutions(context& ctx, bool exhaustive)
+        void add_topk_solutions(const context& ctx, bool exhaustive)
         {
             auto nelements = plan.reduction_shape.elements();
             if(plan.vec.size > 1)
@@ -1351,17 +1360,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(not contains({"fused_reduce", "split_fused_reduce"}, op.name()))
             return nullopt;
         assert(not ins->module_inputs().empty());
-        auto shapes      = to_shapes(ins->inputs());
-        auto v           = op.to_value();
-        auto gather_args = find_gather_args(*ins->module_inputs().front());
-        if(not gather_args.empty())
-            v["gather_args"] = gather_args;
-        auto rm          = erase_gathers(*ins->module_inputs().front());
-        v["topk"]        = find_topk(rm);
-        auto packed_args = find_packed_args(rm);
-        if(not packed_args.empty())
-            v["packed_args"] = packed_args;
+        auto shapes = to_shapes(ins->inputs());
+        auto v      = op.to_value();
+        auto rm     = prepare_reduce_module(*ins->module_inputs().front(), v);
         tuning_solutions ts;
+
         ts.plan       = compute_fused_reduce_plan(ctx, shapes, v);
         ts.noutputs   = ts.plan.finputs.size() - shapes.size() + 1;
         ts.tc.problem = to_value(shapes);

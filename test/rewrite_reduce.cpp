@@ -79,7 +79,6 @@ TEST_CASE(softmax_upcast)
     }));
 }
 
-// The skinny dot rewrite is off by default so the dot is left alone.
 // A small reduction of an affine function of a reduction folds into one
 // reduction over both sets of axes plus the reduction of the shift, in the
 // space of the inner reduce; the views between them are looked through
@@ -148,7 +147,9 @@ TEST_CASE(reduce_affine_reduce_unfused)
     EXPECT(m2 == create(4, false));
 }
 
+// The skinny dot rewrite is off by default so the dot is left alone.
 TEST_CASE(dot_skinny_disabled_by_default)
+
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 128}};
     migraphx::shape b_shape{migraphx::shape::float_type, {128, 4}};

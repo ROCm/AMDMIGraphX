@@ -32,13 +32,15 @@
 // data and the elements come from the selected rows
 TEST_CASE(gather_view_rows)
 {
-    migraphx::half data[32];
+    migraphx::array<migraphx::half, 32> data;
     for(migraphx::index_int i = 0; i < 32; i++)
         data[i] = migraphx::half(i);
-    migraphx::int32_t indices[2] = {3, 1};
-    auto d   = migraphx::make_tensor_view(data, migraphx::make_shape(migraphx::index_ints<4, 8>{}));
-    auto idx = migraphx::make_tensor_view(indices, migraphx::make_shape(migraphx::index_ints<2>{}));
-    auto g   = migraphx::make_gather_view<0>(d, idx);
+    migraphx::array<migraphx::int32_t, 2> indices = {3, 1};
+    auto d =
+        migraphx::make_tensor_view(data.data(), migraphx::make_shape(migraphx::index_ints<4, 8>{}));
+    auto idx =
+        migraphx::make_tensor_view(indices.data(), migraphx::make_shape(migraphx::index_ints<2>{}));
+    auto g = migraphx::make_gather_view<0>(d, idx);
     static_assert(decltype(g.get_shape()){}.lens[0] == 2, "The axis counts the indices");
     static_assert(decltype(g.get_shape()){}.lens[1] == 8, "The other axes are kept");
     static_assert(decltype(g.get_shape()){}.strides[0] == 8, "The data strides are kept");
@@ -62,13 +64,15 @@ TEST_CASE(gather_view_rows)
 // A negative index counts from the end and an index past the end is clamped
 TEST_CASE(gather_view_index_range)
 {
-    migraphx::half data[32];
+    migraphx::array<migraphx::half, 32> data;
     for(migraphx::index_int i = 0; i < 32; i++)
         data[i] = migraphx::half(i);
-    migraphx::int32_t indices[2] = {-1, 9};
-    auto d   = migraphx::make_tensor_view(data, migraphx::make_shape(migraphx::index_ints<4, 8>{}));
-    auto idx = migraphx::make_tensor_view(indices, migraphx::make_shape(migraphx::index_ints<2>{}));
-    auto g   = migraphx::make_gather_view<0>(d, idx);
+    migraphx::array<migraphx::int32_t, 2> indices = {-1, 9};
+    auto d =
+        migraphx::make_tensor_view(data.data(), migraphx::make_shape(migraphx::index_ints<4, 8>{}));
+    auto idx =
+        migraphx::make_tensor_view(indices.data(), migraphx::make_shape(migraphx::index_ints<2>{}));
+    auto g = migraphx::make_gather_view<0>(d, idx);
     EXPECT(migraphx::float_equal(g[0], migraphx::half(24)));
     EXPECT(migraphx::float_equal(g[8], migraphx::half(24)));
 }
@@ -78,14 +82,16 @@ TEST_CASE(gather_view_index_range)
 // the view at a gathered row gives a plain view into that row
 TEST_CASE(gather_view_vectorize)
 {
-    migraphx::half data[32];
+    migraphx::array<migraphx::half, 32> data;
     for(migraphx::index_int i = 0; i < 32; i++)
         data[i] = migraphx::half(i);
-    migraphx::int32_t indices[2] = {2, 0};
-    auto d   = migraphx::make_tensor_view(data, migraphx::make_shape(migraphx::index_ints<4, 8>{}));
-    auto idx = migraphx::make_tensor_view(indices, migraphx::make_shape(migraphx::index_ints<2>{}));
-    auto g   = migraphx::make_gather_view<0>(migraphx::as_const(d), idx);
-    auto v   = migraphx::vectorize_tensor<4, 1, true>(g);
+    migraphx::array<migraphx::int32_t, 2> indices = {2, 0};
+    auto d =
+        migraphx::make_tensor_view(data.data(), migraphx::make_shape(migraphx::index_ints<4, 8>{}));
+    auto idx =
+        migraphx::make_tensor_view(indices.data(), migraphx::make_shape(migraphx::index_ints<2>{}));
+    auto g = migraphx::make_gather_view<0>(migraphx::as_const(d), idx);
+    auto v = migraphx::vectorize_tensor<4, 1, true>(g);
     static_assert(decltype(v.get_shape()){}.lens[0] == 2, "Gathered shape");
     static_assert(decltype(v.get_shape()){}.lens[1] == 2, "Two vectors per row");
     static_assert(decltype(v.get_shape()){}.strides[0] == 2, "Row stride counts vectors");

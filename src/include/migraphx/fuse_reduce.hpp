@@ -43,9 +43,9 @@ struct MIGRAPHX_EXPORT fuse_reduce
 
     bool enable_rewrite_reshapes   = true;
     bool enable_rewrite_broadcasts = false;
-    // Move the gathers along non-reduced axes into the reduce. A reduce with
-    // gathered inputs can no longer be remapped by the reshape and broadcast
-    // rewrites, so this is left to the last reduce fusion of a pipeline.
+    // Move the gathers feeding the reduce into it. A reduce with gathered
+    // inputs can no longer be remapped by the reshape and broadcast rewrites,
+    // so this is left to the last reduce fusion of a pipeline.
     bool enable_gather = true;
 };
 

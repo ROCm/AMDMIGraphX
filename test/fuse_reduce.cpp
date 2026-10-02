@@ -2330,7 +2330,7 @@ TEST_CASE(gather_reshape_reduce)
         auto idx = mm->add_parameter("idx", is);
         auto x   = mm->add_parameter("x", xs);
         auto wr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 3, 2, 4}}}), w);
-        auto br  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 3, 4}}}), b);
+        auto br = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 3, 4}}}), b);
         auto add =
             add_reduce(p2,
                        "main:pointwise0:main:reduce_sum0:main:pointwise1:gather",
@@ -2403,9 +2403,10 @@ TEST_CASE(gather_broadcast_reduce)
     EXPECT(p1.sort() == p2.sort());
 }
 
-// A gather along a reduced axis, or with a single index, stays outside: the
-// kernel reads the gathered rows as whole non-reduced rows
+// A gather along the fastest axis, which the kernel reads in vectors, or
+// with a single index, whose axis would merge away, stays outside
 TEST_CASE(gather_reduce_unfused)
+
 {
     migraphx::shape ws{migraphx::shape::float_type, {2, 3, 8}};
     auto create = [&](const migraphx::shape& is, int axis, const migraphx::shape& xs) {
@@ -2452,11 +2453,12 @@ TEST_CASE(gather_reduce_unfused)
     EXPECT(p2.sort() == expected(is1, 0, xs1).sort());
 }
 
-// The slices cut the interleaved halves of a reduce axis that a reshape
-// split in two: the reduce axis is split the same way on every input and in
+// The slices cut the interleaved halves of a reduce output axis that a
+// reshape split in two: the axis is split the same way on every input and in
 // the submodule, then the slices split the reduce and the pointwise over
 // both halves fuses as the epilogue of the merged reduces
 TEST_CASE(reduce_slice_interleaved)
+
 {
     migraphx::shape ws{migraphx::shape::float_type, {8, 4}};
     migraphx::shape xs{migraphx::shape::float_type, {1, 4}};

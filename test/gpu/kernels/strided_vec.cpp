@@ -33,7 +33,7 @@ template <migraphx::index_int N, migraphx::index_int S, migraphx::index_int L>
 __device__ bool strided_load_matches()
 {
     constexpr migraphx::index_int size = L * S;
-    alignas(16) migraphx::half buffer[size];
+    alignas(16) migraphx::array<migraphx::half, size> buffer;
     for(migraphx::index_int i = 0; i < size; i++)
         buffer[i] = migraphx::half(i);
     bool matches = true;
@@ -71,7 +71,7 @@ TEST_CASE(strided_vec_load_stride4)
     EXPECT(strided_load_matches<8, 4, 16>());
 }
 
-// A strided view of an outer axis keeps the other strides in vectors
+// A strided view along the inner axis counts the other strides in vectors
 TEST_CASE(strided_vec_shape_step)
 {
     constexpr auto s =
@@ -82,9 +82,10 @@ TEST_CASE(strided_vec_shape_step)
     EXPECT(v.elements() == 32);
 }
 
-// Only the reduce kernels read strided vectors, so the plain vectorizer
-// leaves a strided input alone
+// A strided vector is detected, sized by its lanes and loaded as a plain
+// vector, while spanning the whole block in memory
 TEST_CASE(strided_vec_type_traits)
+
 {
     using sv = migraphx::strided_vec<migraphx::half, 8, 2>;
     static_assert(migraphx::is_strided_vec<sv>{}, "strided_vec is detected");

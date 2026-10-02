@@ -28,7 +28,9 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 #include <test.hpp>
+#include <pointwise.hpp>
 
 static void run_pass(migraphx::module& m)
 {
@@ -42,7 +44,7 @@ static migraphx::instruction_ref add_arg_reduce(migraphx::module& m,
                                                 int axis)
 {
     auto indices = m.add_instruction(migraphx::make_op("gpu::make_indices"), {x});
-    auto ar = m.add_instruction(
+    auto ar      = m.add_instruction(
         migraphx::make_op(
             "gpu::arg_reduce",
             {{"op", migraphx::to_value(migraphx::make_op(op_name, {{"axis", axis}}))}}),
@@ -215,4 +217,261 @@ TEST_CASE(argmin_no_parallel_with_reduce)
     EXPECT(m1.sort() == m2.sort());
 }
 
+static void run_program_pass(migraphx::program& p)
+{
+    migraphx::run_passes(p, {migraphx::gpu::prepare_reduce{}, migraphx::dead_code_elimination{}});
+}
+
+static migraphx::shape scalar(migraphx::shape::type_t t) { return migraphx::shape{t}; }
+
+// The reduce module around an int4 unpack: unpack -> pointwise(pm) -> reduce_sum,
+// with an optional per-element zero point tensor as the last pointwise input
+static void add_unpack_reduce(migraphx::module& mm,
+                              const migraphx::operation& unpack,
+                              migraphx::module_ref pm,
+                              bool zero_point_tensor = false)
+{
+    migraphx::shape s{migraphx::shape::half_type, {1, 4, 32}};
+    auto packed = mm.add_parameter("x0", {migraphx::shape::uint8_type, {1, 4, 16}});
+    std::vector<migraphx::instruction_ref> inputs = {
+        mm.add_instruction(unpack, packed), mm.add_parameter("x1", s), mm.add_parameter("x2", s)};
+    if(zero_point_tensor)
+        inputs.push_back(mm.add_parameter("x3", {migraphx::shape::uint8_type, {1, 4, 32}}));
+    auto pw = mm.add_instruction(migraphx::make_op("pointwise"), inputs, {pm});
+    auto rs = mm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), pw);
+    mm.add_return({rs});
+}
+
+static migraphx::operation unpack_int4_convert(double bias)
+{
+    return migraphx::make_op(
+        "gpu::unpack_int4_convert",
+        {{"axis", 2}, {"target_type", migraphx::shape::half_type}, {"bias", bias}});
+}
+
+// (convert(x0) + zp) * x1 * x2
+static void add_dequant_pointwise(migraphx::module& pm, float zp)
+{
+    auto x0 = pm.add_parameter("x0", scalar(migraphx::shape::uint8_type));
+    auto x1 = pm.add_parameter("x1", scalar(migraphx::shape::half_type));
+    auto x2 = pm.add_parameter("x2", scalar(migraphx::shape::half_type));
+    auto c  = pm.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x0);
+    auto lit = pm.add_literal(migraphx::literal{scalar(migraphx::shape::half_type), {zp}});
+    auto a   = pm.add_instruction(migraphx::make_op("add"), c, lit);
+    auto m1  = pm.add_instruction(migraphx::make_op("mul"), a, x1);
+    auto m2  = pm.add_instruction(migraphx::make_op("mul"), m1, x2);
+    pm.add_return({m2});
+}
+
+// x0 * x1 * x2 with x0 already converted
+static void add_folded_pointwise(migraphx::module& pm)
+{
+    auto x0 = pm.add_parameter("x0", scalar(migraphx::shape::half_type));
+    auto x1 = pm.add_parameter("x1", scalar(migraphx::shape::half_type));
+    auto x2 = pm.add_parameter("x2", scalar(migraphx::shape::half_type));
+    auto m1 = pm.add_instruction(migraphx::make_op("mul"), x0, x1);
+    auto m2 = pm.add_instruction(migraphx::make_op("mul"), m1, x2);
+    pm.add_return({m2});
+}
+
+// (x0 - convert(x3)) * x1 * x2, with x0 converted unless already folded
+static void add_zero_point_tensor_pointwise(migraphx::module& pm, bool folded)
+{
+    auto x0 = pm.add_parameter(
+        "x0", scalar(folded ? migraphx::shape::half_type : migraphx::shape::uint8_type));
+    auto x1 = pm.add_parameter("x1", scalar(migraphx::shape::half_type));
+    auto x2 = pm.add_parameter("x2", scalar(migraphx::shape::half_type));
+    auto x3 = pm.add_parameter("x3", scalar(migraphx::shape::uint8_type));
+    auto c0 = x0;
+    if(not folded)
+        c0 = pm.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x0);
+    auto c3 = pm.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x3);
+    auto d  = pm.add_instruction(migraphx::make_op("sub"), c0, c3);
+    auto m1 = pm.add_instruction(migraphx::make_op("mul"), d, x1);
+    auto m2 = pm.add_instruction(migraphx::make_op("mul"), m1, x2);
+    pm.add_return({m2});
+}
+
+TEST_CASE(unpack_int4_literal_zero_point)
+{
+    migraphx::program p1;
+    {
+        auto* pm = p1.create_module("pw");
+        add_dequant_pointwise(*pm, -8);
+        add_unpack_reduce(*p1.get_main_module(), migraphx::make_op("unpack_int4"), pm);
+    }
+    run_program_pass(p1);
+    migraphx::program p2;
+    {
+        auto* pm = p2.create_module("pw:unpack");
+        add_folded_pointwise(*pm);
+        add_unpack_reduce(*p2.get_main_module(), unpack_int4_convert(-8), pm);
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(unpack_int4_zero_point_tensor)
+{
+    migraphx::program p1;
+    {
+        auto* pm = p1.create_module("pw");
+        add_zero_point_tensor_pointwise(*pm, false);
+        add_unpack_reduce(*p1.get_main_module(), migraphx::make_op("unpack_int4"), pm, true);
+    }
+    run_program_pass(p1);
+    migraphx::program p2;
+    {
+        auto* pm = p2.create_module("pw:unpack");
+        add_zero_point_tensor_pointwise(*pm, true);
+        add_unpack_reduce(*p2.get_main_module(), unpack_int4_convert(0), pm, true);
+    }
+    EXPECT(p1 == p2);
+}
+
+// A fractional zero point stays in the pointwise, only the convert folds
+TEST_CASE(unpack_int4_fractional_zero_point)
+{
+    migraphx::program p1;
+    {
+        auto* pm = p1.create_module("pw");
+        add_dequant_pointwise(*pm, -8.5);
+        add_unpack_reduce(*p1.get_main_module(), migraphx::make_op("unpack_int4"), pm);
+    }
+    run_program_pass(p1);
+    migraphx::program p2;
+    {
+        auto* pm = p2.create_module("pw:unpack");
+        auto x0  = pm->add_parameter("x0", scalar(migraphx::shape::half_type));
+        auto x1  = pm->add_parameter("x1", scalar(migraphx::shape::half_type));
+        auto x2  = pm->add_parameter("x2", scalar(migraphx::shape::half_type));
+        auto lit = pm->add_literal(migraphx::literal{scalar(migraphx::shape::half_type), {-8.5}});
+        auto a   = pm->add_instruction(migraphx::make_op("add"), x0, lit);
+        auto m1  = pm->add_instruction(migraphx::make_op("mul"), a, x1);
+        auto m2  = pm->add_instruction(migraphx::make_op("mul"), m1, x2);
+        pm->add_return({m2});
+        add_unpack_reduce(*p2.get_main_module(), unpack_int4_convert(0), pm);
+    }
+    EXPECT(p1 == p2);
+}
+
+// The unpacked values are used unconverted, so nothing folds
+TEST_CASE(unpack_int4_no_convert)
+{
+    migraphx::program p1;
+    {
+        auto* pm = p1.create_module("pw");
+        auto px0 = pm->add_parameter("x0", scalar(migraphx::shape::uint8_type));
+        auto px1 = pm->add_parameter("x1", scalar(migraphx::shape::uint8_type));
+        auto mul = pm->add_instruction(migraphx::make_op("mul"), px0, px1);
+        pm->add_return({mul});
+        auto* mm    = p1.get_main_module();
+        auto packed = mm->add_parameter("x0", {migraphx::shape::uint8_type, {1, 4, 16}});
+        auto up     = mm->add_instruction(migraphx::make_op("unpack_int4"), packed);
+        auto x1     = mm->add_parameter("x1", {migraphx::shape::uint8_type, {1, 4, 32}});
+        auto pw     = mm->add_instruction(migraphx::make_op("pointwise"), {up, x1}, {pm});
+        auto rs     = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), pw);
+        mm->add_return({rs});
+    }
+    migraphx::program p2 = p1;
+    run_program_pass(p1);
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
+
+TEST_CASE(pointwise_broadcast_inputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsumb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8}}}), rsum);
+        auto rsqrt = add_pointwise(p1, "main:pointwise0", {rsumb}, single_pointwise("rsqrt"));
+        auto mul   = add_pointwise(p1, "main:pointwise1", {x, rsqrt}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+    run_pass(*p1.get_main_module());
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsqrt = add_pointwise(p2, "main:pointwise0", {rsum}, single_pointwise("rsqrt"));
+        auto rsqrtb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8}}}), rsqrt);
+        auto mul = add_pointwise(p2, "main:pointwise1", {x, rsqrtb}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(pointwise_broadcast_scalar_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape ss{migraphx::shape::float_type, {1}};
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", ss);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsumb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8}}}), rsum);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8}}}), y);
+        auto add = add_pointwise(p1, "main:pointwise0", {rsumb, yb}, single_pointwise("add"));
+        auto mul = add_pointwise(p1, "main:pointwise1", {x, add}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+    run_pass(*p1.get_main_module());
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", ss);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1}}}), y);
+        auto add = add_pointwise(p2, "main:pointwise0", {rsum, yb}, single_pointwise("add"));
+        auto addb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8}}}), add);
+        auto mul = add_pointwise(p2, "main:pointwise1", {x, addb}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(pointwise_broadcast_and_tensor_inputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    auto create_program = [&] {
+        migraphx::program p;
+        auto* mm  = p.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsumb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8}}}), rsum);
+        auto sub = add_pointwise(p, "main:pointwise0", {x, rsumb}, single_pointwise("sub"));
+        mm->add_return({sub});
+        return p;
+    };
+
+    auto p1 = create_program();
+    run_pass(*p1.get_main_module());
+    auto p2 = create_program();
+
+    EXPECT(p1 == p2);
+}

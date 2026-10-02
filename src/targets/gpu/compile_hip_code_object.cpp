@@ -27,12 +27,17 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/context.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
+#include <algorithm>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS);
 
 std::string generate_make_shape(const shape& s)
 {
@@ -51,21 +56,27 @@ struct make_tensor<${n}>
 };
 )__migraphx__";
 
-static std::string generate_make_tensor(std::size_t n, const shape& s)
+static std::string generate_make_tensor(std::size_t n, const shape& s, const std::string& type)
 {
     return interpolate_string(make_tensor_template,
                               {{"n", std::to_string(n)},
-                               {"type", shape::cpp_type(s.type())},
+                               {"type", type},
                                {"lens", generate_index_ints(s.lens())},
                                {"strides", generate_index_ints(s.strides())}});
 }
 
-static std::string generate_args_hpp(const std::vector<shape>& inputs)
+static std::string generate_args_hpp(const std::vector<shape>& inputs,
+                                     const std::map<std::size_t, std::string>& type_overrides)
 {
+    assert(std::all_of(type_overrides.begin(), type_overrides.end(), [&](const auto& p) {
+        return p.first < inputs.size();
+    }));
     std::string inner;
     for(std::size_t i = 0; i < inputs.size(); i++)
     {
-        inner += generate_make_tensor(i, inputs[i]);
+        auto it   = type_overrides.find(i);
+        auto type = it == type_overrides.end() ? shape::cpp_type(inputs[i].type()) : it->second;
+        inner += generate_make_tensor(i, inputs[i], type);
     }
     const std::string args_hpp = R"__migraphx__(
 #ifndef MIGRAPHX_GUARD_AUTO_ARGS_HPP
@@ -213,7 +224,7 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
         kernels.end(),
         std::back_inserter(srcs),
         [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
-    srcs.emplace_back("main.cpp", content);
+    srcs.emplace_back(options.src_name, content);
 
     if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
         options.emplace_param("-fno-offload-uniform-block");
@@ -221,6 +232,8 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
         assert(options.global % options.local == 0);
     if(hip_workaround_broken_deduction_guide())
         options.emplace_param("-DMIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE");
+    if(enabled(MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS{}))
+        options.emplace_param("-DMIGRAPHX_NONTEMPORAL_LOADS=0");
 
     options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
     options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
@@ -246,7 +259,8 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     assert(options.inputs.size() == options.virtual_inputs.size() or
            options.virtual_inputs.empty());
     auto args_hpp =
-        generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
+        generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs,
+                          options.type_overrides);
     options.additional_src_files.emplace_back("args.hpp", args_hpp);
 
     return code_object_op{value::binary{compile_hip_raw(ctx, content, options)},

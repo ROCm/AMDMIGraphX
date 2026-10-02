@@ -12,7 +12,10 @@ for instructions.
 
 Installing MIGraphX using a package installer is sufficient for most users 
 who want to use the MIGraphX API. If you plan to develop for MIGraphX or 
-contribute to the source code, see `Developing for MIGraphX <../dev/contributing-to-migraphx.html>`_
+contribute to the source code, see `Developing for MIGraphX <../dev/contributing-to-migraphx.html>`_.
+
+For a containerized build environment with prerequisites preinstalled, see
+:doc:`Install MIGraphX with Docker <./install-docker>`.
 
 Install MIGraphX with a package installer
 ====================================================================

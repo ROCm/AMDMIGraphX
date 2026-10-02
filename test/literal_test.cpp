@@ -68,6 +68,62 @@ TEST_CASE(literal_nstd_shape_vector)
     EXPECT(results_vector == data);
 }
 
+TEST_CASE(literal_raw_buffer_size)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {2}};
+    std::vector<int32_t> data = {7, 9};
+    const auto* buf           = reinterpret_cast<const char*>(data.data());
+
+    migraphx::literal l{s, buf, s.bytes()};
+    EXPECT(l.to_vector<int32_t>() == data);
+
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::literal{s, buf, s.bytes() - 1}; }));
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::literal{s, buf, s.bytes() + 1}; }));
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::literal{s, buf, 0}; }));
+}
+
+TEST_CASE(literal_raw_buffer_transposed)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {2, 3}, {1, 2}};
+    std::vector<int32_t> data = {0, 1, 2, 3, 4, 5};
+    const auto* buf           = reinterpret_cast<const char*>(data.data());
+
+    migraphx::literal l{s, buf, s.elements() * s.type_size()};
+    EXPECT(l.get_shape() == s);
+    EXPECT(l.to_vector<int32_t>() == data);
+
+    const auto* stored = reinterpret_cast<const int32_t*>(l.data());
+    EXPECT(std::vector<int32_t>(stored, stored + 6) == std::vector<int32_t>{0, 3, 1, 4, 2, 5});
+}
+
+TEST_CASE(literal_raw_buffer_broadcast)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {3}, {0}};
+    std::vector<int32_t> data = {5, 5, 5};
+    const auto* buf           = reinterpret_cast<const char*>(data.data());
+
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::literal{s, buf, s.bytes()}; }));
+    migraphx::literal l{s, buf, s.elements() * s.type_size()};
+    EXPECT(l.get_shape() == s);
+    EXPECT(l.to_vector<int32_t>() == data);
+}
+
+TEST_CASE(literal_vector_too_many_values)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::literal{s, std::vector<float>{1, 2, 3, 4, 5}}; }));
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::literal{s, {1.0f, 2.0f, 3.0f, 4.0f, 5.0f}}; }));
+}
+
+TEST_CASE(literal_vector_partial_fill)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::literal l{s, std::vector<float>{1, 2}};
+    EXPECT(l.to_vector<float>() == std::vector<float>{1, 2, 0, 0});
+}
+
 TEST_CASE(literal_os1)
 {
     migraphx::literal l{1};
@@ -175,6 +231,33 @@ TEST_CASE(value_literal)
     EXPECT(l3 == l1);
     auto l4 = migraphx::from_value<migraphx::literal>(v2);
     EXPECT(l4 == l2);
+}
+
+TEST_CASE(value_literal_data_size_mismatch)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1024, 1024}};
+    std::vector<char> data(4);
+    migraphx::value v = {{"shape", migraphx::to_value(s)}, {"data", migraphx::value::binary{data}}};
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::from_value<migraphx::literal>(v); }));
+}
+
+TEST_CASE(value_literal_transposed)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {2, 3}, {1, 2}};
+    migraphx::literal l1{s, std::vector<int32_t>{0, 1, 2, 3, 4, 5}};
+    auto l2 = migraphx::from_value<migraphx::literal>(migraphx::to_value(l1));
+    EXPECT(l2.get_shape() == s);
+    EXPECT(l2 == l1);
+    EXPECT(l2.to_vector<int32_t>() == std::vector<int32_t>{0, 1, 2, 3, 4, 5});
+}
+
+TEST_CASE(value_literal_broadcast)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {3}, {0}};
+    migraphx::literal l1{s, std::vector<int32_t>{5, 5, 5}};
+    auto l2 = migraphx::from_value<migraphx::literal>(migraphx::to_value(l1));
+    EXPECT(l2.get_shape() == s);
+    EXPECT(l2.to_vector<int32_t>() == std::vector<int32_t>{5, 5, 5});
 }
 
 TEST_CASE(literal_to_string_float_precision)

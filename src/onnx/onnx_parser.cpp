@@ -85,8 +85,10 @@ static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
     return result;
 }
 
-static literal
-create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
+static literal create_literal(shape::type_t shape_type,
+                              const std::vector<size_t>& dims,
+                              const char* data,
+                              std::size_t size)
 {
     // empty input
     auto elem_num =
@@ -98,8 +100,8 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
 
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
     if(dims.empty())
-        return literal{{shape_type}, data};
-    return literal{{shape_type, dims}, data};
+        return literal{{shape_type}, data, size};
+    return literal{{shape_type, dims}, data, size};
 }
 
 template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
@@ -112,6 +114,10 @@ static literal create_literal(shape::type_t shape_type, const std::vector<size_t
     {
         return literal{shape_type};
     }
+
+    if(data.size() != elem_num)
+        MIGRAPHX_THROW("PARSE_TENSOR: number of values " + std::to_string(data.size()) +
+                       " does not match tensor elements " + std::to_string(elem_num));
 
     // scalar input
     if(dims.empty())
@@ -838,14 +844,13 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
         {
             raw_buffer = read_buffer(path / data_file, offset, nbytes);
         }
-        std::string s(raw_buffer.begin(), raw_buffer.end());
-        return create_literal(type, dims, s.data());
+        return create_literal(type, dims, raw_buffer.data(), raw_buffer.size());
     }
 
     if(t.has_raw_data())
     {
         const std::string& s = t.raw_data();
-        return create_literal(type, dims, s.data());
+        return create_literal(type, dims, s.data(), s.size());
     }
 
     switch(t.data_type())

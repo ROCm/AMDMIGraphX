@@ -30,9 +30,11 @@
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/raw_data.hpp>
 #include <migraphx/make_shared_array.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/config.hpp>
 
 #include <memory>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -87,6 +89,21 @@ struct literal : raw_data<literal>
         std::copy(x, x + s.bytes(), buffer.get());
     }
 
+    // x holds nbytes: the elements of s in row-major order of s.lens(), regardless of s's strides
+    template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
+    literal(const shape& s, T* x, std::size_t nbytes) : m_shape(s)
+    {
+        if(nbytes != s.elements() * s.type_size())
+            MIGRAPHX_THROW("literal: buffer size " + std::to_string(nbytes) +
+                           " does not hold shape elements " + std::to_string(s.elements()) +
+                           " of type size " + std::to_string(s.type_size()));
+        buffer = make_shared_array<char>(s.bytes());
+        s.visit_type([&](auto as) {
+            const auto* values = as.from(x);
+            fill(values, values + s.elements());
+        });
+    }
+
     /// Whether data is available
     bool empty() const { return this->buffer == nullptr; }
 
@@ -108,11 +125,15 @@ struct literal : raw_data<literal>
     std::shared_ptr<char> buffer;
     shape m_shape;
 
-    // Keeps the same data ordering as the given container
+    // Keeps the same data ordering as the given container. Fewer values than the shape's
+    // elements fills only the leading elements; the rest remain zero.
     template <class Iterator>
     void fill(Iterator start, Iterator end)
     {
-        assert(std::distance(start, end) == m_shape.elements());
+        if(m_shape.elements() < std::distance(start, end))
+            MIGRAPHX_THROW("literal: number of values " +
+                           std::to_string(std::distance(start, end)) + " exceeds shape elements " +
+                           std::to_string(m_shape.elements()));
         m_shape.visit_type([&](auto as) {
             auto output = make_view(m_shape, as.from(buffer.get()));
             std::copy(start, end, output.begin());

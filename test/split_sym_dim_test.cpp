@@ -1166,6 +1166,38 @@ TEST_CASE(split_sym_dim_retries_affected_connected_edge)
     EXPECT(p.sort() == expected.sort());
 }
 
+TEST_CASE(split_sym_dim_rejects_reshape_with_unowned_root)
+{
+    auto source_n = var("source_n", {1, 4}, {2});
+    auto output_n = var("output_n", {1, 4}, {3});
+    migraphx::program p;
+    auto& m         = *p.get_main_module();
+    auto source     = m.add_parameter("source", symbolic_shape({source_n, lit(4)}));
+    auto target     = m.add_parameter("target", symbolic_shape({source_n, lit(4)}));
+    auto reshaped   = m.add_instruction(migraphx::make_op("reshape"), source, target);
+    auto output     = m.add_parameter("output", symbolic_shape({output_n, lit(4)}));
+    auto mismatched = m.add_instruction(migraphx::make_op("add"), output, reshaped);
+    m.add_return({mismatched});
+
+    run_pass(p, 3);
+
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 1);
+    auto adds = migraphx::find_all(migraphx::iterator_for(m),
+                                   [](auto ins) { return ins->name() == "add"; });
+    EXPECT(adds.size() == 1);
+    if(adds.size() == 1)
+        EXPECT(adds.front()->inputs().back()->name() == "dyn_slice");
+    EXPECT(all_of(p.get_modules(), [](auto* module) {
+        if(module->name() == "main")
+            return true;
+        auto reshapes = migraphx::find_all(migraphx::iterator_for(*module),
+                                           [](auto ins) { return ins->name() == "reshape"; });
+        return reshapes.size() == 1 and reshapes.front()->inputs().size() == 1;
+    }));
+}
+
 TEST_CASE(split_sym_dim_preserves_two_input_reshape_target_layout)
 {
     auto n = var("n", {1, 4}, {2});
@@ -2916,6 +2948,64 @@ TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
                  {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f});
 }
 
+TEST_CASE(split_sym_dim_keeps_provable_nonzero_slice_at_boundary)
+{
+    auto length = var("length", {0, 100}, {50});
+    migraphx::program p;
+    auto& m        = *p.get_main_module();
+    auto source    = m.add_parameter("source", symbolic_shape({length}));
+    auto shape_arg = m.add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{length})}}),
+        source);
+    auto allocation = m.add_instruction(
+        migraphx::make_op(
+            "allocate",
+            {{"shape", migraphx::to_value(symbolic_shape({length}, migraphx::shape::int64_type))}}),
+        shape_arg);
+    auto one      = m.add_literal(int64_t{1});
+    auto filled   = m.add_instruction(migraphx::make_op("fill"), one, allocation);
+    auto nonzero  = m.add_instruction(migraphx::make_op("nonzero"), filled);
+    auto indices  = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+    auto count    = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero);
+    auto starts   = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto selected = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(length)}},
+                           {"always_leq", true}}),
+        indices,
+        starts,
+        count);
+    auto output = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), selected);
+    m.add_return({output});
+
+    EXPECT(selected->get_shape().dyn_strides() == std::vector<se>{length, lit(1)});
+    run_pass(p);
+
+    auto boundaries = migraphx::find_all(migraphx::iterator_for(m), [](auto ins) {
+        if(ins->name() != "dyn_slice")
+            return false;
+        auto data = ins->inputs().front();
+        return data->name() == "get_tuple_elem" and data->inputs().front()->name() == "nonzero";
+    });
+    EXPECT(boundaries.size() == 1);
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 2);
+    if(boundaries.size() == 1)
+        EXPECT(any_of(selections, [&](auto selection) {
+            return migraphx::contains(selection->inputs(), boundaries.front());
+        }));
+    EXPECT(none_of(p.get_modules(), [](auto* module) {
+        return module->name() != "main" and
+               any_of(*module, [](const auto& ins) { return ins.name() == "dyn_slice"; });
+    }));
+}
+
 TEST_CASE(split_sym_dim_dyn_concat_count_root)
 {
     auto a            = var("a", {0, 2});
@@ -2964,6 +3054,165 @@ TEST_CASE(split_sym_dim_dyn_concat_count_root)
         EXPECT(not migraphx::contains(selections.front()->inputs(), x));
         EXPECT(not migraphx::contains(selections.front()->inputs(), y));
     }
+}
+
+TEST_CASE(split_sym_dim_dyn_concat_opaque_boundary)
+{
+    auto a            = var("a", {0, 2});
+    auto b            = var("b", {0, 2});
+    auto concat_count = var("concat_count", {0, 4});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto condition0 =
+        m.add_parameter("condition0", migraphx::shape{migraphx::shape::bool_type, {2}});
+    auto condition1 =
+        m.add_parameter("condition1", migraphx::shape{migraphx::shape::bool_type, {2}});
+    auto values0 = m.add_parameter("values0", migraphx::shape{migraphx::shape::float_type, {2, 1}});
+    auto values1 = m.add_parameter("values1", migraphx::shape{migraphx::shape::float_type, {2, 1}});
+    auto starts  = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+
+    auto nonzero0 = m.add_instruction(migraphx::make_op("nonzero"), condition0);
+    auto indices0 =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero0);
+    auto count0 = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero0);
+    auto selected0 = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(a)}},
+                           {"always_leq", true}}),
+        indices0,
+        starts,
+        count0);
+    auto squeezed0 = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), selected0);
+    auto gathered0 =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), values0, squeezed0);
+    auto branch0 = m.add_instruction(migraphx::make_op("relu"), gathered0);
+
+    auto nonzero1 = m.add_instruction(migraphx::make_op("nonzero"), condition1);
+    auto indices1 =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero1);
+    auto count1 = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero1);
+    auto selected1 = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(b)}},
+                           {"always_leq", true}}),
+        indices1,
+        starts,
+        count1);
+    auto squeezed1 = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), selected1);
+    auto gathered1 =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), values1, squeezed1);
+    auto branch1 = m.add_instruction(migraphx::make_op("relu"), gathered1);
+
+    auto concat = m.add_instruction(
+        migraphx::make_op("dyn_concat", {{"axis", 0}}), branch0, branch1, count0, count1);
+    auto buffer   = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
+    auto total    = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
+    auto selected = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(concat_count)}},
+                           {"always_leq", true}}),
+        buffer,
+        starts,
+        total);
+    auto output = m.add_instruction(migraphx::make_op("relu"), selected);
+    m.add_return({output});
+
+    run_pass(p);
+
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 3);
+    auto concats = migraphx::find_all(migraphx::iterator_for(m),
+                                      [](auto ins) { return ins->name() == "dyn_concat"; });
+    EXPECT(concats.size() == 1);
+    if(concats.size() == 1)
+    {
+        EXPECT(concats.front()->inputs().at(0) != branch0);
+        EXPECT(concats.front()->inputs().at(1) != branch1);
+    }
+    auto boundary_slices = migraphx::find_all(migraphx::iterator_for(m), [&](auto ins) {
+        return ins->name() == "dyn_slice" and ins->get_shape().symbolic() and
+               any_of(ins->get_shape().dyn_dims(),
+                      [&](const auto& d) { return d.sym_expr == concat_count; });
+    });
+    EXPECT(not boundary_slices.empty());
+    EXPECT(std::count_if(boundary_slices.begin(), boundary_slices.end(), [&](auto slice) {
+               return any_of(selections,
+                             [&](auto ins) { return migraphx::contains(ins->inputs(), slice); });
+           }) == 1);
+    EXPECT(migraphx::none_of(p.get_modules(), [](auto* mod) {
+        return mod->name() != "main" and
+               any_of(*mod, [](const auto& ins) { return ins.name() == "dyn_concat"; });
+    }));
+}
+
+TEST_CASE(split_sym_dim_dyn_concat_same_root_fusion)
+{
+    auto n            = var("n", {0, 2});
+    auto m            = var("m", {0, 2});
+    auto concat_count = var("concat_count", {0, 6});
+    migraphx::program p;
+    auto& mod    = *p.get_main_module();
+    auto x       = mod.add_parameter("x", symbolic_shape({n, lit(1)}));
+    auto y       = mod.add_parameter("y", symbolic_shape({m, lit(1)}));
+    auto relu    = mod.add_instruction(migraphx::make_op("relu"), x);
+    auto sigmoid = mod.add_instruction(migraphx::make_op("sigmoid"), x);
+    auto joined  = mod.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu, sigmoid);
+    auto tanh    = mod.add_instruction(migraphx::make_op("tanh"), y);
+    auto n_count = mod.add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{n + n})}}),
+        x);
+    auto m_count = mod.add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{m})}}),
+        y);
+    auto concat = mod.add_instruction(
+        migraphx::make_op("dyn_concat", {{"axis", 0}}), joined, tanh, n_count, m_count);
+    auto buffer = mod.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
+    auto total  = mod.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
+    auto starts = mod.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto selected = mod.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(concat_count)}},
+                           {"always_leq", true}}),
+        buffer,
+        starts,
+        total);
+    auto output = mod.add_instruction(migraphx::make_op("relu"), selected);
+    mod.add_return({output});
+
+    run_pass(p);
+
+    auto selections = migraphx::find_all(migraphx::iterator_for(mod),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 3);
+    auto modules = p.get_modules();
+    EXPECT(std::count_if(modules.begin(), modules.end(), [](auto* module) {
+               bool has_relu =
+                   any_of(*module, [](const auto& ins) { return ins.name() == "relu"; });
+               bool has_sigmoid =
+                   any_of(*module, [](const auto& ins) { return ins.name() == "sigmoid"; });
+               return has_relu and has_sigmoid;
+           }) == 1);
+    EXPECT(none_of(modules, [](auto* module) {
+        bool has_first_branch = any_of(*module, [](const auto& ins) {
+            return ins.name() == "relu" or ins.name() == "sigmoid";
+        });
+        bool has_second_branch =
+            any_of(*module, [](const auto& ins) { return ins.name() == "tanh"; });
+        return has_first_branch and has_second_branch;
+    }));
 }
 
 TEST_CASE(split_sym_dim_sequential_nonzero_nms_roots)
@@ -3341,6 +3590,491 @@ TEST_CASE(split_sym_dim_maskrcnn_reduced_nms_fanout)
     auto nonempty = run({1, 1, 1, 1});
     EXPECT(nonempty.get_shape().lens() == std::vector<std::size_t>{6, 3});
     EXPECT(nonempty.to_vector<float>().size() == 18);
+}
+
+TEST_CASE(split_sym_dim_shared_replacement_memo)
+{
+    auto count = var("memo_count", {0, 4});
+    migraphx::program p;
+    auto& m        = *p.get_main_module();
+    auto condition = m.add_parameter("condition", migraphx::shape{migraphx::shape::bool_type, {4}});
+    auto values0 = m.add_parameter("values0", migraphx::shape{migraphx::shape::float_type, {4, 2}});
+    auto values1 = m.add_parameter("values1", migraphx::shape{migraphx::shape::float_type, {4, 2}});
+    auto starts  = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto nonzero = m.add_instruction(migraphx::make_op("nonzero"), condition);
+    auto indices = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+    auto num_nonzero =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero);
+    auto selected = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(count)}},
+                           {"always_leq", true}}),
+        indices,
+        starts,
+        num_nonzero);
+    auto shared  = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), selected);
+    auto branch0 = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), values0, shared);
+    branch0      = m.add_instruction(migraphx::make_op("relu"), branch0);
+    auto branch1 = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), values1, shared);
+    branch1      = m.add_instruction(migraphx::make_op("sigmoid"), branch1);
+    auto joined  = m.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), branch0, branch1);
+    m.add_return({branch0, branch1, joined});
+
+    run_pass(p);
+
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 1);
+    EXPECT(all_of(m.get_output_shapes(), [&](const auto& s) {
+        return s.symbolic() and
+               migraphx::any_of(s.dyn_dims(), [&](const auto& d) { return d.sym_expr == count; });
+    }));
+}
+
+TEST_CASE(split_sym_dim_nms_dyn_concat_separate_roots)
+{
+    std::vector<se> nonzero_counts = {var("repro_nonzero_count_0", {0, 4}),
+                                      var("repro_nonzero_count_1", {0, 4})};
+    std::vector<se> nms_counts     = {var("repro_nms_count_0", {0, 4}),
+                                      var("repro_nms_count_1", {0, 4})};
+    auto concat_count              = var("repro_concat_count", {0, 8});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    std::vector<migraphx::instruction_ref> conditions(2);
+    std::vector<migraphx::instruction_ref> boxes(2);
+    std::vector<migraphx::instruction_ref> scores(2);
+    auto score_indices = migraphx::range(scores.size());
+    std::transform(score_indices.begin(), score_indices.end(), conditions.begin(), [&](auto i) {
+        return m.add_parameter("condition" + std::to_string(i),
+                               migraphx::shape{migraphx::shape::bool_type, {4}});
+    });
+    std::transform(score_indices.begin(), score_indices.end(), boxes.begin(), [&](auto i) {
+        return m.add_parameter("boxes" + std::to_string(i),
+                               migraphx::shape{migraphx::shape::float_type, {4, 4}});
+    });
+    std::transform(score_indices.begin(), score_indices.end(), scores.begin(), [&](auto i) {
+        return m.add_parameter("scores" + std::to_string(i),
+                               migraphx::shape{migraphx::shape::float_type, {4}});
+    });
+    auto starts     = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto max_output = m.add_literal(int64_t{4});
+
+    std::vector<migraphx::instruction_ref> selected_indices;
+    std::vector<migraphx::instruction_ref> selected_counts;
+    std::vector<migraphx::instruction_ref> side_outputs;
+    std::transform(
+        score_indices.begin(),
+        score_indices.end(),
+        std::back_inserter(selected_indices),
+        [&](auto i) {
+            auto nonzero = m.add_instruction(migraphx::make_op("nonzero"), conditions.at(i));
+            auto indices =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+            auto num_nonzero =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero);
+            auto selected = m.add_instruction(
+                migraphx::make_op(
+                    "dyn_slice",
+                    {{"axes", {1}},
+                     {"starts", {0}},
+                     {"ends", migraphx::value::array{migraphx::to_value(nonzero_counts.at(i))}},
+                     {"always_leq", true}}),
+                indices,
+                starts,
+                num_nonzero);
+            auto selected_1d =
+                m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), selected);
+            auto selected_boxes = m.add_instruction(
+                migraphx::make_op("gather", {{"axis", 0}}), boxes.at(i), selected_1d);
+            selected_boxes =
+                m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), selected_boxes);
+            auto branch_scores = m.add_instruction(
+                migraphx::make_op("gather", {{"axis", 0}}), scores.at(i), selected_1d);
+            auto selected_scores = m.add_instruction(
+                migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), branch_scores);
+            auto nms = m.add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                         selected_boxes,
+                                         selected_scores,
+                                         max_output);
+            auto nms_indices =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+            auto count =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+            selected_counts.push_back(count);
+            auto selected_nms = m.add_instruction(
+                migraphx::make_op(
+                    "dyn_slice",
+                    {{"axes", {0}},
+                     {"starts", {0}},
+                     {"ends", migraphx::value::array{migraphx::to_value(nms_counts.at(i))}},
+                     {"always_leq", true}}),
+                nms_indices,
+                starts,
+                count);
+            side_outputs.push_back(m.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                selected_nms));
+            return selected_nms;
+        });
+    auto concat_inputs = selected_indices;
+    concat_inputs.insert(concat_inputs.end(), selected_counts.begin(), selected_counts.end());
+    auto concat = m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), concat_inputs);
+    auto buffer = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
+    auto total  = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
+    auto packed = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(concat_count)}},
+                           {"always_leq", true}}),
+        buffer,
+        starts,
+        total);
+    auto converted = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), packed);
+    side_outputs.push_back(m.add_instruction(migraphx::make_op("relu"), converted));
+    m.add_return(side_outputs);
+
+    run_pass(p);
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 5);
+    auto concats = migraphx::find_all(migraphx::iterator_for(m),
+                                      [](auto ins) { return ins->name() == "dyn_concat"; });
+    EXPECT(concats.size() == 1);
+    if(concats.size() == 1)
+    {
+        EXPECT(concats.front()->inputs().at(0) != selected_indices.at(0));
+        EXPECT(concats.front()->inputs().at(1) != selected_indices.at(1));
+    }
+    auto shape_has_root = [](const migraphx::shape& s, const se& root) {
+        if(not s.symbolic())
+            return false;
+        return any_of(s.dyn_dims(), [&](const auto& d) {
+            return migraphx::any_of(
+                migraphx::sym::find_variables(d.sym_expr),
+                [&](const auto& variable) { return migraphx::sym::same_symbol(variable, root); });
+        });
+    };
+    EXPECT(none_of(p.get_modules(), [&](auto* module) {
+        if(module == p.get_main_module())
+            return false;
+        auto outputs = module->get_output_shapes();
+        bool has_root0 =
+            any_of(outputs, [&](const auto& s) { return shape_has_root(s, nms_counts.at(0)); });
+        bool has_root1 =
+            any_of(outputs, [&](const auto& s) { return shape_has_root(s, nms_counts.at(1)); });
+        return has_root0 and has_root1;
+    }));
+    auto outputs = m.get_output_shapes();
+    EXPECT(shape_has_root(outputs.at(0), nms_counts.at(0)));
+    EXPECT(shape_has_root(outputs.at(1), nms_counts.at(1)));
+    EXPECT(shape_has_root(outputs.at(2), concat_count));
+}
+
+TEST_CASE(split_sym_dim_maskrcnn_long_five_branch_stress)
+{
+    std::vector<se> nonzero_counts = {var("stress_nonzero_count_0", {0, 4}),
+                                      var("stress_nonzero_count_1", {0, 4}),
+                                      var("stress_nonzero_count_2", {0, 4}),
+                                      var("stress_nonzero_count_3", {0, 4}),
+                                      var("stress_nonzero_count_4", {0, 4})};
+    std::vector<se> nms_counts     = {var("stress_nms_count_0", {0, 4}),
+                                      var("stress_nms_count_1", {0, 4}),
+                                      var("stress_nms_count_2", {0, 4}),
+                                      var("stress_nms_count_3", {0, 4}),
+                                      var("stress_nms_count_4", {0, 4})};
+    auto concat_count              = var("stress_concat_count", {0, 20});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    std::vector<migraphx::instruction_ref> conditions(5);
+    std::vector<migraphx::instruction_ref> boxes(5);
+    std::vector<migraphx::instruction_ref> scores(5);
+    auto branch_indices = migraphx::range(scores.size());
+    std::transform(branch_indices.begin(), branch_indices.end(), conditions.begin(), [&](auto i) {
+        return m.add_parameter("stress_condition" + std::to_string(i),
+                               migraphx::shape{migraphx::shape::bool_type, {4}});
+    });
+    std::transform(branch_indices.begin(), branch_indices.end(), boxes.begin(), [&](auto i) {
+        return m.add_parameter("stress_boxes" + std::to_string(i),
+                               migraphx::shape{migraphx::shape::float_type, {4, 4}});
+    });
+    std::transform(branch_indices.begin(), branch_indices.end(), scores.begin(), [&](auto i) {
+        return m.add_parameter("stress_scores" + std::to_string(i),
+                               migraphx::shape{migraphx::shape::float_type, {4}});
+    });
+    auto starts     = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto max_output = m.add_literal(int64_t{4});
+
+    std::vector<migraphx::instruction_ref> branch_outputs;
+    std::vector<migraphx::instruction_ref> branch_counts;
+    std::vector<migraphx::instruction_ref> original_concat_inputs;
+    std::vector<migraphx::instruction_ref> side_outputs;
+    std::transform(
+        branch_indices.begin(),
+        branch_indices.end(),
+        std::back_inserter(branch_outputs),
+        [&](auto i) {
+            auto nonzero = m.add_instruction(migraphx::make_op("nonzero"), conditions.at(i));
+            auto indices =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+            auto num_nonzero =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero);
+            auto selected = m.add_instruction(
+                migraphx::make_op(
+                    "dyn_slice",
+                    {{"axes", {1}},
+                     {"starts", {0}},
+                     {"ends", migraphx::value::array{migraphx::to_value(nonzero_counts.at(i))}},
+                     {"always_leq", true}}),
+                indices,
+                starts,
+                num_nonzero);
+            auto selected_1d =
+                m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), selected);
+            auto selected_boxes = m.add_instruction(
+                migraphx::make_op("gather", {{"axis", 0}}), boxes.at(i), selected_1d);
+            selected_boxes = m.add_instruction(migraphx::make_op("relu"), selected_boxes);
+            selected_boxes =
+                m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), selected_boxes);
+            auto selected_scores = m.add_instruction(
+                migraphx::make_op("gather", {{"axis", 0}}), scores.at(i), selected_1d);
+            selected_scores = m.add_instruction(migraphx::make_op("abs"), selected_scores);
+            selected_scores = m.add_instruction(migraphx::make_op("relu"), selected_scores);
+            selected_scores = m.add_instruction(migraphx::make_op("sigmoid"), selected_scores);
+            selected_scores = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}),
+                                                selected_scores);
+            auto nms        = m.add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                         selected_boxes,
+                                         selected_scores,
+                                         max_output);
+            auto nms_indices =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+            auto count =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+            branch_counts.push_back(count);
+            auto selected_nms = m.add_instruction(
+                migraphx::make_op(
+                    "dyn_slice",
+                    {{"axes", {0}},
+                     {"starts", {0}},
+                     {"ends", migraphx::value::array{migraphx::to_value(nms_counts.at(i))}},
+                     {"always_leq", true}}),
+                nms_indices,
+                starts,
+                count);
+            original_concat_inputs.push_back(selected_nms);
+            auto side = m.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                selected_nms);
+            side = m.add_instruction(migraphx::make_op("relu"), side);
+            side_outputs.push_back(m.add_instruction(migraphx::make_op("abs"), side));
+            return selected_nms;
+        });
+    auto concat_inputs = branch_outputs;
+    concat_inputs.insert(concat_inputs.end(), branch_counts.begin(), branch_counts.end());
+    auto concat = m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), concat_inputs);
+    auto buffer = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
+    auto total  = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
+    auto packed = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(concat_count)}},
+                           {"always_leq", true}}),
+        buffer,
+        starts,
+        total);
+    auto tail = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), packed);
+    tail = m.add_instruction(migraphx::make_op("relu"), tail);
+    tail = m.add_instruction(migraphx::make_op("abs"), tail);
+    tail = m.add_instruction(migraphx::make_op("sqrt"), tail);
+    side_outputs.push_back(tail);
+    m.add_return(side_outputs);
+
+    run_pass(p);
+
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 11);
+    auto concats = migraphx::find_all(migraphx::iterator_for(m),
+                                      [](auto ins) { return ins->name() == "dyn_concat"; });
+    EXPECT(concats.size() == 1);
+    if(concats.size() == 1)
+        for(auto i : branch_indices)
+            EXPECT(concats.front()->inputs().at(i) != original_concat_inputs.at(i));
+
+    auto shape_has_root = [](const migraphx::shape& s, const se& root) {
+        if(not s.symbolic())
+            return false;
+        return any_of(s.dyn_dims(), [&](const auto& d) {
+            return migraphx::any_of(
+                migraphx::sym::find_variables(d.sym_expr),
+                [&](const auto& variable) { return migraphx::sym::same_symbol(variable, root); });
+        });
+    };
+    std::size_t total_clone_instructions = 0;
+    std::size_t max_clone_instructions   = 0;
+    auto modules                         = p.get_modules();
+    for(auto* module : modules)
+    {
+        if(module == p.get_main_module())
+            continue;
+        EXPECT(none_of(*module, [](const auto& ins) {
+            return ins.name() == "dyn_concat" or ins.name() == "dyn_slice";
+        }));
+        EXPECT(none_of(module->get_output_shapes(), [](const auto& s) { return s.dynamic(); }));
+        auto instruction_count =
+            static_cast<std::size_t>(std::distance(module->begin(), module->end()));
+        total_clone_instructions += instruction_count;
+        max_clone_instructions = std::max(max_clone_instructions, instruction_count);
+        EXPECT(std::count_if(nms_counts.begin(), nms_counts.end(), [&](const auto& root) {
+                   return any_of(module->get_output_shapes(),
+                                 [&](const auto& s) { return shape_has_root(s, root); });
+               }) <= 1);
+    }
+    EXPECT(total_clone_instructions > 0);
+    EXPECT(max_clone_instructions > 0);
+    EXPECT(max_clone_instructions < total_clone_instructions);
+}
+
+TEST_CASE(split_sym_dim_maskrcnn_40_branch_stress)
+{
+    constexpr std::size_t num_branches = 40;
+    auto branch_indices                = migraphx::range(num_branches);
+    std::vector<se> nonzero_counts(num_branches);
+    std::vector<se> nms_counts(num_branches);
+    std::transform(
+        branch_indices.begin(), branch_indices.end(), nonzero_counts.begin(), [](auto i) {
+            return var("stress40_nonzero_count_" + std::to_string(i), {0, 4});
+        });
+    std::transform(branch_indices.begin(), branch_indices.end(), nms_counts.begin(), [](auto i) {
+        return var("stress40_nms_count_" + std::to_string(i), {0, 4});
+    });
+    auto concat_count = var("stress40_concat_count", {0, num_branches * 4});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    std::vector<migraphx::instruction_ref> conditions(num_branches);
+    std::vector<migraphx::instruction_ref> boxes(num_branches);
+    std::vector<migraphx::instruction_ref> scores(num_branches);
+    std::transform(branch_indices.begin(), branch_indices.end(), conditions.begin(), [&](auto i) {
+        return m.add_parameter("stress40_condition" + std::to_string(i),
+                               migraphx::shape{migraphx::shape::bool_type, {4}});
+    });
+    std::transform(branch_indices.begin(), branch_indices.end(), boxes.begin(), [&](auto i) {
+        return m.add_parameter("stress40_boxes" + std::to_string(i),
+                               migraphx::shape{migraphx::shape::float_type, {4, 4}});
+    });
+    std::transform(branch_indices.begin(), branch_indices.end(), scores.begin(), [&](auto i) {
+        return m.add_parameter("stress40_scores" + std::to_string(i),
+                               migraphx::shape{migraphx::shape::float_type, {4}});
+    });
+    auto starts     = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto max_output = m.add_literal(int64_t{4});
+
+    std::vector<migraphx::instruction_ref> branch_outputs;
+    std::vector<migraphx::instruction_ref> branch_counts;
+    std::vector<migraphx::instruction_ref> original_concat_inputs;
+    std::vector<migraphx::instruction_ref> side_outputs;
+    std::transform(
+        branch_indices.begin(),
+        branch_indices.end(),
+        std::back_inserter(branch_outputs),
+        [&](auto i) {
+            auto nonzero = m.add_instruction(migraphx::make_op("nonzero"), conditions.at(i));
+            auto indices =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+            auto num_nonzero =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero);
+            auto selected = m.add_instruction(
+                migraphx::make_op(
+                    "dyn_slice",
+                    {{"axes", {1}},
+                     {"starts", {0}},
+                     {"ends", migraphx::value::array{migraphx::to_value(nonzero_counts.at(i))}},
+                     {"always_leq", true}}),
+                indices,
+                starts,
+                num_nonzero);
+            auto selected_1d =
+                m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), selected);
+            auto selected_boxes = m.add_instruction(
+                migraphx::make_op("gather", {{"axis", 0}}), boxes.at(i), selected_1d);
+            selected_boxes = m.add_instruction(migraphx::make_op("relu"), selected_boxes);
+            selected_boxes =
+                m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), selected_boxes);
+            auto selected_scores = m.add_instruction(
+                migraphx::make_op("gather", {{"axis", 0}}), scores.at(i), selected_1d);
+            selected_scores = m.add_instruction(migraphx::make_op("abs"), selected_scores);
+            selected_scores = m.add_instruction(migraphx::make_op("relu"), selected_scores);
+            selected_scores = m.add_instruction(migraphx::make_op("sigmoid"), selected_scores);
+            selected_scores = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}),
+                                                selected_scores);
+            auto nms        = m.add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                         selected_boxes,
+                                         selected_scores,
+                                         max_output);
+            auto nms_indices =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+            auto count =
+                m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+            branch_counts.push_back(count);
+            auto selected_nms = m.add_instruction(
+                migraphx::make_op(
+                    "dyn_slice",
+                    {{"axes", {0}},
+                     {"starts", {0}},
+                     {"ends", migraphx::value::array{migraphx::to_value(nms_counts.at(i))}},
+                     {"always_leq", true}}),
+                nms_indices,
+                starts,
+                count);
+            original_concat_inputs.push_back(selected_nms);
+            auto side = m.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                selected_nms);
+            side_outputs.push_back(m.add_instruction(migraphx::make_op("relu"), side));
+            return selected_nms;
+        });
+    auto concat_inputs = branch_outputs;
+    concat_inputs.insert(concat_inputs.end(), branch_counts.begin(), branch_counts.end());
+    auto concat = m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), concat_inputs);
+    auto buffer = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
+    auto total  = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
+    auto packed = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(concat_count)}},
+                           {"always_leq", true}}),
+        buffer,
+        starts,
+        total);
+    auto tail = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), packed);
+    tail = m.add_instruction(migraphx::make_op("relu"), tail);
+    side_outputs.push_back(tail);
+    m.add_return(side_outputs);
+
+    run_pass(p);
+
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == num_branches * 2 + 1);
+    auto concats = migraphx::find_all(migraphx::iterator_for(m),
+                                      [](auto ins) { return ins->name() == "dyn_concat"; });
+    EXPECT(concats.size() == 1);
+    if(concats.size() == 1)
+        for(auto i : branch_indices)
+            EXPECT(concats.front()->inputs().at(i) != original_concat_inputs.at(i));
+    EXPECT(none_of(p.get_modules(), [](auto* module) {
+        return module->name() != "main" and any_of(*module, [](const auto& ins) {
+                   return ins.name() == "dyn_concat" or ins.name() == "dyn_slice";
+               });
+    }));
 }
 
 TEST_CASE(split_sym_dim_data_dependent_clone_cap_is_noop)

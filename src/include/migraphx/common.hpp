@@ -168,6 +168,15 @@ MIGRAPHX_EXPORT
 shape make_bcast_shape(const shape& input_shape,
                        const std::vector<shape::dynamic_dimension>& bcast_dyn_dims);
 
+/**
+ * @brief Whether input_lens can multibroadcast to out_lens, right-aligned with size-1 axes
+ * broadcastable. Returns false if input_lens has the higher rank or either is empty. See
+ * compute_broadcasted_lens() to compute the broadcasted dimensions.
+ */
+MIGRAPHX_EXPORT
+bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
+                        const std::vector<std::size_t>& out_lens);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_COMMON_HPP

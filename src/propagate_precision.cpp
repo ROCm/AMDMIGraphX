@@ -147,7 +147,7 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
 // so promoting it to int would truncate the scale (e.g. 0.05 -> 0) and then divide by it.
 static bool inputs_match_category(instruction_ref ins, precision target)
 {
-    return all_of(ins->inputs(), [&](instruction_ref input) {
+    return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref input) {
         return same_category(precision{input->get_shape().type()}, target);
     });
 }

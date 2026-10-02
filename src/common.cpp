@@ -28,6 +28,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -300,6 +301,18 @@ shape make_bcast_shape(const shape& input_shape,
                                  input_shape.dyn_strides(),
                                  bcast_dyn_dims,
                                  sym::lit(0));
+}
+
+bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
+                        const std::vector<std::size_t>& out_lens)
+{
+    if(input_lens.empty() or out_lens.empty() or input_lens.size() > out_lens.size())
+        return false;
+
+    return std::equal(input_lens.rbegin(),
+                      input_lens.rend(),
+                      out_lens.rbegin(),
+                      [](std::size_t in, std::size_t out) { return out == in or in == 1; });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

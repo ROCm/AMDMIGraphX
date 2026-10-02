@@ -5272,6 +5272,85 @@ def gridsample_512x512_test():
     return ([node], [x, grid], [y])
 
 
+# Opset 16 spells the interpolation modes "bilinear"/"bicubic"; opset 20
+# renamed them to "linear"/"cubic".  The four tests below come in pairs that
+# differ only in the spelling, so both must parse to the same program.
+@onnx_test(opset_version=16)
+def gridsample_opset16_bilinear_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="bilinear",
+        padding_mode="zeros",
+        align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test(opset_version=20)
+def gridsample_opset20_linear_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="linear",
+        padding_mode="zeros",
+        align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test(opset_version=16)
+def gridsample_opset16_bicubic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="bicubic",
+        padding_mode="border",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test(opset_version=20)
+def gridsample_opset20_cubic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="cubic",
+        padding_mode="border",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
+
+
 @onnx_test()
 def gridsample_half_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 1, 4, 4])
@@ -12103,6 +12182,33 @@ def nms_dynamic_batch_test():
 
 
 @onnx_test()
+def nms_symbol_collision_test():
+    batch = 'main_NonMaxSuppression_5'
+    b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT,
+                                      [batch, 6, 4])
+    s = helper.make_tensor_value_info('scores', TensorProto.FLOAT,
+                                      [batch, 1, 6])
+    mo = helper.make_tensor_value_info('max_output_boxes_per_class',
+                                       TensorProto.INT64, [1])
+    iou = helper.make_tensor_value_info('iou_threshold', TensorProto.FLOAT,
+                                        [1])
+    st = helper.make_tensor_value_info('score_threshold', TensorProto.FLOAT,
+                                       [1])
+    out = helper.make_tensor_value_info('selected_indices', TensorProto.INT64,
+                                        [None, 3])
+
+    node = onnx.helper.make_node('NonMaxSuppression',
+                                 inputs=[
+                                     'boxes', 'scores',
+                                     'max_output_boxes_per_class',
+                                     'iou_threshold', 'score_threshold'
+                                 ],
+                                 outputs=['selected_indices'])
+
+    return ([node], [b, s, mo, iou, st], [out])
+
+
+@onnx_test()
 def nms_dynamic_boxes_test():
     b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, None, 4])
     s = helper.make_tensor_value_info('scores', TensorProto.FLOAT,
@@ -13746,6 +13852,151 @@ def matmulnbits_invalid_scales_dims_test():
 @onnx_test()
 def matmulnbits_invalid_zp_dims_test():
     return matmulnbits_negative_test(zp_dims=[5])
+
+
+def moe_test_base(act="relu",
+                  fusion=None,
+                  use_fc3=False,
+                  use_bias=True,
+                  extra_attrs=None):
+    # 2 tokens, hidden=4, 3 experts, inter=2
+    fus = 2 if (act == "swiglu" and fusion) else 1
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 2, 4])
+    router = helper.make_tensor_value_info('router_probs', TensorProto.FLOAT,
+                                           [2, 3])
+    w1 = helper.make_tensor_value_info('fc1_experts_weights',
+                                       TensorProto.FLOAT, [3, fus * 2, 4])
+    b1 = helper.make_tensor_value_info('fc1_experts_bias', TensorProto.FLOAT,
+                                       [3, fus * 2])
+    w2 = helper.make_tensor_value_info('fc2_experts_weights',
+                                       TensorProto.FLOAT, [3, 4, 2])
+    b2 = helper.make_tensor_value_info('fc2_experts_bias', TensorProto.FLOAT,
+                                       [3, 4])
+    w3 = helper.make_tensor_value_info('fc3_experts_weights',
+                                       TensorProto.FLOAT, [3, 2, 4])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2, 4])
+
+    inputs = ['input', 'router_probs', 'fc1_experts_weights']
+    infos = [x, router, w1]
+    if use_bias:
+        inputs.append('fc1_experts_bias')
+        infos.append(b1)
+    else:
+        inputs.append('')
+    inputs.append('fc2_experts_weights')
+    infos.append(w2)
+    if use_bias:
+        inputs.append('fc2_experts_bias')
+        infos.append(b2)
+    else:
+        inputs.append('')
+    if use_fc3:
+        inputs.append('fc3_experts_weights')
+        infos.append(w3)
+
+    attrs = dict(activation_type=act, k=2, normalize_routing_weights=1)
+    if fusion is not None:
+        attrs['swiglu_fusion'] = fusion
+    if extra_attrs:
+        attrs.update(extra_attrs)
+    node = onnx.helper.make_node('MoE',
+                                 inputs=inputs,
+                                 outputs=['output'],
+                                 domain='com.microsoft',
+                                 **attrs)
+    return ([node], infos, [y])
+
+
+@onnx_test()
+def moe_test():
+    return moe_test_base()
+
+
+@onnx_test()
+def moe_gated_test():
+    return moe_test_base(act="silu", use_fc3=True, use_bias=False)
+
+
+@onnx_test()
+def moe_swiglu_test():
+    return moe_test_base(act="swiglu",
+                         fusion=1,
+                         extra_attrs=dict(activation_alpha=1.702,
+                                          activation_beta=1.0,
+                                          swiglu_limit=7.0))
+
+
+@onnx_test()
+def moe_sparse_mixer_test():
+    return moe_test_base(extra_attrs=dict(use_sparse_mixer=1))
+
+
+def qmoe_test_base(bits=4, use_zp=True, extra_attrs=None):
+    # 2 tokens, hidden=4, 2 experts, inter=2, fused swiglu, block_size=2
+    pack = 8 // bits
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT16, [1, 2, 4])
+    router = helper.make_tensor_value_info('router_probs', TensorProto.FLOAT16,
+                                           [2, 2])
+    w1 = helper.make_tensor_value_info('fc1_experts_weights',
+                                       TensorProto.UINT8, [2, 4, 4 // pack])
+    s1 = helper.make_tensor_value_info('fc1_scales', TensorProto.FLOAT16,
+                                       [2, 4, 2])
+    b1 = helper.make_tensor_value_info('fc1_experts_bias', TensorProto.FLOAT16,
+                                       [2, 4])
+    w2 = helper.make_tensor_value_info('fc2_experts_weights',
+                                       TensorProto.UINT8, [2, 4, 2 // pack])
+    s2 = helper.make_tensor_value_info('fc2_scales', TensorProto.FLOAT16,
+                                       [2, 4, 1])
+    b2 = helper.make_tensor_value_info('fc2_experts_bias', TensorProto.FLOAT16,
+                                       [2, 4])
+    z1 = helper.make_tensor_value_info('fc1_zero_points', TensorProto.UINT8,
+                                       [2, 4, 2 // pack])
+    z2 = helper.make_tensor_value_info('fc2_zero_points', TensorProto.UINT8,
+                                       [2, 4, 1])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT16, [1, 2, 4])
+
+    inputs = [
+        'input', 'router_probs', 'fc1_experts_weights', 'fc1_scales',
+        'fc1_experts_bias', 'fc2_experts_weights', 'fc2_scales',
+        'fc2_experts_bias'
+    ]
+    infos = [x, router, w1, s1, b1, w2, s2, b2]
+    if use_zp:
+        inputs += ['', '', '', 'fc1_zero_points', 'fc2_zero_points']
+        infos += [z1, z2]
+
+    attrs = dict(activation_type="swiglu",
+                 swiglu_fusion=1,
+                 activation_alpha=1.702,
+                 activation_beta=1.0,
+                 swiglu_limit=7.0,
+                 k=2,
+                 normalize_routing_weights=1,
+                 expert_weight_bits=bits,
+                 block_size=2)
+    if extra_attrs:
+        attrs.update(extra_attrs)
+    node = onnx.helper.make_node('QMoE',
+                                 inputs=inputs,
+                                 outputs=['output'],
+                                 domain='com.microsoft',
+                                 **attrs)
+    return ([node], infos, [y])
+
+
+@onnx_test()
+def qmoe_test():
+    return qmoe_test_base()
+
+
+@onnx_test()
+def qmoe_int8_test():
+    return qmoe_test_base(bits=8, use_zp=False)
+
+
+@onnx_test()
+def qmoe_fp4_test():
+    return qmoe_test_base(extra_attrs=dict(quant_type='fp4'))
 
 
 @onnx_test()

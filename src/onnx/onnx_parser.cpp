@@ -115,6 +115,10 @@ static literal create_literal(shape::type_t shape_type, const std::vector<size_t
         return literal{shape_type};
     }
 
+    if(data.size() != elem_num)
+        MIGRAPHX_THROW("PARSE_TENSOR: number of values " + std::to_string(data.size()) +
+                       " does not match tensor elements " + std::to_string(elem_num));
+
     // scalar input
     if(dims.empty())
         return literal{{shape_type}, data.begin(), data.end()};

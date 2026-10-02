@@ -1200,8 +1200,9 @@ struct find_eval_expr_from_intermediate_ins : match::supports_dynamic_shapes
 
     auto matcher() const
     {
-        return match::name("eval_expr_from_shape")(
-            match::any_of[match::inputs()](match::none_of(match::name("@param"))));
+        auto non_parameter           = match::none_of(match::name("@param"));
+        auto has_non_parameter_input = match::any_of[match::inputs()](non_parameter);
+        return match::name("eval_expr_from_shape")(has_non_parameter_input);
     }
 
     void apply(module& m, const match::matcher_result& mr) const

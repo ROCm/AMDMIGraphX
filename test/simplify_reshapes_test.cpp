@@ -4725,6 +4725,32 @@ TEST_CASE(reshape_dot_broadcast_2)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(reshape_dot_changed_element_count)
+{
+    // find_reshape_dot would move the reshapes across the dot and then reshape the new
+    // dot's output back to the original dot's shape. Here the second input's reshape
+    // preserves its contraction axis (second-to-last dim) but changes the free (N) dim,
+    // so the rewrite changes the dot's total element count and that trailing reshape is
+    // invalid (the "Reshape: Wrong number of elements" abort observed on an RT-DETR
+    // detection model on gfx1150). The pass must leave the module unchanged.
+    migraphx::shape s_x{migraphx::shape::float_type, {2, 4, 4}};
+    migraphx::shape s_w{migraphx::shape::float_type, {2, 4, 6}};
+
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s_x);
+        auto w     = m1.add_parameter("w", s_w);
+        auto x_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 4}}}), x);
+        auto w_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 12}}}), w);
+        auto dot   = m1.add_instruction(migraphx::make_op("dot"), x_rsp, w_rsp);
+        m1.add_return({dot});
+    };
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(mul_transpose)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 32, 64, 64}};

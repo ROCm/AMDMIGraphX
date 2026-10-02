@@ -53,6 +53,9 @@ MIGRAPHX_GPU_EXPORT void set_device(std::size_t id);
 
 MIGRAPHX_GPU_EXPORT void gpu_sync();
 MIGRAPHX_GPU_EXPORT void gpu_sync(const context& ctx);
+// Spin until the stream is idle to avoid the scheduler wake latency of a
+// blocking synchronize
+MIGRAPHX_GPU_EXPORT void gpu_spin_sync(context& ctx);
 
 MIGRAPHX_GPU_EXPORT void gpu_copy(context& ctx, const argument& src, const argument& dst);
 MIGRAPHX_GPU_EXPORT void copy_to_gpu(context& ctx, const argument& src, const argument& dst);
@@ -143,6 +146,37 @@ struct hip_sync_stream
         if(args.empty())
             return {};
         return {0};
+    }
+};
+
+// Copy a single scalar from the gpu to the host and wait for it so later
+// host-side view ops (e.g. gpu::slice_at) can read it during eval
+struct hip_load_scalar
+{
+    // Pinned host buffer allocated in finalize(); not reflected
+    argument result{};
+
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "hip::load_scalar"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1).elements(1);
+        return {inputs.front().type(), inputs.front().lens()};
+    }
+    void finalize(context&, const shape& output_shape, const std::vector<shape>&)
+    {
+        result = allocate_gpu(output_shape, true);
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        copy_from_gpu(ctx, args.front(), result);
+        gpu_spin_sync(ctx);
+        return result;
     }
 };
 

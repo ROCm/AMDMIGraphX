@@ -2206,8 +2206,8 @@ TEST_CASE(reduce_slice_pointwise)
             create_pointwise_module(p2, "main:pointwise0", {w, xb}, single_pointwise("mul"));
         auto rsum = add_reduce(
             p2,
-            "main:pointwise0:main:reduce_sum0_slice0:main:pointwise1:main:pointwise0:main:"
-            "reduce_sum0_slice2",
+            "main:pointwise0:main:reduce_sum0_slice0_2:main:pointwise1:main:pointwise0:main:"
+            "reduce_sum0_slice2_4",
             {wb, xbb, wa, xba},
             {1},
             [&](auto* rm, const auto& inputs, const auto& axes) {

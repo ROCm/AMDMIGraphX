@@ -26,6 +26,6 @@
 
 TEST_CASE(float_val_too_many_test)
 {
-    EXPECT(test::throws<migraphx::exception>(
-        [&] { parse_tf("float_val_too_many_test.pb", false); }));
+    EXPECT(
+        test::throws<migraphx::exception>([&] { parse_tf("float_val_too_many_test.pb", false); }));
 }

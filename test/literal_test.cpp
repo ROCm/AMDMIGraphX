@@ -237,10 +237,8 @@ TEST_CASE(value_literal_data_size_mismatch)
 {
     migraphx::shape s{migraphx::shape::float_type, {1024, 1024}};
     std::vector<char> data(4);
-    migraphx::value v = {{"shape", migraphx::to_value(s)},
-                         {"data", migraphx::value::binary{data}}};
-    EXPECT(test::throws<migraphx::exception>(
-        [&] { migraphx::from_value<migraphx::literal>(v); }));
+    migraphx::value v = {{"shape", migraphx::to_value(s)}, {"data", migraphx::value::binary{data}}};
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::from_value<migraphx::literal>(v); }));
 }
 
 TEST_CASE(value_literal_transposed)

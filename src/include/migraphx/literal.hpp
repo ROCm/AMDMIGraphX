@@ -132,8 +132,8 @@ struct literal : raw_data<literal>
     {
         if(m_shape.elements() < std::distance(start, end))
             MIGRAPHX_THROW("literal: number of values " +
-                           std::to_string(std::distance(start, end)) +
-                           " exceeds shape elements " + std::to_string(m_shape.elements()));
+                           std::to_string(std::distance(start, end)) + " exceeds shape elements " +
+                           std::to_string(m_shape.elements()));
         m_shape.visit_type([&](auto as) {
             auto output = make_view(m_shape, as.from(buffer.get()));
             std::copy(start, end, output.begin());

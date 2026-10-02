@@ -69,6 +69,14 @@ static bool is_navi_gpu()
            migraphx::starts_with(device_name, "gfx12");
 }
 
+// Keep in sync with get_supported_mlir_reduce_types in src/targets/gpu/fuse_mlir.cpp
+static bool is_bf16_reduce_supported_gpu()
+{
+    const auto device_name = migraphx::gpu::get_device_name();
+    return migraphx::starts_with(device_name, "gfx12") or
+           migraphx::starts_with(device_name, "gfx950");
+}
+
 template <class F>
 static migraphx::instruction_ref add_mlir(migraphx::program& p,
                                           const std::string& name,
@@ -981,6 +989,58 @@ TEST_CASE(int_quant_dot_tanh_fails)
     bool has_pointwise =
         std::any_of(mm->begin(), mm->end(), [&](const auto& i) { return i.name() == "pointwise"; });
     EXPECT(has_pointwise);
+}
+
+TEST_CASE(conv_split_reduce_invalid_type)
+{
+    migraphx::shape s_x{migraphx::shape::bf16_type, {2, 4, 64, 64}};
+    migraphx::shape s_w{migraphx::shape::bf16_type, {320, 4, 3, 3}};
+    migraphx::shape s_b{migraphx::shape::bf16_type, {32}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s_x);
+        auto w   = mm->add_parameter("w", s_w);
+        auto b   = mm->add_literal(migraphx::generate_literal(s_b));
+        auto mb  = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), b);
+        auto conv = mm->add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
+        auto reshape = mm->add_instruction(
+            migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
+        auto add = add_pointwise(p1, "main:pointwise0", {reshape, mb}, single_pointwise("add"));
+        auto mean_var = add_reduce(
+            p1,
+            "main:split_reduce0",
+            {add},
+            {2, 3, 4},
+            "assign_add",
+            [&](auto* rm,
+                const auto& inputs,
+                const auto& axes) -> std::vector<migraphx::instruction_ref> {
+                auto xx    = add_pointwise(p1, rm, "main:pointwise1", {inputs[0]}, squared());
+                auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                 inputs[0]);
+                auto rsum2 =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), xx);
+                return {rsum2, rsum1};
+            });
+        auto var =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), mean_var);
+        auto mean =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), mean_var);
+        mm->add_return({var, mean});
+    }
+
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}) or
+       is_bf16_reduce_supported_gpu())
+        return;
+
+    run_pass(p1);
+    auto* mm              = p1.get_main_module();
+    bool has_split_reduce = std::any_of(
+        mm->begin(), mm->end(), [&](const auto& i) { return i.name() == "split_fused_reduce"; });
+    EXPECT(has_split_reduce);
 }
 
 TEST_CASE(conv_split_reduce)

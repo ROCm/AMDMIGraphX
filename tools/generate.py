@@ -37,9 +37,8 @@ optional_components = ['enable_onnx', 'enable_tensorflow']
 
 
 def clang_format(buffer, **kwargs):
-    return subprocess.run(f'{clang_format_path} -style=file',
+    return subprocess.run([str(clang_format_path), '-style=file'],
                           capture_output=True,
-                          shell=True,
                           check=True,
                           input=buffer.encode('utf-8'),
                           cwd=work_dir,

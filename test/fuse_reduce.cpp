@@ -2330,7 +2330,7 @@ TEST_CASE(gather_reshape_reduce)
         auto idx = mm->add_parameter("idx", is);
         auto x   = mm->add_parameter("x", xs);
         auto wr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 3, 2, 4}}}), w);
-        auto br = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 3, 4}}}), b);
+        auto br  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 3, 4}}}), b);
         auto add =
             add_reduce(p2,
                        "main:pointwise0:main:reduce_sum0:main:pointwise1:gather",

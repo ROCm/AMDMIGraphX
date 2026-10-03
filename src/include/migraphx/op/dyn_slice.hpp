@@ -156,7 +156,7 @@ struct dyn_slice
         // Every bound resolved over a static input, so don't hand back a dynamic shape.
         if(not input_shape.symbolic() and result.is_fixed())
             return result.to_static();
-        return result;
+        return result.normalize_standard();
     }
 
     argument compute(const shape&, std::vector<argument> args) const

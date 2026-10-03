@@ -29,6 +29,7 @@
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 
 #include <test.hpp>
 
@@ -688,6 +689,24 @@ TEST_CASE(channels_auto_selects_channels_last)
     }
     migraphx::module m2 = m1;
     run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(channels_auto_skips_dynamic_reshape_score)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    auto n   = migraphx::sym::var("n", {1, 4});
+    migraphx::module m1;
+    auto data =
+        m1.add_parameter("data", {migraphx::shape::float_type, {dd{n}, dd{migraphx::sym::lit(4)}}});
+    auto target = m1.add_parameter(
+        "target", {migraphx::shape::float_type, {dd{migraphx::sym::lit(4)}, dd{n}}});
+    auto reshape = m1.add_instruction(migraphx::make_op("reshape"), data, target);
+    m1.add_return({reshape});
+    auto m2 = m1;
+
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+
     EXPECT(m1.sort() == m2.sort());
 }
 

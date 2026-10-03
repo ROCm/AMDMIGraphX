@@ -1413,6 +1413,8 @@ struct find_gather
         static std::optional<instruction_ref>
         transform_indices(const Indices& indices, module& m, instruction_ref start)
         {
+            if(indices.empty())
+                return std::nullopt;
             auto isegments      = from_ints(indices.begin(), indices.end());
             std::int64_t offset = isegments.front().base;
             auto s              = make_strided_view(shift(std::move(isegments), -offset));

@@ -171,6 +171,35 @@ TEST_CASE(cse_test_literal)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(cse_test_reorders_appended_consumers)
+{
+    migraphx::module m1;
+    {
+        auto one1   = m1.add_literal(1);
+        auto one2   = m1.add_literal(1);
+        auto two    = m1.add_literal(2);
+        auto early  = m1.add_instruction(migraphx::make_op("add"), one1, two);
+        auto middle = m1.add_instruction(migraphx::make_op("add"), one2, two);
+        auto late   = m1.add_instruction(migraphx::make_op("mul"), one1, two);
+        auto merged = m1.add_instruction(migraphx::make_op("add"), early, middle);
+        auto result = m1.add_instruction(migraphx::make_op("add"), merged, late);
+        m1.add_instruction(pass_op{}, result);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto one    = m2.add_literal(1);
+        auto two    = m2.add_literal(2);
+        auto early  = m2.add_instruction(migraphx::make_op("add"), one, two);
+        auto late   = m2.add_instruction(migraphx::make_op("mul"), one, two);
+        auto merged = m2.add_instruction(migraphx::make_op("add"), early, early);
+        auto result = m2.add_instruction(migraphx::make_op("add"), merged, late);
+        m2.add_instruction(pass_op{}, result);
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(cse_test_submodule)
 {
     migraphx::shape si{migraphx::shape::int64_type};

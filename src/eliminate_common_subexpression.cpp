@@ -28,13 +28,19 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/functional.hpp>
 
+#include <unordered_map>
 #include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+using instruction_positions = std::unordered_map<instruction_ref, std::size_t>;
+
+// Rewiring appends consumers and can leave outputs out of module order. Cache each instruction's
+// list position once because rediscovering it with std::distance in every sort comparison is
+// linear.
 template <class Range>
-static void cse_range(module& m, Range&& r)
+static void cse_range(module& m, Range&& r, const instruction_positions& positions)
 {
     std::unordered_multimap<std::string, instruction_ref> instructions;
     std::unordered_set<instruction_ref> processed_ins;
@@ -62,15 +68,23 @@ static void cse_range(module& m, Range&& r)
                          [&](auto x) { return m.has_instruction(x); });
 
             std::sort(outputs.begin(), outputs.end(), [&](auto x, auto y) {
-                return std::distance(eq, x) < std::distance(eq, y);
+                return positions.at(x) < positions.at(y);
             });
-            cse_range(m, outputs);
+            cse_range(m, outputs, positions);
         }
         instructions.emplace(ins->name(), ins);
     }
 }
 
-void eliminate_common_subexpression::apply(module& m) const { cse_range(m, iterator_for(m)); }
+void eliminate_common_subexpression::apply(module& m) const
+{
+    instruction_positions positions;
+    positions.reserve(m.size());
+    std::size_t position = 0;
+    for(auto ins : iterator_for(m))
+        positions.emplace(ins, position++);
+    cse_range(m, iterator_for(m), positions);
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

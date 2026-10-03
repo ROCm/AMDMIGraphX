@@ -50,13 +50,30 @@ struct fused_concat
 
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
-        check_shapes{inputs, *this}.same_ndims();
         // original concat can have multiple inputs. Let's say it has `n` input args.
         // Each of those `n` input args are converted into pointwise modules that take atleast 1
         // input parameter. Fused concat will have `n+1` module arguments. `n+1`th module is the
         // post pointwise module which can take 0 or more input arguments.
-        if((inputs.size() + 1) < mods.size())
-            MIGRAPHX_THROW("FUSED_CONCAT: Missing fused modules inputs parameters");
+        if(mods.size() < 2)
+            MIGRAPHX_THROW("FUSED_CONCAT: Missing fused modules");
+        std::size_t expected_inputs = 0;
+        for(const_module_ref mod : range(mods.begin(), mods.end() - 1))
+        {
+            auto nparams = mod->get_parameter_names().size();
+            if(nparams == 0)
+                MIGRAPHX_THROW("FUSED_CONCAT: Pre-concat module requires an input parameter");
+            expected_inputs += nparams;
+        }
+        const_module_ref post_mod = mods.back();
+        auto post_params          = post_mod->get_parameter_names().size();
+        if(post_params == 0)
+            MIGRAPHX_THROW("FUSED_CONCAT: Post-concat module requires a concat parameter");
+        expected_inputs += post_params - 1;
+        if(expected_inputs != inputs.size())
+            MIGRAPHX_THROW("FUSED_CONCAT: Expected " + std::to_string(expected_inputs) +
+                           " inputs for fused modules but got " + std::to_string(inputs.size()));
+
+        check_shapes{inputs, *this}.same_ndims();
         auto input_iter = inputs.begin();
         std::vector<shape> concat_inputs;
         for(const_module_ref mod : range(mods.begin(), mods.end() - 1))
@@ -64,10 +81,8 @@ struct fused_concat
             concat_inputs.push_back(*input_iter);
             input_iter += mod->get_parameter_names().size();
         }
-        const_module_ref post_mod = mods.back();
         // post_mod has one input argument that is result of concat and will get generated from
-        // pre-mods internally. Therefore deduct 1 from post_mod params while asserting.
-        assert(input_iter + (post_mod->get_parameter_names().size() - 1) == inputs.end());
+        // pre-mods internally. Therefore deduct 1 from post_mod params.
         auto type                    = std::prev(post_mod->end())->get_shape().type();
         const auto& first_shape_lens = concat_inputs.front().lens();
         auto mismatch_it =
@@ -157,6 +172,7 @@ struct find_concat_pointwise : concat_counter<0>
             return;
         }
         std::vector<module_ref> module_inputs;
+        auto module_prefix = mpm.get_module().name() + ":";
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
@@ -166,14 +182,15 @@ struct find_concat_pointwise : concat_counter<0>
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm = mpm.create_module("concat:noop" +
+                           auto* pm = mpm.create_module(module_prefix + "concat:noop" +
                                                         std::to_string(get_noop_counter()));
                            auto x   = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;
                        });
-        auto* post_pm = mpm.create_module("noop:concat" + std::to_string(get_noop_counter()));
-        auto x        = post_pm->add_parameter("!x0", shape{concat_ins->get_shape().type()});
+        auto* post_pm =
+            mpm.create_module(module_prefix + "noop:concat" + std::to_string(get_noop_counter()));
+        auto x = post_pm->add_parameter("!x0", shape{concat_ins->get_shape().type()});
         post_pm->add_return({x});
         module_inputs.push_back(post_pm);
         mpm.get_module().replace_instruction(
@@ -215,6 +232,7 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                      [&](auto input) { return input != concat_ins; });
 
         std::vector<module_ref> module_inputs;
+        auto module_prefix = mpm.get_module().name() + ":";
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
@@ -224,9 +242,9 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm = mpm.create_module("concat:noop" +
+                           auto* pm = mpm.create_module(module_prefix + "concat:noop" +
                                                         std::to_string(get_noop_counter()));
-                           auto x  = pm->add_parameter("x0", shape{input->get_shape().type()});
+                           auto x   = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;
                        });

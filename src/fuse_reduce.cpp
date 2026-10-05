@@ -313,14 +313,18 @@ static std::vector<std::size_t> expand_dims(std::vector<std::size_t> lens,
 
 namespace {
 
+/// Whether the submodule has an instruction with one of the names
+bool module_contains(instruction_ref ins, const std::vector<std::string>& names)
+{
+    const auto* sm = ins->module_inputs().front();
+    return any_of(*sm, [&](const instruction& i) { return contains(names, i.name()); });
+}
+
 /// Whether the submodule reads its inputs through a layout the fusions cant
 /// remap: packed inputs or gathered inputs
 bool has_fixed_layout(instruction_ref ins)
 {
-    const auto* sm = ins->module_inputs().front();
-    return std::any_of(sm->begin(), sm->end(), [](const auto& i) {
-        return contains({"unpack_int4", "gather"}, i.name());
-    });
+    return module_contains(ins, {"unpack_int4", "gather"});
 }
 
 /// The inputs of the reduce that are reduced over, without the indices of
@@ -869,14 +873,15 @@ optional<std::size_t> single_nonunit_axis(const std::vector<std::size_t>& axes,
     return nonunit.empty() ? axes.front() : nonunit.front();
 }
 
-/// The axis a topk in the reduce module selects along once the module is
-/// remapped to dims
+std::size_t get_axis(const operation& op) { return op.to_value().at("axis").to<std::size_t>(); }
+
+/// The axis an op working along one axis, a topk or an unpack_int4, uses
+/// once the module is remapped to dims
 template <class AxesMap>
 optional<std::size_t>
-remap_topk_axis(const operation& op, const std::vector<std::size_t>& dims, const AxesMap& am)
+remap_axis(const operation& op, const std::vector<std::size_t>& dims, const AxesMap& am)
 {
-    auto axis = op.to_value().at("axis").to<std::size_t>();
-    return single_nonunit_axis(am.at(axis), dims);
+    return single_nonunit_axis(am.at(get_axis(op)), dims);
 }
 
 /// The lens of a broadcast in the reduce module once the module is remapped
@@ -920,9 +925,10 @@ struct reduce_reshape : rewrite_reshapes_base
     {
         if(ins->name() != name())
             return true;
-        // Submodules with packed or gathered inputs cant be remapped to the
-        // common dims
-        return not has_fixed_layout(ins);
+        // The gather indices have their own shape, so a gathering submodule
+        // cant be remapped to the common dims. A packed input can when its
+        // packed axis stays whole, which supports checks.
+        return not module_contains(ins, {"gather"});
     }
 
     template <class AxesMap>
@@ -934,10 +940,16 @@ struct reduce_reshape : rewrite_reshapes_base
         // A topk selects along one axis, and the broadcasts after it are to
         // the selected lens, so the axis they map to cant be split
         auto old_dims  = base_dims(ins);
+        auto axes      = reduce_axes(ins);
         const auto* sm = ins->module_inputs().front();
         return all_of(*sm, [&](const instruction& i) {
             if(i.name() == "topk")
-                return remap_topk_axis(i.get_operator(), dims, am).has_value();
+                return remap_axis(i.get_operator(), dims, am).has_value();
+            // The packed input is half as long on the packed axis, so the
+            // transform only regenerates for it when that axis is reduced
+            if(i.name() == "unpack_int4")
+                return contains(axes, get_axis(i.get_operator())) and
+                       remap_axis(i.get_operator(), dims, am).has_value();
             if(contains({"multibroadcast", "broadcast"}, i.name()))
                 return remap_broadcast_lens(i.get_operator(), old_dims, dims, am).has_value();
             return true;
@@ -986,11 +998,11 @@ struct reduce_reshape : rewrite_reshapes_base
                 v["axis"] = axes.front();
                 return make_op(sop.name(), v);
             }
-            if(sop.name() == "topk")
+            if(contains({"topk", "unpack_int4"}, sop.name()))
             {
-                auto axis = remap_topk_axis(sop, dims, am);
+                auto axis = remap_axis(sop, dims, am);
                 if(not axis.has_value())
-                    MIGRAPHX_THROW("fused_reduce: the topk axis cant be remapped");
+                    MIGRAPHX_THROW("fused_reduce: the " + sop.name() + " axis cant be remapped");
                 auto v    = sop.to_value();
                 v["axis"] = *axis;
                 return make_op(sop.name(), v);

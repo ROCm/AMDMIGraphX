@@ -128,7 +128,20 @@ struct rewrite_reshapes
                not all_of(ins->outputs(),
                           [](instruction_ref out) { return out->name() == "get_tuple_elem"; }))
                 return false;
-            return elements(T::base_dims(ins)) == elements(T::base_dims(x_ins));
+            // The chain either broadcasts the output of x back to the size of
+            // its inputs, or keeps the size of the output. Anything else
+            // expands elements and cant be rebased
+            return broadcasts_to_inputs(input_ins, x_ins) or
+                   input_ins->get_shape().elements() == x_ins->get_shape().elements();
+        }
+
+        /// Whether the chain ending at input_ins broadcasts the output of x
+        /// back to the size of its inputs, so the reshapes can be rebased
+        /// onto those inputs
+        static bool broadcasts_to_inputs(instruction_ref input_ins, instruction_ref x_ins)
+        {
+            return input_ins->get_shape().elements() != x_ins->get_shape().elements() and
+                   input_ins->get_shape().elements() == elements(T::base_dims(x_ins));
         }
 
         template <class F>
@@ -183,8 +196,6 @@ struct rewrite_reshapes
             if(not T::matches(ins))
                 return;
 
-            auto dims2 = T::base_dims(x_ins);
-
             std::vector<operation> ops;
             auto next_ins = input_ins;
             while(next_ins != x_ins)
@@ -195,16 +206,24 @@ struct rewrite_reshapes
             assert(next_ins == x_ins);
             std::reverse(ops.begin(), ops.end());
 
-            auto desc =
-                shape_transform_descriptor::create(x_ins->get_shape().lens(), ops).rebase(dims2);
+            // A chain that broadcasts the output of x back to the size of its
+            // inputs is rebased onto those inputs. Otherwise the descriptor
+            // stays on the output of x, and generating the transform for each
+            // input rebases it onto that input, so the axes a reduce reduces
+            // keep their own lens
+            auto dims2  = T::base_dims(x_ins);
+            bool rebase = broadcasts_to_inputs(input_ins, x_ins);
+            auto desc   = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
+            if(rebase)
+                desc = desc.rebase(dims2);
             if(desc.empty())
                 return;
 
-            if(desc.elements() != elements(dims2))
+            if(desc.elements() != (rebase ? elements(dims2) : x_ins->get_shape().elements()))
                 return;
 
             auto cdims = desc.common_dims();
-            if(not supports(x_ins, cdims, desc.common_axes_map_from_src()))
+            if(not supports(x_ins, desc.common_dims(dims2), desc.common_axes_map_from_src()))
                 return;
             if(not supports(ins, cdims, desc.common_axes_map_from_dst()))
                 return;

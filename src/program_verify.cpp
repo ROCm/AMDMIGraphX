@@ -298,9 +298,10 @@ program_result verify_outputs(const program& p,
         if(ref_outs[i].get_shape().type() != target_outs[i].get_shape().type() or
            ref_outs[i].get_shape().lens() != target_outs[i].get_shape().lens())
         {
+            layer.message = "Shape mismatch {" + to_string(ref_outs[i].get_shape()) + "} != {" +
+                            to_string(target_outs[i].get_shape()) + "}";
             log::error() << "FAILED: " << name;
-            log::error() << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {"
-                         << target_outs[i].get_shape() << "}";
+            log::error() << layer.message;
         }
         else
         {

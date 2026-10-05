@@ -86,15 +86,21 @@ struct parse_simplified_layer_normalization : op_parser<parse_simplified_layer_n
             make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
         auto x_sq = info.add_common_op("mul", float_x, float_x);
         auto rms  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
-        rms       = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rms);
-        auto mean = rms;
+        // Keep variance in FP32 through rsqrt (same fix as SkipSimplifiedLayerNorm).
+        auto mean = info.add_instruction(
+            make_op("convert", {{"target_type", x_dtype}}), rms);
         epsilon =
             (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
-        auto eps    = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
-        rms         = info.add_common_op("add", rms, eps);
-        auto rrms   = info.add_instruction(make_op("rsqrt"), rms);
-        auto result = info.add_common_op("mul", x, rrms);
-        result      = info.add_common_op("mul", result, scale);
+        auto eps_f32  = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {epsilon}});
+        auto rms_ep   = info.add_common_op("add", rms, eps_f32);
+        auto rrms_f32 = info.add_instruction(make_op("rsqrt"), rms_ep);        // FP32
+        auto scale_f32 = info.add_instruction(
+            make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale);
+        scale_f32 = info.add_instruction(make_op("contiguous"), scale_f32);
+        auto result_f32 = info.add_common_op("mul", float_x, rrms_f32);
+        result_f32      = info.add_common_op("mul", result_f32, scale_f32);
+        auto rrms   = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rrms_f32);
+        auto result = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), result_f32);
 
         return {result, mean, rrms};
     }

@@ -108,15 +108,32 @@ struct parse_skip_simplified_layer_normalization
             make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
         auto x_sq = info.add_common_op("mul", float_x, float_x);
         auto rms  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
-        rms       = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rms);
-        auto mean = rms;
+        // Full FP32 normalization: mirror the DML reference (ComputeSkipSLNCPU in
+        // dml/hip_qmoe/qmoe_hip_combined_op.cpp): mean_sq in FP32, inv_std in FP32,
+        // x*inv_std*gamma all in FP32, only the final output cast back to io_dtype.
+        // Converting rrms or intermediate results to FP16 early reintroduces the
+        // precision loss that causes router logits to drift 3-10x by layer 20.
+        auto mean = info.add_instruction(
+            make_op("convert", {{"target_type", x_dtype}}), rms); // FP16 mean for output only
         epsilon =
             (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
-        auto eps    = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
-        rms         = info.add_common_op("add", rms, eps);
-        auto rrms   = info.add_instruction(make_op("rsqrt"), rms);
-        auto result = info.add_common_op("mul", x, rrms);
-        result      = info.add_common_op("mul", result, gamma);
+        auto eps_f32  = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {epsilon}});
+        auto rms_ep   = info.add_common_op("add", rms, eps_f32);         // FP32
+        auto rrms_f32 = info.add_instruction(make_op("rsqrt"), rms_ep);  // FP32
+        // Cast gamma to FP32 so mul stays in FP32
+        // Use contiguous to anchor the FP32 value and prevent eliminate_convert from
+        // removing the cast when gamma is used elsewhere in FP16.
+        auto gamma_f32 = info.add_instruction(
+            make_op("convert", {{"target_type", migraphx::shape::float_type}}), gamma);
+        gamma_f32 = info.add_instruction(make_op("contiguous"), gamma_f32);
+        // Compute x*rrms*gamma entirely in FP32 (add_common_op handles broadcasting)
+        auto result_f32 = info.add_common_op("mul", float_x, rrms_f32);
+        result_f32      = info.add_common_op("mul", result_f32, gamma_f32);
+        // Cast final result back to io_dtype
+        auto rrms = info.add_instruction(
+            make_op("convert", {{"target_type", x_dtype}}), rrms_f32); // kept for output slot
+        auto result = info.add_instruction(
+            make_op("convert", {{"target_type", x_dtype}}), result_f32);
         if(args.size() == 4)
         {
             result = info.add_common_op("add", result, bias);

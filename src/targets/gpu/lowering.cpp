@@ -649,13 +649,21 @@ struct miopen_apply
      */
     void add_select_module_op()
     {
-        apply_map.emplace("select_module", [=](instruction_ref ins) {
+        // select_module_index reads its index on the host. dimensions_of and
+        // eval_expr_from_shape lowering replace that producer with copy_to_gpu,
+        // so take the host result (the copy's first input) instead for those cases
+        auto append_output = [=](instruction_ref ins) {
             auto s                              = ins->get_shape();
             auto output                         = insert_allocation(ins, s);
             std::vector<instruction_ref> inputs = ins->inputs();
+            if(ins->name() == "select_module_index" and
+               inputs.front()->name() == "hip::copy_to_gpu")
+                inputs.front() = inputs.front()->inputs().front();
             inputs.push_back(output);
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
-        });
+        };
+        apply_map.emplace("select_module", append_output);
+        apply_map.emplace("select_module_index", append_output);
     }
 
     void add_concat_past_present_op()

@@ -5344,7 +5344,25 @@ TEST_CASE(select_module_index_static)
     auto* sub1 = create_sub(1.0f, "sub_1");
     auto smi =
         mm->add_instruction(migraphx::make_op("select_module_index"), {index, data}, {sub0, sub1});
-    EXPECT(smi->get_shape() == data_s);
+    EXPECT(smi->get_shape() == migraphx::shape{std::vector<migraphx::shape>{data_s}});
+}
+
+TEST_CASE(select_module_index_single_element)
+{
+    // dimensions_of and eval_expr_from_shape produce int64[1], not a rank-0 scalar
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape index_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape data_s{migraphx::shape::float_type, {2, 2}};
+    auto index = mm->add_outline(index_s);
+    auto data  = mm->add_outline(data_s);
+
+    auto* sub = p.create_module("sub");
+    auto x    = sub->add_parameter("data", data_s);
+    sub->add_return({x});
+
+    auto smi = mm->add_instruction(migraphx::make_op("select_module_index"), {index, data}, {sub});
+    EXPECT(smi->get_shape() == migraphx::shape{std::vector<migraphx::shape>{data_s}});
 }
 
 TEST_CASE(select_module_index_mismatched_submodule_shapes)

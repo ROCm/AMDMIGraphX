@@ -55,9 +55,15 @@ struct select_module_index
                         const std::vector<module_ref>& mods) const
     {
         check_shapes{inputs, *this}.has_at_least(1);
-        if(inputs.front().elements() != 1 or not shape::is_integral(inputs.front().type()))
+        const auto& index = inputs.front();
+        auto index_type   = index.type();
+        // The index is a host value: a rank-0 scalar, or the int64[1] tensor
+        // produced by dimensions_of / eval_expr_from_shape.
+        if(index.elements() != 1 or
+           (index_type != shape::int32_type and index_type != shape::int64_type))
         {
-            MIGRAPHX_THROW("SELECT_MODULE_INDEX: index must be a scalar int32 or int64.");
+            MIGRAPHX_THROW("SELECT_MODULE_INDEX: index must be a static single-element "
+                           "int32 or int64.");
         }
         if(mods.empty())
         {
@@ -68,7 +74,6 @@ struct select_module_index
             MIGRAPHX_THROW("SELECT_MODULE_INDEX: index_map must match submodule count.");
         }
 
-        // TODO: for now. Maybe Q is dynamically shaped for dynamic kv cache attention?
         auto out_shapes0 = mods.front()->get_output_shapes();
         for(std::size_t i = 1; i < mods.size(); ++i)
         {
@@ -151,7 +156,9 @@ struct select_module_index
         std::unordered_map<std::string, argument> p_map;
 
         auto in_param_names = get_input_parameter_names(module_to_run);
-        assert(in_param_names.size() + 2 <= args.size());
+        // args[0] is the index, a trailing output buffer is only present once
+        // lowering appends one, so do not require it here
+        assert(in_param_names.size() + 1 <= args.size());
         std::transform(in_param_names.begin(),
                        in_param_names.end(),
                        args.begin() + 1,

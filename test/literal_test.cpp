@@ -37,10 +37,16 @@ TEST_CASE(literal_test)
 
     migraphx::literal l1{1};
     migraphx::literal l2 = l1; // NOLINT
+    EXPECT(l1.data() == l2.data());
     EXPECT(l1 == l2);
     EXPECT(l1.at<int>(0) == 1);
     EXPECT(not l1.empty());
     EXPECT(not l2.empty());
+
+    migraphx::literal l5{1};
+    migraphx::literal l6{1};
+    EXPECT(l5.data() != l6.data());
+    EXPECT(l5 == l6);
 
     migraphx::literal l3{};
     migraphx::literal l4{};

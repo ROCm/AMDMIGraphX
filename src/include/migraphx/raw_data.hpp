@@ -327,6 +327,8 @@ bool operator==(const T& x, const U& y)
     bool result   = x.empty() and y.empty();
     if(not result and xshape == yshape)
     {
+        if(xshape.type() != shape::tuple_type and x.data() == y.data())
+            return true;
         if(xshape.computable())
         {
             visit_all(x, y)([&](auto xview, auto yview) { result = xview == yview; },

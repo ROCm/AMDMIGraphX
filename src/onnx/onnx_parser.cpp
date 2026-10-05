@@ -822,6 +822,9 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
     if(not external_data.empty())
     {
+        if(tensor_shape.elements() == 0)
+            return literal{type};
+
         const std::string& data_file = external_data.at(0).value();
         size_t num_data_fields       = external_data.size();
         size_t offset                = 0;
@@ -835,6 +838,11 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
         {
             nbytes = std::stoull(t.external_data().at(2).value());
         }
+        if(nbytes != tensor_shape.bytes())
+            MIGRAPHX_THROW("PARSE_TENSOR: external data length " + std::to_string(nbytes) + " of " +
+                           t.name() + " does not match tensor bytes " +
+                           std::to_string(tensor_shape.bytes()));
+
         std::vector<char> raw_buffer;
         if(not external_data_path.empty())
         {

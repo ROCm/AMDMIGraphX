@@ -36,15 +36,15 @@ static T generic_read_file(const fs::path& filename, size_t offset = 0, size_t n
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     if(not is.is_open())
         MIGRAPHX_THROW("Failure opening file: " + filename);
+    std::size_t file_size = is.tellg();
+    if(offset > file_size)
+        MIGRAPHX_THROW("offset is larger than file size");
+    // if nbytes is not set, read the remaining bytes after offset
     if(nbytes == 0)
-    {
-        // if there is a non-zero offset and nbytes is not set,
-        // calculate size of remaining bytes to read
-        nbytes = is.tellg();
-        if(offset > nbytes)
-            MIGRAPHX_THROW("offset is larger than file size");
-        nbytes -= offset;
-    }
+        nbytes = file_size - offset;
+    else if(nbytes > file_size - offset)
+        MIGRAPHX_THROW("Reading " + std::to_string(nbytes) + " bytes at offset " +
+                       std::to_string(offset) + " exceeds size of file: " + filename);
     if(nbytes < 1)
         MIGRAPHX_THROW("Invalid size for: " + filename);
     is.seekg(offset, std::ios::beg);

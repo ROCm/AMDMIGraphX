@@ -4292,6 +4292,51 @@ def external_data_short_test():
 
 
 @onnx_test()
+def external_data_length_large_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [16])
+
+    weight_file = 'external_data_length_large_test.weight'
+    np.arange(16, dtype=np.float32).tofile(weight_file)
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([16])
+    tensor.data_location = TensorProto.EXTERNAL
+    for key, value in [('location', weight_file), ('offset', '0'),
+                       ('length', '100000000000')]:
+        entry = tensor.external_data.add()
+        entry.key = key
+        entry.value = value
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def external_data_shape_large_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      [1000000, 1000000])
+
+    weight_file = 'external_data_shape_large_test.weight'
+    np.array([1], dtype=np.float32).tofile(weight_file)
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([1000000, 1000000])
+    tensor.data_location = TensorProto.EXTERNAL
+    entry = tensor.external_data.add()
+    entry.key = 'location'
+    entry.value = weight_file
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
 def raw_data_short_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1024, 1024])
 

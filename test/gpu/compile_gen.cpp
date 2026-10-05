@@ -99,4 +99,12 @@ TEST_CASE(generate_reduce_unpack_int4_zero_point_tensor)
     EXPECT(src.find("unpack_int4_as<half>(x, half(0))") != std::string::npos);
 }
 
+TEST_CASE(generate_reduce_function_is_not_const)
+{
+    auto p   = make_unpack_reduce(true);
+    auto src = migraphx::gpu::gen::generate_reduce(*p.get_module("reduce"), "kernel");
+    EXPECT(src.find("__device__ auto kernel(") != std::string::npos);
+    EXPECT(src.find("__attribute__((const)) auto kernel(") == std::string::npos);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

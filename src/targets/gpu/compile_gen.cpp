@@ -609,7 +609,7 @@ std::string generate_reduce(const module& m, const std::string& name)
         }
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });
-    f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
+    f.set_attributes({"__device__"}).set_generic_types(m).set_name(name);
     f.add_generic_param("r");
 
     // caller is fused_reduce_op(..., f(r, out_idx)), so the function `f` must take out_idx even if

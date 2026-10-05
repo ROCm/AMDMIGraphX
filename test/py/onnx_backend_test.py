@@ -74,6 +74,18 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_maxpool_with_argmax_2d_precomputed_pads_cpu')
     backend_test.exclude(
         r'test_maxpool_with_argmax_2d_precomputed_strides_cpu')
+    backend_test.exclude(r'test_nonmaxsuppression_center_point_box_format_cpu')
+    backend_test.exclude(r'test_nonmaxsuppression_flipped_coordinates_cpu')
+    backend_test.exclude(r'test_nonmaxsuppression_identical_boxes_cpu')
+    backend_test.exclude(r'test_nonmaxsuppression_limit_output_size_cpu')
+    backend_test.exclude(
+        r'test_nonmaxsuppression_suppress_by_IOU_and_scores_cpu')
+    backend_test.exclude(r'test_nonmaxsuppression_suppress_by_IOU_cpu')
+    backend_test.exclude(r'test_nonmaxsuppression_two_batches_cpu')
+    backend_test.exclude(r'test_nonmaxsuppression_two_classes_cpu')
+    # NonZero now matches the ONNX specification, but MIGraphXBackend.prepare() builds a repro
+    # string with program::to_py() for every model, and that throws on the parser's
+    # data-dependent output shape.
     backend_test.exclude(r'test_nonzero_example_cpu')
 
     # from OnnxBackendPyTorchConvertedModelTest

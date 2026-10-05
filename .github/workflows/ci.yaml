@@ -9,8 +9,6 @@ on:
       - 'release/**'
 
 env:
-  DOCKER_USER: ${{secrets.DOCKERHUB_USERID}}
-  DOCKER_TOKEN: ${{secrets.DOCKERHUB_TOKEN}}
   DOCKER_IMAGE_UBUNTU: "rocm/migraphx-ci-ubuntu"
   DOCKER_IMAGE_SLES: "rocm/migraphx-ci-sles"
 
@@ -75,7 +73,13 @@ jobs:
     name: Build image
     runs-on: ROCM-Ubuntu
     needs: check_image
-    if: ${{ needs.check_image.outputs.imageexists != 'true' }}
+    if: >-
+      ${{ needs.check_image.outputs.imageexists != 'true'
+      && (github.event_name != 'pull_request'
+          || github.event.pull_request.head.repo.full_name == github.repository) }}
+    env:
+      DOCKER_USER: ${{ secrets.DOCKERHUB_USERID }}
+      DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
@@ -97,7 +101,13 @@ jobs:
     name: Build SLES image
     runs-on: ROCM-Ubuntu
     needs: check_image
-    if: ${{ needs.check_image.outputs.imageexists_sles != 'true' }}
+    if: >-
+      ${{ needs.check_image.outputs.imageexists_sles != 'true'
+      && (github.event_name != 'pull_request'
+          || github.event.pull_request.head.repo.full_name == github.repository) }}
+    env:
+      DOCKER_USER: ${{ secrets.DOCKERHUB_USERID }}
+      DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
     - name: Build and publish SLES
@@ -282,7 +292,7 @@ jobs:
     env:
       DOCKER_TAG_SLES: ${{ needs.check_image.outputs.imagetag_sles }}
     
-    if: ${{ !cancelled() && (needs.build_SLES_image.result == 'success' || needs.build_SLES_image.result == 'skipped') }}      
+    if: ${{ !cancelled() && (needs.build_SLES_image.result == 'success' || (needs.build_SLES_image.result == 'skipped' && needs.check_image.outputs.imageexists_sles == 'true')) }}
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       with:
@@ -508,7 +518,7 @@ jobs:
     - name: Upload code coverage
       if: "matrix.configuration == 'codecov'"
       env:
-        CODECOV_TOKEN: "f5d5a10b-3177-4c76-b25f-9b1c2f165e8b"
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       run: |
         sudo apt-get update
         sudo apt-get install -y lcov
@@ -630,20 +640,6 @@ jobs:
         path: ${{ github.workspace }}/ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
 
-      #- name: Upload code coverage
-      #  if: "matrix.configuration == 'codecov'"
-      #  env:
-      #    CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
-      #  run: |
-      #    sudo apt-get install -y lcov
-      #    cd build
-      #    lcov --directory . --capture --output-file $(pwd)/coverage.info
-      #    lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
-      #    lcov --list $(pwd)/coverage.info
-      #    curl -Os https://uploader.codecov.io/latest/linux/codecov
-      #    chmod +x codecov
-      #    ./codecov -t ${CODECOV_TOKEN}
-      #    echo "Uploaded"
   misspell:
     name: misspell
     runs-on: ubuntu-24.04

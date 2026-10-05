@@ -362,6 +362,26 @@ TEST_CASE(binary_sym_packed_vs_broadcasted)
     expect_shape(sx, migraphx::make_op("add"), sx, sy);
 }
 
+TEST_CASE(binary_sym_zero_packed_vs_broadcasted)
+{
+    auto k = var("k", {0, 200});
+    std::vector<dd> dims{dd{lit(1)}, dd{k}};
+    migraphx::shape sx{migraphx::shape::int64_type, dims};
+    migraphx::shape sy{migraphx::shape::int64_type, dims, {lit(0), lit(0)}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_broadcasted_vs_different_packed)
+{
+    auto n = var("n", {2, 8});
+    auto m = var("m", {2, 8});
+    std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}};
+    migraphx::shape output{migraphx::shape::float_type, output_dims};
+    expect_shape(output, migraphx::make_op("add"), sx, sy);
+}
+
 TEST_CASE(binary_sym_nonpacked_permutation)
 {
     std::vector<dd> dims{dd{lit(4)}, dd{lit(3)}};

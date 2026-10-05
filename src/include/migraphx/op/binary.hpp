@@ -122,15 +122,17 @@ struct binary : op_name<Derived>
         }
         else if(s0.packed() != s1.packed())
         {
-            auto result = s0.packed() ? s0 : s1;
-            return result.symbolic() ? result.with_lens(output_dyn_dims) : result;
+            if(s0.packed())
+                return s0;
+            return s1.symbolic() ? s1.with_lens(output_dyn_dims) : s1;
         }
         else if(s0.broadcasted() != s1.broadcasted())
         {
+            if(not s0.broadcasted())
+                return s0;
             if(s0.symbolic())
-                return s0.broadcasted() ? s1.with_lens(output_dyn_dims)
-                                        : s0.with_lens(output_dyn_dims);
-            return s0.broadcasted() ? s1.with_lens(s0.lens()) : s0.with_lens(s0.lens());
+                return s1.with_lens(output_dyn_dims);
+            return s1.with_lens(s0.lens());
         }
         else
         {

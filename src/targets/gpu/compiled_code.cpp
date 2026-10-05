@@ -21,30 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compile_pointwise.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/module.hpp>
+#include <migraphx/gpu/compiled_code.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/param_utils.hpp>
+#include <migraphx/errors.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-value pointwise_options(const_module_ref pm)
-{
-    auto pf            = gen::generate_pointwise(*pm, "inner_pointwise", true);
-    std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
-    auto kernel_name   = gen::generate_name_from_ops(*pm, "kernel");
-    return {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}};
-}
+std::string compiled_code::input_name(std::size_t i) { return param_name(i); }
 
-operation
-compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm)
+void compiled_code::replace(module& m, instruction_ref ins) const
 {
-    return gpu::compile_op("pointwise", ctx, in_shapes, pointwise_options(pm));
+    // insert_inline wires each fragment parameter onto the input in the same position, matching
+    // how input_name named them.
+    auto returns = m.insert_inline(ins, *fragment.get_main_module(), ins->inputs());
+    if(returns.size() != 1)
+        MIGRAPHX_THROW("compiled_code: expected a single output from the fragment but got " +
+                       std::to_string(returns.size()));
+    m.replace_instruction(ins, returns.front());
 }
 
 } // namespace gpu

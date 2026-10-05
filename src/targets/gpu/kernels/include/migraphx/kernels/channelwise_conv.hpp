@@ -52,7 +52,10 @@ channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inpu
     auto out_ch  = tiler.slice(output);
     auto xs_pack = pack(tiler.slice(inputs)...);
 
-    using type = typename Output::type;
+    // Keep the weights and the accumulator in the input precision: with a fused
+    // pointwise output (eg quantizelinear) the output type can be an integer type
+    // that would truncate them
+    using type = typename Input::type;
     array<type, decltype(w_ch.get_shape().elements()){}> wregs_arr;
     auto wregs = make_tensor_view(wregs_arr.begin(), make_packed_shape(w_ch.get_shape()));
     copy(w_ch.begin(), w_ch.end(), wregs.begin());

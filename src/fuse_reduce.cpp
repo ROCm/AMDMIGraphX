@@ -313,14 +313,18 @@ static std::vector<std::size_t> expand_dims(std::vector<std::size_t> lens,
 
 namespace {
 
+/// Whether the submodule has an instruction with one of the names
+bool module_contains(instruction_ref ins, const std::vector<std::string>& names)
+{
+    const auto* sm = ins->module_inputs().front();
+    return any_of(*sm, [&](const instruction& i) { return contains(names, i.name()); });
+}
+
 /// Whether the submodule reads its inputs through a layout the fusions cant
 /// remap: packed inputs or gathered inputs
 bool has_fixed_layout(instruction_ref ins)
 {
-    const auto* sm = ins->module_inputs().front();
-    return std::any_of(sm->begin(), sm->end(), [](const auto& i) {
-        return contains({"unpack_int4", "gather"}, i.name());
-    });
+    return module_contains(ins, {"unpack_int4", "gather"});
 }
 
 /// The inputs of the reduce that are reduced over, without the indices of
@@ -854,6 +858,65 @@ struct find_unpack_reduce
     }
 };
 
+/// The one axis among axes that is not 1 in dims, or the first when all are.
+/// nullopt when there are none or several, since an axis a topk selects
+/// along or shortened cant be split over them.
+optional<std::size_t> single_nonunit_axis(const std::vector<std::size_t>& axes,
+                                          const std::vector<std::size_t>& dims)
+{
+    std::vector<std::size_t> nonunit;
+    std::copy_if(axes.begin(), axes.end(), std::back_inserter(nonunit), [&](auto axis) {
+        return dims[axis] != 1;
+    });
+    if(axes.empty() or nonunit.size() > 1)
+        return nullopt;
+    return nonunit.empty() ? axes.front() : nonunit.front();
+}
+
+std::size_t get_axis(const operation& op) { return op.to_value().at("axis").to<std::size_t>(); }
+
+/// The axis an op working along one axis, a topk or an unpack_int4, uses
+/// once the module is remapped to dims
+template <class AxesMap>
+optional<std::size_t>
+remap_axis(const operation& op, const std::vector<std::size_t>& dims, const AxesMap& am)
+{
+    return single_nonunit_axis(am.at(get_axis(op)), dims);
+}
+
+/// The lens of a broadcast in the reduce module once the module is remapped
+/// from old_dims to dims: an axis kept whole takes the common dims it maps
+/// to, a reduced axis stays 1, and an axis a topk shortened goes on the one
+/// non-unit common axis
+template <class AxesMap>
+optional<std::vector<std::size_t>> remap_broadcast_lens(const operation& op,
+                                                        const std::vector<std::size_t>& old_dims,
+                                                        const std::vector<std::size_t>& dims,
+                                                        const AxesMap& am)
+{
+    auto lens = op.to_value().at("out_lens").to_vector<std::size_t>();
+    std::vector<std::size_t> result(dims.size(), 1);
+    auto axes     = range(lens.size());
+    bool remapped = std::all_of(axes.begin(), axes.end(), [&](std::size_t axis) {
+        const auto& caxes = am.at(axis);
+        if(lens[axis] == old_dims[axis])
+        {
+            result = expand_dims(result, caxes, dims);
+            return true;
+        }
+        if(lens[axis] == 1)
+            return true;
+        auto caxis = single_nonunit_axis(caxes, dims);
+        if(not caxis.has_value())
+            return false;
+        result[*caxis] = lens[axis];
+        return true;
+    });
+    if(not remapped)
+        return nullopt;
+    return result;
+}
+
 struct reduce_reshape : rewrite_reshapes_base
 {
     static std::string name() { return "fused_reduce"; }
@@ -862,9 +925,35 @@ struct reduce_reshape : rewrite_reshapes_base
     {
         if(ins->name() != name())
             return true;
-        // Submodules with packed or gathered inputs cant be remapped to the
-        // common dims
-        return not has_fixed_layout(ins);
+        // The gather indices have their own shape, so a gathering submodule
+        // cant be remapped to the common dims. A packed input can when its
+        // packed axis stays whole, which supports checks.
+        return not module_contains(ins, {"gather"});
+    }
+
+    template <class AxesMap>
+    static bool
+    supports(instruction_ref ins, const std::vector<std::size_t>& dims, const AxesMap& am)
+    {
+        if(ins->name() != name())
+            return true;
+        // A topk selects along one axis, and the broadcasts after it are to
+        // the selected lens, so the axis they map to cant be split
+        auto old_dims  = base_dims(ins);
+        auto axes      = reduce_axes(ins);
+        const auto* sm = ins->module_inputs().front();
+        return all_of(*sm, [&](const instruction& i) {
+            if(i.name() == "topk")
+                return remap_axis(i.get_operator(), dims, am).has_value();
+            // The packed input is half as long on the packed axis, so the
+            // transform only regenerates for it when that axis is reduced
+            if(i.name() == "unpack_int4")
+                return contains(axes, get_axis(i.get_operator())) and
+                       remap_axis(i.get_operator(), dims, am).has_value();
+            if(contains({"multibroadcast", "broadcast"}, i.name()))
+                return remap_broadcast_lens(i.get_operator(), old_dims, dims, am).has_value();
+            return true;
+        });
     }
 
     template <class Transform>
@@ -894,8 +983,9 @@ struct reduce_reshape : rewrite_reshapes_base
             axes.insert(axes.end(), new_axes.begin(), new_axes.end());
         }
         std::sort(axes.begin(), axes.end());
-        auto dims  = base_dims(inputs);
-        auto* oldm = ins->module_inputs().front();
+        auto old_dims = base_dims(ins);
+        auto dims     = base_dims(inputs);
+        auto* oldm    = ins->module_inputs().front();
         auto* sm   = mpm.create_module(oldm->name() + "_reshape");
         sm->set_bypass();
         auto outs = sm->fuse(*oldm, inputs, nullptr, transform_op([&](const operation& sop) {
@@ -908,8 +998,24 @@ struct reduce_reshape : rewrite_reshapes_base
                 v["axis"] = axes.front();
                 return make_op(sop.name(), v);
             }
+            if(contains({"topk", "unpack_int4"}, sop.name()))
+            {
+                auto axis = remap_axis(sop, dims, am);
+                if(not axis.has_value())
+                    MIGRAPHX_THROW("fused_reduce: the " + sop.name() + " axis cant be remapped");
+                auto v    = sop.to_value();
+                v["axis"] = *axis;
+                return make_op(sop.name(), v);
+            }
             if(contains({"multibroadcast", "broadcast"}, sop.name()))
-                return make_op("multibroadcast", {{"out_lens", dims}});
+            {
+                auto lens = remap_broadcast_lens(sop, old_dims, dims, am);
+                if(not lens.has_value())
+                    MIGRAPHX_THROW("fused_reduce: the broadcast cant be remapped");
+                return make_op("multibroadcast", {{"out_lens", *lens}});
+            }
+            if(sop.name() == "get_tuple_elem")
+                return sop;
             assert(sop.name() == "pointwise");
             return sop;
         }));
@@ -1592,6 +1698,13 @@ struct find_unpack_broadcast_reduce
 };
 
 } // namespace
+
+void fuse_adjacent_reduces(module_pass_manager& mpm)
+{
+    mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
+    match::find_matches(mpm, find_reduce_reduce{});
+    mpm.run_pass(dead_code_elimination{});
+}
 
 void fuse_reduce::apply(module_pass_manager& mpm) const
 {

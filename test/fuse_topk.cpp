@@ -376,4 +376,210 @@ TEST_CASE(reduce_topk_max_size)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(reduce_topk_reduce_axis_mismatch)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto norm1 = add_reduce(p1, "main:reduce0", {x}, {1}, normalize(p1, "main:pointwise0"));
+        auto outs  = add_topk(mm, norm1, 2);
+        auto norm2 =
+            add_reduce(p1, "main:reduce1", {outs[0]}, {0}, normalize(p1, "main:pointwise1"));
+        mm->add_return({norm2, outs[1]});
+    }
+    run_pass(p1);
+
+    // Only the leading reduce fuses with the topk
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto topk = add_reduce(
+            p2, "main:reduce0:topk", {x}, {1}, [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto norm = normalize(p2, "main:pointwise0")(rm, inputs, axes);
+                return add_topk(rm, norm, 2);
+            });
+        auto values =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
+        auto indices =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), topk);
+        auto norm2 =
+            add_reduce(p2, "main:reduce1", {values}, {0}, normalize(p2, "main:pointwise1"));
+        mm->add_return({norm2, indices});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(reduce_topk_multi_axes)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 8}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto norm = add_reduce(p1, "main:reduce0", {x}, {1, 2}, normalize(p1, "main:pointwise0"));
+        mm->add_return(add_topk(mm, norm, 2));
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(reduce_topk_transposed_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {8, 2}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto xt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto norm = add_reduce(p1, "main:reduce0", {xt}, {1}, normalize(p1, "main:pointwise0"));
+        mm->add_return(add_topk(mm, norm, 2));
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(topk_reduce_axis_mismatch)
+{
+    migraphx::shape s{migraphx::shape::float_type, {8, 4}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto outs = add_topk(mm, x, 2);
+        auto norm =
+            add_reduce(p1, "main:reduce0", {outs[0]}, {0}, normalize(p1, "main:pointwise0"));
+        mm->add_return({norm, outs[1]});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(topk_reduce_multi_axes)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 8}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto outs = add_topk(mm, x, 2);
+        auto norm =
+            add_reduce(p1, "main:reduce0", {outs[0]}, {1, 2}, normalize(p1, "main:pointwise0"));
+        mm->add_return({norm, outs[1]});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(topk_reduce_with_indices_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape is{migraphx::shape::int64_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto idx  = mm->add_parameter("idx", is);
+        auto topk = mm->add_instruction(migraphx::make_op("topk", {{"axis", 1}, {"k", 2}}), x, idx);
+        auto values =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
+        auto indices =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), topk);
+        auto norm = add_reduce(p1, "main:reduce0", {values}, {1}, normalize(p1, "main:pointwise0"));
+        mm->add_return({norm, indices});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(topk_reduce_max_size)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto outs = add_topk(mm, x, 2);
+        auto norm =
+            add_reduce(p1, "main:reduce0", {outs[0]}, {1}, normalize(p1, "main:pointwise0"));
+        mm->add_return({norm, outs[1]});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1, migraphx::fuse_topk{.max_size = 4});
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(topk_reduce_transposed_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {8, 2}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto xt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto outs = add_topk(mm, xt, 2);
+        auto norm =
+            add_reduce(p1, "main:reduce0", {outs[0]}, {1}, normalize(p1, "main:pointwise0"));
+        mm->add_return({norm, outs[1]});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(topk_reduce_multi_output)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto outs = add_topk(mm, x, 2);
+        auto reduce =
+            add_reduce(p1,
+                       "main:reduce0",
+                       {outs[0]},
+                       {1},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           auto norm = normalize(p1, "main:pointwise0")(rm, inputs, axes);
+                           auto rmax = rm->add_instruction(
+                               migraphx::make_op("reduce_max", {{"axes", axes}}), inputs[0]);
+                           return std::vector<migraphx::instruction_ref>{norm, rmax};
+                       });
+        auto norm =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), reduce);
+        auto rmax =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), reduce);
+        mm->add_return({norm, rmax, outs[1]});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(topk_reduce_tuple_used)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto topk = mm->add_instruction(migraphx::make_op("topk", {{"axis", 1}, {"k", 2}}), x);
+        auto values =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
+        auto norm = add_reduce(p1, "main:reduce0", {values}, {1}, normalize(p1, "main:pointwise0"));
+        mm->add_return({norm, topk});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

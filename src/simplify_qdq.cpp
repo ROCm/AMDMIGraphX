@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/simplify_qdq.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -68,11 +69,11 @@ auto propagate_quantized_ins(module& m,
                              const instruction_ref dqins,
                              instruction_ref input_ins,
                              std::vector<instruction_ref> ins_between,
-                             bool is_fp16_model = false)
+                             bool skip_converts = false)
 {
     for(auto ins : reverse_iterator_for(ins_between))
     {
-        if((*ins)->name() == "convert" and is_fp16_model)
+        if((*ins)->name() == "convert" and skip_converts)
         {
             continue;
         }
@@ -337,25 +338,35 @@ struct match_find_quantizable_add
         return result;
     }
 
-    // Copy dq with its scale divided by out_scale and replay the ops between dq and the add
+    static instruction_ref
+    convert_to(module& m, instruction_ref pos, instruction_ref x, shape::type_t type)
+    {
+        if(x->get_shape().type() == type)
+            return x;
+        return m.insert_instruction(pos, make_op("convert", {{"target_type", type}}), x);
+    }
+
+    // Copy dq with its scale divided by out_scale and replay the ops between dq and the add. The
+    // math runs in the common scale type: converts between dq and the add are dropped, since
+    // narrowing the folded scale to fp16 could overflow intermediates finite in the original.
     static instruction_ref requantize_input(module& m,
                                             instruction_ref dq,
                                             instruction_ref scale,
                                             instruction_ref out_scale,
-                                            instruction_ref add_arg)
+                                            instruction_ref add_arg,
+                                            shape::type_t type)
     {
-        auto scale_shape = scale->get_shape();
-        if(out_scale->get_shape().type() != scale_shape.type())
-            out_scale = m.insert_instruction(
-                dq, make_op("convert", {{"target_type", scale_shape.type()}}), out_scale);
-        if(out_scale->get_shape().lens() != scale_shape.lens())
-            out_scale = m.insert_instruction(
-                dq, make_op("multibroadcast", {{"out_lens", scale_shape.lens()}}), out_scale);
-        auto ratio  = m.insert_instruction(dq, make_op("div"), scale, out_scale);
+        auto scale_lens = scale->get_shape().lens();
+        auto scale_t    = convert_to(m, dq, scale, type);
+        auto out_t      = convert_to(m, dq, out_scale, type);
+        if(out_t->get_shape().lens() != scale_lens)
+            out_t = m.insert_instruction(
+                dq, make_op("multibroadcast", {{"out_lens", scale_lens}}), out_t);
+        auto ratio  = m.insert_instruction(dq, make_op("div"), scale_t, out_t);
         auto inputs = dq->inputs();
         inputs[1]   = propagate_quantized_ins(m, dq, ratio, get_between_ins(scale, inputs[1]));
         auto new_dq = m.insert_instruction(dq, dq->get_operator(), inputs);
-        return propagate_quantized_ins(m, dq, new_dq, get_between_ins(dq, add_arg));
+        return propagate_quantized_ins(m, dq, new_dq, get_between_ins(dq, add_arg), true);
     }
 
     static auto dequantizelinear_scale(const std::string& scale)
@@ -390,8 +401,9 @@ struct match_find_quantizable_add
         if(out_scale->get_shape().elements() != 1 or is_unit_scale(out_scale))
             return;
 
-        auto x1     = requantize_input(m, dq1, scale1, out_scale, add->inputs().at(0));
-        auto x2     = requantize_input(m, dq2, scale2, out_scale, add->inputs().at(1));
+        auto type   = compute_common_type(scale1->get_shape().type(), scale2->get_shape().type());
+        auto x1     = requantize_input(m, dq1, scale1, out_scale, add->inputs().at(0), type);
+        auto x2     = requantize_input(m, dq2, scale2, out_scale, add->inputs().at(1), type);
         auto sum    = m.insert_instruction(q, make_op("add"), x1, x2);
         auto one    = m.add_literal(literal{shape{sum->get_shape().type()}, {1}});
         auto inputs = q->inputs();

@@ -2359,7 +2359,6 @@ TEST_CASE(add_quantized_fp16)
 {
     migraphx::shape sh{migraphx::shape::uint8_type, {2, 4}};
     migraphx::literal half_scale{migraphx::shape{migraphx::shape::half_type}, {0.25f}};
-    migraphx::literal half_one{migraphx::shape{migraphx::shape::half_type}, {1}};
 
     migraphx::module m1;
     {
@@ -2391,25 +2390,133 @@ TEST_CASE(add_quantized_fp16)
         auto zp2    = m2.add_literal(std::uint8_t{4});
         auto scale3 = m2.add_literal(half_scale);
         auto zp3    = m2.add_literal(std::uint8_t{8});
-        auto one    = m2.add_literal(half_one);
+        auto one    = m2.add_literal(1.0f);
 
+        // float scales: the add runs in float, the fp16 converts before it are dropped
         auto zp1_b    = broadcast_shift(m2, zp1, sh.lens());
         auto scale3_1 = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale3);
-        auto ratio1 = m2.add_instruction(migraphx::make_op("div"), scale, scale3_1);
-        auto d1     = add_quantize_op(m2, "dequantizelinear", x1, ratio1, zp1_b);
-        auto d1h    = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d1);
+        auto ratio1   = m2.add_instruction(migraphx::make_op("div"), scale, scale3_1);
+        auto d1       = add_quantize_op(m2, "dequantizelinear", x1, ratio1, zp1_b);
         auto zp2_b    = broadcast_shift(m2, zp2, sh.lens());
         auto scale3_2 = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale3);
         auto ratio2 = m2.add_instruction(migraphx::make_op("div"), scale, scale3_2);
         auto d2     = add_quantize_op(m2, "dequantizelinear", x2, ratio2, zp2_b);
-        auto d2h    = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d2);
-        auto zp3_b = broadcast_shift(m2, zp3, sh.lens());
-        auto sum   = m2.add_instruction(migraphx::make_op("add"), d1h, d2h);
-        auto q     = add_quantize_op(m2, "quantizelinear", sum, one, zp3_b);
+        auto zp3_b  = broadcast_shift(m2, zp3, sh.lens());
+        auto sum    = m2.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q      = add_quantize_op(m2, "quantizelinear", sum, one, zp3_b);
+        m2.add_return({q});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(add_quantized_fp16_scales)
+{
+    migraphx::shape sh{migraphx::shape::uint8_type, {2, 4}};
+    migraphx::literal half_scale1{migraphx::shape{migraphx::shape::half_type}, {0.5f}};
+    migraphx::literal half_scale2{migraphx::shape{migraphx::shape::half_type}, {0.125f}};
+    migraphx::literal half_scale3{migraphx::shape{migraphx::shape::half_type}, {0.25f}};
+    migraphx::literal half_one{migraphx::shape{migraphx::shape::half_type}, {1}};
+
+    migraphx::module m1;
+    {
+        auto x1     = m1.add_parameter("x1", sh);
+        auto x2     = m1.add_parameter("x2", sh);
+        auto scale1 = m1.add_literal(half_scale1);
+        auto zp1    = m1.add_literal(std::uint8_t{3});
+        auto scale2 = m1.add_literal(half_scale2);
+        auto zp2    = m1.add_literal(std::uint8_t{4});
+        auto scale3 = m1.add_literal(half_scale3);
+        auto zp3    = m1.add_literal(std::uint8_t{8});
+
+        auto d1  = add_quantize_op(m1, "dequantizelinear", x1, scale1, zp1);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", x2, scale2, zp2);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q   = add_quantize_op(m1, "quantizelinear", add, scale3, zp3);
+        m1.add_return({q});
+    }
+
+    migraphx::module m2;
+    {
+        auto x1     = m2.add_parameter("x1", sh);
+        auto x2     = m2.add_parameter("x2", sh);
+        auto scale1 = m2.add_literal(half_scale1);
+        auto zp1    = m2.add_literal(std::uint8_t{3});
+        auto scale2 = m2.add_literal(half_scale2);
+        auto zp2    = m2.add_literal(std::uint8_t{4});
+        auto scale3 = m2.add_literal(half_scale3);
+        auto zp3    = m2.add_literal(std::uint8_t{8});
+        auto one    = m2.add_literal(half_one);
+
+        // fp16 scales: the rewritten add runs in fp16 too
+        auto zp1_b  = broadcast_shift(m2, zp1, sh.lens());
+        auto ratio1 = m2.add_instruction(migraphx::make_op("div"), scale1, scale3);
+        auto d1     = add_quantize_op(m2, "dequantizelinear", x1, ratio1, zp1_b);
+        auto zp2_b  = broadcast_shift(m2, zp2, sh.lens());
+        auto ratio2 = m2.add_instruction(migraphx::make_op("div"), scale2, scale3);
+        auto d2     = add_quantize_op(m2, "dequantizelinear", x2, ratio2, zp2_b);
+        auto zp3_b  = broadcast_shift(m2, zp3, sh.lens());
+        auto sum    = m2.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q      = add_quantize_op(m2, "quantizelinear", sum, one, zp3_b);
+        m2.add_return({q});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(add_quantized_mixed_scale_types)
+{
+    migraphx::shape sh{migraphx::shape::uint8_type, {2, 4}};
+    migraphx::literal half_scale{migraphx::shape{migraphx::shape::half_type}, {0.125f}};
+
+    migraphx::module m1;
+    {
+        auto x1     = m1.add_parameter("x1", sh);
+        auto x2     = m1.add_parameter("x2", sh);
+        auto scale1 = m1.add_literal(0.5f);
+        auto zp1    = m1.add_literal(std::uint8_t{3});
+        auto scale2 = m1.add_literal(half_scale);
+        auto zp2    = m1.add_literal(std::uint8_t{4});
+        auto scale3 = m1.add_literal(0.25f);
+        auto zp3    = m1.add_literal(std::uint8_t{8});
+
+        auto d1  = add_quantize_op(m1, "dequantizelinear", x1, scale1, zp1);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", x2, scale2, zp2);
+        auto d2f = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), d2);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d1, d2f);
+        auto q   = add_quantize_op(m1, "quantizelinear", add, scale3, zp3);
+        m1.add_return({q});
+    }
+
+    migraphx::module m2;
+    {
+        auto x1     = m2.add_parameter("x1", sh);
+        auto x2     = m2.add_parameter("x2", sh);
+        auto scale1 = m2.add_literal(0.5f);
+        auto zp1    = m2.add_literal(std::uint8_t{3});
+        auto scale2 = m2.add_literal(half_scale);
+        auto zp2    = m2.add_literal(std::uint8_t{4});
+        auto scale3 = m2.add_literal(0.25f);
+        auto zp3    = m2.add_literal(std::uint8_t{8});
+        auto one    = m2.add_literal(1.0f);
+
+        // common type of float and half scales is float: the half scale is converted
+        auto zp1_b    = broadcast_shift(m2, zp1, sh.lens());
+        auto ratio1   = m2.add_instruction(migraphx::make_op("div"), scale1, scale3);
+        auto d1       = add_quantize_op(m2, "dequantizelinear", x1, ratio1, zp1_b);
+        auto zp2_b    = broadcast_shift(m2, zp2, sh.lens());
+        auto scale2_f = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale2);
+        auto ratio2 = m2.add_instruction(migraphx::make_op("div"), scale2_f, scale3);
+        auto d2     = add_quantize_op(m2, "dequantizelinear", x2, ratio2, zp2_b);
+        auto zp3_b  = broadcast_shift(m2, zp3, sh.lens());
+        auto sum    = m2.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q      = add_quantize_op(m2, "quantizelinear", sum, one, zp3_b);
         m2.add_return({q});
     }
 
@@ -2547,6 +2654,62 @@ TEST_CASE(add_correctness)
     std::vector<float> rv2;
     result2.visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(rv1, rv2));
+}
+
+// float scales with an fp16 add: if the rewrite kept the fp16 converts, the folded scale
+// (0.1 / 1e-5) would saturate (or overflow to inf) the rescaled inputs, and they would cancel to
+// the output zero point even where the true sum is not zero
+TEST_CASE(add_fp16_overflow)
+{
+    migraphx::shape sh{migraphx::shape::uint8_type, {2, 4}};
+    migraphx::literal half_scale{migraphx::shape{migraphx::shape::half_type}, {1e-5f}};
+
+    auto create_program = [&] {
+        migraphx::program p;
+        auto* mm    = p.get_main_module();
+        auto x1     = mm->add_parameter("x1", sh);
+        auto x2     = mm->add_parameter("x2", sh);
+        auto scale  = mm->add_literal(0.1f);
+        auto zp1    = mm->add_literal(std::uint8_t{0});
+        auto zp2    = mm->add_literal(std::uint8_t{255});
+        auto scale3 = mm->add_literal(half_scale);
+        auto zp3    = mm->add_literal(std::uint8_t{20});
+
+        auto d1  = add_quantize_op(*mm, "dequantizelinear", x1, scale, zp1);
+        auto d2  = add_quantize_op(*mm, "dequantizelinear", x2, scale, zp2);
+        auto d1h = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d1);
+        auto d2h = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d2);
+        auto add = mm->add_instruction(migraphx::make_op("add"), d1h, d2h);
+        auto q   = add_quantize_op(*mm, "quantizelinear", add, scale3, zp3);
+        mm->add_return({q});
+        return p;
+    };
+
+    auto p1 = create_program();
+    run_pass(*p1.get_main_module());
+    auto p2 = create_program();
+    p1.compile(migraphx::target(migraphx::make_target("ref")));
+    p2.compile(migraphx::target(migraphx::make_target("ref")));
+
+    // x1 dequantizes to +25.5 everywhere; x2 ranges from -25.5 (cancels) up to 0
+    std::vector<std::uint8_t> v1(sh.elements(), 255);
+    std::vector<std::uint8_t> v2(sh.elements());
+    std::iota(v2.begin(), v2.end(), 0);
+    std::transform(v2.begin(), v2.end(), v2.begin(), [](std::uint8_t x) { return 36 * x; });
+    auto x1 = migraphx::argument(sh, v1.data());
+    auto x2 = migraphx::argument(sh, v2.data());
+
+    std::vector<std::uint8_t> rv1;
+    p1.eval({{"x1", x1}, {"x2", x2}}).back().visit([&](auto output) {
+        rv1.assign(output.begin(), output.end());
+    });
+    std::vector<std::uint8_t> rv2;
+    p2.eval({{"x1", x1}, {"x2", x2}}).back().visit([&](auto output) {
+        rv2.assign(output.begin(), output.end());
+    });
+    EXPECT(rv1 == rv2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

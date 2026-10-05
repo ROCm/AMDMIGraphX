@@ -24,6 +24,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/precompile_op.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
@@ -466,17 +467,6 @@ void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
     m.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
 #endif
-
-template <class... Strings>
-inline auto precompile_name(Strings... names) // NOLINT
-{
-    return match::make_basic_pred_matcher([=](instruction_ref ins) {
-        if(ins->name() != "gpu::precompile_op")
-            return false;
-        auto op = from_value<operation>(ins->get_operator().to_value().at("op"));
-        return (contains({names...}, op.name()));
-    });
-}
 
 #if MIGRAPHX_USE_MIOPEN
 struct find_conv_bias

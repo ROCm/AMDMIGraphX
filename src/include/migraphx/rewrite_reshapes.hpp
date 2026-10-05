@@ -34,6 +34,8 @@
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/ranges.hpp>
 #include <algorithm>
 
 namespace migraphx {
@@ -51,8 +53,9 @@ struct rewrite_reshapes_base
             ins, ins->get_operator(), inputs, ins->module_inputs());
     }
 
+    /// Whether the op can be remapped to the common dims with the axes map
     template <class AxesMap>
-    static bool supports(instruction_ref, std::vector<std::size_t>&, const AxesMap&)
+    static bool supports(instruction_ref, const std::vector<std::size_t>&, const AxesMap&)
     {
         return true;
     }
@@ -119,6 +122,11 @@ struct rewrite_reshapes
             if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
                    return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
                }))
+                return false;
+            // The reshapes after a tuple output are applied to its elements
+            if(ins->get_shape().type() == shape::tuple_type and
+               not all_of(ins->outputs(),
+                          [](instruction_ref out) { return out->name() == "get_tuple_elem"; }))
                 return false;
             return elements(T::base_dims(ins)) == elements(T::base_dims(x_ins));
         }
@@ -195,7 +203,12 @@ struct rewrite_reshapes
             if(desc.elements() != elements(dims2))
                 return;
 
-            auto cdims         = desc.common_dims();
+            auto cdims = desc.common_dims();
+            if(not supports(x_ins, cdims, desc.common_axes_map_from_src()))
+                return;
+            if(not supports(ins, cdims, desc.common_axes_map_from_dst()))
+                return;
+
             auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
                 return [&](auto input) {
                     auto gops  = gdesc.generate(input->get_shape().lens());
@@ -223,9 +236,30 @@ struct rewrite_reshapes
                     return new_x_ins;
                 return reshape_input(ins, desc.to_common_from_dst())(input);
             });
-            auto pw = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
-            auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);
-            mpm.get_module().replace_instruction(ins, rins);
+            auto pw     = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
+            auto to_dst = desc.to_dst_from_common();
+            if(pw->get_shape().type() != shape::tuple_type)
+            {
+                mpm.get_module().replace_instruction(ins, reshape_input(ins, to_dst)(pw));
+                return;
+            }
+            // A tuple cant be reshaped, so each element is reshaped where it is read
+            auto outputs = ins->outputs();
+            std::vector<instruction_ref> elems;
+            std::transform(outputs.begin(),
+                           outputs.end(),
+                           std::back_inserter(elems),
+                           [&](instruction_ref out) {
+                               auto elem = mpm.get_module().insert_instruction(
+                                   out, out->get_operator(), pw);
+                               return reshape_input(out, to_dst)(elem);
+                           });
+            for_each(outputs.begin(),
+                     outputs.end(),
+                     elems.begin(),
+                     [&](instruction_ref out, instruction_ref elem) {
+                         mpm.get_module().replace_instruction(out, elem);
+                     });
         }
 
         static bool same_dims(instruction_ref ins)
@@ -233,6 +267,15 @@ struct rewrite_reshapes
             return all_of(ins->inputs(), [&](auto input) {
                 return input->get_shape().lens() == ins->get_shape().lens();
             });
+        }
+
+        template <class AxesMap>
+        static bool
+        supports(instruction_ref ins, const std::vector<std::size_t>& dims, const AxesMap& am)
+        {
+            if(ins->name() == "pointwise")
+                return true;
+            return T::supports(ins, dims, am);
         }
 
         template <class AxesMap>

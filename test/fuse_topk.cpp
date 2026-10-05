@@ -376,4 +376,103 @@ TEST_CASE(reduce_topk_max_size)
     EXPECT(p1 == p2);
 }
 
+// The squeeze between the softmax and the topk is pushed after the fused
+// reduce so the two reductions merge
+TEST_CASE(reduce_squeeze_topk_reduce)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 8, 1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto norm1 =
+            add_reduce(p1, "main:reduce0", {x}, {1, 2, 3, 4}, normalize(p1, "main:pointwise0"));
+        auto squeeze =
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 3, 4}}}), norm1);
+        auto outs = add_topk(mm, squeeze, 2);
+        auto norm2 =
+            add_reduce(p1, "main:reduce1", {outs[0]}, {1}, normalize(p1, "main:pointwise1"));
+        mm->add_return({norm2, outs[1]});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto fused = add_reduce(
+            p2,
+            "main:topk:main:reduce1_reshape:main:reduce0_reshape",
+            {x},
+            {1, 2, 3, 4},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto norm1 = normalize(p2, "main:pointwise0")(rm, inputs, axes);
+                auto topk =
+                    rm->add_instruction(migraphx::make_op("topk", {{"axis", 2}, {"k", 2}}), norm1);
+                auto values =
+                    rm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
+                auto indices =
+                    rm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), topk);
+                auto norm2 = normalize(p2, "main:pointwise1")(
+                    rm, std::vector<migraphx::instruction_ref>{values}, axes);
+                return std::vector<migraphx::instruction_ref>{norm2, indices};
+            });
+        auto indices =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto indices_sq =
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 3, 4}}}), indices);
+        auto values =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto values_sq =
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 3, 4}}}), values);
+        mm->add_return({values_sq, indices_sq});
+    }
+    EXPECT(p1 == p2);
+}
+
+// A reshape that splits the topk axis cant be pushed after the topk, so only
+// the second reduction fuses with it
+TEST_CASE(reduce_reshape_topk_reduce_split_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 4, 8}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto norm1 = add_reduce(p1, "main:reduce0", {x}, {1, 2}, normalize(p1, "main:pointwise0"));
+        auto reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 32}}}), norm1);
+        auto outs = add_topk(mm, reshape, 2);
+        auto norm2 =
+            add_reduce(p1, "main:reduce1", {outs[0]}, {1}, normalize(p1, "main:pointwise1"));
+        mm->add_return({norm2, outs[1]});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto norm1 = add_reduce(p2, "main:reduce0", {x}, {1, 2}, normalize(p2, "main:pointwise0"));
+        auto reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 32}}}), norm1);
+        auto fused = add_reduce(p2,
+                                "main:topk:main:reduce1",
+                                {reshape},
+                                {1},
+                                [&](auto* rm, const auto& inputs, const auto& axes) {
+                                    auto outs = add_topk(rm, inputs[0], 2);
+                                    auto norm = normalize(p2, "main:pointwise1")(
+                                        rm, std::vector<migraphx::instruction_ref>{outs[0]}, axes);
+                                    return std::vector<migraphx::instruction_ref>{norm, outs[1]};
+                                });
+        auto indices =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto values =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        mm->add_return({values, indices});
+    }
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

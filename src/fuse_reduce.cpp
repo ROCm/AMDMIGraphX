@@ -778,7 +778,8 @@ struct find_reduce_slice
         // Broadcasts inside the submodule expand to the full axis
         std::size_t new_len = end - start;
         const auto* oldm    = reduce->module_inputs().front();
-        auto* sm            = mpm.create_module(oldm->name() + "_slice" + std::to_string(start));
+        auto* sm = mpm.create_module(oldm->name() + "_slice" + std::to_string(start) + "_" +
+                                     std::to_string(end));
         sm->set_bypass();
         auto outs = sm->fuse(
             *oldm, inputs, nullptr, reduce_reshape::transform_op([&](const operation& sop) {

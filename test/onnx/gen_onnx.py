@@ -5189,6 +5189,85 @@ def gridsample_512x512_test():
     return ([node], [x, grid], [y])
 
 
+# Opset 16 spells the interpolation modes "bilinear"/"bicubic"; opset 20
+# renamed them to "linear"/"cubic".  The four tests below come in pairs that
+# differ only in the spelling, so both must parse to the same program.
+@onnx_test(opset_version=16)
+def gridsample_opset16_bilinear_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="bilinear",
+        padding_mode="zeros",
+        align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test(opset_version=20)
+def gridsample_opset20_linear_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="linear",
+        padding_mode="zeros",
+        align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test(opset_version=16)
+def gridsample_opset16_bicubic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="bicubic",
+        padding_mode="border",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test(opset_version=20)
+def gridsample_opset20_cubic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="cubic",
+        padding_mode="border",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
+
+
 @onnx_test()
 def gridsample_half_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 1, 4, 4])
@@ -12015,6 +12094,33 @@ def nms_dynamic_batch_test():
                                  ],
                                  outputs=['selected_indices'],
                                  center_point_box=1)
+
+    return ([node], [b, s, mo, iou, st], [out])
+
+
+@onnx_test()
+def nms_symbol_collision_test():
+    batch = 'main_NonMaxSuppression_5'
+    b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT,
+                                      [batch, 6, 4])
+    s = helper.make_tensor_value_info('scores', TensorProto.FLOAT,
+                                      [batch, 1, 6])
+    mo = helper.make_tensor_value_info('max_output_boxes_per_class',
+                                       TensorProto.INT64, [1])
+    iou = helper.make_tensor_value_info('iou_threshold', TensorProto.FLOAT,
+                                        [1])
+    st = helper.make_tensor_value_info('score_threshold', TensorProto.FLOAT,
+                                       [1])
+    out = helper.make_tensor_value_info('selected_indices', TensorProto.INT64,
+                                        [None, 3])
+
+    node = onnx.helper.make_node('NonMaxSuppression',
+                                 inputs=[
+                                     'boxes', 'scores',
+                                     'max_output_boxes_per_class',
+                                     'iou_threshold', 'score_threshold'
+                                 ],
+                                 outputs=['selected_indices'])
 
     return ([node], [b, s, mo, iou, st], [out])
 

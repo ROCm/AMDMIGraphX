@@ -36,7 +36,8 @@
 
 /**
  *  nonzero(data);
- *  Outputs tuple of {tensor with dims[rank of data, max elements of data]: indices,
+ *  Outputs tuple of {
+ *  tensor int64_t[rank of data, max elements of data]: indices,
  *  scalar int64_t: num_nonzero}
  *  Only the leading `num_nonzero` columns of `indices` hold an index; the rest are zero. Sizing
  *  for the largest input the shape allows keeps the output static for a dynamic input.

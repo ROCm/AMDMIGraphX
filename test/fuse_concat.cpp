@@ -28,6 +28,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/generate.hpp>
 
 #include <test.hpp>
 #include <pointwise.hpp>
@@ -709,6 +710,135 @@ TEST_CASE(pointwise_concat_of_slices_single_input)
     migraphx::program p2 = p1;
     run_pass(p1);
     EXPECT(p1 == p2);
+}
+
+// The outer concat takes the parameter x, so the add is applied to each segment of the inner
+// concat, fused into the exp for the first segment, and one fused_concat reads x directly
+TEST_CASE(concat_param_pointwise_concat)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto y     = mm->add_parameter("y", s);
+        auto z     = mm->add_parameter("z", s);
+        auto c     = mm->add_parameter("c", sc);
+        auto exp   = add_pointwise(p1, "main:pointwise0", {y}, single_pointwise("exp"));
+        auto inner = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), exp, z);
+        auto add   = add_pointwise(p1, "main:pointwise1", {inner, c}, single_pointwise("add"));
+        auto outer = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, add);
+        mm->add_return({outer});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
+        auto c   = mm->add_parameter("c", sc);
+        auto c0  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), c);
+        auto c1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), c);
+        auto fused_concat = add_pointwise_concat(
+            p2,
+            1,
+            arg("main:pointwise1:concat3", {}, noop_pointwise()),
+            arg("main:pointwise1:concat0", {x}, noop_pointwise()),
+            arg("main:pointwise1:concat1",
+                {y, c0},
+                [](auto* pm, const auto& inputs) {
+                    auto e = pm->add_instruction(migraphx::make_op("exp"), inputs[0]);
+                    return pm->add_instruction(migraphx::make_op("add"), e, inputs[1]);
+                }),
+            arg("main:pointwise1:concat2", {z, c1}, single_pointwise("add")));
+        mm->add_return({fused_concat});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A literal input also triggers the fusion, and the other pointwise input of the outer concat
+// becomes one of the fused_concat's modules
+TEST_CASE(concat_literal_pointwise_concat)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    auto make_program = [&](auto f) {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto lit = mm->add_literal(migraphx::generate_literal(s));
+        auto w   = mm->add_parameter("w", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
+        mm->add_return({f(p, lit, w, y, z)});
+        return p;
+    };
+    auto p1 = make_program([](auto& p, auto lit, auto w, auto y, auto z) {
+        auto* mm   = p.get_main_module();
+        auto neg   = add_pointwise(p, "main:pointwise0", {w}, single_pointwise("neg"));
+        auto exp   = add_pointwise(p, "main:pointwise1", {y}, single_pointwise("exp"));
+        auto inner = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), exp, z);
+        auto relu  = add_pointwise(p, "main:pointwise2", {inner}, single_pointwise("relu"));
+        return mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), lit, neg, relu);
+    });
+    run_pass(p1);
+    auto p2 = make_program([](auto& p, auto lit, auto w, auto y, auto z) {
+        return add_pointwise_concat(
+            p,
+            1,
+            arg("main:pointwise2:concat4", {}, noop_pointwise()),
+            arg("main:pointwise2:concat0", {lit}, noop_pointwise()),
+            arg("main:pointwise2:concat1", {w}, single_pointwise("neg")),
+            arg("main:pointwise2:concat2",
+                {y},
+                [](auto* pm, const auto& inputs) {
+                    auto e = pm->add_instruction(migraphx::make_op("exp"), inputs[0]);
+                    return pm->add_instruction(migraphx::make_op("relu"), e);
+                }),
+            arg("main:pointwise2:concat3", {z}, single_pointwise("relu")));
+    });
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// With two parameters in the outer concat there are too many no-ops, so only the inner concat
+// is fused with the pointwise as before
+TEST_CASE(concat_params_pointwise_concat_too_many_noops)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto w     = mm->add_parameter("w", s);
+        auto y     = mm->add_parameter("y", s);
+        auto z     = mm->add_parameter("z", s);
+        auto exp   = add_pointwise(p1, "main:pointwise0", {y}, single_pointwise("exp"));
+        auto inner = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), exp, z);
+        auto relu  = add_pointwise(p1, "main:pointwise1", {inner}, single_pointwise("relu"));
+        auto outer = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, w, relu);
+        mm->add_return({outer});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto w   = mm->add_parameter("w", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
+        auto fused_concat =
+            add_pointwise_concat(p2,
+                                 1,
+                                 arg("main:pointwise1:concat", {}, single_pointwise("relu")),
+                                 arg("concat:main:pointwise0", {y}, single_pointwise("exp")),
+                                 arg("concat:noop1", {z}, noop_pointwise()));
+        auto outer =
+            mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, w, fused_concat);
+        mm->add_return({outer});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

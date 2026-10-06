@@ -75,6 +75,9 @@ static argument fixed_pad_standard_impl(hipStream_t stream,
 
 argument fixed_pad(hipStream_t stream, const argument& result, const argument& arg, float value)
 {
+    if(result.get_shape() == arg.get_shape())
+        return arg;
+
     if(result.get_shape().standard() and arg.get_shape().standard())
     {
         auto ilens            = arg.get_shape().lens();

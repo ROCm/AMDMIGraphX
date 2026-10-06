@@ -44,3 +44,25 @@ struct test_fixed_pad : verify_program<test_fixed_pad>
         return {{"x", migraphx::shape{migraphx::shape::float_type, {1, 3}}}};
     }
 };
+
+struct test_fixed_pad_max_shape : verify_program<test_fixed_pad_max_shape>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {3, 3}}};
+        auto x              = mm->add_parameter("x", s);
+        auto y              = mm->add_instruction(migraphx::make_op("abs"), x);
+        auto padded         = mm->add_instruction(migraphx::make_op("fixed_pad"), y);
+        auto negated        = mm->add_instruction(migraphx::make_op("neg"), y);
+        auto padded_negated = mm->add_instruction(migraphx::make_op("fixed_pad"), negated);
+        mm->add_return({padded, padded_negated});
+        return p;
+    }
+
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
+    {
+        return {{"x", migraphx::shape{migraphx::shape::float_type, {3, 3}}}};
+    }
+};

@@ -21,32 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compile_pointwise.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include <migraphx/register_target.hpp>
+#include <onnx_test.hpp>
 
-value pointwise_options(const_module_ref pm)
+// An all-zero mask drives the parser's trim to a zero-length slice, which is the one bound
+// sym::var(name, {0, max}) allows that no other test reaches.
+TEST_CASE(nonzero_all_zeros_test)
 {
-    auto pf            = gen::generate_pointwise(*pm, "inner_pointwise", true);
-    std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
-    auto kernel_name   = gen::generate_name_from_ops(*pm, "kernel");
-    return {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}};
-}
+    migraphx::program p = read_onnx("nonzero_dynamic_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-operation
-compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm)
-{
-    return gpu::compile_op("pointwise", ctx, in_shapes, pointwise_options(pm));
-}
+    migraphx::shape s{migraphx::shape::bool_type, {2, 2}};
+    std::vector<char> data = {0, 0, 0, 0};
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    migraphx::parameter_map pp;
+    pp["data"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<int64_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // np.nonzero(np.zeros((2, 2))) is ((), ()), so the ONNX specification's output is [rank, 0].
+    EXPECT(result_vector.empty());
+    // Only the sliced axis collapses; the trim still keeps the padded buffer's row stride.
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {2, 0}, {4, 1}});
+}

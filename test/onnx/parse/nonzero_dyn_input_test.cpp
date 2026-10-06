@@ -21,32 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compile_pointwise.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include <onnx_test.hpp>
 
-value pointwise_options(const_module_ref pm)
+// A dynamic input pads the indices for the 4x2 maximum, so the trim is bounded by 8 rather than
+// by the 4 elements the model itself declares.
+TEST_CASE(nonzero_dyn_input_test)
 {
-    auto pf            = gen::generate_pointwise(*pm, "inner_pointwise", true);
-    std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
-    auto kernel_name   = gen::generate_name_from_ops(*pm, "kernel");
-    return {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}};
+    using migraphx::sym::var;
+    migraphx::shape s{migraphx::shape::bool_type, {{1, 4}, {2, 2}}};
+    EXPECT(check_parse("nonzero_dynamic_test.onnx", {{"data", s}}, [](auto& m, const auto& args) {
+        auto nz      = m.add_instruction(migraphx::make_op("nonzero"), args[0]);
+        auto indices = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
+        auto num_nonzero =
+            m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
+        auto starts = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+        auto ends   = migraphx::value::array{migraphx::to_value(var("main_NonZero_1", {0, 8}))};
+        auto r      = m.add_instruction(
+            migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", ends}}),
+            indices,
+            starts,
+            num_nonzero);
+        m.add_return({r});
+    }));
 }
-
-operation
-compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm)
-{
-    return gpu::compile_op("pointwise", ctx, in_shapes, pointwise_options(pm));
-}
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

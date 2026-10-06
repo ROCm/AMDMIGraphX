@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,10 +33,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+/// A name unlikely to collide with one made by another process or thread.
+MIGRAPHX_EXPORT std::string unique_string(const std::string& prefix);
+
 struct MIGRAPHX_EXPORT tmp_dir
 {
     fs::path path;
-    tmp_dir(std::string_view prefix = "");
+    tmp_dir(std::string_view prefix = "", const fs::path& loc = fs::temp_directory_path());
     tmp_dir(tmp_dir&&) = default;
 
     void execute(std::string_view cmd, const std::vector<std::string>& args = {}) const;
@@ -45,7 +48,7 @@ struct MIGRAPHX_EXPORT tmp_dir
         execute(std::string_view{cmd.string()}, args);
     }
 
-    tmp_dir(tmp_dir const&) = delete;
+    tmp_dir(tmp_dir const&)            = delete;
     tmp_dir& operator=(tmp_dir const&) = delete;
 
     ~tmp_dir();

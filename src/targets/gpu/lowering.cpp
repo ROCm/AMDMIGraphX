@@ -187,6 +187,12 @@ struct miopen_apply
             }
             else if(has_compiler_for(it->name()))
             {
+                if(not s.dynamic() and s.type() != shape::tuple_type and s.elements() == 0)
+                {
+                    auto output = insert_allocation(it, s);
+                    check_shape(s, mod->replace_instruction(it, output));
+                    continue;
+                }
                 check_shape(s, insert_precompile_op(it));
                 check_shape(s, insert_dynamic_code_object_op(it));
             }

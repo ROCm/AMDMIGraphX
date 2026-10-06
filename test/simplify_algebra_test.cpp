@@ -2640,8 +2640,7 @@ TEST_CASE(simplify_split_add_broadcast_constant)
         for(int64_t i = 0; i < 4; ++i)
         {
             auto sl = m1.add_instruction(
-                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
-                x);
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), x);
             auto b  = m1.add_literal(migraphx::generate_literal(bs, i));
             auto bb = m1.add_instruction(
                 migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {1, 2, 3}}}), b);
@@ -2661,9 +2660,9 @@ TEST_CASE(simplify_split_add_broadcast_constant)
             biases.push_back(
                 m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 3}}}), b));
         }
-        auto c  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), biases);
-        auto mb = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), c);
+        auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), biases);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), c);
         auto add = m2.add_instruction(migraphx::make_op("add"), x, mb);
         std::vector<migraphx::instruction_ref> outs;
         for(int64_t i = 0; i < 4; ++i)

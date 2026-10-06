@@ -1791,13 +1791,12 @@ struct find_splits
 
         // Concatenating along a broadcast axis would be materialized by
         // propagate_constant, so concat the un-broadcast constants instead
-        bool foldable =
-            std::all_of(data_args.begin(),
-                        data_args.end(),
-                        [](instruction_ref x) { return x->get_shape().scalar(); }) or
-            std::none_of(data_args.begin(), data_args.end(), [&](instruction_ref x) {
-                return x->get_shape().strides()[concat_axis] == 0;
-            });
+        bool foldable = std::all_of(data_args.begin(),
+                                    data_args.end(),
+                                    [](instruction_ref x) { return x->get_shape().scalar(); }) or
+                        std::none_of(data_args.begin(), data_args.end(), [&](instruction_ref x) {
+                            return x->get_shape().strides()[concat_axis] == 0;
+                        });
         if(not foldable and std::any_of(data_args.begin(), data_args.end(), [&](instruction_ref x) {
                return x->get_shape().lens()[concat_axis] != 1;
            }))
@@ -1860,8 +1859,8 @@ struct find_splits
                 return false;
         }
 
-        auto ndim = static_cast<int64_t>(s.ndim());
-        auto v    = group.front()->get_operator().to_value();
+        auto ndim        = static_cast<int64_t>(s.ndim());
+        auto v           = group.front()->get_operator().to_value();
         auto reduce_axes = v["axes"].to_vector<int64_t>();
         std::transform(reduce_axes.begin(), reduce_axes.end(), reduce_axes.begin(), [&](auto a) {
             return a < 0 ? a + ndim : a;
@@ -1872,11 +1871,11 @@ struct find_splits
             return a < axis ? a : a + 1;
         });
 
-        auto rlens = s.lens();
+        auto rlens  = s.lens();
         rlens[axis] = chunk;
         rlens.insert(rlens.begin() + axis, n);
-        v["axes"]    = reduce_axes;
-        auto r       = m.insert_instruction(std::next(ins), make_op("reshape", {{"dims", rlens}}), ins);
+        v["axes"] = reduce_axes;
+        auto r = m.insert_instruction(std::next(ins), make_op("reshape", {{"dims", rlens}}), ins);
         auto reduced = m.insert_instruction(std::next(r), make_op(group.front()->name(), v), r);
 
         for(int64_t i = 0; i < n; ++i)

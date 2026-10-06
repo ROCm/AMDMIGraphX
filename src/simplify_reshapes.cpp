@@ -1146,8 +1146,7 @@ struct find_concat_slice_layout
     }
 
     // Apply a view op to a tensor with an extra leading axis of length n
-    static optional<operation>
-    shift_view_op(instruction_ref ins, std::size_t n)
+    static optional<operation> shift_view_op(instruction_ref ins, std::size_t n)
     {
         auto op = ins->normalized_operator();
         auto v  = op.to_value();
@@ -1201,9 +1200,8 @@ struct find_concat_slice_layout
             slices.push_back(x);
             chains.push_back(std::move(chain));
         }
-        if(std::any_of(chains.begin(), chains.end(), [&](const auto& c) {
-               return c != chains.front();
-           }))
+        if(std::any_of(
+               chains.begin(), chains.end(), [&](const auto& c) { return c != chains.front(); }))
             return;
 
         auto x = slices.front()->inputs().front();
@@ -1221,7 +1219,7 @@ struct find_concat_slice_layout
         {
             if(slices[i]->inputs().front() != x)
                 return;
-            auto s = any_cast<op::slice>(slices[i]->normalized_operator());
+            auto s     = any_cast<op::slice>(slices[i]->normalized_operator());
             int64_t si = start + static_cast<int64_t>(i) * len;
             if(s.axes != front.axes or s.starts.front() != si or s.ends.front() != si + len)
                 return;
@@ -1247,7 +1245,7 @@ struct find_concat_slice_layout
         // slice is one row; apply the view chain to every row, then move n to the
         // concat axis and merge it into that axis.
         std::vector<operation> ops;
-        auto split_lens = z->get_shape().lens();
+        auto split_lens  = z->get_shape().lens();
         split_lens[axis] = len;
         split_lens.insert(split_lens.begin() + axis, n);
         ops.push_back(make_op("reshape", {{"dims", split_lens}}));

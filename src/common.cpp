@@ -370,7 +370,7 @@ optional<instruction_ref> insert_concat_broadcasts(module& m,
             return x;
         return m.insert_instruction(ins, make_op("reshape", {{"dims", clens}}), x);
     });
-    auto concat = m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), compact);
+    auto concat    = m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), compact);
     auto out_lens  = s0.lens();
     out_lens[axis] = inputs.size();
     return m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), concat);

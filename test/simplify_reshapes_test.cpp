@@ -978,8 +978,7 @@ TEST_CASE(concat_slice_layout_view_chain)
         for(int64_t i = 0; i < 3; ++i)
         {
             auto sl = m1.add_instruction(
-                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
-                x);
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), x);
             auto u = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), sl);
             inputs.push_back(m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), u));
         }
@@ -1089,8 +1088,8 @@ TEST_CASE(concat_broadcast_axis_mixed_unchanged)
             migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {2, 3}}, 1));
         auto ab = m1.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {1, 2, 3}}}), a);
-        auto bb = m1.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3}}}), b);
+        auto bb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3}}}), b);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ab, bb);
         auto add    = m1.add_instruction(migraphx::make_op("add"), x, concat);
         m1.add_return({add});

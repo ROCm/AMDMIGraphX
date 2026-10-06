@@ -43,7 +43,7 @@ Step 1: Disable MLIR Backend
 Step 2: Bisect to Find Problematic Operation
 ---------------------------------------------
 
-**Tool**: ``migraphx-driver --bisect``
+**Tool**: ``migraphx-driver verify --bisect``
 
 **Purpose**: Quickly identify the specific operation causing the failure using binary search
 
@@ -52,7 +52,7 @@ Step 2: Bisect to Find Problematic Operation
 .. code-block:: bash
 
    # Bisect an ONNX model
-   migraphx-driver compile model.onnx --bisect
+   migraphx-driver verify model.onnx --gpu --bisect
 
 **What this does**: Uses binary search to systematically disable operations until it finds the exact operation that causes the failure. Much faster than ``--reduce`` for pinpointing issues.
 
@@ -82,7 +82,7 @@ Test each fusion type individually:
 Step 4: Reduce Graph Complexity
 --------------------------------
 
-**Tool**: ``migraphx-driver --reduce`` or ``-r``
+**Tool**: ``migraphx-driver verify --reduce`` or ``-r``
 
 **Purpose**: Find minimal failing case by creating smaller versions of the program
 
@@ -90,8 +90,7 @@ Step 4: Reduce Graph Complexity
 
 .. code-block:: bash
 
-   migraphx-driver compile model.onnx --reduce
-   migraphx-driver run program.mxr --reduce
+   migraphx-driver verify model.onnx --gpu --reduce
 
 **When to use**: Use after bisect if you need a smaller program for detailed analysis or bug reporting.
 

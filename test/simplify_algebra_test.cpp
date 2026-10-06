@@ -2658,7 +2658,7 @@ TEST_CASE(simplify_split_add_broadcast_constant)
         {
             auto b = m2.add_literal(migraphx::generate_literal(bs, i));
             biases.push_back(
-                m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 3}}}), b));
+                m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), b));
         }
         auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), biases);
         auto mb =
@@ -2678,7 +2678,8 @@ TEST_CASE(simplify_split_add_broadcast_constant)
 
 TEST_CASE(simplify_split_add_broadcast_constant_wide_slice)
 {
-    // Each slice spans 2 rows of the broadcast axis, so the bias can't be compacted
+    // Each slice spans 2 rows of the broadcast axis, so the biases aren't length 1 on the
+    // concat axis and aren't concatenated
     auto s  = migraphx::shape{migraphx::shape::float_type, {4, 3}};
     auto bs = migraphx::shape{migraphx::shape::float_type, {3}};
     migraphx::module m1;

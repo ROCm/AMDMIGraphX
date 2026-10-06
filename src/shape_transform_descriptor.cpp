@@ -1135,6 +1135,19 @@ shape_transform_descriptor::slice_axis(std::size_t axis,
     return std::make_pair(start, end);
 }
 
+void shape_transform_descriptor::prepend_axis(std::size_t n)
+{
+    assert(n > 0);
+    for_each_subdimension(dimensions, [](dimension::sub& s) {
+        if(not s.axis.empty())
+            s.axis.front()++;
+        if(not s.hidden_axis.empty())
+            s.hidden_axis.front()++;
+    });
+    dimensions.insert(dimensions.begin(), dimension{{dimension::sub{n, {0}}}});
+    rank++;
+}
+
 // Remove subdimensions of 1
 static void remove_1_sub_dims(std::vector<dimension::sub>& subdimensions)
 {

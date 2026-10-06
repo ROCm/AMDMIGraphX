@@ -179,15 +179,24 @@ bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
                         const std::vector<std::size_t>& out_lens);
 
 /**
+ * @brief Inserts `ops` before `ins` as a chain starting from `input`, and returns the last one.
+ */
+MIGRAPHX_EXPORT
+instruction_ref insert_ops(module& m,
+                           instruction_ref ins,
+                           const std::vector<operation>& ops,
+                           instruction_ref input);
+
+/**
  * @brief Concatenates broadcasted inputs along `axis` without materializing the broadcast.
  *
- * Every axis that is broadcast (stride 0) in all inputs is shrunk to length 1: each input is
- * traced back through broadcast, multibroadcast, squeeze and unsqueeze to the instruction that
- * holds exactly the compact elements, which is reshaped to the compact shape. The compact
- * inputs are concatenated and the result is multibroadcast to the concatenated shape. Each
- * input must have the same type and lens, with length 1 on `axis`.
+ * Each input's chain of broadcast, multibroadcast, squeeze, unsqueeze, reshape and transpose
+ * ops is regenerated without its broadcasts, which gives the compact input. The compact inputs
+ * are concatenated and multibroadcast to the original lens with `axis` set to the number of
+ * inputs. The inputs must have the same type and lens, with length 1 on `axis`.
  *
- * @return the multibroadcast instruction, or nullopt if the inputs do not have that form
+ * @return the multibroadcast instruction, inserted before `ins`, or nullopt with the module
+ * unchanged if any of these conditions isn't met
  */
 MIGRAPHX_EXPORT
 optional<instruction_ref> insert_concat_broadcasts(module& m,

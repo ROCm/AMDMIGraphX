@@ -27,8 +27,11 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
 #include <algorithm>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -315,6 +318,15 @@ bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
                       [](std::size_t in, std::size_t out) { return out == in or in == 1; });
 }
 
+instruction_ref
+insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
+{
+    return std::accumulate(
+        ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op) {
+            return m.insert_instruction(ins, op, x);
+        });
+}
+
 optional<instruction_ref> insert_concat_broadcasts(module& m,
                                                    instruction_ref ins,
                                                    const std::vector<instruction_ref>& inputs,
@@ -331,44 +343,41 @@ optional<instruction_ref> insert_concat_broadcasts(module& m,
        }))
         return nullopt;
 
-    std::vector<std::size_t> clens = s0.lens();
-    for(std::size_t d = 0; d < clens.size(); ++d)
-    {
-        if(std::all_of(inputs.begin(), inputs.end(), [&](instruction_ref x) {
-               return x->get_shape().strides()[d] == 0;
-           }))
-            clens[d] = 1;
-    }
-    shape cs{s0.type(), clens};
-    if(cs.elements() == s0.elements())
-        return nullopt;
-
-    // These views keep the non-broadcast axes in order, so an input with exactly
-    // the compact element count holds the data in the compact layout
-    auto find_compact = [&](instruction_ref x) -> optional<instruction_ref> {
-        while(x->get_shape().elements() > cs.elements())
-        {
-            if(not contains({"broadcast", "multibroadcast", "squeeze", "unsqueeze"}, x->name()))
-                return nullopt;
-            x = x->inputs().front();
-        }
-        if(x->get_shape().elements() != cs.elements())
-            return nullopt;
-        return x;
-    };
-    std::vector<instruction_ref> compact;
+    // Describe each input's view chain and generate it without the broadcasts.
+    // Nothing is inserted until every input has the same compact shape.
+    std::vector<std::pair<instruction_ref, std::vector<operation>>> plans;
+    std::vector<std::size_t> clens;
     for(auto x : inputs)
     {
-        auto c = find_compact(x);
-        if(not c.has_value())
+        auto chain = get_input_chain(x, [](instruction_ref i) {
+            return contains(
+                {"broadcast", "multibroadcast", "squeeze", "unsqueeze", "reshape", "transpose"},
+                i->name());
+        });
+        if(not chain.has_value())
             return nullopt;
-        compact.push_back(*c);
-    }
+        auto root         = chain->first;
+        const auto& rlens = root->get_shape().lens();
+        auto desc         = shape_transform_descriptor::create(rlens, chain->second);
+        if(desc.empty() or not desc.has_broadcast())
+            return nullopt;
+        auto compact_ops = desc.generate(rlens, /*no_broadcast=*/true);
 
-    std::transform(compact.begin(), compact.end(), compact.begin(), [&](instruction_ref x) {
-        if(x->get_shape().lens() == clens)
-            return x;
-        return m.insert_instruction(ins, make_op("reshape", {{"dims", clens}}), x);
+        shape cs = root->get_shape();
+        for(const auto& op : compact_ops)
+            cs = op.compute_shape({cs});
+        if(plans.empty())
+            clens = cs.lens();
+        else if(cs.lens() != clens)
+            return nullopt;
+        plans.emplace_back(root, std::move(compact_ops));
+    }
+    if(clens.size() != s0.ndim() or not can_multibroadcast(clens, s0.lens()))
+        return nullopt;
+
+    std::vector<instruction_ref> compact;
+    std::transform(plans.begin(), plans.end(), std::back_inserter(compact), [&](const auto& p) {
+        return insert_ops(m, ins, p.second, p.first);
     });
     auto concat    = m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), compact);
     auto out_lens  = s0.lens();

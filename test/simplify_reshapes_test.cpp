@@ -942,7 +942,7 @@ TEST_CASE(concat_slice_layout_transpose)
 
 TEST_CASE(concat_slice_layout_partial_cover)
 {
-    // Slices only cover the first 2048 of 2176 columns, like the MoE expert/gate split
+    // The slices cover only the first 32 of 34 columns; the rest is a separate gate slice
     auto s = migraphx::shape{migraphx::shape::float_type, {2, 3, 34}};
     migraphx::module m1;
     {
@@ -990,6 +990,59 @@ TEST_CASE(concat_slice_layout_view_chain)
     EXPECT(not has_op(m2, "concat"));
     EXPECT(has_op(m2, "transpose"));
     EXPECT(not has_op(m2, "reshape"));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_slice_layout_equivalent_chains)
+{
+    // unsqueeze and reshape spell the same view, so the chains still match
+    auto s = migraphx::shape{migraphx::shape::float_type, {4, 24}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> inputs;
+        for(int64_t i = 0; i < 3; ++i)
+        {
+            auto sl = m1.add_instruction(
+                migraphx::make_op("slice",
+                                  {{"axes", {1}}, {"starts", {8 * i}}, {"ends", {8 * i + 8}}}),
+                x);
+            auto view = i == 1 ? migraphx::make_op("reshape", {{"dims", {4, 1, 8}}})
+                               : migraphx::make_op("unsqueeze", {{"axes", {1}}});
+            inputs.push_back(m1.add_instruction(view, sl));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), inputs);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_op(m2, "concat"));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_slice_layout_flatten)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 12, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> inputs;
+        for(int64_t i = 0; i < 3; ++i)
+        {
+            auto sl = m1.add_instruction(
+                migraphx::make_op("slice",
+                                  {{"axes", {1}}, {"starts", {4 * i}}, {"ends", {4 * i + 4}}}),
+                x);
+            inputs.push_back(m1.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), sl));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inputs);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_op(m2, "concat"));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -1049,6 +1102,36 @@ TEST_CASE(concat_broadcast_axis_stacked_weights)
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
 
+TEST_CASE(concat_broadcast_axis_transposed_weights)
+{
+    auto s  = migraphx::shape{migraphx::shape::float_type, {3, 2, 8, 5}};
+    auto ws = migraphx::shape{migraphx::shape::float_type, {5, 8}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> stacked;
+        for(int i = 0; i < 3; ++i)
+        {
+            auto w = m1.add_literal(migraphx::generate_literal(ws, i));
+            auto wt =
+                m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), w);
+            auto wb = m1.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", {2, 8, 5}}}), wt);
+            stacked.push_back(
+                m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wb));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), stacked);
+        auto add    = m1.add_instruction(migraphx::make_op("add"), x, concat);
+        m1.add_return({add});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_concat_with_elements(m2, s.elements()));
+    EXPECT(has_concat_with_elements(m2, 3 * ws.elements()));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
 TEST_CASE(concat_broadcast_axis_bias)
 {
     auto s  = migraphx::shape{migraphx::shape::float_type, {4, 2, 3}};
@@ -1077,7 +1160,8 @@ TEST_CASE(concat_broadcast_axis_bias)
 
 TEST_CASE(concat_broadcast_axis_mixed_unchanged)
 {
-    // Only the concat axis is broadcast in both inputs, so nothing can be compacted
+    // a also broadcasts axis 1 but b doesn't, so their compact shapes differ and the concat is
+    // kept
     auto s = migraphx::shape{migraphx::shape::float_type, {2, 2, 3}};
     migraphx::module m1;
     {

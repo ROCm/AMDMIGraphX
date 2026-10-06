@@ -98,6 +98,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
                const std::vector<std::size_t>& slice_axes,
                const std::vector<std::size_t>& starts,
                const std::vector<std::size_t>& ends);
+    // Add a new leading axis of length n to both the source and the destination
+    void prepend_axis(std::size_t n);
     void simplify();
     std::size_t elements() const;
     std::vector<operation> generate(const std::vector<std::size_t>& input_dims = {},

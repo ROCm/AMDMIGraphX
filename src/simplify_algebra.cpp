@@ -350,7 +350,7 @@ struct find_dot_slice
             MIGRAPHX_THROW("FIND_DOT_SLICE: slice is not normalized.");
         }
         const auto& dot_inputs = dot_ins->inputs();
-        auto num_batch_dims = dot_ins->get_shape().lens().size() - 2;
+        auto num_batch_dims    = dot_ins->get_shape().lens().size() - 2;
         std::vector<int64_t> slice_axes_1, starts_1, ends_1; // NOLINT
         std::vector<int64_t> slice_axes_2, starts_2, ends_2; // NOLINT
         for(auto i : range(axes.size()))

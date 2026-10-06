@@ -413,8 +413,8 @@ static bool split_pointwise_through_slices(module_pass_manager& mpm)
             continue;
 
         // Split: replace each slice with a pointwise on sliced inputs
-        auto* src_pm = ins->module_inputs().front();
-        auto pm_name = src_pm->name();
+        auto* src_pm       = ins->module_inputs().front();
+        auto pm_name       = src_pm->name();
         const auto& inputs = ins->inputs();
         for(const auto& slice_ins : outputs)
         {

@@ -864,11 +864,11 @@ struct find_concat_multibroadcasts
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto concat_ins       = mr.result;
-        auto concat_op        = any_cast<op::concat>(concat_ins->get_operator());
-        auto concat_out_lens  = concat_ins->get_shape().lens();
+        auto concat_ins           = mr.result;
+        auto concat_op            = any_cast<op::concat>(concat_ins->get_operator());
+        auto concat_out_lens      = concat_ins->get_shape().lens();
         const auto& concat_inputs = concat_ins->inputs();
-        auto front_mb_strides = concat_inputs.front()->get_shape().strides();
+        auto front_mb_strides     = concat_inputs.front()->get_shape().strides();
         assert(concat_op.axis >= 0);
 
         // Only apply when concat axis is not a broadcasted dimension
@@ -1037,9 +1037,9 @@ struct find_concat_slice
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins    = mr.result;
+        auto ins           = mr.result;
         const auto& inputs = ins->inputs();
-        auto outs   = ins->outputs();
+        auto outs          = ins->outputs();
         std::vector<migraphx::instruction_ref> slice_ins;
         migraphx::transform_if(
             outs.begin(),
@@ -1112,10 +1112,10 @@ struct find_concat_transpose
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins          = mr.result;
+        auto ins                 = mr.result;
         const auto& trans_inputs = ins->inputs();
-        auto v            = ins->get_operator().to_value();
-        auto permutation  = get_permutation(trans_inputs.front());
+        auto v                   = ins->get_operator().to_value();
+        auto permutation         = get_permutation(trans_inputs.front());
 
         // permutation should be the same for all inputs
         if(not std::all_of(trans_inputs.begin(), trans_inputs.end(), [&](auto in) {
@@ -1152,8 +1152,8 @@ struct find_concat_reshape
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins          = mr.result;
-        auto concat_shape = ins->get_shape();
+        auto ins             = mr.result;
+        auto concat_shape    = ins->get_shape();
         const auto& reshapes = ins->inputs();
         if(reshapes.empty())
             return;

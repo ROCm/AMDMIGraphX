@@ -393,6 +393,64 @@ TEST_CASE(allocate_out_duplicate_return)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Returned tuple elements each get their own output parameter, packed back into the tuple
+TEST_CASE(allocate_out_tuple_elements)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape ts{{s, s}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(ts)}}));
+        auto p  = m1.add_instruction(pass_op{}, alloc);
+        auto e0 = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), p);
+        auto e1 = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), p);
+        m1.add_return({e0, e1});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output0 = m2.add_parameter("output_0", s);
+        auto output1 = m2.add_parameter("output_1", s);
+        auto t       = m2.add_instruction(migraphx::make_op("make_tuple"), output0, output1);
+        auto p       = m2.add_instruction(pass_op{}, t);
+        auto e0      = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), p);
+        auto e1      = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), p);
+        m2.add_return({e0, e1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Tuple elements that are not returned keep a regular allocation
+TEST_CASE(allocate_out_tuple_partial)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape s1{migraphx::shape::float_type, {3}};
+    migraphx::shape ts{{s0, s1}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(ts)}}));
+        auto p  = m1.add_instruction(pass_op{}, alloc);
+        auto e1 = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), p);
+        m1.add_return({e1});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto alloc0 = m2.add_instruction(
+            migraphx::make_op("allocate_with_out", {{"shape", migraphx::to_value(s0)}}));
+        auto output = m2.add_parameter("output", s1);
+        auto t      = m2.add_instruction(migraphx::make_op("make_tuple"), alloc0, output);
+        auto p      = m2.add_instruction(pass_op{}, t);
+        auto e1     = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), p);
+        m2.add_return({e1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // A broadcast is not a bijection, so the output buffer still needs a copy
 TEST_CASE(allocate_out_broadcast_copy)
 {

@@ -45,6 +45,34 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
+// Follow the single aliases of `ins` back to the make_tuple it writes into
+optional<instruction_ref> find_make_tuple(instruction_ref ins)
+{
+    while(ins->name() != "make_tuple")
+    {
+        auto aliases = instruction::get_output_alias(ins, true);
+        if(aliases.size() != 1 or aliases.front() == ins)
+            return nullopt;
+        ins = aliases.front();
+    }
+    return ins;
+}
+
+// The allocations a return value writes to. get_tuple_elem aliases the whole tuple, but an
+// element of a tuple packed with make_tuple only writes to its own allocation.
+std::vector<instruction_ref> get_return_aliases(instruction_ref ins)
+{
+    if(ins->name() == "get_tuple_elem")
+    {
+        if(auto tuple = find_make_tuple(ins->inputs().front()))
+        {
+            auto index = ins->get_operator().to_value()["index"].to<std::size_t>();
+            return instruction::get_output_alias((*tuple)->inputs().at(index));
+        }
+    }
+    return instruction::get_output_alias(ins);
+}
+
 std::vector<instruction_ref> get_alloc_aliases(const module& mod)
 {
     auto returns = mod.get_returns();
@@ -54,7 +82,7 @@ std::vector<instruction_ref> get_alloc_aliases(const module& mod)
     std::transform(returns.begin(),
                    returns.end(),
                    join_back_inserter(alloc_aliases),
-                   [](const auto& i) { return instruction::get_output_alias(i); });
+                   [](const auto& i) { return get_return_aliases(i); });
     return alloc_aliases;
 }
 
@@ -224,6 +252,34 @@ bool replace_alias_allocation(module& m, instruction_ref ins)
     return true;
 }
 
+// A returned tuple element shares the tuple's allocation with the other elements, so it can't
+// become an output parameter. Allocate each element separately and pack them with make_tuple,
+// which the kernel writes into the same way.
+void split_tuple_allocation(module& m, instruction_ref ins)
+{
+    if(ins->name() != "get_tuple_elem")
+        return;
+    auto aliases = instruction::get_output_alias(ins);
+    if(aliases.size() != 1)
+        return;
+    auto alloc    = aliases.front();
+    const auto& s = alloc->get_shape();
+    if(alloc->name() != "allocate" or s.type() != shape::tuple_type or s.any_of_dynamic())
+        return;
+    const auto& sub_shapes = s.sub_shapes();
+    if(std::any_of(sub_shapes.begin(), sub_shapes.end(), [](const shape& sub) {
+           return sub.type() == shape::tuple_type;
+       }))
+        return;
+    std::vector<instruction_ref> allocs;
+    std::transform(
+        sub_shapes.begin(), sub_shapes.end(), std::back_inserter(allocs), [&](const shape& sub) {
+            return m.insert_instruction(
+                alloc, make_op("allocate", migraphx::value{{"shape", to_value(sub)}}));
+        });
+    m.replace_instruction(alloc, make_op("make_tuple"), allocs);
+}
+
 void insert_copy(module& m, const allocation_model& model)
 {
     // Rewriting a return can change the aliases of the other returns, so visit them in order
@@ -234,7 +290,8 @@ void insert_copy(module& m, const allocation_model& model)
             continue;
         if(ins->get_shape().any_of_dynamic())
             continue;
-        auto aliases = instruction::get_output_alias(ins);
+        split_tuple_allocation(m, ins);
+        auto aliases = get_return_aliases(ins);
         if(std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
                return alias->get_shape() == ins->get_shape();
            }))

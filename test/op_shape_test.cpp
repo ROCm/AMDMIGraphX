@@ -2494,6 +2494,18 @@ TEST_CASE(get_tuple_elem_test)
     throws_shape(migraphx::make_op("get_tuple_elem", {{"index", 0}}), s2);
 }
 
+TEST_CASE(make_tuple_test)
+{
+    migraphx::shape s0{migraphx::shape::bool_type, {1, 1}};
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::int32_type, {5, 6}};
+
+    expect_shape(migraphx::shape({s0, s1, s2}), migraphx::make_op("make_tuple"), s0, s1, s2);
+    expect_shape(
+        migraphx::shape(std::vector<migraphx::shape>{s1}), migraphx::make_op("make_tuple"), s1);
+    throws_shape(migraphx::make_op("make_tuple"));
+}
+
 TEST_CASE(gridsample_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@
 
 #include <migraphx/literal.hpp>
 #include <migraphx/serialize.hpp>
+#include <cstring>
 #include <sstream>
 #include <string>
 #include "test.hpp"
@@ -94,6 +95,22 @@ TEST_CASE(literal_raw_buffer_transposed)
 
     const auto* stored = reinterpret_cast<const int32_t*>(l.data());
     EXPECT(std::vector<int32_t>(stored, stored + 6) == std::vector<int32_t>{0, 3, 1, 4, 2, 5});
+}
+
+TEST_CASE(literal_raw_buffer_unaligned)
+{
+    std::vector<float> data = {0, 1, 2, 3, 4, 5};
+    std::vector<char> storage(data.size() * sizeof(float) + 1);
+    std::memcpy(storage.data() + 1, data.data(), data.size() * sizeof(float));
+    const char* buf = storage.data() + 1;
+
+    migraphx::shape standard{migraphx::shape::float_type, {2, 3}};
+    migraphx::literal l1{standard, buf, data.size() * sizeof(float)};
+    EXPECT(l1.to_vector<float>() == data);
+
+    migraphx::shape transposed{migraphx::shape::float_type, {2, 3}, {1, 2}};
+    migraphx::literal l2{transposed, buf, data.size() * sizeof(float)};
+    EXPECT(l2.to_vector<float>() == data);
 }
 
 TEST_CASE(literal_raw_buffer_broadcast)

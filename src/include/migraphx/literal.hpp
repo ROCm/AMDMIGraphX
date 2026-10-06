@@ -33,8 +33,10 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/config.hpp>
 
+#include <cstring>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -97,10 +99,17 @@ struct literal : raw_data<literal>
             MIGRAPHX_THROW("literal: buffer size " + std::to_string(nbytes) +
                            " does not hold shape elements " + std::to_string(s.elements()) +
                            " of type size " + std::to_string(s.type_size()));
+        if(s.standard())
+        {
+            buffer = make_shared_array<char>(x, x + nbytes);
+            return;
+        }
         buffer = make_shared_array<char>(s.bytes());
+        // x may not be aligned for the element type, so copy it into typed storage first
         s.visit_type([&](auto as) {
-            const auto* values = as.from(x);
-            fill(values, values + s.elements());
+            std::vector<typename decltype(as)::type> values(s.elements());
+            std::memcpy(values.data(), x, nbytes);
+            fill(values.begin(), values.end());
         });
     }
 

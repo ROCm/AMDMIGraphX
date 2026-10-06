@@ -173,17 +173,6 @@ static auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-static std::string compile_mode_name(migraphx::compile_modes mode)
-{
-    switch(mode)
-    {
-    case migraphx::compile_modes::eager: return "eager";
-    case migraphx::compile_modes::balanced: return "balanced";
-    case migraphx::compile_modes::max: return "max";
-    }
-    return "unknown";
-}
-
 void run_verify::verify(const program_info& pi) const
 {
     const std::string name    = pi.name;
@@ -237,7 +226,7 @@ void run_verify::verify(const program_info& pi) const
                 migraphx::compile_options mode_opts = c_opts;
                 mode_opts.compile_mode              = mode;
                 results.emplace_back(
-                    tname + "(" + compile_mode_name(mode) + ")",
+                    tname + "(" + to_string(mode) + ")",
                     detach_async([=] { return run_target(t, p, m, mode_opts); }, ti.parallel));
             }
         }

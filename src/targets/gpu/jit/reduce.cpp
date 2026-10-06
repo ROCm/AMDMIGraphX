@@ -382,7 +382,7 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
     auto is          = range(reduce_shape.lens().size());
     using array_type = std::array<std::size_t, 2>;
     auto initial     = array_type{std::numeric_limits<std::size_t>::max(),
-                              std::numeric_limits<std::size_t>::max()};
+                                  std::numeric_limits<std::size_t>::max()};
     auto faxis       = transform_accumulate(
         is.begin(), is.end(), initial, MIGRAPHX_LIFT(std::min), [&](auto i) -> array_type {
             if(input_shape.lens()[i] == output_shape.lens()[i])
@@ -666,7 +666,7 @@ value find_packed_args(const module& rm)
 {
     value result = value::array{};
     auto params  = sorted_params(rm);
-    auto is = range(params.size());
+    auto is      = range(params.size());
     transform_if(
         is.begin(),
         is.end(),
@@ -1097,6 +1097,10 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(contains({"block_tile", "block_batch"}, algo) and
            plan.is_gather_axis(v.at("tile_axis").to<std::size_t>()))
             algo = "block";
+        // The batch slice moves the tile axis to the front, which the gather
+        // view cant follow since it slices on its original axis
+        if(algo == "block_batch" and not plan.gather_args.empty())
+            algo = "block_tile";
         if(contains({"block", "block_tile", "block_batch"}, algo))
         {
             auto n_per_block = v.get("n_per_block", std::size_t{1});
@@ -1417,7 +1421,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         // the gathered ones
         if(ts.tile.has_value() and ts.plan.is_gather_axis(ts.tile->axis))
             ts.tile = nullopt;
-        ts.batchable = ts.tile.has_value() and ts.noutputs == 1 and can_batch_reduce(rm);
+        // The batch slice cant move the tile axis past a gathered input
+        ts.batchable = ts.tile.has_value() and ts.noutputs == 1 and ts.plan.gather_args.empty() and
+                       can_batch_reduce(rm);
         if(exhaustive)
             ts.add_exhaustive_solutions(ctx);
         else

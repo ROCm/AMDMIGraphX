@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/optional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -176,6 +177,23 @@ shape make_bcast_shape(const shape& input_shape,
 MIGRAPHX_EXPORT
 bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
                         const std::vector<std::size_t>& out_lens);
+
+/**
+ * @brief Concatenates broadcasted inputs along `axis` without materializing the broadcast.
+ *
+ * Every axis that is broadcast (stride 0) in all inputs is shrunk to length 1: each input is
+ * traced back through broadcast, multibroadcast, squeeze and unsqueeze to the instruction that
+ * holds exactly the compact elements, which is reshaped to the compact shape. The compact
+ * inputs are concatenated and the result is multibroadcast to the concatenated shape. Each
+ * input must have the same type and lens, with length 1 on `axis`.
+ *
+ * @return the multibroadcast instruction, or nullopt if the inputs do not have that form
+ */
+MIGRAPHX_EXPORT
+optional<instruction_ref> insert_concat_broadcasts(module& m,
+                                                   instruction_ref ins,
+                                                   const std::vector<instruction_ref>& inputs,
+                                                   std::size_t axis);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -315,5 +315,66 @@ bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
                       [](std::size_t in, std::size_t out) { return out == in or in == 1; });
 }
 
+optional<instruction_ref> insert_concat_broadcasts(module& m,
+                                                   instruction_ref ins,
+                                                   const std::vector<instruction_ref>& inputs,
+                                                   std::size_t axis)
+{
+    if(inputs.empty())
+        return nullopt;
+    const auto& s0 = inputs.front()->get_shape();
+    if(s0.dynamic() or axis >= s0.ndim() or s0.lens()[axis] != 1)
+        return nullopt;
+    if(std::any_of(inputs.begin(), inputs.end(), [&](instruction_ref x) {
+           const auto& s = x->get_shape();
+           return s.dynamic() or s.type() != s0.type() or s.lens() != s0.lens();
+       }))
+        return nullopt;
+
+    std::vector<std::size_t> clens = s0.lens();
+    for(std::size_t d = 0; d < clens.size(); ++d)
+    {
+        if(std::all_of(inputs.begin(), inputs.end(), [&](instruction_ref x) {
+               return x->get_shape().strides()[d] == 0;
+           }))
+            clens[d] = 1;
+    }
+    shape cs{s0.type(), clens};
+    if(cs.elements() == s0.elements())
+        return nullopt;
+
+    // These views keep the non-broadcast axes in order, so an input with exactly
+    // the compact element count holds the data in the compact layout
+    auto find_compact = [&](instruction_ref x) -> optional<instruction_ref> {
+        while(x->get_shape().elements() > cs.elements())
+        {
+            if(not contains({"broadcast", "multibroadcast", "squeeze", "unsqueeze"}, x->name()))
+                return nullopt;
+            x = x->inputs().front();
+        }
+        if(x->get_shape().elements() != cs.elements())
+            return nullopt;
+        return x;
+    };
+    std::vector<instruction_ref> compact;
+    for(auto x : inputs)
+    {
+        auto c = find_compact(x);
+        if(not c.has_value())
+            return nullopt;
+        compact.push_back(*c);
+    }
+
+    std::transform(compact.begin(), compact.end(), compact.begin(), [&](instruction_ref x) {
+        if(x->get_shape().lens() == clens)
+            return x;
+        return m.insert_instruction(ins, make_op("reshape", {{"dims", clens}}), x);
+    });
+    auto concat = m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), compact);
+    auto out_lens  = s0.lens();
+    out_lens[axis] = inputs.size();
+    return m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), concat);
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

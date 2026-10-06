@@ -1304,40 +1304,80 @@ struct find_gather_reduce
         return m.insert_instruction(reduce, make_op("gather", {{"axis", axis}}), view, indices);
     }
 
+    /// The reduce inputs read as the data of the gathers already in the
+    /// submodule, whose parameters follow the order of the inputs
+    static std::vector<instruction_ref> fused_gather_data(instruction_ref reduce)
+    {
+        const auto* rm = reduce->module_inputs().front();
+        auto names     = rm->get_parameter_names();
+        std::sort(names.begin(), names.end());
+        std::vector<instruction_ref> result;
+        transform_if(
+            rm->begin(),
+            rm->end(),
+            std::back_inserter(result),
+            [](const instruction& ins) {
+                return ins.name() == "gather" and ins.inputs().front()->name() == "@param";
+            },
+            [&](const instruction& ins) {
+                const auto& name =
+                    any_cast<builtin::param>(ins.inputs().front()->get_operator()).parameter;
+                auto i = std::find(names.begin(), names.end(), name) - names.begin();
+                return reduce->inputs().at(i);
+            });
+        return result;
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto& m     = mpm.get_module();
         auto reduce = r.result;
         // Every gathered input moves in at once so the submodule is rebuilt once
-        std::vector<instruction_ref> gathers;
-        std::vector<instruction_ref> inputs;
+        std::vector<std::pair<instruction_ref, instruction_ref>> gathered;
         for(auto input : reduce->inputs())
         {
             auto gather = find_gather(input);
             if(not gather.has_value())
                 continue;
-            auto gathered = insert_gather_view(m, reduce, input, *gather);
-            if(not gathered.has_value())
+            auto view = insert_gather_view(m, reduce, input, *gather);
+            if(not view.has_value())
                 continue;
-            gathers.push_back(*gathered);
-            inputs.push_back(input);
+            gathered.emplace_back(input, *view);
         }
-        if(gathers.empty())
+        // The kernel reads each gather through its own data argument, so
+        // gathers of the same data would share a parameter and stay outside
+        auto fused = fused_gather_data(reduce);
+        gathered.erase(
+            std::remove_if(gathered.begin(),
+                           gathered.end(),
+                           [&](const auto& p) {
+                               auto data = p.second->inputs().front();
+                               return contains(fused, data) or
+                                      std::count_if(
+                                          gathered.begin(), gathered.end(), [&](const auto& q) {
+                                              return q.second->inputs().front() == data;
+                                          }) > 1;
+                           }),
+            gathered.end());
+        if(gathered.empty())
             return;
 
         const auto* old_rm = reduce->module_inputs().front();
         auto* rm           = mpm.create_module(old_rm->name() + ":gather");
         rm->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        std::vector<instruction_ref> gathers;
+        std::transform(gathered.begin(),
+                       gathered.end(),
+                       std::back_inserter(gathers),
+                       [](const auto& p) { return p.second; });
         rm->fuse(gathers, &map_ins);
         // The inputs read the fused gathers
-        std::transform(inputs.begin(),
-                       inputs.end(),
-                       gathers.begin(),
-                       std::inserter(map_ins, map_ins.end()),
-                       [&](instruction_ref input, instruction_ref gathered) {
-                           return std::make_pair(input, map_ins.at(gathered));
-                       });
+        std::transform(
+            gathered.begin(),
+            gathered.end(),
+            std::inserter(map_ins, map_ins.end()),
+            [&](const auto& p) { return std::make_pair(p.first, map_ins.at(p.second)); });
         rm->add_return(insert_module_in_submodule(rm, reduce, &map_ins));
         finalize_reduce_module(rm);
 

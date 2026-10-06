@@ -192,7 +192,7 @@ struct nms_filter_compiler : compiler<nms_filter_compiler>
         const auto num_boxes                = v.at("num_boxes").to<std::size_t>();
         const std::size_t aligned_num_boxes = bit_ceil(num_boxes);
         constexpr std::size_t mask_bits     = sizeof(std::uint32_t) * 8;
-        const auto col_blocks               = num_boxes / mask_bits + (num_boxes % mask_bits != 0);
+        const auto col_blocks               = num_boxes / mask_bits + static_cast<std::size_t>(num_boxes % mask_bits != 0);
         // TODO: tune for max block size?
         const auto block_size = compute_block_size(ctx, num_boxes * col_blocks, 256);
 

@@ -92,7 +92,7 @@ constexpr index_int nms_mask_bits = sizeof(uint32_t) * 8;
 
 constexpr index_int nms_mask_col_blocks(index_int size)
 {
-    return size / nms_mask_bits + (size % nms_mask_bits != 0);
+    return size / nms_mask_bits + static_cast<index_int>(size % nms_mask_bits != 0);
 }
 
 // Higher score wins, with lower original box index breaking ties.

@@ -1,11 +1,15 @@
 ---
-description: "Code review the changed MIGraphX code for correctness bugs, language-specific pitfalls, C/C++ API-ABI breakage, missing test coverage, and convention violations, with a verify pass that drops false positives. The quality checklist is delegated to /migraphx-simplify rather than repeated. Effort levels low through max; --comment posts inline PR comments, --fix applies every class of finding, including the quality findings that clear Angle G's bar. A bare --fix or --comment after a review already ran this session applies or posts that review's findings instead of reviewing again. --select opens a checkbox picker so only the chosen findings are fixed or posted."
+description: "Code review the changed MIGraphX code for correctness bugs, language-specific pitfalls, C/C++ API-ABI breakage, missing test coverage, and convention violations, with a verify pass that drops false positives. The quality checklist is delegated to /migraphx-simplify rather than repeated. Effort levels low through max. --comment posts inline PR comments and --fix applies fixes, and both act on every reported finding of every category — correctness, language-pitfall, api-abi, ir-contract, quality, conventions, test-coverage, and precedent — not just the correctness bugs. A bare --fix or --comment after a review already ran this session applies or posts that review's findings instead of reviewing again. --select opens a checkbox picker listing every finding of every category so only the chosen ones are fixed or posted."
 allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git blame:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git branch:*), Bash(git fetch:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh api:*), Bash(grep:*), Bash(find:*), Read, Grep, Glob, Edit, Write, Agent, Skill, ReportFindings, AskUserQuestion, mcp__github_inline_comment__create_inline_comment, mcp__review-picker__select_findings
 ---
 
 # migraphx-code-review
 
 Usage: `/migraphx-code-review [low|medium|high|xhigh|max] [--fix] [--comment] [--select] [<target>]`
+
+The three flags act on the **whole** findings list — see *What the flags act
+on* below. A finding's `category` never decides whether it is fixed, posted, or
+offered in the picker; it only decides *how* the fix or comment is written.
 
 Pick the effort level from the first argument; if none is given, use the session
 effort, defaulting to **medium**. Exception: when this review runs as part of
@@ -52,7 +56,8 @@ Open with the stance for the level:
 If a review from this skill already completed earlier in this session and the
 invocation adds nothing but `--fix` and/or `--comment` — optionally with
 `--select` — do **not** review again. Act on the findings that review already
-reported: skip Phases 0–3 and *Output*, and go straight to *Choosing which
+reported — the full list, every category, not just the correctness ones: skip
+Phases 0–3 and *Output*, and go straight to *Choosing which
 findings to act on* (when `--select` was passed), then *Applying fixes* and
 *Posting to GitHub*, with the existing findings list. Say in one line that you
 are applying the findings from the earlier review rather than running a new one.
@@ -914,6 +919,38 @@ the level's cap:
 
 Ranked most-severe first. If nothing survives verification, return `[]`.
 
+## What the flags act on
+
+`--fix`, `--comment`, and `--select` all operate on the **complete** findings
+list this review reported — every entry that went into the `ReportFindings`
+call (or the printed fallback), at whatever level it ran. That list spans
+every category this skill produces:
+
+| Category | Angle | Counts for `--fix` / `--comment` / `--select`? |
+|----------|-------|--------------------------------------------------|
+| `correctness` | A, B, C | yes |
+| `language-pitfall` | D | yes |
+| `api-abi` | E | yes |
+| `ir-contract` | F | yes |
+| `quality` | G | yes |
+| `conventions` | H | yes |
+| `test-coverage` | I | yes |
+| `precedent` | J | yes |
+
+Do not narrow that list by category at any step: do not fix only the
+correctness bugs, do not post only the correctness bugs, and do not leave the
+quality, conventions, test-coverage, or precedent findings out of the picker.
+"Findings" in the three flag sections below always means this whole list, and
+on the reuse path it means the whole list the earlier review reported. The only
+things that remove a finding from the acted-on set are the user's choice in the
+`--select` picker and the per-finding skip rules stated in *Applying fixes*,
+each of which is reported with `outcome: skipped` rather than silently dropped.
+
+Category still matters for *how* a finding is acted on — a quality or precedent
+fix follows `/migraphx-simplify`'s approach, a conventions comment quotes the
+rule, a test-coverage fix adds the test — and those differences are spelled out
+in the flag sections.
+
 ## Running without the Agent tool
 
 If the `Agent` tool isn't available, the multi-agent fan-out and the subagent
@@ -937,18 +974,24 @@ Run this once the findings are visible to the user and **before** applying or
 posting anything — normally right after this invocation's `ReportFindings` call,
 or, on the reuse path where no new report is produced, after restating the
 earlier review's findings in rank order so the user has something to pick from.
-Offer every reported finding, in that same ranked order, using the first of
-these that works:
+Offer **every** reported finding, in that same ranked order, **whatever its
+category** — the `quality`, `conventions`, `test-coverage`, and `precedent`
+findings are offered alongside the `correctness`, `language-pitfall`,
+`api-abi`, and `ir-contract` ones (see *What the flags act on*). Never
+pre-filter the list down to the bugs: the point of the picker is that the user
+chooses, and a finding they never see is one they could not choose. Use the
+first of these that works:
 
 1. `mcp__review-picker__select_findings` — a checkbox dialog. Pass one item per
    finding with `id` set to its 1-based rank and `label` set to
-   `file:line — short_summary`, plus a `message` naming the action ("Which
-   findings should I fix?" / "…post as PR comments?"). It returns `action` and
-   the selected ids.
+   `file:line — [category] short_summary`, so mixed categories are telling
+   apart at a glance, plus a `message` naming the action ("Which findings should
+   I fix?" / "…post as PR comments?"). It returns `action` and the selected ids.
 2. `AskUserQuestion` with `multiSelect: true`, when the picker is unavailable or
-   returns `action: "unsupported"`. One option per finding, `short_summary` as
-   the label and `failure_scenario` as the description, split across as many
-   questions as it takes — four options each, four questions per call.
+   returns `action: "unsupported"`. One option per finding, `[category]
+   short_summary` as the label and `failure_scenario` as the description, split
+   across as many questions as it takes — four options each, four questions per
+   call — so that every finding of every category gets an option.
 3. Printing the numbered findings and asking which to act on, when neither tool
    is available.
 
@@ -977,10 +1020,25 @@ invocation just produced, or — per *Reusing a completed review* — the one an
 earlier review in this session reported; on the reuse path you arrive here
 directly, without re-reviewing and after the selection step when `--select` was
 passed. When `--select` was also passed, act only on the findings chosen
-there. Apply every finding to the working tree, whatever its `category` —
-including `category: quality`. For a quality finding, apply the fix
-`/migraphx-simplify` would have made (that skill's Phase 2 describes how it
-applies its own findings).
+there. Apply every finding to the working tree, **whatever its `category`** —
+the non-correctness findings are applied, not just reported (see *What the
+flags act on*). How to apply each kind:
+
+- `correctness`, `language-pitfall`, `api-abi`, `ir-contract` — fix the defect
+  in place; for an API/ABI finding use the compatible form the finding names
+  (a forwarding overload, an opaque handle, an options accessor).
+- `quality` — apply the fix `/migraphx-simplify` would have made (that skill's
+  Phase 2 describes how it applies its own findings).
+- `conventions` — bring the line into line with the quoted rule or the cited
+  exemplar: the rename, the algorithm in place of the raw loop, the
+  expected-module form of the test, the file split.
+- `precedent` — apply the form the cited PR asked for: move the check into
+  `matcher()`, replace the env variable with a `backend_options` entry, move
+  the helper to the header that owns it, route the message through the logger,
+  and so on. Skip only the ones that need a measurement or a decision the
+  author must make (a perf claim, a CHANGELOG wording, an untracked `TODO`),
+  and say so.
+- `test-coverage` — see the next paragraph.
 
 Either way the tree ends up short of a full `/migraphx-simplify` run: at
 `medium` and above because Angle G reports only the quality findings that clear
@@ -995,14 +1053,15 @@ assert, skip it and say what the test should cover.
 
 Skip any finding whose fix would change intended behavior, require changes well
 outside the reviewed diff, or that you judge to be a false positive — note the
-skip rather than arguing with it. **Never modify or weaken an existing test to
-make a fix pass**; if a fix breaks a test, the fix is wrong. Then call
-`ReportFindings` again with the same findings, each carrying an `outcome`:
-`fixed`, `no_change_needed` (the finding was wrong or already handled), or
-`skipped` (real but not applied). Do not repeat the findings as text; after the
-call, give one line per skipped finding saying why. If `ReportFindings` isn't
-available, finish with a brief summary of what was fixed and what was skipped,
-grouped by category.
+skip rather than arguing with it. Being a non-correctness finding is never by
+itself a reason to skip. **Never modify or weaken an existing test to make a
+fix pass**; if a fix breaks a test, the fix is wrong. Then call
+`ReportFindings` again with the same findings — all of them, every category —
+each carrying an `outcome`: `fixed`, `no_change_needed` (the finding was wrong
+or already handled), or `skipped` (real but not applied). Do not repeat the
+findings as text; after the call, give one line per skipped finding saying
+why. If `ReportFindings` isn't available, finish with a brief summary of what
+was fixed and what was skipped, grouped by category.
 
 Without `--fix`, do not modify any file — the report is the only output.
 
@@ -1014,13 +1073,17 @@ earlier review in this session reported; on the reuse path you arrive here
 directly, without re-reviewing and after the selection step when `--select` was
 passed, and post against the PR that review targeted. When `--select` was
 also passed, post only the findings chosen there. If the review target is a
-GitHub PR, post each finding as an inline PR comment via
-`mcp__github_inline_comment__create_inline_comment` (one call per finding;
-include a suggestion block only when it fully fixes the issue). If that tool is
-not available in this session, fall back to `gh api`
-(repos/{owner}/{repo}/pulls/{pr}/comments) or print the findings instead. If the
-target is not a PR, print the findings to the terminal and note that
-`--comment` was ignored.
+GitHub PR, post **every** finding as an inline PR comment, **whatever its
+`category`** — a `quality`, `conventions`, `test-coverage`, or `precedent`
+finding gets its own comment exactly like a `correctness` one (see *What the
+flags act on*); do not post only the bugs and leave the rest in the terminal.
+Post via `mcp__github_inline_comment__create_inline_comment` (one call per
+finding; include a suggestion block only when it fully fixes the issue). A
+`test-coverage` finding anchors on the production line that lacks the test and
+names the test file and case it belongs in. If that tool is not available in
+this session, fall back to `gh api` (repos/{owner}/{repo}/pulls/{pr}/comments)
+or print the findings instead. If the target is not a PR, print the findings to
+the terminal and note that `--comment` was ignored.
 
 Begin every comment body with `[agent]: ` so a reader can tell it was generated
 by an agent rather than written by the account posting it. This applies to both

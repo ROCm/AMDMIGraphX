@@ -330,6 +330,82 @@ TEST_CASE(binary_sym_nonpacked_permutation)
     expect_shape(sout, migraphx::make_op("mul"), sx, sy);
 }
 
+TEST_CASE(binary_same_broadcasted)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    expect_shape(s, migraphx::make_op("mul"), s, s);
+}
+
+TEST_CASE(binary_broadcasted_vs_scalar)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 96, 96, 96}, {0, 0, 0, 0}};
+    expect_shape(sx, migraphx::make_op("mul"), sx, sy);
+    expect_shape(sx, migraphx::make_op("mul"), sy, sx);
+}
+
+// A single-element shape whose only nonzero stride is on a length-1 dim (broadcast
+// axis=0 of a {1} input) is treated as one element even though scalar() is false.
+TEST_CASE(binary_broadcasted_vs_single_element)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 96, 96, 96}, {1, 0, 0, 0}};
+    expect_shape(sx, migraphx::make_op("mul"), sx, sy);
+    expect_shape(sx, migraphx::make_op("mul"), sy, sx);
+}
+
+TEST_CASE(binary_different_broadcasted)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 96, 96, 96}, {0, 0, 96, 1}};
+    migraphx::shape sout{migraphx::shape::float_type, {1, 96, 96, 96}};
+    expect_shape(sout, migraphx::make_op("mul"), sx, sy);
+}
+
+// Both broadcasted over disjoint axes: the result is packed over the union of
+// the varying axes and still broadcast on the rest
+TEST_CASE(binary_different_broadcasted_partial)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 0, 8, 1}};
+    migraphx::shape sout{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 64, 8, 1}};
+    expect_shape(sout, migraphx::make_op("add"), sx, sy);
+    expect_shape(sout, migraphx::make_op("add"), sy, sx);
+}
+
+// Same broadcast axes but different strides on the length-1 axis 0 (broadcast of a
+// {1, 64} input vs a {64} input multibroadcast to {1, 64}); the merge keeps sx.
+TEST_CASE(binary_different_broadcasted_same_axes)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 64, 8, 8}, {64, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 1, 0, 0}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+    expect_shape(sx, migraphx::make_op("add"), sy, sx);
+}
+
+// The broadcast survives the merge, so a following channels-last input keeps
+// its layout instead of tying against a materialized default layout
+TEST_CASE(binary_different_broadcasted_keeps_layout)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 64, 8, 8}, {64, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 1, 0, 0}};
+    auto nhwc =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 64, 8, 8}, {0, 2, 3, 1});
+    auto xy = migraphx::make_op("add").compute_shape({sx, sy});
+    expect_shape(nhwc, migraphx::make_op("add"), nhwc, xy);
+}
+
+TEST_CASE(binary_sym_different_broadcasted_partial)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{n}, dd{lit(64)}, dd{lit(8)}, dd{lit(8)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims, {lit(0), lit(1), lit(0), lit(0)}};
+    migraphx::shape sy{migraphx::shape::float_type, dims, {lit(0), lit(0), lit(8), lit(1)}};
+    migraphx::shape sout{migraphx::shape::float_type, dims, {lit(0), lit(64), lit(8), lit(1)}};
+    expect_shape(sout, migraphx::make_op("add"), sx, sy);
+    expect_shape(sout, migraphx::make_op("add"), sy, sx);
+}
+
 TEST_CASE(binary_sym_with_range_dyn_error)
 {
     auto n = var("n", {2, 8});
@@ -949,6 +1025,13 @@ TEST_CASE(convolution_backwards_2stride)
                  weights);
 }
 
+TEST_CASE(convolution_backwards_stride_zero)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 2, 2}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 1, 2, 2}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"stride", {0, 1}}}), input, weights);
+}
+
 TEST_CASE(convolution_backwards_2dilation)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};
@@ -992,6 +1075,22 @@ TEST_CASE(convolution_backwards_channel_mismatch)
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
     migraphx::shape weights{migraphx::shape::float_type, {3, 3, 3, 3}};
     throws_shape(migraphx::make_op("convolution_backwards"), input, weights);
+}
+
+// compute() splits the input channels into equal per-group blocks, so a group that does not
+// divide them would leave part of every group unread.
+TEST_CASE(convolution_backwards_group_indivisible)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 5, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {5, 3, 3, 3}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"group", 2}}), input, weights);
+}
+
+TEST_CASE(convolution_backwards_group_not_positive)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 2, 3, 3}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"group", 0}}), input, weights);
 }
 
 TEST_CASE(convolution_backwards_dyn_batch_2d)
@@ -2395,6 +2494,123 @@ TEST_CASE(get_tuple_elem_test)
     throws_shape(migraphx::make_op("get_tuple_elem", {{"index", 0}}), s2);
 }
 
+TEST_CASE(gridsample_shape)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::shape grid{migraphx::shape::float_type, {2, 6, 7, 2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 6, 7}},
+                 migraphx::make_op("gridsample"),
+                 input,
+                 grid);
+}
+
+TEST_CASE(gridsample_shape_modes)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 4, 3, 7}};
+    migraphx::shape grid{migraphx::shape::float_type, {2, 5, 6, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 4, 5, 6}};
+    // it isnt supposed to change...
+    expect_shape(output, migraphx::make_op("gridsample", {{"mode", "nearest"}}), input, grid);
+    expect_shape(output, migraphx::make_op("gridsample", {{"mode", "linear"}}), input, grid);
+    expect_shape(output, migraphx::make_op("gridsample", {{"mode", "cubic"}}), input, grid);
+
+    // Opset 16 Legacy
+    expect_shape(output, migraphx::make_op("gridsample", {{"mode", "bilinear"}}), input, grid);
+    expect_shape(output, migraphx::make_op("gridsample", {{"mode", "bicubic"}}), input, grid);
+}
+
+TEST_CASE(gridsample_shape_invalid_mode)
+{
+    // mode is an enum, so an unknown spelling is rejected when the operator is
+    // constructed rather than during shape inference -- make_op throws before
+    // throws_shape would ever see it. "linearbanana" pins the old substring
+    // behaviour shut: contains(mode, "linear") used to accept it.
+    for(const char* mode : {"error", "linearbanana", "nonlinear", ""})
+        EXPECT(test::throws([&] { migraphx::make_op("gridsample", {{"mode", mode}}); }));
+}
+
+TEST_CASE(gridsample_shape_invalid_padding_mode)
+{
+    // As above, padding_mode is an enum and rejects unknown names at
+    // construction time.
+    for(const char* padding : {"nozeros", "zerosbanana", ""})
+        EXPECT(test::throws([&] { migraphx::make_op("gridsample", {{"padding_mode", padding}}); }));
+}
+
+TEST_CASE(gridsample_shape_bad_input_rank)
+{
+    migraphx::shape input_zero{migraphx::shape::float_type, {}};
+    migraphx::shape input_one{migraphx::shape::float_type, {1}};
+    migraphx::shape input_three{migraphx::shape::float_type, {1, 2, 3}};
+    migraphx::shape input_too_many{migraphx::shape::float_type, {1, 2, 3, 4, 5}};
+
+    migraphx::shape grid{migraphx::shape::float_type, {2, 6, 7, 2}};
+    throws_shape(migraphx::make_op("gridsample"), input_zero, grid);
+    throws_shape(migraphx::make_op("gridsample"), input_one, grid);
+    throws_shape(migraphx::make_op("gridsample"), input_three, grid);
+    throws_shape(migraphx::make_op("gridsample"), input_too_many, grid);
+}
+
+TEST_CASE(gridsample_shape_bad_grid)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+
+    migraphx::shape grid_rank3{migraphx::shape::float_type, {2, 6, 2}};
+    migraphx::shape grid_rank5{migraphx::shape::float_type, {2, 6, 7, 3, 2}};
+    throws_shape(migraphx::make_op("gridsample"), input, grid_rank3);
+    throws_shape(migraphx::make_op("gridsample"), input, grid_rank5);
+
+    migraphx::shape grid_last1{migraphx::shape::float_type, {2, 6, 7, 1}};
+    migraphx::shape grid_last3{migraphx::shape::float_type, {2, 6, 7, 3}};
+    throws_shape(migraphx::make_op("gridsample"), input, grid_last1);
+    throws_shape(migraphx::make_op("gridsample"), input, grid_last3);
+}
+
+TEST_CASE(gridsample_shape_batch_mismatch)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::shape grid{migraphx::shape::float_type, {3, 6, 7, 2}};
+    throws_shape(migraphx::make_op("gridsample"), input, grid);
+}
+
+TEST_CASE(gridsample_shape_type_mismatch)
+{
+    migraphx::shape int_x{migraphx::shape::int32_type, {2, 3, 4, 5}};
+    migraphx::shape float_x{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::shape float_grid{migraphx::shape::float_type, {2, 6, 7, 2}};
+    migraphx::shape half_grid{migraphx::shape::half_type, {2, 6, 7, 2}};
+
+    throws_shape(migraphx::make_op("gridsample"), int_x, float_grid);
+    throws_shape(migraphx::make_op("gridsample"), float_x, half_grid);
+}
+
+TEST_CASE(gridsample_shape_bad_arg_count)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::shape grid{migraphx::shape::float_type, {2, 6, 7, 2}};
+
+    throws_shape(migraphx::make_op("gridsample"), input);
+    throws_shape(migraphx::make_op("gridsample"), input, grid, grid);
+}
+
+TEST_CASE(gridsample_shape_nonstandard)
+{
+    // TODO compute_shape does not require standard inputs -- the operator
+    // declares attributes() = {{"require_std_shape", true}} so auto_contiguous
+    // inserts the contiguous instead.  Assert a transposed or broadcast x still
+    // computes the expected shape rather than throwing, so the two mechanisms
+    // do not silently drift apart.
+}
+
+TEST_CASE(gridsample_shape_dynamic)
+{
+    // TODO dynamic inputs are not supported.  compute_shape currently calls
+    // shape::lens() unguarded, so it throws "SHAPE: lens() called on a dynamic
+    // shape" rather than a gridsample-specific message.  Either assert that it
+    // throws, or add an explicit dynamic() check to compute_shape first and
+    // assert the better message.
+}
+
 TEST_CASE(group_op)
 {
     {
@@ -3096,6 +3312,38 @@ TEST_CASE(nms_shape)
                  max_out_s,
                  iou_thres_s,
                  score_thres_s);
+}
+
+TEST_CASE(nonzero_shape)
+{
+    // The nonzero op always returns a tuple shape:
+    //   {indices [ndim, max elements] int64, num_nonzero [1] int64}
+    migraphx::shape num_nonzero_s{migraphx::shape::int64_type, {1}};
+
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    expect_shape(
+        migraphx::shape({migraphx::shape{migraphx::shape::int64_type, {3, 12}}, num_nonzero_s}),
+        migraphx::make_op("nonzero"),
+        input);
+
+    // A non-standard input keeps the same output; only its lengths matter.
+    input = {migraphx::shape::float_type, {2, 3}, {1, 2}};
+    expect_shape(
+        migraphx::shape({migraphx::shape{migraphx::shape::int64_type, {2, 6}}, num_nonzero_s}),
+        migraphx::make_op("nonzero"),
+        input);
+}
+
+TEST_CASE(nonzero_dyn_shape)
+{
+    // A dynamic input still gets a fixed output, padded for the most elements it can hold.
+    migraphx::shape num_nonzero_s{migraphx::shape::int64_type, {1}};
+
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    expect_shape(
+        migraphx::shape({migraphx::shape{migraphx::shape::int64_type, {2, 12}}, num_nonzero_s}),
+        migraphx::make_op("nonzero"),
+        input);
 }
 
 TEST_CASE(onehot_static_2arg0)
@@ -7254,6 +7502,18 @@ TEST_CASE(test_concat)
 
     // no input shapes (at least one is required)
     throws_shape(migraphx::make_op("concat", {{"axis", 0}}));
+}
+
+TEST_CASE(test_concat_nhwc_singleton)
+{
+    // The standard-layout input has a singleton channel, so its layout is
+    // ambiguous and the NHWC input decides the output layout.
+    auto sx =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 47, 8, 8}, {0, 2, 3, 1});
+    migraphx::shape sy{migraphx::shape::float_type, {1, 1, 8, 8}};
+    auto sout =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 48, 8, 8}, {0, 2, 3, 1});
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
 }
 
 TEST_CASE(test_dyn_concat)

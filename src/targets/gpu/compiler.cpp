@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@ struct compiler_handle
     compiler_compile compile;
     compiler_compile_op compile_op;
     compiler_tuning_config get_tuning_config;
+    compiler_compile_key compile_key;
 };
 } // namespace
 
@@ -47,9 +48,10 @@ static auto& compiler_map()
 void register_compiler(const std::string& name,
                        compiler_compile c,
                        compiler_compile_op cop,
-                       compiler_tuning_config ctg)
+                       compiler_tuning_config ctg,
+                       compiler_compile_key ck)
 {
-    compiler_map()[name] = {std::move(c), std::move(cop), std::move(ctg)};
+    compiler_map()[name] = {std::move(c), std::move(cop), std::move(ctg), std::move(ck)};
 }
 
 bool has_compiler_for(const std::string& name) { return compiler_map().count(name) > 0; }
@@ -71,6 +73,13 @@ get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool e
 {
     assert(contains(compiler_map(), op.name()));
     return compiler_map().at(op.name()).get_tuning_config(ctx, ins, op, exhaustive);
+}
+
+std::string
+compile_key(context& ctx, instruction_ref ins, const operation& op, const value& solution)
+{
+    assert(contains(compiler_map(), op.name()));
+    return compiler_map().at(op.name()).compile_key(ctx, ins, op, solution);
 }
 
 } // namespace gpu

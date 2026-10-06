@@ -1094,6 +1094,12 @@ struct find_concat_op
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
 
+        // A matcher can select a concat even when none of its input groups are eligible for
+        // fusion. Avoid replacing it with an equivalent concat, which would report a change and
+        // keep the surrounding fixed-point passes running.
+        if(args == ins->inputs())
+            return;
+
         for(const auto& p : replacements)
         {
             m.move_output_instructions_after(p.first, ins);
@@ -1372,7 +1378,11 @@ struct find_conv_concat_split_fuse
            }))
             return;
 
-        if(not axis_shape_equal(weight_a->get_shape(), weight_b->get_shape(), 1))
+        auto weight_b_prefix_lens = weight_b->get_shape().lens();
+        if(weight_b_prefix_lens.size() < 2 or weight_b_prefix_lens[1] < prefix_chans)
+            return;
+        weight_b_prefix_lens[1] = prefix_chans;
+        if(not axis_equal(weight_a->get_shape().lens(), weight_b_prefix_lens, 0))
             return;
 
         auto out_a = weight_a->get_shape().lens()[0];
@@ -1962,12 +1972,12 @@ struct find_split_concat
                return x->get_operator().name() != "slice";
            }))
             return;
-        // Check that the slices passed to concat are in order.
-        if(not std::is_sorted(it, it + splits.size(), [](instruction_ref x, instruction_ref y) {
-               auto xop = any_cast<op::slice>(x->get_operator());
-               auto yop = any_cast<op::slice>(y->get_operator());
-               return std::tie(xop.starts, xop.ends) < std::tie(yop.starts, yop.ends);
-           }))
+        // Make sure that the splits match with the inputs into concat.
+        // This is to reject a case where x0 and y0 have identical slice ranges:
+        //  splits        : [x0, x1]
+        //  concat inputs : [x0, y0, x1, y1]
+        //                  └ mismatch ┘
+        if(not std::equal(splits.begin(), splits.end(), it))
             return;
 
         // Perform the substitution
@@ -2190,10 +2200,10 @@ struct find_unit_ops
             match::either_arg(0, 1)(match::has_value(1.0f), match::any().bind("x")));
         auto div_1 =
             match::name("div")(match::args(match::any().bind("x"), match::has_value(1.0f)));
-        auto add_0 = match::name("add")(
-            match::either_arg(0, 1)(match::has_value(0.0f, 0, 0), match::any().bind("x")));
-        auto sub_0 =
-            match::name("sub")(match::args(match::any().bind("x"), match::has_value(0.0f, 0, 0)));
+        auto add_0 = match::name("add")(match::either_arg(0, 1)(
+            match::has_value(0.0f, {.atol = 0, .rtol = 0}), match::any().bind("x")));
+        auto sub_0 = match::name("sub")(
+            match::args(match::any().bind("x"), match::has_value(0.0f, {.atol = 0, .rtol = 0})));
         return match::any_of(mul_1, div_1, add_0, sub_0);
     }
 
@@ -2214,8 +2224,8 @@ struct find_neg_unit_ops
             match::either_arg(0, 1)(match::has_value(-1.0f), match::any().bind("x")));
         auto div_neg_1 =
             match::name("div")(match::args(match::any().bind("x"), match::has_value(-1.0f)));
-        auto sub_0 =
-            match::name("sub")(match::args(match::has_value(0.0f, 0, 0), match::any().bind("x")));
+        auto sub_0 = match::name("sub")(
+            match::args(match::has_value(0.0f, {.atol = 0, .rtol = 0}), match::any().bind("x")));
         return match::any_of(mul_neg_1, div_neg_1, sub_0);
     }
 
@@ -2238,9 +2248,10 @@ struct eliminate_zero_point
     }
     auto matcher() const
     {
-        return match::name(get_qlinear_ops_names())(match::arg(0)(match::any().bind("x")),
-                                                    match::arg(1)(match::any().bind("scale")),
-                                                    match::arg(2)(match::has_value(0.0f, 0, 0)));
+        return match::name(get_qlinear_ops_names())(
+            match::arg(0)(match::any().bind("x")),
+            match::arg(1)(match::any().bind("scale")),
+            match::arg(2)(match::has_value(0.0f, {.atol = 0, .rtol = 0})));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -2263,10 +2274,10 @@ struct find_zero_ops
 {
     auto matcher() const
     {
-        auto mul_zero = match::name("mul")(
-            match::either_arg(0, 1)(match::has_value(0.0f, 0, 0).bind("x"), match::any()));
-        auto div_zero =
-            match::name("div")(match::args(match::has_value(0.0f, 0, 0).bind("x"), match::any()));
+        auto mul_zero = match::name("mul")(match::either_arg(0, 1)(
+            match::has_value(0.0f, {.atol = 0, .rtol = 0}).bind("x"), match::any()));
+        auto div_zero = match::name("div")(
+            match::args(match::has_value(0.0f, {.atol = 0, .rtol = 0}).bind("x"), match::any()));
         return match::any_of(mul_zero, div_zero);
     }
 
@@ -2875,7 +2886,7 @@ struct find_pow2
     auto matcher() const
     {
         return match::name("pow")(match::arg(0)(match::any().bind("x")),
-                                  match::arg(1)(match::has_value(2.0f, 0, 1)));
+                                  match::arg(1)(match::has_value(2.0f, {.atol = 0, .rtol = 1})));
     }
 
     void apply(module& m, const match::matcher_result& r) const

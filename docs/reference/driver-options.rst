@@ -52,6 +52,24 @@ Compiles and runs input graph then prints performance report.
 
 Sets number of iterations to run for perf report (Default: 100)
 
+time
+----
+
+.. program:: migraphx-driver time
+
+Compiles and runs input graph then prints the total execution time.
+
+.. include:: ../driver/read.rst
+.. include:: ../driver/compile.rst
+
+.. option::  --iterations, -n [unsigned int]
+
+Sets number of iterations to run (Default: 100)
+
+.. option::  --buffers, -b [unsigned int]
+
+Sets number of parameter buffer sets to rotate through between iterations to avoid cache reuse (Default: 1)
+
 verify
 ------
 

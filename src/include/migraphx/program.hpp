@@ -59,7 +59,12 @@ struct MIGRAPHX_EXPORT program
 
     program();
 
-    explicit program(module m);
+    /// A program of a copy of the module and copies of the submodules it
+    /// references, with cross-module references remapped to the copies
+    explicit program(const module& m);
+
+    /// Same as above, but moves the module rather than copying it
+    explicit program(module&& m);
 
     // move constructor
     program(program&&) noexcept;
@@ -180,6 +185,11 @@ struct MIGRAPHX_EXPORT program
     // the MXR file. This does not apply to changes made to operators.
     static constexpr int program_file_version = 8;
 };
+
+/// Lets a program be a member of a reflected type, using the same conversion as saving one.
+inline void migraphx_to_value(value& v, const program& p) { v = p.to_value(); }
+inline void migraphx_from_value(const value& v, program& p) { p.from_value(v); }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

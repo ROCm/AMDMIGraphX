@@ -367,6 +367,32 @@ TEST_CASE(allocate_out_shared_alloc_copy)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Returning the same value twice uses one output parameter, so the allocation is still replaced
+TEST_CASE(allocate_out_duplicate_return)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 1}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto sq = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
+        m1.add_return({sq, sq});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output_1", out_s);
+        auto us     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), output);
+        auto p1     = m2.add_instruction(pass_op{}, us);
+        auto sq     = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
+        m2.add_return({sq, sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // A broadcast is not a bijection, so the output buffer still needs a copy
 TEST_CASE(allocate_out_broadcast_copy)
 {

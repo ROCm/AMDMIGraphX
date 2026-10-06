@@ -202,8 +202,10 @@ bool replace_alias_allocation(module& m, instruction_ref ins)
     if(alloc->name() != "allocate" or alloc->get_shape().any_of_dynamic())
         return false;
     // Each return value needs its own output parameter, so an allocation that is shared with
-    // another return value still needs to be copied
-    auto returns = m.get_returns();
+    // another return value still needs to be copied. Returning the same instruction more than
+    // once only needs one output parameter.
+    auto rs = m.get_returns();
+    std::unordered_set<instruction_ref> returns(rs.begin(), rs.end());
     if(std::count_if(returns.begin(), returns.end(), [&](instruction_ref r) {
            return contains(instruction::get_output_alias(r), alloc);
        }) > 1)

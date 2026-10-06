@@ -153,6 +153,22 @@ TEST_CASE(reshape_test2)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(reshape_zero_elements_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape input_shape{migraphx::shape::float_type, {0, 4}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {0, 2}};
+    auto input  = mm->add_parameter("X", input_shape);
+    auto result = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {0, 2}}}), input);
+    mm->add_return({result});
+
+    p.compile(migraphx::make_target("ref"));
+    auto output = p.eval({{"X", migraphx::argument{input_shape}}}).back();
+    EXPECT(output.get_shape() == output_shape);
+    EXPECT(output.get_shape().elements() == 0);
+}
+
 TEST_CASE(reshape_dyn_1in_test)
 {
     migraphx::program p;
@@ -226,6 +242,26 @@ TEST_CASE(reshape_2in_test1)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
+
+TEST_CASE(reshape_2in_zero_elements_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape input_shape{migraphx::shape::float_type, {0, 4}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {0, 2}};
+    auto input  = mm->add_parameter("X", input_shape);
+    auto output = mm->add_parameter("Y", output_shape);
+    auto result = mm->add_instruction(migraphx::make_op("reshape"), input, output);
+    mm->add_return({result});
+
+    p.compile(migraphx::make_target("ref"));
+    auto result_arg =
+        p.eval({{"X", migraphx::argument{input_shape}}, {"Y", migraphx::argument{output_shape}}})
+            .back();
+    EXPECT(result_arg.get_shape() == output_shape);
+    EXPECT(result_arg.get_shape().elements() == 0);
+}
+
 TEST_CASE(reshape_2in_elements_runtime_error)
 {
     migraphx::program p;

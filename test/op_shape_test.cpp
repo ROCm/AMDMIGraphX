@@ -2887,6 +2887,17 @@ TEST_CASE(multibroadcast_1in_sym_input_with_static_target_error)
     throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
 }
 
+TEST_CASE(multibroadcast_2in_static_zero)
+{
+    migraphx::shape one{migraphx::shape::float_type, {1}};
+    migraphx::shape empty{migraphx::shape::float_type, {0}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {0}, {0}},
+                 migraphx::make_op("multibroadcast"),
+                 one,
+                 empty);
+    expect_shape(empty, migraphx::make_op("multibroadcast"), empty, one);
+}
+
 TEST_CASE(multibroadcast_2in_symbolic_target)
 {
     auto n = var("n", {2, 8});

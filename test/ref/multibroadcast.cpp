@@ -71,6 +71,24 @@ TEST_CASE(multibroadcast_2in_static_test)
     EXPECT(output(1, 1) == -3);
 }
 
+TEST_CASE(multibroadcast_2in_static_zero_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape empty_shape{migraphx::shape::int32_type, {0}};
+    auto empty = mm->add_parameter("empty", empty_shape);
+    auto one =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1}}, {1}});
+    auto broadcast = mm->add_instruction(migraphx::make_op("multibroadcast"), one, empty);
+    auto result    = mm->add_instruction(migraphx::make_op("add"), empty, broadcast);
+    mm->add_return({result});
+
+    p.compile(migraphx::make_target("ref"));
+    auto output = p.eval({{"empty", migraphx::argument{empty_shape}}}).back();
+    EXPECT(output.get_shape() == empty_shape);
+    EXPECT(output.get_shape().elements() == 0);
+}
+
 TEST_CASE(multibroadcast_2in_dyn_test)
 {
     migraphx::program p;

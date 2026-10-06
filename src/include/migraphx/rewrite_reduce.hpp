@@ -38,6 +38,9 @@ struct MIGRAPHX_EXPORT rewrite_reduce
     // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with
     // surrounding pointwise ops instead of launching a GEMM.
     bool enable_skinny_dot = false;
+    // Allow rewrites that reorder the arithmetic in ways that can change the
+    // result, such as scaling the terms of a reduction before summing them
+    bool fast_math = false;
     std::string name() const { return "rewrite_reduce"; }
     void apply(module& m) const;
 };

@@ -28,6 +28,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/compile_src.hpp>
 #include <migraphx/stringutils.hpp>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -49,6 +50,10 @@ struct hip_compile_options
     std::vector<src_file> additional_src_files = {};
     std::int64_t output_arg                    = -1;
     std::string src_name                       = "main.cpp";
+    // Overrides the C++ type used in the generated make_tensor for an input,
+    // keyed by input index. Used for kernel-side-only types such as packed
+    // int4 which have no shape::type_t equivalent.
+    std::map<std::size_t, std::string> type_overrides = {};
 
     /**
      * @brief Set the launch parameters but allow v to override the values
@@ -65,12 +70,30 @@ struct hip_compile_options
     void
     set_launch_params(const value& v, std::size_t default_global, std::size_t default_local = 1024)
     {
-        set_launch_params(
-            v, [=](auto) { return default_global; }, default_local);
+        set_launch_params(v, [=](auto) { return default_global; }, default_local);
     }
 
     void emplace_param(std::string_view s) { params.emplace_back(s); }
 };
+
+/// A kernel to be compiled: its source along with the options that shape the result. Compilers
+/// build one of these so the same description can be used to compile the kernel or to identify
+/// it without compiling.
+struct hip_src
+{
+    std::string content;
+    hip_compile_options options;
+};
+
+/**
+ * A string identifying the code object that would be produced from src.
+ *
+ * This covers everything handed to the compiler: the source, the tensor views generated for it,
+ * the final parameter list including the launch bounds and device defines, and the fields that
+ * end up on the code object rather than in the binary. The embedded kernel headers are not
+ * included, since callers distinguish those separately.
+ */
+MIGRAPHX_GPU_EXPORT std::string hip_compile_key(const context& ctx, const hip_src& src);
 
 /// Compute global for n elements, but max out on target-specific upper limit
 MIGRAPHX_GPU_EXPORT std::function<std::size_t(std::size_t local)>
@@ -82,6 +105,9 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
 MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(context& ctx,
                                                       const std::string& content,
                                                       hip_compile_options options);
+
+/// Compile the kernel a hip_src describes.
+MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(context& ctx, hip_src src);
 
 MIGRAPHX_GPU_EXPORT std::size_t
 compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size = 1024);

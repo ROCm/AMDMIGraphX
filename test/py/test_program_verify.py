@@ -56,20 +56,21 @@ def test_program_verify_modes_and_options():
     p, s = make_program()
     target = migraphx.get_target("ref")
     params = {"x": migraphx.generate_argument(s)}
-    options = migraphx.program_verify_options()
-    options.rms_tol = 1e-3
-    options.atol = 1e-3
-    options.rtol = 1e-3
-    options.precision = migraphx.program_verify_precision.fp32
-    options.ref_use_double = False
-    options.name = "python"
-    options.offload_copy = False
-    options.fast_math = True
-    options.exhaustive_tune = False
-    options.compile_mode = migraphx.compile_modes.balanced
 
-    output = p.verify(target, migraphx.program_verify_mode.outputs, params,
-                      options)
+    output = p.verify(target,
+                      migraphx.program_verify_mode.outputs,
+                      params,
+                      rms_tol=1e-3,
+                      atol=1e-3,
+                      rtol=1e-3,
+                      precision=migraphx.program_verify_precision.fp32,
+                      ref_use_double=False,
+                      name="python",
+                      offload_copy=False,
+                      fast_math=True,
+                      exhaustive_tune=False,
+                      compile_mode=migraphx.compile_modes.balanced,
+                      advance_backend_options={"verify_test": True})
     assert output.passed()
     assert output.results[0].name == "python"
     assert p.verify(target, migraphx.program_verify_mode.instructions).passed()
@@ -79,7 +80,6 @@ def test_program_verify_modes_and_options():
                     params).passed()
     assert p.verify(target, migraphx.program_verify_mode.layerwise,
                     params).passed()
-    options.set_backend_option("verify_test", True)
 
 
 test_program_verify_outputs()

@@ -27,6 +27,7 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/verify.hpp>
 #include <cstdint>
@@ -62,6 +63,23 @@ struct program_options
     bool ref_use_double        = false;
     std::string compiled_model = {};
     std::string name           = {};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.compile.offload_copy, "offload_copy"),
+                    f(self.compile.fast_math, "fast_math"),
+                    f(self.compile.exhaustive_tune, "exhaustive_tune"),
+                    f(self.compile.compile_mode, "compile_mode"),
+                    f(self.compile.backend_options, "advance_backend_options"),
+                    f(self.tols.rms_tol, "rms_tol"),
+                    f(self.tols.atol, "atol"),
+                    f(self.tols.rtol, "rtol"),
+                    f(self.quantize, "precision"),
+                    f(self.ref_use_double, "ref_use_double"),
+                    f(self.compiled_model, "compiled_model"),
+                    f(self.name, "name"));
+    }
 };
 
 struct layer_result

@@ -36,6 +36,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
@@ -380,6 +381,7 @@ migraphx::parameter_map to_parameter_map(const py::dict& params)
         });
     return result;
 }
+
 } // namespace
 
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
@@ -649,74 +651,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .value("fp16", migraphx::verify::program_precision::fp16)
         .value("bf16", migraphx::verify::program_precision::bf16);
 
-    py::class_<migraphx::verify::program_options>(m, "program_verify_options")
-        .def(py::init<>())
-        .def_property(
-            "rms_tol",
-            [](const migraphx::verify::program_options& options) { return options.tols.rms_tol; },
-            [](migraphx::verify::program_options& options, double value) {
-                options.tols.rms_tol = value;
-            })
-        .def_property(
-            "atol",
-            [](const migraphx::verify::program_options& options) { return options.tols.atol; },
-            [](migraphx::verify::program_options& options, double value) {
-                options.tols.atol = value;
-            })
-        .def_property(
-            "rtol",
-            [](const migraphx::verify::program_options& options) { return options.tols.rtol; },
-            [](migraphx::verify::program_options& options, double value) {
-                options.tols.rtol = value;
-            })
-        .def_readwrite("precision", &migraphx::verify::program_options::quantize)
-        .def_readwrite("ref_use_double", &migraphx::verify::program_options::ref_use_double)
-        .def_readwrite("compiled_model", &migraphx::verify::program_options::compiled_model)
-        .def_readwrite("name", &migraphx::verify::program_options::name)
-        .def_property(
-            "offload_copy",
-            [](const migraphx::verify::program_options& options) {
-                return options.compile.offload_copy;
-            },
-            [](migraphx::verify::program_options& options, bool value) {
-                options.compile.offload_copy = value;
-            })
-        .def_property(
-            "fast_math",
-            [](const migraphx::verify::program_options& options) {
-                return options.compile.fast_math;
-            },
-            [](migraphx::verify::program_options& options, bool value) {
-                options.compile.fast_math = value;
-            })
-        .def_property(
-            "exhaustive_tune",
-            [](const migraphx::verify::program_options& options) {
-                return options.compile.exhaustive_tune;
-            },
-            [](migraphx::verify::program_options& options, bool value) {
-                options.compile.exhaustive_tune = value;
-            })
-        .def_property(
-            "compile_mode",
-            [](const migraphx::verify::program_options& options) {
-                return options.compile.compile_mode;
-            },
-            [](migraphx::verify::program_options& options, migraphx::compile_modes value) {
-                options.compile.compile_mode = value;
-            })
-        .def(
-            "set_backend_option",
-            [](migraphx::verify::program_options& options,
-               const std::string& name,
-               const py::object& value) {
-                migraphx::visit_py(value, [&](auto converted) {
-                    options.compile.backend_options[name] = converted;
-                });
-            },
-            py::arg("name"),
-            py::arg("value"));
-
     py::class_<migraphx::verify::layer_result>(m, "program_verify_layer_result")
         .def_readonly("name", &migraphx::verify::layer_result::name)
         .def_readonly("operator", &migraphx::verify::layer_result::op)
@@ -784,14 +718,18 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                const migraphx::target& target,
                migraphx::verify::program_mode mode,
                const py::dict& params,
-               const migraphx::verify::program_options& options) {
+               const py::kwargs& kwargs) {
                 return migraphx::verify::verify_program(
-                    p, target, mode, to_parameter_map(params), options);
+                    p,
+                    target,
+                    mode,
+                    to_parameter_map(params),
+                    migraphx::from_value<migraphx::verify::program_options>(
+                        migraphx::to_value(kwargs)));
             },
             py::arg("target"),
-            py::arg("mode")    = migraphx::verify::program_mode::outputs,
-            py::arg("params")  = py::dict(),
-            py::arg("options") = migraphx::verify::program_options{})
+            py::arg("mode")   = migraphx::verify::program_mode::outputs,
+            py::arg("params") = py::dict())
         .def("run",
              [](migraphx::program& p, py::dict params) { return p.eval(to_parameter_map(params)); })
         .def("run_async",

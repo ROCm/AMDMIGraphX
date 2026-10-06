@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program_verify.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <test.hpp>
 
@@ -42,6 +43,38 @@ static migraphx::program make_program()
     auto out = mm->add_instruction(migraphx::make_op("relu"), add);
     mm->add_return({out});
     return p;
+}
+
+TEST_CASE(verify_program_options_value)
+{
+    migraphx::verify::program_options options;
+    options.compile.offload_copy                   = true;
+    options.compile.fast_math                      = false;
+    options.compile.exhaustive_tune                = true;
+    options.compile.compile_mode                   = migraphx::compile_modes::eager;
+    options.compile.backend_options["verify_test"] = true;
+    options.tols.rms_tol                           = 0.1;
+    options.tols.atol                              = 0.2;
+    options.tols.rtol                              = 0.3;
+    options.quantize                               = migraphx::verify::program_precision::bf16;
+    options.ref_use_double                         = true;
+    options.compiled_model                         = "model.mxr";
+    options.name                                   = "test";
+
+    auto result =
+        migraphx::from_value<migraphx::verify::program_options>(migraphx::to_value(options));
+    EXPECT(result.compile.offload_copy);
+    EXPECT(not result.compile.fast_math);
+    EXPECT(result.compile.exhaustive_tune);
+    EXPECT(result.compile.compile_mode == migraphx::compile_modes::eager);
+    EXPECT(result.compile.backend_options.at("verify_test").to<bool>());
+    EXPECT(migraphx::float_equal(result.tols.rms_tol, 0.1));
+    EXPECT(migraphx::float_equal(result.tols.atol, 0.2));
+    EXPECT(migraphx::float_equal(result.tols.rtol, 0.3));
+    EXPECT(result.quantize == migraphx::verify::program_precision::bf16);
+    EXPECT(result.ref_use_double);
+    EXPECT(result.compiled_model == "model.mxr");
+    EXPECT(result.name == "test");
 }
 
 TEST_CASE(verify_program_outputs)
@@ -81,6 +114,39 @@ TEST_CASE(verify_program_output_mismatch)
     EXPECT(not result.passed());
     EXPECT(result.failures().size() == 1);
     EXPECT(result.results.front().rms_error > 0);
+}
+
+TEST_CASE(verify_program_shape_mismatch)
+{
+    migraphx::tmp_dir td{"program_verify_shape_mismatch"};
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    mm->add_return({x});
+
+    migraphx::program compiled;
+    auto* compiled_mm = compiled.get_main_module();
+    auto compiled_x   = compiled_mm->add_parameter("x", s);
+    auto reshape =
+        compiled_mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), compiled_x);
+    compiled_mm->add_return({reshape});
+    auto ref = migraphx::make_target("ref");
+    compiled.compile(ref);
+    auto path = (td.path / "shape_mismatch.mxr").string();
+    migraphx::save(compiled, path);
+
+    migraphx::parameter_map inputs{
+        {"x", migraphx::literal{s, {-2.0f, -1.0f, 1.0f, 2.0f}}.get_argument()}};
+    migraphx::verify::program_options options;
+    options.compiled_model = path;
+    migraphx::log::set_severity(migraphx::log::severity::none);
+    auto result = migraphx::verify::verify_program(
+        p, ref, migraphx::verify::program_mode::outputs, inputs, options);
+    migraphx::log::set_severity(migraphx::log::severity::info);
+    EXPECT(not result.passed());
+    EXPECT(result.failures().size() == 1);
+    EXPECT(not result.results.front().message.empty());
 }
 
 TEST_CASE(verify_program_compiled_model_unsupported_mode)

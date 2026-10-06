@@ -147,6 +147,61 @@ TEST_CASE(reduce_affine_reduce_unfused)
     EXPECT(m2 == create(4, false));
 }
 
+// An outer reduction over only unit dims has nothing to fold, so the chain
+// is left for simplify_reshapes to drop the trivial outer reduce rather
+// than folded into a reduce over no axes
+TEST_CASE(reduce_affine_reduce_unit_outer_axes_shift)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 1}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xs);
+        auto b     = m1.add_parameter("b", bs);
+        auto rsum  = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto add   = m1.add_instruction(migraphx::make_op("add"), rsum, b);
+        auto rsum2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), add);
+        m1.add_return({rsum2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", xs);
+        auto b    = m2.add_parameter("b", bs);
+        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), rsum, b);
+        m2.add_return({add});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(reduce_affine_reduce_unit_outer_axes_scale)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape ws{migraphx::shape::float_type, {2, 1}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xs);
+        auto w     = m1.add_parameter("w", ws);
+        auto rsum  = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto mul   = m1.add_instruction(migraphx::make_op("mul"), rsum, w);
+        auto rsum2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        m1.add_return({rsum2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", xs);
+        auto w    = m2.add_parameter("w", ws);
+        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto mul  = m2.add_instruction(migraphx::make_op("mul"), rsum, w);
+        m2.add_return({mul});
+    }
+    EXPECT(m1 == m2);
+}
+
 // The skinny dot rewrite is off by default so the dot is left alone.
 TEST_CASE(dot_skinny_disabled_by_default)
 

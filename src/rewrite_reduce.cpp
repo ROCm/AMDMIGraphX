@@ -242,6 +242,9 @@ struct find_reduce_affine_reduce
                 return nullopt;
             result.push_back(*it);
         }
+        // Nothing left to fold when the outer reduce only covers unit dims
+        if(result.empty())
+            return nullopt;
         return result;
     }
 

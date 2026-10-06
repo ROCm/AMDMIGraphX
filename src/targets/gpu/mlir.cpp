@@ -1400,6 +1400,29 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     return mco;
 }
 
+std::string mlir_compile_key(const context& migraphx_ctx,
+                             module m,
+                             const std::vector<shape>& in_shapes,
+                             const value& solution)
+{
+    auto shapes = adjust_param_shapes(m, in_shapes);
+    prepare(m);
+
+    mlir_program mp;
+    mp.set_gpu_properties(migraphx_ctx);
+    mp.parse(m, shapes);
+
+    std::stringstream ss;
+    ss << "arch=" << migraphx_ctx.get_current_device().get_device_name() << "\n";
+    ss << "solution=" << solution << "\n";
+    // The shapes are listed even though the parsed module already reflects them, because they
+    // also become fields of the code object that the caller inserts.
+    for(const auto& s : in_shapes)
+        ss << "input=" << s << "\n";
+    ss << mlir_print(&mlirOperationPrint, mlirModuleGetOperation(mp.mmodule.get()));
+    return ss.str();
+}
+
 instruction_ref insert_mlir(module& m,
                             instruction_ref ins,
                             code_object_op co,
@@ -1479,7 +1502,7 @@ void dump_mlir_to_mxr(module m,
     auto name = compute_dump_name(m, ".mxr");
     auto f    = location / name;
     log::info() << "Dumping MXR file to: " << f;
-    save(program{std::move(m)}, f.string());
+    save(program{m}, f.string());
 }
 
 #else
@@ -1501,6 +1524,11 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
 mlir_code_object compile_mlir(const context&, module, const std::vector<shape>&, const value&)
+{
+    return {};
+}
+
+std::string mlir_compile_key(const context&, module, const std::vector<shape>&, const value&)
 {
     return {};
 }

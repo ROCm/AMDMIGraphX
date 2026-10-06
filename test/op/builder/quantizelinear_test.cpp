@@ -211,7 +211,7 @@ auto run_with_data(const std::vector<size_t>& x_lens,
             "quantizelinear", {{"axis", axis}, {"block_size", block_size}}, m.get_parameters());
     }
 
-    migraphx::program p{std::move(m)};
+    migraphx::program p{m};
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;

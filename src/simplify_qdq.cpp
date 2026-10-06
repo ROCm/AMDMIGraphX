@@ -81,6 +81,30 @@ auto propagate_quantized_ins(module& m,
     return input_ins;
 }
 
+// helper function to subtract 128 from a uint8 or int8 operand
+instruction_ref subtract_128(module& m, instruction_ref pos, instruction_ref x)
+{
+    auto x_i32 = m.insert_instruction(
+        pos, make_op("convert", {{"target_type", migraphx::shape::int32_type}}), x);
+    auto lit   = m.add_literal(literal{shape{migraphx::shape::int32_type}, {128}});
+    auto lit_b = m.insert_instruction(
+        pos, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lit);
+    auto diff = m.insert_instruction(pos, make_op("sub"), x_i32, lit_b);
+    return m.insert_instruction(
+        pos, make_op("convert", {{"target_type", migraphx::shape::int8_type}}), diff);
+}
+
+// Rebias a uint8 operand and its zero point to int8 by subtracting 128 from both: (q - 128) -
+// (zp - 128) == q - zp, so the dequantized value is unchanged. Done via int32 to avoid wrap-around.
+instruction_ref
+rebias_uint8_to_int8(module& m, instruction_ref pos, instruction_ref qdata, instruction_ref& zp)
+{
+    if(qdata->get_shape().type() != migraphx::shape::uint8_type)
+        return qdata;
+    zp = subtract_128(m, pos, zp);
+    return subtract_128(m, pos, qdata);
+}
+
 struct match_find_quantizable_ops
 {
     static bool
@@ -156,6 +180,7 @@ struct match_find_quantizable_ops
 
         std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
         supported_types.insert(migraphx::shape::int8_type);
+        supported_types.insert(migraphx::shape::uint8_type);
         auto in1 = dq1->inputs().front();
         auto in2 = dq2->inputs().front();
         if(not contains(supported_types, in1->get_shape().type()) or
@@ -163,6 +188,13 @@ struct match_find_quantizable_ops
         {
             return;
         }
+
+        // quant_convolution/quant_dot need both operands to share a type, so rebias uint8 to int8.
+        qop_args.at(0) = rebias_uint8_to_int8(m, qop, qop_args.at(0), zp1);
+        qop_args.at(1) = rebias_uint8_to_int8(m, qop, qop_args.at(1), zp2);
+
+        if(qop_args.at(0)->get_shape().type() != qop_args.at(1)->get_shape().type())
+            return;
 
         instruction_ref dq;
         instruction_ref out_scale;
@@ -562,11 +594,18 @@ struct remove_qdq_pairs
         {
             return;
         }
+        // Bypassing the pair drops the ops in between, which is only valid when they round-trip to
+        // identity. Skip if a shape-altering op (e.g. reshape) changed the lengths.
+        auto q_input = q_ins->inputs().front();
+        if(q_input->get_shape().lens() != dq_ins->get_shape().lens())
+        {
+            return;
+        }
         // Need to copy outputs since will be modifying dq_ins outputs
         std::vector<instruction_ref> dq_outputs = dq_ins->outputs();
         for(auto out : dq_outputs)
         {
-            instruction::replace_argument(out, dq_ins, q_ins->inputs().front());
+            instruction::replace_argument(out, dq_ins, q_input);
         }
     }
 };

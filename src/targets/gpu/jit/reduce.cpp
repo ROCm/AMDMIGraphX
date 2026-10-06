@@ -751,7 +751,7 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
 
 /// Like the standalone topk kernel, about 4 elements per lane are sorted in
 /// registers, or one vector per lane when the vectors are wider
-std::size_t topk_block_size(context& ctx, const fused_reduce_plan& plan)
+std::size_t topk_block_size(const context& ctx, const fused_reduce_plan& plan)
 {
     auto per_lane = std::max<std::size_t>(4, plan.vec.size);
     auto n        = plan.reduction_shape.elements();
@@ -1122,7 +1122,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         /// 4 elements per lane), one element per lane, and with exhaustive tuning
         /// every size the block algorithm fits. The extra parameters are included
         /// in each solution.
-        void add_topk_block_sizes(context& ctx,
+        void add_topk_block_sizes(const context& ctx,
                                   bool exhaustive,
                                   std::size_t n,
                                   std::size_t block_size,
@@ -1150,7 +1150,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 
         /// Only the block algorithm fits a topk, so tune the block size (more waves
         /// vs. more elements sorted per lane) with and without vectorized loads
-        void add_topk_solutions(context& ctx, bool exhaustive)
+        void add_topk_solutions(const context& ctx, bool exhaustive)
         {
             auto nelements = plan.reduction_shape.elements();
             if(plan.vec.size > 1)

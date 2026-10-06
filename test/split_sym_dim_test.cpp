@@ -1920,6 +1920,77 @@ TEST_CASE(split_sym_dim_merges_independent_supported_branches)
     EXPECT(p.sort() == expected.sort());
 }
 
+TEST_CASE(split_sym_dim_orders_merged_blocks_by_dependencies)
+{
+    auto n = var("n", {1, 4}, {2});
+    auto k = var("k", {1, 4}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto x  = m.add_parameter("x", symbolic_shape({n}));
+    auto y  = m.add_parameter("y", symbolic_shape({k}));
+
+    auto independent = m.add_instruction(migraphx::make_op("relu"), x);
+    auto producer    = m.add_instruction(migraphx::make_op("relu"), y);
+    auto reduced  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), producer);
+    auto consumer = add_symbolic_multibroadcast(m, {n}, reduced, x);
+    m.add_return({independent, producer, consumer});
+
+    run_pass(p, 3);
+
+    std::size_t select_count = std::count_if(
+        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "select_module"; });
+    EXPECT(select_count == 2);
+    EXPECT(m.validate() == m.end());
+
+    bool block_0_found = false;
+    bool block_1_found = false;
+    for(const auto* mod : p.get_modules())
+    {
+        if(migraphx::starts_with(mod->name(), "main:split_sym_dim_0_"))
+        {
+            block_0_found = true;
+            EXPECT(migraphx::none_of(
+                *mod, [](const auto& ins) { return ins.name() == "multibroadcast"; }));
+        }
+        if(migraphx::starts_with(mod->name(), "main:split_sym_dim_1_"))
+        {
+            block_1_found = true;
+            EXPECT(migraphx::any_of(
+                *mod, [](const auto& ins) { return ins.name() == "multibroadcast"; }));
+        }
+    }
+    EXPECT(block_0_found);
+    EXPECT(block_1_found);
+}
+
+TEST_CASE(split_sym_dim_rejects_cyclic_independent_merge)
+{
+    auto n = var("n", {1, 4}, {2});
+    auto k = var("k", {1, 4}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto x  = m.add_parameter("x", symbolic_shape({n}));
+    auto y  = m.add_parameter("y", symbolic_shape({k}));
+
+    auto n_producer = m.add_instruction(migraphx::make_op("relu"), x);
+    auto n_reduced =
+        m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), n_producer);
+    auto k_consumer = add_symbolic_multibroadcast(m, {k}, n_reduced, y);
+
+    auto k_producer = m.add_instruction(migraphx::make_op("relu"), y);
+    auto k_reduced =
+        m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), k_producer);
+    auto n_consumer = add_symbolic_multibroadcast(m, {n}, k_reduced, x);
+    m.add_return({n_producer, k_consumer, k_producer, n_consumer});
+
+    run_pass(p, 3);
+
+    std::size_t select_count = std::count_if(
+        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "select_module"; });
+    EXPECT(select_count == 3);
+    EXPECT(m.validate() == m.end());
+}
+
 TEST_CASE(split_sym_dim_materializes_fixed_axis_slice)
 {
     auto n = var("n", {1, 4}, {2});

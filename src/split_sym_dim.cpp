@@ -1397,6 +1397,146 @@ struct block_plan
     std::vector<const root_spec*> roots;
 };
 
+using block_dependency_graph = std::vector<std::set<std::size_t>>;
+
+std::size_t block_rank(const block_plan& block)
+{
+    assert(not block.ops.empty());
+    auto result = std::min_element(
+        block.ops.begin(), block.ops.end(), by(std::less<>{}, [](const symbolic_op_info* info) {
+            return info->rank;
+        }));
+    return (*result)->rank;
+}
+
+block_dependency_graph find_block_dependencies(
+    const std::vector<block_plan>& blocks,
+    const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction)
+{
+    // Cache the nearest upstream blocks for each instruction so shared bridge subgraphs are only
+    // traversed once per block-discovery phase.
+    std::unordered_map<instruction_ref, std::set<std::size_t>> dependency_cache;
+    dependency_cache.reserve(info_for_instruction.size());
+    auto gather = fix<const std::set<std::size_t>&>(
+        [&](auto self, instruction_ref source) -> const std::set<std::size_t>& {
+            auto cached = dependency_cache.find(source);
+            if(cached != dependency_cache.end())
+                return cached->second;
+
+            std::set<std::size_t> dependencies;
+            auto source_info = info_for_instruction.find(source);
+            if(source_info != info_for_instruction.end() and source_info->second->block.has_value())
+            {
+                dependencies.insert(*source_info->second->block);
+            }
+            else
+            {
+                const auto& inputs = source->inputs();
+                auto input_indices = range(inputs.size());
+                for(auto&& [input_index, input] : views::zip(input_indices, inputs))
+                {
+                    const bool is_shape_input =
+                        source_info != info_for_instruction.end() and
+                        source_info->second->freezer and
+                        contains(source_info->second->shape_input_indices, input_index);
+                    if(is_shape_input)
+                        continue;
+                    const auto& input_dependencies = self(input);
+                    dependencies.insert(input_dependencies.begin(), input_dependencies.end());
+                }
+            }
+            return dependency_cache.emplace(source, std::move(dependencies)).first->second;
+        });
+
+    block_dependency_graph result(blocks.size());
+    auto block_indices = range(blocks.size());
+    for(auto&& [block_index, block, dependencies] : views::zip(block_indices, blocks, result))
+    {
+        for(const auto* info : block.ops)
+        {
+            const auto& inputs = info->ins->inputs();
+            auto input_indices = range(inputs.size());
+            for(auto&& [input_index, input] : views::zip(input_indices, inputs))
+            {
+                if(contains(info->shape_input_indices, input_index))
+                    continue;
+                const auto& input_dependencies = gather(input);
+                dependencies.insert(input_dependencies.begin(), input_dependencies.end());
+            }
+        }
+        dependencies.erase(block_index);
+    }
+    return result;
+}
+
+std::optional<std::vector<std::size_t>> find_block_order(const std::vector<block_plan>& blocks,
+                                                         const block_dependency_graph& dependencies)
+{
+    enum class visit_state
+    {
+        unvisited,
+        visiting,
+        complete
+    };
+
+    assert(blocks.size() == dependencies.size());
+    auto block_indices = range(blocks.size());
+    std::vector<std::pair<std::size_t, std::size_t>> ranked_blocks;
+    transform_if(
+        block_indices.begin(),
+        block_indices.end(),
+        std::back_inserter(ranked_blocks),
+        [&](auto block_index) { return not blocks.at(block_index).ops.empty(); },
+        [&](auto block_index) {
+            return std::make_pair(block_rank(blocks.at(block_index)), block_index);
+        });
+    std::sort(ranked_blocks.begin(), ranked_blocks.end());
+
+    std::vector<visit_state> states(blocks.size(), visit_state::unvisited);
+    std::vector<std::size_t> result;
+    result.reserve(ranked_blocks.size());
+    auto visit = fix<bool>([&](auto self, std::size_t block_index) {
+        auto& state = states.at(block_index);
+        if(state == visit_state::complete)
+            return true;
+        if(state == visit_state::visiting)
+            return false;
+        assert(not blocks.at(block_index).ops.empty());
+        state = visit_state::visiting;
+        if(not all_of(dependencies.at(block_index), self))
+            return false;
+        state = visit_state::complete;
+        result.push_back(block_index);
+        return true;
+    });
+    if(not all_of(ranked_blocks,
+                  [&](const auto& ranked_block) { return visit(ranked_block.second); }))
+        return std::nullopt;
+    return result;
+}
+
+block_dependency_graph contract_block_dependencies(const block_dependency_graph& dependencies,
+                                                   std::size_t target,
+                                                   std::size_t source)
+{
+    assert(target < dependencies.size());
+    assert(source < dependencies.size());
+    block_dependency_graph result(dependencies.size());
+    // Remap both ends of every edge and drop edges internal to the merged block.
+    auto consumers = range(dependencies.size());
+    for(auto&& [consumer, producer_blocks] : views::zip(consumers, dependencies))
+    {
+        auto merged_consumer = consumer == source ? target : consumer;
+        for(auto dependency : producer_blocks)
+        {
+            auto merged_dependency = dependency == source ? target : dependency;
+            if(merged_consumer != merged_dependency)
+                result.at(merged_consumer).insert(merged_dependency);
+        }
+    }
+    return result;
+}
+
 shape substitute_shape(const shape& s,
                        const std::unordered_map<sym::expr, sym::expr>& substitutions)
 {
@@ -1581,20 +1721,31 @@ bool merge_block_into(block_plan& target, const block_plan& source, std::size_t 
 
 // Coalescing turns per-instruction specialization candidates into larger regions so connected
 // operations share one select_module. A merge is accepted only when the combined region is closed
-// over its dynamic dependencies and the cartesian product of root buckets stays within max_clones.
-// Block index preserves topological order and empty ops marks a merged block.
-std::optional<std::size_t>
-merge_blocks(std::vector<block_plan>& blocks, std::size_t x, std::size_t y, std::size_t max_clones)
+// over its dynamic dependencies, the cartesian product of root buckets stays within max_clones,
+// and contracting the two blocks keeps the block dependency graph acyclic.
+std::optional<std::size_t> merge_blocks(std::vector<block_plan>& blocks,
+                                        block_dependency_graph& dependencies,
+                                        std::size_t x,
+                                        std::size_t y,
+                                        std::size_t max_clones)
 {
     const auto target = std::min(x, y);
     const auto source = std::max(x, y);
-    if(target == source or blocks.at(source).ops.empty())
+    if(target == source or blocks.at(target).ops.empty() or blocks.at(source).ops.empty())
         return std::nullopt;
-    if(not merge_block_into(blocks.at(target), blocks.at(source), max_clones))
+
+    auto candidate = blocks;
+    if(not merge_block_into(candidate.at(target), candidate.at(source), max_clones))
         return std::nullopt;
-    for(auto* op : blocks.at(source).ops)
+    candidate.at(source).ops.clear();
+    auto candidate_dependencies = contract_block_dependencies(dependencies, target, source);
+    if(not find_block_order(candidate, candidate_dependencies).has_value())
+        return std::nullopt;
+
+    blocks       = std::move(candidate);
+    dependencies = std::move(candidate_dependencies);
+    for(auto* op : blocks.at(target).ops)
         op->block = target;
-    blocks.at(source).ops.clear();
     return target;
 }
 
@@ -1651,6 +1802,7 @@ std::set<std::pair<std::size_t, std::size_t>> find_block_connections(
 void coalesce_connected_blocks(
     const std::vector<symbolic_op_info>& infos,
     std::vector<block_plan>& blocks,
+    block_dependency_graph& dependencies,
     const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
     std::set<std::pair<std::size_t, std::size_t>>& connections,
     std::size_t max_clones)
@@ -1667,8 +1819,8 @@ void coalesce_connected_blocks(
         const auto& producer        = consumer->inputs().at(input);
         const auto* consumer_info   = info_for_instruction.at(consumer);
         const auto* producer_info   = info_for_instruction.at(producer);
-        auto merged =
-            merge_blocks(blocks, *consumer_info->block, *producer_info->block, max_clones);
+        auto merged                 = merge_blocks(
+            blocks, dependencies, *consumer_info->block, *producer_info->block, max_clones);
         if(merged.has_value())
         {
             auto affected = find_block_connections(blocks.at(*merged), info_for_instruction);
@@ -1684,6 +1836,7 @@ void coalesce_connected_blocks(
 void coalesce_independent_blocks(
     const std::vector<symbolic_op_info>& infos,
     std::vector<block_plan>& blocks,
+    block_dependency_graph& dependencies,
     const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
     std::size_t max_clones)
 {
@@ -1695,12 +1848,12 @@ void coalesce_independent_blocks(
             continue;
         for(auto source : range(target + 1, blocks.size()))
         {
-            auto merged = merge_blocks(blocks, target, source, max_clones);
+            auto merged = merge_blocks(blocks, dependencies, target, source, max_clones);
             if(merged.has_value())
             {
                 auto connections = find_block_connections(blocks.at(*merged), info_for_instruction);
                 coalesce_connected_blocks(
-                    infos, blocks, info_for_instruction, connections, max_clones);
+                    infos, blocks, dependencies, info_for_instruction, connections, max_clones);
                 if(blocks.at(target).ops.empty())
                     break;
             }
@@ -1728,15 +1881,25 @@ std::vector<block_plan> discover_blocks(
         info.block = blocks.size();
         blocks.push_back({{&info}, std::move(*required_roots)});
     }
+    auto dependencies = find_block_dependencies(blocks, info_for_instruction);
+    if(not find_block_order(blocks, dependencies).has_value())
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: cyclic initial block dependency");
 
     auto connections = find_all_block_connections(infos, info_for_instruction);
-    coalesce_connected_blocks(infos, blocks, info_for_instruction, connections, max_clones);
-    coalesce_independent_blocks(infos, blocks, info_for_instruction, max_clones);
+    coalesce_connected_blocks(
+        infos, blocks, dependencies, info_for_instruction, connections, max_clones);
+    coalesce_independent_blocks(infos, blocks, dependencies, info_for_instruction, max_clones);
 
-    blocks.erase(std::remove_if(blocks.begin(),
-                                blocks.end(),
-                                [](const auto& block) { return block.ops.empty(); }),
-                 blocks.end());
+    auto block_order = find_block_order(blocks, dependencies);
+    if(not block_order.has_value())
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: cyclic final block dependency");
+    std::vector<block_plan> ordered_blocks;
+    ordered_blocks.reserve(block_order->size());
+    std::transform(block_order->begin(),
+                   block_order->end(),
+                   std::back_inserter(ordered_blocks),
+                   [&](auto block_index) { return std::move(blocks.at(block_index)); });
+    blocks = std::move(ordered_blocks);
     for(std::size_t block_index = 0; block_index < blocks.size(); ++block_index)
         for(auto* info : blocks.at(block_index).ops)
             info->block = block_index;

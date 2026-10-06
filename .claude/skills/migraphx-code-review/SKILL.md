@@ -487,6 +487,19 @@ the quote instead, so the finding cites the written rule rather than a PR.
   query-only, with every mutation in `apply()`, so an early return can't leave
   half a rewrite applied (#4900). Do the eligibility check before inserting
   anything rather than inserting and then calling `remove_instruction` (#4994).
+- A rewrite that replaces an instruction in place
+  (`replace_instruction(ins, op, inputs)`) to avoid leaving the old one as dead
+  code. The form is insert the new instruction, `replace_instruction(ins,
+  new_ref)`, and let `dead_code_elimination` remove the old one; when a later step
+  of the same pass must not see the stale instruction, run DCE between the steps
+  (`prepare_reduce`'s `rewrite_mul_reduce_sum` was sent back for this).
+- A new matcher that embeds the same sub-matcher more than once (`ext` used in
+  both `sub` and `rmax`) without wrapping each intermediate level in
+  `match::opaque(...)`. The nested closure type grows exponentially; local clang
+  copes, but gcc and MSVC-target clang (where
+  `MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER` is 1) OOM the CI runner — the symptom
+  is "The runner has received a shutdown signal" / exit 143 mid-compile. Follow
+  the pattern in `src/fuse_attention.cpp`.
 - A transformation placed in the wrong pass. Reshape/transpose/broadcast
   rewrites belong in `simplify_reshapes`, elementwise algebra in
   `simplify_algebra`, redundant-copy elimination in its own pass — never as a
@@ -587,6 +600,20 @@ the quote instead, so the finding cites the written rule rather than a PR.
   concrete op type (#4725, #5088).
 - A literal or limit created as `float` instead of the input's element type,
   which silently promotes an fp16 model (#4067, #4103, #4190, #4518).
+- A generated view chain (e.g. from `shape_transform_descriptor::generate()`)
+  inserted into a lowered GPU graph as plain `reshape` or `flatten`. Those ops
+  allocate and copy in `compute` and have no `output_alias`; the runtime view op
+  is `reshape_lazy`. The pass must convert and reject chains that cannot alias,
+  as `invert_alias_transforms` in `src/replace_allocate.cpp` does; otherwise the
+  kernel writing through the "view" faults with a GPU VM "Page not present".
+- Inverting a `squeeze` with `unsqueeze` on an input whose lens are `{1}`:
+  `unsqueeze` returns a rank-1 `{1}` unchanged and squeezing all axes clamps to
+  rank-1, so the ranks come out wrong. Use `multibroadcast` to the reduce lens
+  for that case.
+- A new precondition enforced only by `assert` on a path the local Release build
+  exercises — `NDEBUG` is set there, so the test passes while the CI debug build
+  trips. Check that the invariant actually holds, e.g. that nothing calls
+  `module_with_inputs::replace` with a value whose lens differ from the key.
 
 **Signatures and parameters**
 - `instruction_ref` passed by reference — it is a cheap handle and goes by value

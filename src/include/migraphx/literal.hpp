@@ -33,7 +33,7 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/config.hpp>
 
-#include <cstring>
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -108,7 +108,7 @@ struct literal : raw_data<literal>
         // x may not be aligned for the element type, so copy it into typed storage first
         s.visit_type([&](auto as) {
             std::vector<typename decltype(as)::type> values(s.elements());
-            std::memcpy(values.data(), x, nbytes);
+            std::copy(x, x + nbytes, reinterpret_cast<char*>(values.data()));
             fill(values.begin(), values.end());
         });
     }

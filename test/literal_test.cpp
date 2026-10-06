@@ -24,7 +24,7 @@
 
 #include <migraphx/literal.hpp>
 #include <migraphx/serialize.hpp>
-#include <cstring>
+#include <algorithm>
 #include <sstream>
 #include <string>
 #include "test.hpp"
@@ -101,7 +101,8 @@ TEST_CASE(literal_raw_buffer_unaligned)
 {
     std::vector<float> data = {0, 1, 2, 3, 4, 5};
     std::vector<char> storage(data.size() * sizeof(float) + 1);
-    std::memcpy(storage.data() + 1, data.data(), data.size() * sizeof(float));
+    const auto* bytes = reinterpret_cast<const char*>(data.data());
+    std::copy(bytes, bytes + data.size() * sizeof(float), storage.begin() + 1);
     const char* buf = storage.data() + 1;
 
     migraphx::shape standard{migraphx::shape::float_type, {2, 3}};

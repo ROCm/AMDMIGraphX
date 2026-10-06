@@ -121,6 +121,24 @@ TEST_CASE(lower_hip_copy_dynamic_noop)
     EXPECT(m == expected);
 }
 
+TEST_CASE(lower_empty_device_memory_ops)
+{
+    migraphx::shape s{migraphx::shape::float_type, {0, 3}};
+    migraphx::module copy = make_module(migraphx::make_op("hip::copy"), {s, s});
+    run_pass(copy);
+    EXPECT(copy.get_returns().front() == copy.get_parameter("x1"));
+
+    migraphx::module fill = make_module(migraphx::make_op("hip::fill", {{"value", 0}}), {s});
+    run_pass(fill);
+    EXPECT(fill.get_returns().front() == fill.get_parameter("x0"));
+
+    migraphx::shape nonstandard{migraphx::shape::float_type, {0, 3}, {1, 0}};
+    migraphx::module contiguous =
+        make_module(migraphx::make_op("gpu::contiguous"), {nonstandard, s});
+    run_pass(contiguous);
+    EXPECT(contiguous.get_returns().front() == contiguous.get_parameter("x1"));
+}
+
 // End-to-end: the hip::fill kernel compiles and fills the buffer in-place.
 TEST_CASE(hip_fill_kernel_runs)
 {

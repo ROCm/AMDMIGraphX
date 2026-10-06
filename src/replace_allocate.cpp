@@ -264,6 +264,14 @@ void insert_copy(module& m, const allocation_model& model)
             continue;
         if(ins->get_shape().any_of_dynamic())
             continue;
+        if(ins->get_shape().type() != shape::tuple_type and ins->get_shape().elements() == 0)
+        {
+            auto alloc = m.insert_instruction(
+                std::next(ins),
+                make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
+            m.replace_instruction(ins, alloc);
+            continue;
+        }
         auto aliases = instruction::get_output_alias(ins);
         if(std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
                return alias->get_shape() == ins->get_shape();

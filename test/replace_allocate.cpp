@@ -264,6 +264,31 @@ TEST_CASE(allocate_copy_with_out)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(allocate_empty_copy_with_out)
+{
+    migraphx::shape empty_shape{migraphx::shape::float_type, {0, 4}};
+    migraphx::shape nonempty_shape{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m;
+    auto empty_input    = m.add_parameter("empty", empty_shape);
+    auto nonempty_input = m.add_parameter("nonempty", nonempty_shape);
+    auto tuple          = m.add_instruction(tuple_op{}, empty_input, nonempty_input);
+    auto empty    = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), tuple);
+    auto nonempty = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), tuple);
+    m.add_return({empty, nonempty});
+
+    run_pass(m, allocation_with_out_model{});
+
+    auto outputs = m.get_returns();
+    EXPECT(outputs.size() == 2);
+    EXPECT(outputs.at(0)->name() == "@param");
+    EXPECT(outputs.at(0)->get_shape() == empty_shape);
+    EXPECT(outputs.at(1)->name() == "test_copy");
+    EXPECT(outputs.at(1)->get_shape() == nonempty_shape);
+    EXPECT(std::none_of(m.begin(), m.end(), [](const auto& ins) {
+        return ins.name() == "test_copy" and ins.get_shape().elements() == 0;
+    }));
+}
+
 TEST_CASE(allocate_out_select_module_dynamic_tuple_views)
 {
     using dd  = migraphx::shape::dynamic_dimension;

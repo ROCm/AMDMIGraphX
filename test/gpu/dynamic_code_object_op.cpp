@@ -67,6 +67,82 @@ TEST_CASE(dynamic_code_object_op)
     EXPECT(found);
 }
 
+TEST_CASE(static_zero_outputs_skip_precompile)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto data    = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {0, 5}});
+    auto indices = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {4}});
+    auto gather =
+        mm->add_instruction(migraphx::make_op("gather", {{"axis", int64_t{1}}}), data, indices);
+    auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 2, 2}});
+    auto rois = mm->add_parameter("rois", migraphx::shape{migraphx::shape::float_type, {0, 4}});
+    auto batch_ind =
+        mm->add_parameter("batch_ind", migraphx::shape{migraphx::shape::int64_type, {0}});
+    auto roialign = mm->add_instruction(migraphx::make_op("roialign",
+                                                          {{"output_height", int64_t{1}},
+                                                           {"output_width", int64_t{1}},
+                                                           {"sampling_ratio", int64_t{1}}}),
+                                        x,
+                                        rois,
+                                        batch_ind);
+    mm->add_return({gather, roialign});
+
+    run_lowering(p);
+
+    auto outputs = mm->get_returns();
+    EXPECT(outputs.size() == 2);
+    EXPECT(outputs.at(0)->name() == "allocate");
+    EXPECT(outputs.at(0)->get_shape() == migraphx::shape{migraphx::shape::float_type, {0, 4}});
+    EXPECT(outputs.at(1)->name() == "allocate");
+    EXPECT(outputs.at(1)->get_shape() ==
+           migraphx::shape{migraphx::shape::float_type, {0, 1, 1, 1}});
+}
+
+TEST_CASE(static_zero_outputs_compile)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto data    = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {0, 5}});
+    auto indices = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {4}});
+    auto gather =
+        mm->add_instruction(migraphx::make_op("gather", {{"axis", int64_t{1}}}), data, indices);
+    auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 2, 2}});
+    auto rois = mm->add_parameter("rois", migraphx::shape{migraphx::shape::float_type, {0, 4}});
+    auto batch_ind =
+        mm->add_parameter("batch_ind", migraphx::shape{migraphx::shape::int64_type, {0}});
+    auto roialign = mm->add_instruction(migraphx::make_op("roialign",
+                                                          {{"output_height", int64_t{1}},
+                                                           {"output_width", int64_t{1}},
+                                                           {"sampling_ratio", int64_t{1}}}),
+                                        x,
+                                        rois,
+                                        batch_ind);
+    mm->add_return({gather, roialign});
+
+    auto target = migraphx::make_target("gpu");
+    p.compile(target);
+
+    std::vector<float> x_data         = {1.0f, 2.0f, 3.0f, 4.0f};
+    std::vector<int32_t> indices_data = {1, 2, 3, 4};
+    migraphx::parameter_map params;
+    params["data"] = target.allocate({migraphx::shape::float_type, {0, 5}});
+    params["indices"] =
+        target.copy_to(migraphx::argument{{migraphx::shape::int32_type, {4}}, indices_data.data()});
+    params["x"] = target.copy_to(
+        migraphx::argument{{migraphx::shape::float_type, {1, 1, 2, 2}}, x_data.data()});
+    params["rois"]      = target.allocate({migraphx::shape::float_type, {0, 4}});
+    params["batch_ind"] = target.allocate({migraphx::shape::int64_type, {0}});
+    for(const auto& [name, s] : p.get_parameter_shapes())
+        if(params.count(name) == 0)
+            params[name] = target.allocate(s);
+
+    auto results = p.eval(params);
+    EXPECT(results.size() == 2);
+    EXPECT(results.at(0).get_shape() == migraphx::shape{migraphx::shape::float_type, {0, 4}});
+    EXPECT(results.at(1).get_shape() == migraphx::shape{migraphx::shape::float_type, {0, 1, 1, 1}});
+}
+
 TEST_CASE(dynamic_code_object_zero_output)
 {
     migraphx::program p;

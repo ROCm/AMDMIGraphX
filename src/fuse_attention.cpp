@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/fuse_attention.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
@@ -32,7 +33,13 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/split_factor.hpp>
+#include <migraphx/tensor_view.hpp>
+#include <migraphx/literal.hpp>
+#include <algorithm>
+#include <iterator>
+#include <numeric>
 #include <optional>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -158,6 +165,60 @@ inline auto pointwise_inputs()
     };
 }
 
+std::unordered_map<instruction_ref, instruction_ref>
+invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    std::unordered_map<instruction_ref, instruction_ref> inverse_map;
+    for(auto const& [key, value] : map_ins)
+    {
+        assert(not contains(inverse_map, value));
+        inverse_map[value] = key;
+    }
+    return inverse_map;
+}
+
+std::vector<instruction_ref> find_outputs(const std::vector<instruction_ref>& inss)
+{
+    std::vector<instruction_ref> outputs;
+    std::copy_if(inss.begin(), inss.end(), std::back_inserter(outputs), [&](auto i) {
+        return not std::all_of(
+            i->outputs().begin(), i->outputs().end(), [&](auto o) { return contains(inss, o); });
+    });
+    return outputs;
+}
+
+// {final_op, reduce_max, reduce_sum} outputs indicate the softmax statistics are
+// consumed externally by an lse (log-sum-exp) computation
+bool has_lse_outputs(const std::vector<instruction_ref>& outs, const std::string& final_op)
+{
+    auto count = [&](const std::string& name) {
+        return std::count_if(outs.begin(), outs.end(), [&](auto o) { return o->name() == name; });
+    };
+    return outs.size() == 3 and count(final_op) == 1 and count("reduce_max") == 1 and
+           count("reduce_sum") == 1;
+}
+
+std::vector<instruction_ref> get_lse_instructions(const std::vector<instruction_ref>& group_outs)
+{
+    std::vector<instruction_ref> lse_inss;
+    auto rsum = std::find_if(
+        group_outs.begin(), group_outs.end(), [](auto o) { return o->name() == "reduce_sum"; });
+    if(rsum == group_outs.end())
+        return lse_inss;
+    auto rsum_outs = (*rsum)->outputs();
+    auto log =
+        std::find_if(rsum_outs.begin(), rsum_outs.end(), [](auto o) { return o->name() == "log"; });
+    if(log == rsum_outs.end())
+        return lse_inss;
+    auto log_outs = (*log)->outputs();
+    if(log_outs.size() != 1 or log_outs.front()->name() != "add")
+        return lse_inss;
+    auto add = log_outs.front();
+    lse_inss.insert(lse_inss.end(), {*log, add});
+
+    return lse_inss;
+}
+
 // find attention blocks that have been quantized and undo them
 struct find_quant_attention
 {
@@ -209,6 +270,161 @@ struct find_quant_attention
             dequantize_gemm(m, qgemm1, deq1);
             dequantize_gemm(m, qgemm2, deq2);
         }
+    }
+};
+
+// Rewrite attention sinks (an extra per-head logit column joining the softmax
+// denominator, e.g. GPT-OSS) into a standard softmax so the attention matchers
+// below (and rocMLIR) see a canonical gemm-softmax-gemm:
+//   slice(softmax(concat(scores, sinks))) = softmax(scores) * sigmoid(lse - sinks)
+// where lse = reduce_max(scores) + log(reduce_sum(exp(scores - max))). The
+// sigmoid factor is constant along the reduction axis, so it commutes past the
+// second gemm (and its transpose/reshape output tail) and is applied there as a
+// small pointwise epilogue. The log/add lse chain hangs off the softmax
+// reductions and becomes a second output of the fused attention group.
+struct find_attention_sinks
+{
+    // ext and exp are each matched twice, so erase each level with opaque to
+    // keep the nested matcher type from growing exponentially (gcc/msvc OOM)
+    auto matcher() const
+    {
+        auto scores = match::any().bind("scores");
+        auto sinks  = match::any().bind("sinks");
+        auto ext  = match::opaque(match::name("concat")(match::args(scores, sinks)).bind("concat"));
+        auto rmax = match::opaque(match::name("reduce_max")(match::arg(0)(ext)).bind("rmax"));
+        auto bmax = match::skip_broadcasts(rmax);
+        auto sub  = match::opaque(match::name("sub")(match::arg(0)(ext), match::arg(1)(bmax)));
+        auto exp  = match::opaque(match::name("exp")(match::arg(0)(sub)));
+        auto rsum = match::opaque(match::name("reduce_sum")(match::arg(0)(exp)).bind("rsum"));
+        auto bsum = match::skip_broadcasts(rsum);
+        auto sm   = match::opaque(match::name("div")(match::arg(0)(exp), match::arg(1)(bsum)));
+        return match::name("slice")(match::arg(0)(match::skip(match::name("convert"))(sm)));
+    }
+
+    static std::vector<int64_t> normalized_axes(instruction_ref ins)
+    {
+        return ins->normalized_operator().to_value()["axes"].to_vector<int64_t>();
+    }
+
+    // The concat must append a single column on the softmax axis and the slice
+    // must drop exactly that column again
+    static bool is_sink_pattern(instruction_ref slc,
+                                instruction_ref ext,
+                                instruction_ref scores,
+                                instruction_ref sinks,
+                                instruction_ref rmax,
+                                instruction_ref rsum)
+    {
+        if(slc->get_shape().dynamic() or scores->get_shape().dynamic() or
+           sinks->get_shape().dynamic())
+            return false;
+        const auto& lens = scores->get_shape().lens();
+        auto axis        = static_cast<int64_t>(lens.size()) - 1;
+        if(sinks->get_shape().lens().back() != 1)
+            return false;
+        if(ext->normalized_operator().to_value()["axis"].to<int64_t>() != axis)
+            return false;
+        if(slc->get_shape().lens() != lens)
+            return false;
+        auto slc_val = slc->normalized_operator().to_value();
+        if(slc_val["axes"].to_vector<int64_t>() != std::vector<int64_t>{axis})
+            return false;
+        if(slc_val["starts"].to_vector<int64_t>() != std::vector<int64_t>{0})
+            return false;
+        return normalized_axes(rmax) == std::vector<int64_t>{axis} and
+               normalized_axes(rsum) == std::vector<int64_t>{axis};
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto slc    = r.result;
+        auto ext    = r.instructions["concat"];
+        auto scores = r.instructions["scores"];
+        auto sinks  = r.instructions["sinks"];
+        auto rmax   = r.instructions["rmax"];
+        auto rsum   = r.instructions["rsum"];
+
+        if(not is_sink_pattern(slc, ext, scores, sinks, rmax, rsum))
+            return;
+
+        const auto& lens = scores->get_shape().lens();
+        auto bcast       = [&](instruction_ref ins) {
+            if(ins->get_shape().lens() == lens)
+                return ins;
+            return m.insert_instruction(slc, make_op("multibroadcast", {{"out_lens", lens}}), ins);
+        };
+        auto convert_to = [&](instruction_ref ins, shape::type_t t, instruction_ref pos) {
+            if(ins->get_shape().type() == t)
+                return ins;
+            return m.insert_instruction(pos, make_op("convert", {{"target_type", t}}), ins);
+        };
+
+        // softmax over the scores without the sink column
+        auto new_rmax = m.insert_instruction(slc, rmax->get_operator(), scores);
+        auto new_sub  = m.insert_instruction(slc, make_op("sub"), scores, bcast(new_rmax));
+        auto new_exp  = m.insert_instruction(slc, make_op("exp"), new_sub);
+        auto new_rsum = m.insert_instruction(slc, rsum->get_operator(), new_exp);
+        auto probs    = m.insert_instruction(slc, make_op("div"), new_exp, bcast(new_rsum));
+        probs         = convert_to(probs, slc->get_shape().type(), slc);
+
+        // sigmoid(lse - sinks) scales each softmax row by sum/(sum + exp(sinks - max))
+        auto log_sum  = m.insert_instruction(slc, make_op("log"), new_rsum);
+        auto lse      = m.insert_instruction(slc, make_op("add"), new_rmax, log_sum);
+        auto sink_val = convert_to(sinks, lse->get_shape().type(), slc);
+        auto diff     = m.insert_instruction(slc, make_op("sub"), lse, sink_val);
+        auto sigma    = m.insert_instruction(slc, make_op("sigmoid"), diff);
+
+        // The row-wise correction commutes past the second gemm and its
+        // transpose/reshape output tail; walk there so the multiply stays
+        // outside the attention block matched below.
+        std::vector<instruction_ref> tail;
+        auto pos = slc;
+        while(pos->outputs().size() == 1)
+        {
+            auto next    = pos->outputs().front();
+            bool is_gemm = tail.empty() and next->name() == "dot" and next->inputs().front() == pos;
+            bool is_view = not tail.empty() and contains({"transpose", "reshape"}, next->name());
+            if(not is_gemm and not is_view)
+                break;
+            tail.push_back(next);
+            pos = next;
+        }
+
+        if(tail.empty())
+        {
+            auto factor = bcast(convert_to(sigma, probs->get_shape().type(), slc));
+            auto scaled = m.insert_instruction(slc, make_op("mul"), probs, factor);
+            m.replace_instruction(slc, scaled);
+            return;
+        }
+        m.replace_instruction(slc, probs);
+
+        auto anchor = tail.back();
+        auto factor = convert_to(sigma, anchor->get_shape().type(), anchor);
+        for(auto ins : tail)
+        {
+            // the factor broadcasts unchanged over the gemm output columns
+            if(ins->name() == "transpose")
+            {
+                factor = m.insert_instruction(anchor, ins->get_operator(), factor);
+            }
+            else if(ins->name() == "reshape")
+            {
+                const auto& in_lens = ins->inputs().front()->get_shape().lens();
+                if(factor->get_shape().lens() != in_lens)
+                    factor = m.insert_instruction(
+                        anchor, make_op("multibroadcast", {{"out_lens", in_lens}}), factor);
+                factor = m.insert_instruction(anchor, ins->get_operator(), factor);
+            }
+        }
+        if(factor->get_shape().lens() != anchor->get_shape().lens())
+            factor = m.insert_instruction(
+                anchor,
+                make_op("multibroadcast", {{"out_lens", anchor->get_shape().lens()}}),
+                factor);
+        auto new_anchor = m.insert_instruction(anchor, anchor->get_operator(), anchor->inputs());
+        auto scaled     = m.insert_instruction(anchor, make_op("mul"), new_anchor, factor);
+        m.replace_instruction(anchor, scaled);
     }
 };
 
@@ -283,18 +499,6 @@ struct find_attention
 
     std::string get_count() const { return std::to_string((*counter)++); }
 
-    std::unordered_map<instruction_ref, instruction_ref>
-    invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
-    {
-        std::unordered_map<instruction_ref, instruction_ref> inverse_map;
-        for(auto const& [key, value] : map_ins)
-        {
-            assert(not contains(inverse_map, value));
-            inverse_map[value] = key;
-        }
-        return inverse_map;
-    }
-
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref gemm1, instruction_ref gemm2) const
     {
@@ -325,45 +529,6 @@ struct find_attention
         return sorted_inss;
     }
 
-    static bool has_lse_out(std::vector<instruction_ref>& group_outs)
-    {
-        return (group_outs.size() == 3 and
-                std::all_of(group_outs.begin(), group_outs.end(), [](auto o) {
-                    return contains({"dot", "reduce_max", "reduce_sum"}, o->name());
-                }));
-    }
-
-    std::vector<instruction_ref>
-    get_lse_instructions(std::vector<instruction_ref>& group_outs) const
-    {
-        std::vector<instruction_ref> lse_inss;
-        auto rsum = *std::find_if(
-            group_outs.begin(), group_outs.end(), [](auto o) { return o->name() == "reduce_sum"; });
-        auto rsum_outs = rsum->outputs();
-        auto log       = std::find_if(
-            rsum_outs.begin(), rsum_outs.end(), [](auto o) { return o->name() == "log"; });
-        if(log == rsum_outs.end())
-            return lse_inss;
-        auto log_outs = (*log)->outputs();
-        if(log_outs.size() != 1 or log_outs.front()->name() != "add")
-            return lse_inss;
-        auto add = log_outs.front();
-        lse_inss.insert(lse_inss.end(), {*log, add});
-
-        return lse_inss;
-    }
-
-    std::vector<instruction_ref> find_outputs(std::vector<instruction_ref> inss) const
-    {
-        std::vector<instruction_ref> outputs;
-        std::copy_if(inss.begin(), inss.end(), std::back_inserter(outputs), [&](auto i) {
-            return not std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
-                return contains(inss, o);
-            });
-        });
-        return outputs;
-    }
-
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto gemm2         = r.result;
@@ -390,7 +555,7 @@ struct find_attention
         assert(not required_outputs.empty());
 
         // LSE case requires output from reduce_max and reduce_sum instructions
-        if(has_lse_out(required_outputs))
+        if(has_lse_outputs(required_outputs, "dot"))
         {
             auto lse_inss = get_lse_instructions(required_outputs);
             m_attn.fuse(lse_inss, &map_mm_to_mattn);
@@ -492,11 +657,13 @@ struct find_flash_decoding
 
     struct transformed_shapes_result
     {
-        std::vector<size_t> q_shape;           // final Q shape: [B, G, M, k]
-        std::vector<size_t> k_intermediate;    // K intermediate: [B, k, G, N/G]
-        std::vector<size_t> k_shape;           // final K shape: [B, G, k, N/G]
-        std::vector<int64_t> k_transpose_perm; // permutation for K transpose
-        std::vector<size_t> v_shape;           // final V shape: [B, G, N/G, D]
+        std::vector<size_t> q_shape;  // final Q shape: [B, G, M, k]
+        std::vector<size_t> k_shape;  // final K shape: [B, G, k, N/G]
+        std::vector<size_t> v_shape;  // final V shape: [B, G, N/G, D]
+        std::vector<operation> q_ops; // unsqueeze + multibroadcast
+        std::vector<operation> k_ops; // reshape + transpose
+        std::vector<operation> v_ops; // reshape
+        int64_t g_axis = 0;           // position of G in the split shapes
     };
 
     transformed_shapes_result get_transformed_shapes(const std::vector<shape>& input_shapes,
@@ -514,9 +681,10 @@ struct find_flash_decoding
         size_t n    = k_lens[ndim - 1];
         size_t g    = num_groups;
 
-        // Note: sequence length may have been padded to be divisible by num_groups
-        assert(n % g == 0 and "Key-value sequence length must be divisible by number of "
-                              "splits/groups (after padding)");
+        assert(ndim >= 2 and k_lens.size() == ndim and v_lens.size() == ndim and
+               "Q, K, V must have matching rank of at least 2");
+        assert(n % g == 0 and
+               "Key-value sequence length must be divisible by number of splits/groups");
         size_t n_split = n / g;
 
         transformed_shapes_result result;
@@ -530,132 +698,240 @@ struct find_flash_decoding
         };
 
         // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
+        result.g_axis  = ndim - 2;
         result.q_shape = insert_g(q_lens);
+        result.q_ops   = {make_op("unsqueeze", {{"axes", {result.g_axis}}}),
+                          make_op("multibroadcast", {{"out_lens", result.q_shape}})};
 
-        // K: [B, k, N] -> [B, G, k, N/G] via reshape + transpose
-        // intermediate shape for reshape: [B, k, G, N/G]
-        result.k_intermediate.clear();
-        for(size_t i = 0; i < k_lens.size() - 1; ++i)
-        {
-            result.k_intermediate.push_back(k_lens[i]);
-        }
-        result.k_intermediate.push_back(g);
-        result.k_intermediate.push_back(n_split);
-
-        // transpose permutation to get [B, G, k, N/G]
-        result.k_transpose_perm.clear();
-        for(size_t i = 0; i < k_lens.size() - 2; ++i)
-        {
-            result.k_transpose_perm.push_back(i); // batch dims stay in place
-        }
-        result.k_transpose_perm.push_back(k_lens.size() - 1); // G dimension
-        result.k_transpose_perm.push_back(k_lens.size() - 2); // k dimension
-        result.k_transpose_perm.push_back(k_lens.size());     // N/G dimension
-
-        // final K shape after transpose
-        result.k_shape                            = insert_g(k_lens);
-        result.k_shape[result.k_shape.size() - 1] = n_split;
+        // K: [B, k, N] -> [B, G, k, N/G]. Splitting K's sequence axis is the same transform as
+        // splitting a score-shaped tensor's key axis, so it reuses the same ops.
+        result.k_shape = get_scores_split_lens(k_lens, g);
+        result.k_ops   = scores_split_ops(k_lens, g);
 
         // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
         result.v_shape                            = insert_g(v_lens);
         result.v_shape[result.v_shape.size() - 2] = n_split;
+        result.v_ops = {make_op("reshape", {{"dims", result.v_shape}})};
 
         return result;
     }
+
+    // Lens of a score-shaped tensor after its key axis is split:
+    // [..., M, N] -> [..., G, M, N/G]
+    static std::vector<size_t> get_scores_split_lens(const std::vector<size_t>& lens,
+                                                     std::size_t num_groups)
+    {
+        assert(lens.size() >= 2);
+        assert(num_groups > 0);
+        assert(lens.back() % num_groups == 0);
+
+        const auto ndim    = lens.size();
+        const auto n_split = lens.back() / num_groups;
+        std::vector<size_t> result(lens.begin(), lens.begin() + ndim - 2);
+        result.push_back(num_groups);
+        result.insert(result.end(), lens.begin() + ndim - 2, lens.end() - 1);
+        result.push_back(n_split);
+        return result;
+    }
+
+    // Ops splitting the key axis of a score-aligned tensor: [..., M, N] -> [..., G, M, N/G].
+    // Reshaping straight to the split lens would regroup M with N, so reshape to
+    // [..., M, G, N/G] and transpose G ahead of M instead.
+    static std::vector<operation> scores_split_ops(const std::vector<std::size_t>& lens,
+                                                   std::size_t num_groups)
+    {
+        const auto ndim = lens.size();
+        assert(ndim >= 2 and num_groups > 0 and lens.back() % num_groups == 0);
+
+        std::vector<std::size_t> dims(lens.begin(), lens.end() - 1);
+        dims.push_back(num_groups);
+        dims.push_back(lens.back() / num_groups);
+
+        std::vector<int64_t> perm(ndim + 1);
+        std::iota(perm.begin(), perm.end(), 0);
+        std::swap(perm[ndim - 2], perm[ndim - 1]);
+
+        return {make_op("reshape", {{"dims", dims}}),
+                make_op("transpose", {{"permutation", perm}})};
+    }
+
+    static instruction_ref insert_scores_split(module& mm,
+                                               instruction_ref ins,
+                                               instruction_ref insert_before,
+                                               std::size_t num_groups)
+    {
+        return insert_ops(
+            mm, insert_before, scores_split_ops(ins->get_shape().lens(), num_groups), ins);
+    }
+
+    // Compile-time counterpart of insert_scores_split for literals in the attention submodule,
+    // like causal masks. Splits the literal's own layout (e.g. {1,1,M,N} -> {1,1,G,M,N/G}), so
+    // the consumer's multibroadcast still expands the leading 1s. Broadcast-only constants
+    // (scale, -inf) keep their original shape.
+    static literal transform_score_literal(const literal& lit,
+                                           const std::vector<std::size_t>& scores_lens,
+                                           std::size_t num_groups)
+    {
+        const auto& input_lens = lit.get_shape().lens();
+        if(input_lens.size() < 2 or not can_multibroadcast(input_lens, scores_lens))
+            return lit;
+
+        // N is the last axis; if it is 1 the literal only broadcasts along N, so nothing to split
+        if(input_lens.back() == 1 or input_lens.back() % num_groups != 0)
+            return lit;
+
+        const auto split_lens = get_scores_split_lens(input_lens, num_groups);
+        const auto ndim       = input_lens.size();
+        const auto n_split    = input_lens.back() / num_groups;
+
+        literal result;
+        lit.visit([&](auto in_view) {
+            const auto& in_shape = in_view.get_shape();
+
+            // Split element [..., g, m, j] reads [..., m, g * n_split + j], so the split layout
+            // is a strided view of the same buffer: g steps a chunk of N, m keeps its stride.
+            const auto& strides = in_shape.strides();
+            std::vector<std::size_t> split_strides(strides.begin(), strides.end() - 2);
+            split_strides.insert(split_strides.end(),
+                                 {n_split * strides.back(), strides[ndim - 2], strides.back()});
+
+            const shape split_view{in_shape.type(), split_lens, split_strides};
+            assert(split_view.element_space() <= in_shape.element_space() and
+                   "split view must stay inside the literal's buffer");
+            auto src = make_view(split_view, in_view.data());
+            result   = literal{shape{in_shape.type(), split_lens}, src.begin(), src.end()};
+        });
+        return result;
+    }
+
+    // Apply ops in order, each to the result of the previous one.
+    static instruction_ref insert_ops(module& mm,
+                                      instruction_ref insert_before,
+                                      const std::vector<operation>& ops,
+                                      instruction_ref input)
+    {
+        return std::accumulate(
+            ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op) {
+                return mm.insert_instruction(insert_before, op, x);
+            });
+    }
+
+    struct flash_input_transform
+    {
+        instruction_ref main{};
+        instruction_ref split_main{};
+        shape submodule_param_shape{};
+    };
 
     std::unordered_map<instruction_ref, instruction_ref>
     map_submod_params_to_inputs(module_ref submod,
                                 const std::vector<instruction_ref>& group_inputs) const
     {
         auto map_param_to_main = submod->get_ins_param_map(group_inputs, true);
-        // verify the mapping is correct
-        auto expected_inputs = submod->get_inputs(map_param_to_main);
-        assert(expected_inputs == group_inputs and "Mapped inputs don't match group inputs");
+        assert(submod->get_inputs(map_param_to_main) == group_inputs and
+               "Mapped inputs don't match group inputs");
         return map_param_to_main;
     }
 
-    void rebuild_attention_submodule(
+    bool rebuild_attention_submodule(
         module& target_mod,
         const module& source_mod,
-        const std::unordered_map<instruction_ref, instruction_ref>& param_map) const
+        const std::unordered_map<instruction_ref, instruction_ref>& param_map,
+        const std::vector<std::size_t>& scores_lens,
+        std::size_t num_groups) const
     {
+        const auto split_lens = get_scores_split_lens(scores_lens, num_groups);
+
+        // The rewrites below run from an inserter, which is not given the source instruction,
+        // so anything that must inspect it is checked here, before target_mod is touched.
+        auto unsupported = [&](const instruction& ins) {
+            const auto name = ins.name();
+            // "broadcast" pins an explicit axis, which shifts once G is inserted
+            if(name == "broadcast")
+                return ins.get_shape().lens() == scores_lens;
+            // reductions are rewritten onto the innermost axis of the split rank
+            if(name == "reduce_max" or name == "reduce_sum")
+            {
+                const int64_t last_axis = ins.inputs().front()->get_shape().ndim() - 1;
+                auto axes = ins.get_operator().to_value()["axes"].to_vector<int64_t>();
+                return axes.size() != 1 or (axes.front() != -1 and axes.front() != last_axis);
+            }
+            return false;
+        };
+        if(std::any_of(source_mod.begin(), source_mod.end(), unsupported))
+            return false;
+
         // map from instructions in the old module to the new ones in the target module
         std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
-        std::unordered_map<std::string, instruction_ref> softmax_parts;
 
-        for(auto it = source_mod.begin(); it != source_mod.end(); ++it)
+        // add_instructions copies literals verbatim and offers no hook for rewriting one, so
+        // we split them up front and map them. This then skips literals in the rebuild below.
+        for(auto ins : iterator_for(source_mod))
         {
-            auto ins = it;
-            if(ins->name() == "@param" or ins->name() == "@return")
+            if(ins->name() != "@literal")
                 continue;
-
-            // gather inputs for the new instruction
-            std::vector<instruction_ref> new_inputs;
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           std::back_inserter(new_inputs),
-                           [&](auto i) {
-                               assert(contains(map_old_to_new, i) and "Input not found in map");
-                               return map_old_to_new.at(i);
-                           });
-
-            auto op = ins->get_operator();
-
-            // transform operators that depend on tensor shape/rank
-            // adjust reduction axes for the new rank
-            if(op.name() == "reduce_max" or op.name() == "reduce_sum")
-            {
-                auto original_axes = op.to_value()["axes"].to_vector<int64_t>();
-                assert(original_axes.size() == 1 and "Expected single axis for reduction");
-
-                const auto& new_input_shape = new_inputs.front()->get_shape();
-                assert(original_axes.front() ==
-                           static_cast<int64_t>(ins->inputs().front()->get_shape().lens().size() -
-                                                1) or
-                       original_axes.front() == -1);
-                op.from_value(
-                    {{"axes", {static_cast<int64_t>(new_input_shape.lens().size() - 1)}}});
-            }
-            // TODO make less reliant on ops around it
-            else if(op.name() == "multibroadcast")
-            {
-                // broadcast target shape is the shape of the
-                // other input to the 'sub' or 'div' instruction.
-                auto parent = ins->outputs().front();
-                assert(parent->name() == "sub" or parent->name() == "div");
-
-                // Find the sibling input that isn't the reduction result
-                auto sibling = std::find_if(parent->inputs().begin(),
-                                            parent->inputs().end(),
-                                            [&](auto i) { return i != ins; });
-                assert(sibling != parent->inputs().end() and
-                       "Could not find sibling for broadcast target");
-
-                const auto& target_shape = map_old_to_new.at(*sibling)->get_shape();
-                op.from_value({{"out_lens", target_shape.lens()}});
-            }
-
-            auto new_ins        = target_mod.add_instruction(op, new_inputs);
-            map_old_to_new[ins] = new_ins;
-
-            // store key softmax components for LSE calculation
-            if(op.name() == "reduce_max")
-                softmax_parts["max"] = new_ins;
-            if(op.name() == "reduce_sum")
-                softmax_parts["sum_exp"] = new_ins;
+            map_old_to_new[ins] = target_mod.add_literal(
+                transform_score_literal(ins->get_literal(), scores_lens, num_groups));
         }
 
-        // get the final partial output (O')
-        auto orig_return_ins        = std::prev(source_mod.end())->inputs().front();
-        auto partial_output_o_prime = map_old_to_new.at(orig_return_ins);
+        // Rebuild the rest, transforming operators that depend on tensor shape/rank. The inserter
+        // is never called for @param, @outline, or @return; add_instructions handles those.
+        std::optional<instruction_ref> max_ins;
+        std::optional<instruction_ref> sum_exp_ins;
+        auto outputs = target_mod.add_instructions(
+            &source_mod,
+            &map_old_to_new,
+            [&](module& m,
+                instruction_ref pos,
+                const operation& op,
+                const std::vector<instruction_ref>& inputs,
+                const std::vector<module_ref>& mod_args) {
+                const auto name = op.name();
+                auto new_op     = op;
+                if(name == "reduce_max" or name == "reduce_sum")
+                {
+                    new_op.from_value({{"axes", {inputs.front()->get_shape().ndim() - 1}}});
+                }
+                else if(name == "multibroadcast")
+                {
+                    auto value = op.to_value();
+                    if(value["out_lens"].to_vector<std::size_t>() == scores_lens)
+                    {
+                        const auto& input_lens = inputs.front()->get_shape().lens();
+                        // If the input cannot broadcast to the split shape directly, broadcast to
+                        // the original score shape first and then split that
+                        if(not can_multibroadcast(input_lens, split_lens) and
+                           can_multibroadcast(input_lens, scores_lens))
+                            return insert_scores_split(
+                                m, m.insert_instruction(pos, op, inputs), pos, num_groups);
+
+                        value["out_lens"] = split_lens;
+                        new_op.from_value(value);
+                    }
+                }
+
+                auto new_ins = m.insert_instruction(pos, new_op, inputs, mod_args);
+
+                // store key softmax components for LSE calculation
+                if(name == "reduce_max")
+                    max_ins = new_ins;
+                if(name == "reduce_sum")
+                    sum_exp_ins = new_ins;
+                return new_ins;
+            });
+
+        assert(outputs.size() == 1 and "Attention submodule must have a single output");
+        auto partial_output_o_prime = outputs.front();
 
         // calculate LSE = max(S) + log(sum(exp(S - max(S))))
-        assert(contains(softmax_parts, "max") and contains(softmax_parts, "sum_exp"));
-        auto log_sum_exp = target_mod.add_instruction(make_op("log"), softmax_parts["sum_exp"]);
-        auto lse = target_mod.add_instruction(make_op("add"), softmax_parts["max"], log_sum_exp);
+        assert(max_ins.has_value() and sum_exp_ins.has_value() and
+               "Softmax max and sum must be rebuilt");
+        auto log_sum_exp = target_mod.add_instruction(make_op("log"), *sum_exp_ins);
+        auto lse         = target_mod.add_instruction(make_op("add"), *max_ins, log_sum_exp);
 
         // return a tuple of {O', LSE}
         target_mod.add_return({partial_output_o_prime, lse});
+        return true;
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -674,7 +950,6 @@ struct find_flash_decoding
         // get gemm1 and gemm2
         auto [gemm1, gemm2] = get_gemms(submod);
 
-        // TODO: for this first pass of flash decoding, assuming no input fusion / not supporting
         auto q_param = gemm1->inputs()[0];
         auto k_param = gemm1->inputs()[1];
         auto v_param = gemm2->inputs()[1];
@@ -700,124 +975,102 @@ struct find_flash_decoding
         if(actual_groups == 0)
             return;
 
-        // calculate padding if sequence length not evenly divisible
-        std::size_t padding_needed = 0;
+        // TODO: support uneven splits by padding K, V, and score-shaped inputs up to a
+        // multiple of the split count
         if(sequence_length % actual_groups != 0)
-        {
-            // round up to nearest multiple of actual_groups
-            padding_needed = ceil_mul_of(sequence_length, actual_groups) - sequence_length;
-        }
+            return;
 
         // create mapping from submodule params to main module inputs
         auto group_inputs      = attn_group_ins->inputs();
         auto map_param_to_main = map_submod_params_to_inputs(submod, group_inputs);
 
-        // get actual Q, K, V instructions from main module
-        auto q = map_param_to_main.at(q_param);
-        auto k = map_param_to_main.at(k_param);
-        auto v = map_param_to_main.at(v_param);
+        // gemm1 output lens (Q@K attention scores): the lens whose key axis is split by G
+        const auto& scores_lens = gemm1->get_shape().lens();
+        std::unordered_map<instruction_ref, flash_input_transform> param_transforms;
+        const auto submod_params = submod->get_parameters();
 
-        // save original references before padding (needed for group_inputs replacement later)
-        auto q_orig = q;
-        auto k_orig = k;
-        auto v_orig = v;
-
-        // pad Q, K and V if necessary
-        if(padding_needed > 0)
+        for(auto param : submod_params)
         {
-            // Q shape: [B, M, k] or [B, H, M, k] for 4D. Padding on M (sequence length dim)
-            auto q_ndim = q->get_shape().ndim();
-            std::vector<std::size_t> q_pads(2 * q_ndim, 0);
-            q_pads[q_ndim + q_ndim - 2] = padding_needed; // pad right on M dim (second to last)
-            q = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", q_pads}}), q);
-
-            // K shape: [B, k, N] or [B, H, k, N] for 4D. Padding on N
-            auto k_ndim = k->get_shape().ndim();
-            std::vector<std::size_t> k_pads(2 * k_ndim, 0);
-            k_pads[k_ndim + k_ndim - 1] = padding_needed; // pad right on last dim
-            k = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", k_pads}}), k);
-
-            // V shape: [B, N, D] or [B, H, N, D] for 4D
-            auto v_ndim = v->get_shape().ndim();
-            std::vector<std::size_t> v_pads(2 * v_ndim, 0);
-            v_pads[v_ndim + v_ndim - 2] = padding_needed; // pad right on N dim
-            v = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", v_pads}}), v);
+            const auto main_ins     = map_param_to_main.at(param);
+            param_transforms[param] = flash_input_transform{main_ins, {}, {}};
         }
 
-        // get Q, K, V shapes (using potentially padded K and V)
-        auto qkv_shapes = get_qkv_shapes(q, k, v);
+        const auto q_main    = map_param_to_main.at(q_param);
+        const auto k_main    = map_param_to_main.at(k_param);
+        const auto v_main    = map_param_to_main.at(v_param);
+        auto qkv_shapes      = get_qkv_shapes(q_main, k_main, v_main);
+        auto transform_info  = get_transformed_shapes(qkv_shapes, actual_groups);
+        const int64_t g_axis = transform_info.g_axis;
 
-        // check shapes are ok and get flash decoding transformed shapes (Q', V', K')
-        auto transform_info = get_transformed_shapes(qkv_shapes, actual_groups);
-
-        // insert reshape operations before group, for Q, K, V
-        auto q_ndim    = q->get_shape().lens().size();
-        int64_t g_axis = q_ndim - 2;
-
-        // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
-        auto q_unsqueeze =
-            mm.insert_instruction(attn_group_ins, make_op("unsqueeze", {{"axes", {g_axis}}}), q);
-        auto q_reshaped =
-            mm.insert_instruction(attn_group_ins,
-                                  make_op("multibroadcast", {{"out_lens", transform_info.q_shape}}),
-                                  q_unsqueeze);
-
-        // K: [B, k, N] -> [B, G, k, N/G] via reshape + transpose
-        auto k_reshaped_intermediate = mm.insert_instruction(
-            attn_group_ins, make_op("reshape", {{"dims", transform_info.k_intermediate}}), k);
-        auto k_reshaped = mm.insert_instruction(
-            attn_group_ins,
-            make_op("transpose", {{"permutation", transform_info.k_transpose_perm}}),
-            k_reshaped_intermediate);
-
-        // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
-        auto v_reshaped = mm.insert_instruction(
-            attn_group_ins, make_op("reshape", {{"dims", transform_info.v_shape}}), v);
-
-        // create new input list by replacing Q, K, V with reshaped versions
-        // use original references (before padding) for comparison
-        std::vector<instruction_ref> new_group_inputs = group_inputs;
-        for(size_t i = 0; i < group_inputs.size(); ++i)
+        // Split each submodule @param that needs it. Iterate submod_params rather than the
+        // unordered param_transforms map so insertion order is deterministic.
+        for(auto param : submod_params)
         {
-            if(group_inputs[i] == q_orig)
+            auto& transform = param_transforms.at(param);
+            if(param == q_param)
             {
-                new_group_inputs[i] = q_reshaped;
+                transform.split_main =
+                    insert_ops(mm, attn_group_ins, transform_info.q_ops, transform.main);
+                transform.submodule_param_shape =
+                    shape{qkv_shapes[0].type(), transform_info.q_shape};
             }
-            else if(group_inputs[i] == k_orig)
+            else if(param == k_param)
             {
-                new_group_inputs[i] = k_reshaped;
+                transform.split_main =
+                    insert_ops(mm, attn_group_ins, transform_info.k_ops, transform.main);
+                transform.submodule_param_shape =
+                    shape{qkv_shapes[1].type(), transform_info.k_shape};
             }
-            else if(group_inputs[i] == v_orig)
+            else if(param == v_param)
             {
-                new_group_inputs[i] = v_reshaped;
+                transform.split_main =
+                    insert_ops(mm, attn_group_ins, transform_info.v_ops, transform.main);
+                transform.submodule_param_shape =
+                    shape{qkv_shapes[2].type(), transform_info.v_shape};
             }
+            // extra @param with the same lens() as gemm1 (Q@K attention scores), e.g. a mask
+            else if(param->get_shape().lens() == scores_lens)
+            {
+                transform.split_main =
+                    insert_scores_split(mm, transform.main, attn_group_ins, actual_groups);
+                transform.submodule_param_shape = shape{
+                    param->get_shape().type(), get_scores_split_lens(scores_lens, actual_groups)};
+            }
+            else
+            {
+                transform.split_main            = transform.main;
+                transform.submodule_param_shape = param->get_shape();
+            }
+        }
+
+        // Create new input list by replacing group inputs with split versions.
+        std::unordered_map<instruction_ref, instruction_ref> main_to_split;
+        for(const auto& entry : param_transforms)
+            main_to_split[entry.second.main] = entry.second.split_main;
+
+        std::vector<instruction_ref> new_group_inputs = group_inputs;
+        for(auto& input : new_group_inputs)
+        {
+            if(contains(main_to_split, input))
+                input = main_to_split.at(input);
         }
 
         // create new submodule for flash decoding
         module m_flash_decode;
         m_flash_decode.set_bypass();
 
-        // get parameter names
-        auto q_name = q_param->get_operator().to_value()["parameter"].to<std::string>();
-        auto k_name = k_param->get_operator().to_value()["parameter"].to<std::string>();
-        auto v_name = v_param->get_operator().to_value()["parameter"].to<std::string>();
-
-        // new params added first
-        auto new_q_param = m_flash_decode.add_parameter(
-            q_name, shape{qkv_shapes[0].type(), transform_info.q_shape});
-        auto new_k_param = m_flash_decode.add_parameter(
-            k_name, shape{qkv_shapes[1].type(), transform_info.k_shape});
-        auto new_v_param = m_flash_decode.add_parameter(
-            v_name, shape{qkv_shapes[2].type(), transform_info.v_shape});
-
-        // build mapping for old params -> new params
         std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new;
-        map_old_params_to_new[q_param] = new_q_param;
-        map_old_params_to_new[k_param] = new_k_param;
-        map_old_params_to_new[v_param] = new_v_param;
+        for(auto param : submod_params)
+        {
+            const auto& name = any_cast<builtin::param>(param->get_operator()).parameter;
+            map_old_params_to_new[param] = m_flash_decode.add_parameter(
+                name, param_transforms.at(param).submodule_param_shape);
+        }
 
         // don't simply fuse previous attn submod, need to rebuild all the ops
-        rebuild_attention_submodule(m_flash_decode, *submod, map_old_params_to_new);
+        if(not rebuild_attention_submodule(
+               m_flash_decode, *submod, map_old_params_to_new, scores_lens, actual_groups))
+            return;
 
         auto original_submod_name = attn_group_ins->module_inputs().front()->name();
         std::string new_mod_name  = original_submod_name + "_flash_decoding";
@@ -885,26 +1138,7 @@ struct find_flash_decoding
         auto final_squeezed_o = mm.insert_instruction(
             attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_o);
 
-        // if padding was applied, slice to remove it
-        instruction_ref final_result = final_squeezed_o;
-        if(padding_needed > 0)
-        {
-            // need to slice the sequence dimension to remove padding
-            // final_squeezed_o has shape like [B, M_padded, D], need to slice M back to original
-            auto output_shape            = final_squeezed_o->get_shape();
-            const auto& output_lens      = output_shape.lens();
-            std::size_t seq_dim_idx      = output_lens.size() - 2; // sequence dim is second to last
-            std::size_t original_seq_len = output_lens[seq_dim_idx] - padding_needed;
-
-            final_result = mm.insert_instruction(
-                attn_group_ins,
-                make_op("slice",
-                        {{"axes", {seq_dim_idx}}, {"starts", {0}}, {"ends", {original_seq_len}}}),
-                final_squeezed_o);
-        }
-
-        // replace the original group instruction with the final result
-        mm.replace_instruction(attn_group_ins, final_result);
+        mm.replace_instruction(attn_group_ins, final_squeezed_o);
     }
 };
 
@@ -951,25 +1185,22 @@ struct find_kv_cache_attention
             match::opaque(match::skip(match::name("convert"))(match::softmax_input(mask_cvt)));
         auto values = match::opaque(
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v"));
-        auto gemm2 = match::opaque(
-            match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values)));
-        auto transpose_out = match::opaque(match::name("transpose")(match::arg(0)(gemm2)));
-        return match::name("reshape")(match::arg(0)(transpose_out));
+        return match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
+    }
+
+    /// The view ops laying out the attention output after the second gemm,
+    /// in whatever form the reshape simplifications left them
+    static instruction_ref find_output_end(instruction_ref gemm2)
+    {
+        static const std::unordered_set<std::string> view_ops = {
+            "transpose", "reshape", "unsqueeze", "squeeze"};
+        auto end = gemm2;
+        while(end->outputs().size() == 1 and contains(view_ops, end->outputs().front()->name()))
+            end = end->outputs().front();
+        return end;
     }
 
     std::string get_count() const { return std::to_string((*counter)++); }
-
-    std::unordered_map<instruction_ref, instruction_ref>
-    invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
-    {
-        std::unordered_map<instruction_ref, instruction_ref> inverse_map;
-        for(auto const& [key, value] : map_ins)
-        {
-            assert(not contains(inverse_map, value));
-            inverse_map[value] = key;
-        }
-        return inverse_map;
-    }
 
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
@@ -1036,10 +1267,10 @@ struct find_kv_cache_attention
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto total_sl = r.instructions["total_sl"];
-        auto reshape  = r.result;
+        auto end      = find_output_end(r.result);
 
         // Capture all instructions part of the attention op
-        auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
+        auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, end);
 
         // Add captured instructions to new submodule
         module m_attn;
@@ -1067,15 +1298,29 @@ struct find_kv_cache_attention
         dead_code_elimination{}.apply(m_attn);
 
         // Define outputs based on instructions that are used elsewhere in the graph
-        std::vector<instruction_ref> required_outputs;
-        std::copy_if(
-            attn_inss.begin(), attn_inss.end(), std::back_inserter(required_outputs), [&](auto i) {
-                return not std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
-                    return contains(attn_inss, o);
-                });
-            });
+        auto required_outputs = find_outputs(attn_inss);
 
         assert(not required_outputs.empty());
+
+        // Attention sinks leave a log/add lse chain hanging off the softmax
+        // reductions (see find_attention_sinks); fuse it in and return
+        // {output, lse} as a tuple.
+        bool has_lse = false;
+        if(has_lse_outputs(required_outputs, "reshape"))
+        {
+            auto lse_inss = get_lse_instructions(required_outputs);
+            if(not lse_inss.empty())
+            {
+                m_attn.fuse(lse_inss, &map_mm_to_mattn);
+                attn_inss.insert(attn_inss.end(), lse_inss.begin(), lse_inss.end());
+                required_outputs = find_outputs(attn_inss);
+                if(required_outputs.size() != 2)
+                    return;
+                has_lse = true;
+            }
+        }
+        if(not has_lse)
+            required_outputs = {required_outputs.back()};
 
         // Find corresponding output instructions in m_attn
         std::vector<instruction_ref> m_attn_outputs;
@@ -1083,7 +1328,7 @@ struct find_kv_cache_attention
                        required_outputs.end(),
                        std::back_inserter(m_attn_outputs),
                        [&](auto i) { return map_mm_to_mattn.at(i); });
-        m_attn.add_return({m_attn_outputs.back()});
+        m_attn.add_return(m_attn_outputs);
 
         // Define inputs to m_attn
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
@@ -1092,14 +1337,29 @@ struct find_kv_cache_attention
         module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
-        // Construct group op with the attention module
-        auto group_ins =
-            mpm.get_module().insert_instruction(required_outputs.back(),
-                                                make_op("group", {{"tag", "kv_cache_attention"}}),
-                                                new_inputs,
-                                                {mpm_attn});
+        // Construct group op with the attention module, inserted before the
+        // earliest output; any inputs positioned later are fixed up by the
+        // module sort in fuse_attention::apply.
+        auto& mm       = mpm.get_module();
+        auto insert_pt = *std::min_element(
+            required_outputs.begin(), required_outputs.end(), [&](auto x, auto y) {
+                return std::distance(mm.begin(), x) < std::distance(mm.begin(), y);
+            });
+        auto group_ins = mm.insert_instruction(
+            insert_pt, make_op("group", {{"tag", "kv_cache_attention"}}), new_inputs, {mpm_attn});
 
-        mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
+        if(m_attn_outputs.size() == 1)
+        {
+            mm.replace_instruction(required_outputs.front(), group_ins);
+        }
+        else
+        {
+            for(std::size_t i = 0; i < required_outputs.size(); ++i)
+            {
+                mm.replace_instruction(
+                    required_outputs[i], make_op("get_tuple_elem", {{"index", i}}), group_ins);
+            }
+        }
     }
 };
 
@@ -1108,6 +1368,11 @@ struct find_kv_cache_attention
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
+
+    // Canonicalize attention sinks into a standard softmax with an lse-based
+    // output correction so the matchers below can fuse the attention block
+    match::find_matches(mpm.get_module(), find_attention_sinks{});
+    mpm.run_pass(dead_code_elimination{});
 
     // Fuse kv-cache attention by default
     match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});

@@ -63,8 +63,8 @@ struct tile
                 constexpr auto s    = pad_shape(make_packed_shape(get_shape_c<T>{}));
                 constexpr auto size = s.element_space();
                 __shared__ uninitialized_buffer<type, size> buffer;
-                auto b = make_tensor_view(buffer.data(), s);
-                local_tensor_copy(idx, x, b);
+                auto b = make_tensor_view<lds_memory_tag>(buffer.data(), s);
+                local_tensor_copy(idx, x, b, streaming_load{});
                 f(b);
             };
         }
@@ -79,7 +79,7 @@ struct tile
                 constexpr auto s    = pad_shape(make_packed_shape(get_shape_c<T>{}));
                 constexpr auto size = s.element_space();
                 __shared__ uninitialized_buffer<type, size> buffer;
-                auto b = make_tensor_view(buffer.data(), s);
+                auto b = make_tensor_view<lds_memory_tag>(buffer.data(), s);
                 f(b);
                 local_tensor_copy(idx, b, x);
             };

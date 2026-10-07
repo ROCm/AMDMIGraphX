@@ -196,6 +196,44 @@ TEST_CASE(dynamic_code_object_zero_output)
     EXPECT(empty_result.get_shape().elements() == 0);
 }
 
+TEST_CASE(dynamic_scatter_zero_updates)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto data = mm->add_parameter(
+        "data",
+        {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{1, 4}}});
+    auto indices = mm->add_parameter(
+        "indices",
+        {migraphx::shape::int64_type, std::vector<migraphx::shape::dynamic_dimension>{{0, 4}}});
+    auto updates = mm->add_parameter(
+        "updates",
+        {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{0, 4}}});
+    auto scatter = mm->add_instruction(
+        migraphx::make_op("scatter_none", {{"axis", int64_t{0}}}), data, indices, updates);
+    mm->add_return({scatter});
+
+    auto target = migraphx::make_target("gpu");
+    p.compile(target);
+
+    std::vector<float> data_values = {1.0f, 2.0f, 3.0f, 4.0f};
+    migraphx::parameter_map params;
+    params["data"] =
+        target.copy_to(migraphx::argument{{migraphx::shape::float_type, {4}}, data_values.data()});
+    params["indices"] = target.allocate({migraphx::shape::int64_type, {0}});
+    params["updates"] = target.allocate({migraphx::shape::float_type, {0}});
+    for(const auto& [name, s] : p.get_parameter_shapes())
+    {
+        if(params.count(name) > 0)
+            continue;
+        auto allocation_shape = s.dynamic() ? migraphx::shape{s.type(), s.max_lens()} : s;
+        params[name]          = target.allocate(allocation_shape);
+    }
+
+    auto result = target.copy_from(p.eval(params).back());
+    EXPECT(result.to_vector<float>() == data_values);
+}
+
 int main(int argc, const char* argv[])
 {
 #ifdef _WIN32

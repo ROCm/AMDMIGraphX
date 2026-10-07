@@ -207,38 +207,25 @@ void remove_redundant_masks(
     {
         auto& info       = plan.info;
         const auto& args = info.ins->inputs();
-        std::vector<sym::expr> zeroed_contractions;
-        // Find contraction extents whose producer already outputs zero in the padded region.
         for(auto&& [arg, operand] : views::zip(args, info.operands))
         {
             auto source = info_for_instruction.find(arg);
             if(source == info_for_instruction.end())
                 continue;
-            for(const auto& mask : operand.masks)
-                if(any_of(source->second->info.operands, [&](const auto& source_operand) {
-                       return any_of(source_operand.masks, [&](const auto& source_mask) {
-                           return zeros_contracted_region(source_mask, mask);
-                       });
-                   }))
-                    zeroed_contractions.push_back(mask.extent);
-        }
-        if(zeroed_contractions.empty())
-            continue;
-        // One zero factor makes matching masks on every contraction operand redundant.
-        for(auto& operand : info.operands)
-        {
             auto& masks = operand.masks;
-            masks.erase(
-                std::remove_if(masks.begin(),
-                               masks.end(),
-                               [&](const auto& mask) {
-                                   return mask.role == mask_role::contracted and
-                                          mask.fill == fill_kind::zero and
-                                          any_of(zeroed_contractions, [&](const auto& extent) {
-                                              return sym::same_symbol(mask.extent, extent);
-                                          });
-                               }),
-                masks.end());
+            masks.erase(std::remove_if(
+                            masks.begin(),
+                            masks.end(),
+                            [&](const auto& mask) {
+                                return any_of(
+                                    source->second->info.operands, [&](const auto& source_operand) {
+                                        return any_of(
+                                            source_operand.masks, [&](const auto& source_mask) {
+                                                return zeros_contracted_region(source_mask, mask);
+                                            });
+                                    });
+                            }),
+                        masks.end());
         }
     }
 }
@@ -427,7 +414,10 @@ bool can_specialize(const symbolic_op_info& info)
            info.ins->module_inputs().empty() and needs_specialization;
 }
 
-bool absorbable_dependency(instruction_ref ins, const std::unordered_set<instruction_ref>& planned)
+bool absorbable_dependency(
+    instruction_ref ins,
+    const std::unordered_set<instruction_ref>& planned,
+    const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction)
 {
     if(contains(planned, ins))
         return true;
@@ -439,8 +429,22 @@ bool absorbable_dependency(instruction_ref ins, const std::unordered_set<instruc
         return true;
     if(not s.symbolic())
         return false;
-    return all_of(s.dyn_strides(),
-                  [](const auto& stride) { return sym::fixed_value(stride).has_value(); });
+    if(not all_of(s.dyn_strides(),
+                  [](const auto& stride) { return sym::fixed_value(stride).has_value(); }))
+        return false;
+    auto found = info_for_instruction.find(ins);
+    if(found == info_for_instruction.end())
+        return false;
+    const auto& info = found->second->info;
+    if(not info.supported or not info.freezer)
+        return false;
+    const auto& inputs = ins->inputs();
+    assert(inputs.size() == info.operands.size());
+    for(std::size_t index = 0; index < inputs.size(); ++index)
+        if(info.operands.at(index).pad_value.has_value() and
+           absorbable_dependency(inputs.at(index), planned, info_for_instruction))
+            return false;
+    return true;
 }
 
 bool boundary_reaches_block(instruction_ref dependency,
@@ -457,24 +461,29 @@ bool boundary_reaches_block(instruction_ref dependency,
     return false;
 }
 
-bool dependencies_are_closed(instruction_ref current,
-                             const std::unordered_set<instruction_ref>& included,
-                             std::unordered_set<instruction_ref>& visited,
-                             std::unordered_set<instruction_ref>& boundary_visited)
+bool dependencies_are_closed(
+    instruction_ref current,
+    const std::unordered_set<instruction_ref>& included,
+    const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction,
+    std::unordered_set<instruction_ref>& visited,
+    std::unordered_set<instruction_ref>& boundary_visited)
 {
     if(not visited.insert(current).second)
         return true;
     if(contains(included, current))
         return true;
-    if(not absorbable_dependency(current, included))
+    if(not absorbable_dependency(current, included, info_for_instruction))
         return not boundary_reaches_block(current, included, boundary_visited);
     for(auto input : current->inputs())
-        if(not dependencies_are_closed(input, included, visited, boundary_visited))
+        if(not dependencies_are_closed(
+               input, included, info_for_instruction, visited, boundary_visited))
             return false;
     return true;
 }
 
-bool block_is_closed(const block_plan& block)
+bool block_is_closed(
+    const block_plan& block,
+    const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction)
 {
     std::unordered_set<instruction_ref> included;
     for(const auto* op : block.ops)
@@ -500,7 +509,8 @@ bool block_is_closed(const block_plan& block)
                     return false;
                 continue;
             }
-            if(not dependencies_are_closed(source, included, visited, boundary_visited))
+            if(not dependencies_are_closed(
+                   source, included, info_for_instruction, visited, boundary_visited))
                 return false;
         }
     }
@@ -523,7 +533,11 @@ merge_block_roots(const block_plan& target, const block_plan& source, std::size_
     return result;
 }
 
-bool merge_block_into(block_plan& target, const block_plan& source, std::size_t max_clones)
+bool merge_block_into(
+    block_plan& target,
+    const block_plan& source,
+    const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction,
+    std::size_t max_clones)
 {
     auto merged_roots = merge_block_roots(target, source, max_clones);
     if(not merged_roots.has_value())
@@ -531,7 +545,7 @@ bool merge_block_into(block_plan& target, const block_plan& source, std::size_t 
     block_plan result;
     result.ops = target.ops;
     result.ops.insert(result.ops.end(), source.ops.begin(), source.ops.end());
-    if(not block_is_closed(result))
+    if(not block_is_closed(result, info_for_instruction))
         return false;
     result.roots = std::move(*merged_roots);
     target       = std::move(result);
@@ -542,14 +556,18 @@ bool merge_block_into(block_plan& target, const block_plan& source, std::size_t 
 // operations share one select_module. A merge is accepted only when the combined region is closed
 // over its dynamic dependencies and the cartesian product of root buckets stays within max_clones.
 // Block index preserves topological order and empty ops marks a merged block.
-std::optional<std::size_t>
-merge_blocks(std::vector<block_plan>& blocks, std::size_t x, std::size_t y, std::size_t max_clones)
+std::optional<std::size_t> merge_blocks(
+    std::vector<block_plan>& blocks,
+    std::size_t x,
+    std::size_t y,
+    const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction,
+    std::size_t max_clones)
 {
     const auto target = std::min(x, y);
     const auto source = std::max(x, y);
     if(target == source or blocks.at(source).ops.empty())
         return std::nullopt;
-    if(not merge_block_into(blocks.at(target), blocks.at(source), max_clones))
+    if(not merge_block_into(blocks.at(target), blocks.at(source), info_for_instruction, max_clones))
         return std::nullopt;
     for(auto* op : blocks.at(source).ops)
         op->block = target;
@@ -628,8 +646,8 @@ void coalesce_connected_blocks(
         const auto& producer        = consumer->inputs().at(input);
         const auto* consumer_info   = info_for_instruction.at(consumer);
         const auto* producer_info   = info_for_instruction.at(producer);
-        auto merged =
-            merge_blocks(blocks, *consumer_info->block, *producer_info->block, max_clones);
+        auto merged                 = merge_blocks(
+            blocks, *consumer_info->block, *producer_info->block, info_for_instruction, max_clones);
         if(merged.has_value())
         {
             auto affected = find_block_connections(blocks.at(*merged), info_for_instruction);
@@ -656,7 +674,7 @@ void coalesce_independent_blocks(
             continue;
         for(auto source : range(target + 1, blocks.size()))
         {
-            auto merged = merge_blocks(blocks, target, source, max_clones);
+            auto merged = merge_blocks(blocks, target, source, info_for_instruction, max_clones);
             if(merged.has_value())
             {
                 auto connections = find_block_connections(blocks.at(*merged), info_for_instruction);
@@ -1123,7 +1141,7 @@ void collect_block_body(
         return;
     auto inputs = clone_inputs_for(info_for_instruction, ins);
     for(const auto& input : inputs)
-        if(absorbable_dependency(input.source, planned_instructions))
+        if(absorbable_dependency(input.source, planned_instructions, info_for_instruction))
             collect_block_body(
                 input.source, info_for_instruction, planned_instructions, body_instructions, frame);
     frame.body.push_back(ins);

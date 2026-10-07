@@ -1942,6 +1942,47 @@ TEST_CASE(split_sym_dim_preserves_nonprefix_dyn_slice)
     EXPECT(p == expected);
 }
 
+TEST_CASE(split_sym_dim_materializes_bounded_prefix_dyn_slice)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m   = *p.get_main_module();
+    auto data = m.add_parameter("data", symbolic_shape({n}));
+    auto start =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+    auto count =
+        m.add_instruction(migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), data);
+    auto cap =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1000}});
+    auto extents  = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), cap, count);
+    auto end      = m.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0}}}), extents);
+    auto end_expr = migraphx::sym::min(lit(1000), n);
+    auto output   = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                            {{"axes", {0}},
+                             {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                             {"ends", migraphx::to_value(std::vector<se>{end_expr})},
+                             {"always_leq", true}}),
+        data,
+        start,
+        end);
+    m.add_return({m.add_instruction(migraphx::make_op("relu"), output)});
+
+    run_pass(p);
+
+    EXPECT(none_of(p.get_modules(), [](auto* module) {
+        return module->name() != "main" and
+               any_of(*module, [](const auto& ins) { return ins.name() == "dyn_slice"; });
+    }));
+
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> values = {-1.0f, 2.0f, 3.0f};
+    migraphx::parameter_map params;
+    params["data"] =
+        migraphx::argument{migraphx::shape{migraphx::shape::float_type, {3}}, values.data()};
+    EXPECT(p.eval(params).back().to_vector<float>() == std::vector<float>{0.0f, 2.0f, 3.0f});
+}
+
 TEST_CASE(split_sym_dim_materializes_gather_concat_and_dyn_slice)
 {
     auto n = var("n", {1, 4}, {2});

@@ -851,9 +851,20 @@ bool is_prefix_stable_dyn_slice(instruction_ref ins)
         auto axis = normalize_axis(axes.at(i), input.ndim());
         if(not axis.has_value() or not sym::find_variables(starts.at(i)).empty())
             return false;
-        const auto& end = ends.at(i);
-        if(not sym::find_variables(end).empty() and not(end == input_dims.at(*axis).sym_expr))
-            return false;
+        const auto& end       = ends.at(i);
+        const auto& input_end = input_dims.at(*axis).sym_expr;
+        if(not sym::find_variables(end).empty() and not(end == input_end))
+        {
+            bool bounded_by_input = fix<bool>([&](auto self, const sym::expr& expression) {
+                return expression == input_end or
+                       (expression.name() == "min" and
+                        any_of(expression.children(),
+                               [&](const auto& child) { return self(child); }));
+            })(end);
+            auto input_less_end   = sym::strict_less(input_end, end);
+            if(not bounded_by_input and (not input_less_end.has_value() or *input_less_end))
+                return false;
+        }
     }
     return true;
 }

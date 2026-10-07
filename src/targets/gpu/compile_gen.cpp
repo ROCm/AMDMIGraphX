@@ -139,7 +139,7 @@ vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<
                         ->elements();
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
-    std::size_t over       = n / max_global;
+    std::size_t over = n / max_global;
     bool broadcasted =
         std::any_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.broadcasted(); });
     std::vector<std::size_t> sizes;

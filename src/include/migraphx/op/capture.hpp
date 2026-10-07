@@ -29,7 +29,6 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/context.hpp>
-#include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
 
@@ -48,7 +47,6 @@ struct capture
     }
 
     std::string name() const { return "capture"; }
-    value attributes() const { return {{"side_effect", true}}; }
 
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 

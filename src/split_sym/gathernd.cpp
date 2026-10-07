@@ -21,58 +21,41 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_CAPTURE_HPP
-#define MIGRAPHX_GUARD_OPERATORS_CAPTURE_HPP
-
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/argument.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/context.hpp>
-#include <migraphx/value.hpp>
-#include <cmath>
-#include <utility>
+#include <migraphx/split_sym/analyzer.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
+namespace split_sym {
+namespace {
 
-struct capture
+struct analyze_gathernd : analyzer<analyze_gathernd>
 {
-    std::size_t ins_index;
-    std::function<void(std::size_t ins_index, std::vector<argument>)> f{};
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    bool matches(const operation& op) const { return op.name() == "gathernd"; }
+
+    symbolic_op_info analyze(instruction_ref ins) const
     {
-        return pack(f(self.ins_index, "ins_index"));
+        auto inputs = to_shapes(ins->inputs());
+        if(inputs.size() != 2 or inputs.back().ndim() == 0)
+            return symbolic_op_info{ins};
+        auto index_depth = sym::fixed_value(inputs.back().to_symbolic().dyn_dims().back().sym_expr);
+        if(not index_depth.has_value())
+            return symbolic_op_info{ins};
+        auto batch_dims = ins->get_operator().to_value().at("batch_dims").to<int64_t>();
+        if(batch_dims < 0)
+            return symbolic_op_info{ins};
+        std::size_t batch_rank = batch_dims;
+        auto depth             = sym::to<std::size_t>(*index_depth);
+        if(batch_rank + depth > inputs.front().ndim())
+            return symbolic_op_info{ins};
+        return analyze_axes(ins, [&](std::size_t input, std::size_t axis) {
+            if(input == 1)
+                return axis + 1 == inputs.back().ndim() ? axis_desc{} : parallel_axis();
+            return axis >= batch_rank and axis < batch_rank + depth ? axis_desc{} : parallel_axis();
+        });
     }
-
-    std::string name() const { return "capture"; }
-    value attributes() const { return {{"side_effect", true}}; }
-
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
-
-    // the context argument is added to prevent the op from be eliminated by
-    // constant propagation
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
-    {
-        if(f)
-        {
-            f(ins_index, args);
-        }
-        else
-        {
-            MIGRAPHX_THROW("CAPTURE: callback function is not callable!");
-        }
-
-        return args.front();
-    }
-
-    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
-} // namespace op
+} // namespace
+} // namespace split_sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

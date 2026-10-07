@@ -40,9 +40,8 @@ static void cse_range(module& m, Range&& r)
     std::unordered_set<instruction_ref> processed_ins;
     for(auto ins : r)
     {
-        // Skip dead or context-dependent instructions
-        if(ins->outputs().empty() or
-           (not ins->get_operator().is_context_free() and not ins->can_eval()))
+        // Skip dead instructions and operations with side effects
+        if(ins->outputs().empty() or ins->get_operator().attributes().get("side_effect", false))
             continue;
 
         // Find instruction with the same name

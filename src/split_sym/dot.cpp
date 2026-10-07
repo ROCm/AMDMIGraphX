@@ -21,58 +21,37 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_CAPTURE_HPP
-#define MIGRAPHX_GUARD_OPERATORS_CAPTURE_HPP
-
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/argument.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/context.hpp>
-#include <migraphx/value.hpp>
-#include <cmath>
-#include <utility>
+#include <migraphx/split_sym/analyzer.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
+namespace split_sym {
+namespace {
 
-struct capture
+bool is_dot(const operation& op)
 {
-    std::size_t ins_index;
-    std::function<void(std::size_t ins_index, std::vector<argument>)> f{};
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    return op.name() == "dot" or op.attributes().get("general_data_type", std::string{}) == "dot";
+}
+
+struct analyze_dot : analyzer<analyze_dot>
+{
+    bool matches(const operation& op) const { return is_dot(op); }
+
+    symbolic_op_info analyze(instruction_ref ins) const
     {
-        return pack(f(self.ins_index, "ins_index"));
+        auto input_shapes = to_shapes(ins->inputs());
+        return analyze_axes(ins, [&](std::size_t input, std::size_t axis) {
+            std::size_t rank = input_shapes.at(input).ndim();
+            assert(rank >= 2);
+            std::size_t contraction_axis = (input == 0) ? rank - 1 : rank - 2;
+            return axis == contraction_axis ? masked_axis(mask_role::contracted, fill_kind::zero)
+                                            : parallel_axis();
+        });
     }
-
-    std::string name() const { return "capture"; }
-    value attributes() const { return {{"side_effect", true}}; }
-
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
-
-    // the context argument is added to prevent the op from be eliminated by
-    // constant propagation
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
-    {
-        if(f)
-        {
-            f(ins_index, args);
-        }
-        else
-        {
-            MIGRAPHX_THROW("CAPTURE: callback function is not callable!");
-        }
-
-        return args.front();
-    }
-
-    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
-} // namespace op
+} // namespace
+} // namespace split_sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

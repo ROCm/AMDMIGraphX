@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,43 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/config.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/argument.hpp>
-#include <migraphx/context.hpp>
-#include <migraphx/cpu/context.hpp>
-#include <migraphx/register_op.hpp>
-#include <migraphx/value.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/program.hpp>
+#include <test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace cpu {
-
-struct cpu_allocate : auto_register_op<cpu_allocate>
+static migraphx::program create_program()
 {
-    shape s;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    auto x = mm->add_instruction(migraphx::gpu::hip_allocate{s});
+    auto y = mm->add_instruction(migraphx::gpu::hip_allocate{s});
+    mm->add_return({x, y});
+    return p;
+}
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.s, "shape"));
-    }
+TEST_CASE(cse_preserves_gpu_allocations)
+{
+    auto p        = create_program();
+    auto expected = create_program();
 
-    std::string name() const { return "cpu::allocate"; }
-    value attributes() const { return {{"side_effect", true}}; }
+    migraphx::run_passes(
+        p, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
 
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(0);
-        return s;
-    }
-    argument compute(context&, const shape& output_shape, const std::vector<argument>&) const
-    {
-        argument result{output_shape};
-        return result;
-    }
-};
+    EXPECT(p == expected);
+}
 
-} // namespace cpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

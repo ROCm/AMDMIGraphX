@@ -26,6 +26,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <pointwise.hpp>
 #include <test.hpp>

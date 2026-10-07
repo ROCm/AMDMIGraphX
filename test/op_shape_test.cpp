@@ -5331,9 +5331,8 @@ TEST_CASE(select_module_index_static)
     auto create_sub = [&](float add_val, const std::string& name) {
         auto* sub = p.create_module(name);
         auto x    = sub->add_parameter("data", data_s);
-        auto lit =
-            sub->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}},
-                                               {add_val}});
+        auto lit  = sub->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {add_val}});
         auto bc  = sub->add_instruction(migraphx::make_op("multibroadcast"), lit, x);
         auto add = sub->add_instruction(migraphx::make_op("add"), x, bc);
         sub->add_return({add});
@@ -5429,11 +5428,10 @@ TEST_CASE(select_module_index_map_size_mismatch)
     sub1->add_return({sub1->add_outline(migraphx::shape{migraphx::shape::float_type, {2}})});
 
     EXPECT(test::throws([&] {
-        mm->add_instruction(
-            migraphx::make_op("select_module_index",
-                              {{"index_map", std::vector<std::size_t>{4, 7, 9}}}),
-            {index},
-            {sub0, sub1});
+        mm->add_instruction(migraphx::make_op("select_module_index",
+                                              {{"index_map", std::vector<std::size_t>{4, 7, 9}}}),
+                            {index},
+                            {sub0, sub1});
     }));
 }
 
@@ -5450,11 +5448,10 @@ TEST_CASE(select_module_index_map_duplicate)
     sub1->add_return({sub1->add_outline(migraphx::shape{migraphx::shape::float_type, {2}})});
 
     EXPECT(test::throws([&] {
-        mm->add_instruction(
-            migraphx::make_op("select_module_index",
-                              {{"index_map", std::vector<std::size_t>{4, 4}}}),
-            {index},
-            {sub0, sub1});
+        mm->add_instruction(migraphx::make_op("select_module_index",
+                                              {{"index_map", std::vector<std::size_t>{4, 4}}}),
+                            {index},
+                            {sub0, sub1});
     }));
 }
 

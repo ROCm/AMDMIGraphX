@@ -34,8 +34,8 @@
 static void run_lowering(migraphx::module& m)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(
-        m, {migraphx::gpu::lowering{&ctx, false}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m,
+                         {migraphx::gpu::lowering{&ctx, false}, migraphx::dead_code_elimination{}});
 }
 
 // A device pointwise op produces the int64 slot. The select reads hip::load_scalar
@@ -65,12 +65,12 @@ TEST_CASE(select_module_index_lowering_device_index)
 
     migraphx::program p2;
     {
-        auto* mm     = p2.get_main_module();
-        auto x       = mm->add_parameter("x", x_s);
-        auto data    = mm->add_parameter("data", data_s);
-        auto* slot   = create_pointwise_module(p2, "slot", {x}, single_pointwise("abs"));
-        auto* sub    = p2.create_module("sub");
-        auto data0   = sub->add_parameter("data", data_s);
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", x_s);
+        auto data  = mm->add_parameter("data", data_s);
+        auto* slot = create_pointwise_module(p2, "slot", {x}, single_pointwise("abs"));
+        auto* sub  = p2.create_module("sub");
+        auto data0 = sub->add_parameter("data", data_s);
         sub->add_return({data0});
         auto idx_out = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(x_s)}}));
@@ -112,11 +112,11 @@ TEST_CASE(select_module_index_lowering_direct_index)
 
     migraphx::program p2;
     {
-        auto* mm     = p2.get_main_module();
-        auto x       = mm->add_parameter("x", in_s);
-        auto data    = mm->add_parameter("data", data_s);
-        auto* sub    = p2.create_module("sub");
-        auto data0   = sub->add_parameter("data", data_s);
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", in_s);
+        auto data  = mm->add_parameter("data", data_s);
+        auto* sub  = p2.create_module("sub");
+        auto data0 = sub->add_parameter("data", data_s);
         sub->add_return({data0});
         auto idx_out = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(idx_s)}}));
@@ -151,22 +151,21 @@ TEST_CASE(select_module_index_lowering_squeezed_index)
         auto* sub  = p1.create_module("sub");
         auto data0 = sub->add_parameter("data", data_s);
         sub->add_return({data0});
-        auto index = mm->add_instruction(dims, x);
-        auto squeezed =
-            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), index);
-        auto smi = mm->add_instruction(
-            migraphx::make_op("select_module_index"), {squeezed, data}, {sub});
+        auto index    = mm->add_instruction(dims, x);
+        auto squeezed = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), index);
+        auto smi =
+            mm->add_instruction(migraphx::make_op("select_module_index"), {squeezed, data}, {sub});
         mm->add_return({smi});
     }
     run_lowering(*p1.get_main_module());
 
     migraphx::program p2;
     {
-        auto* mm    = p2.get_main_module();
-        auto x      = mm->add_parameter("x", in_s);
-        auto data   = mm->add_parameter("data", data_s);
-        auto* sub   = p2.create_module("sub");
-        auto data0  = sub->add_parameter("data", data_s);
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", in_s);
+        auto data  = mm->add_parameter("data", data_s);
+        auto* sub  = p2.create_module("sub");
+        auto data0 = sub->add_parameter("data", data_s);
         sub->add_return({data0});
         auto idx_out = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(idx_s)}}));
@@ -204,21 +203,21 @@ TEST_CASE(select_module_index_lowering_reshaped_index)
         sub->add_return({data0});
         auto index    = mm->add_instruction(dims, x);
         auto reshaped = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1}}}), index);
-        auto smi      = mm->add_instruction(
-            migraphx::make_op("select_module_index"), {reshaped, data}, {sub});
+        auto smi =
+            mm->add_instruction(migraphx::make_op("select_module_index"), {reshaped, data}, {sub});
         mm->add_return({smi});
     }
     run_lowering(*p1.get_main_module());
 
     migraphx::program p2;
     {
-        auto* mm    = p2.get_main_module();
-        auto x      = mm->add_parameter("x", in_s);
-        auto data   = mm->add_parameter("data", data_s);
-        auto* sub   = p2.create_module("sub");
-        auto data0  = sub->add_parameter("data", data_s);
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", in_s);
+        auto data  = mm->add_parameter("data", data_s);
+        auto* sub  = p2.create_module("sub");
+        auto data0 = sub->add_parameter("data", data_s);
         sub->add_return({data0});
-        auto idx_out  = mm->add_instruction(
+        auto idx_out = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(idx_s)}}));
         auto sync     = mm->add_instruction(migraphx::make_op("hip::sync_stream"), x);
         auto host     = mm->add_instruction(dims, sync);
@@ -244,11 +243,11 @@ TEST_CASE(select_module_index_lowering_parameter_index)
 
     migraphx::program p1;
     {
-        auto* mm    = p1.get_main_module();
-        auto index  = mm->add_parameter("index", idx_s);
-        auto data   = mm->add_parameter("data", data_s);
-        auto* sub   = p1.create_module("sub");
-        auto data0  = sub->add_parameter("data", data_s);
+        auto* mm   = p1.get_main_module();
+        auto index = mm->add_parameter("index", idx_s);
+        auto data  = mm->add_parameter("data", data_s);
+        auto* sub  = p1.create_module("sub");
+        auto data0 = sub->add_parameter("data", data_s);
         sub->add_return({data0});
         auto smi =
             mm->add_instruction(migraphx::make_op("select_module_index"), {index, data}, {sub});
@@ -258,12 +257,12 @@ TEST_CASE(select_module_index_lowering_parameter_index)
 
     migraphx::program p2;
     {
-        auto* mm     = p2.get_main_module();
-        auto index   = mm->add_parameter("index", idx_s);
-        auto loaded  = mm->add_instruction(migraphx::make_op("hip::load_scalar"), index);
-        auto data    = mm->add_parameter("data", data_s);
-        auto* sub    = p2.create_module("sub");
-        auto data0   = sub->add_parameter("data", data_s);
+        auto* mm    = p2.get_main_module();
+        auto index  = mm->add_parameter("index", idx_s);
+        auto loaded = mm->add_instruction(migraphx::make_op("hip::load_scalar"), index);
+        auto data   = mm->add_parameter("data", data_s);
+        auto* sub   = p2.create_module("sub");
+        auto data0  = sub->add_parameter("data", data_s);
         sub->add_return({data0});
         auto output = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
@@ -284,11 +283,11 @@ TEST_CASE(select_module_index_lowering_shared_index)
 
     migraphx::program p1;
     {
-        auto* mm    = p1.get_main_module();
-        auto index  = mm->add_parameter("index", idx_s);
-        auto data   = mm->add_parameter("data", data_s);
-        auto* sub   = p1.create_module("sub");
-        auto data0  = sub->add_parameter("data", data_s);
+        auto* mm   = p1.get_main_module();
+        auto index = mm->add_parameter("index", idx_s);
+        auto data  = mm->add_parameter("data", data_s);
+        auto* sub  = p1.create_module("sub");
+        auto data0 = sub->add_parameter("data", data_s);
         sub->add_return({data0});
         auto smi0 =
             mm->add_instruction(migraphx::make_op("select_module_index"), {index, data}, {sub});

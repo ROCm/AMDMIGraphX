@@ -55,8 +55,7 @@ struct select_module_index
         return inputs.size() > 1 and inputs.back().type() == shape::tuple_type;
     }
 
-    shape compute_shape(const std::vector<shape>& inputs,
-                        const std::vector<module_ref>& mods) const
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
         check_shapes{inputs, *this}.has_at_least(1);
         const auto& index = inputs.front();
@@ -86,24 +85,22 @@ struct select_module_index
         }
 
         std::vector<shape> data_shapes(inputs.begin() + 1,
-                                       has_output_buffer(inputs) ? inputs.end() - 1
-                                                                 : inputs.end());
+                                       has_output_buffer(inputs) ? inputs.end() - 1 : inputs.end());
         auto mismatched = std::find_if(mods.begin(), mods.end(), [&](module_ref mod) {
             auto names        = get_input_parameter_names(mod);
             auto param_shapes = mod->get_parameter_shapes();
-            return not std::equal(names.begin(),
-                                  names.end(),
-                                  data_shapes.begin(),
-                                  data_shapes.end(),
-                                  [&](const auto& name, const auto& s) {
-                                      return param_shapes.at(name) == s;
-                                  });
+            return not std::equal(
+                names.begin(),
+                names.end(),
+                data_shapes.begin(),
+                data_shapes.end(),
+                [&](const auto& name, const auto& s) { return param_shapes.at(name) == s; });
         });
         if(mismatched != mods.end())
         {
             MIGRAPHX_THROW("SELECT_MODULE_INDEX: data inputs {" + to_string_range(data_shapes) +
-                           "} do not match the parameters of submodule " +
-                           (*mismatched)->name() + ".");
+                           "} do not match the parameters of submodule " + (*mismatched)->name() +
+                           ".");
         }
 
         auto out_shapes0 = mods.front()->get_output_shapes();
@@ -163,8 +160,8 @@ struct select_module_index
         auto it = std::find(map.begin(), map.end(), index);
         if(it == map.end())
         {
-            MIGRAPHX_THROW("SELECT_MODULE_INDEX: no submodule for index " +
-                           std::to_string(index) + ".");
+            MIGRAPHX_THROW("SELECT_MODULE_INDEX: no submodule for index " + std::to_string(index) +
+                           ".");
         }
         return std::distance(map.begin(), it);
     }
@@ -182,7 +179,7 @@ struct select_module_index
                 MIGRAPHX_THROW("SELECT_MODULE_INDEX: index must be non-negative.");
             }
             const auto idx = find_submodule_index(index, index_map, submodule_list.size());
-            module_to_run = submodule_list[idx];
+            module_to_run  = submodule_list[idx];
         });
 
         std::unordered_map<std::string, argument> p_map;

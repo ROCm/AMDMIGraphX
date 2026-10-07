@@ -57,15 +57,16 @@ inline auto get_input_path(instruction_ref ins)
 }
 
 // Follows the input path of `ins` while `pred` holds. Returns the first instruction where it
-// doesn't, along with the operators that were passed in the order they are applied.
+// doesn't, along with the operators that were passed in the order they are applied. If `pred`
+// holds for the whole path, returns `ins` with no operators.
 template <class Predicate>
-std::optional<std::pair<instruction_ref, std::vector<operation>>>
-get_input_chain(instruction_ref ins, Predicate pred)
+std::pair<instruction_ref, std::vector<operation>> get_input_ops_if(instruction_ref ins,
+                                                                    Predicate pred)
 {
     auto path = get_input_path(ins);
     auto it   = std::find_if_not(path.begin(), path.end(), pred);
     if(it == path.end())
-        return std::nullopt;
+        return {ins, {}};
     std::vector<operation> ops;
     std::transform(path.begin(), it, std::back_inserter(ops), [](instruction_ref x) {
         return x->get_operator();

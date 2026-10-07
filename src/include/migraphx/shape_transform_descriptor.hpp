@@ -26,6 +26,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_SHAPE_TRANSFORM_DESCRIPTOR_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/shape.hpp>
 #include <cstdint>
@@ -38,6 +39,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct operation;
+struct module;
 
 // The shape_transform_descriptor class is data structure to simplify shape
 // transformations like reshape, transpose, broadcast, etc. This is made up
@@ -186,6 +188,12 @@ optimize_shape_transforms(const std::vector<std::size_t>& dims, const std::vecto
 // Generate the shape transforms for strided view
 MIGRAPHX_EXPORT optional<std::vector<operation>>
 generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, std::int64_t offset);
+
+// Inserts `ops` before `ins` as a chain starting from `input`, and returns the last one
+MIGRAPHX_EXPORT instruction_ref insert_ops(module& m,
+                                           instruction_ref ins,
+                                           const std::vector<operation>& ops,
+                                           instruction_ref input);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

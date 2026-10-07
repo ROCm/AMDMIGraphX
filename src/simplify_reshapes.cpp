@@ -1127,6 +1127,16 @@ struct find_concat_slice_layout
         return names;
     }
 
+    // A transpose of a rank `rank` tensor that moves axis `from` to `to`
+    static operation move_axis(std::size_t rank, int64_t from, int64_t to)
+    {
+        std::vector<int64_t> perm(rank);
+        std::iota(perm.begin(), perm.end(), 0);
+        perm.erase(perm.begin() + from);
+        perm.insert(perm.begin() + to, from);
+        return make_op("transpose", {{"permutation", perm}});
+    }
+
     auto matcher() const
     {
         return match::name("concat")(match::all_of[match::inputs()](
@@ -1145,30 +1155,33 @@ struct find_concat_slice_layout
         std::vector<std::vector<operation>> chains;
         for(auto input : inputs)
         {
-            auto chain = get_input_chain(
+            auto [root, chain] = get_input_ops_if(
                 input, [](instruction_ref x) { return contains(view_ops(), x->name()); });
-            if(not chain.has_value() or chain->first->name() != "slice")
+            if(root->name() != "slice")
                 return;
-            slices.push_back(chain->first);
-            chains.push_back(std::move(chain->second));
+            slices.push_back(root);
+            chains.push_back(std::move(chain));
         }
 
         auto x     = slices.front()->inputs().front();
-        auto front = any_cast<op::slice>(slices.front()->normalized_operator());
-        if(front.axes.size() != 1)
+        auto front = slices.front()->normalized_operator().to_value();
+        auto axes  = front["axes"].to_vector<int64_t>();
+        if(axes.size() != 1)
             return;
-        int64_t axis  = front.axes.front();
-        int64_t start = front.starts.front();
-        int64_t len   = front.ends.front() - start;
+        int64_t axis  = axes.front();
+        int64_t start = front["starts"].to_vector<int64_t>().front();
+        int64_t len   = front["ends"].to_vector<int64_t>().front() - start;
         if(len <= 0)
             return;
         for(std::size_t i = 0; i < n; ++i)
         {
             if(slices[i]->inputs().front() != x)
                 return;
-            auto s     = any_cast<op::slice>(slices[i]->normalized_operator());
+            auto v     = slices[i]->normalized_operator().to_value();
             int64_t si = start + static_cast<int64_t>(i) * len;
-            if(s.axes != front.axes or s.starts.front() != si or s.ends.front() != si + len)
+            if(v["axes"].to_vector<int64_t>() != axes or
+               v["starts"].to_vector<int64_t>().front() != si or
+               v["ends"].to_vector<int64_t>().front() != si + len)
                 return;
         }
 
@@ -1181,7 +1194,7 @@ struct find_concat_slice_layout
            }))
             return;
 
-        auto caxis = any_cast<op::concat>(ins->normalized_operator()).axis;
+        auto caxis = ins->normalized_operator().to_value()["axis"].to<int64_t>();
         // Without a view chain, a same-axis concat of slices is not a layout change
         if(caxis == axis and desc.generate().empty())
             return;
@@ -1200,13 +1213,6 @@ struct find_concat_slice_layout
         // Split the slice axis into {n, len} and move n to the front, so each
         // slice is one row; apply the view chain to every row, then move n to the
         // concat axis and merge it into that axis.
-        auto move_axis = [](std::size_t rank, int64_t from, int64_t to) {
-            std::vector<int64_t> perm(rank);
-            std::iota(perm.begin(), perm.end(), 0);
-            perm.erase(perm.begin() + from);
-            perm.insert(perm.begin() + to, from);
-            return make_op("transpose", {{"permutation", perm}});
-        };
         std::vector<operation> ops;
         auto split_lens  = z->get_shape().lens();
         split_lens[axis] = len;

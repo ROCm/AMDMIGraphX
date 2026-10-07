@@ -178,15 +178,7 @@ MIGRAPHX_EXPORT
 bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
                         const std::vector<std::size_t>& out_lens);
 
-/**
- * @brief Inserts `ops` before `ins` as a chain starting from `input`, and returns the last one.
- */
-MIGRAPHX_EXPORT
-instruction_ref insert_ops(module& m,
-                           instruction_ref ins,
-                           const std::vector<operation>& ops,
-                           instruction_ref input);
-
+// TODO: This doesn't belong in common.hpp and should be moved to another header
 /**
  * @brief Concatenates broadcasted inputs along `axis` without materializing the broadcast.
  *

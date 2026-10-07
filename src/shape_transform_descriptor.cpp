@@ -33,7 +33,9 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/transform_view.hpp>
+#include <migraphx/module.hpp>
 #include <map>
+#include <numeric>
 #include <unordered_set>
 #include <deque>
 
@@ -2506,6 +2508,15 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
         result.push_back(make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));
     }
     return result;
+}
+
+instruction_ref
+insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
+{
+    return std::accumulate(
+        ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op) {
+            return m.insert_instruction(ins, op, x);
+        });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -31,7 +31,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <algorithm>
-#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -318,15 +317,6 @@ bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
                       [](std::size_t in, std::size_t out) { return out == in or in == 1; });
 }
 
-instruction_ref
-insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
-{
-    return std::accumulate(
-        ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op) {
-            return m.insert_instruction(ins, op, x);
-        });
-}
-
 optional<instruction_ref> insert_concat_broadcasts(module& m,
                                                    instruction_ref ins,
                                                    const std::vector<instruction_ref>& inputs,
@@ -349,16 +339,13 @@ optional<instruction_ref> insert_concat_broadcasts(module& m,
     std::vector<std::size_t> clens;
     for(auto x : inputs)
     {
-        auto chain = get_input_chain(x, [](instruction_ref i) {
+        auto [root, ops]  = get_input_ops_if(x, [](instruction_ref i) {
             return contains(
                 {"broadcast", "multibroadcast", "squeeze", "unsqueeze", "reshape", "transpose"},
                 i->name());
         });
-        if(not chain.has_value())
-            return nullopt;
-        auto root         = chain->first;
         const auto& rlens = root->get_shape().lens();
-        auto desc         = shape_transform_descriptor::create(rlens, chain->second);
+        auto desc         = shape_transform_descriptor::create(rlens, ops);
         if(desc.empty() or not desc.has_broadcast())
             return nullopt;
         auto compact_ops = desc.generate(rlens, /*no_broadcast=*/true);

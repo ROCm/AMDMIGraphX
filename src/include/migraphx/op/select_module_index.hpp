@@ -76,6 +76,14 @@ struct select_module_index
         {
             MIGRAPHX_THROW("SELECT_MODULE_INDEX: index_map must match submodule count.");
         }
+        auto sorted_map = index_map;
+        std::sort(sorted_map.begin(), sorted_map.end());
+        auto duplicate = std::adjacent_find(sorted_map.begin(), sorted_map.end());
+        if(duplicate != sorted_map.end())
+        {
+            MIGRAPHX_THROW("SELECT_MODULE_INDEX: index_map has duplicate entry " +
+                           std::to_string(*duplicate) + ".");
+        }
 
         std::vector<shape> data_shapes(inputs.begin() + 1,
                                        has_output_buffer(inputs) ? inputs.end() - 1

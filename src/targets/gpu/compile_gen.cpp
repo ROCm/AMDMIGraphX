@@ -515,6 +515,29 @@ static std::vector<std::size_t> get_rlens(const module& m)
     return reduce->get_shape().lens();
 }
 
+std::size_t topk_k(const instruction& ins)
+{
+    assert(ins.name() == "topk");
+    auto axis = ins.get_operator().to_value().at("axis").to<std::size_t>();
+    return ins.get_shape().sub_shapes().front().lens().at(axis);
+}
+
+/// The reducer call for a make_indices or topk, which select along the
+/// reduction from a single input
+static std::string generate_select(const instruction& ins, const std::vector<std::string>& args)
+{
+    if(args.size() != 1)
+        MIGRAPHX_THROW(ins.name() + " expects one value tensor operand");
+    if(ins.name() == "gpu::make_indices")
+        return "r.make_indices_from(" + args.front() + ")";
+    bool largest = ins.get_operator().to_value().at("largest").to<bool>();
+    return interpolate_string("r.template topk<${k}>(${compare}, ${init})(${x})",
+                              {{"k", std::to_string(topk_k(ins))},
+                               {"compare", largest ? "greater{}" : "less{}"},
+                               {"init", largest ? "lowest{}" : "highest{}"},
+                               {"x", args.front()}});
+}
+
 std::string generate_reduce(const module& m, const std::string& name)
 {
     // Copy into a private program so the rewrites dont touch the module being
@@ -613,13 +636,8 @@ std::string generate_reduce(const module& m, const std::string& name)
             return interpolate_string("${x}[_c<${index}>]",
                                           {{"x", x}, {"index", std::to_string(index)}});
         }
-        if(ins->name() == "gpu::make_indices")
-        {
-            if(ins->inputs().size() != 1)
-                MIGRAPHX_THROW("gpu::make_indices expects one value tensor operand");
-            const auto& val = names.at(ins->inputs().front());
-            return "r.make_indices_from(" + val + ")";
-        }
+        if(contains({"gpu::make_indices", "topk"}, ins->name()))
+            return generate_select(*ins, cpp_generator::to_args(ins->inputs(), names));
         if(ins->name() == "identity")
         {
             const auto& x = names.at(ins->inputs().front());
@@ -645,7 +663,7 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
+        if(contains({"multibroadcast", "contiguous", "identity", "get_tuple_elem"}, ins.name()))
             continue;
         if(ins.name() == "pointwise")
         {

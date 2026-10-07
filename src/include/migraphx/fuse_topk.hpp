@@ -21,39 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_TOPK_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_TOPK_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/module_ref.hpp>
+#include <cstddef>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
 
-struct MIGRAPHX_EXPORT fuse_reduce
+/// Fuse a topk with the fused_reduce operators that produce its input or
+/// consume its outputs along the same axis, so the selection is computed in
+/// the workgroup that holds the reduction. Runs after the reduce fusions.
+struct MIGRAPHX_EXPORT fuse_topk
 {
-    std::string name() const { return "fuse_reduce"; }
+    /// Longest reduction a workgroup can sort; topk over longer inputs are not fused
+    std::size_t max_size = 8192;
+    std::string name() const { return "fuse_topk"; }
     void apply(module_pass_manager& mpm) const;
-
-    bool enable_rewrite_reshapes   = true;
-    bool enable_rewrite_broadcasts = false;
 };
-
-/// Inserts the submodule of ins into sm with its parameters mapped to the inputs of ins
-MIGRAPHX_EXPORT std::vector<instruction_ref>
-insert_module_in_submodule(module_ref sm,
-                           instruction_ref ins,
-                           std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr);
-
-/// Removes the duplicate and dead instructions left by fusing into a reduce module
-MIGRAPHX_EXPORT void finalize_reduce_module(module_ref m);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_TOPK_HPP

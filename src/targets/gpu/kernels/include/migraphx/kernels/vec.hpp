@@ -113,6 +113,10 @@ struct vec_or_scalar<T, 0>
 };
 } // namespace vec_detail
 
+/// A vec of N elements of T, or T itself when N is 0
+template <class T, index_int N>
+using vec_or_scalar_t = typename vec_detail::vec_or_scalar<T, N>::type;
+
 template <class... Ts>
 struct common_vec
 {

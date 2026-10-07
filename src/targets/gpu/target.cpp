@@ -37,6 +37,7 @@
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
+#include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/json.hpp>
@@ -280,6 +281,8 @@ struct pipeline_factory
                         fuse_mlir{.ctx              = get_context(),
                                   .use_specific_ops = backend_opts.mlir_use_specific_ops}),
             dead_code_elimination{},
+            fuse_topk{},
+            dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},
         };
@@ -329,7 +332,7 @@ struct pipeline_factory
             dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
-            memory_coloring{"hip::allocate"},
+            memory_coloring{gpu_allocation_model{}},
             sync_device{},
             preallocate_param{"scratch", gpu_allocation_model{}},
             dead_code_elimination{},

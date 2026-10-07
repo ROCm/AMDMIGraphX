@@ -26,14 +26,13 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/ranges.hpp>
+#include <numeric>
 #include <basic_ops.hpp>
 #include <test.hpp>
-
-static void run_pass(migraphx::module& m)
-{
-    migraphx::run_passes(m, {migraphx::memory_coloring{"allocate", true}});
-}
 
 struct allocate
 {
@@ -58,6 +57,25 @@ struct allocate
         return migraphx::argument{output_shape};
     }
 };
+
+struct allocation_model_test
+{
+    std::string name() const { return "allocate"; }
+    migraphx::operation allocate(const migraphx::shape& s) const { return ::allocate{s}; }
+    migraphx::operation preallocate(const migraphx::shape&, const std::string&) const { return {}; }
+    std::string copy() const { return "test_copy"; }
+    bool needs_out_params() const { return false; }
+};
+
+static void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::memory_coloring{allocation_model_test{}, true}});
+}
+
+static void run_pass(migraphx::program& p)
+{
+    migraphx::run_passes(p, {migraphx::memory_coloring{allocation_model_test{}, true}});
+}
 
 static migraphx::instruction_ref add_alloc(migraphx::module& m, const migraphx::shape& s)
 {
@@ -725,12 +743,18 @@ TEST_CASE(test39)
         run_pass(*smod);
     }
 
-    CHECK(mm->get_parameter_shape("scratch").bytes() == 1);
-    CHECK(then_mod->get_parameter_shape("scratch").bytes() == 24);
-    CHECK(else_mod->get_parameter_shape("scratch").bytes() == 24);
+    // The scratch of both branches is hoisted into one allocation that is live with cond
+    CHECK(mm->get_parameter_shape("scratch").bytes() == 32);
+    CHECK(then_mod->get_parameter_shape("scratch") == migraphx::shape{});
+    CHECK(else_mod->get_parameter_shape("scratch") == migraphx::shape{});
     CHECK(no_allocate(*mm));
     CHECK(no_allocate(*then_mod));
     CHECK(no_allocate(*else_mod));
+    auto scratch = i1->inputs().front();
+    CHECK(i2->inputs().front() == scratch);
+    CHECK(mm->has_instruction(scratch));
+    CHECK(scratch->get_shape().bytes() == 24);
+    CHECK(is_disjoint({cond, scratch}));
 }
 
 // NOLINTNEXTLINE
@@ -3817,6 +3841,169 @@ TEST_CASE(test_large_offsets)
     CHECK(m.get_parameter_shape("scratch").bytes() == 80000000000);
     CHECK(no_allocate(m));
     CHECK(is_disjoint({a1, a2}));
+}
+
+// Submodule with two allocations that are live at the same time
+static migraphx::module_ref add_submodule(migraphx::program& p,
+                                          const std::string& name,
+                                          const migraphx::shape& s,
+                                          std::size_t nallocs)
+{
+    auto* sm   = p.create_module(name);
+    auto first = sm->add_instruction(pass_op{}, add_alloc(*sm, s));
+    auto rest  = migraphx::range(nallocs - 1);
+    auto last  = std::accumulate(rest.begin(), rest.end(), first, [&](auto prev, auto) {
+        return sm->add_instruction(pass_op{}, add_alloc(*sm, s), prev);
+    });
+    sm->add_return({last});
+    return sm;
+}
+
+static std::vector<migraphx::instruction_ref> get_loads(const migraphx::module& m)
+{
+    std::vector<migraphx::instruction_ref> loads;
+    auto r = migraphx::iterator_for(m);
+    std::copy_if(r.begin(), r.end(), std::back_inserter(loads), [](auto ins) {
+        return ins->name() == "load";
+    });
+    return loads;
+}
+
+TEST_CASE(submodule_scratch)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {8}};
+    auto* sm = add_submodule(p, "sub", s, 2);
+
+    auto a1   = add_alloc(*mm, s);
+    auto p1   = mm->add_instruction(pass_op{}, a1);
+    auto call = mm->add_instruction(mod_pass_op{}, {p1}, {sm});
+    mm->add_instruction(pass_op{}, call, p1);
+    run_pass(p);
+
+    CHECK(no_allocate(*mm));
+    CHECK(no_allocate(*sm));
+    CHECK(sm->get_parameter_names().empty());
+    // The submodule loads from an allocation that was hoisted into the parent
+    auto loads = get_loads(*sm);
+    EXPECT(loads.size() == 2);
+    auto scratch = loads.front()->inputs().front();
+    CHECK(loads.back()->inputs().front() == scratch);
+    CHECK(mm->has_instruction(scratch));
+    CHECK(scratch->name() == "load");
+    CHECK(scratch->get_shape().bytes() == 64);
+    CHECK(is_disjoint(loads));
+    // The hoisted scratch is live across the call
+    CHECK(mm->get_parameter_shape("scratch").bytes() == 96);
+    CHECK(is_disjoint({a1, scratch}));
+}
+
+TEST_CASE(submodule_scratch_multiple_submodules)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {8}};
+    auto* sm1 = add_submodule(p, "sub1", s, 1);
+    auto* sm2 = add_submodule(p, "sub2", s, 2);
+
+    auto a1   = add_alloc(*mm, s);
+    auto p1   = mm->add_instruction(pass_op{}, a1);
+    auto call = mm->add_instruction(mod_pass_op{}, {p1}, {sm1, sm2});
+    mm->add_instruction(pass_op{}, call, p1);
+    run_pass(p);
+
+    CHECK(no_allocate(*mm));
+    CHECK(no_allocate(*sm1));
+    CHECK(no_allocate(*sm2));
+    CHECK(sm1->get_parameter_names().empty());
+    CHECK(sm2->get_parameter_names().empty());
+    // Both submodules share one allocation sized for the largest scratch
+    auto loads1 = get_loads(*sm1);
+    auto loads2 = get_loads(*sm2);
+    EXPECT(loads1.size() == 1);
+    EXPECT(loads2.size() == 2);
+    auto scratch = loads1.front()->inputs().front();
+    CHECK(loads2.front()->inputs().front() == scratch);
+    CHECK(loads2.back()->inputs().front() == scratch);
+    CHECK(mm->has_instruction(scratch));
+    CHECK(scratch->get_shape().bytes() == 64);
+    CHECK(mm->get_parameter_shape("scratch").bytes() == 96);
+    CHECK(is_disjoint({a1, scratch}));
+}
+
+TEST_CASE(submodule_no_scratch)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {8}};
+    auto* sm = p.create_module("sub");
+    auto x   = sm->add_parameter("x", s);
+    sm->add_return({sm->add_instruction(pass_op{}, x)});
+
+    auto a1   = add_alloc(*mm, s);
+    auto p1   = mm->add_instruction(pass_op{}, a1);
+    auto call = mm->add_instruction(mod_pass_op{}, {p1}, {sm});
+    mm->add_instruction(pass_op{}, call, p1);
+    run_pass(p);
+
+    CHECK(no_allocate(*mm));
+    CHECK(get_loads(*sm).empty());
+    CHECK(sm->get_parameter_names() == std::vector<std::string>{"x"});
+    CHECK(mm->get_parameter_shape("scratch").bytes() == 32);
+}
+
+TEST_CASE(submodule_scratch_shared)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {8}};
+    auto* sm = add_submodule(p, "sub", s, 2);
+
+    auto a1    = add_alloc(*mm, s);
+    auto p1    = mm->add_instruction(pass_op{}, a1);
+    auto call1 = mm->add_instruction(mod_pass_op{}, {p1}, {sm});
+    // Only live between the two calls
+    auto a2    = add_alloc(*mm, s);
+    auto p2    = mm->add_instruction(pass_op{}, a2, call1);
+    auto call2 = mm->add_instruction(mod_pass_op{}, {p2}, {sm});
+    mm->add_instruction(pass_op{}, call2, p2);
+    run_pass(p);
+
+    CHECK(no_allocate(*mm));
+    CHECK(no_allocate(*sm));
+    auto loads = get_loads(*sm);
+    EXPECT(loads.size() == 2);
+    auto scratch = loads.front()->inputs().front();
+    CHECK(mm->has_instruction(scratch));
+    // The hoisted scratch stays live until the last call into the submodule
+    CHECK(is_disjoint({a1, scratch}));
+    CHECK(is_disjoint({a2, scratch}));
+}
+
+TEST_CASE(submodule_scratch_alignment)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // Vectorized doubles require a 32 byte alignment
+    migraphx::shape ds{migraphx::shape::double_type, {8}};
+    auto* sm = add_submodule(p, "sub", ds, 2);
+
+    // Larger than the submodule scratch so it is placed first, with a 4 byte alignment
+    migraphx::shape s{migraphx::shape::int8_type, {100}};
+    auto a1   = add_alloc(*mm, s);
+    auto p1   = mm->add_instruction(pass_op{}, a1);
+    auto call = mm->add_instruction(mod_pass_op{}, {p1}, {sm});
+    mm->add_instruction(pass_op{}, call, p1);
+    run_pass(p);
+
+    auto loads = get_loads(*sm);
+    EXPECT(loads.size() == 2);
+    auto scratch = loads.front()->inputs().front();
+    CHECK(mm->has_instruction(scratch));
+    CHECK(scratch->get_shape().bytes() == 128);
+    CHECK(is_disjoint({a1, scratch}));
+    CHECK(get_load_interval(scratch).first % 32 == 0);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

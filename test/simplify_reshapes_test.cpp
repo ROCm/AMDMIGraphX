@@ -6498,17 +6498,13 @@ TEST_CASE(op_shape_transform_shared_reduce_expanding_chain)
 {
     migraphx::module m1;
     {
-        auto image =
-            m1.add_parameter("image", {migraphx::shape::float_type, {1, 384, 480, 3}});
-        auto scale =
-            m1.add_parameter("scale", {migraphx::shape::float_type, {1, 1, 1, 2, 3}});
-        auto mean =
-            m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1, 2}}}), image);
-        auto unsqueeze =
-            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), mean);
-        auto expanded = m1.add_instruction(
+        auto image = m1.add_parameter("image", {migraphx::shape::float_type, {1, 384, 480, 3}});
+        auto scale = m1.add_parameter("scale", {migraphx::shape::float_type, {1, 1, 1, 2, 3}});
+        auto mean = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1, 2}}}), image);
+        auto unsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), mean);
+        auto expanded  = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1, 2, 3}}}), unsqueeze);
-        auto mul = m1.add_instruction(migraphx::make_op("mul"), expanded, scale);
+        auto mul    = m1.add_instruction(migraphx::make_op("mul"), expanded, scale);
         auto shared = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 384, 480, 3}}}), mean);
         m1.add_return({mul, shared});

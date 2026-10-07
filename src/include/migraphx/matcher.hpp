@@ -1009,7 +1009,7 @@ inline auto name_contains(const std::string& name)
 inline auto name(std::unordered_set<std::string> names)
 {
     return make_basic_pred_matcher(
-        [m_names = std::make_shared<std::unordered_set<std::string>>(std::move(names))](
+        [m_names = std::make_shared<const std::unordered_set<std::string>>(std::move(names))](
             instruction_ref ins) { return m_names->count(ins->name()) > 0; });
 }
 

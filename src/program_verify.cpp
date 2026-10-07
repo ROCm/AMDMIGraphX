@@ -128,7 +128,7 @@ std::vector<argument> run_target(program p,
     auto gpu_out        = p.eval(m, exec_env);
     std::vector<argument> output(gpu_out.size());
     log::info() << p;
-    std::transform(gpu_out.begin(), gpu_out.end(), output.begin(), [&](auto& argu) {
+    std::transform(gpu_out.begin(), gpu_out.end(), output.begin(), [&](const auto& argu) {
         return options.compile.offload_copy ? argu : t.copy_from(argu);
     });
     return output;

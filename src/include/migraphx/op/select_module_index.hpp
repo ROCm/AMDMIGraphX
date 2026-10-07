@@ -31,14 +31,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-/// Runtime scalar-based submodule dispatch (host-evaluated).
+/// Runs one submodule chosen by a host integer.
 ///
-/// IR: select_module_index(index, data_params..., output_buf) [submodules...]
-///
-/// args[0] is a runtime integer selector. Dispatch runs the submodule compiled for that
-/// same value:
-///   - dense layout: submodule_list[index]
-///   - sparse layout: submodule i where index_map[i] == index
+/// select_module_index(index, data..., output) [submodules...]
+/// An empty index_map uses the integer as the submodule position. Otherwise
+/// submodule i runs when the integer equals index_map[i].
 struct select_module_index
 {
     std::vector<std::size_t> index_map;

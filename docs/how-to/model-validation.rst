@@ -25,7 +25,7 @@ Verify an ONNX model against the default target:
 
 .. code-block:: shell
 
-   /opt/rocm/bin/migraphx-driver verify model.onnx --onnx
+   migraphx-driver verify model.onnx --onnx
 
 Replace ``model.onnx`` with your model path.
 
@@ -37,7 +37,7 @@ root-mean-square tolerance (``rms-tol``) when comparing outputs:
 
 .. code-block:: shell
 
-   /opt/rocm/bin/migraphx-driver verify model.onnx --onnx --gpu \
+   migraphx-driver verify model.onnx --onnx --gpu \
        --atol 1e-5 --rtol 1e-5 --rms-tol 0.001
 
 Replace ``model.onnx`` with your model path. Default tolerance values are
@@ -50,7 +50,7 @@ Check that fp16 quantization preserves accuracy within your tolerances:
 
 .. code-block:: shell
 
-   /opt/rocm/bin/migraphx-driver verify model.onnx --onnx --gpu --fp16 \
+   migraphx-driver verify model.onnx --onnx --gpu --fp16 \
        --atol 1e-3 --rtol 1e-3
 
 Replace ``model.onnx`` with your model path.
@@ -102,7 +102,7 @@ Example:
 .. code-block:: shell
 
    export MIGRAPHX_VERIFY_DUMP_DIFF=1
-   /opt/rocm/bin/migraphx-driver verify model.onnx --onnx --gpu
+   migraphx-driver verify model.onnx --onnx --gpu
 
 Replace ``model.onnx`` with your model path.
 
@@ -120,8 +120,6 @@ validation failures during development:
      - Values
    * - ``MIGRAPHX_TRACE_TEST``
      - ``1`` prints reference and target programs even when verify tests pass.
-   * - ``MIGRAPHX_TRACE_TEST_COMPILE``
-     - ``cpu`` or ``gpu`` turns on compile tracing for verify tests on the given target. Cannot be used with ``MIGRAPHX_TRACE_COMPILE``.
    * - ``MIGRAPHX_DUMP_TEST``
      - ``1`` writes the model under verification to an MXR file.
 
@@ -129,21 +127,10 @@ Example:
 
 .. code-block:: shell
 
-   export MIGRAPHX_VERIFY_DUMP_DIFF=1
    export MIGRAPHX_TRACE_TEST=1
-   /opt/rocm/bin/migraphx-driver verify model.onnx --onnx --gpu
+   migraphx-driver verify model.onnx --onnx --gpu
 
 Replace ``model.onnx`` with your model path.
-
-Graph validation during development
---------------------------------------------------------------------
-
-When developing passes or matchers, enable module validation after pattern
-matches:
-
-.. code-block:: shell
-
-   export MIGRAPHX_VALIDATE_MATCHES=1
 
 See :doc:`MIGraphX environment variables <../reference/MIGraphX-dev-env-vars>`
 for the complete list of validation, testing, and tracing variables.

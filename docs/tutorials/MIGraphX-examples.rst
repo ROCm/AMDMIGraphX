@@ -11,10 +11,6 @@ Each example below is documented in its README file. Follow the linked path
 in the `MIGraphX GitHub repository <https://github.com/ROCm/AMDMIGraphX/tree/develop/examples>`__
 to build and run the example.
 
-To swap in your own model, replace the model file path named in the example
-README or source code with your ONNX or serialized MIGraphX program. Adjust
-input dimensions and data loading to match your model's parameter shapes.
-
 Getting started examples
 ====================================================================
 
@@ -53,10 +49,10 @@ advanced C++ API usage.
      - What it demonstrates
    * - `cpp_parse_load_save <https://github.com/ROCm/AMDMIGraphX/tree/develop/examples/migraphx/cpp_parse_load_save>`__
      - C++ application developers
-     - Parse, load, and save graph programs. Swap in your ONNX file as the input argument.
+     - Parse, load, and save graph programs.
    * - `cpp_dynamic_batch <https://github.com/ROCm/AMDMIGraphX/tree/develop/examples/migraphx/cpp_dynamic_batch>`__
      - C++ application developers
-     - Run programs with dynamic batch sizes using ``dynamic_dimension`` objects. Replace the ONNX input file with your dynamic-batch model.
+     - Run programs with dynamic batch sizes using ``dynamic_dimension`` objects.
    * - `cpp_trace_callback <https://github.com/ROCm/AMDMIGraphX/tree/develop/examples/migraphx/cpp_trace_callback>`__
      - MIGraphX contributors and debuggers
      - Inspect operator output buffers during evaluation with ``program::run_trace``.
@@ -85,7 +81,7 @@ segmentation, and super resolution.
      - MNIST digit classification with the C++ API.
    * - `python_resnet50 <https://github.com/ROCm/AMDMIGraphX/tree/develop/examples/vision/python_resnet50>`__
      - Python application developers
-     - ResNet50 V2 inference in Python via a Jupyter notebook. Replace the bundled model with your own pre-trained classification model.
+     - ResNet50 V2 inference in Python via a Jupyter notebook.
    * - `python_nfnet <https://github.com/ROCm/AMDMIGraphX/tree/develop/examples/vision/python_nfnet>`__
      - Python application developers
      - NFNet inference and ONNX Runtime comparison.
@@ -120,7 +116,7 @@ recognition.
      - What it demonstrates
    * - `python_bert_squad <https://github.com/ROCm/AMDMIGraphX/tree/develop/examples/nlp/python_bert_squad>`__
      - Python application developers
-     - BERT question answering on SQuAD. Replace ``bertsquad-10.onnx`` and ``inputs.json`` with your model and input data.
+     - BERT question answering on SQuAD.
    * - `python_rnnt <https://github.com/ROCm/AMDMIGraphX/tree/develop/examples/nlp/python_rnnt>`__
      - Python application developers
      - RNN-T speech recognition inference.

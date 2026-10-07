@@ -22,15 +22,17 @@ Application developer using the C++ API
 Use this path when you embed MIGraphX directly in a C++ application.
 
 1. Confirm MIGraphX is installed. See :doc:`MIGraphX on ROCm installation <../install/install-migraphx>`.
-2. Set ``CMAKE_PREFIX_PATH`` to your MIGraphX installation location and link
-   against the C++ API:
+2. In your existing CMake project, set ``CMAKE_PREFIX_PATH`` to your MIGraphX
+   installation location and link against the C++ API:
 
    .. code-block:: cmake
 
       find_package(migraphx)
       target_link_libraries(my_app migraphx::c)
 
-   Replace ``my_app`` with your CMake target name.
+   Replace ``my_app`` with your CMake target name. The repository examples
+   already include ``CMakeLists.txt`` files, so you do not need to create one
+   when building those examples.
 3. Work through :doc:`Parse, load, and save a model <./parse-load-save-tutorial>`
    to learn how to load ONNX models and serialize programs.
 4. Continue with the C++ MNIST inference example at
@@ -45,14 +47,12 @@ Application developer using the Python API
 Use this path when you call MIGraphX from Python.
 
 1. Confirm MIGraphX is installed. See :doc:`MIGraphX on ROCm installation <../install/install-migraphx>`.
-2. Add the Python module to your environment:
-
-   .. code-block:: shell
-
-      export PYTHONPATH=/opt/rocm/lib:$PYTHONPATH
-
-   Replace ``/opt/rocm/lib`` with the directory that contains the MIGraphX
-   Python module if your installation path differs.
+2. Use a Python virtual environment. Activate it before running examples so the
+   MIGraphX Python module resolves correctly for your install method. If you
+   install MIGraphX from a Python wheel into that environment, the module is
+   available after activation. If you install from a package manager, confirm
+   that ``import migraphx`` succeeds in the activated environment before
+   continuing.
 3. Browse the Python examples under ``examples/`` in the
    `MIGraphX GitHub repository <https://github.com/ROCm/AMDMIGraphX/tree/develop/examples>`__.
    Start with a domain that matches your model, such as vision or natural
@@ -65,21 +65,20 @@ Model integrator or inference engineer
 Use this path when you want to inspect, compile, verify, or benchmark models
 without writing application code.
 
-1. Confirm ``migraphx-driver`` is available at ``/opt/rocm/bin/migraphx-driver``,
-   or at ``AMDMIGraphX/build/bin/migraphx-driver`` after a source build.
+1. Confirm ``migraphx-driver`` is available on your ``PATH``.
 2. Read :doc:`MIGraphX driver <../migraphx-driver>` for commands such as
    ``read``, ``compile``, ``run``, ``verify``, and ``perf``.
 3. Validate a model against the reference implementation:
 
    .. code-block:: shell
 
-      /opt/rocm/bin/migraphx-driver verify model.onnx --onnx
+      migraphx-driver verify model.onnx --onnx
 
 4. Measure performance:
 
    .. code-block:: shell
 
-      /opt/rocm/bin/migraphx-driver perf model.onnx --onnx --gpu -n 50
+      migraphx-driver perf model.onnx --onnx --gpu -n 50
 
 5. See :doc:`Validate model outputs <../how-to/model-validation>` and
    :doc:`Tune model performance <../how-to/model-performance-tuning>` for

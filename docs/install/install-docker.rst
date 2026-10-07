@@ -10,7 +10,7 @@ Docker provides a development environment with MIGraphX build prerequisites
 preinstalled. Use this approach when you want to build MIGraphX from source
 without installing dependencies on your host system.
 
-The default ``Dockerfile`` at the repository root builds against ROCm 7.13 and
+The default ``Dockerfile`` at the repository root builds against ROCm 10.0 and
 newer using TheRock (``amdrocm-*``) packages. Alternative Dockerfiles for
 other ROCm releases are available under ``tools/docker/``.
 
@@ -51,13 +51,13 @@ The root ``Dockerfile`` accepts the following build arguments:
    * - Build argument
      - Description
    * - ``ROCM_VERSION``
-     - ROCm release version for versioned package names (default: ``7.14``).
+     - ROCm release version for versioned package names (default: ``10.0``).
    * - ``GPU_ARCH``
-     - GPU architecture family (for example, ``gfx942``, ``gfx120x``). Leave empty for arch-independent packages.
+     - GPU architecture family (for example, ``gfx942``). Leave empty for arch-independent packages.
    * - ``USE_WHL``
      - When set to a non-empty value, installs ROCm from Python wheels instead of system packages.
    * - ``INDEX_URL``
-     - pip index URL used when ``USE_WHL`` is set (default: ``https://repo.amd.com/rocm/whl-multi-arch/``).
+     - pip index URL used when ``USE_WHL`` is set (default: ``https://stable.repo.amd.com/rocm/whl-next/``).
 
 Run the container
 ====================================================================

@@ -19,12 +19,13 @@ Set environment variables
 ====================================================================
 
 Export a variable in your shell before running ``migraphx-driver`` or your
-application:
+application. Forcing eligible operations through rocMLIR is a common starting
+point for performance experiments:
 
 .. code-block:: shell
 
-   export MIGRAPHX_SET_GEMM_PROVIDER=hipblaslt
-   /opt/rocm/bin/migraphx-driver perf model.onnx --onnx --gpu
+   export MIGRAPHX_MLIR_USE_SPECIFIC_OPS="attention,convolution,dot,fused"
+   migraphx-driver perf model.onnx --onnx --gpu
 
 Replace ``model.onnx`` with your model path.
 
@@ -72,6 +73,18 @@ in the MIGraphX source tree.
 Tuning examples
 ====================================================================
 
+Force operations through rocMLIR
+--------------------------------------------------------------------
+
+Set a comma-separated list of operations that should lower through MLIR:
+
+.. code-block:: shell
+
+   export MIGRAPHX_MLIR_USE_SPECIFIC_OPS="attention,convolution,dot,fused"
+   migraphx-driver perf model.onnx --onnx --gpu
+
+Replace ``model.onnx`` with your model path.
+
 Select a GEMM provider
 --------------------------------------------------------------------
 
@@ -80,7 +93,7 @@ Set the general matrix multiply (GEMM) provider before compilation:
 .. code-block:: shell
 
    export MIGRAPHX_SET_GEMM_PROVIDER=hipblaslt
-   /opt/rocm/bin/migraphx-driver perf model.onnx --onnx --gpu
+   migraphx-driver perf model.onnx --onnx --gpu
 
 Replace ``model.onnx`` with your model path.
 
@@ -92,22 +105,10 @@ Search for the fastest GEMM kernel configuration:
 .. code-block:: shell
 
    export MIGRAPHX_ENABLE_GEMM_TUNING=1
-   /opt/rocm/bin/migraphx-driver perf model.onnx --onnx --gpu --exhaustive-tune
+   migraphx-driver perf model.onnx --onnx --gpu --exhaustive-tune
 
 You can also pass ``--exhaustive-tune`` on the command line. The environment
 variable enables exhaustive GEMM tuning even when that flag is omitted.
-
-Specify MLIR operations
---------------------------------------------------------------------
-
-Force specific operations to lower through MLIR. The list is comma-separated:
-
-.. code-block:: shell
-
-   export MIGRAPHX_MLIR_USE_SPECIFIC_OPS=attention,dot
-   /opt/rocm/bin/migraphx-driver compile model.onnx --onnx --gpu --text
-
-Replace ``model.onnx`` with your model path.
 
 Measure the effect
 ====================================================================
@@ -116,7 +117,7 @@ Compare performance before and after changing a variable:
 
 .. code-block:: shell
 
-   /opt/rocm/bin/migraphx-driver perf model.onnx --onnx --gpu -n 50
+   migraphx-driver perf model.onnx --onnx --gpu -n 50
 
 Replace ``model.onnx`` with your model path and adjust ``-n`` for the number
 of timing iterations.

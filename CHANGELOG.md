@@ -20,6 +20,8 @@ Full documentation for MIGraphX is available at
 
 ### Optimized
 
+* Reduced compile-time heap allocations in `simplify_algebra`, `simplify_reshapes`, and `fuse_pointwise`: `match::name` shares its name set across matcher copies, and read-only uses of an instruction's inputs bind a reference or move instead of copying the vector (#5362).
+
 ### Removed
 
 ## MIGraphX 2.18 for ROCm 10.1.0

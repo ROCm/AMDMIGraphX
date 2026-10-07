@@ -676,7 +676,7 @@ TEST_CASE(sqlite_read_only_database_still_serves_hits)
 
     const auto writable = migraphx::fs::perms::owner_write | migraphx::fs::perms::group_write |
                           migraphx::fs::perms::others_write;
-    migraphx::fs::permissions(path, writable, migraphx::fs::perm_options::remove);
+    migraphx::fs::permissions(path, migraphx::fs::status(path).permissions() & ~writable);
     // Permissions do not stop root, so what can be checked about stores depends on whether the
     // write protection actually took.
     const bool protected_file = migraphx::sqlite::write(path).read_only();
@@ -694,7 +694,7 @@ TEST_CASE(sqlite_read_only_database_still_serves_hits)
 
     // Restored so the temporary directory can be removed, which Windows refuses otherwise.
     migraphx::fs::permissions(
-        path, migraphx::fs::perms::owner_write, migraphx::fs::perm_options::add);
+        path, migraphx::fs::status(path).permissions() | migraphx::fs::perms::owner_write);
 }
 
 // version and device separate entries this build may use from entries it may not, so an entry
@@ -751,8 +751,9 @@ TEST_CASE(file_store_leaves_only_entries_behind)
     std::vector<migraphx::fs::directory_entry> items{
         migraphx::fs::recursive_directory_iterator{td.path},
         migraphx::fs::recursive_directory_iterator{}};
-    auto dirs = std::count_if(
-        items.begin(), items.end(), [](const auto& item) { return item.is_directory(); });
+    auto dirs = std::count_if(items.begin(), items.end(), [](const auto& item) {
+        return migraphx::fs::is_directory(item.status());
+    });
     // Just the version directory and the device directory inside it, and the two entries.
     EXPECT(dirs == 2);
     EXPECT(entry_files(td.path).size() == 2);

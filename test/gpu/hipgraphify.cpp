@@ -458,4 +458,62 @@ TEST_CASE(output_root_outside_run)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// A lowered select_module_index chooses its submodule on the host, so it stays
+// outside capture between the kernel chains. The chains on each side become
+// separate graphs.
+TEST_CASE(select_module_index_boundary)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::shape is{migraphx::shape::int64_type, {1}};
+    migraphx::shape out_s{std::vector<migraphx::shape>{s}};
+
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto i       = mm->add_parameter("i", is);
+        auto* choice = p1.create_module("choice");
+        auto data0   = choice->add_parameter("data", s);
+        choice->add_return({data0});
+        auto c      = add_chain(*mm, x, 4);
+        auto idx    = mm->add_instruction(migraphx::make_op("hip::load_scalar"), i);
+        auto output = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
+        auto smi = mm->add_instruction(
+            migraphx::make_op("select_module_index"), {idx, c, output}, {choice});
+        auto dep = mm->add_instruction(migraphx::make_op("identity"), c, smi);
+        auto d   = add_chain(*mm, dep, 4);
+        mm->add_return({d});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto i       = mm->add_parameter("i", is);
+        auto* choice = p2.create_module("choice");
+        auto data0   = choice->add_parameter("data", s);
+        choice->add_return({data0});
+        auto* sub0 = p2.create_module("main:hipgraph0");
+        auto x0    = sub0->add_parameter("x0", s);
+        sub0->add_return({add_chain(*sub0, x0, 4)});
+        auto g0 = mm->add_instruction(
+            migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
+        auto idx    = mm->add_instruction(migraphx::make_op("hip::load_scalar"), i);
+        auto output = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
+        auto smi = mm->add_instruction(
+            migraphx::make_op("select_module_index"), {idx, g0, output}, {choice});
+        auto dep   = mm->add_instruction(migraphx::make_op("identity"), g0, smi);
+        auto* sub1 = p2.create_module("main:hipgraph1");
+        auto y0    = sub1->add_parameter("x0", s);
+        sub1->add_return({add_chain(*sub1, y0, 4)});
+        auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {dep}, {sub1});
+        mm->add_return({g1});
+    }
+
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

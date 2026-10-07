@@ -61,6 +61,10 @@ static bool is_unsupported(const std::string& name)
         "hip::copy_to_gpu",
         "hip::sync_stream",
         "hip::load_scalar",
+        // Host dispatch picks a submodule per run; capturing it would replay
+        // the submodule chosen at capture time.
+        "select_module",
+        "select_module_index",
         // rocblas crashes with a capturing stream
         "gpu::gemm",
         "gpu::quant_gemm",

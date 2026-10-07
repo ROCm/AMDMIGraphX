@@ -57,8 +57,7 @@ struct select_module_index
         check_shapes{inputs, *this}.has_at_least(1);
         const auto& index = inputs.front();
         auto index_type   = index.type();
-        // The index is a host value: a rank-0 scalar, or the int64[1] tensor
-        // produced by dimensions_of / eval_expr_from_shape.
+        // On GPU the index is a hip::load_scalar result; under ref it is a host integer.
         if(index.elements() != 1 or
            (index_type != shape::int32_type and index_type != shape::int64_type))
         {

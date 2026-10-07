@@ -26,7 +26,6 @@
 
 #include <string>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/allocation_model.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -35,12 +34,11 @@ struct module;
 
 /**
  * Remove multiple memory allocations using graph coloring to find memory allocations that can be
- * reused. The scratch memory of a submodule is hoisted into an allocation in its parent module so
- * it is colored alongside the parent's allocations.
+ * reused.
  */
 struct MIGRAPHX_EXPORT memory_coloring
 {
-    allocation_model model;
+    std::string allocation_op{};
     bool verify = false;
     std::string name() const { return "memory_coloring"; }
     void apply(module& m) const;

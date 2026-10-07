@@ -32,7 +32,6 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/memory_coloring.hpp>
-#include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/builtin.hpp>
@@ -577,7 +576,7 @@ struct compile_plan
                    {
                        eliminate_identity{},
                        dead_code_elimination{},
-                       memory_coloring{gpu_allocation_model{}},
+                       memory_coloring{"hip::allocate"},
                    });
         return bench_prog;
     }

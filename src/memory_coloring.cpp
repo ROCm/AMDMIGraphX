@@ -47,7 +47,7 @@ using instruction_set_map = std::unordered_map<instruction_ref, instruction_set>
 // This will build the conflict table or interference graph. This is
 // essentially a map from one instruction to a set of instruction that are
 // used together. Each instruction will be the allocation instruction.
-static instruction_set_map build_conflict_table(const module& m, const std::string& allocation_op)
+static instruction_set_map build_conflict_table(const module& m, std::string allocation_op)
 {
     instruction_set_map conflict_table;
     liveness(m, [&](auto ins, const auto& live_set) {
@@ -297,71 +297,11 @@ static std::size_t find_max_alignment(const module& m, const std::string& alloca
     return alignment;
 }
 
-template <class Iterator, class F>
-static std::size_t max_of(Iterator first, Iterator last, std::size_t init, F f)
-{
-    return transform_accumulate(
-        first, last, init, [](std::size_t x, std::size_t y) { return std::max(x, y); }, f);
-}
-
-// The alignment the loads from a scratch parameter were colored with
-static std::size_t compute_scratch_alignment(instruction_ref scratch)
-{
-    const auto& loads = scratch->outputs();
-    return max_of(loads.begin(), loads.end(), 1, &allocation_segment::compute_alignment);
-}
-
-// Replace the scratch parameters of the submodules of `ins` with a single allocation in the
-// parent module, sized for the largest, so they get colored with the parent's allocations. The
-// submodules reference the parent allocation directly, which liveness treats as an implicit use
-// by `ins`. Returns the alignment the hoisted scratch requires.
-static std::size_t
-hoist_submodule_scratch(module& m, instruction_ref ins, const allocation_model& model)
-{
-    // The submodule along with its scratch parameter
-    std::vector<std::pair<module_ref, instruction_ref>> params;
-    const auto& mods = ins->module_inputs();
-    transform_if(
-        mods.begin(),
-        mods.end(),
-        std::back_inserter(params),
-        [](module_ref mod) { return mod->get_parameter("scratch") != mod->end(); },
-        [](module_ref mod) { return std::make_pair(mod, mod->get_parameter("scratch")); });
-    if(params.empty())
-        return 1;
-    auto bytes     = max_of(params.begin(), params.end(), 0, [](const auto& p) {
-        return p.second->get_shape().bytes();
-    });
-    auto alignment = max_of(params.begin(), params.end(), 1, [](const auto& p) {
-        return compute_scratch_alignment(p.second);
-    });
-    auto alloc     = m.insert_instruction(ins, model.allocate(shape{shape::int8_type, {bytes}}));
-    std::for_each(params.begin(), params.end(), [&](const auto& p) {
-        p.first->replace_instruction(p.second, alloc);
-        p.first->remove_instruction(p.second);
-    });
-    return alignment;
-}
-
-static std::size_t hoist_submodules_scratch(module& m, const allocation_model& model)
-{
-    std::vector<instruction_ref> parents;
-    auto r = iterator_for(m);
-    std::copy_if(r.begin(), r.end(), std::back_inserter(parents), [](instruction_ref ins) {
-        return not ins->module_inputs().empty();
-    });
-    return max_of(parents.begin(), parents.end(), 1, [&](instruction_ref ins) {
-        return hoist_submodule_scratch(m, ins, model);
-    });
-}
-
 void memory_coloring::apply(module& m) const
 {
-    const auto allocation_op        = model.name();
-    const std::size_t sub_alignment = hoist_submodules_scratch(m, model);
-    const std::size_t alignment     = std::max(find_max_alignment(m, allocation_op), sub_alignment);
-    auto conflict_table             = build_conflict_table(m, allocation_op);
-    auto as                         = allocation_segment::build(m, conflict_table, alignment);
+    const std::size_t alignment = find_max_alignment(m, allocation_op);
+    auto conflict_table         = build_conflict_table(m, allocation_op);
+    auto as                     = allocation_segment::build(m, conflict_table, alignment);
 
     // All allocations should have a segment
     assert(std::all_of(conflict_table.begin(), conflict_table.end(), [&](auto&& pp) {

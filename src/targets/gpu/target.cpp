@@ -332,7 +332,7 @@ struct pipeline_factory
             dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
-            memory_coloring{gpu_allocation_model{}},
+            memory_coloring{"hip::allocate"},
             sync_device{},
             preallocate_param{"scratch", gpu_allocation_model{}},
             dead_code_elimination{},

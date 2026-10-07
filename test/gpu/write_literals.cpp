@@ -28,7 +28,6 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/memory_coloring.hpp>
-#include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
@@ -355,7 +354,7 @@ run_write_literals_and_color(const std::vector<std::array<std::size_t, 3>>& ival
     migraphx::run_passes(m,
                          {migraphx::gpu::write_literals{.max_memory               = max_memory,
                                                         .scratch_overhead_percent = overhead},
-                          migraphx::memory_coloring{migraphx::gpu::gpu_allocation_model{}},
+                          migraphx::memory_coloring{"hip::allocate"},
                           migraphx::dead_code_elimination{}});
     coloring_result r;
     auto scratch = m.get_parameter("scratch");

@@ -282,9 +282,12 @@ struct find_op_shape_transform_op
                return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
            }))
             return false;
-        // A chain that changes the element count is only valid for a reduction
-        return is_reduce(x_ins) or
-               input_ins->get_shape().elements() == x_ins->get_shape().elements();
+        if(input_ins->get_shape().elements() == x_ins->get_shape().elements())
+            return true;
+        // An element-expanding chain can be moved through a reduction only when
+        // the reduction is not shared. The rewrite replaces x_ins globally, so
+        // changing its shape would invalidate its other consumers.
+        return is_reduce(x_ins) and x_ins->outputs().size() == 1;
     }
 
     static bool matches_op(instruction_ref ins)

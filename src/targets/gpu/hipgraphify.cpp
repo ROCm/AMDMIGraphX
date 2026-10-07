@@ -79,6 +79,10 @@ static bool is_unsupported(const std::string& name)
 // the host per run, so a captured kernel would replay a stale one.
 static bool is_runtime_view(instruction_ref ins)
 {
+    // The host index only picks which submodule writes into the fixed output
+    // buffer; the address of the result does not depend on it
+    if(ins->name() == "select_module_index")
+        return false;
     if(ins->get_operator().output_alias(to_shapes(ins->inputs())).empty())
         return false;
     return std::any_of(ins->inputs().begin(), ins->inputs().end(), is_host_value);

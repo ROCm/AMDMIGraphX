@@ -5416,6 +5416,48 @@ TEST_CASE(select_module_index_mismatched_data_input)
     }));
 }
 
+TEST_CASE(select_module_index_map_size_mismatch)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape index_s{migraphx::shape::int64_type, {1}};
+    auto index = mm->add_outline(index_s);
+
+    auto* sub0 = p.create_module("sub_0");
+    sub0->add_return({sub0->add_outline(migraphx::shape{migraphx::shape::float_type, {2}})});
+    auto* sub1 = p.create_module("sub_1");
+    sub1->add_return({sub1->add_outline(migraphx::shape{migraphx::shape::float_type, {2}})});
+
+    EXPECT(test::throws([&] {
+        mm->add_instruction(
+            migraphx::make_op("select_module_index",
+                              {{"index_map", std::vector<std::size_t>{4, 7, 9}}}),
+            {index},
+            {sub0, sub1});
+    }));
+}
+
+TEST_CASE(select_module_index_map_duplicate)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape index_s{migraphx::shape::int64_type, {1}};
+    auto index = mm->add_outline(index_s);
+
+    auto* sub0 = p.create_module("sub_0");
+    sub0->add_return({sub0->add_outline(migraphx::shape{migraphx::shape::float_type, {2}})});
+    auto* sub1 = p.create_module("sub_1");
+    sub1->add_return({sub1->add_outline(migraphx::shape{migraphx::shape::float_type, {2}})});
+
+    EXPECT(test::throws([&] {
+        mm->add_instruction(
+            migraphx::make_op("select_module_index",
+                              {{"index_map", std::vector<std::size_t>{4, 4}}}),
+            {index},
+            {sub0, sub1});
+    }));
+}
+
 TEST_CASE(select_module_index_output_alias)
 {
     migraphx::shape index_s{migraphx::shape::int64_type, {1}};

@@ -117,7 +117,7 @@ std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes)
                                 [](auto s) { return s.lens(); });
 }
 
-static shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
+shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
 {
     if(t1 == t2)
         return t1;

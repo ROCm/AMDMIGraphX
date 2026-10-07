@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,6 @@
  */
 #include "migraphx/instruction.hpp"
 #include "migraphx/instruction_ref.hpp"
-#include <migraphx/reduce_dims.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
@@ -66,7 +65,8 @@ struct unpack_int4_compiler : compiler<unpack_int4_compiler>
         hip_compile_options options;
         options.inputs         = inputs;
         options.output         = inputs.back();
-        options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
+        auto axis              = v.at("axis").to<std::size_t>();
+        options.virtual_inputs = reduce_dims_axis(options.inputs, axis);
         options.kernel_name    = "unpack_int4_kernel";
         options.set_launch_params(v, compute_global_for(ctx, inputs.front().elements()));
 
@@ -75,7 +75,7 @@ struct unpack_int4_compiler : compiler<unpack_int4_compiler>
                                {{"kernel", options.kernel_name},
                                 {"params", enum_params(options.inputs.size(), "void * private_p")},
                                 {"args", enum_params(options.inputs.size(), "private_p")},
-                                {"axis", std::to_string(v.at("axis").to<int>())}});
+                                {"axis", std::to_string(axis)}});
         return compile_hip_code_object(ctx, src, options);
     }
 

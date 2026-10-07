@@ -27,25 +27,32 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t DType, std::size_t N, std::size_t Min, std::size_t Max = Min>
-struct test_concat_axis_neg_1 : verify_program<test_concat_axis_neg_1<DType, N, Min, Max>>
+// Two non-fixed dimensions stop split_single_dyn_dim from specializing the module, so the shape
+// stays dynamic and gpu lowering takes its host ref fallback. The test dims are below the maximum
+// so the padding in the indices output is exercised too.
+template <migraphx::shape::type_t DType>
+struct test_nonzero_dynamic : verify_program<test_nonzero_dynamic<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        int axis = -1;
-        migraphx::shape s0{DType, {N, (Min + Max) / 2}};
-        migraphx::shape s1{DType, {N, Max}};
-        migraphx::shape s2{DType, {N, Min}};
-        auto l0 = mm->add_parameter("x", s0);
-        auto l1 = mm->add_parameter("y", s1);
-        auto l2 = mm->add_parameter("z", s2);
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
+        migraphx::shape s{DType, {{1, 4}, {1, 4}}};
+        auto x       = mm->add_parameter("data", s);
+        auto nz      = mm->add_instruction(migraphx::make_op("nonzero"), x);
+        auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
+        auto num_nonzero =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
+        mm->add_return({indices, num_nonzero});
+
         return p;
+    }
+
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
+    {
+        return {{"data", migraphx::shape{DType, {2, 3}}}};
     }
 };
 
-template struct test_concat_axis_neg_1<migraphx::shape::int32_type, 2, 1, 3>;
-
-template struct test_concat_axis_neg_1<migraphx::shape::float_type, 16, 12>;
+template struct test_nonzero_dynamic<migraphx::shape::bool_type>;
+template struct test_nonzero_dynamic<migraphx::shape::float_type>;

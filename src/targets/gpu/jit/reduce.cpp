@@ -1349,7 +1349,6 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         /// every size the block algorithm fits. The extra parameters are included
         /// in each solution.
         void add_topk_block_sizes(const context& ctx,
-
                                   bool exhaustive,
                                   std::size_t n,
                                   std::size_t block_size,

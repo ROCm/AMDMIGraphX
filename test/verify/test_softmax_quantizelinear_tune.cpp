@@ -32,42 +32,45 @@ struct test_softmax_quantizelinear_tune : verify_program<test_softmax_quantizeli
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape xs{migraphx::shape::float_type, {1, 12, 256, 256}};
-        migraphx::shape ms{migraphx::shape::half_type, {1, 1, 256, 256}};
-        auto x    = mm->add_parameter("x", xs);
-        auto mask = mm->add_parameter("mask", ms);
+        auto* mm  = p.get_main_module();
+        auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {1, 2, 2, 32769}});
+        auto mask = mm->add_parameter("mask", {migraphx::shape::half_type, {1, 1, 2, 32769}});
 
-        auto broadcast = [&](migraphx::instruction_ref ins) {
-            return mm->add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", xs.lens()}}), ins);
-        };
-        auto scale = [&](float s) {
-            return broadcast(mm->add_literal(
-                migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {s}}));
-        };
-        auto convert = [&](migraphx::instruction_ref ins, migraphx::shape::type_t t) {
-            return mm->add_instruction(migraphx::make_op("convert", {{"target_type", t}}), ins);
-        };
+        auto x_scale =
+            mm->add_literal({migraphx::shape{migraphx::shape::float_type, {1}}, {0.25f}});
+        auto x_scale_b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 32769}}}), x_scale);
+        auto dq = mm->add_instruction(migraphx::make_op("dequantizelinear"), x, x_scale_b);
 
-        auto dq  = mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale(0.25f));
-        auto mul = mm->add_instruction(migraphx::make_op("mul"), dq, scale(0.125f));
-        auto add = mm->add_instruction(
-            migraphx::make_op("add"), mul, convert(broadcast(mask), migraphx::shape::float_type));
-        auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}),
-                                           convert(add, migraphx::shape::half_type));
-        auto q       = mm->add_instruction(
+        auto alpha = mm->add_literal({migraphx::shape{migraphx::shape::float_type, {1}}, {0.125f}});
+        auto alpha_b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 32769}}}), alpha);
+        auto mul = mm->add_instruction(migraphx::make_op("mul"), dq, alpha_b);
+
+        auto mask_b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 32769}}}), mask);
+        auto mask_f = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mask_b);
+        auto add = mm->add_instruction(migraphx::make_op("add"), mul, mask_f);
+
+        auto add_h = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), add);
+        auto softmax   = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), add_h);
+        auto softmax_f = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), softmax);
+
+        auto y_scale =
+            mm->add_literal({migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f / 448}});
+        auto y_scale_b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 32769}}}), y_scale);
+        mm->add_instruction(
             migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::fp8e4m3fn_type}}),
-            convert(softmax, migraphx::shape::float_type),
-            scale(1.0f / 448));
-        mm->add_return({q});
+            softmax_f,
+            y_scale_b);
         return p;
     }
 
     std::string section() const { return "reduce"; }
 
-    migraphx::compile_options get_compile_options() const
-    {
-        return migraphx::compile_options{.exhaustive_tune = true};
-    }
+    std::size_t get_tolerance() const { return 1; }
 };

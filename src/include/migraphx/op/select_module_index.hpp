@@ -26,6 +26,7 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,6 +49,12 @@ struct select_module_index
 
     std::string name() const { return "select_module_index"; }
 
+    // Lowering appends the tuple output buffer as the last input
+    static bool has_output_buffer(const std::vector<shape>& inputs)
+    {
+        return inputs.size() > 1 and inputs.back().type() == shape::tuple_type;
+    }
+
     shape compute_shape(const std::vector<shape>& inputs,
                         const std::vector<module_ref>& mods) const
     {
@@ -68,6 +75,27 @@ struct select_module_index
         if(not index_map.empty() and index_map.size() != mods.size())
         {
             MIGRAPHX_THROW("SELECT_MODULE_INDEX: index_map must match submodule count.");
+        }
+
+        std::vector<shape> data_shapes(inputs.begin() + 1,
+                                       has_output_buffer(inputs) ? inputs.end() - 1
+                                                                 : inputs.end());
+        auto mismatched = std::find_if(mods.begin(), mods.end(), [&](module_ref mod) {
+            auto names        = get_input_parameter_names(mod);
+            auto param_shapes = mod->get_parameter_shapes();
+            return not std::equal(names.begin(),
+                                  names.end(),
+                                  data_shapes.begin(),
+                                  data_shapes.end(),
+                                  [&](const auto& name, const auto& s) {
+                                      return param_shapes.at(name) == s;
+                                  });
+        });
+        if(mismatched != mods.end())
+        {
+            MIGRAPHX_THROW("SELECT_MODULE_INDEX: data inputs {" + to_string_range(data_shapes) +
+                           "} do not match the parameters of submodule " +
+                           (*mismatched)->name() + ".");
         }
 
         auto out_shapes0 = mods.front()->get_output_shapes();
@@ -184,6 +212,8 @@ struct select_module_index
 
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
+        if(not has_output_buffer(shapes))
+            return {};
         return {shapes.size() - 1};
     }
 };

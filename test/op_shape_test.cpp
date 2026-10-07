@@ -5382,6 +5382,51 @@ TEST_CASE(select_module_index_mismatched_submodule_shapes)
     }));
 }
 
+TEST_CASE(select_module_index_missing_data_input)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape index_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape data_s{migraphx::shape::float_type, {2, 2}};
+    auto index = mm->add_outline(index_s);
+
+    auto* sub = p.create_module("sub");
+    auto x    = sub->add_parameter("data", data_s);
+    sub->add_return({x});
+
+    EXPECT(test::throws(
+        [&] { mm->add_instruction(migraphx::make_op("select_module_index"), {index}, {sub}); }));
+}
+
+TEST_CASE(select_module_index_mismatched_data_input)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape index_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape data_s{migraphx::shape::float_type, {2, 2}};
+    auto index = mm->add_outline(index_s);
+    auto data  = mm->add_outline(migraphx::shape{migraphx::shape::float_type, {2, 3}});
+
+    auto* sub = p.create_module("sub");
+    auto x    = sub->add_parameter("data", data_s);
+    sub->add_return({x});
+
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("select_module_index"), {index, data}, {sub});
+    }));
+}
+
+TEST_CASE(select_module_index_output_alias)
+{
+    migraphx::shape index_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape data_s{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape out_s{std::vector<migraphx::shape>{data_s}};
+    auto op = migraphx::make_op("select_module_index");
+    EXPECT(op.output_alias({index_s}).empty());
+    EXPECT(op.output_alias({index_s, data_s}).empty());
+    EXPECT(op.output_alias({index_s, data_s, out_s}) == std::vector<std::size_t>{2});
+}
+
 TEST_CASE(slice_static_shape)
 {
     migraphx::shape input{migraphx::shape::int32_type, {2, 2, 3}};

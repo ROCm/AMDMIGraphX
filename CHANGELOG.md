@@ -3,6 +3,14 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## MIGraphX 2.12 for ROCm 6.4.2.2
+
+### Resolved Issues
+
+* Fixed a failing unit test #3887
+
+
+
 ## MIGraphX 2.12 for ROCm 6.4.0
 
 ### Added

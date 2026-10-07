@@ -1205,6 +1205,9 @@ def create_backend_test(testname=None, target_device=None):
         if version.parse(onnx.__version__) >= version.parse("1.16.0"):
             disabled_tests_onnx_1_16_0(backend_test)
 
+        if version.parse(onnx.__version__) >= version.parse("1.17.0"):
+            disabled_tests_onnx_1_17_0(backend_test)
+
 
 # import all test cases at global scope to make
 # them visible to python.unittest.

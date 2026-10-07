@@ -284,9 +284,7 @@ struct find_op_shape_transform_op
             return false;
         if(input_ins->get_shape().elements() == x_ins->get_shape().elements())
             return true;
-        // An element-expanding chain can be moved through a reduction only when
-        // the reduction is not shared. The rewrite replaces x_ins globally, so
-        // changing its shape would invalidate its other consumers.
+        // Expanding chains cannot restore the reduction output for other consumers.
         return is_reduce(x_ins) and x_ins->outputs().size() == 1;
     }
 
@@ -527,7 +525,9 @@ struct find_op_shape_transform_op
                        x_inputs.begin(),
                        reshape_input(x_ins, desc.to_common_from_src()));
         auto new_input_ins = insert(m, x_ins, x_inputs, desc.common_axes_map_from_src());
-        auto new_x_ins     = reshape_input(x_ins, desc.to_src_from_common())(new_input_ins);
+        auto new_x_ins     = x_ins;
+        if(x_ins->outputs().size() > 1)
+            new_x_ins = reshape_input(x_ins, desc.to_src_from_common())(new_input_ins);
         if(new_input_ins->get_shape().elements() != input_ins->get_shape().elements())
         {
             auto cdims    = desc.common_dims();
@@ -540,9 +540,12 @@ struct find_op_shape_transform_op
                 return new_input_ins;
             return reshape_input(ins, desc.to_common_from_dst(), true)(input);
         });
-        // Replace old x_ins just in case it is used more than once
-        assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());
-        m.replace_instruction(x_ins, new_x_ins);
+        // Restore x_ins for its other consumers.
+        if(new_x_ins != x_ins)
+        {
+            assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());
+            m.replace_instruction(x_ins, new_x_ins);
+        }
         // Replace final instruction
         auto pw   = insert(m, ins, inputs, desc.common_axes_map_from_dst());
         auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);

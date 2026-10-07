@@ -6494,6 +6494,67 @@ TEST_CASE(op_shape_transform_shadowed_broadcast)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(op_shape_transform_reduce_expanding_chain)
+{
+    migraphx::module m1;
+    {
+        auto image = m1.add_parameter("image", {migraphx::shape::float_type, {1, 384, 480, 3}});
+        auto scale = m1.add_parameter("scale", {migraphx::shape::float_type, {1, 1, 1, 2, 3}});
+        auto mean = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1, 2}}}), image);
+        auto unsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), mean);
+        auto expanded  = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1, 2, 3}}}), unsqueeze);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), expanded, scale);
+        m1.add_return({mul});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto image     = m2.add_parameter("image", {migraphx::shape::float_type, {1, 384, 480, 3}});
+        auto scale     = m2.add_parameter("scale", {migraphx::shape::float_type, {1, 1, 1, 2, 3}});
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), image);
+        auto expanded  = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 384, 480, 2, 3}}}), unsqueeze);
+        auto mean =
+            m2.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1, 2}}}), expanded);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), mean, scale);
+        m2.add_return({mul});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(op_shape_transform_shared_reduce_element_preserving_chain)
+{
+    migraphx::module m1;
+    {
+        auto image = m1.add_parameter("image", {migraphx::shape::float_type, {1, 384, 480, 3}});
+        auto scale = m1.add_parameter("scale", {migraphx::shape::float_type, {1, 1, 1, 1, 3}});
+        auto mean = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1, 2}}}), image);
+        auto unsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), mean);
+        auto mul       = m1.add_instruction(migraphx::make_op("mul"), unsqueeze, scale);
+        auto shared    = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 384, 480, 3}}}), mean);
+        m1.add_return({mul, shared});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto image     = m2.add_parameter("image", {migraphx::shape::float_type, {1, 384, 480, 3}});
+        auto scale     = m2.add_parameter("scale", {migraphx::shape::float_type, {1, 1, 1, 1, 3}});
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), image);
+        auto mean =
+            m2.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1, 2}}}), unsqueeze);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), mean);
+        auto mul     = m2.add_instruction(migraphx::make_op("mul"), mean, scale);
+        auto shared  = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 384, 480, 3}}}), squeeze);
+        m2.add_return({mul, shared});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(op_shape_transform_shared_reduce_expanding_chain)
 {
     migraphx::module m1;

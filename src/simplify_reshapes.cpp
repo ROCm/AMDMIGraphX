@@ -1089,6 +1089,9 @@ struct find_concat_slice
                 if(inputs[idx]->get_shape().lens()[concat_axis] == slice_len)
                 {
                     assert((prefix_scan[idx + 1] - prefix_scan[idx]) == slice_len);
+                    // inputs aliases ins's argument list and prefix_scan was built from it, so
+                    // replacing a consumer must not rewrite ins's own inputs.
+                    assert(not contains(sins->outputs(), ins));
                     m.replace_instruction(sins, inputs[idx]);
                 }
             }

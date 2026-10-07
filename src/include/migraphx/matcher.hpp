@@ -1008,9 +1008,12 @@ inline auto name_contains(const std::string& name)
 
 inline auto name(std::unordered_set<std::string> names)
 {
+    // Share the set between matcher copies rather than copying it: matchers are copied by value
+    // as they are composed and again for every instruction visited, so copying the set each time
+    // was a measurable compile-time cost. Keep it const so the copies cannot diverge.
     return make_basic_pred_matcher(
         [m_names = std::make_shared<const std::unordered_set<std::string>>(std::move(names))](
-            instruction_ref ins) { return m_names->count(ins->name()) > 0; });
+            instruction_ref ins) { return contains(*m_names, ins->name()); });
 }
 
 template <class... Ts>

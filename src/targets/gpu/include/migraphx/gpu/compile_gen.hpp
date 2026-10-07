@@ -104,6 +104,9 @@ generate_pointwise(const module& pm, const std::string& name, bool always_return
 
 MIGRAPHX_GPU_EXPORT std::string generate_reduce(const module& m, const std::string& name);
 
+/// The k of a topk instruction, clamped to its input length by the output shape
+std::size_t topk_k(const instruction& ins);
+
 std::string generate_name_from_ops(const module& m, const std::string& postname = "");
 
 struct reduce_op

@@ -646,19 +646,29 @@ struct miopen_apply
 
     /**
      * Adds dynamic allocation for submodule output parameter.
+     * select_module_index reads its index on the host, so the device scalar is
+     * copied back with hip::load_scalar. The load is inserted immediately after
+     * the index, and every select of that instruction shares it.
      */
     void add_select_module_op()
     {
-        // select_module_index reads its index on the host. dimensions_of and
-        // eval_expr_from_shape lowering replace that producer with copy_to_gpu,
-        // so take the host result (the copy's first input) instead for those cases
+        auto load_index = [=](instruction_ref index) {
+            if(index->name() == "hip::load_scalar")
+                return index;
+            const auto& outputs = index->outputs();
+            auto it             = std::find_if(outputs.begin(), outputs.end(), [](auto out) {
+                return out->name() == "hip::load_scalar";
+            });
+            if(it != outputs.end())
+                return *it;
+            return mod->insert_instruction(std::next(index), make_op("hip::load_scalar"), index);
+        };
         auto append_output = [=](instruction_ref ins) {
             auto s                              = ins->get_shape();
             auto output                         = insert_allocation(ins, s);
             std::vector<instruction_ref> inputs = ins->inputs();
-            if(ins->name() == "select_module_index" and
-               inputs.front()->name() == "hip::copy_to_gpu")
-                inputs.front() = inputs.front()->inputs().front();
+            if(ins->name() == "select_module_index")
+                inputs.front() = load_index(inputs.front());
             inputs.push_back(output);
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         };

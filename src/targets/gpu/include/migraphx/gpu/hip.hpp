@@ -186,6 +186,13 @@ struct hip_copy_from_gpu
     argument
     compute(context& ctx, const dyn_output& dyn_out, const std::vector<argument>& args) const
     {
+        if(args[0].get_shape().type() != shape::tuple_type and args[0].get_shape().elements() == 0)
+        {
+            if(args.size() == 1)
+                return allocate_gpu(args[0].get_shape(), true);
+            if(args[1].get_shape().elements() == 0)
+                return args[1];
+        }
         if(args.size() == 1)
         {
             argument result = allocate_gpu(dyn_out.computed_shape, true);

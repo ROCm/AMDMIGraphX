@@ -7,7 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved Issues
 
-* Fixed a failing unit test #3887
+* Fixed output shape computation for grouped transposed convolutions (#3887)
 
 
 

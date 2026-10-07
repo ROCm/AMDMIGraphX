@@ -70,8 +70,8 @@ TEST_CASE(select_module_index_dispatch)
         result.visit([&](auto output) { out.assign(output.begin(), output.end()); });
         return out;
     };
-    EXPECT(migraphx::verify::verify_rms_range(run(0), {11, 12, 13, 14}));
-    EXPECT(migraphx::verify::verify_rms_range(run(1), {21, 22, 23, 24}));
+    EXPECT(migraphx::verify::verify_rms_range(run(0), std::vector<float>{11, 12, 13, 14}));
+    EXPECT(migraphx::verify::verify_rms_range(run(1), std::vector<float>{21, 22, 23, 24}));
 }
 
 TEST_CASE(select_module_index_map)
@@ -112,5 +112,5 @@ TEST_CASE(select_module_index_map)
     auto result        = p.eval(params).back();
     std::vector<float> out;
     result.visit([&](auto output) { out.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_rms_range(out, {21, 22, 23, 24}));
+    EXPECT(migraphx::verify::verify_rms_range(out, std::vector<float>{21, 22, 23, 24}));
 }

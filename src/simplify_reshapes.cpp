@@ -872,9 +872,8 @@ struct find_concat_multibroadcasts
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto concat_ins    = mr.result;
-        auto concat_op     = any_cast<op::concat>(concat_ins->get_operator());
+        auto concat_op     = any_cast<op::concat>(concat_ins->normalized_operator());
         auto concat_inputs = concat_ins->inputs();
-        assert(concat_op.axis >= 0);
 
         if(broadcast_concat_axis(concat_ins))
         {
@@ -2515,6 +2514,10 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m, find_gather{});
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m, find_slice_reshaped_concat{});
+        // Runs before find_concat_reshape, which would otherwise take
+        // concat(unsqueeze(broadcast)) and keep concatenating the broadcast. It is a separate
+        // call so a concat it matches but can't rewrite is still seen by find_concat_reshape.
+        match::find_matches(m, find_concat_multibroadcasts{});
         match::find_matches(m,
                             find_nop_reshapes{},
                             find_flatten{},
@@ -2526,9 +2529,6 @@ void simplify_reshapes::apply(module& m) const
                             find_concat_slice{},
                             find_concat_slice_layout{},
                             find_concat_transpose{},
-                            // Before find_concat_reshape, which would otherwise take
-                            // concat(unsqueeze(broadcast)) and keep concatenating the broadcast
-                            find_concat_multibroadcasts{},
                             find_concat_reshape{},
                             find_nested_slice{},
                             find_nested_concat{},

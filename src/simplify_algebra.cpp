@@ -95,6 +95,16 @@ static bool concat_args_foldable(const std::vector<instruction_ref>& args, std::
     if(std::all_of(
            args.begin(), args.end(), [](instruction_ref x) { return x->get_shape().scalar(); }))
         return true;
+    // Its also ok if no broadcast expands the data, i.e. every zero stride is on a length 1 axis
+    if(std::all_of(args.begin(), args.end(), [](instruction_ref x) {
+           const auto& s = x->get_shape();
+           return std::equal(
+               s.lens().begin(),
+               s.lens().end(),
+               s.strides().begin(),
+               [](std::size_t len, std::size_t stride) { return stride != 0 or len == 1; });
+       }))
+        return true;
     // TODO: Allow concat across broadcasted axis if all them are the same size
     return std::none_of(args.begin(), args.end(), [&](instruction_ref x) {
         return x->get_shape().strides()[axis] == 0;

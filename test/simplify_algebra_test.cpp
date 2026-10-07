@@ -2676,6 +2676,53 @@ TEST_CASE(simplify_split_add_broadcast_constant)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(simplify_split_add_unexpanded_broadcast_constant)
+{
+    // The biases are broadcast only on the length 1 concat axis, so nothing is expanded and
+    // they are concatenated as is
+    auto s  = migraphx::shape{migraphx::shape::float_type, {4, 3}};
+    auto bs = migraphx::shape{migraphx::shape::float_type, {3}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> outs;
+        for(int64_t i = 0; i < 4; ++i)
+        {
+            auto sl = m1.add_instruction(
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), x);
+            auto b = m1.add_literal(migraphx::generate_literal(bs, i));
+            auto bb =
+                m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3}}}), b);
+            outs.push_back(m1.add_instruction(migraphx::make_op("add"), sl, bb));
+        }
+        m1.add_return(outs);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> biases;
+        for(int64_t i = 0; i < 4; ++i)
+        {
+            auto b = m2.add_literal(migraphx::generate_literal(bs, i));
+            biases.push_back(
+                m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3}}}), b));
+        }
+        auto c   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), biases);
+        auto add = m2.add_instruction(migraphx::make_op("add"), x, c);
+        std::vector<migraphx::instruction_ref> outs;
+        for(int64_t i = 0; i < 4; ++i)
+        {
+            outs.push_back(m2.add_instruction(
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
+                add));
+        }
+        m2.add_return(outs);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(simplify_split_add_broadcast_constant_wide_slice)
 {
     // Each slice spans 2 rows of the broadcast axis, so the biases aren't length 1 on the

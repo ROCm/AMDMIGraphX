@@ -108,7 +108,6 @@ void file_binary_cache::store(const std::string& version,
                               const std::string& device,
                               const std::vector<binary_cache_entry>& entries) const
 {
-    // Every entry shares one directory, so it is created once for the whole batch.
     auto dir = entry_dir(root, version, device);
     fs::create_directories(dir);
     // The content is decided entirely by the key, so a writer that loses the publish race

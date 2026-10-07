@@ -25,6 +25,7 @@
 #include <migraphx/sqlite.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/stringutils.hpp>
 #include <sqlite3.h>
 #include <algorithm>
 #include <cassert>
@@ -124,6 +125,11 @@ optional<sqlite> sqlite::try_write(const fs::path& p)
     return r;
 }
 
+bool sqlite::is_database_path(const std::string& path)
+{
+    return ends_with(path, ".db") or ends_with(path, ".sqlite");
+}
+
 std::vector<std::unordered_map<std::string, std::string>> sqlite::execute(const std::string& s)
 {
     std::vector<std::unordered_map<std::string, std::string>> result;
@@ -221,7 +227,7 @@ bool sqlite_stmt::step() const
 void sqlite_stmt::reset() const noexcept
 {
     assert(impl != nullptr);
-    // The return of sqlite3_reset is the error from the preceding step(), which the caller
+    // sqlite3_reset only repeats the error, if any, from the preceding step(), which the caller
     // has already seen as a throw. There is nothing new to report, and this must not throw.
     (void)sqlite3_reset(impl->get());
     (void)sqlite3_clear_bindings(impl->get());

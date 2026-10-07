@@ -85,7 +85,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
 
     /// Nothing is opened here; storage is set up by the first lookup or insert, so a context that
     /// never compiles never touches the disk or probes the compiler.
-    explicit binary_cache(binary_cache_settings s = {});
+    explicit binary_cache(binary_cache_settings s = {}) : settings(std::move(s)) {}
 
     /// Look up a key, consulting memory first and then the storage backend.
     optional<compiled_code> get(const context& ctx, const std::string& key);

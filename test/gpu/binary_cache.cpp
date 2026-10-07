@@ -118,13 +118,11 @@ static std::vector<migraphx::fs::path> entry_files(const migraphx::fs::path& dir
     return result;
 }
 
-/// Rows in one table of a cache database. The count is aliased because sqlite::execute keys its
+/// Rows in the cache table of a database. The count is aliased because sqlite::execute keys its
 /// rows by column name, and an unaliased count(*) would be keyed by the text of the expression.
-static std::size_t row_count(const std::string& path, const std::string& table)
+static std::size_t row_count(const std::string& path)
 {
-    auto rows = migraphx::sqlite::read(path).execute("SELECT count(*) AS n FROM " + table + ";");
-    if(rows.empty())
-        return 0;
+    auto rows = migraphx::sqlite::read(path).execute("SELECT count(*) AS n FROM cache_v1;");
     return std::stoul(rows.front().at("n"));
 }
 
@@ -185,7 +183,7 @@ struct directory_backend
 struct database_backend
 {
     static std::string path(const migraphx::tmp_dir& td) { return db_path(td); }
-    static std::size_t stored(const std::string& p) { return row_count(p, "cache_v1"); }
+    static std::size_t stored(const std::string& p) { return row_count(p); }
     /// Overwrite every stored entry's code with bytes that do not decode.
     static void damage(const std::string& p)
     {
@@ -427,7 +425,7 @@ TEST_CASE(extension_selects_the_backend)
         db_cache.insert(ctx, {make_entry("in-a-database")});
 
         EXPECT(migraphx::fs::is_regular_file(path));
-        EXPECT(row_count(path, "cache_v1") == 1);
+        EXPECT(row_count(path) == 1);
         EXPECT(entry_files(db_td.path).empty());
         EXPECT(not migraphx::fs::exists(db_td.path / version_dir));
     }
@@ -486,7 +484,7 @@ TEST_CASE(incompatible_schema_degrades_to_memory)
     migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
     cache.insert(ctx, {make_entry("in-memory")});
     EXPECT(cache.get(ctx, "in-memory").has_value());
-    EXPECT(row_count(path, "cache_v1") == 0);
+    EXPECT(row_count(path) == 0);
 }
 
 // Both backends address an entry by the same key hash.
@@ -633,7 +631,7 @@ TEST_CASE(sqlite_records_the_full_version_id)
 
     cache.insert(ctx, {make_entry("one")});
     cache.insert(ctx, {make_entry("two")});
-    EXPECT(row_count(path, "cache_v1") == 2);
+    EXPECT(row_count(path) == 2);
 
     auto rows = migraphx::sqlite::read(path).execute("SELECT DISTINCT version FROM cache_v1;");
     EXPECT(rows.size() == 1);
@@ -689,7 +687,7 @@ TEST_CASE(sqlite_read_only_database_still_serves_hits)
     EXPECT(reader.get(ctx, "new").has_value());
     if(protected_file)
     {
-        EXPECT(row_count(path, "cache_v1") == 1);
+        EXPECT(row_count(path) == 1);
     }
 
     // Restored so the temporary directory can be removed, which Windows refuses otherwise.
@@ -729,7 +727,7 @@ TEST_CASE(backends_store_overwrites_in_place)
         EXPECT(got.has_value());
         EXPECT(got->solution == replacement.solution);
     }
-    EXPECT(row_count(db_path(td), "cache_v1") == 1);
+    EXPECT(row_count(db_path(td)) == 1);
     EXPECT(entry_files(td.path / "files").size() == 1);
 }
 
@@ -808,7 +806,7 @@ TEST_CASE(sqlite_store_releases_the_database)
     auto other = migraphx::gpu::sqlite_binary_cache::open(path);
     EXPECT(other.has_value());
     other->store("v", "dev", {make_entry("k")});
-    EXPECT(row_count(path, "cache_v1") == 3);
+    EXPECT(row_count(path) == 3);
 }
 
 // Rows are addressed by a hash of the key, so a row whose stored key differs from the one asked

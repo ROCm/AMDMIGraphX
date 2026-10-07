@@ -26,6 +26,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -798,8 +799,7 @@ struct compile_manager
         // Every plan compiles with the same context, so the entries all go to one cache in a
         // single insert, letting its storage commit them together rather than one at a time.
         auto* ctx = tasks.front().first->ctx;
-        assert(std::all_of(
-            tasks.begin(), tasks.end(), [&](const auto& task) { return task.first->ctx == ctx; }));
+        assert(all_of(tasks, [&](const auto& task) { return task.first->ctx == ctx; }));
         std::vector<binary_cache::entry> entries;
         entries.reserve(tasks.size());
         for(const auto& [cp, cell] : tasks)

@@ -104,13 +104,12 @@ static std::string device_dir(const context& ctx)
            "_wf" + std::to_string(device.get_wavefront_size());
 }
 
-binary_cache::binary_cache(binary_cache_settings s) : settings(std::move(s)) {}
-
-// The storage backend is selected by file type, the same rule make_problem_cache_backend applies
-// in problem_cache.cpp: a ".db"/".sqlite" path is a SQLite database, anything else is a
-// directory of entries. A directory is named with the short version id to keep paths short; a
-// database records the full id, which is self-describing. Nothing is persisted when the compiler
-// cannot be identified, since entries from different toolchains would be indistinguishable.
+// The storage backend is selected by the path's extension, the same rule
+// make_problem_cache_backend applies: a SQLite database for sqlite::is_database_path, anything
+// else is a directory of entries. A directory is named with the short version id to keep paths
+// short; a database records the full id, which is self-describing. Nothing is persisted when the
+// compiler cannot be identified, since entries from different toolchains would be
+// indistinguishable.
 binary_cache_backend* binary_cache::get_backend()
 {
     if(backend_opened)
@@ -120,7 +119,7 @@ binary_cache_backend* binary_cache::get_backend()
     // Checked first so that a memory-only cache never compiles the version probe.
     if(path.empty())
         return nullptr;
-    const bool database = ends_with(path, ".db") or ends_with(path, ".sqlite");
+    const bool database = sqlite::is_database_path(path);
     version             = version_id(not database);
     if(version.empty())
         return nullptr;

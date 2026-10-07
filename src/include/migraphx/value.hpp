@@ -298,9 +298,9 @@ struct MIGRAPHX_EXPORT value
     {
     }
 
-    /// A keyed value. Braces would select the initializer_list constructor and make a two-element
-    /// array instead, so returning this spares callers from suppressing the tidy check that
-    /// suggests them.
+    /// A keyed value. Tidy suggests returning {key, x} instead of value(key, x), but braces pick
+    /// the initializer_list constructor and build a two-element array; this keeps that
+    /// suppression in one place.
     template <class... Ts>
     static value pair(const std::string& pkey, Ts&&... xs)
     {

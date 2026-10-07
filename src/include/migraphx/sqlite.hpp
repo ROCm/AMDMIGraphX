@@ -139,7 +139,7 @@ struct MIGRAPHX_EXPORT sqlite_stmt
 
     /// Run the statement with xs bound to its parameters in order, and return its rows.
     template <class... Ts>
-    rows operator()(const Ts&... xs) const
+    rows operator()(const Ts&... xs) const&
     {
         if(not valid())
             MIGRAPHX_THROW("sqlite: calling a statement that was never prepared");
@@ -150,6 +150,10 @@ struct MIGRAPHX_EXPORT sqlite_stmt
         each_args([&](const auto& x) { bind(++i, x); }, xs...);
         return rows{*this};
     }
+
+    /// The rows refer back to the statement, so a temporary one would leave them dangling.
+    template <class... Ts>
+    rows operator()(const Ts&...) const&& = delete;
 
     bool valid() const { return impl != nullptr; }
 
@@ -185,6 +189,9 @@ struct MIGRAPHX_EXPORT sqlite
     /// Open for writing, or nullopt if the file cannot be opened or created. For callers
     /// that treat an unusable database as "no cache" rather than as an error.
     static optional<sqlite> try_write(const fs::path& p);
+
+    /// True when a cache path names a SQLite database, by its ".db" or ".sqlite" extension.
+    static bool is_database_path(const std::string& path);
 
     std::vector<std::unordered_map<std::string, std::string>> execute(const std::string& s);
 

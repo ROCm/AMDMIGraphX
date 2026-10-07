@@ -24,13 +24,11 @@
 
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/pad.hpp>
 
-// Masked attention pads the key axis with -inf so the padded lanes vanish in the
-// softmax. The softmax keeps the comparison finite; comparing -inf directly would
-// make the rms error NaN.
+// The softmax is required: verify would otherwise compare -inf against -inf, whose
+// squared difference is NaN, so the rms check could not pass at any tolerance.
 struct test_pad_neg_inf : verify_program<test_pad_neg_inf>
 {
     migraphx::program create_program() const

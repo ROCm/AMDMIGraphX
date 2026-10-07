@@ -29,21 +29,11 @@
 #include <migraphx/builtin.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <cmath>
 #include <map>
 #include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-std::optional<std::string> nonfinite_cpp_literal(double x)
-{
-    if(std::isnan(x))
-        return "__builtin_nan(\"0\")";
-    if(std::isinf(x))
-        return std::signbit(x) ? "-__builtin_huge_val()" : "__builtin_huge_val()";
-    return std::nullopt;
-}
 
 cpp_generator::function&
 cpp_generator::function::set_body(const module& m, const cpp_generator::generate_module_callback& g)
@@ -220,13 +210,10 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
         .set_body(m, [&](instruction_ref ins, const auto& names) -> std::string {
             if(ins->name() == "@literal")
             {
-                std::string string_literal;
-                ins->get_literal().visit([&](auto v) {
-                    assert(v.size() == 1);
-                    string_literal = nonfinite_cpp_literal(static_cast<double>(v.front()))
-                                         .value_or(ins->get_literal().to_string());
-                });
-                return shape::cpp_type(ins->get_shape().type()) + "(" + string_literal + ")";
+                const auto& lit = ins->get_literal();
+                assert(lit.single());
+                return shape::cpp_type(ins->get_shape().type()) + "(" +
+                       nonfinite_cpp_literal(lit.at<double>()).value_or(lit.to_string()) + ")";
             }
             if(ins->name() == "@return")
             {

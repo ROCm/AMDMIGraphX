@@ -26,7 +26,6 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/instruction_ref.hpp>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -38,11 +37,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct operation;
 struct module;
 struct shape;
-
-/// Spell a non-finite value as a C++ literal, or return nullopt when the value is
-/// finite and can be streamed as-is. Streaming infinity or NaN instead yields the
-/// identifiers "inf" and "nan", which do not compile.
-MIGRAPHX_EXPORT std::optional<std::string> nonfinite_cpp_literal(double x);
 
 struct cpp_generator_impl;
 

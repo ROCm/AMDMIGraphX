@@ -26,7 +26,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/cpp_generator.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/op/pad.hpp>

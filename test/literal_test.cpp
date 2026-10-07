@@ -100,17 +100,18 @@ TEST_CASE(literal_raw_buffer_transposed)
 TEST_CASE(literal_raw_buffer_unaligned)
 {
     std::vector<float> data = {0, 1, 2, 3, 4, 5};
-    std::vector<char> storage(data.size() * sizeof(float) + 1);
-    const auto* bytes = reinterpret_cast<const char*>(data.data());
-    std::copy(bytes, bytes + data.size() * sizeof(float), storage.begin() + 1);
+    migraphx::literal src{migraphx::shape{migraphx::shape::float_type, {6}}, data};
+    auto nbytes = src.get_shape().bytes();
+    std::vector<char> storage(nbytes + 1);
+    std::copy(src.data(), src.data() + nbytes, storage.begin() + 1);
     const char* buf = storage.data() + 1;
 
     migraphx::shape standard{migraphx::shape::float_type, {2, 3}};
-    migraphx::literal l1{standard, buf, data.size() * sizeof(float)};
+    migraphx::literal l1{standard, buf, nbytes};
     EXPECT(l1.to_vector<float>() == data);
 
     migraphx::shape transposed{migraphx::shape::float_type, {2, 3}, {1, 2}};
-    migraphx::literal l2{transposed, buf, data.size() * sizeof(float)};
+    migraphx::literal l2{transposed, buf, nbytes};
     EXPECT(l2.to_vector<float>() == data);
 }
 

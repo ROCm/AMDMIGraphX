@@ -769,6 +769,9 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
         }
         else if(subs.size() == 1)
         {
+            // A hidden axis of 1 has no broadcast to absorb a different dim
+            if(not broadcast and subs.front()->has_hidden_axis() and subs.front()->len == 1)
+                return {};
             subs.front()->len = dim;
             if(broadcast)
                 subs.front()->hide();
@@ -1990,6 +1993,15 @@ shape_transform_descriptor shape_transform_descriptor::to_src_from_common() cons
         return {subdimensions};
     });
     result.simplify();
+    // A broadcasted dimension with no source axis is squeezed away, so hide
+    // its axis to require it to stay 1 when rebased
+    for_each_subdimension(result.dimensions, [&](dimension::sub& s) {
+        if(s.axis.size() != 1)
+            return;
+        const auto& common_sub = subs[s.axis.front()];
+        if(common_sub.origin_axis().empty() and common_sub.len != 1)
+            s.hide();
+    });
     return result;
 }
 

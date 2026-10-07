@@ -117,6 +117,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     shape_transform_descriptor to_common_from_src() const;
     shape_transform_descriptor to_common_from_dst() const;
     shape_transform_descriptor to_dst_from_common() const;
+    // Transform the common dimensions back into the source dimensions. A dimension broadcasted
+    // from no source axis is squeezed away, so it is hidden and must be 1 to rebase.
     shape_transform_descriptor to_src_from_common() const;
 
     // Transform the destination dimensions back into the original dimensions. This is empty when

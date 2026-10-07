@@ -292,6 +292,20 @@ struct find_op_shape_transform_op
         return is_reduce(ins) or ins->get_operator().attributes().contains("pointwise");
     }
 
+    // True when x_ins is only consumed through the chain ending at ins, so
+    // it is dead once ins is rewritten
+    static bool
+    is_private_chain(instruction_ref x_ins, instruction_ref input_ins, instruction_ref ins)
+    {
+        if(not all_of(input_ins->outputs(), [&](instruction_ref out) { return out == ins; }))
+            return false;
+        if(x_ins->outputs().size() != 1)
+            return false;
+        return not any_input_of(input_ins->inputs().front(), x_ins, [](instruction_ref i) {
+            return i->outputs().size() != 1;
+        });
+    }
+
     static bool is_reduce(instruction_ref ins)
     {
         return starts_with(ins->name(), "reduce_") or ins->name() == "argmin" or
@@ -497,6 +511,13 @@ struct find_op_shape_transform_op
         if(not is_valid(x_ins, desc))
             return;
 
+        // x_ins is restored by rebasing the common dims onto its transform, which
+        // fails when the chain broadcasts a new axis, so then it can only be removed
+        auto src_desc        = desc.to_src_from_common();
+        const bool restore_x = not src_desc.rebase(desc.common_dims()).empty();
+        if(not restore_x and not is_private_chain(x_ins, input_ins, ins))
+            return;
+
         // ins is remapped via the dst map; bail if its argmin/argmax axis splits
         if(is_reduce(ins) and ins->get_operator().to_value().contains("axis") and
            not argmax_axis_unsplit(ins, desc.common_axes_map_from_dst()))
@@ -524,7 +545,13 @@ struct find_op_shape_transform_op
                        x_inputs.begin(),
                        reshape_input(x_ins, desc.to_common_from_src()));
         auto new_input_ins = insert(m, x_ins, x_inputs, desc.common_axes_map_from_src());
-        auto new_x_ins     = reshape_input(x_ins, desc.to_src_from_common())(new_input_ins);
+        // Replace old x_ins just in case it is used more than once
+        if(restore_x)
+        {
+            auto new_x_ins = reshape_input(x_ins, src_desc)(new_input_ins);
+            assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());
+            m.replace_instruction(x_ins, new_x_ins);
+        }
         if(new_input_ins->get_shape().elements() != input_ins->get_shape().elements())
         {
             auto cdims    = desc.common_dims();
@@ -537,9 +564,6 @@ struct find_op_shape_transform_op
                 return new_input_ins;
             return reshape_input(ins, desc.to_common_from_dst(), true)(input);
         });
-        // Replace old x_ins just in case it is used more than once
-        assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());
-        m.replace_instruction(x_ins, new_x_ins);
         // Replace final instruction
         auto pw   = insert(m, ins, inputs, desc.common_axes_map_from_dst());
         auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);

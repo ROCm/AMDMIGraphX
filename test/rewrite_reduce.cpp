@@ -114,12 +114,11 @@ TEST_CASE(dot_skinny_rewrite)
     {
         auto a       = m2.add_parameter("a", a_shape);
         auto b       = m2.add_parameter("b", b_shape);
-        auto a_unsq  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), a);
         auto b_unsq  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), b);
         auto b_trans = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), b_unsq);
-        auto a_bc = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 128}}}), a_unsq);
+        auto a_bc =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 128}}}), a);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), a_bc, b_trans);
         auto red = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
         auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), red);
@@ -396,9 +395,8 @@ TEST_CASE(dot_softmax_dot_projection_rewrite)
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 1, 16}}}), trans);
         auto a_bc = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 16}}}), rsp);
-        auto unsq_w  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), w);
-        auto trans_w = m2.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), unsq_w);
+        auto trans_w =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), w);
         auto w_bc = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 16}}}), trans_w);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), a_bc, w_bc);

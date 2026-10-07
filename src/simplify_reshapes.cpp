@@ -277,11 +277,17 @@ struct find_op_shape_transform_op
         // shape_transform_descriptor doesnt handle scalars for now
         if(input_ins->get_shape().scalar() or x_ins->get_shape().scalar())
             return false;
-        // If its just a broadcast then skip
+        // A chain of only broadcasts is skipped, unless it broadcasts a new
+        // axis of a reduction, which is the same as an unsqueeze and broadcast
         if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
                return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
            }))
-            return false;
+        {
+            if(not is_reduce(x_ins))
+                return false;
+            auto desc = make_descriptor(x_ins, chain_ops(x_ins, input_ins), input_ins);
+            return not desc.empty() and desc.has_axisless_broadcast();
+        }
         // A chain that changes the element count is only valid for a reduction
         return is_reduce(x_ins) or
                input_ins->get_shape().elements() == x_ins->get_shape().elements();
@@ -310,6 +316,20 @@ struct find_op_shape_transform_op
     {
         return starts_with(ins->name(), "reduce_") or ins->name() == "argmin" or
                ins->name() == "argmax";
+    }
+
+    // The shape transform operators from x_ins to input_ins in order
+    static std::vector<operation> chain_ops(instruction_ref x_ins, instruction_ref input_ins)
+    {
+        std::vector<operation> ops;
+        auto next_ins = input_ins;
+        while(next_ins != x_ins)
+        {
+            ops.push_back(next_ins->get_operator());
+            next_ins = next_ins->inputs().front();
+        }
+        std::reverse(ops.begin(), ops.end());
+        return ops;
     }
 
     template <class F>
@@ -494,17 +514,7 @@ struct find_op_shape_transform_op
         auto x_ins     = r.instructions["x"];
         auto input_ins = r.instructions["input"];
 
-        std::vector<operation> ops;
-        auto next_ins = input_ins;
-        while(next_ins != x_ins)
-        {
-            ops.push_back(next_ins->get_operator());
-            next_ins = next_ins->inputs().front();
-        }
-        assert(next_ins == x_ins);
-        std::reverse(ops.begin(), ops.end());
-
-        auto desc = make_descriptor(x_ins, ops, input_ins);
+        auto desc = make_descriptor(x_ins, chain_ops(x_ins, input_ins), input_ins);
         if(desc.empty())
             return;
 

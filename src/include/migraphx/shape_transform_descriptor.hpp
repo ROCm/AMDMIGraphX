@@ -104,6 +104,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
                                     bool no_broadcast                          = false) const;
 
     std::set<std::size_t> find_broadcasted_axes() const;
+    // Returns true if a dimension is broadcasted without a source axis, ie a new dimension
+    bool has_axisless_broadcast() const;
     bool has_broadcast() const;
     // Returns true if any non-trivial axes are reordered, requiring a transpose
     bool is_transposed() const;

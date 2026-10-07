@@ -1978,7 +1978,7 @@ TEST_CASE(pointwise_reshapes_reduce_shadowed_broadcast)
         auto w   = mm->add_parameter("w", ws);
         auto pw0 = add_pointwise(p2, "main:pointwise0", {x}, single_pointwise("sqrt"));
         auto wu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w);
-        auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 2, 4}}}), pw0);
+        auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4}}}), pw0);
         auto xb  = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 4}}}), xr);
         auto rsum = add_reduce(

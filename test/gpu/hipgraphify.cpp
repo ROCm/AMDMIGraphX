@@ -460,7 +460,8 @@ TEST_CASE(output_root_outside_run)
 
 // A lowered select_module_index chooses its submodule on the host, so it stays
 // outside capture between the kernel chains. The chains on each side become
-// separate graphs.
+// separate graphs; the identity ordering the second chain after the select is
+// captured with it.
 TEST_CASE(select_module_index_boundary)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};
@@ -505,11 +506,12 @@ TEST_CASE(select_module_index_boundary)
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
         auto smi = mm->add_instruction(
             migraphx::make_op("select_module_index"), {idx, g0, output}, {choice});
-        auto dep   = mm->add_instruction(migraphx::make_op("identity"), g0, smi);
         auto* sub1 = p2.create_module("main:hipgraph1");
         auto y0    = sub1->add_parameter("x0", s);
-        sub1->add_return({add_chain(*sub1, y0, 4)});
-        auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {dep}, {sub1});
+        auto y1    = sub1->add_parameter("x1", out_s);
+        auto dep   = sub1->add_instruction(migraphx::make_op("identity"), y0, y1);
+        sub1->add_return({add_chain(*sub1, dep, 4)});
+        auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {g0, smi}, {sub1});
         mm->add_return({g1});
     }
 

@@ -925,20 +925,18 @@ struct find_mlir_fused_geg_ops
     bool is_gemm_supported(instruction_ref ins, bool is_second_gemm = false) const
     {
         // convolution is only allowed in first position, and only when ceg_mode is enabled
-        if(contains({"convolution", "quant_convolution"}, ins->name()))
+        if(contains({"convolution", "quant_convolution"}, ins->name()) and
+           (is_second_gemm or not ceg_mode))
         {
-            if(is_second_gemm or not ceg_mode)
-                return false;
+            return false;
         }
 
         // on navi, wmma doesn't support fp32, so skip fp32 GEMMs
         // one gemm being f32 is sufficient to turn off this fusion
-        if(starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12"))
+        if((starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12")) and
+           ins->get_shape().type() == shape::type_t::float_type)
         {
-            if(ins->get_shape().type() == shape::type_t::float_type)
-            {
-                return false;
-            }
+            return false;
         }
         return true;
     }
@@ -1336,12 +1334,8 @@ struct find_pointwise_mlir
                 if(not match::instruction_matches(mpm.get_module(), input, supported_pointwise()))
                     return false;
                 auto* pm = input->module_inputs().front();
-                if(input->inputs().size() > 1 and not is_simple_op(pm, {"dequantizelinear"}))
-                {
-                    if(not enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
-                        return false;
-                }
-                return true;
+                return input->inputs().size() <= 1 or is_simple_op(pm, {"dequantizelinear"}) or
+                       enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{});
             });
         if(pws.empty())
             return;

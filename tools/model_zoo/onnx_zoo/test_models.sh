@@ -37,8 +37,8 @@ TARGET="${TARGET:-gpu}"
 USE_LOCAL="${USE_LOCAL:-0}"
 MODEL_TIMEOUT="${MODEL_TIMEOUT:-20m}"
 DRIVER="${DRIVER:-migraphx-driver}"
-PERF_ITERATIONS="${PERF_ITERATIONS:-10}"
 KINDS="${KINDS:-accuracy perf}"
+MODEL_LIST="${MODEL_LIST:-}"
 TOTAL_CHECKS=0
 FAILED_CHECKS=0
 
@@ -66,6 +66,28 @@ function iterate() {
       iterate "$file"
     fi
   done
+}
+
+function run_list() {
+    local root="$1" entry model
+    local -a models=()
+    while IFS= read -r entry || [[ -n "$entry" ]]; do
+        [[ -z "$entry" || "$entry" = \#* ]] && continue
+        model="$root/$entry"
+        if [[ ! -f "$model" ]]; then
+            echo "ERROR: listed model not found: $model" >&2
+            exit 1
+        fi
+        models+=("$model")
+    done < "$MODEL_LIST"
+
+    if [[ "${#models[@]}" -eq 0 ]]; then
+        echo "ERROR: no models listed in '$MODEL_LIST'" >&2
+        exit 1
+    fi
+    for model in "${models[@]}"; do
+        process "$model"
+    done
 }
 
 function run_name() {
@@ -185,7 +207,7 @@ function run_perf() {
     local file="$1" dtype="$2" model_file="$3"
     local args_file="$WORK_DIR/tmp_model/driver-args-$dtype"
     local -a driver_args=()
-    local -a flag=(--onnx)
+    local -a flag=(--onnx --log-stdout)
     if [[ -s "$args_file" ]]; then
         mapfile -t driver_args < "$args_file"
         flag+=("${driver_args[@]}")
@@ -193,7 +215,6 @@ function run_perf() {
         flag+=("--$TARGET")
         [[ "$dtype" = "fp16" ]] && flag+=(--fp16)
     fi
-    flag+=(-n "$PERF_ITERATIONS")
     run_logged "$file" perf "$dtype" \
         "$DRIVER" perf "$model_file" "${flag[@]}"
 }
@@ -209,6 +230,14 @@ for arg in "$@"; do
         exit 2
     fi
 done
+if [[ -n "$MODEL_LIST" && "$#" -ne 1 ]]; then
+    echo "ERROR: MODEL_LIST requires exactly one model root" >&2
+    exit 2
+fi
+if [[ -n "$MODEL_LIST" && ! -f "$MODEL_LIST" ]]; then
+    echo "ERROR: model list not found: '$MODEL_LIST'" >&2
+    exit 2
+fi
 
 if [[ ! -f "$TESTER_SCRIPT" ]]; then
     echo "ERROR: tester not found: $TESTER_SCRIPT" >&2
@@ -229,9 +258,13 @@ for kind in $KINDS; do
 done
 rm -rf "${WORK_DIR:?}/tmp_model/"*
 
-for arg in "$@"; do
-    iterate "$(readlink -e "$arg")"
-done
+if [[ -n "$MODEL_LIST" ]]; then
+    run_list "$(readlink -e "$1")"
+else
+    for arg in "$@"; do
+        iterate "$(readlink -e "$arg")"
+    done
+fi
 
 PASSED_CHECKS=$((TOTAL_CHECKS - FAILED_CHECKS))
 echo "INFO: health check: ${PASSED_CHECKS}/${TOTAL_CHECKS} checks passed"

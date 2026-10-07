@@ -467,11 +467,8 @@ bool needs_wide_accumulator(const std::string& reduce, shape::type_t type, std::
     {
         return true;
     }
-    if(reduce == "reduce_prod")
-    {
-        if(type == shape::half_type)
-            return true;
-    }
+    if(reduce == "reduce_prod" and type == shape::half_type)
+        return true;
     if(type == shape::half_type or type == shape::bf16_type)
     {
         return n > wide_reduce_elements_threshold;

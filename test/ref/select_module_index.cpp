@@ -54,8 +54,8 @@ TEST_CASE(select_module_index_dispatch)
 
     auto index = mm->add_parameter("index", index_s);
     auto data  = mm->add_parameter("data", data_s);
-    auto smi   = mm->add_instruction(
-        migraphx::make_op("select_module_index"), {index, data}, {sub0, sub1});
+    auto smi =
+        mm->add_instruction(migraphx::make_op("select_module_index"), {index, data}, {sub0, sub1});
     auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), smi);
     mm->add_return({ret});
     p.compile(migraphx::make_target("ref"));
@@ -136,8 +136,8 @@ TEST_CASE(select_module_index_int32)
 
     auto index = mm->add_parameter("index", index_s);
     auto data  = mm->add_parameter("data", data_s);
-    auto smi   = mm->add_instruction(
-        migraphx::make_op("select_module_index"), {index, data}, {sub0, sub1});
+    auto smi =
+        mm->add_instruction(migraphx::make_op("select_module_index"), {index, data}, {sub0, sub1});
     auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), smi);
     mm->add_return({ret});
     p.compile(migraphx::make_target("ref"));
@@ -166,8 +166,8 @@ TEST_CASE(select_module_index_invalid_index)
 
     auto index = mm->add_parameter("index", index_s);
     auto data  = mm->add_parameter("data", data_s);
-    auto smi   = mm->add_instruction(
-        migraphx::make_op("select_module_index"), {index, data}, {sub0, sub1});
+    auto smi =
+        mm->add_instruction(migraphx::make_op("select_module_index"), {index, data}, {sub0, sub1});
     auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), smi);
     mm->add_return({ret});
     p.compile(migraphx::make_target("ref"));

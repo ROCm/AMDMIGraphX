@@ -564,7 +564,7 @@ TEST_CASE(select_module_index_result_captured)
             migraphx::make_op("select_module_index"), {idx, g0, output}, {choice});
         auto* sub1 = p2.create_module("main:hipgraph1");
         auto y0    = sub1->add_parameter("x0", out_s);
-        auto e = sub1->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), y0);
+        auto e     = sub1->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), y0);
         sub1->add_return({add_chain(*sub1, e, 4)});
         auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {smi}, {sub1});
         mm->add_return({g1});

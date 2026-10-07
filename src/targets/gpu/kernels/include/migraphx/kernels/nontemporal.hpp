@@ -89,15 +89,28 @@ __device__ index_int block_phase(const T* p)
     return (bit_cast<uintptr_t>(p) / sizeof(T)) % S;
 }
 
-// Read the N elements S apart at p as one vector: the S-aligned block of N*S
+// Read the N elements S apart at p as one vector: the aligned block of N*S
 // elements holding them is loaded whole and the lanes at the phase of p
-// within the block are selected, so the load stays wide and aligned
+// within the block are selected, so the load stays wide and aligned. The
+// block is aligned only when p sits in its first S elements, which the
+// views of the fusions guarantee; a view offset past that reads its lanes
+// one at a time
 template <bool Stream, class T, index_int N, index_int S>
 __device__ vec<T, N> load_strided(const strided_vec<T, N, S>* p)
 {
     using block_type  = vec<T, N * S>;
     const T* elements = p->data;
-    index_int phase   = block_phase<S>(elements);
+    index_int phase   = block_phase<N * S>(elements);
+    if(phase >= S)
+    {
+        return generate_vec(_c<N>, [&](auto i) {
+            constexpr index_int lane = decltype(i){} * S;
+            if constexpr(Stream)
+                return nontemporal_load(elements + lane);
+            else
+                return elements[lane];
+        });
+    }
     const auto* block = as_vec<N * S>(elements - phase);
     MIGRAPHX_ASSERT(bit_cast<uintptr_t>(block) % alignof(block_type) == 0);
     block_type v;

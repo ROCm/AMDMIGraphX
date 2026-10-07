@@ -62,8 +62,9 @@ static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
 
 /// Whether the stride of the input along the axis can be read as strided
 /// vectors: the kernel loads the block of stride elements around each lane,
-/// which stays inside the allocation when the block is a power of two of
-/// bytes, and a larger stride would load too many unused elements per lane
+/// which can read past the last lane but never past its own block, so the
+/// bytes are mapped when the block is a power of two of bytes and so never
+/// straddles a page; a larger stride would load too many unused elements
 static bool strided_vectorizable(const shape& input, std::size_t axis)
 {
     const std::size_t max_stride = 4;
@@ -138,7 +139,7 @@ vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<
                         ->elements();
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
-    std::size_t over = n / max_global;
+    std::size_t over       = n / max_global;
     bool broadcasted =
         std::any_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.broadcasted(); });
     std::vector<std::size_t> sizes;
@@ -270,7 +271,7 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
 
     result.ntiles = s.elements() / tile_size;
-    result.inner = s.lens();
+    result.inner  = s.lens();
     std::fill(result.inner.begin(), result.inner.end(), 1);
     result.inner[result.axis] = dim1;
     result.inner.back()       = dim2;
@@ -658,7 +659,7 @@ std::string generate_reduce(const module& m, const std::string& name)
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
             return interpolate_string("${x}[_c<${index}>]",
-                                          {{"x", x}, {"index", std::to_string(index)}});
+                                      {{"x", x}, {"index", std::to_string(index)}});
         }
         if(contains({"gpu::make_indices", "topk"}, ins->name()))
             return generate_select(*ins, cpp_generator::to_args(ins->inputs(), names));

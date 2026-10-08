@@ -85,15 +85,11 @@ struct select_module_index
         }
 
         auto out_shapes0 = mods.front()->get_output_shapes();
-        for(std::size_t i = 1; i < mods.size(); ++i)
+        if(std::any_of(mods.begin() + 1, mods.end(), [&](module_ref mod) {
+               return mod->get_output_shapes() != out_shapes0;
+           }))
         {
-            auto out_shapes = mods[i]->get_output_shapes();
-            if(not std::equal(
-                   out_shapes.begin(), out_shapes.end(), out_shapes0.begin(), out_shapes0.end()))
-            {
-                MIGRAPHX_THROW(
-                    "SELECT_MODULE_INDEX: output shapes of submodules must be the same.");
-            }
+            MIGRAPHX_THROW("SELECT_MODULE_INDEX: output shapes of submodules must be the same.");
         }
         shape output{out_shapes0};
 

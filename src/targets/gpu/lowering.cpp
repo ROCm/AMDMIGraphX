@@ -660,7 +660,12 @@ struct miopen_apply
                 return out->name() == "hip::load_scalar";
             });
             if(it != outputs.end())
-                return *it;
+            {
+                auto loaded = *it;
+                if(loaded != std::next(index))
+                    mod->move_instruction(loaded, std::next(index));
+                return loaded;
+            }
             return mod->insert_instruction(std::next(index), make_op("hip::load_scalar"), index);
         };
         auto append_output = [=](instruction_ref ins) {

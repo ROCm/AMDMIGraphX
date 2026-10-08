@@ -877,7 +877,8 @@ migraphx-driver verify model.onnx --atol 1e-5 --rtol 1e-5
 - `MIGRAPHX_TRACE_EVAL=1` - Trace evaluation
 - `MIGRAPHX_DISABLE_SCHEDULE_PASS=1` - Disable scheduling for debugging
 - `MIGRAPHX_DISABLE_PASSES=a,b` - Skip passes by name; bisect which pass corrupts the IR
-- `MIGRAPHX_GPU_DUMP_ASM=1` with `MIGRAPHX_USE_HIPRTC=0` - Dump the ISA of the C++ kernels
+- `MIGRAPHX_GPU_DUMP_ASM=1` - Dump the ISA of the C++ kernels; first configure
+  CMake with `-DMIGRAPHX_USE_HIPRTC=OFF` and rebuild.
   MIGraphX JIT-compiles itself (not rocMLIR's `mlir_*` kernels). A pure rename inside a
   kernel must leave the dump byte-identical.
 - `MIGRAPHX_GPU_DEBUG=1` - Enable kernel asserts at runtime (works on a Release build)

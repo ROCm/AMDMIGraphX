@@ -357,9 +357,11 @@ std::string mlir_compile_key(const context& migraphx_ctx,
                              const value& solution)
 {
     const auto& key     = solution_string(solution);
-    const auto& backend = mlir_backend();
-    auto result         = checked_result(backend.mlir_compile_key(
-        &migraphx_ctx, &m, in_shapes.data(), in_shapes.size(), key.data(), key.size()));
+    const auto& backend = mlir_backend(migraphx_ctx);
+    auto result         = checked_result(
+        backend.mlir_compile_key(
+            &migraphx_ctx, &m, in_shapes.data(), in_shapes.size(), key.data(), key.size()),
+        backend);
     return result_string(result);
 }
 

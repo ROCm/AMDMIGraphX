@@ -2054,4 +2054,34 @@ TEST_CASE(hoist_silu_above_slices)
     EXPECT(p1 == p2);
 }
 
+// An add of two scalar literals leaves pointwise_inputs empty, so create_pointwise_modules
+// creates a module and then hits the pointwise_inputs.empty() early-continue without wrapping
+// the instruction - the module is never referenced and leaks. A second run restarts its counter
+// at 0, so without skipping names that are already taken it lands on the leaked module and
+// aliases it (emplace does not overwrite). Debug builds catch that on create_module's assert;
+// this EXPECT pins the resulting module down for both.
+TEST_CASE(rerun_does_not_reuse_leaked_module_name)
+{
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto one  = mm->add_literal(1.0f);
+        auto two  = mm->add_literal(2.0f);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), one, two);
+        mm->add_return({add1});
+    }
+    run_pass(p1);
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto one  = mm->add_literal(1.0f);
+        auto two  = mm->add_literal(2.0f);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), one, two);
+        mm->add_return({add1});
+    }
+    EXPECT(*p1.get_main_module() == *p2.get_main_module());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

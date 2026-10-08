@@ -245,6 +245,9 @@ struct select_module
                                       if(expected.dynamic())
                                           return actual.type() == expected.type() and
                                                  shape::is_compatible_lens(actual, expected);
+                                      if(actual.elements() == 0 and expected.elements() == 0)
+                                          return actual.type() == expected.type() and
+                                                 shape::same_lens(actual, expected);
                                       return actual == expected;
                                   });
             });
@@ -264,7 +267,13 @@ struct select_module
                        in_param_names.end(),
                        args.begin(),
                        std::inserter(p_map, p_map.end()),
-                       [&](auto&& name, auto&& a) { return std::make_pair(name, a); });
+                       [&](auto&& name, auto&& a) {
+                           const auto& expected = module_to_run->get_parameter_shape(name);
+                           if(not expected.dynamic() and a.get_shape() != expected and
+                              a.get_shape().elements() == 0 and expected.elements() == 0)
+                               return std::make_pair(name, a.reshape(expected));
+                           return std::make_pair(name, a);
+                       });
 
         // Each output of the submodule writes into the caller's buffer for that output
         auto out_param_names = get_output_parameter_names(module_to_run);

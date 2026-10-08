@@ -54,7 +54,7 @@ Step 2: Bisect to Find Problematic Operation
    # Bisect an ONNX model
    migraphx-driver verify model.onnx --gpu --bisect
 
-**What this does**: Uses binary search to systematically disable operations until it finds the exact operation that causes the failure. Much faster than ``--reduce`` for pinpointing issues.
+**What this does**: Uses binary search to systematically disable operations until it finds the first observable point of failure. Much faster than ``--reduce`` for pinpointing issues.
 
 Step 3: Disable Fusion Passes
 ------------------------------

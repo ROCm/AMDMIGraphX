@@ -55,9 +55,9 @@ jobs:
             Ocp-Apim-Subscription-Key: ${{ secrets.LLM_GATEWAY_KEY }}
             user: ${{ secrets.USER_NTID }}
           # Model names as the gateway exposes them.
-          ANTHROPIC_MODEL: Claude-Opus-5
-          ANTHROPIC_DEFAULT_OPUS_MODEL: Claude-Opus-5
-          ANTHROPIC_DEFAULT_SONNET_MODEL: Claude-Sonnet-5
+          ANTHROPIC_MODEL: Claude-Opus-5.5
+          ANTHROPIC_DEFAULT_OPUS_MODEL: Claude-Opus-5.5
+          ANTHROPIC_DEFAULT_SONNET_MODEL: Claude-Sonnet-5.5
           ANTHROPIC_DEFAULT_HAIKU_MODEL: Claude-Haiku-4.5
           # Keep the gateway key out of the environment of commands Claude runs.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"

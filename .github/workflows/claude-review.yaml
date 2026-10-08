@@ -42,7 +42,7 @@ jobs:
       || (github.event_name == 'pull_request'
         && (github.event.label.name == 'claude-review' || startsWith(github.event.label.name, 'claude-review-'))
         && github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: ROCM-Ubuntu
+    runs-on: build-only-rocmlir-triton
     timeout-minutes: 60
     steps:
       - name: Pick the PR and effort level from the trigger

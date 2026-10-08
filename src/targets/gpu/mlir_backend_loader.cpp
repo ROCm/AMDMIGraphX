@@ -84,23 +84,10 @@ static void validate_mlir_backend(const mlir_backend_table* table, const fs::pat
     require(table->result_destroy, "result_destroy");
 }
 
-static std::vector<std::string> built_mlir_backends()
-{
-    return {
-#ifdef MIGRAPHX_MLIR_HAS_LEGACY_BACKEND
-        "legacy",
-#endif
-#ifdef MIGRAPHX_MLIR_HAS_TRITON_BACKEND
-        "triton",
-#endif
-    };
-}
-
 static std::string select_mlir_backend(const std::string& arch)
 {
     return select_mlir_backend(string_value_of(MIGRAPHX_MLIR_BACKEND{}, "auto"),
-                               get_gfx_name(arch),
-                               built_mlir_backends());
+                               get_gfx_name(arch));
 }
 
 struct loaded_mlir_backend

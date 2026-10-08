@@ -36,16 +36,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-std::string select_mlir_backend(const std::string& requested,
-                                const std::string& gfx_name,
-                                const std::vector<std::string>& available)
+std::string select_mlir_backend(const std::string& requested, const std::string& gfx_name)
 {
     const auto backend = requested.empty() ? std::string{"auto"} : requested;
     if(backend == "auto")
     {
-        // A build with a single backend plugin uses it for every architecture.
-        if(available.size() == 1)
-            return available.front();
         // Route only validated architectures to Triton so new gfx117 variants
         // stay on the legacy backend until they are explicitly enabled.
         static const auto triton_archs = {"gfx1170", "gfx1171", "gfx1172"};

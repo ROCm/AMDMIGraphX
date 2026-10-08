@@ -28,44 +28,32 @@
 
 TEST_CASE(mlir_backend_auto_uses_triton_on_gfx117x)
 {
-    EXPECT(migraphx::gpu::select_mlir_backend("auto", "gfx1170", {"legacy", "triton"}) ==
-           "triton");
-    EXPECT(migraphx::gpu::select_mlir_backend("auto", "gfx1172", {"legacy", "triton"}) ==
-           "triton");
+    EXPECT(migraphx::gpu::select_mlir_backend("auto", "gfx1170") == "triton");
+    EXPECT(migraphx::gpu::select_mlir_backend("auto", "gfx1172") == "triton");
 }
 
 TEST_CASE(mlir_backend_auto_uses_legacy_on_other_archs)
 {
-    EXPECT(migraphx::gpu::select_mlir_backend("auto", "gfx1100", {"legacy", "triton"}) ==
-           "legacy");
-    EXPECT(migraphx::gpu::select_mlir_backend("auto", "gfx1173", {"legacy", "triton"}) ==
-           "legacy");
+    EXPECT(migraphx::gpu::select_mlir_backend("auto", "gfx1100") == "legacy");
+    EXPECT(migraphx::gpu::select_mlir_backend("auto", "gfx1173") == "legacy");
 }
 
 TEST_CASE(mlir_backend_empty_request_is_auto)
 {
-    EXPECT(migraphx::gpu::select_mlir_backend("", "gfx1171", {"legacy", "triton"}) == "triton");
-    EXPECT(migraphx::gpu::select_mlir_backend("", "gfx1201", {"legacy", "triton"}) == "legacy");
-}
-
-TEST_CASE(mlir_backend_auto_uses_the_only_built_backend)
-{
-    EXPECT(migraphx::gpu::select_mlir_backend("auto", "gfx1170", {"legacy"}) == "legacy");
-    EXPECT(migraphx::gpu::select_mlir_backend("auto", "gfx1100", {"triton"}) == "triton");
+    EXPECT(migraphx::gpu::select_mlir_backend("", "gfx1171") == "triton");
+    EXPECT(migraphx::gpu::select_mlir_backend("", "gfx1201") == "legacy");
 }
 
 TEST_CASE(mlir_backend_explicit_request_overrides_auto)
 {
-    EXPECT(migraphx::gpu::select_mlir_backend("legacy", "gfx1170", {"legacy", "triton"}) ==
-           "legacy");
-    EXPECT(migraphx::gpu::select_mlir_backend("triton", "gfx1100", {"legacy", "triton"}) ==
-           "triton");
+    EXPECT(migraphx::gpu::select_mlir_backend("legacy", "gfx1170") == "legacy");
+    EXPECT(migraphx::gpu::select_mlir_backend("triton", "gfx1100") == "triton");
 }
 
 TEST_CASE(mlir_backend_invalid_request_throws)
 {
     EXPECT(test::throws<migraphx::exception>(
-        [] { migraphx::gpu::select_mlir_backend("rocmlir", "gfx1100", {"legacy", "triton"}); },
+        [] { migraphx::gpu::select_mlir_backend("rocmlir", "gfx1100"); },
         "Invalid MIGRAPHX_MLIR_BACKEND value 'rocmlir'"));
 }
 

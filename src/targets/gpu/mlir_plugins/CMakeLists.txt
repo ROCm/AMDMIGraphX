@@ -91,8 +91,6 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
     endif()
 
     add_dependencies(migraphx_gpu ${_plugin})
-    # Lets automatic backend selection skip plugins that were not built.
-    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_MLIR_HAS_${_backend_var}_BACKEND)
     if(WIN32)
         set(_plugin_install_dir ${CMAKE_INSTALL_BINDIR})
     else()

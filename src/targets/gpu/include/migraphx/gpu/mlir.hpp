@@ -68,10 +68,9 @@ MIGRAPHX_GPU_EXPORT std::vector<shape> adjust_param_shapes(module& m,
                                                            const std::vector<shape>& inputs);
 
 // Resolves a requested MLIR backend ("auto", "legacy" or "triton"; empty means
-// auto) for a gfx architecture. Auto only chooses among the available backends.
+// auto) for a gfx architecture.
 MIGRAPHX_GPU_EXPORT std::string select_mlir_backend(const std::string& requested,
-                                                    const std::string& gfx_name,
-                                                    const std::vector<std::string>& available);
+                                                    const std::string& gfx_name);
 
 MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
                                                   module m,

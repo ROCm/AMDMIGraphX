@@ -661,14 +661,18 @@ struct miopen_apply
 
     /**
      * Adds an output allocation like select_module. The index is read on the host,
-     * so the device scalar is copied back with hip::load_scalar. The load is placed
-     * immediately after the index, and every select of that index shares it.
+     * so the device scalar is copied back with hip::load_scalar before the select,
+     * reusing one load per index when possible.
      */
     void add_select_module_index_op()
     {
-        auto load_index = [=](instruction_ref index) {
+        auto load_index = [=](instruction_ref ins, instruction_ref index) {
             if(index->name() == "hip::load_scalar")
+            {
+                if(std::distance(mod->begin(), index) >= std::distance(mod->begin(), ins))
+                    mod->move_instruction(index, ins);
                 return index;
+            }
             const auto& outputs = index->outputs();
             auto it             = std::find_if(outputs.begin(), outputs.end(), [](auto out) {
                 return out->name() == "hip::load_scalar";
@@ -676,17 +680,17 @@ struct miopen_apply
             if(it != outputs.end())
             {
                 auto loaded = *it;
-                if(loaded != std::next(index))
-                    mod->move_instruction(loaded, std::next(index));
+                if(std::distance(mod->begin(), loaded) >= std::distance(mod->begin(), ins))
+                    mod->move_instruction(loaded, ins);
                 return loaded;
             }
-            return mod->insert_instruction(std::next(index), make_op("hip::load_scalar"), index);
+            return mod->insert_instruction(ins, make_op("hip::load_scalar"), index);
         };
         apply_map.emplace("select_module_index", [=](instruction_ref ins) {
+            std::vector<instruction_ref> inputs = ins->inputs();
+            inputs.front()                      = load_index(ins, inputs.front());
             auto s                              = ins->get_shape();
             auto output                         = insert_allocation(ins, s);
-            std::vector<instruction_ref> inputs = ins->inputs();
-            inputs.front()                      = load_index(inputs.front());
             inputs.push_back(output);
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });

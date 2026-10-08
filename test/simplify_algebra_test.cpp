@@ -5275,6 +5275,60 @@ TEST_CASE(conv_concat_split_fuse_no_fusion_mismatched_weights)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(conv_concat_split_fuse_prefix_concat_candidate)
+{
+    // Exercises find_conv_concat_split_fuse's prefix-concat branch: the first input of the
+    // matched concat also feeds a *different* concat whose input list is a strict prefix of
+    // the matched one. That candidate path is otherwise unreached by the suite.
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8, 4, 4}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 8, 3, 3}};
+    migraphx::shape w3s{migraphx::shape::float_type, {4, 16, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", xs);
+        auto w1 = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto w2 = m1.add_literal(migraphx::generate_literal(ws, 2));
+        auto w3 = m1.add_literal(migraphx::generate_literal(w3s, 3));
+        auto conv1 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, w1);
+        auto act1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
+        auto conv2 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, w2);
+        auto act2 = m1.add_instruction(migraphx::make_op("relu"), conv2);
+        // Strict prefix of the matched concat's inputs, and also an output of x
+        auto prefix_cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, act1);
+        auto cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, act1, act2);
+        auto conv3 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), cat, w3);
+        m1.add_return({conv3, prefix_cat});
+    }
+    run_pass(m1);
+
+    // The two convolutions on x fuse into one with concatenated weights; the result is
+    // sliced back apart, and the prefix concat is rewired onto the matching slice.
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", xs);
+        auto w1   = m2.add_literal(migraphx::generate_literal(ws, 1));
+        auto w2   = m2.add_literal(migraphx::generate_literal(ws, 2));
+        auto wcat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), w1, w2);
+        auto conv =
+            m2.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, wcat);
+        auto act = m2.add_instruction(migraphx::make_op("relu"), conv);
+        auto s1  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), act);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), act);
+        auto cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, s1, s2);
+        auto w3  = m2.add_literal(migraphx::generate_literal(w3s, 3));
+        auto conv3 =
+            m2.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), cat, w3);
+        auto prefix_cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, s1);
+        m2.add_return({conv3, prefix_cat});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(conv_concat_split_fuse_after_rewrite_convolution)
 {
     const migraphx::shape::type_t dt = migraphx::shape::half_type;

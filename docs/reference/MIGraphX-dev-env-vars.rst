@@ -341,14 +341,6 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Full dynamic shape support is disabled.
 
-  * - | ``MIGRAPHX_USE_DYNAMIC_NMS``
-      | When set, the ``NonMaxSuppression`` ONNX parser performs a dynamic slice on the raw indices tensor to trim it to the number of selected boxes, producing an output with a dynamic shape.
-
-    - | ``1``: A dynamic slice is applied to the raw indices tensor, producing a dynamic-shaped output.
-      | ``0``: Returns to default behavior.
-
-      | Default: The whole raw indices tensor is returned without slicing.
-
 Matching
 **********
 
@@ -732,6 +724,13 @@ Advanced settings
       | ``MIGRAPHX_GPU_DUMP_BENCHMARK_MXR="/path/to/benchmark_mxr_dir/"``
 
       | Default: Unset. Benchmark MXR files aren't dumped and compilation proceeds normally.
+
+  * - | ``MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS``
+      | When set, GPU kernels are compiled with ``-DMIGRAPHX_NONTEMPORAL_LOADS=0``, replacing nontemporal (streaming) loads with regular cached loads.
+
+    - | ``1``: Nontemporal loads are disabled.
+
+      | Default: Nontemporal loads are enabled.
 
   * - | ``MIGRAPHX_GPU_HIP_FLAGS``
       | When set, the hip-clang compiler appends these extra flags for compilation.

@@ -1,6 +1,9 @@
 ---
 name: general-purpose
 description: Read-only worker for the migraphx-code-review and migraphx-simplify skills. Use it whenever a skill says to launch an angle finder, a verifier, or a sweep as an independent agent with subagent_type general-purpose; give each one the full diff, the classified file list, and the single job it owns, and launch them together so they run in parallel.
+# Subagents do not inherit the session model; keep this in step with
+# COPILOT_MODEL in .github/workflows/copilot-review.yaml.
+model: claude-opus-5.5
 include-custom-instructions: true
 ---
 

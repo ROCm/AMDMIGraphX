@@ -73,10 +73,10 @@ jobs:
 
       # The skill runs at the chosen level and the model's reasoning effort
       # follows it (same five names). A non-interactive run cannot ask for
-      # approval, so every tool call must be pre-approved: all shell commands,
-      # any file path, and GitHub URLs are allowed, and the denials (which win
-      # over allows) fence off anything that would change the repo or the PR.
-      # Subagents inherit the same rules.
+      # approval, so every tool call must be pre-approved: all tools (shell
+      # redirections included), any file path, and GitHub URLs are allowed,
+      # and the denials (which win over allows) fence off anything that would
+      # change the repo or the PR. Subagents inherit the same rules.
       - name: Copilot review
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -91,9 +91,11 @@ jobs:
 
           Where the skill says to launch angles, verifiers, or the sweep as independent
           agents with the Agent tool and subagent_type general-purpose, delegate each one
-          to the general-purpose custom agent as a subagent, launching them together so
-          they run in parallel. Subagents are available here, so do not use the skill's
-          single-pass fallback.
+          to the general-purpose custom agent with your built-in subagent (task)
+          delegation, launching them together so they run in parallel. Subagents are
+          available here, so do not use the skill's single-pass fallback. Every tool you
+          need is already approved: do not probe permissions with test commands or
+          fetches, and do not look up Copilot CLI documentation.
 
           The mcp__github_inline_comment tool and ReportFindings are not available here.
           Post each finding as an inline PR comment with the skill's gh api fallback
@@ -108,7 +110,6 @@ jobs:
           PROMPT_EOF
           )
           deny=(
-            'write'
             'shell(git push:*)' 'shell(git commit:*)' 'shell(git add:*)' 'shell(git rm:*)'
             'shell(git checkout:*)' 'shell(git reset:*)' 'shell(git stash:*)' 'shell(git clean:*)'
             'shell(gh pr edit:*)' 'shell(gh pr close:*)' 'shell(gh pr merge:*)' 'shell(gh pr review:*)'
@@ -118,7 +119,7 @@ jobs:
             --effort "$LEVEL" \
             --no-ask-user \
             --share "$RUNNER_TEMP/copilot-review.md" \
-            --allow-tool 'shell' \
+            --allow-all-tools \
             --allow-all-paths \
             --allow-url 'github.com' --allow-url 'https://*.github.com' --allow-url 'https://*.githubusercontent.com' \
             --deny-tool "$(IFS=,; echo "${deny[*]}")"

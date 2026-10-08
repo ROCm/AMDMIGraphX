@@ -1,18 +1,19 @@
 .. meta::
-  :description: Install MIGraphX using Docker
-  :keywords: install, Docker, MIGraphX, AMD, ROCm, container
+  :description: Build MIGraphX in a Docker container
+  :keywords: build, Docker, MIGraphX, AMD, ROCm, container
 
 ********************************************************************
-Install MIGraphX with Docker
+Build MIGraphX in a Docker container
 ********************************************************************
 
 Docker provides a development environment with MIGraphX build prerequisites
 preinstalled. Use this approach when you want to build MIGraphX from source
 without installing dependencies on your host system.
 
-The default ``Dockerfile`` at the repository root builds against ROCm 10.0 and
-newer using TheRock (``amdrocm-*``) packages. Alternative Dockerfiles for
-other ROCm releases are available under ``tools/docker/``.
+The default ``Dockerfile`` at the repository root is the image Jenkins CI
+builds and uses. That Dockerfile tracks the latest ROCm release through
+TheRock (``amdrocm-*``) packages. Alternative Dockerfiles for other ROCm
+releases are available under ``tools/docker/``.
 
 Prerequisites
 ====================================================================
@@ -51,7 +52,7 @@ The root ``Dockerfile`` accepts the following build arguments:
    * - Build argument
      - Description
    * - ``ROCM_VERSION``
-     - ROCm release version for versioned package names (default: ``10.0``).
+     - ROCm release version for versioned package names. Defaults to the value set in the repository ``Dockerfile``, which CI keeps aligned with the latest ROCm release.
    * - ``GPU_ARCH``
      - GPU architecture family (for example, ``gfx942``). Leave empty for arch-independent packages.
    * - ``USE_WHL``

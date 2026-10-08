@@ -13,8 +13,8 @@ subtrees:
   - caption: Installation
     entries: 
     - file: install/install-migraphx
-    - file: install/install-docker
-      title: Install MIGraphX with Docker
+    - file: install/build-migraphx-docker
+      title: Build MIGraphX in a Docker container
     - file: install/install-torch-migraphx
 
   - caption: Conceptual

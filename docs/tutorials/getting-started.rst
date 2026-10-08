@@ -114,7 +114,7 @@ MIGraphX contributor
 Use this path when you modify the MIGraphX source code or add operators and
 passes.
 
-1. Set up a build environment. See :doc:`Install MIGraphX with Docker <../install/install-docker>`
+1. Set up a build environment. See :doc:`Build MIGraphX in a Docker container <../install/build-migraphx-docker>`
    or :doc:`MIGraphX on ROCm installation <../install/install-migraphx>`.
 2. Read :doc:`Develop for the MIGraphX code base <../dev/contributing-to-migraphx>`.
 3. Consult :doc:`MIGraphX environment variables <../reference/MIGraphX-dev-env-vars>`

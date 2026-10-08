@@ -27,7 +27,7 @@ The public repository is located at `https://github.com/ROCm/torch_migraphx/ <ht
   .. grid-item-card:: Install
 
     * :doc:`MIGraphX on ROCm installation <./install/install-migraphx>`
-    * :doc:`Install MIGraphX with Docker <./install/install-docker>`
+    * :doc:`Build MIGraphX in a Docker container <./install/build-migraphx-docker>`
     * :doc:`Torch-MIGraphX installation <./install/install-torch-migraphx>`
 
   .. grid-item-card:: How-to

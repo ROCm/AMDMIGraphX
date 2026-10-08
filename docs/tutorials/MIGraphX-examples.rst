@@ -194,7 +194,7 @@ See also
 
 * :doc:`Get started with MIGraphX <./getting-started>` for persona-based
   starting paths.
-* :doc:`Install MIGraphX with Docker <../install/install-docker>` for a
+* :doc:`Build MIGraphX in a Docker container <../install/build-migraphx-docker>` for a
   containerized build environment.
 * :doc:`Validate model outputs <../how-to/model-validation>` to check example
   output against the reference implementation.

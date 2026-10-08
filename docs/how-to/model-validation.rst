@@ -14,8 +14,8 @@ Validate with migraphx-driver
 ====================================================================
 
 The ``verify`` command compiles your model for the reference and target
-backends, runs both, and checks that outputs match within configured
-tolerances. See :doc:`MIGraphX driver <../migraphx-driver>` for full command
+backends, runs both with random data, and checks that outputs match within configured
+tolerances. Because ``verify`` runs with randomized data, ``verify`` alone does not prove that the model is running correctly. See :doc:`MIGraphX driver <../migraphx-driver>` for full command
 documentation.
 
 Basic verification

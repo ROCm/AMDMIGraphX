@@ -58,6 +58,9 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
     set(_plugin migraphx_mlir_${BACKEND_NAME})
     message(STATUS
         "MLIR backend plugin '${BACKEND_NAME}' using rocMLIR from ${rocMLIR_DIR}")
+    migraphx_rocmlir_id(_rocmlir_id)
+    set_property(GLOBAL APPEND PROPERTY MIGRAPHX_MLIR_ROCMLIR_IDS
+        "${BACKEND_NAME}-${_rocmlir_id}")
 
     add_library(${_plugin} MODULE
         ${MIGRAPHX_GPU_DIR}/compile_gen_name.cpp
@@ -118,3 +121,14 @@ if(MIGRAPHX_MLIR_BACKENDS STREQUAL "triton" OR
    MIGRAPHX_MLIR_BACKENDS STREQUAL "both")
     add_subdirectory(triton)
 endif()
+
+# Combine the plugins' rocMLIR ids so rebuilding either one invalidates cached kernels.
+# The value compiled in is a short hash: it becomes a directory name, and the
+# readable list is already longer than Windows allows for a cache path.
+get_property(_rocmlir_ids GLOBAL PROPERTY MIGRAPHX_MLIR_ROCMLIR_IDS)
+string(REPLACE ";" "-" _rocmlir_ids "${_rocmlir_ids}")
+string(MD5 MIGRAPHX_ROCMLIR_ID "${_rocmlir_ids}")
+string(SUBSTRING "${MIGRAPHX_ROCMLIR_ID}" 0 12 MIGRAPHX_ROCMLIR_ID)
+message(STATUS "rocMLIR binary cache id: ${MIGRAPHX_ROCMLIR_ID} (${_rocmlir_ids})")
+target_compile_definitions(migraphx_gpu
+                           PRIVATE "-DMIGRAPHX_ROCMLIR_ID=\"${MIGRAPHX_ROCMLIR_ID}\"")

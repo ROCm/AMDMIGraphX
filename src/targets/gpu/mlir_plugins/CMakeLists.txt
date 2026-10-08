@@ -26,16 +26,6 @@ set(MIGRAPHX_MLIR_LEGACY_ROCMLIR_DIR "" CACHE PATH
     "Legacy rocMLIR package config directory (empty: standard package search)")
 set(MIGRAPHX_MLIR_TRITON_ROCMLIR_DIR "" CACHE PATH
     "rocmlirTriton package config directory")
-set(MIGRAPHX_MLIR_BACKENDS "legacy" CACHE STRING
-    "MLIR backend plugins to build: legacy, triton, or both")
-set_property(CACHE MIGRAPHX_MLIR_BACKENDS PROPERTY STRINGS legacy triton both)
-
-if(NOT MIGRAPHX_MLIR_BACKENDS STREQUAL "legacy" AND
-   NOT MIGRAPHX_MLIR_BACKENDS STREQUAL "triton" AND
-   NOT MIGRAPHX_MLIR_BACKENDS STREQUAL "both")
-    message(FATAL_ERROR
-        "MIGRAPHX_MLIR_BACKENDS must be 'legacy', 'triton', or 'both'")
-endif()
 
 # Build each plugin in a separate directory scope because both package
 # installations export a target named rocMLIR::rockCompiler.
@@ -113,14 +103,8 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
         LIBRARY DESTINATION ${_plugin_install_dir})
 endfunction()
 
-if(MIGRAPHX_MLIR_BACKENDS STREQUAL "legacy" OR
-   MIGRAPHX_MLIR_BACKENDS STREQUAL "both")
-    add_subdirectory(legacy)
-endif()
-if(MIGRAPHX_MLIR_BACKENDS STREQUAL "triton" OR
-   MIGRAPHX_MLIR_BACKENDS STREQUAL "both")
-    add_subdirectory(triton)
-endif()
+add_subdirectory(legacy)
+add_subdirectory(triton)
 
 # Combine the plugins' rocMLIR ids so rebuilding either one invalidates cached kernels.
 # The value compiled in is a short hash: it becomes a directory name, and the

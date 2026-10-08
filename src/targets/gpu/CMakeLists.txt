@@ -348,11 +348,17 @@ if(MIGRAPHX_USE_MIOPEN)
 endif()
 
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
-# Backend plugins need a shared migraphx_gpu to load into, so static builds
-# compile the rocMLIR implementation into migraphx_gpu directly.
-if(MIGRAPHX_ENABLE_MLIR AND NOT BUILD_SHARED_LIBS)
+option(MIGRAPHX_ENABLE_MLIR_DUAL_BACKEND
+       "Load legacy rocMLIR and rocmlirTriton from separate backend plugins" OFF)
+# Backend plugins need a shared migraphx_gpu to load into.
+if(MIGRAPHX_ENABLE_MLIR_DUAL_BACKEND AND NOT (MIGRAPHX_ENABLE_MLIR AND BUILD_SHARED_LIBS))
+    message(FATAL_ERROR
+        "MIGRAPHX_ENABLE_MLIR_DUAL_BACKEND requires MIGRAPHX_ENABLE_MLIR and BUILD_SHARED_LIBS")
+endif()
+if(MIGRAPHX_ENABLE_MLIR AND NOT MIGRAPHX_ENABLE_MLIR_DUAL_BACKEND)
     target_sources(migraphx_gpu PRIVATE mlir.cpp)
 else()
+    # Also provides the stubs used when MLIR is disabled.
     target_sources(migraphx_gpu PRIVATE mlir_backend_loader.cpp)
 endif()
 
@@ -407,11 +413,7 @@ rocm_clang_tidy_check(migraphx_gpu)
 
 if(MIGRAPHX_ENABLE_MLIR)
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
-    if(NOT BUILD_SHARED_LIBS)
-        if(DEFINED MIGRAPHX_MLIR_BACKENDS AND NOT MIGRAPHX_MLIR_BACKENDS STREQUAL "legacy")
-            message(FATAL_ERROR
-                "MIGRAPHX_MLIR_BACKENDS=${MIGRAPHX_MLIR_BACKENDS} requires BUILD_SHARED_LIBS=ON")
-        endif()
+    if(NOT MIGRAPHX_ENABLE_MLIR_DUAL_BACKEND)
         find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
         message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
         migraphx_rocmlir_id(MIGRAPHX_ROCMLIR_ID)
@@ -420,6 +422,10 @@ if(MIGRAPHX_ENABLE_MLIR)
                                    PRIVATE "-DMIGRAPHX_ROCMLIR_ID=\"${MIGRAPHX_ROCMLIR_ID}\"")
         # Private to avoid multiple inclusions of LLVM symbols.
         target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
+        # Hide LLVM internals that come from rocMLIR.
+        if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
+            target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
+        endif()
     endif()
 endif()
 
@@ -579,7 +585,7 @@ if(MIGRAPHX_USE_AMDMLSS)
     endif()
 endif()
 
-if(MIGRAPHX_ENABLE_MLIR AND BUILD_SHARED_LIBS)
+if(MIGRAPHX_ENABLE_MLIR_DUAL_BACKEND)
     set(MIGRAPHX_GPU_DIR ${CMAKE_CURRENT_SOURCE_DIR})
     set(MIGRAPHX_GPU_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
     add_subdirectory(mlir_plugins)

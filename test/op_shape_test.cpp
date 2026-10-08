@@ -5468,8 +5468,9 @@ TEST_CASE(select_module_index_trailing_tuple_data_input)
     sub->add_parameter("data", tuple_s);
     sub->add_return({sub->add_outline(migraphx::shape{migraphx::shape::float_type, {2}})});
 
-    EXPECT(test::throws(
-        [&] { mm->add_instruction(migraphx::make_op("select_module_index"), {index, tup}, {sub}); }));
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("select_module_index"), {index, tup}, {sub});
+    }));
 }
 
 TEST_CASE(select_module_index_tuple_data_input)

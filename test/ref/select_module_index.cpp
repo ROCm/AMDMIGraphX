@@ -38,19 +38,19 @@ TEST_CASE(select_module_index_dispatch)
     auto* mm = p.get_main_module();
     migraphx::shape index_s{migraphx::shape::int64_type, {1}};
     migraphx::shape data_s{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape lit_s{migraphx::shape::float_type, {1}};
 
-    auto create_sub = [&](float add_val, const std::string& name) {
-        auto* sub = p.create_module(name);
-        auto x    = sub->add_parameter("data", data_s);
-        auto lit  = sub->add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {add_val}});
-        auto bc  = sub->add_instruction(migraphx::make_op("multibroadcast"), lit, x);
-        auto add = sub->add_instruction(migraphx::make_op("add"), x, bc);
-        sub->add_return({add});
-        return sub;
-    };
-    auto* sub0 = create_sub(10.0f, "sub_0");
-    auto* sub1 = create_sub(20.0f, "sub_1");
+    auto* sub0 = p.create_module("sub_0");
+    auto x0    = sub0->add_parameter("data", data_s);
+    auto lit0  = sub0->add_literal(migraphx::literal{lit_s, {10.0f}});
+    auto bc0   = sub0->add_instruction(migraphx::make_op("multibroadcast"), lit0, x0);
+    sub0->add_return({sub0->add_instruction(migraphx::make_op("add"), x0, bc0)});
+
+    auto* sub1 = p.create_module("sub_1");
+    auto x1    = sub1->add_parameter("data", data_s);
+    auto lit1  = sub1->add_literal(migraphx::literal{lit_s, {20.0f}});
+    auto bc1   = sub1->add_instruction(migraphx::make_op("multibroadcast"), lit1, x1);
+    sub1->add_return({sub1->add_instruction(migraphx::make_op("add"), x1, bc1)});
 
     auto index = mm->add_parameter("index", index_s);
     auto data  = mm->add_parameter("data", data_s);
@@ -80,19 +80,19 @@ TEST_CASE(select_module_index_map)
     auto* mm = p.get_main_module();
     migraphx::shape index_s{migraphx::shape::int64_type, {1}};
     migraphx::shape data_s{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape lit_s{migraphx::shape::float_type, {1}};
 
-    auto create_sub = [&](float add_val, const std::string& name) {
-        auto* sub = p.create_module(name);
-        auto x    = sub->add_parameter("data", data_s);
-        auto lit  = sub->add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {add_val}});
-        auto bc  = sub->add_instruction(migraphx::make_op("multibroadcast"), lit, x);
-        auto add = sub->add_instruction(migraphx::make_op("add"), x, bc);
-        sub->add_return({add});
-        return sub;
-    };
-    auto* sub0 = create_sub(10.0f, "sub_0");
-    auto* sub1 = create_sub(20.0f, "sub_1");
+    auto* sub0 = p.create_module("sub_0");
+    auto x0    = sub0->add_parameter("data", data_s);
+    auto lit0  = sub0->add_literal(migraphx::literal{lit_s, {10.0f}});
+    auto bc0   = sub0->add_instruction(migraphx::make_op("multibroadcast"), lit0, x0);
+    sub0->add_return({sub0->add_instruction(migraphx::make_op("add"), x0, bc0)});
+
+    auto* sub1 = p.create_module("sub_1");
+    auto x1    = sub1->add_parameter("data", data_s);
+    auto lit1  = sub1->add_literal(migraphx::literal{lit_s, {20.0f}});
+    auto bc1   = sub1->add_instruction(migraphx::make_op("multibroadcast"), lit1, x1);
+    sub1->add_return({sub1->add_instruction(migraphx::make_op("add"), x1, bc1)});
 
     auto index = mm->add_parameter("index", index_s);
     auto data  = mm->add_parameter("data", data_s);

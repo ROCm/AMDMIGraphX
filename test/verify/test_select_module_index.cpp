@@ -28,7 +28,8 @@
 #include <migraphx/make_op.hpp>
 
 // The index is a device literal on the gpu, so the select reads it back with
-// hip::load_scalar before dispatching to the second submodule.
+// hip::load_scalar. Index 1 picks the second submodule, so falling back to the
+// first one or misrouting the output buffer changes the result.
 struct test_select_module_index : verify_program<test_select_module_index>
 {
     migraphx::program create_program() const
@@ -44,13 +45,12 @@ struct test_select_module_index : verify_program<test_select_module_index>
         auto x1    = sub1->add_parameter("data", data_s);
         sub1->add_return({sub1->add_instruction(migraphx::make_op("abs"), x1)});
 
-        auto index = mm->add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
-        auto data = mm->add_parameter("data", data_s);
-        auto smi  = mm->add_instruction(
+        auto index = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {1}});
+        auto data  = mm->add_parameter("data", data_s);
+        auto smi   = mm->add_instruction(
             migraphx::make_op("select_module_index"), {index, data}, {sub0, sub1});
-        auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), smi);
-        mm->add_return({ret});
+        mm->add_return(
+            {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), smi)});
         return p;
     }
 };

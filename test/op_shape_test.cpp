@@ -5328,19 +5328,13 @@ TEST_CASE(select_module_index_static)
     auto index = mm->add_outline(index_s);
     auto data  = mm->add_outline(data_s);
 
-    auto create_sub = [&](float add_val, const std::string& name) {
-        auto* sub = p.create_module(name);
-        auto x    = sub->add_parameter("data", data_s);
-        auto lit  = sub->add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {add_val}});
-        auto bc  = sub->add_instruction(migraphx::make_op("multibroadcast"), lit, x);
-        auto add = sub->add_instruction(migraphx::make_op("add"), x, bc);
-        sub->add_return({add});
-        return sub;
-    };
+    auto* sub0 = p.create_module("sub_0");
+    auto x0    = sub0->add_parameter("data", data_s);
+    sub0->add_return({sub0->add_instruction(migraphx::make_op("neg"), x0)});
+    auto* sub1 = p.create_module("sub_1");
+    auto x1    = sub1->add_parameter("data", data_s);
+    sub1->add_return({sub1->add_instruction(migraphx::make_op("abs"), x1)});
 
-    auto* sub0 = create_sub(0.0f, "sub_0");
-    auto* sub1 = create_sub(1.0f, "sub_1");
     auto smi =
         mm->add_instruction(migraphx::make_op("select_module_index"), {index, data}, {sub0, sub1});
     EXPECT(smi->get_shape() == migraphx::shape{std::vector<migraphx::shape>{data_s}});

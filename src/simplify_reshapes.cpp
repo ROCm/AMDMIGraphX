@@ -1037,9 +1037,10 @@ struct find_concat_slice
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins           = mr.result;
-        const auto& inputs = ins->inputs();
-        auto outs          = ins->outputs();
+        auto ins = mr.result;
+        // Deliberately a copy: the loop below mutates the module while this is live.
+        auto inputs = ins->inputs();
+        auto outs   = ins->outputs();
         std::vector<migraphx::instruction_ref> slice_ins;
         migraphx::transform_if(
             outs.begin(),
@@ -1089,9 +1090,6 @@ struct find_concat_slice
                 if(inputs[idx]->get_shape().lens()[concat_axis] == slice_len)
                 {
                     assert((prefix_scan[idx + 1] - prefix_scan[idx]) == slice_len);
-                    // inputs aliases ins's argument list and prefix_scan was built from it, so
-                    // replacing a consumer must not rewrite ins's own inputs.
-                    assert(not contains(sins->outputs(), ins));
                     m.replace_instruction(sins, inputs[idx]);
                 }
             }

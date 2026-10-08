@@ -415,9 +415,8 @@ static bool split_pointwise_through_slices(module_pass_manager& mpm)
         // Split: replace each slice with a pointwise on sliced inputs
         auto* src_pm = ins->module_inputs().front();
         auto pm_name = src_pm->name();
-        // Aliases ins's argument list and stays live across the loop below, which is safe only
-        // because the loop replaces the slices (consumers of ins), never ins itself.
-        const auto& inputs = ins->inputs();
+        // Deliberately a copy: the loop below mutates the module while this is live.
+        auto inputs = ins->inputs();
         for(const auto& slice_ins : outputs)
         {
             auto slice_op = slice_ins->get_operator();

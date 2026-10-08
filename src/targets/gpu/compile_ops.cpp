@@ -957,12 +957,11 @@ static std::vector<module_ref> collect_modules(module_ref root)
     auto sub_mods                = root->get_sub_modules();
     std::copy(sub_mods.begin(), sub_mods.end(), std::back_inserter(mods));
     std::unordered_set<module_ref> visited;
-    mods.erase(std::remove_if(mods.begin(),
-                              mods.end(),
-                              [&](module_ref m) {
-                                  return m->bypass() or not visited.insert(m).second;
-                              }),
-               mods.end());
+    mods.erase(
+        std::remove_if(mods.begin(),
+                       mods.end(),
+                       [&](module_ref m) { return m->bypass() or not visited.insert(m).second; }),
+        mods.end());
     return mods;
 }
 

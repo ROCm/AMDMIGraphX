@@ -6,11 +6,11 @@ name: Copilot review
 # summary comment, and the session transcript lands in the job summary.
 #
 # Triggers:
-#   - A maintainer comments "/copilot-review" on the PR. An effort level may
-#     follow the phrase ("/copilot-review high"); it defaults to xhigh. GitHub
+#   - A maintainer comments "/code-review" on the PR. An effort level may
+#     follow the phrase ("/code-review high"); it defaults to xhigh. GitHub
 #     runs issue_comment workflows from the default branch, so this path only
 #     works once this file is on develop.
-#   - The PR is labeled "copilot-review" (xhigh) or "copilot-review-<level>".
+#   - The PR is labeled "code-review" (xhigh) or "code-review-<level>".
 #     This runs the workflow file from the PR branch itself, so it can be used
 #     to test changes to this workflow before they are merged. Same-repo PRs
 #     only, because fork PRs get no secrets or write tokens on pull_request.
@@ -41,10 +41,10 @@ jobs:
     if: >-
       (github.event_name == 'issue_comment'
         && github.event.issue.pull_request
-        && contains(github.event.comment.body, '/copilot-review')
+        && contains(github.event.comment.body, '/code-review')
         && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
       || (github.event_name == 'pull_request'
-        && (github.event.label.name == 'copilot-review' || startsWith(github.event.label.name, 'copilot-review-'))
+        && (github.event.label.name == 'code-review' || startsWith(github.event.label.name, 'code-review-'))
         && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -56,8 +56,8 @@ jobs:
           COMMENT: ${{ github.event.comment.body }}
           LABEL: ${{ github.event.label.name }}
         run: |
-          level=$( (grep -oiE '/copilot-review[[:space:]]+(low|medium|high|xhigh|max)\b' <<< "$COMMENT" || true) | head -n1 | awk '{print tolower($NF)}')
-          [ -n "$level" ] || level=$( (grep -oE '^copilot-review-(low|medium|high|xhigh|max)$' <<< "$LABEL" || true) | sed 's/^copilot-review-//')
+          level=$( (grep -oiE '/code-review[[:space:]]+(low|medium|high|xhigh|max)\b' <<< "$COMMENT" || true) | head -n1 | awk '{print tolower($NF)}')
+          [ -n "$level" ] || level=$( (grep -oE '^code-review-(low|medium|high|xhigh|max)$' <<< "$LABEL" || true) | sed 's/^code-review-//')
           echo "level=${level:-xhigh}" >> "$GITHUB_OUTPUT"
           echo "pr=$PR" >> "$GITHUB_OUTPUT"
 

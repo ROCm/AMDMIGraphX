@@ -113,9 +113,9 @@ This workflow runs the repository's <code>/migraphx-code-review</code> Claude Co
 - ## Trigger
     The workflow is triggered by the following events:
 
-     - A comment containing `/copilot-review` on a pull request, written by a repository owner, organization member, or collaborator. An optional effort level (`low`, `medium`, `high`, `xhigh`, `max`) can follow the phrase; the default is `xhigh`.
+     - A comment containing `/code-review` on a pull request, written by a repository owner, organization member, or collaborator. An optional effort level (`low`, `medium`, `high`, `xhigh`, `max`) can follow the phrase; the default is `xhigh`.
 
-     - The label `copilot-review` (xhigh) or `copilot-review-<level>` being added to a same-repo pull request. This runs the workflow file from the PR branch, so it can be used to test changes to the workflow before merging. The label is removed again when the job finishes.
+     - The label `code-review` (xhigh) or `code-review-<level>` being added to a same-repo pull request. This runs the workflow file from the PR branch, so it can be used to test changes to the workflow before merging. The label is removed again when the job finishes.
 
 - ## Jobs
     The workflow has a single job named `review`. The following steps are executed in this job:

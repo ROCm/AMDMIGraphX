@@ -48,6 +48,9 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
     set(_plugin migraphx_mlir_${BACKEND_NAME})
     message(STATUS
         "MLIR backend plugin '${BACKEND_NAME}' using rocMLIR from ${rocMLIR_DIR}")
+    # Keep this plugin's rocMLIR out of the cache so the next lookup, including a
+    # later single-backend configure of this build directory, searches again.
+    unset(rocMLIR_DIR CACHE)
     migraphx_rocmlir_id(_rocmlir_id)
     set_property(GLOBAL APPEND PROPERTY MIGRAPHX_MLIR_ROCMLIR_IDS
         "${BACKEND_NAME}-${_rocmlir_id}")

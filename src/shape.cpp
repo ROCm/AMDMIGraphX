@@ -208,12 +208,9 @@ struct shape_impl
         if(dims.empty())
             return make_identity<T>(0);
         if constexpr(std::is_same<T, std::size_t>{})
-        {
-            std::size_t result = 1;
-            for(const auto d : dims)
-                result = checked_mul(result, d);
-            return result;
-        }
+            return std::accumulate(dims.begin(), dims.end(), std::size_t{1}, [](auto a, auto b) {
+                return checked_mul(a, b);
+            });
         return std::accumulate(dims.begin(), dims.end(), make_identity<T>(1), std::multiplies<>{});
     }
 

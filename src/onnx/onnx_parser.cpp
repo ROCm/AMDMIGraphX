@@ -92,9 +92,8 @@ static literal
 create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
 {
     // empty input
-    std::size_t elem_num = 1;
-    for(const auto d : dims)
-        elem_num = checked_mul(elem_num, d);
+    auto elem_num = std::accumulate(
+        dims.begin(), dims.end(), std::size_t{1}, [](auto a, auto b) { return checked_mul(a, b); });
     if(elem_num == 0)
     {
         return literal{shape_type};
@@ -110,9 +109,8 @@ template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
 static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
 {
     // empty input
-    std::size_t elem_num = 1;
-    for(const auto d : dims)
-        elem_num = checked_mul(elem_num, d);
+    auto elem_num = std::accumulate(
+        dims.begin(), dims.end(), std::size_t{1}, [](auto a, auto b) { return checked_mul(a, b); });
     if(elem_num == 0)
     {
         return literal{shape_type};

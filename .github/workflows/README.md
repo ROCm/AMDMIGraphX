@@ -102,6 +102,10 @@ This workflow runs the repository's <code>/migraphx-code-review</code> Claude Co
 
      - `actions/checkout`: checks out the pull request head with full history so the skill can diff against `origin/develop`.
 
+     - `Install bubblewrap`: installs the sandbox tool Claude Code needs for `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`.
+
+     - `Check the gateway resolves from this runner`: fails fast if the runner cannot resolve the gateway host.
+
      - `Claude review`: runs `anthropics/claude-code-action` against the gateway (configured through `ANTHROPIC_BASE_URL` and `ANTHROPIC_CUSTOM_HEADERS`) and invokes the skill with `--comment` so findings are posted as inline comments. The job log contains the full session output.
 
      - `Remove the trigger label`: for label-triggered runs, removes the label so the PR can be labeled again.

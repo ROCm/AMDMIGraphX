@@ -63,6 +63,30 @@ jobs:
           ref: refs/pull/${{ steps.trigger.outputs.pr }}/head
           fetch-depth: 0
 
+      # Claude Code needs bubblewrap for CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, and
+      # Ubuntu 24.04 blocks the unprivileged user namespaces it relies on.
+      - name: Install bubblewrap
+        run: |
+          if ! command -v bwrap > /dev/null; then
+            sudo -n apt-get update -qq
+            sudo -n apt-get install -y --no-install-recommends bubblewrap
+          fi
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
+      # Fail fast with a clear message if this runner cannot see the gateway,
+      # instead of letting Claude Code retry connection errors for minutes.
+      - name: Check the gateway resolves from this runner
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+        run: |
+          host=$(printf '%s' "$ANTHROPIC_BASE_URL" | sed -E 's#^[a-z]+://##; s#[/:].*##')
+          if ! getent hosts "$host" > /dev/null; then
+            echo "::error::The gateway host in ANTHROPIC_BASE_URL does not resolve from this runner; use a runner on the internal network."
+            exit 1
+          fi
+
       - name: Claude review
         uses: anthropics/claude-code-action@6fed3ca145920b639991cb756090506e1bcaf515  # v1
         env:

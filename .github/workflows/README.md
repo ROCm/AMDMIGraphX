@@ -94,13 +94,19 @@ This workflow runs the repository's <code>/migraphx-code-review</code> Claude Co
 
      - A comment containing `@claude review` on a pull request, written by a repository owner, organization member, or collaborator. An optional effort level (`low`, `medium`, `high`, `xhigh`, `max`) can follow the phrase; the default is `xhigh`.
 
+     - The label `claude-review` (xhigh) or `claude-review-<level>` being added to a same-repo pull request. This runs the workflow file from the PR branch, so it can be used to test changes to the workflow before merging. The label is removed again when the job finishes.
+
 - ## Jobs
     The workflow has a single job named `review`. The following steps are executed in this job:
-     - `Pick effort level from the comment`: reads the optional effort level from the triggering comment.
+     - `Pick the PR and effort level from the trigger`: reads the PR number and the optional effort level from the comment or the label.
 
      - `actions/checkout`: checks out the pull request head with full history so the skill can diff against `origin/develop`.
 
-     - `Claude review`: runs `anthropics/claude-code-action` against the gateway (configured through `ANTHROPIC_BASE_URL` and `ANTHROPIC_CUSTOM_HEADERS`) and invokes the skill with `--comment` so findings are posted as inline comments.
+     - `Claude review`: runs `anthropics/claude-code-action` against the gateway (configured through `ANTHROPIC_BASE_URL` and `ANTHROPIC_CUSTOM_HEADERS`) and invokes the skill with `--comment` so findings are posted as inline comments. The job log contains the full session output.
+
+     - `Remove the trigger label`: for label-triggered runs, removes the label so the PR can be labeled again.
+
+    GitHub runs `issue_comment` workflows from the default branch, so the comment trigger only takes effect once this file is on `develop`.
 
 - ## Secrets
     The workflow requires the following repository secrets:

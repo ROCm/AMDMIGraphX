@@ -46,7 +46,6 @@
 #include <cctype>
 #include <iomanip>
 #include <iterator>
-#include <limits>
 #include <set>
 #include <sstream>
 
@@ -818,11 +817,11 @@ static std::size_t parse_external_size(const std::string& value, const char* fie
         MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
     try
     {
-        std::size_t pos           = 0;
-        unsigned long long parsed = std::stoull(value, &pos);
-        if(pos != value.size() or parsed > std::numeric_limits<std::size_t>::max())
+        std::size_t pos    = 0;
+        std::size_t parsed = std::stoull(value, &pos);
+        if(pos != value.size())
             MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
-        return static_cast<std::size_t>(parsed);
+        return parsed;
     }
     catch(const std::exception&)
     {

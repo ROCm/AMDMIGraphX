@@ -43,8 +43,10 @@
 #include <migraphx/logger.hpp>
 #include <onnx.pb.h>
 #include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include <iterator>
+#include <limits>
 #include <set>
 #include <sstream>
 
@@ -811,9 +813,16 @@ static shape parse_tensor_shape(const onnx::TensorProto& t)
 
 static std::size_t parse_external_size(const std::string& value, const char* field)
 {
+    if(value.empty() or
+       not std::all_of(value.begin(), value.end(), [](unsigned char c) { return std::isdigit(c); }))
+        MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
     try
     {
-        return std::stoull(value);
+        std::size_t pos           = 0;
+        unsigned long long parsed = std::stoull(value, &pos);
+        if(pos != value.size() or parsed > std::numeric_limits<std::size_t>::max())
+            MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+        return static_cast<std::size_t>(parsed);
     }
     catch(const std::exception&)
     {
@@ -823,16 +832,11 @@ static std::size_t parse_external_size(const std::string& value, const char* fie
 
 static fs::path resolve_external_data_path(const fs::path& base_dir, const fs::path& relative)
 {
-    const fs::path base      = fs::weakly_canonical(base_dir);
-    const fs::path resolved  = fs::weakly_canonical(base_dir / relative);
-    const auto base_str      = base.string();
-    const auto resolved_str  = resolved.string();
-    if(resolved_str.size() < base_str.size() or
-       resolved_str.compare(0, base_str.size(), base_str) != 0 or
-       (resolved_str.size() > base_str.size() and resolved_str[base_str.size()] != '/'))
-    {
+    const fs::path base     = fs::weakly_canonical(base_dir);
+    const fs::path resolved = fs::weakly_canonical(base_dir / relative);
+    const fs::path rel      = resolved.lexically_relative(base);
+    if(rel.empty() or *rel.begin() == "..")
         MIGRAPHX_THROW("ONNX external data path escapes model directory: " + relative.string());
-    }
     return resolved;
 }
 

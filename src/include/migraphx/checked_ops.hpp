@@ -32,7 +32,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
-constexpr T checked_mul(T a, T b)
+inline T checked_mul(T a, T b)
 {
     T c{};
     if(__builtin_mul_overflow(a, b, &c))
@@ -41,7 +41,7 @@ constexpr T checked_mul(T a, T b)
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
-constexpr T checked_add(T a, T b)
+inline T checked_add(T a, T b)
 {
     T c{};
     if(__builtin_add_overflow(a, b, &c))

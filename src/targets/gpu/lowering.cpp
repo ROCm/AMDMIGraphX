@@ -122,6 +122,7 @@ struct miopen_apply
         add_nonzero_op();
         add_convolution_backwards_op();
         add_select_module_op();
+        add_select_module_index_op();
         add_concat_past_present_op();
         add_scan_slice_op();
         add_fill_op();
@@ -646,11 +647,24 @@ struct miopen_apply
 
     /**
      * Adds dynamic allocation for submodule output parameter.
-     * select_module_index reads its index on the host, so the device scalar is
-     * copied back with hip::load_scalar. The load is inserted immediately after
-     * the index, and every select of that instruction shares it.
      */
     void add_select_module_op()
+    {
+        apply_map.emplace("select_module", [=](instruction_ref ins) {
+            auto s                              = ins->get_shape();
+            auto output                         = insert_allocation(ins, s);
+            std::vector<instruction_ref> inputs = ins->inputs();
+            inputs.push_back(output);
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        });
+    }
+
+    /**
+     * Adds an output allocation like select_module. The index is read on the host,
+     * so the device scalar is copied back with hip::load_scalar. The load is placed
+     * immediately after the index, and every select of that index shares it.
+     */
+    void add_select_module_index_op()
     {
         auto load_index = [=](instruction_ref index) {
             if(index->name() == "hip::load_scalar")
@@ -668,17 +682,14 @@ struct miopen_apply
             }
             return mod->insert_instruction(std::next(index), make_op("hip::load_scalar"), index);
         };
-        auto append_output = [=](instruction_ref ins) {
+        apply_map.emplace("select_module_index", [=](instruction_ref ins) {
             auto s                              = ins->get_shape();
             auto output                         = insert_allocation(ins, s);
             std::vector<instruction_ref> inputs = ins->inputs();
-            if(ins->name() == "select_module_index")
-                inputs.front() = load_index(inputs.front());
+            inputs.front()                      = load_index(inputs.front());
             inputs.push_back(output);
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
-        };
-        apply_map.emplace("select_module", append_output);
-        apply_map.emplace("select_module_index", append_output);
+        });
     }
 
     void add_concat_past_present_op()

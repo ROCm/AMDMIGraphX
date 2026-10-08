@@ -32,11 +32,18 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-/// Runs one submodule chosen by a host integer.
+/// Runs one of its submodules, chosen at runtime by an integer index.
 ///
 /// select_module_index(index, data..., output) [submodules...]
-/// An empty index_map uses the integer as the submodule position. Otherwise
-/// submodule i runs when the integer equals index_map[i].
+///   index:   single-element int32 or int64, read on the host
+///   data:    passed to the chosen submodule as its parameters, in sorted name order
+///   output:  tuple buffer the chosen submodule writes into (added by gpu lowering)
+///
+/// index_map gives the index value that selects each submodule: submodule i runs
+/// when index == index_map[i]. For example, index_map = {4, 8} runs the first
+/// submodule for index 4 and the second for index 8; any other index throws.
+/// When index_map is empty, the index is the submodule's position, so index 0
+/// runs the first submodule.
 struct select_module_index
 {
     std::vector<std::size_t> index_map;

@@ -1825,6 +1825,13 @@ TEST_CASE(split_sym_dim_retains_only_nonparallel_boundary_axes)
             slice_axes.push_back(ins.get_operator().to_value().at("axes").to_vector<int64_t>());
     EXPECT(migraphx::contains(slice_axes, std::vector<int64_t>{2, 3}));
     EXPECT(migraphx::contains(slice_axes, std::vector<int64_t>{0, 2, 3}));
+    EXPECT(none_of(p.get_modules(), [](auto* module) {
+        if(module->name() == "main")
+            return false;
+        auto returns = module->get_returns();
+        return std::unordered_set<migraphx::instruction_ref>{returns.begin(), returns.end()}
+                   .size() != returns.size();
+    }));
 }
 
 TEST_CASE(split_sym_dim_merges_independent_supported_branches)

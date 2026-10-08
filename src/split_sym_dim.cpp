@@ -25,6 +25,9 @@
 #include <migraphx/split_sym_dim.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/dim_like.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/eliminate_convert.hpp>
+#include <migraphx/eliminate_identity.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -2262,6 +2265,7 @@ struct clone_output_case
 {
     std::unordered_map<sym::expr, std::size_t> freeze;
     std::vector<shape> outputs;
+    std::vector<std::size_t> output_indices;
 };
 
 shape dispatch_shape_for_clones(const shape& planned,
@@ -2412,6 +2416,29 @@ struct block_frame
     std::vector<std::size_t> literals;
     std::vector<std::size_t> extent_sources;
 };
+
+struct deduplicated_block_outputs
+{
+    std::vector<instruction_ref> outputs;
+    std::vector<std::size_t> indices;
+};
+
+deduplicated_block_outputs deduplicate_block_outputs(const std::vector<instruction_ref>& outputs)
+{
+    deduplicated_block_outputs result;
+    std::transform(outputs.begin(),
+                   outputs.end(),
+                   std::back_inserter(result.indices),
+                   [&](instruction_ref output) {
+                       auto found = std::find(result.outputs.begin(), result.outputs.end(), output);
+                       if(found != result.outputs.end())
+                           return static_cast<std::size_t>(
+                               std::distance(result.outputs.begin(), found));
+                       result.outputs.push_back(output);
+                       return result.outputs.size() - 1;
+                   });
+    return result;
+}
 
 sliced_value full_output_for(
     const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction,
@@ -2878,20 +2905,40 @@ clone_build build_clone(
     match::find_matches(clone_module,
                         fold_fixed_clone_evaluations{.fixed_runtime_values = fixed_runtime_values});
 
-    std::vector<instruction_ref> clone_outputs;
+    std::vector<instruction_ref> logical_outputs;
     std::transform(frame.outputs.begin(),
                    frame.outputs.end(),
-                   std::back_inserter(clone_outputs),
+                   std::back_inserter(logical_outputs),
                    [&](const sliced_value& output) { return clone_map.at(output.source); });
+    clone_module.add_return(logical_outputs);
+    run_passes(clone_module, {eliminate_convert{}, eliminate_identity{}, dead_code_elimination{}});
+
+    auto canonical_clone = clone_module;
+    run_passes(canonical_clone, {eliminate_common_subexpression{}, dead_code_elimination{}});
+    auto deduplicated_outputs = deduplicate_block_outputs(canonical_clone.get_returns());
+    auto physical_indices     = range(deduplicated_outputs.outputs.size());
+    std::vector<instruction_ref> clone_outputs;
+    std::transform(physical_indices.begin(),
+                   physical_indices.end(),
+                   std::back_inserter(clone_outputs),
+                   [&](std::size_t physical_index) {
+                       auto logical = std::find(deduplicated_outputs.indices.begin(),
+                                                deduplicated_outputs.indices.end(),
+                                                physical_index);
+                       assert(logical != deduplicated_outputs.indices.end());
+                       auto logical_index = static_cast<std::size_t>(
+                           std::distance(deduplicated_outputs.indices.begin(), logical));
+                       return clone_module.get_returns().at(logical_index);
+                   });
     if(any_of(clone_outputs, [](instruction_ref output) { return output->get_shape().dynamic(); }))
         MIGRAPHX_THROW("SPLIT_SYM_DIM: clone output is not fully static");
+    clone_module.replace_return(clone_outputs);
+    run_passes(clone_module, {dead_code_elimination{}});
     std::vector<shape> output_shapes;
     std::transform(clone_outputs.begin(),
                    clone_outputs.end(),
                    std::back_inserter(output_shapes),
                    [](instruction_ref output) { return output->get_shape(); });
-    clone_module.add_return(clone_outputs);
-    run_passes(clone_module, {dead_code_elimination{}});
     if(none_of(clone_module, [](const auto& ins) {
            return ins.name() == "eval_expr_from_shape" and not ins.outputs().empty();
        }))
@@ -2909,7 +2956,8 @@ clone_build build_clone(
         if(static_clone.get_output_shapes() == output_shapes)
             clone_module = std::move(static_clone);
     }
-    return {std::move(clone_module), {freeze, std::move(output_shapes)}};
+    return {std::move(clone_module),
+            {freeze, std::move(output_shapes), std::move(deduplicated_outputs.indices)}};
 }
 
 struct replacement_resolution
@@ -3131,18 +3179,60 @@ void wire_select_module(
                    frame.params.end(),
                    std::back_inserter(selection_inputs),
                    [&](const auto& input) { return frame.inputs.at(input.second).select_input; });
+
+    std::vector<std::size_t> logical_output_indices;
+    if(clone_outputs.empty())
+    {
+        std::vector<instruction_ref> output_sources;
+        std::transform(frame.outputs.begin(),
+                       frame.outputs.end(),
+                       std::back_inserter(output_sources),
+                       [](const auto& output) { return output.source; });
+        logical_output_indices = deduplicate_block_outputs(output_sources).indices;
+    }
+    else
+    {
+        logical_output_indices = clone_outputs.front().output_indices;
+        if(any_of(clone_outputs, [&](const auto& output) {
+               return output.output_indices != logical_output_indices;
+           }))
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: clone output aliases are inconsistent");
+    }
+    auto physical_output_count =
+        *std::max_element(logical_output_indices.begin(), logical_output_indices.end()) + 1;
+    std::vector<std::size_t> representative_outputs;
+    auto physical_output_indices = range(physical_output_count);
+    std::transform(physical_output_indices.begin(),
+                   physical_output_indices.end(),
+                   std::back_inserter(representative_outputs),
+                   [&](std::size_t physical_output_index) {
+                       auto found = std::find(logical_output_indices.begin(),
+                                              logical_output_indices.end(),
+                                              physical_output_index);
+                       assert(found != logical_output_indices.end());
+                       return static_cast<std::size_t>(
+                           std::distance(logical_output_indices.begin(), found));
+                   });
+
     std::vector<shape> body_output_shapes;
     std::vector<shape> logical_output_shapes;
-    for(std::size_t output_index = 0; output_index < frame.outputs.size(); ++output_index)
-    {
-        auto source = frame.outputs.at(output_index).source;
-        logical_output_shapes.push_back(logical_output_shape(frame.outputs.at(output_index)));
-        if(clone_outputs.empty())
-            body_output_shapes.push_back(logical_output_shapes.back());
-        else
-            body_output_shapes.push_back(dispatch_shape_for_clones(
-                info_for_instruction.at(source)->dispatch_output, clone_outputs, output_index));
-    }
+    std::transform(representative_outputs.begin(),
+                   representative_outputs.end(),
+                   std::back_inserter(logical_output_shapes),
+                   [&](std::size_t output_index) {
+                       return logical_output_shape(frame.outputs.at(output_index));
+                   });
+    std::transform(
+        physical_output_indices.begin(),
+        physical_output_indices.end(),
+        std::back_inserter(body_output_shapes),
+        [&](std::size_t output_index) {
+            if(clone_outputs.empty())
+                return logical_output_shapes.at(output_index);
+            auto source = frame.outputs.at(representative_outputs.at(output_index)).source;
+            return dispatch_shape_for_clones(
+                info_for_instruction.at(source)->dispatch_output, clone_outputs, output_index);
+        });
     value op_value{{"output_dyn_shapes", to_value(shape{body_output_shapes})}};
     if(has_zero_specialization)
     {
@@ -3152,12 +3242,20 @@ void wire_select_module(
     auto selection =
         m.add_instruction(make_op("select_module", op_value), selection_inputs, submodules);
 
+    std::vector<instruction_ref> selected_outputs;
+    std::transform(physical_output_indices.begin(),
+                   physical_output_indices.end(),
+                   std::back_inserter(selected_outputs),
+                   [&](std::size_t output_index) {
+                       return m.add_instruction(
+                           make_op("get_tuple_elem", {{"index", output_index}}), selection);
+                   });
+
     for(std::size_t output_index = 0; output_index < frame.outputs.size(); ++output_index)
     {
-        const auto& output = frame.outputs.at(output_index);
-        auto selected_output =
-            m.add_instruction(make_op("get_tuple_elem", {{"index", output_index}}), selection);
-        auto sliced = add_output_slice(m,
+        const auto& output   = frame.outputs.at(output_index);
+        auto selected_output = selected_outputs.at(logical_output_indices.at(output_index));
+        auto sliced          = add_output_slice(m,
                                        output,
                                        selected_output,
                                        *info_for_instruction.at(output.source),

@@ -2913,10 +2913,14 @@ clone_build build_clone(
     clone_module.add_return(logical_outputs);
     run_passes(clone_module, {eliminate_convert{}, eliminate_identity{}, dead_code_elimination{}});
 
-    auto canonical_clone = clone_module;
-    run_passes(canonical_clone, {eliminate_common_subexpression{}, dead_code_elimination{}});
-    auto deduplicated_outputs = deduplicate_block_outputs(canonical_clone.get_returns());
-    auto physical_indices     = range(deduplicated_outputs.outputs.size());
+    auto deduplicated_outputs = deduplicate_block_outputs(clone_module.get_returns());
+    if(clone_module.get_returns().size() > 1)
+    {
+        auto canonical_clone = clone_module;
+        run_passes(canonical_clone, {eliminate_common_subexpression{}, dead_code_elimination{}});
+        deduplicated_outputs = deduplicate_block_outputs(canonical_clone.get_returns());
+    }
+    auto physical_indices = range(deduplicated_outputs.outputs.size());
     std::vector<instruction_ref> clone_outputs;
     std::transform(physical_indices.begin(),
                    physical_indices.end(),

@@ -61,6 +61,9 @@ jobs:
           ANTHROPIC_DEFAULT_HAIKU_MODEL: Claude-Haiku-4.5
           # Keep the gateway key out of the environment of commands Claude runs.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          # Model effort follows the review level (same five names), so a
+          # bare "@claude review" runs both at xhigh.
+          CLAUDE_CODE_EFFORT_LEVEL: ${{ steps.level.outputs.level }}
         with:
           # The action requires an API key input; the gateway ignores it and
           # authenticates with the custom header above.

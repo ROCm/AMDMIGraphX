@@ -31,6 +31,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/liveness.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/ranges.hpp>
 #include <cstddef>
 
 namespace migraphx {
@@ -198,6 +199,13 @@ void write_literals::apply(module& m) const
             m.replace_instruction(ins, gpu_literal{ins->get_literal().get_argument()});
         }
     }
+}
+
+void write_compiled_literals::apply(module& m) const
+{
+    auto literals = find_all(iterator_for(m), [](auto ins) { return ins->name() == "@literal"; });
+    for(auto ins : literals)
+        m.replace_instruction(ins, gpu_literal{ins->get_literal().get_argument()});
 }
 
 } // namespace gpu

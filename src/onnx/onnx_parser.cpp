@@ -29,6 +29,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
@@ -42,6 +43,7 @@
 #include <migraphx/logger.hpp>
 #include <onnx.pb.h>
 #include <iomanip>
+#include <memory>
 #include <set>
 #include <sstream>
 
@@ -59,6 +61,81 @@ struct external_data_info
     std::size_t offset = 0;
     std::size_t nbytes = 0;
 };
+
+namespace {
+
+/// Stands in for an `external_weight` while the graph is parsed. Unlike
+/// external_weight it is context-free, so op parsers that need an initializer's
+/// value (TopK's k, Squeeze's axes, Reshape's shape, ...) can still evaluate it.
+/// The bytes are only read on first evaluation, and are remembered so that
+/// resolve_external_initializers can tell which initializers the parser consumed.
+struct external_initializer
+{
+    op::external_weight weight;
+    fs::path dir;
+    // Shared so the copies made while the graph is built see the same value.
+    std::shared_ptr<literal> value = std::make_shared<literal>();
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return op::external_weight::reflect(self.weight, f);
+    }
+
+    std::string name() const { return "onnx::external_initializer"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        return weight.compute_shape(inputs);
+    }
+
+    argument compute(const shape&, const std::vector<argument>&) const
+    {
+        if(value->empty())
+        {
+            auto raw = read_buffer(dir / weight.location, weight.offset, weight.length);
+            if(raw.size() != weight.s.bytes())
+                MIGRAPHX_THROW("PARSE_INITIALIZER: external data \"" + weight.location + "\" has " +
+                               std::to_string(raw.size()) + " bytes, expected " +
+                               std::to_string(weight.s.bytes()));
+            *value = literal{weight.s, raw.data()};
+        }
+        return value->get_argument();
+    }
+};
+
+} // namespace
+
+// Initializers the parser evaluated are already baked into the ops that consumed
+// them, so they become literals; swapping their bytes later would have no effect.
+// Every other initializer becomes an external_weight.
+static void resolve_external_initializers(program& prog)
+{
+    std::size_t materialized = 0;
+    for(auto* m : prog.get_modules())
+    {
+        auto placeholders = find_all(
+            iterator_for(*m), [](auto ins) { return ins->name() == "onnx::external_initializer"; });
+        for(auto ins : placeholders)
+        {
+            // A copy, since replacing the instruction overwrites its operator.
+            auto init = any_cast<external_initializer>(ins->get_operator());
+            if(init.value->empty())
+            {
+                m->replace_instruction(ins, init.weight);
+                continue;
+            }
+            auto lit = m->insert_literal(ins, *init.value);
+            m->replace_instruction(ins, lit);
+            m->remove_instruction(ins);
+            materialized++;
+        }
+    }
+    if(materialized > 0)
+        log::info() << materialized
+                    << " external initializer(s) are needed while parsing and were kept as "
+                       "literals; replacing external weights won't change them.";
+}
 
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
@@ -327,6 +404,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
         {
             warn_unresolved_dim_params(*this, model.graph());
             (void)this->parse_graph(mm, model.graph());
+            resolve_external_initializers(prog);
         }
     }
     else
@@ -348,6 +426,7 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
         {
             warn_unresolved_dim_params(*this, model.graph());
             (void)this->parse_graph(mm, model.graph());
+            resolve_external_initializers(prog);
         }
     }
     else
@@ -380,6 +459,14 @@ static shape parse_tensor_shape(const onnx::TensorProto& t);
 static external_data_info parse_external_data_info(const onnx::TensorProto& t,
                                                    const shape& tensor_shape);
 
+// A rank-0 ONNX tensor holds one value; create_literal represents it as shape{type}.
+static shape scalar_if_rank0(const shape& s) { return s.lens().empty() ? shape{s.type()} : s; }
+
+static fs::path get_external_data_dir(const onnx_parser& parser)
+{
+    return parser.external_data_path.empty() ? parser.path : fs::path{parser.external_data_path};
+}
+
 static std::unordered_map<std::string, instruction_ref>
 parse_initializer(onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {
@@ -391,15 +478,20 @@ parse_initializer(onnx_parser& parser, module* mod, const onnx::GraphProto& grap
 
         const auto& external_data = f.external_data();
         instruction_ref ins;
-        if(parser.keep_weights_external and not external_data.empty())
+        auto tensor_shape =
+            external_data.empty() ? shape{} : scalar_if_rank0(parse_tensor_shape(f));
+        // Empty tensors have no bytes to replace, so they stay literals.
+        if(parser.keep_weights_external and not external_data.empty() and
+           tensor_shape.elements() > 0)
         {
-            auto tensor_shape = parse_tensor_shape(f);
-            auto info         = parse_external_data_info(f, tensor_shape);
+            auto info = parse_external_data_info(f, tensor_shape);
             // Insert at begin() to mirror add_literal, so swapping in/out of
             // keep_weights_external mode does not change instruction order.
             ins = mod->insert_instruction(
                 mod->begin(),
-                op::external_weight{tensor_shape, info.filename, info.offset, info.nbytes});
+                external_initializer{
+                    op::external_weight{tensor_shape, info.filename, info.offset, info.nbytes},
+                    get_external_data_dir(parser)});
         }
         else
         {
@@ -816,7 +908,7 @@ static external_data_info parse_external_data_info(const onnx::TensorProto& t,
     if(external_data.size() > 1)
         info.offset = std::stoull(external_data.at(1).value());
     info.nbytes = (external_data.size() > 2) ? std::stoull(external_data.at(2).value())
-                                             : tensor_shape.bytes();
+                                             : scalar_if_rank0(tensor_shape).bytes();
     return info;
 }
 
@@ -830,8 +922,8 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     if(not external_data.empty())
     {
         auto info       = parse_external_data_info(t, tensor_shape);
-        const auto dir  = external_data_path.empty() ? path : fs::path{external_data_path};
-        auto raw_buffer = read_buffer(dir / info.filename, info.offset, info.nbytes);
+        auto raw_buffer =
+            read_buffer(get_external_data_dir(*this) / info.filename, info.offset, info.nbytes);
         std::string s(raw_buffer.begin(), raw_buffer.end());
         return create_literal(type, dims, s.data());
     }

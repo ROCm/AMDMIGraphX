@@ -45,6 +45,18 @@ struct MIGRAPHX_GPU_EXPORT write_literals
     void apply(module& m) const;
 };
 
+/// Lowers the literal instructions of an already compiled module to `gpu::literal`
+/// in place. Scheduling and memory coloring have already assigned scratch offsets
+/// based on the instruction order, so unlike write_literals this never reorders the
+/// module or inserts allocations, and it doesn't query device memory, so it also
+/// works for cross-compiled programs. Every literal is placed in device memory.
+struct MIGRAPHX_GPU_EXPORT write_compiled_literals
+{
+    std::string name() const { return "gpu::write_compiled_literals"; }
+
+    void apply(module& m) const;
+};
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -339,13 +339,13 @@ struct remove_literal_copies
 } // namespace
 
 // Lower bare @literal instructions inserted after compile (e.g. by encoding external
-// weights) using the same write_literals pass the normal compile pipeline uses, so
-// gpu::literal creation has a single source of truth. The literals are not finalized
-// here; the device buffer is materialized on load (program::from_value finalizes) or
-// before run.
+// weights). write_literals can't be used here: it sorts the module, which is unsafe
+// once scheduling and memory coloring have run, and it queries device memory, which
+// fails when cross-compiling. The literals are not finalized here; the device buffer
+// is materialized on load (program::from_value finalizes) or by program::finalize.
 std::vector<pass> target::get_literal_passes() const
 {
-    return {write_literals{}, remove_literal_copies{}};
+    return {write_compiled_literals{}, remove_literal_copies{}};
 }
 
 MIGRAPHX_REGISTER_TARGET(target);

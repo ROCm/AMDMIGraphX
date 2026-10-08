@@ -914,6 +914,16 @@ struct compiler
         return p;
     }
 
+    // Encoded weights are only uploaded to the device when the program is loaded or
+    // finalized, so commands that execute the compiled program must use this.
+    program compile_for_run()
+    {
+        auto p = compile();
+        if(not encode_weights.empty())
+            p.finalize();
+        return p;
+    }
+
     program encode(const program& p, const target& t) const
     {
         log::info() << "Encoding weights from " << encode_weights << " ...";
@@ -1038,7 +1048,7 @@ struct run_cmd : command<run_cmd>
 
     void run()
     {
-        auto p = c.compile();
+        auto p = c.compile_for_run();
         log::info() << "Allocating params ...";
         auto m = c.params(p);
         p.eval(m);
@@ -1058,7 +1068,7 @@ struct time_cmd : command<time_cmd>
 
     void run()
     {
-        auto p = c.compile();
+        auto p = c.compile_for_run();
         log::info() << "Allocating params ...";
         auto m = c.params(p);
         log::info() << "Running ...";
@@ -1084,7 +1094,7 @@ struct perf : command<perf>
 
     void run()
     {
-        auto p = c.compile();
+        auto p = c.compile_for_run();
         log::info() << "Allocating params ...";
         auto m = c.params(p);
         log::info() << "Running performance report ...";
@@ -1099,7 +1109,7 @@ struct roctx : command<roctx>
 
     void run()
     {
-        auto p = c.compile();
+        auto p = c.compile_for_run();
         log::info() << "Allocating params ...";
         auto m = c.params(p);
         log::info() << "rocTX:\tLoading rocTX library...";

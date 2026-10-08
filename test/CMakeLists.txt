@@ -82,6 +82,7 @@ if(MIGRAPHX_ENABLE_GPU)
         endif()
         target_link_libraries(test_gpu_${BASE_NAME} migraphx_lazy_ref migraphx_gpu register_targets)
     endforeach()
+    target_link_libraries(test_gpu_external_weights migraphx_onnx)
     add_subdirectory(gpu/kernels)
 endif()
 

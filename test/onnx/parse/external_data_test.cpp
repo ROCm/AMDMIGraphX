@@ -81,3 +81,44 @@ TEST_CASE(replace_onnx_external_weights_test)
     auto reference = read_onnx("external_data_test.onnx");
     EXPECT(baked == reference);
 }
+
+static migraphx::program encode_external_weights(const std::string& name)
+{
+    migraphx::onnx_options options;
+    options.keep_weights_external = true;
+    auto template_prog            = read_onnx(name, options);
+
+    static auto files{::onnx_files()};
+    static std::string base_dir = read_weight_files(files);
+    return migraphx::replace_onnx_external_weights(
+        template_prog, base_dir, migraphx::make_target("ref"));
+}
+
+TEST_CASE(keep_weights_external_scalar_test)
+{
+    migraphx::onnx_options options;
+    options.keep_weights_external = true;
+    auto prog                     = read_onnx("external_scalar_test.onnx", options);
+
+    const auto* mm = prog.get_main_module();
+    auto weight    = std::find_if(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "external_weight"; });
+    EXPECT(weight != mm->end());
+    EXPECT(weight->get_shape() == migraphx::shape{migraphx::shape::float_type});
+
+    EXPECT(encode_external_weights("external_scalar_test.onnx") ==
+           read_onnx("external_scalar_test.onnx"));
+}
+
+TEST_CASE(keep_weights_external_parse_time_constant_test)
+{
+    // TopK's k must be known while parsing, so it is kept as a literal while the
+    // Add's bias stays external.
+    migraphx::onnx_options options;
+    options.keep_weights_external = true;
+    auto prog                     = read_onnx("external_topk_test.onnx", options);
+    EXPECT(count_external_weights(prog) == 1);
+
+    EXPECT(encode_external_weights("external_topk_test.onnx") ==
+           read_onnx("external_topk_test.onnx"));
+}

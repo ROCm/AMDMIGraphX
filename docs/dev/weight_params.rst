@@ -104,14 +104,16 @@ wrappers expose it under the shorter name ``replace_onnx_external_weights``):
     /// Copy the program and replace every external_weight op with a literal read
     /// from base_dir, producing a self-contained program suitable for saving as
     /// an MXR. When the program is compiled, the target is used to lower the
-    /// encoded literals for the device (the equivalent of write_literals).
+    /// encoded literals for the device (see target::get_literal_passes).
     MIGRAPHX_ONNX_EXPORT program replace_onnx_external_weights(const program& prog,
                                                                const std::string& base_dir,
                                                                const target& t);
 
 The ``target`` argument controls how the encoded literals are lowered. For GPU
-targets the literals are lowered to the device representation (``gpu::literal``)
-so the encoded program is ready to run on the device.
+targets the literals are lowered in place to the device representation
+(``gpu::literal``). The compiled program's instruction order and memory plan are
+left unchanged, and no GPU is needed, so templates cross-compiled for another
+architecture can be encoded too.
 
 Running a encoded program in-process
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

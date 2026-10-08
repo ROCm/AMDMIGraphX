@@ -100,8 +100,10 @@ struct target
      * program after the normal compile pipeline has already run (e.g. by
      * replace_onnx_external_weights). The passes turn the bare literals into
      * whatever target-specific op the target would normally produce during
-     * compile. The newly-emitted instructions are not finalized; they are
-     * materialized when the program is loaded or run. The default is an empty
+     * compile. The program has already been scheduled and memory planned, so
+     * the passes must not reorder instructions or add allocations. The
+     * newly-emitted instructions are not finalized; they are materialized
+     * when the program is loaded or finalized. The default is an empty
      * list for targets that consume @literal directly (e.g. the reference
      * interpreter).
      *

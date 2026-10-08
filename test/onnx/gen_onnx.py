@@ -4256,6 +4256,33 @@ def external_constant_test():
     return ([node], [], [y])
 
 
+@onnx_test(True)
+def external_scalar_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    scale = from_array(np.array(2.5, dtype=np.float32), 'scale')
+    node = onnx.helper.make_node('Mul', inputs=['x', 'scale'], outputs=['y'])
+
+    return ([node], [x], [y], [scale])
+
+
+@onnx_test(True)
+def external_topk_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5])
+    values = helper.make_tensor_value_info('values', TensorProto.FLOAT, [2])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64, [2])
+
+    bias = from_array(np.arange(5, dtype=np.float32), 'bias')
+    k = from_array(np.array([2], dtype=np.int64), 'k')
+    add = onnx.helper.make_node('Add', inputs=['x', 'bias'], outputs=['sum'])
+    topk = onnx.helper.make_node('TopK',
+                                 inputs=['sum', 'k'],
+                                 outputs=['values', 'indices'])
+
+    return ([add, topk], [x], [values, indices], [bias, k])
+
+
 @onnx_test()
 def eyelike_default_test():
     T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])

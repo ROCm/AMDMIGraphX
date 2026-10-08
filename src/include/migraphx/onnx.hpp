@@ -67,6 +67,9 @@ struct onnx_options
     /// When true, external-data initializers are kept external: instead of being
     /// loaded as literals they become `external_weight` ops that record the file
     /// reference in the IR, enabling runtime weight swapping without re-parsing.
+    /// Initializers whose values the parser itself needs (for example TopK's `k` or
+    /// Squeeze's axes) are read from external_data_path and kept as literals, so
+    /// they can't be swapped.
     bool keep_weights_external = false;
 };
 
@@ -90,8 +93,9 @@ MIGRAPHX_ONNX_EXPORT const std::vector<std::string>& get_onnx_operators();
 /// self-contained program suitable for saving as an MXR. The replacement runs
 /// over all modules (including submodules). When the program is already
 /// compiled, the target lowers the baked literals to its device representation;
-/// the baked literals are materialized when the program is loaded or run, not
-/// here.
+/// the baked literals are materialized when the program is loaded or finalized,
+/// not here, so a compiled result must be saved and reloaded, or finalized,
+/// before it is run.
 MIGRAPHX_ONNX_EXPORT program replace_onnx_external_weights(const program& prog,
                                                            const std::string& base_dir,
                                                            const target& t);

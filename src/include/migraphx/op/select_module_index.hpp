@@ -84,8 +84,32 @@ struct select_module_index
                            std::to_string(*duplicate) + ".");
         }
 
+        auto out_shapes0 = mods.front()->get_output_shapes();
+        for(std::size_t i = 1; i < mods.size(); ++i)
+        {
+            auto out_shapes = mods[i]->get_output_shapes();
+            if(not std::equal(
+                   out_shapes.begin(), out_shapes.end(), out_shapes0.begin(), out_shapes0.end()))
+            {
+                MIGRAPHX_THROW(
+                    "SELECT_MODULE_INDEX: output shapes of submodules must be the same.");
+            }
+        }
+        shape output{out_shapes0};
+
         std::vector<shape> data_shapes(inputs.begin() + 1,
                                        has_output_buffer(inputs) ? inputs.end() - 1 : inputs.end());
+        // A trailing tuple is taken as the output buffer, so a tuple data input
+        // would be ambiguous with it
+        if(std::any_of(data_shapes.begin(),
+                       data_shapes.end(),
+                       [](const shape& s) { return s.type() == shape::tuple_type; }) or
+           (has_output_buffer(inputs) and inputs.back() != output))
+        {
+            MIGRAPHX_THROW("SELECT_MODULE_INDEX: data inputs must not be tuples; unpack them "
+                           "with get_tuple_elem. Only the output buffer may be a tuple.");
+        }
+
         auto mismatched = std::find_if(mods.begin(), mods.end(), [&](module_ref mod) {
             auto names        = get_input_parameter_names(mod);
             auto param_shapes = mod->get_parameter_shapes();
@@ -103,19 +127,7 @@ struct select_module_index
                            ".");
         }
 
-        auto out_shapes0 = mods.front()->get_output_shapes();
-        for(std::size_t i = 1; i < mods.size(); ++i)
-        {
-            auto out_shapes = mods[i]->get_output_shapes();
-            if(not std::equal(
-                   out_shapes.begin(), out_shapes.end(), out_shapes0.begin(), out_shapes0.end()))
-            {
-                MIGRAPHX_THROW(
-                    "SELECT_MODULE_INDEX: output shapes of submodules must be the same.");
-            }
-        }
-
-        return shape{out_shapes0};
+        return output;
     }
 
     std::vector<std::string> get_input_parameter_names(module_ref mod) const
@@ -203,11 +215,13 @@ struct select_module_index
                        output_sub_objects.begin(),
                        std::inserter(p_map, p_map.end()),
                        [&](auto&& name, auto&& a) {
-                           auto ps = param_shapes.at(name);
+                           const auto& ps = param_shapes.at(name);
                            if(a.get_shape() != ps)
                            {
-                               assert(ps.bytes() <= a.get_shape().bytes());
-                               return std::make_pair(name, a.reshape(ps));
+                               MIGRAPHX_THROW("SELECT_MODULE_INDEX: output buffer " +
+                                              to_string(a.get_shape()) +
+                                              " does not match output parameter " + name +
+                                              " " + to_string(ps) + ".");
                            }
                            return std::make_pair(name, a);
                        });

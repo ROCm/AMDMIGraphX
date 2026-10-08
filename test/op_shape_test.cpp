@@ -5455,6 +5455,44 @@ TEST_CASE(select_module_index_map_duplicate)
     }));
 }
 
+TEST_CASE(select_module_index_trailing_tuple_data_input)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape index_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape tuple_s{std::vector<migraphx::shape>{{migraphx::shape::float_type, {3}}}};
+    auto index = mm->add_outline(index_s);
+    auto tup   = mm->add_outline(tuple_s);
+
+    auto* sub = p.create_module("sub");
+    sub->add_parameter("data", tuple_s);
+    sub->add_return({sub->add_outline(migraphx::shape{migraphx::shape::float_type, {2}})});
+
+    EXPECT(test::throws(
+        [&] { mm->add_instruction(migraphx::make_op("select_module_index"), {index, tup}, {sub}); }));
+}
+
+TEST_CASE(select_module_index_tuple_data_input)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape index_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape data_s{migraphx::shape::float_type, {2}};
+    migraphx::shape tuple_s{std::vector<migraphx::shape>{data_s}};
+    auto index = mm->add_outline(index_s);
+    auto tup   = mm->add_outline(tuple_s);
+    auto data  = mm->add_outline(data_s);
+
+    auto* sub = p.create_module("sub");
+    sub->add_parameter("a", tuple_s);
+    auto x = sub->add_parameter("b", data_s);
+    sub->add_return({x});
+
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("select_module_index"), {index, tup, data}, {sub});
+    }));
+}
+
 TEST_CASE(select_module_index_output_alias)
 {
     migraphx::shape index_s{migraphx::shape::int64_type, {1}};

@@ -220,8 +220,8 @@ struct select_module_index
                            {
                                MIGRAPHX_THROW("SELECT_MODULE_INDEX: output buffer " +
                                               to_string(a.get_shape()) +
-                                              " does not match output parameter " + name +
-                                              " " + to_string(ps) + ".");
+                                              " does not match output parameter " + name + " " +
+                                              to_string(ps) + ".");
                            }
                            return std::make_pair(name, a);
                        });

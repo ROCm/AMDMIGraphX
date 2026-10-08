@@ -326,12 +326,11 @@ plugin_result_tuning_config(const mlir_backend_result* result) noexcept
 
 static void plugin_result_destroy(mlir_backend_result* result) noexcept { delete result; }
 
-extern "C" MIGRAPHX_MLIR_PLUGIN_EXPORT const mlir_backend_v3*
-migraphx_gpu_get_mlir_backend_v3() noexcept
+extern "C" MIGRAPHX_MLIR_PLUGIN_EXPORT const mlir_backend_table*
+migraphx_gpu_get_mlir_backend() noexcept
 {
-    static const mlir_backend_v3 backend = {
-        mlir_backend_abi_version,
-        sizeof(mlir_backend_v3),
+    static const mlir_backend_table backend = {
+        sizeof(mlir_backend_table),
         &plugin_dump_mlir,
         &plugin_dump_mlir_to_file,
         &plugin_is_module_fusible,

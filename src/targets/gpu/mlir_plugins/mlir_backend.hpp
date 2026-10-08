@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_GPU_MLIR_BACKEND_HPP
 #define MIGRAPHX_GUARD_GPU_MLIR_BACKEND_HPP
 
-// Private same-build interface between migraphx_gpu and its MLIR backend
+// Private interface between migraphx_gpu and its MLIR backend
 // plugins. Inputs are borrowed for each call. Results stay owned by the plugin
 // until the host copies their data and calls result_destroy; pointers in result
 // views are only valid until that call.
@@ -48,8 +48,6 @@ namespace gpu {
 
 struct context;
 struct mlir_backend_result;
-
-constexpr std::uint32_t mlir_backend_abi_version = 3;
 
 struct mlir_backend_string_view
 {
@@ -80,9 +78,9 @@ struct mlir_backend_tuning_config_view
     mlir_backend_string_view detailed_problem_info;
 };
 
-struct mlir_backend_v3
+struct mlir_backend_table
 {
-    std::uint32_t abi_version;
+    // Must stay the first field: the host checks it before using any other slot.
     std::size_t struct_size;
 
     mlir_backend_result* (*dump_mlir)(
@@ -140,8 +138,6 @@ struct mlir_backend_v3
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-// Version the exported symbol so older plugins cannot be interpreted as this
-// ownership-safe function table.
-#define MIGRAPHX_GPU_MLIR_BACKEND_FACTORY_NAME "migraphx_gpu_get_mlir_backend_v3"
+#define MIGRAPHX_GPU_MLIR_BACKEND_FACTORY_NAME "migraphx_gpu_get_mlir_backend"
 
 #endif // MIGRAPHX_GUARD_GPU_MLIR_BACKEND_HPP

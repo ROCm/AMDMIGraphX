@@ -54,18 +54,14 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
 
 #ifdef MIGRAPHX_MLIR
 
-static void validate_mlir_backend(const mlir_backend_v3* table, const fs::path& path)
+static void validate_mlir_backend(const mlir_backend_table* table, const fs::path& path)
 {
     const auto plugin = "MLIR backend plugin '" + path.u8string() + "'";
     if(table == nullptr)
         MIGRAPHX_THROW(plugin + " returned a null vtable");
-    if(table->abi_version != mlir_backend_abi_version)
-        MIGRAPHX_THROW(plugin + " ABI version mismatch: expected " +
-                       std::to_string(mlir_backend_abi_version) + ", got " +
-                       std::to_string(table->abi_version));
-    if(table->struct_size != sizeof(mlir_backend_v3))
+    if(table->struct_size != sizeof(mlir_backend_table))
         MIGRAPHX_THROW(plugin + " vtable size mismatch: expected " +
-                       std::to_string(sizeof(mlir_backend_v3)) + ", got " +
+                       std::to_string(sizeof(mlir_backend_table)) + ", got " +
                        std::to_string(table->struct_size));
 
     const auto require = [&](auto slot, const char* name) {
@@ -110,7 +106,7 @@ static std::string select_mlir_backend(const std::string& arch)
 struct loaded_mlir_backend
 {
     dynamic_loader loader;
-    const mlir_backend_v3* vtable = nullptr;
+    const mlir_backend_table* vtable = nullptr;
 };
 
 static loaded_mlir_backend load_mlir_backend(const std::string& backend)
@@ -137,7 +133,7 @@ static loaded_mlir_backend load_mlir_backend(const std::string& backend)
     try
     {
         dynamic_loader loader{candidate};
-        auto getter = loader.get_function<const mlir_backend_v3*()>(
+        auto getter = loader.get_function<const mlir_backend_table*()>(
             MIGRAPHX_GPU_MLIR_BACKEND_FACTORY_NAME);
         const auto* table = getter();
         validate_mlir_backend(table, candidate);
@@ -152,7 +148,7 @@ static loaded_mlir_backend load_mlir_backend(const std::string& backend)
     }
 }
 
-static const mlir_backend_v3& mlir_backend_by_name(const std::string& backend)
+static const mlir_backend_table& mlir_backend_by_name(const std::string& backend)
 {
     // Keep plugins loaded for the process lifetime. Unloading one from a static
     // destructor can call FreeLibrary while Windows is unloading migraphx_gpu.
@@ -167,21 +163,21 @@ static const mlir_backend_v3& mlir_backend_by_name(const std::string& backend)
     return *loaded->vtable;
 }
 
-static const mlir_backend_v3& mlir_backend(const std::string& arch)
+static const mlir_backend_table& mlir_backend(const std::string& arch)
 {
     return mlir_backend_by_name(select_mlir_backend(arch));
 }
 
-static const mlir_backend_v3& mlir_backend(const context& ctx)
+static const mlir_backend_table& mlir_backend(const context& ctx)
 {
     return mlir_backend(ctx.get_current_device().get_gfx_name());
 }
 
-static const mlir_backend_v3& mlir_backend() { return mlir_backend(get_device_name()); }
+static const mlir_backend_table& mlir_backend() { return mlir_backend(get_device_name()); }
 
 struct mlir_backend_result_deleter
 {
-    const mlir_backend_v3* backend = nullptr;
+    const mlir_backend_table* backend = nullptr;
 
     void operator()(mlir_backend_result* result) const noexcept
     {
@@ -194,7 +190,7 @@ using mlir_backend_result_ptr =
     std::unique_ptr<mlir_backend_result, mlir_backend_result_deleter>;
 
 static mlir_backend_result_ptr checked_result(mlir_backend_result* result,
-                                              const mlir_backend_v3& backend)
+                                              const mlir_backend_table& backend)
 {
     mlir_backend_result_ptr handle{result, {&backend}};
     if(handle == nullptr)
@@ -210,7 +206,7 @@ static mlir_backend_result_ptr checked_result(mlir_backend_result* result,
     return handle;
 }
 
-static const mlir_backend_v3& result_backend(const mlir_backend_result_ptr& result)
+static const mlir_backend_table& result_backend(const mlir_backend_result_ptr& result)
 {
     return *result.get_deleter().backend;
 }

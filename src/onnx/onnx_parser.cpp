@@ -48,6 +48,7 @@
 #include <iterator>
 #include <set>
 #include <sstream>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -829,12 +830,35 @@ static std::size_t parse_external_size(const std::string& value, const char* fie
     }
 }
 
+// Lexically resolve '.' and '..' without touching the filesystem. The
+// Filesystem TS (std::experimental::filesystem, used on some older toolchains)
+// lacks weakly_canonical and path::lexically_relative, so normalize by hand.
+static fs::path lexically_normalize(const fs::path& p)
+{
+    std::vector<fs::path> parts;
+    for(const auto& part : p)
+    {
+        if(part == ".")
+            continue;
+        if(part == ".." and not parts.empty() and parts.back() != "..")
+            parts.pop_back();
+        else
+            parts.push_back(part);
+    }
+    fs::path result;
+    for(const auto& part : parts)
+        result /= part;
+    return result;
+}
+
 static fs::path resolve_external_data_path(const fs::path& base_dir, const fs::path& relative)
 {
-    const fs::path base     = fs::weakly_canonical(base_dir);
-    const fs::path resolved = fs::weakly_canonical(base_dir / relative);
-    const fs::path rel      = resolved.lexically_relative(base);
-    if(rel.empty() or *rel.begin() == "..")
+    const fs::path base     = lexically_normalize(base_dir);
+    const fs::path resolved = lexically_normalize(base_dir / relative);
+    // resolved must stay within base: base's components must be a strict prefix
+    // of resolved's. A '..' that climbs out of base breaks the prefix match.
+    const auto m = std::mismatch(base.begin(), base.end(), resolved.begin(), resolved.end());
+    if(m.first != base.end() or m.second == resolved.end())
         MIGRAPHX_THROW("ONNX external data path escapes model directory: " + relative.string());
     return resolved;
 }

@@ -83,6 +83,38 @@ Overall, this workflow automates the process of building and testing the AMDMIGr
     For more details, please refer to the [ci.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/ci.yaml) file in the repository.
 
 ---
+## `claude-review.yaml`
+
+<p>
+This workflow runs the repository's <code>/migraphx-code-review</code> Claude Code skill on a pull request and posts the findings as inline review comments plus a summary comment. Model requests go through the internal LLM gateway, so the job runs on a self-hosted runner.
+</p>
+
+- ## Trigger
+    The workflow is triggered by the following events:
+
+     - A comment containing `@claude review` on a pull request, written by a repository owner, organization member, or collaborator. An optional effort level (`low`, `medium`, `high`, `xhigh`, `max`) can follow the phrase; the default is `xhigh`.
+
+- ## Jobs
+    The workflow has a single job named `review`. The following steps are executed in this job:
+     - `Pick effort level from the comment`: reads the optional effort level from the triggering comment.
+
+     - `actions/checkout`: checks out the pull request head with full history so the skill can diff against `origin/develop`.
+
+     - `Claude review`: runs `anthropics/claude-code-action` against the gateway (configured through `ANTHROPIC_BASE_URL` and `ANTHROPIC_CUSTOM_HEADERS`) and invokes the skill with `--comment` so findings are posted as inline comments.
+
+- ## Secrets
+    The workflow requires the following repository secrets:
+
+     - `ANTHROPIC_BASE_URL`: base URL of the LLM gateway.
+
+     - `LLM_GATEWAY_KEY`: gateway subscription key, sent as the `Ocp-Apim-Subscription-Key` header.
+
+     - `USER_NTID`: user identifier sent as the `user` header.
+
+    For more details, please refer to the [claude-review.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/claude-review.yaml) file in the repository.
+
+---
+
 ## `clean-closed-pr-caches.yaml`
 
 <p>

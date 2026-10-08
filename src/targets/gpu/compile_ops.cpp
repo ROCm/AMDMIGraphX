@@ -56,6 +56,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <utility>
 
 namespace migraphx {
@@ -408,7 +409,7 @@ struct dynamic_code_object_op
 MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 
 // forward declared since it requires compile_manager
-static void replace_inserted_device_ops(context& ctx, module& m);
+static void replace_inserted_device_ops(context& ctx, const std::vector<module_ref>& mods);
 
 /// One compilation and its result, shared by every result slot whose key matches. Each cell is
 /// written by exactly one worker during the parallel compile; sharers read it after the join.
@@ -733,7 +734,7 @@ struct compile_plan
             auto bench_prog      = make_program(*results[i]->result);
             auto* mm             = bench_prog.get_main_module();
 
-            replace_inserted_device_ops(*ctx, *mm);
+            replace_inserted_device_ops(*ctx, {mm});
 
             // Use json encoding for the comment used for benchmarking mxr files.
             value comment_val        = value::object{};
@@ -867,7 +868,19 @@ struct compile_manager
         }
     }
 
-    void compile(module& m, bool is_root)
+    /// Add every precompile op in the module to the batch.
+    void add_plans(context& ctx, module_ref m)
+    {
+        for(auto ins : iterator_for(*m))
+        {
+            if(ins->name() != "gpu::precompile_op")
+                continue;
+            operation preop = any_cast<precompile_op>(ins->get_operator()).op;
+            add_plan(&ctx, preop, ins, m);
+        }
+    }
+
+    void compile()
     {
         for(auto& cp : cps)
             cp.add_cells(skip_benchmark);
@@ -892,12 +905,11 @@ struct compile_manager
             }
             else
             {
-                cp.replace(m);
+                cp.replace(*cp.mod);
             }
         }
 
-        // Exit on the root module so all submodules get processed first.
-        if(dump_mxr and is_root)
+        if(dump_mxr)
         {
             if(dumped_mxr_files > 0)
             {
@@ -922,46 +934,57 @@ struct compile_manager
     }
 };
 
-static void replace_inserted_device_ops(context& ctx, module& m)
+static void replace_inserted_device_ops(context& ctx, const std::vector<module_ref>& mods)
 {
-    run_passes(m, {dead_code_elimination{}});
-    assert(std::none_of(
-        m.begin(), m.end(), [](auto&& ins) { return ins.name() == "gpu::precompile_op"; }));
-    run_passes(m, {lower_device_ops{}});
     compile_manager cm;
-    for(auto ins : iterator_for(m))
+    for(auto* m : mods)
     {
-        if(ins->name() != "gpu::precompile_op")
-            continue;
-        operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        cm.add_plan(&ctx, preop, ins, &m);
+        run_passes(*m, {dead_code_elimination{}});
+        assert(std::none_of(
+            m->begin(), m->end(), [](auto&& ins) { return ins.name() == "gpu::precompile_op"; }));
+        run_passes(*m, {lower_device_ops{}});
+        cm.add_plans(ctx, m);
     }
-    cm.compile(m, false);
+    cm.compile();
     assert(cm.cps.empty());
+}
+
+/// The root module and every module reachable from it, each once, skipping bypassed modules as
+/// the pass manager does.
+static std::vector<module_ref> collect_modules(module_ref root)
+{
+    std::vector<module_ref> mods = {root};
+    auto sub_mods                = root->get_sub_modules();
+    std::copy(sub_mods.begin(), sub_mods.end(), std::back_inserter(mods));
+    std::unordered_set<module_ref> visited;
+    mods.erase(std::remove_if(mods.begin(),
+                              mods.end(),
+                              [&](module_ref m) {
+                                  return m->bypass() or not visited.insert(m).second;
+                              }),
+               mods.end());
+    return mods;
 }
 
 void compile_ops::apply(module_pass_manager& mpm) const
 {
-    bool is_root = &mpm.get_module() == mpm.get_root_module();
-    auto& m      = mpm.get_module();
+    // Compile from the root only, so one batch covers every module and identical kernels in
+    // different modules compile and benchmark once.
+    if(&mpm.get_module() != mpm.get_root_module())
+        return;
+    auto mods = collect_modules(mpm.get_root_module());
     compile_manager cm;
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
-    // Find all precompile ops
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() != "gpu::precompile_op")
-            continue;
-        operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        cm.add_plan(ctx, preop, ins, &m);
-    }
+    for(auto* m : mods)
+        cm.add_plans(*ctx, m);
     cm.update_configs();
-    cm.compile(m, is_root);
+    cm.compile();
     // Compile already tuned configs
-    cm.compile(m, is_root);
+    cm.compile();
     assert(cm.cps.empty());
 
-    replace_inserted_device_ops(*ctx, m);
+    replace_inserted_device_ops(*ctx, mods);
 }
 
 } // namespace gpu

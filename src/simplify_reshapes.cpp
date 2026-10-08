@@ -1942,10 +1942,9 @@ struct find_unary_shape_transforms
             else
                 move_down = false;
         }
-        else if(not move_up and not move_down)
+        else if(not move_up and not move_down and not yops.empty())
         {
-            if(not yops.empty())
-                move_up = true;
+            move_up = true;
         }
 
         if(move_up)

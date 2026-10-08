@@ -30,6 +30,7 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/op/pad.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -65,8 +65,9 @@ struct fused_reduce
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         const auto* sm = mods.front();
-        if(sm->get_output_shapes().size() != 1)
-            MIGRAPHX_THROW("Only one output supported");
+        auto outputs   = sm->get_output_shapes();
+        if(outputs.empty())
+            MIGRAPHX_THROW("fused_reduce: missing output");
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
@@ -80,12 +81,15 @@ struct fused_reduce
            }))
             MIGRAPHX_THROW("Input dimension does not match the submodule.");
 
-        if(sm->get_output_shapes().front().dynamic())
-            return sm->get_output_shapes().front();
-
-        return shape::from_permutation(sm->get_output_shapes().front().type(),
-                                       sm->get_output_shapes().front().lens(),
-                                       find_permutation(inputs));
+        // The output layout follows the inputs
+        if(not outputs.front().dynamic())
+        {
+            auto perm = find_permutation(inputs);
+            std::transform(outputs.begin(), outputs.end(), outputs.begin(), [&](const shape& s) {
+                return shape::from_permutation(s.type(), s.lens(), perm);
+            });
+        }
+        return outputs.size() == 1 ? outputs.front() : shape{outputs};
     }
 
     std::string name() const { return "fused_reduce"; }
@@ -103,14 +107,13 @@ MIGRAPHX_PRED_MATCHER(input_output_ndim_match, instruction_ref ins)
     return input_shape.ndim() == output_shape.ndim();
 }
 
-static auto
+std::vector<instruction_ref>
 insert_module_in_submodule(module_ref sm,
                            instruction_ref ins,
-                           std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
-                           module::inserter insert                                       = nullptr)
+                           std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
     assert(ins->module_inputs().size() == 1);
-    return sm->fuse(*ins->module_inputs().front(), ins->inputs(), map_ins, std::move(insert));
+    return sm->fuse(*ins->module_inputs().front(), ins->inputs(), map_ins);
 }
 
 static void create_reduce_modules(module_pass_manager& mpm)
@@ -248,7 +251,7 @@ static auto match_broadcastable_input(const std::string& op, const std::string& 
     return match::any_of(match_op_input, match_broadcast_axes(broadcast_match_op_input));
 }
 
-static void finalize_reduce_module(module_ref m)
+void finalize_reduce_module(module_ref m)
 {
     eliminate_common_subexpression{}.apply(*m);
     dead_code_elimination{}.apply(*m);

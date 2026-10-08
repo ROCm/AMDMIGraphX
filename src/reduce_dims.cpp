@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/reduce_dims.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -110,20 +111,30 @@ static std::vector<std::size_t> base_lens(const std::vector<shape>& shapes)
 static shape mask_shape(const shape& s, const std::vector<std::size_t>& lens)
 {
     assert(s.lens().size() == lens.size());
+
+    std::vector<std::size_t> mlens;
+    std::transform(s.lens().begin(),
+                   s.lens().end(),
+                   lens.begin(),
+                   std::back_inserter(mlens),
+                   [](auto x, auto y) -> std::size_t { return x == y ? x : 1; });
+    shape base{s.type(), mlens};
     std::vector<std::size_t> rstrides(lens.size());
-    std::size_t stride = 1;
-    for(std::size_t i = lens.size() - 1; i < lens.size(); i--)
-    {
+    auto is = range(lens.size());
+    std::transform(is.begin(), is.end(), rstrides.begin(), [&](auto i) -> std::size_t {
         if(lens[i] == s.lens()[i])
-        {
-            rstrides[i] = stride;
-            stride *= lens[i];
-        }
-        else if(lens[i] != 1 and s.lens()[i] != 1)
-        {
-            return shape{};
-        }
-    }
+            return base.strides()[i];
+        return 0;
+    });
+    // Adjacent stride-0 axes are allowed to merge, which is only valid when both
+    // are broadcasts; a mask cant keep an adjacent incompatible axis unmerged, so
+    // give up on masking
+    auto pairs = range(lens.size() - 1);
+    if(std::any_of(pairs.begin(), pairs.end(), [&](auto i) {
+           return rstrides[i] == 0 and rstrides[i + 1] == 0 and
+                  (s.lens()[i] != 1 or s.lens()[i + 1] != 1);
+       }))
+        return {};
     return shape{s.type(), lens, rstrides};
 }
 

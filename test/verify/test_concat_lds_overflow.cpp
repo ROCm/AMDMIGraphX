@@ -26,26 +26,29 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
+#include <algorithm>
+#include <string>
 
-template <migraphx::shape::type_t DType, std::size_t N, std::size_t Min, std::size_t Max = Min>
-struct test_concat_axis_neg_1 : verify_program<test_concat_axis_neg_1<DType, N, Min, Max>>
+// The block_tile concat algorithm tiles NGroups * ninputs * max_size elements
+// into LDS; with enough inputs that exceeds the 64KB workgroup limit
+template <migraphx::shape::type_t DType, std::size_t N, std::size_t Rows, std::size_t Width>
+struct test_concat_lds_overflow : verify_program<test_concat_lds_overflow<DType, N, Rows, Width>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        int axis = -1;
-        migraphx::shape s0{DType, {N, (Min + Max) / 2}};
-        migraphx::shape s1{DType, {N, Max}};
-        migraphx::shape s2{DType, {N, Min}};
-        auto l0 = mm->add_parameter("x", s0);
-        auto l1 = mm->add_parameter("y", s1);
-        auto l2 = mm->add_parameter("z", s2);
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
+        migraphx::shape s{DType, {Rows, Width}};
+        std::vector<migraphx::instruction_ref> args;
+        auto r = migraphx::range(N);
+        std::transform(r.begin(), r.end(), std::back_inserter(args), [&](auto i) {
+            return mm->add_parameter("x" + std::to_string(i), s);
+        });
+        mm->add_instruction(migraphx::make_op("concat", {{"axis", -1}}), args);
         return p;
     }
 };
 
-template struct test_concat_axis_neg_1<migraphx::shape::int32_type, 2, 1, 3>;
-
-template struct test_concat_axis_neg_1<migraphx::shape::float_type, 16, 12>;
+// 16 groups * 30 inputs * 60 elements * 4 bytes = 115200 bytes of LDS
+template struct test_concat_lds_overflow<migraphx::shape::float_type, 30, 16, 60>;

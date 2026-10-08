@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/op/pad.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -99,12 +100,14 @@ struct pad_compiler : compiler<pad_compiler>
         options.kernel_name    = "pad_kernel";
         options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements()));
 
-        auto pad_val        = v.get("value", 0.f);
-        auto pad_val_string = to_string(pad_val);
+        auto pad_val               = v.get("value", 0.f);
+        std::string pad_val_string = to_string(pad_val);
         if(float_equal(pad_val, std::numeric_limits<float>::lowest()))
             pad_val_string = "lowest{}";
-        if(float_equal(pad_val, std::numeric_limits<float>::max()))
+        else if(float_equal(pad_val, std::numeric_limits<float>::max()))
             pad_val_string = "highest{}";
+        else if(auto nonfinite = nonfinite_cpp_literal(pad_val))
+            pad_val_string = *nonfinite;
 
         // Get pad mode, default to constant
         auto pad_mode_val           = v.get("mode", static_cast<int>(op::pad::constant_pad));
@@ -115,7 +118,7 @@ struct pad_compiler : compiler<pad_compiler>
             pad_mode_string = "migraphx::pad_edge{}";
 
         auto src = interpolate_string(pointwise_kernel,
-                                      {{"pad_val", to_string(pad_val_string)},
+                                      {{"pad_val", pad_val_string},
                                        {"offsets", to_string_range(roffsets)},
                                        {"pad_mode", pad_mode_string}});
         return compile_hip_code_object(ctx, src, options);

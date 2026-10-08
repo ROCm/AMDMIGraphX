@@ -1325,6 +1325,8 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
 
 const module* program::get_module(const std::string& name) const { return &impl->modules.at(name); }
 
+bool program::has_module(const std::string& name) const { return contains(impl->modules, name); }
+
 module* program::create_module(const std::string& name)
 {
 

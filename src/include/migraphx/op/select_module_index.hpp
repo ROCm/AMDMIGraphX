@@ -107,7 +107,7 @@ struct select_module_index
         if(std::any_of(data_shapes.begin(),
                        data_shapes.end(),
                        [](const shape& s) { return s.type() == shape::tuple_type; }) or
-           (has_output_buffer(inputs) and inputs.back() != output))
+           (has_output_buffer(inputs) and not shape::is_compatible(inputs.back(), output)))
         {
             MIGRAPHX_THROW("SELECT_MODULE_INDEX: data inputs must not be tuples; unpack them "
                            "with get_tuple_elem. Only the output buffer may be a tuple.");

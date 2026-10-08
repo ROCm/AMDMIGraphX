@@ -85,8 +85,8 @@ TEST_CASE(select_module_index_lowering_device_index)
     EXPECT(p1 == p2);
 }
 
-// Two selects of one index share a single hip::load_scalar, placed right after
-// that index.
+// Two selects of one index share a single hip::load_scalar, placed before the
+// first select.
 TEST_CASE(select_module_index_lowering_shared_index)
 {
     migraphx::shape idx_s{migraphx::shape::int64_type, {1}};
@@ -111,13 +111,13 @@ TEST_CASE(select_module_index_lowering_shared_index)
 
     migraphx::program p2;
     {
-        auto* mm    = p2.get_main_module();
-        auto index  = mm->add_parameter("index", idx_s);
-        auto loaded = mm->add_instruction(migraphx::make_op("hip::load_scalar"), index);
-        auto data   = mm->add_parameter("data", data_s);
-        auto* sub   = p2.create_module("sub");
-        auto data0  = sub->add_parameter("data", data_s);
+        auto* mm   = p2.get_main_module();
+        auto index = mm->add_parameter("index", idx_s);
+        auto data  = mm->add_parameter("data", data_s);
+        auto* sub  = p2.create_module("sub");
+        auto data0 = sub->add_parameter("data", data_s);
         sub->add_return({data0});
+        auto loaded = mm->add_instruction(migraphx::make_op("hip::load_scalar"), index);
         auto output0 = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
         auto smi0 = mm->add_instruction(

@@ -28,7 +28,6 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -39,15 +38,25 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
+#include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
+#include <exception>
 #include <functional>
+#include <memory>
+#include <string>
+#include <thread>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -57,16 +66,20 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_USE_SIMPLE);
 
-// Inner repeat count when timing a candidate, raised for split-k (kernel + prefill).
-static std::size_t compute_benchmark_bundle(const module& m)
+static const benchmark_candidate& run_benchmark(const context& ctx,
+                                                const std::vector<benchmark_candidate>& candidates)
 {
-    // Count context-requiring ops (kernel + prefills); skip context-free and @-builtins.
-    int n = std::count_if(m.begin(), m.end(), [](const auto& ins) {
-        return not migraphx::is_context_free(ins.get_operator()) and
-               not starts_with(ins.name(), "@");
-    });
-    return std::max(1, 4 * n - 2);
+    // A single candidate is already the winner, so skip timing it
+    if(candidates.size() == 1)
+        return candidates.front();
+    const auto& best = enabled(MIGRAPHX_BENCHMARKING_USE_SIMPLE{})
+                           ? simple_benchmark{/* bundle */ 10, /* nruns */ 20}.run(ctx, candidates)
+                           : adaptive_topk_benchmark{}.run(ctx, candidates);
+    // Let the GPU settle before the next tuning problem
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    return best;
 }
 
 struct precompile_op
@@ -104,6 +117,144 @@ struct precompile_op
     }
 };
 MIGRAPHX_REGISTER_OP(precompile_op);
+
+/**
+ * Apply a compiler_replace to a standalone module so the replacement can be reused.
+ *
+ * The instruction is rebuilt in a fresh module whose parameters stand in for its inputs, so the
+ * resulting fragment refers to those inputs only by position. Any module arguments are consumed
+ * by the replace, leaving a flat module that no longer refers to the program it came from.
+ */
+static program make_fragment(const compiler_replace& cr, instruction_ref ins)
+{
+    program frag;
+    auto* fm         = frag.get_main_module();
+    const auto& args = ins->inputs();
+    std::vector<instruction_ref> inputs;
+    // Parameters are named by input position, since compiled_code::replace maps each parameter
+    // back onto the input in the same position.
+    auto idx = range(args.size());
+    std::transform(idx.begin(), idx.end(), std::back_inserter(inputs), [&](auto i) {
+        return fm->add_parameter(compiled_code::input_name(i), args[i]->get_shape());
+    });
+    auto frag_ins = fm->add_instruction(ins->get_operator(), inputs, ins->module_inputs());
+    fm->add_return({frag_ins});
+    cr.replace(*fm, frag_ins);
+    // Only dead code is removed here. eliminate_identity would drop the identity that mlir
+    // inserts to order prefills before the kernel, and memory coloring is done later by the
+    // module this fragment is spliced into.
+    run_passes(*fm, {dead_code_elimination{}});
+    return frag;
+}
+
+/// Identify the code a compile would produce without producing it. A compiler that cannot
+/// describe its output, or that fails trying, gives an empty key, which costs a redundant
+/// compile but is always correct.
+static std::string compile_key_or_empty(context& ctx,
+                                        instruction_ref ins,
+                                        const operation& preop,
+                                        const value& solution)
+{
+    try
+    {
+        return compile_key(ctx, ins, preop, solution);
+    }
+    catch(...)
+    {
+        return {};
+    }
+}
+
+/// Compile, and normalize the result so a fragment is always what gets replaced. Reusing a
+/// result then takes the same path as compiling one and cannot drift from it.
+static compiler_replace
+compile_fragment(context& ctx, instruction_ref ins, const operation& preop, const value& solution)
+{
+    auto cr = compile(ctx, ins, preop, solution);
+    assert(cr.code.empty());
+    cr.code.fragment = make_fragment(cr, ins);
+    return cr;
+}
+
+/**
+ * Compile anyway and check the reused result matches.
+ *
+ * A key that fails to capture something the compiler depends on does not cause a miss, it hands
+ * back the wrong code, so there is nothing to notice at runtime beyond bad numbers.
+ */
+static void verify_reuse(context& ctx,
+                         instruction_ref ins,
+                         const operation& preop,
+                         const value& solution,
+                         const compiled_code& reused)
+{
+    auto fresh = compile_fragment(ctx, ins, preop, solution);
+    if(fresh.code.fragment == reused.fragment)
+        return;
+    MIGRAPHX_THROW("Binary cache reused a result that does not match a fresh compile of " +
+                   preop.name() + ".\nReused:\n" + to_string(reused.fragment) + "\nCompiled:\n" +
+                   to_string(fresh.code.fragment));
+}
+
+/// Prefix of unique placeholder keys for cells whose compiler cannot describe its output, so
+/// they never group with another cell. The cache must ignore them, since a slot number names
+/// different code from one compile batch to the next.
+static constexpr const char* private_key_prefix = "__migraphx_private_unique_key";
+
+static bool is_private_key(const std::string& key) { return starts_with(key, private_key_prefix); }
+
+/// Look for an earlier result. The cache is not guarded, so callers must not do this while
+/// compiles are running.
+static optional<compiler_replace> cache_lookup(context& ctx, const std::string& key)
+{
+    if(is_private_key(key))
+        return nullopt;
+    auto cached = ctx.get_binary_cache().get(ctx, key);
+    if(not cached.has_value())
+        return nullopt;
+    compiler_replace cr;
+    cr.code = std::move(*cached);
+    return cr;
+}
+
+/// Record a freshly compiled result, under the same restriction as cache_lookup.
+static void cache_store(context& ctx,
+                        const operation& preop,
+                        const value& solution,
+                        const std::string& key,
+                        const value& problem,
+                        const compiled_code& code)
+{
+    if(is_private_key(key))
+        return;
+    binary_cache::entry e;
+    e.key      = key;
+    e.op_name  = preop.name();
+    e.problem  = problem;
+    e.solution = solution;
+    e.code     = code;
+    ctx.get_binary_cache().insert(ctx, std::move(e));
+}
+
+/// Reuse an earlier result for this key, or compile and record one. For callers with a single
+/// instruction to compile; the compile pass splits these steps around its parallel compiles.
+static compiler_replace compile_cached(context& ctx,
+                                       instruction_ref ins,
+                                       const operation& preop,
+                                       const value& solution,
+                                       const std::string& key,
+                                       const value& problem)
+{
+    if(auto cached = cache_lookup(ctx, key))
+    {
+        if(ctx.get_binary_cache().verify())
+            verify_reuse(ctx, ins, preop, solution, cached->code);
+        return *cached;
+    }
+    auto cr = compile_fragment(ctx, ins, preop, solution);
+    cache_store(ctx, preop, solution, key, problem, cr.code);
+    return cr;
+}
 
 struct dynamic_op_cache
 {
@@ -144,15 +295,7 @@ struct dynamic_code_object_op
     std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,
                                                               const_module_ref mod) const
     {
-        auto pnames = mod->get_parameter_names();
-        assert(pnames.size() == args.size());
-        std::unordered_map<std::string, argument> param_map;
-        std::transform(pnames.begin(),
-                       pnames.end(),
-                       args.begin(),
-                       std::inserter(param_map, param_map.end()),
-                       [](const auto& name, const auto& arg) { return std::make_pair(name, arg); });
-        return param_map;
+        return make_parameter_map(mod, args);
     }
     argument compute(context& ctx,
                      const shape&,
@@ -234,7 +377,10 @@ struct dynamic_code_object_op
         {
             solution = config->solutions.front();
         }
-        auto compiled_op = compile(ctx, ins, preop, solution);
+        // Dynamic shapes compile during eval, so reusing a result here avoids stalling the run.
+        auto key = compile_key_or_empty(ctx, ins, preop, solution);
+        auto compiled_op =
+            compile_cached(ctx, ins, preop, solution, key, config ? config->problem : value{});
         compiled_op.replace(runtime_mod, ins);
         run_passes(runtime_mod, {dead_code_elimination{}});
 
@@ -261,18 +407,155 @@ struct dynamic_code_object_op
 };
 MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 
-struct compiled_result
-{
-    compiler_replace replace;
-    instruction_ref ins;
+// forward declared since it requires compile_manager
+static void replace_inserted_device_ops(context& ctx, module& m);
 
-    friend std::ostream& operator<<(std::ostream& os, const compiled_result& cr)
+/// One compilation and its result, shared by every result slot whose key matches. Each cell is
+/// written by exactly one worker during the parallel compile; sharers read it after the join.
+struct compile_cell
+{
+    explicit compile_cell(const value& s) : solution(s) {}
+
+    value solution = {};
+    /// Identifies the code the compile would produce, or an invented private key when the
+    /// compiler cannot say.
+    std::string key                   = {};
+    optional<compiler_replace> result = nullopt;
+};
+
+struct compile_plan
+{
+    context* ctx;
+    operation preop;
+    instruction_ref ins;
+    module_ref mod;
+    optional<tuning_config> config = nullopt;
+    /// One slot per candidate solution, aligned with config->solutions when benchmarking.
+    /// Slots of different plans point at the same cell when their keys match.
+    std::vector<std::shared_ptr<compile_cell>> results = {};
+    void update_config(bool exhaustive)
     {
-        cr.replace.trace(os, cr.ins);
-        return os;
+        config = get_tuning_config(*ctx, ins, preop, exhaustive);
     }
 
-    program make_program() const
+    std::string get_key(const value& solution) const
+    {
+        return compile_key_or_empty(*ctx, ins, preop, solution);
+    }
+
+    optional<compiler_replace> lookup(const std::string& key) const
+    {
+        return cache_lookup(*ctx, key);
+    }
+
+    void store(const value& solution, const std::string& key, const compiled_code& code) const
+    {
+        cache_store(*ctx, preop, solution, key, config ? config->problem : value{}, code);
+    }
+
+    /// True when the cache was configured to check reused results against a fresh compile.
+    bool verify_enabled() const { return ctx->get_binary_cache().verify(); }
+
+    /// Compile again and compare, so a key that fails to describe its result fails loudly.
+    /// Only called when verify_enabled.
+    void verify(const value& solution, const compiled_code& reused) const
+    {
+        verify_reuse(*ctx, ins, preop, solution, reused);
+    }
+
+    /// Compile without touching the cache, so this can run in parallel with other compiles.
+    optional<compiler_replace> run_compile(const value& solution) const
+    {
+        try
+        {
+            return compile_fragment(*ctx, ins, preop, solution);
+        }
+        catch(const std::exception& e)
+        {
+            const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+            if(trace_level > 0)
+                std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
+            return nullopt;
+        }
+        catch(...)
+        {
+            return nullopt;
+        }
+    }
+
+    struct candidate
+    {
+        const compile_plan* plan   = nullptr;
+        const compiler_replace* cr = nullptr;
+        value sol                  = value{};
+
+        // Parameters whose shape id (type + dims) is in the compiled result's fill_map hold that
+        // value, the rest random data. Each key leads with the fill value, or "random", so only
+        // parameters that hold the same data share a key.
+        std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const
+        {
+            assert(cr != nullptr);
+            const auto& fill_map = cr->code.fill_map;
+            const auto* mm       = p.get_main_module();
+            auto names           = mm->get_parameter_names();
+            std::vector<std::pair<std::string, shape>> keys;
+            keys.reserve(names.size());
+            std::transform(
+                names.begin(), names.end(), std::back_inserter(keys), [&](const auto& name) {
+                    auto s         = mm->get_parameter_shape(name);
+                    std::string id = "";
+                    if(s.type() != shape::tuple_type)
+                        id = s.type_string() + shape::to_sizes_string({s.as_standard()});
+                    auto fill = fill_map.find(id);
+                    // Neither tag contains ':', so the first ':' ends the tag even if the name
+                    // has one
+                    auto tag =
+                        fill == fill_map.end() ? std::string{"random"} : to_hex_float(fill->second);
+                    return std::make_pair(tag + ":" + name, s);
+                });
+            return keys;
+        }
+
+        // The key's tag gives the data: "random" is generated on the GPU, seeded by the key so a
+        // key always gives the same data; a hex float is filled on the host
+        argument generate_argument(context& gctx, const std::string& key, const shape& s) const
+        {
+            auto tag = key.substr(0, key.find(':'));
+            if(tag == "random")
+                return gpu_generate_random(gctx, s, std::hash<std::string>{}(key));
+            return to_gpu(fill_argument(s, std::stod(tag)));
+        }
+
+        program make_program() const
+        {
+            assert(plan != nullptr and cr != nullptr);
+            return plan->make_program(*cr);
+        }
+
+        // Set based on trace level
+        tracer trace() const
+        {
+            if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 1)
+                return {std::cout};
+            return {};
+        }
+
+        value solution() const { return sol; }
+
+        // Used to print the program and other info on higher trace levels
+        void before_run(const program& p) const
+        {
+            assert(plan != nullptr and cr != nullptr);
+            if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 2)
+            {
+                cr->trace(std::cout, plan->ins);
+                std::cout << "\n" << p << std::endl;
+            }
+        }
+    };
+
+    /// A standalone program with just this instruction and its compiled code objects inserted.
+    program make_program(const compiler_replace& cr) const
     {
         program bench_prog;
         auto* mm = bench_prog.get_main_module();
@@ -288,7 +571,7 @@ struct compiled_result
         auto bench_ins =
             mm->add_instruction(ins->get_operator(), bench_ins_inputs, ins->module_inputs());
         mm->add_return({bench_ins});
-        replace.replace(*mm, bench_ins);
+        cr.replace(*mm, bench_ins);
         run_passes(*mm,
                    {
                        eliminate_identity{},
@@ -297,59 +580,21 @@ struct compiled_result
                    });
         return bench_prog;
     }
-};
 
-// forward declared since it requires compile_manager
-static void replace_inserted_device_ops(context& ctx, module& m);
-
-struct compile_plan
-{
-    context* ctx;
-    operation preop;
-    instruction_ref ins;
-    module_ref mod;
-    optional<tuning_config> config                 = nullopt;
-    std::vector<optional<compiled_result>> results = {};
-    void update_config(bool exhaustive)
+    void add_cells(bool skip_benchmark)
     {
-        config = get_tuning_config(*ctx, ins, preop, exhaustive);
-    }
-    template <class Vector>
-    void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
-    {
-        compiles.emplace_back([=] {
-            try
-            {
-                results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
-            }
-            catch(const std::exception& e)
-            {
-                const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
-                if(trace_level > 0)
-                    std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
-                results[i] = nullopt;
-            }
-            catch(...)
-            {
-                results[i] = nullopt;
-            }
-        });
-    }
-
-    template <class Vector>
-    void add_compiles(Vector& compiles, bool skip_benchmark)
-    {
+        assert(results.empty());
         if(config.has_value())
         {
             const auto& problem = config->problem;
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
                 const auto& solution = sol.value();
-                // No solution yet until benchmarked so skip for now
+                // A null is a mark() sentinel: already being benchmarked, so skip it
+                // here and take the winning solution on the second pass.
                 if(solution.is_null())
                     return;
-                results.resize(1);
-                insert_compiles(compiles, solution, 0);
+                results.push_back(std::make_shared<compile_cell>(solution));
             }
             else
             {
@@ -363,24 +608,23 @@ struct compile_plan
                    (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
-                    results.resize(1);
-                    insert_compiles(compiles, solutions.front(), 0);
+                    results.push_back(std::make_shared<compile_cell>(solutions.front()));
                 }
                 else
                 {
                     ctx->get_problem_cache().mark(preop.name(), problem);
-                    results.resize(solutions.size());
-                    for(auto i : range(solutions.size()))
-                    {
-                        insert_compiles(compiles, solutions[i], i);
-                    }
+                    std::transform(solutions.begin(),
+                                   solutions.end(),
+                                   std::back_inserter(results),
+                                   [](const value& solution) {
+                                       return std::make_shared<compile_cell>(solution);
+                                   });
                 }
             }
         }
         else
         {
-            results.resize(1);
-            insert_compiles(compiles, value{}, 0);
+            results.push_back(std::make_shared<compile_cell>(value{}));
         }
     }
     std::string problem_string() const
@@ -419,7 +663,7 @@ struct compile_plan
         return input_shapes.str();
     }
 
-    const compiled_result& benchmark() const
+    const compiler_replace& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
         if(trace_level > 0 and not results.empty())
@@ -432,85 +676,61 @@ struct compile_plan
                            problem_string() + "\n\n" + print_modules());
         if(results.size() == 1)
         {
-            if(not results.front().has_value())
+            if(not results.front()->result.has_value())
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                                problem_string() + "\n\n" + print_modules());
-            return *results.front();
+            return *results.front()->result;
         }
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
-        std::vector<double> times;
-        times.reserve(results.size());
-        std::transform(results.begin(),
-                       results.end(),
-                       config->solutions.begin(),
-                       std::back_inserter(times),
-                       [&](const auto& cr, const auto& solution) {
-                           if(trace_level > 1)
-                               std::cout << "Benchmarking solution: " << solution << std::endl;
-                           if(not cr.has_value())
-                           {
-                               if(trace_level > 1)
-                                   std::cout << "No binary" << std::endl;
-                               return std::numeric_limits<double>::max();
-                           }
-                           if(trace_level > 2)
-                               std::cout << *cr << std::endl;
-                           /*
-                           create a small program with insturction being compiled and call "replace"
-                           on that which would insert all the compiled code objects, prefills etc.
-                           necessary to run candidate code object
-                           */
-                           auto bench_prog = cr->make_program();
-                           if(trace_level > 2)
-                               std::cout << bench_prog << std::endl;
-                           auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
-                           auto t      = time_program(*ctx,
-                                                 std::move(bench_prog),
-                                                 cr->replace.fill_map,
-                                                 bundle,
-                                                 /* nrun */ 20);
-                           if(trace_level > 1)
-                               std::cout << t << "ms" << std::endl;
-                           return t;
-                       });
-        std::this_thread::sleep_for(std::chrono::milliseconds{50});
-        auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
-        if(trace_level > 0)
-        {
-            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
-            ctx->get_problem_cache().save();
-        }
-        if(not results[i].has_value())
+        // One slot per solution; grouping only redirects slots.
+        assert(results.size() == config->solutions.size());
+        std::vector<benchmark_candidate> candidates;
+        candidates.reserve(results.size());
+        // The solution comes from this plan, since a shared cell may belong to another plan.
+        transform_if(
+            results.begin(),
+            results.end(),
+            config->solutions.begin(),
+            std::back_inserter(candidates),
+            [](const auto& cell, const auto&) { return cell->result.has_value(); },
+            [&](const auto& cell, const auto& solution) {
+                return candidate{this, &*cell->result, solution};
+            });
+        auto skipped = results.size() - candidates.size();
+        if(skipped > 0 and trace_level > 1)
+            std::cout << "No binary for " << skipped << " solutions" << std::endl;
+        if(candidates.empty())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                            problem_string() + "\n\n" + print_modules());
-        auto skipped = std::count_if(
-            results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
+        const auto& best = run_benchmark(*ctx, candidates);
+        ctx->get_problem_cache().insert(preop.name(), config->problem, best.solution());
+        if(trace_level > 0)
+        {
+            std::cout << "Fastest solution: " << best.solution() << std::endl;
+            ctx->get_problem_cache().save();
+        }
         if(skipped > 0)
             log::info() << "Skipped " << skipped << " configs for " << preop.name();
 
-        return *results[i];
+        return *any_cast<candidate>(best).cr;
     }
 
-    void replace(module& m) const
-    {
-        const auto& cr = benchmark();
-        cr.replace.replace(m, cr.ins);
-    }
+    void replace(module& m) const { benchmark().replace(m, ins); }
 
-    void save_binaries(const fs::path& mxr_dir) const
+    std::size_t save_binaries(const fs::path& mxr_dir) const
     {
+        std::size_t saved_files = 0;
         if(not config.has_value())
-            return;
+            return saved_files;
         for(auto i : range(results.size()))
         {
-            if(not results[i].has_value())
+            if(not results[i]->result.has_value())
                 continue;
             const auto& solution = config->solutions[i];
-            auto bench_prog      = results[i]->make_program();
+            auto bench_prog      = make_program(*results[i]->result);
             auto* mm             = bench_prog.get_main_module();
 
             replace_inserted_device_ops(*ctx, *mm);
@@ -529,7 +749,9 @@ struct compile_plan
                                        std::to_string(problem_hash) + ".mxr");
             log::info() << "Saving benchmark binary: " << mxr_file;
             save(bench_prog, mxr_file.string());
+            ++saved_files;
         }
+        return saved_files;
     }
 };
 
@@ -561,17 +783,99 @@ struct compile_manager
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
-    void compile(module& m, bool is_root)
+    /// Fill every cell's result, from the cache or by compiling, sharing one compile among
+    /// the cells with the same key.
+    void compile_cells()
     {
-        std::vector<std::function<void()>> compiles;
+        {
+            // Every slot is collected so the keys can be computed in parallel.
+            std::vector<std::pair<compile_plan*, compile_cell*>> slots;
+            for(auto& cp : cps)
+            {
+                std::transform(cp.results.begin(),
+                               cp.results.end(),
+                               std::back_inserter(slots),
+                               [&](const auto& cell) { return std::make_pair(&cp, cell.get()); });
+            }
+            par_compile(slots.size(), [&](auto i) {
+                auto [cp, cell] = slots[i];
+                cell->key       = cp->get_key(cell->solution);
+                if(cell->key.empty())
+                    cell->key = private_key_prefix + std::to_string(i);
+            });
+        }
+
+        // Group slots that would compile to the same code by pointing them at one shared cell,
+        // so writing the result once puts it in place everywhere; the stored plan drives the
+        // compile. The keys are whole kernel sources, so the index views them instead of copying.
+        std::unordered_map<std::string_view,
+                           std::pair<compile_plan*, std::shared_ptr<compile_cell>>>
+            index;
         for(auto& cp : cps)
         {
-            cp.add_compiles(compiles, skip_benchmark);
+            for(auto& cell : cp.results)
+            {
+                auto [it, inserted] = index.emplace(cell->key, std::make_pair(&cp, cell));
+                // The key must view the stored cell's string, or it dangles when a duplicate
+                // cell is dropped.
+                assert(it->first.data() == it->second.second->key.data());
+                if(not inserted)
+                    cell = it->second.second;
+            }
         }
-        par_compile(compiles.size(), [&](auto i) { compiles[i](); });
+
+        // The cache is unguarded, so all lookups happen before any compile starts and stores
+        // after they finish. Until then, a cell holding a result is one reused from the cache.
+        for(const auto& entry : index)
+        {
+            const auto& [cp, cell] = entry.second;
+            cell->result           = cp->lookup(cell->key);
+        }
+
+        // Only cells that still need work, a compile or a verify of a reused result, become
+        // tasks; each cell gets exactly one task, so the compiles never coordinate.
+        std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>> tasks;
+        transform_if(
+            index.begin(),
+            index.end(),
+            std::back_inserter(tasks),
+            [](const auto& entry) {
+                const auto& [cp, cell] = entry.second;
+                return not cell->result.has_value() or cp->verify_enabled();
+            },
+            [](const auto& entry) { return entry.second; });
+
+        par_compile(tasks.size(), [&](auto i) {
+            const auto& [cp, cell] = tasks[i];
+            if(cell->result.has_value())
+                cp->verify(cell->solution, cell->result->code);
+            else
+                cell->result = cp->run_compile(cell->solution);
+        });
+
+        for(const auto& [cp, cell] : tasks)
+        {
+            if(not cell->result.has_value())
+                continue;
+            // When verifying, reused results are stored again, rewriting the same bytes
+            // harmlessly.
+            cp->store(cell->solution, cell->key, cell->result->code);
+            assert(not cell->result->code.empty());
+            // Only the serializable code is used from here on; dropping the replace function
+            // releases what its closure holds and keeps it off other instructions.
+            cell->result->replace_fn = nullptr;
+        }
+    }
+
+    void compile(module& m, bool is_root)
+    {
+        for(auto& cp : cps)
+            cp.add_cells(skip_benchmark);
+        compile_cells();
 
         static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
         bool dump_mxr              = not mxr_path.empty();
+        std::size_t dumped_mxr_files = 0;
 
         if(dump_mxr)
         {
@@ -584,7 +888,7 @@ struct compile_manager
                 continue;
             if(dump_mxr and cp.results.size() > 1)
             {
-                cp.save_binaries(fs::path(mxr_path));
+                dumped_mxr_files += cp.save_binaries(fs::path(mxr_path));
             }
             else
             {
@@ -592,15 +896,21 @@ struct compile_manager
             }
         }
 
-        // Only throw on the root module so that submodules (which are processed
-        // first by the pass manager and may legitimately have no precompile ops
-        // or no multi-solution candidates) don't abort compilation before the
-        // root module has had a chance to dump its benchmark MXR files.
+        // Exit on the root module so all submodules get processed first.
         if(dump_mxr and is_root)
         {
-            log::info() << "Benchmark MXR files dumped to " << mxr_path
-                        << ". Run the MXR files to create a problem cache, then recompile with the "
-                           "cache.";
+            if(dumped_mxr_files > 0)
+            {
+                log::info()
+                    << "Benchmark MXR files dumped to " << mxr_path
+                    << ". Run the MXR files to create a problem cache, then recompile with the "
+                       "cache.";
+            }
+            else
+            {
+                log::info() << "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR is set to " << mxr_path
+                            << ", but no benchmark files were dumped.";
+            }
             std::exit(0);
         }
 

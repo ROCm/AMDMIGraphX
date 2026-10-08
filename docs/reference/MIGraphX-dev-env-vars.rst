@@ -183,13 +183,21 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Reduction fusions are turned off.
 
-  * - | ``MIGRAPHX_ENABLE_MLIR_GEG_FUSION``
-      | Turns on GEMM+GEMM fusions in MLIR.
-    
-    - | ``1``: Turns on G+G fusions.
+  * - | ``MIGRAPHX_DISABLE_MLIR_GEG_FUSION``
+      | Turns off heuristic-based GEMM+GEMM fusions in MLIR.
+
+    - | ``1``: Turns off G+G fusions.
       | ``0``: Returns to default behavior.
 
-      | Default: GEMM+GEMM fusions are turned off.
+      | Default: GEMM+GEMM fusions are applied according to a heuristic based on GEMM sizes.
+
+  * - | ``MIGRAPHX_ENABLE_MLIR_CEG_FUSION``
+      | Turns on convolution+GEMM fusions in MLIR.
+
+    - | ``1``: Turns on convolution+GEMM fusions.
+      | ``0``: Returns to default behavior.
+
+      | Default: convolution+GEMM fusions are turned off.
 
   * - | ``MIGRAPHX_MLIR_ENABLE_SPLITK``
       | Turns on Split-k performance configurations during MLIR tuning.
@@ -323,19 +331,11 @@ Model performance tunable variables change the compilation behavior of a model. 
 
   * - | ``MIGRAPHX_ENABLE_FULL_DYNAMIC``
       | Enables full dynamic shape support and disables certain passes that are incompatible with dynamic shapes.
-      
+
     - | ``1``: Full dynamic shape support is enabled.
       | ``0``: Returns to default behavior.
 
       | Default: Full dynamic shape support is disabled.
-
-  * - | ``MIGRAPHX_USE_DYNAMIC_NMS``
-      | When set, the ``NonMaxSuppression`` ONNX parser performs a dynamic slice on the raw indices tensor to trim it to the number of selected boxes, producing an output with a dynamic shape.
-
-    - | ``1``: A dynamic slice is applied to the raw indices tensor, producing a dynamic-shaped output.
-      | ``0``: Returns to default behavior.
-
-      | Default: The whole raw indices tensor is returned without slicing.
 
 Matching
 **********
@@ -721,6 +721,13 @@ Advanced settings
 
       | Default: Unset. Benchmark MXR files aren't dumped and compilation proceeds normally.
 
+  * - | ``MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS``
+      | When set, GPU kernels are compiled with ``-DMIGRAPHX_NONTEMPORAL_LOADS=0``, replacing nontemporal (streaming) loads with regular cached loads.
+
+    - | ``1``: Nontemporal loads are disabled.
+
+      | Default: Nontemporal loads are enabled.
+
   * - | ``MIGRAPHX_GPU_HIP_FLAGS``
       | When set, the hip-clang compiler appends these extra flags for compilation.
 
@@ -769,22 +776,23 @@ Advanced settings
       | ``2``: Detailed trace 
       | ``3``: Compiled traces
 
-  * - | ``MIGRAPHX_PROBLEM_CACHE``
-      | Sets the JSON file that the problem cache will be saved to and loaded from. 
-      
-    - | Takes a fully qualified path to a valid JSON file. 
-      | For example: 
-      | ``MIGRAPHX_PROBLEM_CACHE="path/to/cache_file.json"``
-
   * - | ``MIGRAPHX_BENCHMARKING_BUNDLE``
       | Sets the number of configurations to run in a bundle during benchmarking. 
       
     - Takes a positive integer.
 
   * - | ``MIGRAPHX_BENCHMARKING_NRUNS``
-      | Sets the number of timing runs for each configuration bundle being benchmarked. 
-      
+      | Sets the number of timing runs for each configuration bundle being benchmarked.
+
     - Takes a positive integer.
+
+  * - | ``MIGRAPHX_BENCHMARKING_USE_SIMPLE``
+      | When set, times every candidate with a fixed bundle and run count instead of the default adaptive benchmarking, which coarsely times every candidate and then precisely re-times only the top candidates.
+
+    - | ``1``: Use the simple benchmark.
+      | ``0``: Returns to default behavior.
+
+      | Default: Adaptive benchmarking is used.
 
   * - | ``MIGRAPHX_SKIP_BENCHMARKING``
       | When set, skips MIGraphX and rocMLIR kernel benchmarking and compiles with the first available solution.
@@ -793,5 +801,4 @@ Advanced settings
       | ``0``: Returns to default behavior.
 
       | Default: Benchmarking is not skipped.
-
 

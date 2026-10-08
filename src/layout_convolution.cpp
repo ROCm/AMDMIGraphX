@@ -62,6 +62,15 @@ std::vector<int64_t> get_default_permutation(instruction_ref ins)
     return perm;
 }
 
+// Weights [K, C, spatial...] stored spatial-major with the output channel dim
+// K innermost (yxck for 2-D convolutions)
+std::vector<int64_t> get_weight_permutation(instruction_ref ins)
+{
+    auto perm = get_permutation(ins, layout_convolution::channels_last);
+    std::rotate(perm.begin(), std::next(perm.begin()), perm.end());
+    return perm;
+}
+
 bool skip_layout(const shape& s)
 {
     return s.ndim() == 1 or s.dynamic() or s.type() == shape::tuple_type;
@@ -92,8 +101,10 @@ void preserve_output_layout(module& m)
     }
 }
 
-void transform_convolutions(module& m, const layout_convolution::layout_order& order)
+void transform_convolutions(module& m, const layout_convolution& options)
 {
+    const bool weights_channels_last = options.output_channels_last_threshold > 0 and
+                                       options.order == layout_convolution::channels_last;
     for(auto ins : iterator_for(m))
     {
         if(not contains({"convolution", "quant_convolution"}, ins->name()))
@@ -104,11 +115,27 @@ void transform_convolutions(module& m, const layout_convolution::layout_order& o
             continue;
         auto v = ins->get_operator().to_value();
         bool is_group_conv = v.at("group").to<int>() > 1;
+        auto perm =
+            is_group_conv ? get_default_permutation(ins) : get_permutation(ins, options.order);
+        auto wperm = perm;
+        assert(ins->inputs().size() == 2);
+        const auto& wshape = ins->inputs().back()->get_shape();
+        // Store channels_last weights K-innermost (yxck) when enabled for this
+        // weight type and K is large enough to vectorize; below the threshold
+        // kyxc's dense C loads win.
+        if(weights_channels_last and not is_group_conv and not wshape.dynamic() and
+           (options.output_channels_last_types.empty() or
+            contains(options.output_channels_last_types, wshape.type())) and
+           wshape.lens().front() >= options.output_channels_last_threshold)
+        {
+            wperm = get_weight_permutation(ins);
+            assert(wperm.size() == wshape.ndim());
+        }
         auto args = ins->inputs();
-        auto perm = is_group_conv ? get_default_permutation(ins) : get_permutation(ins, order);
-        std::transform(args.begin(), args.end(), args.begin(), [&](const auto& i) {
-            return m.insert_instruction(ins, make_op("layout", {{"permutation", perm}}), i);
-        });
+        args.front() =
+            m.insert_instruction(ins, make_op("layout", {{"permutation", perm}}), args.front());
+        args.back() =
+            m.insert_instruction(ins, make_op("layout", {{"permutation", wperm}}), args.back());
         auto conv = m.insert_instruction(ins, ins->get_operator(), args);
         auto c    = m.insert_instruction(ins, make_op("contiguous"), conv);
         m.replace_instruction(ins, c);
@@ -127,16 +154,6 @@ void remove_layout(module& m)
             continue;
         m.replace_instruction(ins, ins->inputs().front());
     }
-}
-
-void apply_layout(module& m, layout_convolution::layout_order order)
-{
-    preserve_output_layout(m);
-    transform_convolutions(m, order);
-    run_passes(
-        m, {dead_code_elimination{}, eliminate_contiguous{"contiguous"}, dead_code_elimination{}});
-    remove_layout(m);
-    run_passes(m, {dead_code_elimination{}});
 }
 
 std::size_t score(const module& m)
@@ -158,6 +175,17 @@ std::size_t score(const module& m)
 }
 } // namespace
 
+void layout_convolution::apply_layout(module& m) const
+{
+    assert(order != channels_auto);
+    preserve_output_layout(m);
+    transform_convolutions(m, *this);
+    run_passes(
+        m, {dead_code_elimination{}, eliminate_contiguous{"contiguous"}, dead_code_elimination{}});
+    remove_layout(m);
+    run_passes(m, {dead_code_elimination{}});
+}
+
 void layout_convolution::apply(module_pass_manager& mpm) const
 {
     if(order == layout_order::channels_auto)
@@ -165,19 +193,23 @@ void layout_convolution::apply(module_pass_manager& mpm) const
         // Score each candidate layout on a copy, then transform the live module in
         // place with the cheaper one. A copy is not swapped in because its parameters
         // have fresh identities, which would orphan submodules capturing the originals.
-        module m_first = mpm.get_module();
-        apply_layout(m_first, channels_first);
-        module m_last = mpm.get_module();
-        apply_layout(m_last, channels_last);
+        layout_convolution first = *this;
+        first.order              = channels_first;
+        module m_first           = mpm.get_module();
+        first.apply_layout(m_first);
+        layout_convolution last = *this;
+        last.order              = channels_last;
+        module m_last           = mpm.get_module();
+        last.apply_layout(m_last);
         // channels_last converts each parameter to NHWC and back, so allow up to two extra
         // layouts per parameter before preferring channels_first.
         auto allowance = 2 * mpm.get_module().get_parameters().size();
-        auto chosen = (score(m_first) + allowance < score(m_last)) ? channels_first : channels_last;
-        apply_layout(mpm.get_module(), chosen);
+        const auto& chosen = (score(m_first) + allowance < score(m_last)) ? first : last;
+        chosen.apply_layout(mpm.get_module());
     }
     else
     {
-        apply_layout(mpm.get_module(), order);
+        apply_layout(mpm.get_module());
     }
 }
 

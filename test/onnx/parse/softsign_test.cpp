@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,10 +33,10 @@ TEST_CASE(softsign_test)
     auto input_type = migraphx::shape::float_type;
 
     auto x = mm->add_parameter("x", migraphx::shape{input_type, input_lens});
+    auto ones = mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}});
+    auto abs  = mm->add_instruction(migraphx::make_op("abs"), x);
     auto mb_ones =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
-    auto abs = mm->add_instruction(migraphx::make_op("abs"), x);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), ones);
     auto add = mm->add_instruction(migraphx::make_op("add"), abs, mb_ones);
     mm->add_instruction(migraphx::make_op("div"), x, add);
 

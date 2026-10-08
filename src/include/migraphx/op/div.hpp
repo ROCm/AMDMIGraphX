@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,8 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/binary.hpp>
+#include <migraphx/sym.hpp>
+#include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -33,10 +35,20 @@ namespace op {
 
 struct div : binary<div>
 {
+    static constexpr bool enable_symbolic_compute = true;
+
     std::string point_function() const { return "/"; }
     auto apply() const
     {
-        return [](auto x, auto y) { return x / y; };
+        return [](auto x, auto y) {
+            if constexpr(std::is_same<std::decay_t<decltype(y)>, sym::expr>{})
+            {
+                // Symbolic division requires a divisor that is nonzero over its full range.
+                if(y.eval_interval().contains(0))
+                    return sym::expr{};
+            }
+            return x / y;
+        };
     }
 };
 

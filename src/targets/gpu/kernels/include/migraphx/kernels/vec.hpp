@@ -98,6 +98,36 @@ constexpr auto common_vec_size(Ts...)
     return common_vec_size<Ts...>();
 }
 
+namespace vec_detail {
+// Avoid instantiating vec<T, 0> when all types are scalar
+template <class T, index_int N>
+struct vec_or_scalar
+{
+    using type = vec<T, N>;
+};
+
+template <class T>
+struct vec_or_scalar<T, 0>
+{
+    using type = T;
+};
+} // namespace vec_detail
+
+/// A vec of N elements of T, or T itself when N is 0
+template <class T, index_int N>
+using vec_or_scalar_t = typename vec_detail::vec_or_scalar<T, N>::type;
+
+template <class... Ts>
+struct common_vec
+{
+    static constexpr auto size = common_vec_size<Ts...>();
+    using raw_type             = common_type_t<vec_type<Ts>...>;
+    using type                 = typename vec_detail::vec_or_scalar<raw_type, size>::type;
+};
+
+template <class... Ts>
+using common_vec_t = typename common_vec<Ts...>::type;
+
 // Bools can not be used as a vector type so convert it to uint8
 template <class T>
 __device__ __host__ T* remove_bool(T* x)
@@ -106,6 +136,31 @@ __device__ __host__ T* remove_bool(T* x)
 }
 
 inline __device__ __host__ uint8_t* remove_bool(bool* x) { return reinterpret_cast<uint8_t*>(x); }
+
+template <class T>
+struct pack_factor : integral_constant<index_int, 1>
+{
+};
+
+template <class T, index_int N>
+struct pack_factor<packed<T, N>> : integral_constant<index_int, N>
+{
+};
+
+// Packed types can not be used as a vector type so unwrap the underlying type
+template <class T>
+__device__ __host__ T* remove_packed(T* x)
+{
+    return x;
+}
+
+template <class T, index_int N>
+__device__ __host__ T* remove_packed(packed<T, N>* x)
+{
+    static_assert(is_standard_layout<packed<T, N>>{} and sizeof(packed<T, N>) == sizeof(T),
+                  "packed must be a transparent wrapper of T");
+    return reinterpret_cast<T*>(x);
+}
 
 template <index_int N, class T>
 __device__ __host__ auto as_vec(T* x)

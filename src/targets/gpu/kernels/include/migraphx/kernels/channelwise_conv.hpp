@@ -52,7 +52,10 @@ channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inpu
     auto out_ch  = tiler.slice(output);
     auto xs_pack = pack(tiler.slice(inputs)...);
 
-    using type = typename Output::type;
+    // Keep the weights and the accumulator in the input precision: with a fused
+    // pointwise output (eg quantizelinear) the output type can be an integer type
+    // that would truncate them
+    using type = typename Input::type;
     array<type, decltype(w_ch.get_shape().elements()){}> wregs_arr;
     auto wregs = make_tensor_view(wregs_arr.begin(), make_packed_shape(w_ch.get_shape()));
     copy(w_ch.begin(), w_ch.end(), wregs.begin());
@@ -60,12 +63,13 @@ channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inpu
     __syncthreads();
 
     tiler.for_each([&](auto out_pos, auto out_multi) {
-        type acc = 0;
+        float acc = 0.0f;
         repeat(wregs.get_shape().elements(), [&](auto ki) {
             auto k_multi = wregs.get_shape().multi(ki);
-            acc += x_ch[out_multi + k_multi] * wregs[k_multi];
+            acc +=
+                static_cast<float>(x_ch[out_multi + k_multi]) * static_cast<float>(wregs[k_multi]);
         });
-        xs_pack([&](auto... xs) { out_ch[out_pos] = f(acc, xs[out_pos]...); });
+        xs_pack([&](auto... xs) { out_ch[out_pos] = f(static_cast<type>(acc), xs[out_pos]...); });
     });
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -60,6 +61,16 @@ struct dimensions_of
                            ", end = " + std::to_string(end));
         }
         return shape{shape::int64_type, {end - start}};
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args[0].get_shape().dynamic() and not args[0].get_shape().symbolic())
+            return {};
+        const auto expressions = args[0].get_shape().sym_dims();
+        sym_argument result{{expressions.begin() + start, expressions.begin() + end}, output_shape};
+        return result;
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

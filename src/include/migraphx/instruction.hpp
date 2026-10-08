@@ -34,7 +34,6 @@
 #include <set>
 #include <unordered_set>
 #include <string>
-#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -157,6 +156,7 @@ struct MIGRAPHX_EXPORT instruction
     bool is_undefined() const;
 
     argument eval(bool check_eval = true) const;
+    sym_argument sym_eval() const;
 
     void finalize(context& ctx);
 

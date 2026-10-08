@@ -25,6 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/prepare_reduce.hpp>
+#include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
@@ -32,6 +33,8 @@
 #include <migraphx/module.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/optimize_module.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -80,13 +83,17 @@ vectorize vectorize::elements(std::size_t axis,
                        if(len == 1 and input.elements() > sizes.front())
                            return sizes.front();
                        auto it = std::find_if(sizes.begin(), sizes.end(), [&](auto vsize) {
-                           // The len is divisible by the size and all the strides are divisible by
-                           // the size
-                           return (len % vsize) == 0 and
-                                  std::all_of(
-                                      input.strides().begin(), input.strides().end(), [&](auto i) {
-                                          return contains({0, 1}, i) or i % vsize == 0;
-                                      });
+                           if((len % vsize) != 0)
+                               return false;
+                           // An input broadcast along the axis is stepped rather than
+                           // vectorized, which leaves its other strides unchanged
+                           if(stride == 0)
+                               return true;
+                           // All the strides are divisible by the size
+                           return std::all_of(
+                               input.strides().begin(), input.strides().end(), [&](auto i) {
+                                   return contains({0, 1}, i) or i % vsize == 0;
+                               });
                        });
                        if(it != sizes.end())
                            return *it;
@@ -178,7 +185,7 @@ static std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
     return (x + y - std::size_t{1}) / y;
 }
 
-static std::size_t compute_tile_factor(std::size_t r, std::size_t max_size = 64)
+std::size_t tile::compute_factor(std::size_t r, std::size_t max_size)
 {
     std::size_t n = 1;
     auto factors  = make_array(2, 3, 5, 7, 11);
@@ -231,8 +238,8 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
 
     const auto& s  = inputs.front();
-    auto dim1      = compute_tile_factor(s.lens()[result.axis]);
-    auto dim2      = compute_tile_factor(s.lens().back(), 4096 / dim1);
+    auto dim1      = compute_factor(s.lens()[result.axis]);
+    auto dim2      = compute_factor(s.lens().back(), 4096 / dim1);
     auto tile_size = dim1 * dim2;
     // equivalent to dim2 * (dim1 + 1) to avoid bank conflicts
     auto tile_bytes = (tile_size + dim2) * s.type_size();
@@ -275,6 +282,23 @@ std::string tile::str() const
                                {"outer", generate_index_ints(outer)}});
 }
 
+std::vector<shape> reduce_dims_axis(std::vector<shape> inputs, std::size_t& axis)
+{
+    // Append a marker shape that is only unit-strided along axis, so reduce_dims
+    // wont merge that axis with an adjacent one and the marker tracks where it lands
+    const auto& s = inputs.back();
+    std::vector<std::size_t> strides(s.ndim());
+    strides[axis] = 1;
+    inputs.push_back(shape{s.type(), s.lens(), strides});
+
+    auto result         = reduce_dims(normalize_permutation(inputs));
+    const auto& rstride = result.back().strides();
+    axis                = std::find(rstride.begin(), rstride.end(), 1) - rstride.begin();
+    assert(axis < result.back().ndim());
+    result.pop_back();
+    return result;
+}
+
 std::size_t find_fast_axis(const shape& input)
 {
     if(input.scalar())
@@ -306,14 +330,11 @@ std::string make_transformer_args(std::vector<std::string> transformers)
     return join_strings(std::move(transformers), ", ");
 }
 
-static void generate_pointwise(cpp_generator& gg,
-                               const module& pm,
-                               const std::string& name,
-                               bool always_return_tuple = false)
+static void generate_prepared_pointwise(cpp_generator& gg,
+                                        const module& m,
+                                        const std::string& name,
+                                        bool always_return_tuple = false)
 {
-    module m = pm;
-    run_passes(m, {rewrite_quantization{}, optimize_module{}});
-    m.sort();
     cpp_generator g;
     g.always_return_tuple(always_return_tuple);
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
@@ -332,6 +353,18 @@ static void generate_pointwise(cpp_generator& gg,
                            .set_generic_types(m)
                            .set_name(name));
 }
+
+static void generate_pointwise(cpp_generator& gg,
+                               const module& pm,
+                               const std::string& name,
+                               bool always_return_tuple = false)
+{
+    module m = pm;
+    run_passes(m, {rewrite_quantization{}, optimize_module{}});
+    m.sort();
+    generate_prepared_pointwise(gg, m, name, always_return_tuple);
+}
+
 std::string generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple)
 {
     cpp_generator g;
@@ -358,10 +391,7 @@ void reduce_op::set(const std::string& name, const shape& input, const shape& ou
         auto reduce_type     = input.type();
         reduction            = "op::sum{}";
         std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
-        // Use float accumulator when reduction size is too large for half
-        if(reduce_type == shape::half_type and reduce_elements > 16384)
-            read = "compose(" + mean + ", op::convert_to<float>{})";
-        else if(contains({shape::float_type, shape::half_type, shape::double_type}, reduce_type))
+        if(contains({shape::float_type, shape::half_type, shape::double_type}, reduce_type))
             read = mean;
         else
             write = mean;
@@ -485,16 +515,50 @@ static std::vector<std::size_t> get_rlens(const module& m)
     return reduce->get_shape().lens();
 }
 
-std::string generate_reduce(module m, const std::string& name)
+std::size_t topk_k(const instruction& ins)
 {
-    preload_params(m);
-    run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
-    m.sort();
+    assert(ins.name() == "topk");
+    auto axis = ins.get_operator().to_value().at("axis").to<std::size_t>();
+    return ins.get_shape().sub_shapes().front().lens().at(axis);
+}
+
+/// The reducer call for a make_indices or topk, which select along the
+/// reduction from a single input
+static std::string generate_select(const instruction& ins, const std::vector<std::string>& args)
+{
+    if(args.size() != 1)
+        MIGRAPHX_THROW(ins.name() + " expects one value tensor operand");
+    if(ins.name() == "gpu::make_indices")
+        return "r.make_indices_from(" + args.front() + ")";
+    bool largest = ins.get_operator().to_value().at("largest").to<bool>();
+    return interpolate_string("r.template topk<${k}>(${compare}, ${init})(${x})",
+                              {{"k", std::to_string(topk_k(ins))},
+                               {"compare", largest ? "greater{}" : "less{}"},
+                               {"init", largest ? "lowest{}" : "highest{}"},
+                               {"x", args.front()}});
+}
+
+std::string generate_reduce(const module& m, const std::string& name)
+{
+    // Copy into a private program so the rewrites dont touch the module being
+    // compiled, and clear bypass so run_passes visits the fused submodules
+    program p{m};
+    for(auto* mod : p.get_modules())
+        mod->set_bypass(false);
+    auto& rm = *p.get_main_module();
+    preload_params(rm);
+    run_passes(p,
+               {rewrite_quantization{},
+                optimize_module{},
+                prepare_reduce{},
+                optimize_module{},
+                dead_code_elimination{}});
+    rm.sort();
     cpp_generator g;
     g.always_return_tuple();
-    auto rlens    = get_rlens(m);
+    auto rlens    = get_rlens(rm);
     std::size_t i = 0;
-    auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
+    auto f        = g.generate_module(rm, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
         {
             return reduce_op::generate(ins, cpp_generator::to_args(ins->inputs(), names));
@@ -503,14 +567,15 @@ std::string generate_reduce(module m, const std::string& name)
         {
             auto pointwise_name = "pointwise" + std::to_string(i);
             i++;
-            generate_pointwise(g, *ins->module_inputs().front(), pointwise_name);
+            generate_prepared_pointwise(g, *ins->module_inputs().front(), pointwise_name);
             std::vector<instruction_ref> tensors;
             std::copy_if(ins->inputs().begin(),
                          ins->inputs().end(),
                          std::back_inserter(tensors),
                          [&](auto input) {
                              return input->get_shape().lens() != rlens and
-                                    not input->get_shape().broadcasted();
+                                    not input->get_shape().broadcasted() and
+                                    not contains(tensors, input);
                          });
             auto inner_names = names;
             for(auto input : ins->inputs())
@@ -546,6 +611,24 @@ std::string generate_reduce(module m, const std::string& name)
         {
             return names.at(ins->inputs().front());
         }
+        // Packed inputs are read at half the vector size, so unpacking a packed
+        // vector (plain or with the convert folded in) yields a full-width vector
+        if(ins->name() == "unpack_int4")
+        {
+            return "r.lazy_inner(MIGRAPHX_LIFT(migraphx::unpack_int4))(" +
+                   names.at(ins->inputs().front()) + ")";
+        }
+        if(ins->name() == "gpu::unpack_int4_convert")
+        {
+            auto v    = ins->get_operator().to_value();
+            auto type = shape::cpp_type(v.at("target_type").to<shape::type_t>());
+            return interpolate_string("r.lazy_inner([](auto x) { return "
+                                      "migraphx::unpack_int4_as<${type}>(x, ${type}(${bias})); "
+                                      "})(${x})",
+                                      {{"type", type},
+                                       {"bias", to_string(v.at("bias").to<double>())},
+                                       {"x", names.at(ins->inputs().front())}});
+        }
         if(ins->name() == "get_tuple_elem")
         {
             const auto& x = names.at(ins->inputs().front());
@@ -553,13 +636,8 @@ std::string generate_reduce(module m, const std::string& name)
             return interpolate_string("${x}[_c<${index}>]",
                                           {{"x", x}, {"index", std::to_string(index)}});
         }
-        if(ins->name() == "gpu::make_indices")
-        {
-            if(ins->inputs().size() != 1)
-                MIGRAPHX_THROW("gpu::make_indices expects one value tensor operand");
-            const auto& val = names.at(ins->inputs().front());
-            return "r.make_indices_from(" + val + ")";
-        }
+        if(contains({"gpu::make_indices", "topk"}, ins->name()))
+            return generate_select(*ins, cpp_generator::to_args(ins->inputs(), names));
         if(ins->name() == "identity")
         {
             const auto& x = names.at(ins->inputs().front());
@@ -585,7 +663,7 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
+        if(contains({"multibroadcast", "contiguous", "identity", "get_tuple_elem"}, ins.name()))
             continue;
         if(ins.name() == "pointwise")
         {

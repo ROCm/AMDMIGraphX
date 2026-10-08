@@ -82,6 +82,16 @@ struct miopen_apply
         (void)i;
     }
 
+    static bool only_used_as_slice_metadata(instruction_ref ins)
+    {
+        const auto& outputs = ins->outputs();
+        return not outputs.empty() and
+               std::all_of(outputs.begin(), outputs.end(), [&](auto output) {
+                   return contains({"slice", "dyn_slice"}, output->name()) and
+                          output->inputs().front() != ins;
+               });
+    }
+
     void init()
     {
         assert(mod != nullptr);
@@ -109,6 +119,7 @@ struct miopen_apply
         add_neg_op();
         add_lrn_op();
         add_nms_op();
+        add_nonzero_op();
         add_convolution_backwards_op();
         add_select_module_op();
         add_concat_past_present_op();
@@ -116,6 +127,7 @@ struct miopen_apply
         add_fill_op();
         add_dyn_slice_op();
         add_dimensions_of_op();
+        add_eval_expr_from_shape_op();
     }
 
     void copy_params() const
@@ -272,9 +284,12 @@ struct miopen_apply
             // Check if user explicitly sets rocBLAS as GEMM provider, or
             // if the hardware cannot support hipblaslt, or
             // if the hardware is defaulted to use rocBLAS (such as gfx90).
-            if(not has_fp8_inputs and
-               ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
-                not hipblaslt_supported() or gpu::gfx_default_rocblas()))
+            bool use_rocblas = (string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
+                               not hipblaslt_supported();
+#if MIGRAPHX_USE_HIPBLASLT
+            use_rocblas = use_rocblas or gpu::gfx_default_rocblas();
+#endif
+            if(not has_fp8_inputs and use_rocblas)
             {
                 return mod->replace_instruction(
                     ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
@@ -455,15 +470,29 @@ struct miopen_apply
             const auto& boxes_s  = ins->inputs()[0]->get_shape();
             const auto& scores_s = ins->inputs()[1]->get_shape();
             if(boxes_s.dynamic() or scores_s.dynamic())
-                return lower_nms_to_ref(ins);
+                return lower_tuple_op_to_ref(ins);
             const auto num_boxes = boxes_s.lens().at(1);
             const auto num_bc    = boxes_s.lens().at(0) * scores_s.lens().at(1);
             // Route to ref (CPU) when:
             // - num_boxes < 2: Single box or no boxes, no sort or IoU comparison needed.
             // - num_bc > 8192: shared-memory limit on the compact kernel.
             if(num_boxes < 2 or num_bc > 8192)
-                return lower_nms_to_ref(ins);
+                return lower_tuple_op_to_ref(ins);
             return lower_nms_to_gpu_pipeline(ins);
+        });
+    }
+
+    // The nonzero kernel bakes the input lengths into its code object, so a dynamic input has to
+    // run on the host.
+    void add_nonzero_op()
+    {
+        apply_map.emplace("nonzero", [=](instruction_ref ins) {
+            if(ins->inputs().front()->get_shape().dynamic())
+                return lower_tuple_op_to_ref(ins);
+            // An apply_map entry shadows apply()'s has_compiler_for branch, so the precompile_op
+            // has to be inserted here. That branch also calls insert_dynamic_code_object_op,
+            // which is a no-op here since the output sub-shapes are always static.
+            return insert_precompile_op(ins);
         });
     }
 
@@ -529,10 +558,10 @@ struct miopen_apply
         return mod->replace_instruction(ins, compact);
     }
 
-    // Dynamic-shape fallback: run the ref op on the host. The tuple has to be
-    // split host-side before copy_to_gpu (which is not tuple-aware), and the
-    // downstream get_tuple_elem consumers are rewritten in place.
-    instruction_ref lower_nms_to_ref(instruction_ref ins) const
+    // Host fallback for a tuple-returning op the GPU kernels can't take. copy_to_gpu is not
+    // tuple-aware, so the tuple is split host-side and each get_tuple_elem consumer is repointed
+    // at the copied sub-buffer.
+    instruction_ref lower_tuple_op_to_ref(instruction_ref ins) const
     {
         auto inputs = ins->inputs();
         std::vector<instruction_ref> cpu_inputs;
@@ -562,9 +591,9 @@ struct miopen_apply
         for(auto consumer : consumers)
         {
             if(consumer->name() != "get_tuple_elem")
-                MIGRAPHX_THROW("gpu::add_nms_op: dynamic NMS fallback expects only "
-                               "get_tuple_elem consumers of nonmaxsuppression; got: " +
-                               consumer->name());
+                MIGRAPHX_THROW("gpu::lower_tuple_op_to_ref: the host fallback expects only "
+                               "get_tuple_elem consumers of " +
+                               ins->name() + "; got: " + consumer->name());
             auto idx = consumer->get_operator().to_value().at("index").to<std::size_t>();
             assert(idx < gpu_subs.size());
             mod->replace_instruction(consumer, gpu_subs[idx]);
@@ -664,29 +693,34 @@ struct miopen_apply
 
     void add_dyn_slice_op()
     {
-        apply_map.emplace("slice", [=](instruction_ref ins) {
+        auto lower_runtime_bounds = [=](instruction_ref ins) {
             auto inputs = ins->inputs();
             if(inputs.size() > 1)
             {
-                std::vector<instruction_ref> cpu_inputs;
-                // Copy only the small runtime metadata inputs (starts/ends/axes) to CPU.
-                // inputs[0] (data) stays on GPU since slice creates an aliased view into it.
+                std::vector<instruction_ref> copied_inputs;
+                std::vector<std::size_t> copied_indices;
+                // The data input stays on GPU since slice creates an aliased view into it.
+                // Copy only runtime metadata that was not already produced on the host.
                 for(std::size_t i = 1; i < inputs.size(); ++i)
                 {
-                    cpu_inputs.push_back(
-                        mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[i]));
+                    if(inputs[i]->name() == "eval_expr_from_shape")
+                        continue;
+                    inputs[i] =
+                        mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[i]);
+                    copied_inputs.push_back(inputs[i]);
+                    copied_indices.push_back(i);
                 }
-                cpu_inputs.front() =
-                    mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-                for(std::size_t i = 1; i < inputs.size(); ++i)
-                {
-                    inputs[i] = cpu_inputs[i - 1];
-                }
+                if(copied_inputs.empty())
+                    return ins;
+                inputs[copied_indices.front()] =
+                    mod->insert_instruction(ins, make_op("hip::sync_stream"), copied_inputs);
                 return mod->replace_instruction(
                     ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
             }
             return ins;
-        });
+        };
+        apply_map.emplace("slice", lower_runtime_bounds);
+        apply_map.emplace("dyn_slice", lower_runtime_bounds);
     }
 
     // Get the argument's shape dimensions on host and then copy to gpu
@@ -697,6 +731,19 @@ struct miopen_apply
             auto sync_input =
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), ins->inputs().front());
             auto host_out = mod->insert_instruction(ins, ins->get_operator(), sync_input);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
+            return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
+    void add_eval_expr_from_shape_op()
+    {
+        apply_map.emplace("eval_expr_from_shape", [=](instruction_ref ins) {
+            if(only_used_as_slice_metadata(ins))
+                return ins;
+            auto output   = insert_allocation(ins, ins->get_shape());
+            auto host_out = mod->insert_instruction(ins, ins->get_operator(), ins->inputs());
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
             return mod->replace_instruction(ins, gpu_out);

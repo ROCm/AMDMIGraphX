@@ -357,12 +357,14 @@ std::string mlir_compile_key(const context& migraphx_ctx,
                              const value& solution)
 {
     const auto& key     = solution_string(solution);
-    const auto& backend = mlir_backend(migraphx_ctx);
+    const auto name     = select_mlir_backend(migraphx_ctx.get_current_device().get_gfx_name());
+    const auto& backend = mlir_backend_by_name(name);
     auto result         = checked_result(
         backend.mlir_compile_key(
             &migraphx_ctx, &m, in_shapes.data(), in_shapes.size(), key.data(), key.size()),
         backend);
-    return result_string(result);
+    // Code objects from one backend must not be reused by the other.
+    return name + ":" + result_string(result);
 }
 
 tuning_config get_tuning_config_mlir(const context& migraphx_ctx,

@@ -208,4 +208,61 @@ TEST_CASE(try_write_unusable_path)
     EXPECT(migraphx::sqlite::try_write(td.path / "ok.db").has_value());
 }
 
+TEST_CASE(is_database_path_matches_extensions)
+{
+    EXPECT(migraphx::sqlite::is_database_path("cache.db"));
+    EXPECT(migraphx::sqlite::is_database_path("/tmp/kernels/cache.sqlite"));
+    EXPECT(not migraphx::sqlite::is_database_path(""));
+    EXPECT(not migraphx::sqlite::is_database_path("/tmp/kernels"));
+    EXPECT(not migraphx::sqlite::is_database_path("/tmp/kernels/"));
+    EXPECT(not migraphx::sqlite::is_database_path("cache.json"));
+    EXPECT(not migraphx::sqlite::is_database_path("cache.db.bak"));
+}
+
+// Text that is not SQL, or that holds no statement at all, is refused when prepared rather than
+// handing back a statement that fails on its first call.
+TEST_CASE(prepare_rejects_invalid_sql)
+{
+    migraphx::tmp_dir td{};
+    auto db = migraphx::sqlite::write(td.path / "invalid.db");
+    EXPECT(test::throws([&] { db.prepare("NOT SQL;"); }));
+    EXPECT(test::throws([&] { db.prepare("-- only a comment"); }));
+}
+
+// A call whose statement fails throws, and leaves the statement ready to be called again.
+TEST_CASE(failed_call_resets_statement)
+{
+    migraphx::tmp_dir td{};
+    auto db = migraphx::sqlite::write(td.path / "fail.db");
+    db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY);");
+    auto insert = db.prepare("INSERT INTO t (id) VALUES (?);");
+
+    insert(std::int64_t{1});
+    // The primary key is already taken, so the first step fails.
+    EXPECT(test::throws([&] { insert(std::int64_t{1}); }));
+    insert(std::int64_t{2});
+    EXPECT(db.execute("SELECT id FROM t;").size() == 2);
+}
+
+// A writer that cannot get the lock waits out its busy timeout and then fails, rather than
+// blocking; once the lock is released, the same statement succeeds.
+TEST_CASE(busy_timeout_gives_up_on_locked_database)
+{
+    migraphx::tmp_dir td{};
+    auto path   = td.path / "busy.db";
+    auto holder = migraphx::sqlite::write(path);
+    holder.execute("CREATE TABLE t (id INTEGER PRIMARY KEY);");
+
+    auto writer = migraphx::sqlite::write(path);
+    writer.set_busy_timeout(1);
+    auto insert = writer.prepare("INSERT INTO t (id) VALUES (?);");
+
+    holder.execute("BEGIN IMMEDIATE;");
+    EXPECT(test::throws([&] { insert(std::int64_t{1}); }));
+    holder.execute("COMMIT;");
+
+    insert(std::int64_t{1});
+    EXPECT(holder.execute("SELECT id FROM t;").size() == 1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

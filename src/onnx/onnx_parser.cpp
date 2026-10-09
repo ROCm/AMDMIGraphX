@@ -100,8 +100,8 @@ static literal create_literal(shape::type_t shape_type,
 
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
     if(dims.empty())
-        return literal{{shape_type}, data, size};
-    return literal{{shape_type, dims}, data, size};
+        return literal::from_standard_buffer({shape_type}, data, size);
+    return literal::from_standard_buffer({shape_type, dims}, data, size);
 }
 
 template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>

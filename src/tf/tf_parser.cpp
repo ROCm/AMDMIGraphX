@@ -480,21 +480,21 @@ literal tf_parser::parse_tensor(const tensorflow::TensorProto& t) const
         switch(t.dtype())
         {
         case tensorflow::DataType::DT_FLOAT:
-            return literal{{shape::float_type, dims}, s.data(), s.size()};
+            return literal::from_standard_buffer({shape::float_type, dims}, s.data(), s.size());
         case tensorflow::DataType::DT_BOOL:
         case tensorflow::DataType::DT_INT8:
-            return literal{{shape::int8_type, dims}, s.data(), s.size()};
+            return literal::from_standard_buffer({shape::int8_type, dims}, s.data(), s.size());
         case tensorflow::DataType::DT_UINT16:
         case tensorflow::DataType::DT_INT16:
-            return literal{{shape::int16_type, dims}, s.data(), s.size()};
+            return literal::from_standard_buffer({shape::int16_type, dims}, s.data(), s.size());
         case tensorflow::DataType::DT_INT32:
-            return literal{{shape::int32_type, dims}, s.data(), s.size()};
+            return literal::from_standard_buffer({shape::int32_type, dims}, s.data(), s.size());
         case tensorflow::DataType::DT_INT64:
-            return literal{{shape::int64_type, dims}, s.data(), s.size()};
+            return literal::from_standard_buffer({shape::int64_type, dims}, s.data(), s.size());
         case tensorflow::DataType::DT_HALF:
-            return literal{{shape::half_type, dims}, s.data(), s.size()};
+            return literal::from_standard_buffer({shape::half_type, dims}, s.data(), s.size());
         case tensorflow::DataType::DT_DOUBLE:
-            return literal{{shape::double_type, dims}, s.data(), s.size()};
+            return literal::from_standard_buffer({shape::double_type, dims}, s.data(), s.size());
         case tensorflow::DataType::DT_INVALID:
         case tensorflow::DataType::DT_UINT8:
         case tensorflow::DataType::DT_STRING:

@@ -93,24 +93,27 @@ struct literal : raw_data<literal>
 
     // x holds nbytes: the elements of s in row-major order of s.lens(), regardless of s's strides
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
-    literal(const shape& s, T* x, std::size_t nbytes) : m_shape(s)
+    static literal from_standard_buffer(const shape& s, T* x, std::size_t nbytes)
     {
         if(nbytes != s.elements() * s.type_size())
             MIGRAPHX_THROW("literal: buffer size " + std::to_string(nbytes) +
                            " does not hold shape elements " + std::to_string(s.elements()) +
                            " of type size " + std::to_string(s.type_size()));
+        literal result;
+        result.m_shape = s;
         if(s.standard())
         {
-            buffer = make_shared_array<char>(x, x + nbytes);
-            return;
+            result.buffer = make_shared_array<char>(x, x + nbytes);
+            return result;
         }
-        buffer = make_shared_array<char>(s.bytes());
+        result.buffer = make_shared_array<char>(s.bytes());
         // x may not be aligned for the element type, so copy it into typed storage first
         s.visit_type([&](auto as) {
             std::vector<typename decltype(as)::type> values(s.elements());
             std::copy(x, x + nbytes, reinterpret_cast<char*>(values.data()));
-            fill(values.begin(), values.end());
+            result.fill(values.begin(), values.end());
         });
+        return result;
     }
 
     /// Whether data is available

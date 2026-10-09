@@ -75,6 +75,7 @@ __device__ auto wrap(F f, T x, Ts... xs)
     else
     {
         T result = f(as_float(x), as_float(xs)...);
+        // cppcheck-suppress migraphx-RedundantLocalVariable
         return result;
     }
 }

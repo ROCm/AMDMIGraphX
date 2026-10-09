@@ -190,7 +190,7 @@ struct select_module_index
         {
             MIGRAPHX_THROW("SELECT_MODULE_INDEX: index must be non-negative.");
         }
-        const auto idx = find_submodule_index(index, index_map, submodule_list.size());
+        const auto idx           = find_submodule_index(index, index_map, submodule_list.size());
         module_ref module_to_run = submodule_list[idx];
 
         std::unordered_map<std::string, argument> p_map;

@@ -5375,7 +5375,7 @@ TEST_CASE(select_module_index_invalid)
     sub2->add_return({sub2->add_outline(migraphx::shape{migraphx::shape::float_type, {3}})});
 
     auto smi = migraphx::make_op("select_module_index");
-    // index must be a single int32 or int64 element
+    // index must be a single integral element
     EXPECT(test::throws([&] { mm->add_instruction(smi, {float_idx, data}, {sub0, sub1}); }));
     EXPECT(test::throws([&] { mm->add_instruction(smi, {multi_idx, data}, {sub0, sub1}); }));
     // at least one submodule, all with the same output shapes

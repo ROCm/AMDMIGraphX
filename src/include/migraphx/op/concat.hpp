@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_CONCAT_HPP
 
 #include <array>
+#include <limits>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/stringutils.hpp>
@@ -85,25 +86,43 @@ struct concat
 
         bool all_static =
             std::none_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); });
+        // convert all shapes to dynamic to handle mixed static-dynamic case
         auto unified = shape::to_dynamic(inputs);
 
-        const auto& dds0 = unified.front().dyn_dims();
-        for(std::size_t i = 0; i < dds0.size(); ++i)
+        // A fully-unconstrained dim (unbounded max == SIZE_MAX) is a wildcard:
+        // it is the output of an op whose shape is only known at runtime (e.g.
+        // broadcast_with_dims / ONNX Expand whose target shape is computed from
+        // another tensor's shape).
+        auto is_unconstrained = [](const shape::dynamic_dimension& dd) {
+            return not dd.is_symbolic() and
+                   dd.get_interval().max == std::numeric_limits<std::size_t>::max();
+        };
+
+        auto new_dds = unified.front().dyn_dims();
+        for(std::size_t i = 0; i < new_dds.size(); ++i)
         {
             if(i == axis)
                 continue;
-            if(not std::all_of(unified.begin(), unified.end(), [&](const shape& s) {
-                   return s.dyn_dims()[i] == dds0[i];
-               }))
-                MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
-                               std::to_string(i));
+            for(const auto& s : unified)
+            {
+                const auto& dd = s.dyn_dims()[i];
+                if(is_unconstrained(new_dds[i]))
+                    new_dds[i] = dd;
+                else if(not is_unconstrained(dd) and dd != new_dds[i])
+                    MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
+                                   std::to_string(i));
+            }
         }
 
-        auto new_dds  = dds0;
+        // Sum the concat axis. operator+= saturates at SIZE_MAX, so an
+        // unconstrained input naturally yields an unconstrained sum rather than
+        // overflowing. The exact size is recovered once the program is
+        // specialised and the runtime op is constant-folded.
         new_dds[axis] = std::accumulate(
-            unified.begin() + 1, unified.end(), dds0[axis], [&](const auto& acc, const shape& s) {
-                return acc + s.dyn_dims()[axis];
-            });
+            unified.begin() + 1,
+            unified.end(),
+            unified.front().dyn_dims()[axis],
+            [&](const auto& acc, const shape& s) { return acc + s.dyn_dims()[axis]; });
 
         auto type = unified.front().type();
         if(all_static)

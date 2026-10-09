@@ -306,6 +306,7 @@ register_migraphx_ops(
     scatternd_max
     scatternd_min
     select_module
+    select_module_index
     sigmoid
     sign
     sinh

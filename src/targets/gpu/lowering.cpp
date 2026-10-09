@@ -122,6 +122,7 @@ struct miopen_apply
         add_nonzero_op();
         add_convolution_backwards_op();
         add_select_module_op();
+        add_select_module_index_op();
         add_concat_past_present_op();
         add_scan_slice_op();
         add_fill_op();
@@ -653,6 +654,23 @@ struct miopen_apply
             auto s                              = ins->get_shape();
             auto output                         = insert_allocation(ins, s);
             std::vector<instruction_ref> inputs = ins->inputs();
+            inputs.push_back(output);
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        });
+    }
+
+    /**
+     * Adds an output allocation like select_module. The index is read on the host,
+     * so the device scalar is copied back with hip::load_scalar before the select.
+     */
+    void add_select_module_index_op()
+    {
+        apply_map.emplace("select_module_index", [=](instruction_ref ins) {
+            std::vector<instruction_ref> inputs = ins->inputs();
+            inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::load_scalar"), inputs.front());
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
             inputs.push_back(output);
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });

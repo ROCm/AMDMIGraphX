@@ -30,7 +30,6 @@
 #include <migraphx/sym.hpp>
 
 #include <test.hpp>
-#include <string>
 #include <vector>
 
 static void run_pass(migraphx::module& m, std::set<migraphx::shape::type_t> types)
@@ -130,13 +129,11 @@ TEST_CASE(skip_convert_fixed_pad)
     EXPECT(mm1 == mm2);
 }
 
-static void check_skip_convert_slice(const std::string& name)
+TEST_CASE(skip_convert_dyn_slice)
 {
     migraphx::shape data_shape{migraphx::shape::int64_type, {4}};
     migraphx::shape index_shape{migraphx::shape::int64_type, {1}};
-    auto slice_op = name == "slice"
-                        ? migraphx::make_op(name, {{"axes", {0}}})
-                        : migraphx::make_op(name, {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}});
+    auto slice_op = migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}});
 
     migraphx::module mm1;
     {
@@ -164,8 +161,72 @@ static void check_skip_convert_slice(const std::string& name)
     EXPECT(mm1 == mm2);
 }
 
-TEST_CASE(skip_convert_slice) { check_skip_convert_slice("slice"); }
+TEST_CASE(convert_slice)
+{
+    migraphx::shape data_shape{migraphx::shape::int64_type, {4}};
+    migraphx::shape index_shape{migraphx::shape::int64_type, {1}};
+    auto slice_op = migraphx::make_op("slice", {{"axes", {0}}});
 
-TEST_CASE(skip_convert_dyn_slice) { check_skip_convert_slice("dyn_slice"); }
+    migraphx::module mm1;
+    {
+        auto data   = mm1.add_parameter("data", data_shape);
+        auto starts = mm1.add_parameter("starts", index_shape);
+        auto ends   = mm1.add_parameter("ends", index_shape);
+        auto slice  = mm1.add_instruction(slice_op, data, starts, ends);
+        mm1.add_instruction(migraphx::make_op("relu"), slice);
+    }
+    run_pass(mm1, {migraphx::shape::int64_type});
 
+    migraphx::module mm2;
+    {
+        auto data   = mm2.add_parameter("data", data_shape);
+        auto starts = mm2.add_parameter("starts", index_shape);
+        auto ends   = mm2.add_parameter("ends", index_shape);
+        data        = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), data);
+        starts = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), starts);
+        ends = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ends);
+        auto slice = mm2.add_instruction(slice_op, data, starts, ends);
+        slice      = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), slice);
+        slice = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), slice);
+        auto relu = mm2.add_instruction(migraphx::make_op("relu"), slice);
+        mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), relu);
+    }
+
+    EXPECT(mm1 == mm2);
+}
+
+TEST_CASE(unpack_int4_skipped)
+{
+    migraphx::shape ps{migraphx::shape::uint8_type, {2, 2}};
+    migraphx::shape s{migraphx::shape::uint8_type, {2, 4}};
+    migraphx::module mm1;
+    {
+        auto x      = mm1.add_parameter("x", ps);
+        auto y      = mm1.add_parameter("y", s);
+        auto unpack = mm1.add_instruction(migraphx::make_op("unpack_int4"), x);
+        mm1.add_instruction(migraphx::make_op("add"), unpack, y);
+    }
+    run_pass(mm1, {migraphx::shape::uint8_type});
+
+    migraphx::module mm2;
+    {
+        auto x      = mm2.add_parameter("x", ps);
+        auto y      = mm2.add_parameter("y", s);
+        auto unpack = mm2.add_instruction(migraphx::make_op("unpack_int4"), x);
+        auto floatx = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), unpack);
+        auto floaty = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), y);
+        auto add = mm2.add_instruction(migraphx::make_op("add"), floatx, floaty);
+        mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::uint8_type}}), add);
+    }
+    EXPECT(mm1 == mm2);
+}
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1053,6 +1053,42 @@ TEST_CASE(test_with_lens2)
     EXPECT(s2 == s3);
 }
 
+TEST_CASE(test_merge_broadcasts)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4, 5}, {0, 1, 0, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 4, 5}, {0, 0, 0, 1}};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 3, 4, 5}, {0, 5, 0, 1}};
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s2) == expected);
+    EXPECT(migraphx::shape::merge_broadcasts(s2, s1) == expected);
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s1) == s1);
+}
+
+TEST_CASE(test_merge_broadcasts_all_axes)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4, 5}, {3, 1, 0, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 4, 5}, {0, 0, 5, 1}};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 3, 4, 5}};
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s2) == expected);
+}
+
+TEST_CASE(test_merge_broadcasts_scalar)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}, {0, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3}, {0, 1}};
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s2) == s2);
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s1) == s1);
+}
+
+TEST_CASE(test_merge_broadcasts_symbolic)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape s1{migraphx::shape::float_type, dims, {lit(0), lit(1), lit(0)}};
+    migraphx::shape s2{migraphx::shape::float_type, dims, {lit(3), lit(1), lit(0)}};
+    migraphx::shape expected{migraphx::shape::float_type, dims, {lit(3), lit(1), lit(0)}};
+    EXPECT(migraphx::shape::merge_broadcasts(s1, s2) == expected);
+}
+
 TEST_CASE(test_with_lens_ambigous1)
 {
     migraphx::shape s1{migraphx::shape::float_type, {64, 1, 24, 24}};
@@ -2551,6 +2587,14 @@ TEST_CASE(make_bcast_shape_static_input_via_to_symbolic)
     EXPECT(out.dyn_dims() == (std::vector<dd>{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}}));
     EXPECT(out.dyn_strides() ==
            (std::vector<migraphx::sym::expr>{lit(12), lit(0), lit(4), lit(1)}));
+}
+
+TEST_CASE(can_multibroadcast)
+{
+    EXPECT(migraphx::can_multibroadcast({1, 1, 384, 384}, {1, 12, 384, 384}));
+    EXPECT(not migraphx::can_multibroadcast({1, 1, 384, 384}, {1, 12, 2, 384, 192}));
+    EXPECT(migraphx::can_multibroadcast({1}, {1, 12, 384, 384}));
+    EXPECT(not migraphx::can_multibroadcast({1, 12, 2, 384}, {1, 12, 384, 384}));
 }
 
 TEST_CASE(to_symbolic_static)

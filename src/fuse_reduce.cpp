@@ -26,6 +26,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
@@ -36,8 +37,13 @@
 #include <migraphx/rewrite_reshapes.hpp>
 #include <migraphx/rewrite_broadcasts.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/fp8_types.hpp>
+#include <migraphx/tune_axis.hpp>
 #include <iterator>
 #include <map>
+#include <numeric>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,8 +65,9 @@ struct fused_reduce
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         const auto* sm = mods.front();
-        if(sm->get_output_shapes().size() != 1)
-            MIGRAPHX_THROW("Only one output supported");
+        auto outputs   = sm->get_output_shapes();
+        if(outputs.empty())
+            MIGRAPHX_THROW("fused_reduce: missing output");
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
@@ -74,12 +81,15 @@ struct fused_reduce
            }))
             MIGRAPHX_THROW("Input dimension does not match the submodule.");
 
-        if(sm->get_output_shapes().front().dynamic())
-            return sm->get_output_shapes().front();
-
-        return shape::from_permutation(sm->get_output_shapes().front().type(),
-                                       sm->get_output_shapes().front().lens(),
-                                       find_permutation(inputs));
+        // The output layout follows the inputs
+        if(not outputs.front().dynamic())
+        {
+            auto perm = find_permutation(inputs);
+            std::transform(outputs.begin(), outputs.end(), outputs.begin(), [&](const shape& s) {
+                return shape::from_permutation(s.type(), s.lens(), perm);
+            });
+        }
+        return outputs.size() == 1 ? outputs.front() : shape{outputs};
     }
 
     std::string name() const { return "fused_reduce"; }
@@ -97,14 +107,13 @@ MIGRAPHX_PRED_MATCHER(input_output_ndim_match, instruction_ref ins)
     return input_shape.ndim() == output_shape.ndim();
 }
 
-static auto
+std::vector<instruction_ref>
 insert_module_in_submodule(module_ref sm,
                            instruction_ref ins,
-                           std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
-                           module::inserter insert                                       = nullptr)
+                           std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
     assert(ins->module_inputs().size() == 1);
-    return sm->fuse(*ins->module_inputs().front(), ins->inputs(), map_ins, std::move(insert));
+    return sm->fuse(*ins->module_inputs().front(), ins->inputs(), map_ins);
 }
 
 static void create_reduce_modules(module_pass_manager& mpm)
@@ -242,7 +251,7 @@ static auto match_broadcastable_input(const std::string& op, const std::string& 
     return match::any_of(match_op_input, match_broadcast_axes(broadcast_match_op_input));
 }
 
-static void finalize_reduce_module(module_ref m)
+void finalize_reduce_module(module_ref m)
 {
     eliminate_common_subexpression{}.apply(*m);
     dead_code_elimination{}.apply(*m);
@@ -258,6 +267,14 @@ static std::vector<std::size_t> expand_dims(std::vector<std::size_t> lens,
 }
 
 namespace {
+
+bool has_unpack(instruction_ref ins)
+{
+    const auto* sm = ins->module_inputs().front();
+    return std::any_of(
+        sm->begin(), sm->end(), [](const auto& i) { return i.name() == "unpack_int4"; });
+}
+
 // Hoist a broadcast above a fused_reduce when it expands axes that were
 // already size 1 on the reduce inputs rather than reduced axes. The leftover
 // broadcast then only expands the reduced axes, which the fusion matchers
@@ -283,6 +300,9 @@ struct find_reduce_broadcast
 
         // The leftover broadcast can only fuse into a reduce over the same axes
         if(ins->name() == "fused_reduce" and ins->get_operator() != reduce->get_operator())
+            return;
+        // Rebuilding the submodule at expanded shapes cant remap packed inputs
+        if(has_unpack(reduce))
             return;
 
         auto axes         = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
@@ -470,9 +490,128 @@ struct find_reduce_reduce
     }
 };
 
+// Fuse an unpack_int4 feeding a fused_reduce into the submodule so the
+// packed data is read directly by the reduction kernel. The kernel unpacks
+// by vectorizing the packed input with half the vector size, so only fuse
+// when every input can be vectorized along the unpack axis.
+struct find_unpack_reduce
+{
+    auto matcher() const
+    {
+        auto unpack = match::name("unpack_int4")(match::used_once()).bind("unpack");
+        auto reshapes =
+            match::name("reshape", "squeeze", "unsqueeze", "flatten")(match::used_once());
+        return match::name("fused_reduce")(
+            any_input(match::skip(reshapes)(unpack), match::used_once()));
+    }
+
+    static std::size_t normalized_axis(instruction_ref unpack)
+    {
+        return tune_axis(unpack->get_shape().ndim(),
+                         unpack->get_operator().to_value().at("axis").to<int>(),
+                         unpack->name());
+    }
+
+    // Push the unpack past the reshapes so it feeds the reduce directly,
+    // reshaping the packed input instead so it can be fused
+    static optional<instruction_ref>
+    hoist_unpack(module& m, instruction_ref input, instruction_ref unpack)
+    {
+        if(input == unpack)
+            return unpack;
+        std::vector<operation> ops;
+        auto next_ins = input;
+        while(next_ins != unpack)
+        {
+            ops.push_back(next_ins->get_operator());
+            next_ins = next_ins->inputs().front();
+        }
+        std::reverse(ops.begin(), ops.end());
+        auto desc = shape_transform_descriptor::create(unpack->get_shape().lens(), ops);
+        if(desc.empty() or desc.has_broadcast())
+            return nullopt;
+        auto axes = desc.get_dst_axes_from_src(normalized_axis(unpack));
+        if(axes.empty())
+            return nullopt;
+        auto axis = axes.back();
+        auto lens = input->get_shape().lens();
+        if(lens[axis] % 2 != 0)
+            return nullopt;
+        lens[axis] /= 2;
+        auto packed = unpack->inputs().front();
+        if(elements(lens) != packed->get_shape().elements())
+            return nullopt;
+        auto packed_reshape =
+            m.insert_instruction(input, make_op("reshape", {{"dims", lens}}), packed);
+        auto new_unpack =
+            m.insert_instruction(input, make_op("unpack_int4", {{"axis", axis}}), packed_reshape);
+        return m.replace_instruction(input, new_unpack);
+    }
+
+    static bool is_vectorizable_by_two(const shape& s, std::size_t axis)
+    {
+        if(s.lens()[axis] != 1)
+        {
+            if(s.strides()[axis] > 1)
+                return false;
+            if(s.strides()[axis] == 1 and s.lens()[axis] % 2 != 0)
+                return false;
+        }
+        return std::all_of(s.strides().begin(), s.strides().end(), [](auto stride) {
+            return stride < 2 or stride % 2 == 0;
+        });
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto reduce  = r.result;
+        auto input   = r.instructions["input"];
+        auto hoisted = hoist_unpack(mpm.get_module(), input, r.instructions["unpack"]);
+        if(not hoisted.has_value())
+            return;
+        auto unpack = *hoisted;
+        auto axis   = normalized_axis(unpack);
+        auto packed = unpack->inputs().front();
+        // The unpack axis must be the fastest dimension to read the packed
+        // data vectorized
+        if(packed->get_shape().strides()[axis] != 1)
+            return;
+        // Vectorization requires the unpack axis to be reduced
+        auto axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        if(not contains(axes, axis))
+            return;
+        static const auto fp8 = fp8_types{}.get();
+        if(not std::all_of(reduce->inputs().begin(), reduce->inputs().end(), [&](auto ri) {
+               if(contains(fp8, ri->get_shape().type()))
+                   return false;
+               return is_vectorizable_by_two(ri->get_shape(), axis);
+           }))
+            return;
+
+        const auto* old_rm = reduce->module_inputs().front();
+        auto* rm           = mpm.create_module(old_rm->name() + ":unpack_int4");
+        rm->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        map_ins[unpack] = rm->fuse({unpack}, &map_ins).front();
+        rm->add_return(insert_module_in_submodule(rm, reduce, &map_ins));
+        finalize_reduce_module(rm);
+
+        auto new_inputs = find_inputs(map_ins, &mpm.get_module(), rm);
+        mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
+    }
+};
+
 struct reduce_reshape : rewrite_reshapes_base
 {
     static std::string name() { return "fused_reduce"; }
+
+    static bool matches(instruction_ref ins)
+    {
+        if(ins->name() != name())
+            return true;
+        // Submodules with packed inputs cant be remapped to the common dims
+        return not has_unpack(ins);
+    }
 
     template <class Transform>
     static auto transform_op(Transform t)
@@ -538,6 +677,452 @@ struct reduce_reshape : rewrite_reshapes_base
     }
 };
 
+/// Whether an input of the reduce is an unpack_int4 that has not been
+/// fused into the reduce yet
+bool input_has_unpack(instruction_ref reduce)
+{
+    static const std::unordered_set<std::string> view_ops = {"reshape",
+                                                             "squeeze",
+                                                             "unsqueeze",
+                                                             "flatten",
+                                                             "transpose",
+                                                             "multibroadcast",
+                                                             "broadcast",
+                                                             "contiguous"};
+    return any_of(reduce->inputs(), [&](instruction_ref input) {
+        while(input->inputs().size() == 1 and contains(view_ops, input->name()))
+            input = input->inputs().front();
+        return input->name() == "unpack_int4";
+    });
+}
+
+/// Split a fused_reduce that is only consumed by slices along a non-reduced
+/// axis into one reduce per slice over the sliced inputs, so the consumers
+/// of the slices can fuse with the reductions (eg swiglu over the halves of
+/// a gate_up matvec). Waits for the unpack to be fused since the slices are
+/// pushed into the reduce inputs.
+struct find_reduce_slice
+{
+    auto matcher() const
+    {
+        auto unit_reshapes = match::name("squeeze", "unsqueeze", "transpose");
+        return match::name("slice")(
+            match::arg(0)(match::skip(unit_reshapes)(match::name("fused_reduce").bind("reduce"))));
+    }
+
+    static std::vector<std::size_t> slice_axes(instruction_ref slice)
+    {
+        return slice->get_operator().to_value().at("axes").to_vector<std::size_t>();
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m     = mpm.get_module();
+        auto slice  = r.result;
+        auto reduce = r.instructions["reduce"];
+        if(input_has_unpack(reduce))
+            return;
+        auto axes = slice_axes(slice);
+        if(axes.size() != 1)
+            return;
+        auto v     = slice->get_operator().to_value();
+        auto start = v.at("starts").to_vector<std::int64_t>().front();
+        auto end   = v.at("ends").to_vector<std::int64_t>().front();
+        auto input = slice->inputs().front();
+        // Every consumer of the reduce must be a slice along the same axis,
+        // otherwise the reduction would be duplicated
+        if(not all_of(input->outputs(), [&](instruction_ref out) {
+               return out->name() == "slice" and slice_axes(out) == axes;
+           }))
+            return;
+        std::vector<operation> ops;
+        for(auto ins = input; ins != reduce; ins = ins->inputs().front())
+        {
+            if(ins != input and ins->outputs().size() != 1)
+                return;
+            ops.push_back(ins->get_operator());
+        }
+        if(input != reduce and reduce->outputs().size() != 1)
+            return;
+        std::reverse(ops.begin(), ops.end());
+        const auto& rlens = reduce->get_shape().lens();
+        std::size_t raxis = axes.front();
+        if(not ops.empty())
+        {
+            auto desc = shape_transform_descriptor::create(rlens, ops);
+            if(desc.empty())
+                return;
+            auto is = range(rlens.size());
+            auto it = std::find_if(is.begin(), is.end(), [&](auto i) {
+                return desc.get_dst_axes_from_src(i) == std::vector<std::size_t>{axes.front()};
+            });
+            if(it == is.end())
+                return;
+            raxis = *it;
+        }
+        auto reduce_axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        if(contains(reduce_axes, raxis))
+            return;
+        std::int64_t len = rlens[raxis];
+        if(start < 0 or end <= start or end > len or end - start == len)
+            return;
+        if(not all_of(reduce->inputs(), [&](instruction_ref x) {
+               return x->get_shape().lens()[raxis] == rlens[raxis];
+           }))
+            return;
+        auto slice_op = make_op("slice", {{"axes", {raxis}}, {"starts", {start}}, {"ends", {end}}});
+        auto inputs   = reduce->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](instruction_ref x) {
+            return m.insert_instruction(slice, slice_op, x);
+        });
+        // Broadcasts inside the submodule expand to the full axis
+        std::size_t new_len = end - start;
+        const auto* oldm    = reduce->module_inputs().front();
+        auto* sm = mpm.create_module(oldm->name() + "_slice" + std::to_string(start) + "_" +
+                                     std::to_string(end));
+        sm->set_bypass();
+        auto outs = sm->fuse(
+            *oldm, inputs, nullptr, reduce_reshape::transform_op([&](const operation& sop) {
+                if(not contains({"multibroadcast", "broadcast"}, sop.name()))
+                    return sop;
+                auto sv       = sop.to_value();
+                auto out_lens = sv.at("out_lens").to_vector<std::size_t>();
+                if(raxis < out_lens.size() and out_lens[raxis] == rlens[raxis])
+                    out_lens[raxis] = new_len;
+                sv["out_lens"] = out_lens;
+                return make_op(sop.name(), sv);
+            }));
+        sm->add_return(outs);
+        auto new_reduce = m.insert_instruction(slice, reduce->get_operator(), inputs, {sm});
+        auto y          = std::accumulate(
+            ops.begin(), ops.end(), new_reduce, [&](instruction_ref ins, const operation& op) {
+                return m.insert_instruction(slice, op, ins);
+            });
+        assert(y->get_shape().lens() == slice->get_shape().lens());
+        m.replace_instruction(slice, y);
+    }
+};
+
+/// Map a pointwise over squeezed fused_reduce outputs into the reduce space
+/// so it can fuse as an epilogue of the reductions: the other inputs are
+/// unsqueezed instead and the result is squeezed after the pointwise
+struct find_reduce_squeeze_pointwise
+{
+    auto matcher() const
+    {
+        auto squeeze =
+            match::name("squeeze")(match::used_once(), match::arg(0)(match::name("fused_reduce")));
+        return match::name("pointwise")(match::any_of[match::inputs()](squeeze.bind("squeeze")));
+    }
+
+    static std::vector<std::int64_t> squeeze_axes(instruction_ref squeeze)
+    {
+        return squeeze->get_operator().to_value().at("axes").to_vector<std::int64_t>();
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m   = mpm.get_module();
+        auto pw   = r.result;
+        auto axes = squeeze_axes(r.instructions["squeeze"]);
+        if(axes.empty())
+            return;
+        if(pw->get_shape().type() == shape::tuple_type)
+            return;
+        auto is_squeezed_reduce = [&](instruction_ref input) {
+            if(input->name() != "squeeze" or input->outputs().size() != 1)
+                return false;
+            if(input->inputs().front()->name() != "fused_reduce")
+                return false;
+            return squeeze_axes(input) == axes;
+        };
+        const auto& rlens = r.instructions["squeeze"]->inputs().front()->get_shape().lens();
+        auto inputs       = pw->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](instruction_ref input) {
+            if(is_squeezed_reduce(input))
+                return input->inputs().front();
+            // A {1} input cant be unsqueezed back to the reduce shape: squeezing all
+            // dims clamps the rank at 1 and unsqueeze is a no-op on scalars. The
+            // reduce shape is all ones then, so broadcast instead.
+            if(input->get_shape().lens() == std::vector<std::size_t>{1})
+                return m.insert_instruction(
+                    pw, make_op("multibroadcast", {{"out_lens", rlens}}), input);
+            return m.insert_instruction(pw, make_op("unsqueeze", {{"axes", axes}}), input);
+        });
+        auto new_pw = m.insert_instruction(pw, pw->get_operator(), inputs, pw->module_inputs());
+        m.replace_instruction(pw, make_op("squeeze", {{"axes", axes}}), new_pw);
+    }
+};
+
+/// The lens with the axis split into (len / 2, 2); a unit axis stays unit
+std::vector<std::size_t> split_axis_lens(std::vector<std::size_t> lens, std::size_t axis)
+{
+    assert(lens[axis] == 1 or lens[axis] % 2 == 0);
+    std::size_t n = lens[axis] == 1 ? 1 : 2;
+    lens[axis] /= n;
+    lens.insert(lens.begin() + axis + 1, n);
+    return lens;
+}
+
+/// The lens of a broadcast input aligned to the broadcast output axes
+std::vector<std::size_t> broadcast_input_lens(const shape& s)
+{
+    auto lens = s.lens();
+    auto is   = range(lens.size());
+    std::transform(is.begin(), is.end(), lens.begin(), [&](auto i) {
+        return s.strides()[i] == 0 ? 1 : s.lens()[i];
+    });
+    return lens;
+}
+
+/// A view of the input with the axis split in two: a broadcast is rebuilt
+/// from its input so the reshape stays a view
+optional<instruction_ref>
+insert_split_axis(module& m, instruction_ref pos, instruction_ref input, std::size_t axis)
+{
+    const auto& s = input->get_shape();
+    if(s.standard())
+        return m.insert_instruction(
+            pos, make_op("reshape", {{"dims", split_axis_lens(s.lens(), axis)}}), input);
+    if(not contains({"multibroadcast", "broadcast"}, input->name()))
+        return nullopt;
+    auto bin = input->inputs().front();
+    if(not bin->get_shape().standard())
+        return nullopt;
+    auto lens = broadcast_input_lens(s);
+    if(elements(lens) != bin->get_shape().elements())
+        return nullopt;
+    auto r =
+        m.insert_instruction(pos, make_op("reshape", {{"dims", split_axis_lens(lens, axis)}}), bin);
+    return m.insert_instruction(
+        pos, make_op("multibroadcast", {{"out_lens", split_axis_lens(s.lens(), axis)}}), r);
+}
+
+// Fuse an unpack_int4 that reaches a fused_reduce through a broadcast over a
+// faster reduced axis, such as a per-block zero point broadcast over the
+// block elements. The kernel reads a packed input by vectorizing along the
+// unpack axis, which is not the vectorized axis here, so instead the unpack
+// axis is split in two: the packed bytes become a view broadcast over both
+// nibbles and a pointwise selects the nibble with a per-nibble literal.
+struct find_unpack_broadcast_reduce
+{
+    auto matcher() const
+    {
+        auto unpack = match::name("unpack_int4")(match::used_once()).bind("unpack");
+        auto reshapes =
+            match::name("reshape", "squeeze", "unsqueeze", "flatten")(match::used_once());
+        auto broadcast = match::name("multibroadcast", "broadcast")(
+                             match::used_once(), match::arg(0)(match::skip(reshapes)(unpack)))
+                             .bind("broadcast");
+        return match::name("fused_reduce")(match::any_of[match::inputs()](broadcast));
+    }
+
+    static std::size_t op_axis(const operation& op, std::size_t ndim)
+    {
+        return tune_axis(ndim, op.to_value().at("axis").to<int>(), op.name());
+    }
+
+    /// The reduce input axis the unpack axis maps to through the chain of
+    /// reshapes and the broadcast, if it maps to a whole axis
+    static optional<std::size_t> find_unpack_axis(instruction_ref broadcast, instruction_ref unpack)
+    {
+        std::vector<operation> ops;
+        for(auto ins = broadcast; ins != unpack; ins = ins->inputs().front())
+            ops.push_back(ins->get_operator());
+        std::reverse(ops.begin(), ops.end());
+        auto desc = shape_transform_descriptor::create(unpack->get_shape().lens(), ops);
+        if(desc.empty())
+            return nullopt;
+        auto uaxis = op_axis(unpack->get_operator(), unpack->get_shape().ndim());
+        auto axes  = desc.get_dst_axes_from_src(uaxis);
+        if(axes.size() != 1)
+            return nullopt;
+        auto axis = axes.front();
+        if(broadcast->get_shape().lens()[axis] != unpack->get_shape().lens()[uaxis])
+            return nullopt;
+        return axis;
+    }
+
+    /// The axis to split, when the packed pairs are adjacent along a reduced
+    /// axis that is broadcast over a faster one, so the vectorized unpack of
+    /// find_unpack_reduce does not apply, and every input can be split
+    static optional<std::size_t>
+    find_split_axis(instruction_ref reduce, instruction_ref broadcast, instruction_ref unpack)
+    {
+        auto packed = unpack->inputs().front();
+        if(packed->get_shape().type() != shape::uint8_type or not packed->get_shape().standard())
+            return nullopt;
+        auto axis = find_unpack_axis(broadcast, unpack);
+        if(not axis.has_value())
+            return nullopt;
+        const auto& bshape = broadcast->get_shape();
+        if(bshape.strides()[*axis] != 1 or bshape.lens()[*axis] % 2 != 0)
+            return nullopt;
+        if(std::none_of(bshape.lens().begin() + *axis + 1, bshape.lens().end(), [](auto len) {
+               return len > 1;
+           }))
+            return nullopt;
+        auto reduce_axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        if(not contains(reduce_axes, *axis))
+            return nullopt;
+        // An epilogue input at the output shape is unit along the axis
+        if(not all_of(reduce->inputs(), [&](instruction_ref input) {
+               auto len = input->get_shape().lens()[*axis];
+               return len == bshape.lens()[*axis] or len == 1;
+           }))
+            return nullopt;
+        const auto* rm = reduce->module_inputs().front();
+        if(any_of(*rm, [&](const instruction& ins) {
+               return ins.name() == "unpack_int4" and
+                      op_axis(ins.get_operator(), bshape.ndim()) == *axis;
+           }))
+            return nullopt;
+        auto blens = broadcast_input_lens(bshape);
+        blens[*axis] /= 2;
+        if(elements(blens) != packed->get_shape().elements())
+            return nullopt;
+        return axis;
+    }
+
+    /// The packed bytes as a view broadcast over both nibbles of the split
+    /// axis, and the nibble select literal along the nibble axis
+    static std::pair<instruction_ref, instruction_ref>
+    insert_packed_inputs(module& m,
+                         instruction_ref reduce,
+                         instruction_ref broadcast,
+                         instruction_ref packed,
+                         std::size_t axis)
+    {
+        auto dims  = split_axis_lens(broadcast->get_shape().lens(), axis);
+        auto blens = broadcast_input_lens(broadcast->get_shape());
+        blens[axis] /= 2;
+        blens.insert(blens.begin() + axis + 1, 1);
+        auto bytes = m.insert_instruction(reduce, make_op("reshape", {{"dims", blens}}), packed);
+        bytes =
+            m.insert_instruction(reduce, make_op("multibroadcast", {{"out_lens", dims}}), bytes);
+        // Select 16 reads the low nibble and 1 the high nibble
+        std::vector<std::size_t> select_lens(dims.size(), 1);
+        select_lens[axis + 1] = 2;
+        auto select = m.insert_literal(reduce, literal{shape{shape::uint8_type, {2}}, {16, 1}});
+        select = m.insert_instruction(reduce, make_op("reshape", {{"dims", select_lens}}), select);
+        select =
+            m.insert_instruction(reduce, make_op("multibroadcast", {{"out_lens", dims}}), select);
+        return {bytes, select};
+    }
+
+    /// Select nibble x0 of byte x1: the low nibble with select 16 (shifted up
+    /// then down) and the high nibble with select 1
+    static module_ref create_nibble_module(module_pass_manager& mpm, const std::string& name)
+    {
+        auto* pm = mpm.create_module(name);
+        pm->set_bypass();
+        shape s{shape::uint8_type};
+        auto byte    = pm->add_parameter("x0", s);
+        auto select  = pm->add_parameter("x1", s);
+        auto sixteen = pm->add_literal(literal{s, {16}});
+        auto fifteen = pm->add_literal(literal{s, {15}});
+        auto shifted = pm->add_instruction(make_op("mul"), byte, select);
+        auto high    = pm->add_instruction(make_op("div"), shifted, sixteen);
+        auto nibble  = pm->add_instruction(make_op("bitwise_and"), high, fifteen);
+        pm->add_return({nibble});
+        return pm;
+    }
+
+    /// The reduce submodule at the split dims, with the nibble select in
+    /// place of the broadcast unpack parameter
+    static module_ref
+    create_split_module(module_pass_manager& mpm,
+                        instruction_ref reduce,
+                        instruction_ref broadcast,
+                        const std::vector<instruction_ref>& inputs,
+                        std::size_t axis,
+                        const std::vector<std::int64_t>& axes,
+                        std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+    {
+        const auto* oldm = reduce->module_inputs().front();
+        auto* sm         = mpm.create_module(oldm->name() + ":unpack_int4");
+        sm->set_bypass();
+        sm->add_params(inputs, &map_ins);
+        // The packed bytes are in place of the broadcast, the select is last
+        auto bit    = std::find(reduce->inputs().begin(), reduce->inputs().end(), broadcast);
+        auto bytes  = inputs[std::distance(reduce->inputs().begin(), bit)];
+        auto* pm    = create_nibble_module(mpm, sm->name() + ":nibble");
+        auto nibble = sm->add_instruction(
+            make_op("pointwise"), {map_ins.at(bytes), map_ins.at(inputs.back())}, {pm});
+        for(auto&& [param, input] : oldm->get_ins_param_map(reduce->inputs(), true))
+        {
+            auto it        = std::find(reduce->inputs().begin(), reduce->inputs().end(), input);
+            auto i         = std::distance(reduce->inputs().begin(), it);
+            map_ins[param] = input == broadcast ? nibble : map_ins.at(inputs[i]);
+        }
+        auto remap_axis = [&](std::size_t a) -> std::int64_t { return a > axis ? a + 1 : a; };
+        auto outs       = sm->add_instructions(
+            oldm, &map_ins, reduce_reshape::transform_op([&](const operation& sop) {
+                auto v = sop.to_value();
+                if(contains(sop.name(), "reduce"))
+                    return make_op(sop.name(), {{"axes", axes}});
+                if(contains({"argmin", "argmax", "unpack_int4"}, sop.name()))
+                {
+                    v["axis"] = remap_axis(op_axis(sop, broadcast->get_shape().ndim()));
+                    return make_op(sop.name(), v);
+                }
+                if(contains({"multibroadcast", "broadcast"}, sop.name()))
+                {
+                    auto out_lens = v.at("out_lens").to_vector<std::size_t>();
+                    return make_op("multibroadcast",
+                                   {{"out_lens", split_axis_lens(out_lens, axis)}});
+                }
+                return sop;
+            }));
+        sm->add_return(outs);
+        finalize_reduce_module(sm);
+        return sm;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m        = mpm.get_module();
+        auto reduce    = r.result;
+        auto broadcast = r.instructions["broadcast"];
+        auto unpack    = r.instructions["unpack"];
+        auto axis      = find_split_axis(reduce, broadcast, unpack);
+        if(not axis.has_value())
+            return;
+        auto [bytes, select] =
+            insert_packed_inputs(m, reduce, broadcast, unpack->inputs().front(), *axis);
+        // The split inputs in the reduce input order, the packed bytes in
+        // place of the broadcast, then the nibble select
+        std::vector<instruction_ref> inputs;
+        for(auto input : reduce->inputs())
+        {
+            if(input == broadcast)
+            {
+                inputs.push_back(bytes);
+                continue;
+            }
+            auto split = insert_split_axis(m, reduce, input, *axis);
+            if(not split.has_value())
+                return;
+            inputs.push_back(*split);
+        }
+        inputs.push_back(select);
+
+        auto reduce_axes = reduce->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        std::vector<std::int64_t> axes;
+        for(auto a : reduce_axes)
+        {
+            axes.push_back(a > *axis ? a + 1 : a);
+            if(a == *axis)
+                axes.push_back(a + 1);
+        }
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        auto* sm        = create_split_module(mpm, reduce, broadcast, inputs, *axis, axes, map_ins);
+        auto new_inputs = find_inputs(map_ins, &m, sm);
+        auto new_reduce = m.insert_instruction(reduce, fused_reduce{axes}, new_inputs, {sm});
+        m.replace_instruction(reduce, make_op("squeeze", {{"axes", {*axis + 1}}}), new_reduce);
+    }
+};
+
 } // namespace
 
 void fuse_reduce::apply(module_pass_manager& mpm) const
@@ -555,8 +1140,14 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
             match::find_matches(mpm, find_reduce_broadcast{});
             rewrite_broadcasts(mpm, "fused_reduce");
         }
-        match::find_matches(
-            mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
+        match::find_matches(mpm,
+                            find_reduce_pointwise{},
+                            find_pointwise_reduce{},
+                            find_reduce_reduce{},
+                            find_unpack_reduce{},
+                            find_unpack_broadcast_reduce{},
+                            find_reduce_slice{},
+                            find_reduce_squeeze_pointwise{});
         mpm.run_pass(dead_code_elimination{});
     }
 }

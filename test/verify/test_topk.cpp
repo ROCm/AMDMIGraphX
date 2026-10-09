@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -70,6 +70,10 @@ template struct test_topk<migraphx::shape::float_type, 30, 2400>;
 template struct test_topk<migraphx::shape::float_type, 100, 80000>;
 template struct test_topk<migraphx::shape::float_type, 1000, 1875>;
 template struct test_topk<migraphx::shape::float_type, 1000, 120000>;
+// n just above a power of two, with and without the slack of a non power of two k
+template struct test_topk<migraphx::shape::half_type, 5, 65>;
+template struct test_topk<migraphx::shape::float_type, 5, 130>;
+template struct test_topk<migraphx::shape::float_type, 4, 129>;
 
 template struct test_topk<migraphx::shape::int32_type, 1, 256>;
 template struct test_topk<migraphx::shape::int32_type, 1, 1024>;

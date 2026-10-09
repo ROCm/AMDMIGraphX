@@ -62,6 +62,21 @@ struct gemm_alias_stub
     }
 };
 
+// A capturable kernel stub that writes into the buffer passed as its last
+// input, like a code-object kernel does.
+struct kernel_stub
+{
+    std::string name() const { return "kernel_stub"; }
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        return inputs.back();
+    }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& shapes) const
+    {
+        return {shapes.size() - 1};
+    }
+};
+
 // A capturable view: aliases its input, and with no compute it is not
 // context-free, so is_capturable keeps it.
 struct view_pass_op
@@ -296,6 +311,52 @@ TEST_CASE(multi_output)
         auto s1 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, e0);
         auto s2 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, e1);
         mm->add_return({s1, s2});
+    }
+
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A host-read value (hip::load_scalar), the view it places (gpu::slice_at) and
+// the kernel writing through that view stay outside the graphs; a kernel
+// reading the whole buffer through identity(buffer, writer) is still captured.
+TEST_CASE(runtime_view_boundary)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::shape is{migraphx::shape::int32_type, {1}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto i   = mm->add_parameter("i", is);
+        auto c   = add_chain(*mm, x, 4);
+        auto idx = mm->add_instruction(migraphx::make_op("hip::load_scalar"), i);
+        auto v   = mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 0}}), c, idx);
+        auto w   = mm->add_instruction(kernel_stub{}, x, v);
+        auto dep = mm->add_instruction(migraphx::make_op("identity"), c, w);
+        auto d   = add_chain(*mm, dep, 4);
+        mm->add_return({d});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto i     = mm->add_parameter("i", is);
+        auto* sub0 = p2.create_module("main:hipgraph0");
+        auto x0    = sub0->add_parameter("x0", s);
+        sub0->add_return({add_chain(*sub0, x0, 4)});
+        auto g0 = mm->add_instruction(
+            migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
+        auto idx = mm->add_instruction(migraphx::make_op("hip::load_scalar"), i);
+        auto v   = mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 0}}), g0, idx);
+        auto w   = mm->add_instruction(kernel_stub{}, x, v);
+        auto dep = mm->add_instruction(migraphx::make_op("identity"), g0, w);
+        auto* sub1 = p2.create_module("main:hipgraph1");
+        auto y0    = sub1->add_parameter("x0", s);
+        sub1->add_return({add_chain(*sub1, y0, 4)});
+        auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {dep}, {sub1});
+        mm->add_return({g1});
     }
 
     EXPECT(p1.sort() == p2.sort());

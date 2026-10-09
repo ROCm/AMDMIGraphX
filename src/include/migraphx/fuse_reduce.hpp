@@ -25,7 +25,11 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/module_ref.hpp>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,6 +44,15 @@ struct MIGRAPHX_EXPORT fuse_reduce
     bool enable_rewrite_reshapes   = true;
     bool enable_rewrite_broadcasts = false;
 };
+
+/// Inserts the submodule of ins into sm with its parameters mapped to the inputs of ins
+MIGRAPHX_EXPORT std::vector<instruction_ref>
+insert_module_in_submodule(module_ref sm,
+                           instruction_ref ins,
+                           std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr);
+
+/// Removes the duplicate and dead instructions left by fusing into a reduce module
+MIGRAPHX_EXPORT void finalize_reduce_module(module_ref m);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -115,6 +115,7 @@ add_library(migraphx
     preallocate_param.cpp
     process.cpp
     program.cpp
+    program_verify.cpp
     propagate_constant.cpp
     propagate_precision.cpp
     promote_literals.cpp

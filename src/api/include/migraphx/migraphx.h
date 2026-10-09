@@ -85,6 +85,24 @@ typedef enum
 
 } migraphx_compile_mode;
 
+typedef enum
+{
+    migraphx_program_verify_mode_outputs,
+    migraphx_program_verify_mode_instructions,
+    migraphx_program_verify_mode_reduce,
+    migraphx_program_verify_mode_bisect,
+    migraphx_program_verify_mode_layerwise,
+
+} migraphx_program_verify_mode_t;
+
+typedef enum
+{
+    migraphx_program_verify_precision_fp32,
+    migraphx_program_verify_precision_fp16,
+    migraphx_program_verify_precision_bf16,
+
+} migraphx_program_verify_precision_t;
+
 typedef struct migraphx_optimals* migraphx_optimals_t;
 typedef const struct migraphx_optimals* const_migraphx_optimals_t;
 
@@ -134,6 +152,16 @@ typedef struct migraphx_trace_info* migraphx_trace_info_t;
 typedef const struct migraphx_trace_info* const_migraphx_trace_info_t;
 
 typedef migraphx_status (*migraphx_trace_callback_t)(migraphx_trace_info_t info, void* data);
+
+typedef struct migraphx_program_verify_options* migraphx_program_verify_options_t;
+typedef const struct migraphx_program_verify_options* const_migraphx_program_verify_options_t;
+
+typedef struct migraphx_program_verify_layer_result* migraphx_program_verify_layer_result_t;
+typedef const struct migraphx_program_verify_layer_result*
+    const_migraphx_program_verify_layer_result_t;
+
+typedef struct migraphx_program_verify_result* migraphx_program_verify_result_t;
+typedef const struct migraphx_program_verify_result* const_migraphx_program_verify_result_t;
 
 typedef struct migraphx_program* migraphx_program_t;
 typedef const struct migraphx_program* const_migraphx_program_t;
@@ -504,6 +532,96 @@ migraphx_trace_info_get_name(const char** out, const_migraphx_trace_info_t trace
 MIGRAPHX_C_EXPORT migraphx_status migraphx_trace_info_get_result(
     const_migraphx_argument_t* out, const_migraphx_trace_info_t trace_info);
 
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_program_verify_options_destroy(migraphx_program_verify_options_t program_verify_options);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_options_assign_to(
+    migraphx_program_verify_options_t output, const_migraphx_program_verify_options_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_program_verify_options_create(migraphx_program_verify_options_t* program_verify_options);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_options_set_compile_options(
+    migraphx_program_verify_options_t program_verify_options,
+    const_migraphx_compile_options_t options);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_options_set_rms_tolerance(
+    migraphx_program_verify_options_t program_verify_options, double value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_options_set_absolute_tolerance(
+    migraphx_program_verify_options_t program_verify_options, double value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_options_set_relative_tolerance(
+    migraphx_program_verify_options_t program_verify_options, double value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_options_set_precision(
+    migraphx_program_verify_options_t program_verify_options,
+    migraphx_program_verify_precision_t precision);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_options_set_ref_use_double(
+    migraphx_program_verify_options_t program_verify_options, bool value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_options_set_compiled_model(
+    migraphx_program_verify_options_t program_verify_options, const char* value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_options_set_name(
+    migraphx_program_verify_options_t program_verify_options, const char* value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_layer_result_destroy(
+    migraphx_program_verify_layer_result_t program_verify_layer_result);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_program_verify_layer_result_assign_to(migraphx_program_verify_layer_result_t output,
+                                               const_migraphx_program_verify_layer_result_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_layer_result_get_name(
+    const char** out, const_migraphx_program_verify_layer_result_t program_verify_layer_result);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_layer_result_get_operator(
+    const char** out, const_migraphx_program_verify_layer_result_t program_verify_layer_result);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_layer_result_get_message(
+    const char** out, const_migraphx_program_verify_layer_result_t program_verify_layer_result);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_layer_result_get_index(
+    size_t* out, const_migraphx_program_verify_layer_result_t program_verify_layer_result);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_layer_result_get_rms_error(
+    double* out, const_migraphx_program_verify_layer_result_t program_verify_layer_result);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_layer_result_passed(
+    bool* out, const_migraphx_program_verify_layer_result_t program_verify_layer_result);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_layer_result_threw_exception(
+    bool* out, const_migraphx_program_verify_layer_result_t program_verify_layer_result);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_program_verify_result_destroy(migraphx_program_verify_result_t program_verify_result);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_result_assign_to(
+    migraphx_program_verify_result_t output, const_migraphx_program_verify_result_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_result_passed(
+    bool* out, const_migraphx_program_verify_result_t program_verify_result);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_result_get_mode(
+    migraphx_program_verify_mode_t* out,
+    const_migraphx_program_verify_result_t program_verify_result);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_result_size(
+    size_t* out, const_migraphx_program_verify_result_t program_verify_result);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_program_verify_result_get(const_migraphx_program_verify_layer_result_t* out,
+                                   const_migraphx_program_verify_result_t program_verify_result,
+                                   size_t index);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_result_has_failure_step(
+    bool* out, const_migraphx_program_verify_result_t program_verify_result);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_verify_result_get_failure_step(
+    size_t* out, const_migraphx_program_verify_result_t program_verify_result);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_destroy(migraphx_program_t program);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_assign_to(migraphx_program_t output,
@@ -531,6 +649,14 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_program_get_output_shapes(migraphx_sh
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_print(const_migraphx_program_t program);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_sort(migraphx_program_t program);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_program_verify(migraphx_program_verify_result_t* out,
+                        const_migraphx_program_t program,
+                        const_migraphx_target_t target,
+                        migraphx_program_verify_mode_t mode,
+                        const_migraphx_program_parameters_t params,
+                        const_migraphx_program_verify_options_t options);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_run(migraphx_arguments_t* out,
                                                        migraphx_program_t program,

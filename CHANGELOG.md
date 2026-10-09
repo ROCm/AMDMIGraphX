@@ -39,6 +39,7 @@ Full documentation for MIGraphX is available at
 * Added symbolic shapes to the Python API: dimensions as self-contained expression strings with optional `dyn_strides`, plus `shape.dyn_strides()`, `shape.symbolic()` and `dynamic_dimension.expression` (#5205).
 * Added `migraphx::shape::make_symbolic_shape` and `migraphx_shape_create_symbolic` for building symbolic shapes from self-contained dimension and stride expressions, with a matching `migraphx::shape` constructor in `migraphx.hpp` (#5205).
 * Added positional constraint and optimal lists to the symbolic variable text format, plus an overload of `migraphx::sym::var` taking a list of intervals (#5205).
+* Added support for running verify through the API (#5334).
 
 ### Changed
 

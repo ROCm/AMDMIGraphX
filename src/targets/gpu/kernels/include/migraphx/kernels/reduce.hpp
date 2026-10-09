@@ -32,6 +32,7 @@
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/scatter_reduction_modes.hpp>
+#include <migraphx/kernels/sort.hpp>
 #include <migraphx/kernels/tuple.hpp>
 #include <migraphx/kernels/uninitialized_buffer.hpp>
 #include <migraphx/kernels/pp.hpp>
@@ -153,7 +154,7 @@ __device__ void dpp_reduce(T& in, Op op)
     MIGRAPHX_PP_CAT(MIGRAPHX_DPP_REDUCE_ASM, i)(ins) "s_nop 1\n"
 #define MIGRAPHX_DPP_REDUCE_ASM(n, x, ins, ...)                                                 \
     {                                                                                           \
-        __asm__ volatile("s_nop 4\n" MIGRAPHX_PP_REPEAT(n, MIGRAPHX_DPP_REDUCE_ASM_REPEAT, ins) \
+        __asm__ volatile("s_nop 4\n" MIGRAPHX_PP_REPEAT(n)(MIGRAPHX_DPP_REDUCE_ASM_REPEAT, ins) \
                          : "=v"(x)                                                              \
                          : "0"(x));                                                             \
         __VA_ARGS__                                                                             \
@@ -582,6 +583,17 @@ struct reducer_base
         return this->reduce(op, init, op::id{});
     }
 
+    /// Selects the top K elements of the reduction, returning the values and
+    /// their indices as a tuple of inner storages of K elements
+    template <index_int K, class Compare, class T>
+    __device__ auto topk(Compare compare, T init) const
+    {
+        return this->inner_sliced([=](auto n, auto&&... xs) {
+            auto&& derived = static_cast<const Derived&>(*this);
+            return derived.template topk_impl<K>(compare, init, n, xs...);
+        });
+    }
+
     template <class F>
     __device__ void outer(F f) const
     {
@@ -647,6 +659,51 @@ struct block_reducer_base : reducer_base<Derived>
         inner_storage<R, max_iterations{}, N> storage;
         idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
         return storage;
+    }
+
+    /// The elements are selected from the vectors of the input and packed
+    /// back into vectors of the same width, with the indices as the scalar
+    /// positions along the reduction
+    template <index_int K, class Compare, class T, class N, class X>
+    __device__ auto topk_impl(Compare compare, T init, N n, X&& x) const
+    {
+        using type                    = remove_cv_t<typename remove_reference_t<X>::type>;
+        using elem                    = vec_type<type>;
+        constexpr index_int vsize     = vec_size<type>();
+        constexpr index_int width     = vsize == 0 ? 1 : vsize;
+        constexpr index_int nelements = N{} * width;
+        using index_type              = topk_index_type<nelements>;
+        using pair                    = topk_pair<elem, index_type>;
+        using index_vec               = vec_or_scalar_t<int64_t, vsize>;
+        constexpr auto nwrites        = index_c<K / width>;
+        using max_iterations          = decltype(idx.max_local_stride_iterations(nwrites));
+        inner_storage<type, max_iterations{}, decltype(nwrites)> values;
+        inner_storage<index_vec, max_iterations{}, decltype(nwrites)> indices;
+        select_topk<K>(
+            idx,
+            compare,
+            init,
+            n,
+            [&](auto j, auto d) {
+                auto v = x(j, d);
+                return generate_array<pair>(_c<width>, [&](index_int i) {
+                    return make_topk_pair<pair>(vec_at(v, i), j * width + i);
+                });
+            },
+            [&](auto i, auto d, const array<pair, width>& ps) {
+                if constexpr(width == 1)
+                {
+                    values(i, d)  = ps[0].key;
+                    indices(i, d) = ps[0].val;
+                }
+                else
+                {
+                    values(i, d) = generate_vec(_c<width>, [&](auto e) { return ps[e].key; });
+                    indices(i, d) =
+                        generate_vec(_c<width>, [&](auto e) -> int64_t { return ps[e].val; });
+                }
+            });
+        return make_tuple(values, indices);
     }
 };
 

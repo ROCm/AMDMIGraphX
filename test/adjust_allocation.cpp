@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <test.hpp>
 
 // Test allocation operation
@@ -579,6 +580,33 @@ TEST_CASE(fill_allocation)
     }
 
     EXPECT(m1.sort() == m2.sort());
+}
+
+
+// Reproduces the gpu::precompile_op output-buffer mismatch: an instruction aliases a
+// NON-allocate buffer whose shape differs from the instruction's own output shape.
+// Unpatched adjust_allocation only logs a warning and leaves the undersized buffer
+// (the runtime then writes out of bounds -> crash). The fix reallocates a correct buffer.
+TEST_CASE(realloc_aliased_nonalloc_mismatch)
+{
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto y     = m1.add_parameter("y", {migraphx::shape::float_type, {2, 3}});
+        auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
+        auto op1   = m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, alloc);
+        auto op2   = m1.add_instruction(simple_op{{migraphx::shape::float_type, {4, 4}}}, y, op1);
+        m1.add_return({op2});
+    }
+    run_pass(m1);
+    bool has_realloc = false;
+    for(auto ins : migraphx::iterator_for(m1))
+    {
+        if(ins->name() == "test::allocate" and
+           ins->get_shape() == migraphx::shape{migraphx::shape::float_type, {4, 4}})
+            has_realloc = true;
+    }
+    EXPECT(has_realloc);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

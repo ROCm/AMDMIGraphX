@@ -55,13 +55,6 @@ std::vector<int64_t> get_permutation(instruction_ref ins,
     return perm;
 }
 
-std::vector<int64_t> get_default_permutation(instruction_ref ins)
-{
-    std::vector<int64_t> perm(ins->get_shape().ndim());
-    std::iota(perm.begin(), perm.end(), 0);
-    return perm;
-}
-
 // Weights [K, C, spatial...] stored spatial-major with the output channel dim
 // K innermost (yxck for 2-D convolutions)
 std::vector<int64_t> get_weight_permutation(instruction_ref ins)
@@ -114,10 +107,10 @@ void transform_convolutions(module& m, const layout_convolution& options)
         if(ins->get_shape().lens().size() != 4)
             continue;
         auto v = ins->get_operator().to_value();
+        // Grouped convolutions use the same layout as the other convolutions
         bool is_group_conv = v.at("group").to<int>() > 1;
-        auto perm =
-            is_group_conv ? get_default_permutation(ins) : get_permutation(ins, options.order);
-        auto wperm = perm;
+        auto perm          = get_permutation(ins, options.order);
+        auto wperm         = perm;
         assert(ins->inputs().size() == 2);
         const auto& wshape = ins->inputs().back()->get_shape();
         // Store channels_last weights K-innermost (yxck) when enabled for this
@@ -203,7 +196,7 @@ void layout_convolution::apply(module_pass_manager& mpm) const
         last.apply_layout(m_last);
         // channels_last converts each parameter to NHWC and back, so allow up to two extra
         // layouts per parameter before preferring channels_first.
-        auto allowance = 2 * mpm.get_module().get_parameters().size();
+        auto allowance     = 2 * mpm.get_module().get_parameters().size();
         const auto& chosen = (score(m_first) + allowance < score(m_last)) ? first : last;
         chosen.apply_layout(mpm.get_module());
     }

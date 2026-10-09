@@ -85,8 +85,7 @@ TEST_CASE(select_module_index_lowering_device_index)
     EXPECT(p1 == p2);
 }
 
-// Two selects of one index share a single hip::load_scalar, placed before the
-// first select.
+// Each select gets its own hip::load_scalar on the index in lowering.
 TEST_CASE(select_module_index_lowering_shared_index)
 {
     migraphx::shape idx_s{migraphx::shape::int64_type, {1}};
@@ -117,21 +116,22 @@ TEST_CASE(select_module_index_lowering_shared_index)
         auto* sub  = p2.create_module("sub");
         auto data0 = sub->add_parameter("data", data_s);
         sub->add_return({data0});
-        auto loaded  = mm->add_instruction(migraphx::make_op("hip::load_scalar"), index);
+        auto loaded0 = mm->add_instruction(migraphx::make_op("hip::load_scalar"), index);
         auto output0 = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
         auto smi0 = mm->add_instruction(
-            migraphx::make_op("select_module_index"), {loaded, data, output0}, {sub});
+            migraphx::make_op("select_module_index"), {loaded0, data, output0}, {sub});
+        auto loaded1 = mm->add_instruction(migraphx::make_op("hip::load_scalar"), index);
         auto output1 = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
         auto smi1 = mm->add_instruction(
-            migraphx::make_op("select_module_index"), {loaded, data, output1}, {sub});
+            migraphx::make_op("select_module_index"), {loaded1, data, output1}, {sub});
         mm->add_return({smi0, smi1});
     }
     EXPECT(p1 == p2);
 }
 
-// An index that is already hip::load_scalar is left in place, with no second load.
+// Lowering always inserts hip::load_scalar on the index input.
 TEST_CASE(select_module_index_lowering_existing_load)
 {
     migraphx::shape idx_s{migraphx::shape::int64_type, {1}};
@@ -162,10 +162,11 @@ TEST_CASE(select_module_index_lowering_existing_load)
         auto* sub   = p2.create_module("sub");
         auto data0  = sub->add_parameter("data", data_s);
         sub->add_return({data0});
-        auto output = mm->add_instruction(
+        auto loaded2 = mm->add_instruction(migraphx::make_op("hip::load_scalar"), loaded);
+        auto output  = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
         auto smi = mm->add_instruction(
-            migraphx::make_op("select_module_index"), {loaded, data, output}, {sub});
+            migraphx::make_op("select_module_index"), {loaded2, data, output}, {sub});
         mm->add_return({smi});
     }
     EXPECT(p1 == p2);

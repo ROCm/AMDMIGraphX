@@ -27,6 +27,8 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
 #include <basic_ops.hpp>
 #include <pointwise.hpp>
 #include <migraphx/make_op.hpp>
@@ -895,6 +897,350 @@ TEST_CASE(concat_slice_with_multiple_concat_outs)
         m2.add_return({add1, add2});
     }
     EXPECT(m1 == m2);
+}
+
+static std::vector<std::vector<float>> eval_ref(const migraphx::module& m,
+                                                const migraphx::argument& x)
+{
+    migraphx::program p{m};
+    p.compile(migraphx::make_target("ref"));
+    std::vector<std::vector<float>> outputs;
+    for(const auto& result : p.eval({{"x", x}}))
+    {
+        std::vector<float> v;
+        result.visit([&](auto r) { v.assign(r.begin(), r.end()); });
+        outputs.push_back(std::move(v));
+    }
+    return outputs;
+}
+
+static bool has_op(const migraphx::module& m, const std::string& name)
+{
+    return std::any_of(
+        m.begin(), m.end(), [&](const migraphx::instruction& ins) { return ins.name() == name; });
+}
+
+TEST_CASE(concat_slice_layout_transpose)
+{
+    // Concat on axis 0 of equal slices taken along axis 1
+    auto s = migraphx::shape{migraphx::shape::float_type, {4, 24}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> slices;
+        for(int64_t i = 0; i < 3; ++i)
+        {
+            slices.push_back(m1.add_instruction(
+                migraphx::make_op("slice",
+                                  {{"axes", {1}}, {"starts", {8 * i}}, {"ends", {8 * i + 8}}}),
+                x));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slices);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_op(m2, "concat"));
+    EXPECT(not has_op(m2, "slice"));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_slice_layout_partial_cover)
+{
+    // The slices cover only the first 32 of 34 columns; the rest is a separate gate slice
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 3, 34}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> slices;
+        for(int64_t i = 0; i < 4; ++i)
+        {
+            slices.push_back(m1.add_instruction(
+                migraphx::make_op("slice",
+                                  {{"axes", {2}}, {"starts", {8 * i}}, {"ends", {8 * i + 8}}}),
+                x));
+        }
+        auto gate = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {32}}, {"ends", {34}}}), x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slices);
+        m1.add_return({concat, gate});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_op(m2, "concat"));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_slice_layout_view_chain)
+{
+    // slice on axis 0, then unsqueeze/squeeze, then concat on axis 2 is a transpose
+    auto s = migraphx::shape{migraphx::shape::float_type, {3, 2, 4, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> inputs;
+        for(int64_t i = 0; i < 3; ++i)
+        {
+            auto sl = m1.add_instruction(
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), x);
+            auto u = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), sl);
+            inputs.push_back(m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), u));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), inputs);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_op(m2, "concat"));
+    EXPECT(has_op(m2, "transpose"));
+    EXPECT(not has_op(m2, "reshape"));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_slice_layout_equivalent_chains)
+{
+    // unsqueeze and reshape spell the same view, so the chains still match
+    auto s = migraphx::shape{migraphx::shape::float_type, {4, 24}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> inputs;
+        for(int64_t i = 0; i < 3; ++i)
+        {
+            auto sl = m1.add_instruction(
+                migraphx::make_op("slice",
+                                  {{"axes", {1}}, {"starts", {8 * i}}, {"ends", {8 * i + 8}}}),
+                x);
+            auto view = i == 1 ? migraphx::make_op("reshape", {{"dims", {4, 1, 8}}})
+                               : migraphx::make_op("unsqueeze", {{"axes", {1}}});
+            inputs.push_back(m1.add_instruction(view, sl));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), inputs);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_op(m2, "concat"));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_slice_layout_flatten)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 12, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> inputs;
+        for(int64_t i = 0; i < 3; ++i)
+        {
+            auto sl = m1.add_instruction(
+                migraphx::make_op("slice",
+                                  {{"axes", {1}}, {"starts", {4 * i}}, {"ends", {4 * i + 4}}}),
+                x);
+            inputs.push_back(m1.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), sl));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inputs);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_op(m2, "concat"));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_slice_layout_gap_unchanged)
+{
+    // The slices are not consecutive, so the concat is not a layout change
+    auto s = migraphx::shape{migraphx::shape::float_type, {4, 24}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {8}}}), x);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {16}}, {"ends", {24}}}), x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), s1, s2);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+static bool has_concat_with_elements(const migraphx::module& m, std::size_t elements)
+{
+    return std::any_of(m.begin(), m.end(), [&](const migraphx::instruction& ins) {
+        return ins.name() == "concat" and ins.get_shape().elements() == elements;
+    });
+}
+
+TEST_CASE(concat_broadcast_axis_stacked_weights)
+{
+    // Stacking weights that are broadcast across the batch, as dot_horizontal_fusion does
+    auto s  = migraphx::shape{migraphx::shape::float_type, {3, 2, 8, 5}};
+    auto ws = migraphx::shape{migraphx::shape::float_type, {8, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> stacked;
+        for(int i = 0; i < 3; ++i)
+        {
+            auto w  = m1.add_literal(migraphx::generate_literal(ws, i));
+            auto wb = m1.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", {2, 8, 5}}}), w);
+            stacked.push_back(
+                m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wb));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), stacked);
+        auto add    = m1.add_instruction(migraphx::make_op("add"), x, concat);
+        m1.add_return({add});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_concat_with_elements(m2, s.elements()));
+    EXPECT(has_concat_with_elements(m2, 3 * ws.elements()));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_broadcast_axis_transposed_weights)
+{
+    auto s  = migraphx::shape{migraphx::shape::float_type, {3, 2, 8, 5}};
+    auto ws = migraphx::shape{migraphx::shape::float_type, {5, 8}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> stacked;
+        for(int i = 0; i < 3; ++i)
+        {
+            auto w = m1.add_literal(migraphx::generate_literal(ws, i));
+            auto wt =
+                m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), w);
+            auto wb = m1.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", {2, 8, 5}}}), wt);
+            stacked.push_back(
+                m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), wb));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), stacked);
+        auto add    = m1.add_instruction(migraphx::make_op("add"), x, concat);
+        m1.add_return({add});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_concat_with_elements(m2, s.elements()));
+    EXPECT(has_concat_with_elements(m2, 3 * ws.elements()));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_broadcast_axis_bias)
+{
+    auto s  = migraphx::shape{migraphx::shape::float_type, {4, 2, 3}};
+    auto bs = migraphx::shape{migraphx::shape::float_type, {3}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> biases;
+        for(int i = 0; i < 4; ++i)
+        {
+            auto b = m1.add_literal(migraphx::generate_literal(bs, i));
+            biases.push_back(m1.add_instruction(
+                migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {1, 2, 3}}}), b));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), biases);
+        auto add    = m1.add_instruction(migraphx::make_op("add"), x, concat);
+        m1.add_return({add});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_concat_with_elements(m2, s.elements()));
+    EXPECT(has_concat_with_elements(m2, 4 * bs.elements()));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_broadcast_axis_negative_axis)
+{
+    auto s  = migraphx::shape{migraphx::shape::float_type, {4, 2, 3}};
+    auto bs = migraphx::shape{migraphx::shape::float_type, {3}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        std::vector<migraphx::instruction_ref> biases;
+        for(int i = 0; i < 4; ++i)
+        {
+            auto b = m1.add_literal(migraphx::generate_literal(bs, i));
+            biases.push_back(m1.add_instruction(
+                migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {1, 2, 3}}}), b));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", -3}}), biases);
+        auto add    = m1.add_instruction(migraphx::make_op("add"), x, concat);
+        m1.add_return({add});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(not has_concat_with_elements(m2, s.elements()));
+    EXPECT(has_concat_with_elements(m2, 4 * bs.elements()));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_broadcast_axis_falls_back_to_concat_reshape)
+{
+    // The concat axis is broadcast by the parameter's layout rather than by a broadcast op, so
+    // there is no broadcast to remove; find_concat_reshape still moves the unsqueeze after the
+    // concat
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 3}, {0, 1}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto u1     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
+        auto u2     = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), u1, u2);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(std::none_of(m2.begin(), m2.end(), [](const auto& ins) {
+        return ins.name() == "concat" and
+               std::any_of(ins.inputs().begin(), ins.inputs().end(), [](auto input) {
+                   return input->name() == "unsqueeze";
+               });
+    }));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
+}
+
+TEST_CASE(concat_broadcast_axis_mixed_unchanged)
+{
+    // a also broadcasts axis 1 but b doesn't, so their compact shapes differ and the concat is
+    // kept
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto a = m1.add_literal(
+            migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {3}}, 0));
+        auto b = m1.add_literal(
+            migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {2, 3}}, 1));
+        auto ab = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {1, 2, 3}}}), a);
+        auto bb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3}}}), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ab, bb);
+        auto add    = m1.add_instruction(migraphx::make_op("add"), x, concat);
+        m1.add_return({add});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m2);
+    EXPECT(has_concat_with_elements(m2, s.elements()));
+    auto x = migraphx::generate_argument(s);
+    EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
 
 TEST_CASE(concat_multibroadcasts1)

@@ -27,7 +27,9 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
 #include <algorithm>
 
 namespace migraphx {
@@ -313,6 +315,61 @@ bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
                       input_lens.rend(),
                       out_lens.rbegin(),
                       [](std::size_t in, std::size_t out) { return out == in or in == 1; });
+}
+
+optional<instruction_ref> insert_concat_broadcasts(module& m,
+                                                   instruction_ref ins,
+                                                   const std::vector<instruction_ref>& inputs,
+                                                   std::size_t axis)
+{
+    if(inputs.empty())
+        return nullopt;
+    const auto& s0 = inputs.front()->get_shape();
+    if(s0.dynamic() or axis >= s0.ndim() or s0.lens()[axis] != 1)
+        return nullopt;
+    if(std::any_of(inputs.begin(), inputs.end(), [&](instruction_ref x) {
+           const auto& s = x->get_shape();
+           return s.dynamic() or s.type() != s0.type() or s.lens() != s0.lens();
+       }))
+        return nullopt;
+
+    // Describe each input's view chain and generate it without the broadcasts.
+    // Nothing is inserted until every input has the same compact shape.
+    std::vector<std::pair<instruction_ref, std::vector<operation>>> plans;
+    std::vector<std::size_t> clens;
+    for(auto x : inputs)
+    {
+        auto [root, ops]  = get_input_ops_if(x, [](instruction_ref i) {
+            return contains(
+                {"broadcast", "multibroadcast", "squeeze", "unsqueeze", "reshape", "transpose"},
+                i->name());
+        });
+        const auto& rlens = root->get_shape().lens();
+        auto desc         = shape_transform_descriptor::create(rlens, ops);
+        if(desc.empty() or not desc.has_broadcast())
+            return nullopt;
+        auto compact_ops = desc.generate(rlens, /*no_broadcast=*/true);
+
+        shape cs = root->get_shape();
+        for(const auto& op : compact_ops)
+            cs = op.compute_shape({cs});
+        if(plans.empty())
+            clens = cs.lens();
+        else if(cs.lens() != clens)
+            return nullopt;
+        plans.emplace_back(root, std::move(compact_ops));
+    }
+    if(clens.size() != s0.ndim() or not can_multibroadcast(clens, s0.lens()))
+        return nullopt;
+
+    std::vector<instruction_ref> compact;
+    std::transform(plans.begin(), plans.end(), std::back_inserter(compact), [&](const auto& p) {
+        return insert_ops(m, ins, p.second, p.first);
+    });
+    auto concat    = m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), compact);
+    auto out_lens  = s0.lens();
+    out_lens[axis] = inputs.size();
+    return m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), concat);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

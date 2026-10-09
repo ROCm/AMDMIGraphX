@@ -87,25 +87,43 @@ static auto not_from_int4() { return match::opaque(match::none_of(from_int4()));
 
 static auto reduction() { return match::name_contains("reduce"); }
 
-// Check that we wont concat across a broadcasted axis, since this leads to bad const folding
+// Check that we wont concat constants across a broadcasted axis, since this leads to bad const
+// folding
+static bool concat_args_foldable(const std::vector<instruction_ref>& args, std::size_t axis)
+{
+    // Its ok if they are all scalars, TODO: Check if the axis is the same dim
+    if(std::all_of(
+           args.begin(), args.end(), [](instruction_ref x) { return x->get_shape().scalar(); }))
+        return true;
+    // Its also ok if no broadcast expands the data, i.e. every zero stride is on a length 1 axis
+    if(std::all_of(args.begin(), args.end(), [](instruction_ref x) {
+           const auto& s = x->get_shape();
+           return std::equal(
+               s.lens().begin(),
+               s.lens().end(),
+               s.strides().begin(),
+               [](std::size_t len, std::size_t stride) { return stride != 0 or len == 1; });
+       }))
+        return true;
+    // TODO: Allow concat across broadcasted axis if all them are the same size
+    return std::none_of(args.begin(), args.end(), [&](instruction_ref x) {
+        return x->get_shape().strides()[axis] == 0;
+    });
+}
+
 template <class Iterator>
 static bool concat_const_foldable(Iterator start, Iterator last, std::size_t iaxis)
 {
     auto n = (*start)->inputs().size();
     return all_of(range(n), [&](auto i) {
-        if(not std::all_of(
-               start, last, [&](instruction_ref x) { return x->inputs().at(i)->can_eval(); }))
-            return true;
-        // Its ok if they are all scalars, TODO: Check if the axis is the same dim
-        if(std::all_of(start, last, [&](instruction_ref x) {
-               return x->inputs().at(i)->get_shape().scalar();
-           }))
-            return true;
-        // TODO: Allow concat across broadcasted axis if all them are the same size
-        return std::none_of(start, last, [&](instruction_ref x) {
-            auto s = x->inputs().at(i)->get_shape();
-            return s.strides()[iaxis] == 0;
+        std::vector<instruction_ref> args;
+        std::transform(start, last, std::back_inserter(args), [&](instruction_ref x) {
+            return x->inputs().at(i);
         });
+        if(not std::all_of(
+               args.begin(), args.end(), [](instruction_ref x) { return x->can_eval(); }))
+            return true;
+        return concat_args_foldable(args, iaxis);
     });
 }
 
@@ -1754,17 +1772,16 @@ struct find_splits
         if(slice_op.axes.size() > 1)
             return {m.end(), 0};
         auto concat_axis = slice_op.axes.front();
-        if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
-            return {m.end(), 0};
 
         int split_idx = get_binary_op_split_idx(group, splits);
         assert(split_idx < 2);
-        size_t data_idx = 0;
+        size_t data_idx  = 0;
+        bool needs_align = false;
         if(split_idx < 0 and op.attributes().contains("commutative"))
         {
-            split_idx = 0;
-            data_idx  = 1;
-            align_commutative_op_args(m, group, splits, split_idx);
+            split_idx   = 0;
+            data_idx    = 1;
+            needs_align = true;
         }
         else if(split_idx < 0)
         {
@@ -1775,9 +1792,14 @@ struct find_splits
             data_idx = split_idx == 0 ? 1 : 0;
         }
 
+        // The non-split argument of each member, as it will be after aligning
+        // commutative args
         std::vector<instruction_ref> data_args;
         std::transform(group.begin(), group.end(), std::back_inserter(data_args), [&](auto i) {
-            return i->inputs()[data_idx];
+            const auto& args = i->inputs();
+            if(contains(splits, args[split_idx]))
+                return args[data_idx];
+            return args[split_idx];
         });
 
         // Data arguments must be a constant
@@ -1785,17 +1807,95 @@ struct find_splits
                data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
             return {m.end(), 0};
 
-        move_instructions_back(m, ins, data_args);
+        // Concatenating along a broadcast axis would be materialized by
+        // propagate_constant, so concat the un-broadcast constants instead
+        bool foldable = concat_args_foldable(data_args, concat_axis);
+        if(not foldable and std::any_of(data_args.begin(), data_args.end(), [&](instruction_ref x) {
+               return x->get_shape().lens()[concat_axis] != 1;
+           }))
+            return {m.end(), 0};
 
-        // TODO: Check if axises match
-        auto concat =
-            m.insert_instruction(ins, make_op("concat", {{"axis", concat_axis}}), data_args);
+        move_instructions_back(m, ins, data_args);
+        instruction_ref concat;
+        if(foldable)
+        {
+            // TODO: Check if axises match
+            concat =
+                m.insert_instruction(ins, make_op("concat", {{"axis", concat_axis}}), data_args);
+        }
+        else
+        {
+            auto bcast = insert_concat_broadcasts(m, ins, data_args, concat_axis);
+            if(not bcast.has_value())
+                return {m.end(), 0};
+            concat = *bcast;
+        }
+
+        if(needs_align)
+            align_commutative_op_args(m, group, splits, split_idx);
 
         std::vector<instruction_ref> args(2);
         args[split_idx] = ins;
         args[data_idx]  = concat;
         return {m.insert_instruction(std::next(ins), op, {args}, start->module_inputs()),
                 split_idx};
+    }
+
+    // Fuse a group of reductions whose reduce axes include the slice axis.  When
+    // the slices tile the root in equal chunks, split the slice axis into
+    // {count, chunk} and reduce the chunk axis instead, e.g.
+    //     reduce_sum[axes={1}](slice[axes={1}](x{4, 1024}, k*128, (k+1)*128))
+    // becomes squeeze(slice k of reduce_sum[axes={2}](reshape(x, {4, 8, 128}))).
+    // The splits must be a full cover, which get_splits checks.
+    void fuse_overlapping_reduce(module& m,
+                                 instruction_ref ins,
+                                 const std::vector<instruction_ref>& group,
+                                 const std::vector<instruction_ref>& splits) const
+    {
+        assert(group.size() == splits.size());
+        const auto& s = ins->get_shape();
+        if(s.dynamic())
+            return;
+        auto front = any_cast<op::slice>(splits.front()->get_operator());
+        if(front.axes.size() != 1)
+            return;
+        int64_t axis  = front.axes.front();
+        int64_t chunk = front.ends.front() - front.starts.front();
+        int64_t n     = splits.size();
+        if(chunk <= 1 or std::any_of(splits.begin(), splits.end(), [&](instruction_ref split) {
+               auto sop = any_cast<op::slice>(split->get_operator());
+               return sop.ends.front() - sop.starts.front() != chunk;
+           }))
+            return;
+        for(int64_t i = 0; i < n; ++i)
+        {
+            if(group[i]->inputs().size() != 1 or group[i]->inputs().front() != splits[i])
+                return;
+        }
+
+        auto v           = group.front()->normalized_operator().to_value();
+        auto reduce_axes = v["axes"].to_vector<int64_t>();
+        if(not contains(reduce_axes, axis))
+            return;
+        std::transform(reduce_axes.begin(), reduce_axes.end(), reduce_axes.begin(), [&](auto a) {
+            return a < axis ? a : a + 1;
+        });
+
+        auto rlens  = s.lens();
+        rlens[axis] = chunk;
+        rlens.insert(rlens.begin() + axis, n);
+        v["axes"] = reduce_axes;
+        auto r = m.insert_instruction(std::next(ins), make_op("reshape", {{"dims", rlens}}), ins);
+        auto reduced = m.insert_instruction(std::next(r), make_op(group.front()->name(), v), r);
+
+        for(int64_t i = 0; i < n; ++i)
+        {
+            auto sl = m.insert_instruction(
+                group[i],
+                make_op("slice", {{"axes", {axis}}, {"starts", {i}}, {"ends", {i + 1}}}),
+                reduced);
+            m.replace_instruction(group[i], make_op("squeeze", {{"axes", {axis + 1}}}), sl);
+        }
     }
 
     // Point each group member at the fused result `c`.  For a full cover the
@@ -1887,7 +1987,11 @@ struct find_splits
             auto start = group.front();
             auto op    = start->get_operator();
             if(not is_fusable(start, splits.front()))
+            {
+                if(not partial and contains(op.name(), "reduce"))
+                    fuse_overlapping_reduce(m, ins, group, splits);
                 continue;
+            }
 
             // Make sure there are no duplicates
             assert(std::none_of(
@@ -1895,10 +1999,17 @@ struct find_splits
 
             int split_idx     = 0;
             instruction_ref c = m.end();
-            if(start->inputs().size() == 1)
+            // Every argument is the same split, e.g. relu(x_i) or mul(x_i, x_i)
+            if(std::all_of(group.begin(), group.end(), [](instruction_ref i) {
+                   const auto& inputs = i->inputs();
+                   return std::all_of(inputs.begin(), inputs.end(), [&](instruction_ref x) {
+                       return x == inputs.front();
+                   });
+               }))
             {
                 auto b = get_base();
-                c      = m.insert_instruction(std::next(b), op, {b}, start->module_inputs());
+                std::vector<instruction_ref> args(start->inputs().size(), b);
+                c = m.insert_instruction(std::next(b), op, args, start->module_inputs());
             }
             else if(start->inputs().size() == 2)
             {

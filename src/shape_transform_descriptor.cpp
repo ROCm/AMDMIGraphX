@@ -33,7 +33,9 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/transform_view.hpp>
+#include <migraphx/module.hpp>
 #include <map>
+#include <numeric>
 #include <unordered_set>
 #include <deque>
 
@@ -1133,6 +1135,19 @@ shape_transform_descriptor::slice_axis(std::size_t axis,
     });
     renumber_in_output_order(*dst_slices, axis);
     return std::make_pair(start, end);
+}
+
+void shape_transform_descriptor::prepend_axis(std::size_t n)
+{
+    assert(n > 0);
+    for_each_subdimension(dimensions, [](dimension::sub& s) {
+        if(not s.axis.empty())
+            s.axis.front()++;
+        if(not s.hidden_axis.empty())
+            s.hidden_axis.front()++;
+    });
+    dimensions.insert(dimensions.begin(), dimension{{dimension::sub{n, {0}}}});
+    rank++;
 }
 
 // Remove subdimensions of 1
@@ -2493,6 +2508,15 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
         result.push_back(make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));
     }
     return result;
+}
+
+instruction_ref
+insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
+{
+    return std::accumulate(
+        ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op) {
+            return m.insert_instruction(ins, op, x);
+        });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

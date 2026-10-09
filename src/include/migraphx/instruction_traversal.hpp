@@ -29,6 +29,11 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/unfold.hpp>
+#include <algorithm>
+#include <iterator>
+#include <optional>
+#include <utility>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -49,6 +54,25 @@ inline auto get_input_path(instruction_ref ins)
             return std::nullopt;
         return in->inputs().front();
     });
+}
+
+// Follows the input path of `ins` while `pred` holds. Returns the first instruction where it
+// doesn't, along with the operators that were passed in the order they are applied. If `pred`
+// holds for the whole path, returns `ins` with no operators.
+template <class Predicate>
+std::pair<instruction_ref, std::vector<operation>> get_input_ops_if(instruction_ref ins,
+                                                                    Predicate pred)
+{
+    auto path = get_input_path(ins);
+    auto it   = std::find_if_not(path.begin(), path.end(), pred);
+    if(it == path.end())
+        return {ins, {}};
+    std::vector<operation> ops;
+    std::transform(path.begin(), it, std::back_inserter(ops), [](instruction_ref x) {
+        return x->get_operator();
+    });
+    std::reverse(ops.begin(), ops.end());
+    return std::make_pair(*it, std::move(ops));
 }
 
 // The instructions that share the buffer of `ins`, starting with `ins` and ending with the

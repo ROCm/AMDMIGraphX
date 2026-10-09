@@ -35,7 +35,7 @@ namespace op {
 /// Runs one of its submodules, chosen at runtime by an integer index.
 ///
 /// select_module_index(index, data..., output) [submodules...]
-///   index:   single-element int32 or int64, read on the host
+///   index:   single-element integral scalar, read on the host
 ///   data:    passed to the chosen submodule as its parameters, in sorted name order
 ///   output:  tuple buffer the chosen submodule writes into (added by gpu lowering)
 ///
@@ -66,13 +66,11 @@ struct select_module_index
     {
         check_shapes{inputs, *this}.has_at_least(1);
         const auto& index = inputs.front();
-        auto index_type   = index.type();
         // On GPU the index is a hip::load_scalar result; under ref it is a host integer.
-        if(index.elements() != 1 or
-           (index_type != shape::int32_type and index_type != shape::int64_type))
+        if(index.elements() != 1 or not shape::is_integral(index.type()))
         {
             MIGRAPHX_THROW("SELECT_MODULE_INDEX: index must be a static single-element "
-                           "int32 or int64.");
+                           "integral scalar.");
         }
         if(mods.empty())
         {
@@ -187,15 +185,13 @@ struct select_module_index
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        module_ref module_to_run{};
-        args.front().visit_at([&](auto index) {
-            if(index < 0)
-            {
-                MIGRAPHX_THROW("SELECT_MODULE_INDEX: index must be non-negative.");
-            }
-            const auto idx = find_submodule_index(index, index_map, submodule_list.size());
-            module_to_run  = submodule_list[idx];
-        });
+        auto index = args.front().at<std::int64_t>();
+        if(index < 0)
+        {
+            MIGRAPHX_THROW("SELECT_MODULE_INDEX: index must be non-negative.");
+        }
+        const auto idx = find_submodule_index(index, index_map, submodule_list.size());
+        module_ref module_to_run = submodule_list[idx];
 
         std::unordered_map<std::string, argument> p_map;
 

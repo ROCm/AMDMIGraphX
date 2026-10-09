@@ -117,7 +117,7 @@ TEST_CASE(select_module_index_lowering_shared_index)
         auto* sub  = p2.create_module("sub");
         auto data0 = sub->add_parameter("data", data_s);
         sub->add_return({data0});
-        auto loaded = mm->add_instruction(migraphx::make_op("hip::load_scalar"), index);
+        auto loaded  = mm->add_instruction(migraphx::make_op("hip::load_scalar"), index);
         auto output0 = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
         auto smi0 = mm->add_instruction(

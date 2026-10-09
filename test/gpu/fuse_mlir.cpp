@@ -1037,10 +1037,57 @@ TEST_CASE(conv_split_reduce_invalid_type)
         return;
 
     run_pass(p1);
-    auto* mm              = p1.get_main_module();
-    bool has_split_reduce = std::any_of(
-        mm->begin(), mm->end(), [&](const auto& i) { return i.name() == "split_fused_reduce"; });
-    EXPECT(has_split_reduce);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s_x);
+        auto w   = mm->add_parameter("w", s_w);
+        auto b   = mm->add_literal(migraphx::generate_literal(s_b));
+        auto fused =
+            add_mlir(p2,
+                     "mlir_main:pointwise0",
+                     {x, w, b},
+                     {"x0", "x1", "x2"},
+                     [=](auto* pm, const auto& inputs) {
+                         auto conv = pm->add_instruction(
+                             migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
+                             inputs[0],
+                             inputs[1]);
+                         auto reshape = pm->add_instruction(
+                             migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
+                         auto mb = pm->add_instruction(
+                             migraphx::make_op("broadcast",
+                                               {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}),
+                             inputs[2]);
+                         auto add = pm->add_instruction(migraphx::make_op("add"), reshape, mb);
+                         return std::make_tuple(
+                             migraphx::make_op("gpu::mlir_op",
+                                               {{"op", migraphx::to_value(conv->get_operator())}}),
+                             std::vector<migraphx::instruction_ref>{add});
+                     });
+        auto mean_var = add_reduce(
+            p2,
+            "main:split_reduce0",
+            {fused},
+            {2, 3, 4},
+            "assign_add",
+            [&](auto* rm,
+                const auto& inputs,
+                const auto& axes) -> std::vector<migraphx::instruction_ref> {
+                auto xx    = add_pointwise(p2, rm, "main:pointwise1", {inputs[0]}, squared());
+                auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                 inputs[0]);
+                auto rsum2 =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), xx);
+                return {rsum2, rsum1};
+            });
+        auto var =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), mean_var);
+        auto mean =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), mean_var);
+        mm->add_return({var, mean});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(conv_split_reduce)

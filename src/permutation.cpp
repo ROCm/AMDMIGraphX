@@ -29,6 +29,7 @@
 #include <migraphx/sym.hpp>
 #include <map>
 #include <functional>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -64,6 +65,16 @@ std::vector<int64_t> find_permutation(const shape& s)
         //  3. Max-eval ordering is consistent with all non-degenerate runtime orderings
         const auto& strides = s.dyn_strides();
         const auto& dds     = s.dyn_dims();
+        std::unordered_map<sym::expr, sym::interval> nonzero_dim_bounds;
+        bool always_empty = false;
+        for(const auto& dd : dds)
+        {
+            const auto bounds = dd.sym_expr.eval_interval();
+            if(sym::to<int64_t>(bounds.max) == 0)
+                always_empty = true;
+            else if(sym::to<int64_t>(bounds.min) == 0)
+                nonzero_dim_bounds.emplace(dd.sym_expr, sym::interval{int64_t{1}, bounds.max});
+        }
         std::vector<sym::interval> stride_intervals(strides.size());
         std::transform(strides.begin(), strides.end(), stride_intervals.begin(), [](const auto& e) {
             return e.eval_interval();
@@ -76,18 +87,34 @@ std::vector<int64_t> find_permutation(const shape& s)
                              return std::make_tuple(sym::to<int64_t>(stride_intervals[x].max),
                                                     dim_max[x]);
                          }));
+        // An always-empty tensor has no observable layout.
+        if(always_empty)
+            return result;
+
+        // Check the minimum stride ordering only over non-empty tensors. A zero
+        // dimension can collapse an outer stride below an inner stride, but that
+        // ordering is irrelevant because the tensor has no elements.
+        auto nonzero_stride_intervals = stride_intervals;
+        if(not nonzero_dim_bounds.empty())
+        {
+            std::transform(strides.begin(),
+                           strides.end(),
+                           nonzero_stride_intervals.begin(),
+                           [&](const auto& e) { return e.eval_interval(nonzero_dim_bounds); });
+        }
         // Assumption 3 guard: when max-eval gives a strict ordering between two
-        // adjacent strides, min-eval must not reverse it. Collapse to equality at
-        // min is expected (e.g. when a dim has min=1), but a sign flip indicates
-        // a symbolic divisor violating assumption 1.
+        // adjacent strides, nonzero min-eval must not reverse it. Collapse to
+        // equality is expected, but a sign flip indicates a symbolic divisor
+        // violating assumption 1.
         if(std::adjacent_find(result.begin(), result.end(), [&](auto a, auto b) {
                return sym::to<int64_t>(stride_intervals[a].max) >
                           sym::to<int64_t>(stride_intervals[b].max) and
-                      sym::to<int64_t>(stride_intervals[a].min) <
-                          sym::to<int64_t>(stride_intervals[b].min);
+                      sym::to<int64_t>(nonzero_stride_intervals[a].min) <
+                          sym::to<int64_t>(nonzero_stride_intervals[b].min);
            }) != result.end())
             MIGRAPHX_THROW("FIND_PERMUTATION: symbolic stride ordering reversal between "
-                           "max-eval and min-eval. Violation of symbolic stride assumptions.");
+                           "max-eval and nonzero min-eval. "
+                           "Violation of symbolic stride assumptions.");
     }
     else
     {

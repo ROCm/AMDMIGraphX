@@ -75,6 +75,82 @@ TEST_CASE(tuple_to_gpu)
     EXPECT(result2 == p2_data);
 }
 
+TEST_CASE(copy_from_gpu_empty_packed)
+{
+    migraphx::gpu::context ctx{};
+    migraphx::shape s{migraphx::shape::float_type, {0, 4}};
+    auto src = migraphx::gpu::allocate_gpu(s);
+    migraphx::argument dst{s};
+
+    migraphx::gpu::copy_from_gpu(ctx, src, dst);
+    ctx.finish();
+
+    EXPECT(src.get_shape() == s);
+    EXPECT(dst.get_shape() == s);
+}
+
+TEST_CASE(copy_from_gpu_empty_different_layout)
+{
+    migraphx::gpu::context ctx{};
+    migraphx::shape src_shape{migraphx::shape::float_type, {1, 0, 4}, {4000, 4, 1}};
+    migraphx::shape dst_shape{migraphx::shape::float_type, {1, 0, 4}};
+    EXPECT(src_shape != dst_shape);
+    auto src = migraphx::gpu::allocate_gpu(src_shape);
+    migraphx::argument dst{dst_shape};
+
+    migraphx::gpu::copy_from_gpu(ctx, src, dst);
+    ctx.finish();
+
+    EXPECT(src.get_shape() == src_shape);
+    EXPECT(dst.get_shape() == dst_shape);
+}
+
+TEST_CASE(copy_from_gpu_empty_dynamic_output)
+{
+    migraphx::gpu::context ctx{};
+    migraphx::shape src_shape{migraphx::shape::float_type, {1, 0, 4}, {4000, 4, 1}};
+    migraphx::shape capacity_shape{migraphx::shape::float_type, {1, 1000, 4}};
+    auto src = migraphx::gpu::allocate_gpu(src_shape);
+    migraphx::gpu::hip_copy_from_gpu op;
+
+    auto result = op.compute(ctx, migraphx::dyn_output{capacity_shape, capacity_shape}, {src});
+    ctx.finish();
+
+    EXPECT(result.get_shape() == src_shape);
+}
+
+TEST_CASE(from_gpu_empty_packed)
+{
+    migraphx::shape s{migraphx::shape::float_type, {0, 4}};
+    auto result = migraphx::gpu::from_gpu(migraphx::gpu::allocate_gpu(s));
+    EXPECT(result.get_shape() == s);
+    EXPECT(result.get_shape().elements() == 0);
+}
+
+TEST_CASE(from_gpu_empty_retained_strides)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 0, 4}, {4000, 4, 1}};
+    auto result = migraphx::gpu::from_gpu(migraphx::gpu::allocate_gpu(s));
+    EXPECT(result.get_shape() == s);
+    EXPECT(result.get_shape().elements() == 0);
+}
+
+TEST_CASE(tuple_from_gpu_with_empty)
+{
+    migraphx::shape empty_shape{migraphx::shape::float_type, {0, 4}};
+    migraphx::shape data_shape{migraphx::shape::float_type, {2}};
+    std::vector<float> data = {1.0f, 2.0f};
+    auto empty              = migraphx::gpu::allocate_gpu(empty_shape);
+    auto values             = migraphx::gpu::to_gpu(migraphx::argument{data_shape, data.data()});
+
+    auto result     = migraphx::gpu::from_gpu(migraphx::argument{{empty, values}});
+    auto subobjects = result.get_sub_objects();
+    EXPECT(subobjects.size() == 2);
+    EXPECT(subobjects.at(0).get_shape() == empty_shape);
+    EXPECT(subobjects.at(1).get_shape() == data_shape);
+    EXPECT(subobjects.at(1).to_vector<float>() == data);
+}
+
 TEST_CASE(fill_packed)
 {
     migraphx::gpu::context ctx{};

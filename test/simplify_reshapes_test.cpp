@@ -2173,6 +2173,20 @@ TEST_CASE(gather_axis_slice_broadcast)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_constant_indices_zero_output)
+{
+    migraphx::module m;
+    auto data    = m.add_parameter("data", {migraphx::shape::float_type, {0, 5}});
+    auto indices = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto gather  = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+    m.add_return({gather});
+    auto expected = m;
+
+    run_pass(m);
+
+    EXPECT(m == expected);
+}
+
 TEST_CASE(gather_constant_single_index)
 {
     migraphx::module m1;

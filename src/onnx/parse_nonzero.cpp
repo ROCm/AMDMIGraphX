@@ -66,14 +66,14 @@ struct parse_nonzero : op_parser<parse_nonzero>
             auto max_nonzero = indices->get_shape().lens().back();
             auto num_nonzero_var = sym::var(info.name, {0, max_nonzero});
             auto starts          = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
-            return info.add_instruction(
-                make_op("dyn_slice",
-                        {{"axes", {1}},
-                         {"starts", {0}},
-                         {"ends", value::array{to_value(num_nonzero_var)}}}),
-                indices,
-                starts,
-                num_nonzero);
+            return info.add_instruction(make_op("dyn_slice",
+                                                {{"axes", {1}},
+                                                 {"starts", {0}},
+                                                 {"ends", value::array{to_value(num_nonzero_var)}},
+                                                 {"always_leq", true}}),
+                                        indices,
+                                        starts,
+                                        num_nonzero);
         }
         else
         {

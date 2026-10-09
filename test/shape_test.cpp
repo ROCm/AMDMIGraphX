@@ -1699,6 +1699,17 @@ TEST_CASE(test_symbolic_to_static)
     EXPECT(s_static.strides() == std::vector<std::size_t>{32, 4, 1});
 }
 
+TEST_CASE(test_fixed_symbolic_standard_to_static)
+{
+    auto n      = var("n", {3, 4});
+    auto extent = (n - 1) / 2 + 1;
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{extent}}};
+
+    EXPECT(s.is_fixed());
+    EXPECT(s.standard());
+    EXPECT(s.to_static() == migraphx::shape{migraphx::shape::float_type, {1, 1, 2}});
+}
+
 TEST_CASE(test_symbolic_shape_serialize)
 {
     auto n = var("n", {1, 8});
@@ -2101,6 +2112,22 @@ TEST_CASE(find_permutation_symbolic_3d)
     EXPECT(migraphx::find_permutation(s) == permutation);
 }
 
+TEST_CASE(find_permutation_symbolic_zero_extent)
+{
+    auto k = var("k", {0, 200});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(1)}, dd{k}}};
+    std::vector<int64_t> permutation = {0, 1};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(find_permutation_symbolic_always_empty)
+{
+    auto z = var("z", {0, 0});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(1)}, dd{z}}};
+    std::vector<int64_t> permutation = {1, 0};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
 TEST_CASE(from_symbolic_2d_permutation)
 {
     auto n                           = var("n", {1, 8});
@@ -2172,6 +2199,16 @@ TEST_CASE(find_permutation_symbolic_stride_ordering_reversal)
     // a/b has interval [0, 16], c has interval [1, 8].
     // At max: 16 > 8 (a/b sorted first), at min: 0 < 1 (reversal).
     migraphx::shape s{migraphx::shape::float_type, {dd{a}, dd{c}}, {a / b, c}};
+    EXPECT(test::throws([&] { migraphx::find_permutation(s); }));
+}
+
+TEST_CASE(find_permutation_symbolic_zero_extent_stride_ordering_reversal)
+{
+    auto a = var("a", {1, 16});
+    auto b = var("b", {1, 4});
+    auto c = var("c", {1, 8});
+    auto z = var("z", {0, 4});
+    migraphx::shape s{migraphx::shape::float_type, {dd{a}, dd{c}, dd{z}}, {a / b, c, lit(1)}};
     EXPECT(test::throws([&] { migraphx::find_permutation(s); }));
 }
 
@@ -2494,6 +2531,16 @@ TEST_CASE(shape_is_compatible_lens_static_vs_symbolic)
     migraphx::shape expected{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}}};
     EXPECT(migraphx::shape::is_compatible_lens(actual1, expected));
     EXPECT(not migraphx::shape::is_compatible_lens(actual2, expected));
+}
+
+TEST_CASE(shape_is_compatible_lens_repeated_symbol)
+{
+    auto n = var("n", {1, 4});
+    migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{n}}};
+    migraphx::shape matching{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape mismatching{migraphx::shape::float_type, {2, 3}};
+    EXPECT(migraphx::shape::is_compatible_lens(matching, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(mismatching, expected));
 }
 
 TEST_CASE(make_bcast_shape_static)

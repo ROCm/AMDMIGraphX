@@ -25,6 +25,9 @@
 #define MIGRAPHX_GUARD_OPERATORS_REDUCE_MIN_HPP
 
 #include <migraphx/op/reduce_op.hpp>
+#include <migraphx/sym_argument.hpp>
+
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,6 +44,36 @@ struct reduce_min : reduce_op<reduce_min>
     }
 
     auto init() const { return highest(); }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.size() != 1 or args.front().empty() or axes.empty())
+            return {};
+
+        const auto input_shape = args.front().get_shape();
+        if(input_shape.dynamic() or output_shape.dynamic())
+            return {};
+
+        std::vector<std::size_t> batch_lens(output_shape.ndim(), 1);
+        this->tune_dims(axes, input_shape.lens(), batch_lens);
+        shape batch_shape{input_shape.type(), batch_lens};
+        auto input = args.front().get();
+        sym_argument result{output_shape};
+        auto output = result.get();
+        shape_for_each(output_shape, [&](const auto& out_idx) {
+            auto data_idx = out_idx;
+            std::optional<sym::expr> value;
+            shape_for_each(batch_shape, [&](const auto& batch_idx) {
+                this->tune_dims(axes, batch_idx, data_idx);
+                const auto& current = input(data_idx.begin(), data_idx.end());
+                value               = value.has_value() ? sym::min(*value, current) : current;
+            });
+            if(value.has_value())
+                output(out_idx.begin(), out_idx.end()) = *value;
+        });
+        return result;
+    }
 };
 
 } // namespace op

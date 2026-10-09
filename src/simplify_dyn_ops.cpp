@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/tensor_view.hpp>
 
 namespace migraphx {
@@ -531,7 +532,7 @@ struct find_static_onehot : match::supports_dynamic_shapes
 /**
  * Go through `select_module` instructions and update the `output_dyn_shapes` attribute.
  * Checks the submodule output shapes and determines an appropriate `output_dyn_shapes` attribute.
- * This version ignores dynamic_dimension opt values.
+ * Compatible symbolic output shapes are preserved; inferred range shapes ignore opt values.
  * Intended to be run after the other simplify_dyn_ops passes.
  */
 struct simplify_select_module_output_shape : match::supports_dynamic_shapes
@@ -542,6 +543,8 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
     {
         auto sm_ins           = mr.result;
         auto sm_module_inputs = sm_ins->module_inputs();
+        if(sm_module_inputs.empty())
+            return;
         std::vector<std::vector<shape>> all_output_shapes(sm_module_inputs.size());
         std::transform(sm_module_inputs.begin(),
                        sm_module_inputs.end(),
@@ -562,7 +565,8 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
         }
         auto num_out_shapes = shapes_ndim.size();
         std::vector<shape> dyn_shapes(num_out_shapes);
-        auto num_submod = sm_module_inputs.size();
+        const auto& current_shapes = sm_ins->get_shape().sub_shapes();
+        auto num_submod            = sm_module_inputs.size();
         // compare respective output shapes from each submodule to get a range for the output shape
         for(int i : range(num_out_shapes))
         {
@@ -571,14 +575,24 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
                            all_output_shapes.end(),
                            shapes_at_index.begin(),
                            [&](auto output_shapes) { return output_shapes.at(i); });
-            dyn_shapes.at(i) = dyn_shape_from_shapes(shapes_at_index);
+            if(current_shapes.size() == num_out_shapes and current_shapes.at(i).symbolic() and
+               std::all_of(
+                   shapes_at_index.begin(), shapes_at_index.end(), [&](const auto& output_shape) {
+                       return output_shape.type() == current_shapes.at(i).type() and
+                              shape::is_compatible_lens(output_shape, current_shapes.at(i));
+                   }))
+            {
+                dyn_shapes.at(i) = current_shapes.at(i);
+            }
+            else
+            {
+                dyn_shapes.at(i) = dyn_shape_from_shapes(shapes_at_index);
+            }
         }
-        auto tuple_shape = shape{dyn_shapes};
+        auto op_value                 = sm_ins->get_operator().to_value();
+        op_value["output_dyn_shapes"] = to_value(shape{dyn_shapes});
         m.replace_instruction(
-            sm_ins,
-            make_op("select_module", {{"output_dyn_shapes", to_value(tuple_shape)}}),
-            sm_ins->inputs(),
-            sm_module_inputs);
+            sm_ins, make_op("select_module", op_value), sm_ins->inputs(), sm_module_inputs);
     }
 
     std::vector<std::size_t> get_shapes_ndim(const std::vector<shape>& shapes) const

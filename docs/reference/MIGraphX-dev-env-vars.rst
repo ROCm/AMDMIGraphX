@@ -323,7 +323,7 @@ Model performance tunable variables change the compilation behavior of a model. 
 
   * - | ``MIGRAPHX_REWRITE_LRN``
       | When set, transforms LRN to use pooling in the ``rewrite_pooling`` pass.
-      
+
     - | ``1``: Turns on LRN-to-pooling lowering.
       | ``0``: Returns to default behavior.
 

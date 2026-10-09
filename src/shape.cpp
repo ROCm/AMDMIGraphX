@@ -29,9 +29,11 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
+#include <cmath>
 #include <numeric>
 #include <algorithm>
 #include <functional>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <iostream>
@@ -541,12 +543,19 @@ bool shape::is_compatible_lens(const shape& actual, const shape& expected)
     {
         if(actual.ndim() != expected.ndim())
             return false;
+        std::unordered_map<sym::expr, std::size_t> symbol_values;
         return std::equal(actual.lens().begin(),
                           actual.lens().end(),
                           expected.dyn_dims().begin(),
                           [&](auto a, const auto& e) {
                               auto expected_interval = e.get_interval();
-                              return a >= expected_interval.min and a <= expected_interval.max;
+                              if(a < expected_interval.min or a > expected_interval.max)
+                                  return false;
+                              if(e.sym_expr.name() != "variable")
+                                  return true;
+                              auto [iter, inserted] =
+                                  symbol_values.emplace(sym::as_symbol(e.sym_expr), a);
+                              return inserted or iter->second == a;
                           });
     }
     return actual.lens() == expected.lens();
@@ -1098,10 +1107,45 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
     const auto& ds = this->dyn_strides();
     if(ds.empty())
         return {type(), static_lens};
+    std::unordered_map<sym::expr, sym::interval> symbol_intervals;
+    std::transform(symbol_map.begin(),
+                   symbol_map.end(),
+                   std::inserter(symbol_intervals, symbol_intervals.end()),
+                   [](const auto& item) {
+                       const auto& [symbol, value] = item;
+                       return std::make_pair(symbol, sym::interval{value, value});
+                   });
     std::vector<std::size_t> static_strides(ds.size());
-    std::transform(ds.cbegin(), ds.cend(), static_strides.begin(), [&](const auto& s) {
-        return s.eval_uint(symbol_map);
-    });
+    std::transform(
+        ds.cbegin(), ds.cend(), static_strides.begin(), [&](const auto& s) -> std::size_t {
+            auto interval = s.eval_interval(symbol_intervals);
+            auto fixed    = sym::scalar_invoke_common<std::optional<std::size_t>>(
+                [](auto min, auto max) -> std::optional<std::size_t> {
+                    if constexpr(std::is_integral_v<decltype(min)>)
+                    {
+                        if(min != max or min < 0)
+                            return std::nullopt;
+                        using unsigned_type = std::make_unsigned_t<decltype(min)>;
+                        if(static_cast<unsigned_type>(min) >
+                           std::numeric_limits<std::size_t>::max())
+                            return std::nullopt;
+                    }
+                    else
+                    {
+                        auto integral = std::floor(min);
+                        if(not std::isfinite(min) or not std::isfinite(max) or min < 0 or
+                           min < max or max < min or integral < min or min < integral or
+                           min >= std::ldexp(1.0, std::numeric_limits<std::size_t>::digits))
+                            return std::nullopt;
+                    }
+                    return min;
+                },
+                interval.min,
+                interval.max);
+            if(not fixed.has_value())
+                MIGRAPHX_THROW("to_static: stride expression is not a fixed unsigned integer");
+            return *fixed;
+        });
     return {type(), static_lens, static_strides};
 }
 

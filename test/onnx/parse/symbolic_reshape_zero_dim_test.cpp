@@ -55,3 +55,29 @@ TEST_CASE(symbolic_reshape_zero_dim_test)
             m.add_return({m.add_instruction(migraphx::make_op("reshape"), x, allocation)});
         }));
 }
+
+TEST_CASE(symbolic_reshape_zero_dim_without_direct_root_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto n = var("n", {1, 4});
+    const migraphx::shape input_shape{migraphx::shape::float_type,
+                                      sym_dims({n + 1, lit(int64_t{4})})};
+
+    EXPECT(check_parse(
+        "symbolic_reshape_zero_dim_test.onnx",
+        {{"x", input_shape}},
+        [&](migraphx::module& m, const std::vector<migraphx::instruction_ref>& args) {
+            auto x = args.front();
+            auto zero =
+                m.insert_literal(x, migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+            auto width = m.add_instruction(
+                migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 2}}), x);
+            auto target =
+                m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), zero, width);
+            auto allocation = m.add_instruction(
+                migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}), target);
+            m.add_return({m.add_instruction(migraphx::make_op("reshape"), x, allocation)});
+        }));
+}

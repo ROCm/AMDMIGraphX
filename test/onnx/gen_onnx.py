@@ -1444,6 +1444,38 @@ def concat_dyn_test():
 
 
 @onnx_test()
+def concat_symbolic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['a', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['b', 4])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, ['c', 4])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['x', 'y'],
+        axis=0,
+        outputs=['z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def concat_single_symbolic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['a', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 4])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, ['c', 4])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['x', 'y'],
+        axis=0,
+        outputs=['z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def constant_test():
     x = np.array([0, 1, 2])
     y = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
@@ -2622,6 +2654,31 @@ def conv_transpose_dyn_batch_test():
                                  outputs=['y'])
 
     return ([node], [x, w], [y])
+
+
+@onnx_test(opset_version=13)
+def symbolic_conv_transpose_constant_of_shape_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      ['batch', 4, 4, 4])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [4, 3, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, ['batch'])
+
+    index = helper.make_tensor('index_value', TensorProto.INT64, [], [0])
+    axes = helper.make_tensor('axes_value', TensorProto.INT64, [1], [0])
+    fill = helper.make_tensor('fill_value', TensorProto.INT64, [1], [1])
+    nodes = [
+        helper.make_node('ConvTranspose', ['x', 'w'], ['conv'],
+                         strides=[2, 2]),
+        helper.make_node('Shape', ['conv'], ['conv_shape']),
+        helper.make_node('Constant', [], ['index'], value=index),
+        helper.make_node('Gather', ['conv_shape', 'index'], ['batch']),
+        helper.make_node('Constant', [], ['axes'], value=axes),
+        helper.make_node('Unsqueeze', ['batch', 'axes'], ['batch_vec']),
+        helper.make_node('Concat', ['batch_vec'], ['output_shape'], axis=0),
+        helper.make_node('ConstantOfShape', ['output_shape'], ['y'],
+                         value=fill),
+    ]
+    return (nodes, [x, w], [y])
 
 
 @onnx_test()
@@ -15957,6 +16014,25 @@ def roialign_test():
 
 
 @onnx_test()
+def roialign_dynamic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5, 4, 7])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT,
+                                        ['num_rois', 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64,
+                                       ['num_rois'])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      ['num_rois', 5, 3, 2])
+
+    node = onnx.helper.make_node('RoiAlign',
+                                 inputs=['x', 'rois', 'batch_ind'],
+                                 outputs=['y'],
+                                 output_height=3,
+                                 output_width=2)
+
+    return ([node], [x, roi, bi], [y])
+
+
+@onnx_test()
 def rotary_embedding_test():
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
                                           [1, 2, 18])
@@ -16674,6 +16750,51 @@ def symbolic_reshape_negative_one_dim_test():
         helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
     ]
     return (nodes, [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_constant_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    constant_output = helper.make_tensor_value_info('constant_output',
+                                                    TensorProto.FLOAT,
+                                                    ['batch', 4])
+    attribute_output = helper.make_tensor_value_info('attribute_output',
+                                                     TensorProto.FLOAT,
+                                                     ['batch', 4])
+    target = helper.make_tensor('target_value', TensorProto.INT64, [2], [0, 4])
+    nodes = [
+        helper.make_node('Constant', [], ['target'], value=target),
+        helper.make_node('Reshape', ['x', 'target'], ['constant_output']),
+        helper.make_node('Reshape', ['x'], ['attribute_output'], shape=[0, 4]),
+    ]
+    return (nodes, [x], [constant_output, attribute_output])
+
+
+@onnx_test()
+def symbolic_reshape_data_root_test():
+    condition = helper.make_tensor_value_info('condition', TensorProto.BOOL,
+                                              [4])
+    output = helper.make_tensor_value_info('output', TensorProto.INT64,
+                                           ['count', 1, 1, 1])
+    target = helper.make_tensor('target_value', TensorProto.INT64, [4],
+                                [-1, 1, 1, 1])
+    nodes = [
+        helper.make_node('NonZero',
+                         inputs=['condition'],
+                         outputs=['nonzero_indices']),
+        helper.make_node('Transpose',
+                         inputs=['nonzero_indices'],
+                         outputs=['transposed'],
+                         perm=[1, 0]),
+        helper.make_node('Constant',
+                         inputs=[],
+                         outputs=['target'],
+                         value=target),
+        helper.make_node('Reshape',
+                         inputs=['transposed', 'target'],
+                         outputs=['output']),
+    ]
+    return (nodes, [condition], [output])
 
 
 @onnx_test()
@@ -19753,6 +19874,68 @@ def topk_var_k_test():
                                  axis=1)
     # `k` is a graph input (not an initializer), so it stays a runtime value
     return ([node], [x, k], [val, ind])
+
+
+@onnx_test(opset_version=11)
+def topk_bounded_var_k_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 1000])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT,
+                                        [2, 'runtime_k'])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [2, 'runtime_k'])
+
+    shape_node = helper.make_node('Shape',
+                                  inputs=['data'],
+                                  outputs=['data_shape'])
+    axis_index = helper.make_node('Constant',
+                                  inputs=[],
+                                  outputs=['axis_index'],
+                                  value=helper.make_tensor(
+                                      'axis_index_value', TensorProto.INT64,
+                                      [], [1]))
+    axis_len = helper.make_node('Gather',
+                                inputs=['data_shape', 'axis_index'],
+                                outputs=['axis_len'],
+                                axis=0)
+    axis_len_vec = helper.make_node('Unsqueeze',
+                                    inputs=['axis_len'],
+                                    outputs=['axis_len_vec'],
+                                    axes=[0])
+    cap = helper.make_node('Constant',
+                           inputs=[],
+                           outputs=['cap'],
+                           value=helper.make_tensor('cap_value',
+                                                    TensorProto.INT64, [1],
+                                                    [200]))
+    candidates = helper.make_node('Concat',
+                                  inputs=['cap', 'axis_len_vec'],
+                                  outputs=['candidates'],
+                                  axis=0)
+    candidates_i32 = helper.make_node('Cast',
+                                      inputs=['candidates'],
+                                      outputs=['candidates_i32'],
+                                      to=TensorProto.INT32)
+    minimum_i32 = helper.make_node('ReduceMin',
+                                   inputs=['candidates_i32'],
+                                   outputs=['minimum_i32'],
+                                   axes=[0],
+                                   keepdims=0)
+    minimum = helper.make_node('Cast',
+                               inputs=['minimum_i32'],
+                               outputs=['minimum'],
+                               to=TensorProto.INT64)
+    k = helper.make_node('Unsqueeze',
+                         inputs=['minimum'],
+                         outputs=['k'],
+                         axes=[0])
+    topk = helper.make_node('TopK',
+                            inputs=['data', 'k'],
+                            outputs=['val', 'indices'],
+                            axis=1)
+    return ([
+        shape_node, axis_index, axis_len, axis_len_vec, cap, candidates,
+        candidates_i32, minimum_i32, minimum, k, topk
+    ], [x], [val, ind])
 
 
 def transpose_default_perm_test():

@@ -656,33 +656,53 @@ struct analyze_topk_get_tuple_elem
 
 bool is_prefix_stable_dyn_slice(instruction_ref ins);
 
-bool uses_aligned_topk_indices(instruction_ref gather, std::size_t gather_axis)
+bool has_nonnegative_values(instruction_ref ins)
 {
-    const auto& inputs = gather->inputs();
-    if(inputs.size() != 2)
-        return false;
-    auto indices = inputs.at(1);
-    if(indices->name() != "dyn_slice" or not is_prefix_stable_dyn_slice(indices))
-        return false;
-    auto get_tuple_elem = indices->inputs().front();
-    if(get_tuple_elem->name() != "get_tuple_elem" or
-       get_tuple_elem->get_operator().to_value().at("index").to<std::size_t>() != 1)
-        return false;
-    auto topk = get_tuple_elem->inputs().front();
-    if(topk->name() != "topk" or topk->inputs().empty())
-        return false;
-    auto topk_axis = normalize_axis(topk->get_operator().to_value().at("axis").to<int64_t>(),
-                                    topk->inputs().front()->get_shape().ndim());
-    if(not topk_axis.has_value())
+    const auto& inputs = ins->inputs();
+    if(ins->name() == "@literal")
+    {
+        bool result = true;
+        ins->get_literal().visit(
+            [&](auto values) { result = all_of(values, [](auto value) { return value >= 0; }); });
+        return result;
+    }
+    if(ins->name() == "fill")
+        return not inputs.empty() and has_nonnegative_values(inputs.front());
+    if(contains({"convert",
+                 "contiguous",
+                 "reshape",
+                 "squeeze",
+                 "unsqueeze",
+                 "transpose",
+                 "slice",
+                 "dyn_slice",
+                 "broadcast",
+                 "multibroadcast"},
+                ins->name()))
+        return not inputs.empty() and has_nonnegative_values(inputs.front());
+    if(ins->name() == "concat")
+        return not inputs.empty() and all_of(inputs, has_nonnegative_values);
+    if(ins->name() == "gather")
+        return not inputs.empty() and has_nonnegative_values(inputs.front());
+    if(contains({"add", "mul"}, ins->name()))
+        return not inputs.empty() and all_of(inputs, has_nonnegative_values);
+    if(ins->name() == "eval_expr_from_shape")
+        return true;
+    if(ins->name() != "get_tuple_elem" or inputs.size() != 1)
         return false;
 
-    const auto& data_shape = inputs.front()->get_shape();
-    const auto& topk_shape = topk->inputs().front()->get_shape();
-    if(not data_shape.symbolic() or not topk_shape.symbolic() or gather_axis >= data_shape.ndim() or
-       *topk_axis >= topk_shape.ndim())
-        return false;
-    return sym::same_symbol(data_shape.dyn_dims().at(gather_axis).sym_expr,
-                            topk_shape.dyn_dims().at(*topk_axis).sym_expr);
+    auto index  = ins->get_operator().to_value().at("index").to<std::size_t>();
+    auto source = inputs.front();
+    if(source->name() == "dyn_concat" and source->inputs().size() % 2 == 0)
+    {
+        if(index == 1)
+            return true;
+        auto data_inputs = source->inputs();
+        data_inputs.resize(data_inputs.size() / 2);
+        return index == 0 and all_of(data_inputs, has_nonnegative_values);
+    }
+    return (source->name() == "topk" and index == 1) or
+           (contains({"nonzero", "nonmaxsuppression"}, source->name()) and index == 0);
 }
 
 struct analyze_gather
@@ -698,17 +718,15 @@ struct analyze_gather
                                    inputs.front().ndim());
         if(not axis.has_value())
             return;
-        bool aligned_topk_indices = uses_aligned_topk_indices(info.ins, *axis);
-        // Gathering a variable data axis is safe when the indices are a prefix of TopK indices
-        // over an aligned tensor. Padded index entries are zero and their outputs are sliced away.
+        bool nonnegative_indices = has_nonnegative_values(info.ins->inputs().at(1));
+        // The data and index tensors are padded to their static clone extents. Padded index entries
+        // are zero and the corresponding gathered outputs are removed by the output slice.
+        // Negative indices are relative to the unpadded extent, so they cannot use this rewrite.
         analyze_axes(
-            info,
-            [axis = *axis, aligned_topk_indices](std::size_t input, std::size_t current_axis) {
-                if(input == 1)
+            info, [axis = *axis, nonnegative_indices](std::size_t input, std::size_t current_axis) {
+                if(input == 1 or current_axis != axis)
                     return parallel_axis();
-                if(current_axis != axis)
-                    return parallel_axis();
-                return aligned_topk_indices ? contracted_axis(fill_kind::dont_care) : axis_desc{};
+                return nonnegative_indices ? contracted_axis(fill_kind::dont_care) : axis_desc{};
             });
     }
 };

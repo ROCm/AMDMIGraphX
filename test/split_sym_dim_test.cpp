@@ -25,6 +25,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -2996,6 +2997,118 @@ TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
                  {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f});
 }
 
+TEST_CASE(split_sym_dim_absorbs_cross_root_gather_consumers)
+{
+    auto data_count  = var("gather_data_count", {0, 4});
+    auto index_count = var("gather_index_count", {0, 4});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto data_condition =
+        m.add_parameter("data_condition", migraphx::shape{migraphx::shape::bool_type, {4}});
+    auto index_condition =
+        m.add_parameter("index_condition", migraphx::shape{migraphx::shape::bool_type, {4}});
+    auto starts =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+
+    auto data_nonzero = m.add_instruction(migraphx::make_op("nonzero"), data_condition);
+    auto data_indices =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), data_nonzero);
+    auto data_size =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), data_nonzero);
+    auto selected_data = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(data_count)}},
+                           {"always_leq", true}}),
+        data_indices,
+        starts,
+        data_size);
+    selected_data = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), selected_data);
+    auto data     = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+        selected_data);
+
+    auto index_nonzero = m.add_instruction(migraphx::make_op("nonzero"), index_condition);
+    auto indices =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), index_nonzero);
+    auto index_size =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), index_nonzero);
+    auto selected_indices = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(index_count)}},
+                           {"always_leq", true}}),
+        indices,
+        starts,
+        index_size);
+    selected_indices =
+        m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), selected_indices);
+    selected_indices = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}),
+        selected_indices);
+
+    auto gathered =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, selected_indices);
+    auto output = m.add_instruction(migraphx::make_op("relu"), gathered);
+    m.add_return({output});
+
+    run_pass(p);
+
+    EXPECT(migraphx::none_of(m, [](const auto& ins) {
+        return ins.get_shape().any_of_dynamic() and
+               migraphx::contains({"convert", "gather", "relu"}, ins.name());
+    }));
+    EXPECT(migraphx::all_of(p.get_modules(), [&](auto* module) {
+        if(module == p.get_main_module())
+            return true;
+        return migraphx::none_of(*module, [](const auto& ins) {
+            return not migraphx::starts_with(ins.name(), "@") and ins.get_shape().any_of_dynamic();
+        });
+    }));
+
+    migraphx::run_passes(p, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}});
+    EXPECT(migraphx::none_of(m, [](const auto& ins) {
+        return ins.name() == "pointwise" and ins.get_shape().any_of_dynamic();
+    }));
+    EXPECT(migraphx::any_of(p.get_modules(), [&](auto* module) {
+        if(module == p.get_main_module())
+            return false;
+        return migraphx::any_of(*module, [](const auto& ins) {
+            return ins.name() == "pointwise" and not ins.get_shape().any_of_dynamic();
+        });
+    }));
+
+    p.compile(migraphx::make_target("ref"));
+    std::vector<char> data_values  = {1, 1, 1, 1};
+    std::vector<char> index_values = {1, 0, 1, 0};
+    migraphx::parameter_map params;
+    params["data_condition"] =
+        migraphx::argument{{migraphx::shape::bool_type, {4}}, data_values.data()};
+    params["index_condition"] =
+        migraphx::argument{{migraphx::shape::bool_type, {4}}, index_values.data()};
+    EXPECT(p.eval(params).back().to_vector<float>() == std::vector<float>{0.0f, 2.0f});
+}
+
+TEST_CASE(split_sym_dim_keeps_maybe_negative_gather_at_boundary)
+{
+    auto data_count  = var("negative_gather_data_count", {1, 4});
+    auto index_count = var("negative_gather_index_count", {1, 4});
+    migraphx::program p;
+    auto& m   = *p.get_main_module();
+    auto data = m.add_parameter("data", symbolic_shape({data_count}, migraphx::shape::float_type));
+    auto indices =
+        m.add_parameter("indices", symbolic_shape({index_count}, migraphx::shape::int64_type));
+    auto gathered = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+    m.add_return({gathered});
+
+    run_pass(p);
+
+    EXPECT(m.has_instruction(gathered));
+    EXPECT(gathered->get_shape().any_of_dynamic());
+}
+
 TEST_CASE(split_sym_dim_keeps_provable_nonzero_slice_at_boundary)
 {
     auto length = var("length", {0, 100}, {50});
@@ -3461,6 +3574,10 @@ TEST_CASE(split_sym_dim_ssd_nms_topk_tail)
 
     run_pass(p);
 
+    EXPECT(migraphx::none_of(m, [](const auto& ins) {
+        return ins.get_shape().any_of_dynamic() and
+               migraphx::contains({"convert", "gather", "relu"}, ins.name());
+    }));
     auto selections = migraphx::find_all(migraphx::iterator_for(m),
                                          [](auto ins) { return ins->name() == "select_module"; });
     EXPECT(selections.size() == 3);

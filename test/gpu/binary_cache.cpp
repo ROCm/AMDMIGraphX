@@ -90,9 +90,9 @@ static migraphx::gpu::compiled_code make_code()
     return code;
 }
 
-static migraphx::gpu::binary_cache::entry make_entry(const std::string& key)
+static migraphx::gpu::binary_cache_entry make_entry(const std::string& key)
 {
-    migraphx::gpu::binary_cache::entry e;
+    migraphx::gpu::binary_cache_entry e;
     e.key      = key;
     e.op_name  = "pointwise";
     e.problem  = migraphx::value{{"shape", "float_type{4, 8}"}};
@@ -102,7 +102,6 @@ static migraphx::gpu::binary_cache::entry make_entry(const std::string& key)
 }
 
 // The storage backend is chosen by the extension of the cache path.
-static std::string dir_path(const migraphx::tmp_dir& td) { return td.path.string(); }
 static std::string db_path(const migraphx::tmp_dir& td) { return (td.path / "cache.db").string(); }
 
 /// The entry files a directory-backed cache has written.
@@ -156,8 +155,8 @@ static stored_entries db_entries(const std::string& path)
 }
 
 /// Whether two entries hold the same thing.
-static bool same_entry(const migraphx::gpu::binary_cache::entry& x,
-                       const migraphx::gpu::binary_cache::entry& y)
+static bool same_entry(const migraphx::gpu::binary_cache_entry& x,
+                       const migraphx::gpu::binary_cache_entry& y)
 {
     return x.key == y.key and x.op_name == y.op_name and x.problem == y.problem and
            x.solution == y.solution and x.code.fill_map == y.code.fill_map and
@@ -168,7 +167,7 @@ static bool same_entry(const migraphx::gpu::binary_cache::entry& x,
 // written once as a template and registered for both.
 struct directory_backend
 {
-    static std::string path(const migraphx::tmp_dir& td) { return dir_path(td); }
+    static std::string path(const migraphx::tmp_dir& td) { return td.path.string(); }
     static std::size_t stored(const std::string& p) { return entry_files(p).size(); }
     /// Overwrite every stored entry with bytes that do not decode.
     static void damage(const std::string& p)
@@ -232,8 +231,7 @@ TEST_CASE(memory_lookup_records_reuse)
     EXPECT(cache.get_stats().misses == 0);
 }
 
-// The cases below are written once against a Backend and registered for each. The directory
-// registrations use real temporary paths so that on Windows they exercise the full depth of an
+// Directory cases use real temporary paths so that on Windows they exercise the full depth of an
 // entry path against MAX_PATH.
 
 // A second cache shares nothing in memory, so anything it finds came out of storage.
@@ -408,14 +406,12 @@ TEST_CASE(extension_selects_the_backend)
 
     migraphx::tmp_dir dir_td{"binary-cache"};
     migraphx::gpu::binary_cache dir_cache{
-        migraphx::gpu::binary_cache_settings{dir_path(dir_td), false}};
+        migraphx::gpu::binary_cache_settings{dir_td.path.string(), false}};
     dir_cache.insert(ctx, {make_entry("in-a-directory")});
     auto files = entry_files(dir_td.path);
     EXPECT(files.size() == 1);
     EXPECT(migraphx::fs::is_directory(dir_td.path / version_dir));
-    EXPECT(std::all_of(files.begin(), files.end(), [&](const auto& f) {
-        return f.parent_path().parent_path() == dir_td.path / version_dir;
-    }));
+    EXPECT(files.front().parent_path().parent_path() == dir_td.path / version_dir);
 
     for(const char* name : {"cache.db", "cache.sqlite"})
     {
@@ -495,7 +491,7 @@ TEST_CASE(backends_store_the_same_entry)
 
     migraphx::tmp_dir dir_td{"binary-cache"};
     migraphx::gpu::binary_cache dir_cache{
-        migraphx::gpu::binary_cache_settings{dir_path(dir_td), false}};
+        migraphx::gpu::binary_cache_settings{dir_td.path.string(), false}};
     dir_cache.insert(ctx, {e});
     auto from_dir = dir_entries(dir_td.path);
     EXPECT(from_dir.size() == 1);
@@ -518,7 +514,7 @@ TEST_CASE(backends_hold_the_same_entries_after_a_compile)
     auto path = db_path(db_td);
 
     auto p_dir = pointwise_program();
-    p_dir.compile(migraphx::make_target("gpu"), cache_options(dir_path(dir_td)));
+    p_dir.compile(migraphx::make_target("gpu"), cache_options(dir_td.path.string()));
     auto p_db = pointwise_program();
     p_db.compile(migraphx::make_target("gpu"), cache_options(path));
 
@@ -544,7 +540,7 @@ TEST_CASE(entries_move_between_backends)
         migraphx::tmp_dir dir_td{"binary-cache"};
         migraphx::tmp_dir db_td{"binary-cache"};
         migraphx::gpu::binary_cache writer{
-            migraphx::gpu::binary_cache_settings{dir_path(dir_td), false}};
+            migraphx::gpu::binary_cache_settings{dir_td.path.string(), false}};
         writer.insert(ctx, {e});
         auto files = entry_files(dir_td.path);
         EXPECT(files.size() == 1);
@@ -586,7 +582,7 @@ TEST_CASE(entries_move_between_backends)
         dir.store(short_version, device, {*loaded});
 
         migraphx::gpu::binary_cache reader{
-            migraphx::gpu::binary_cache_settings{dir_path(dir_td), false}};
+            migraphx::gpu::binary_cache_settings{dir_td.path.string(), false}};
         auto found = reader.get(ctx, e.key);
         EXPECT(found.has_value());
         EXPECT(reader.get_stats().hits == 1);
@@ -737,7 +733,7 @@ TEST_CASE(file_store_leaves_only_entries_behind)
 {
     migraphx::tmp_dir td{"binary-cache"};
     migraphx::gpu::context ctx;
-    migraphx::gpu::binary_cache_settings settings{dir_path(td), false};
+    migraphx::gpu::binary_cache_settings settings{td.path.string(), false};
 
     migraphx::gpu::binary_cache first{settings};
     first.insert(ctx, {make_entry("one")});
@@ -846,7 +842,7 @@ TEST_CASE(entry_round_trip)
     auto e      = make_entry("some-key");
     auto buffer = migraphx::to_msgpack(migraphx::to_value(e));
 
-    migraphx::gpu::binary_cache::entry loaded;
+    migraphx::gpu::binary_cache_entry loaded;
     migraphx::from_value(migraphx::from_msgpack(buffer), loaded);
 
     EXPECT(same_entry(loaded, e));

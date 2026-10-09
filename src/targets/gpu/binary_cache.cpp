@@ -104,12 +104,10 @@ static std::string device_dir(const context& ctx)
            "_wf" + std::to_string(device.get_wavefront_size());
 }
 
-// The storage backend is selected by the path's extension, the same rule
-// make_problem_cache_backend applies: a SQLite database for sqlite::is_database_path, anything
-// else is a directory of entries. A directory is named with the short version id to keep paths
-// short; a database records the full id, which is self-describing. Nothing is persisted when the
-// compiler cannot be identified, since entries from different toolchains would be
-// indistinguishable.
+// A path sqlite::is_database_path accepts is a SQLite database; anything else is a directory of
+// entries. A directory is named with the short version id to keep paths short; a database records
+// the full id. Nothing is persisted when the compiler cannot be identified, since entries from
+// different toolchains would be indistinguishable.
 binary_cache_backend* binary_cache::get_backend()
 {
     if(backend_opened)
@@ -153,9 +151,10 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
     return nullopt;
 }
 
-void binary_cache::insert(const context& ctx, std::vector<entry> es)
+void binary_cache::insert(const context& ctx, std::vector<binary_cache_entry> es)
 {
-    es.erase(std::remove_if(es.begin(), es.end(), [](const entry& e) { return e.key.empty(); }),
+    es.erase(std::remove_if(
+                 es.begin(), es.end(), [](const binary_cache_entry& e) { return e.key.empty(); }),
              es.end());
     if(es.empty())
         return;

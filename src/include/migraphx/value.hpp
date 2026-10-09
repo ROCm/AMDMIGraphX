@@ -297,16 +297,6 @@ struct MIGRAPHX_EXPORT value
     value(const std::pair<T, U>& p) : value(p.first, p.second)
     {
     }
-
-    /// A keyed value. Tidy suggests returning {key, x} instead of value(key, x), but braces pick
-    /// the initializer_list constructor and build a two-element array; this keeps that
-    /// suppression in one place.
-    template <class... Ts>
-    static value pair(const std::string& pkey, Ts&&... xs)
-    {
-        // NOLINTNEXTLINE(modernize-return-braced-init-list)
-        return value(pkey, static_cast<Ts&&>(xs)...);
-    }
     template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
     value& operator=(T rhs)
     {

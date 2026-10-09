@@ -219,15 +219,15 @@ static optional<compiler_replace> cache_lookup(context& ctx, const std::string& 
 }
 
 /// What to record for a freshly compiled result, or nullopt when its key must not be cached.
-static optional<binary_cache::entry> make_cache_entry(const operation& preop,
-                                                      const value& solution,
-                                                      const std::string& key,
-                                                      const value& problem,
-                                                      const compiled_code& code)
+static optional<binary_cache_entry> make_cache_entry(const operation& preop,
+                                                     const value& solution,
+                                                     const std::string& key,
+                                                     const value& problem,
+                                                     const compiled_code& code)
 {
     if(is_private_key(key))
         return nullopt;
-    binary_cache::entry e;
+    binary_cache_entry e;
     e.key      = key;
     e.op_name  = preop.name();
     e.problem  = problem;
@@ -255,7 +255,7 @@ static compiler_replace compile_cached(context& ctx,
     if(auto e = make_cache_entry(preop, solution, key, problem, cr.code))
     {
         // Built by push_back, since an initializer list would copy the entry rather than move it.
-        std::vector<binary_cache::entry> es;
+        std::vector<binary_cache_entry> es;
         es.push_back(std::move(*e));
         ctx.get_binary_cache().insert(ctx, std::move(es));
     }
@@ -454,7 +454,7 @@ struct compile_plan
         return cache_lookup(*ctx, key);
     }
 
-    optional<binary_cache::entry>
+    optional<binary_cache_entry>
     cache_entry(const value& solution, const std::string& key, const compiled_code& code) const
     {
         return make_cache_entry(preop, solution, key, config ? config->problem : value{}, code);
@@ -800,7 +800,7 @@ struct compile_manager
         // single insert, letting its storage commit them together rather than one at a time.
         auto* ctx = tasks.front().first->ctx;
         assert(all_of(tasks, [&](const auto& task) { return task.first->ctx == ctx; }));
-        std::vector<binary_cache::entry> entries;
+        std::vector<binary_cache_entry> entries;
         entries.reserve(tasks.size());
         for(const auto& [cp, cell] : tasks)
         {

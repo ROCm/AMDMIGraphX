@@ -57,10 +57,7 @@ TEST_CASE(mlir_compile_key_is_stable_across_compiles)
         return;
     const auto& solution = tc.solutions.front();
 
-    auto before = migraphx::gpu::mlir_compile_key(ctx, m, shapes, solution);
-    // Skip when MLIR is not enabled
-    if(before.empty())
-        return;
+    auto before  = migraphx::gpu::mlir_compile_key(ctx, m, shapes, solution);
     auto between = migraphx::gpu::mlir_compile_key(ctx, m, shapes, solution);
     migraphx::gpu::compile_mlir(ctx, m, shapes, solution);
     auto after = migraphx::gpu::mlir_compile_key(ctx, m, shapes, solution);

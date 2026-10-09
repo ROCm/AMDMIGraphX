@@ -233,17 +233,14 @@ void sqlite_stmt::reset() const noexcept
     (void)sqlite3_clear_bindings(impl->get());
 }
 
-/// Column i of the current row, keyed by its name.
+/// Column i of the current row.
 static value column_value(sqlite3_stmt* stmt, int i)
 {
-    // Null only when sqlite runs out of memory, which would make the string below undefined.
-    const char* name = sqlite3_column_name(stmt, i);
-    assert(name != nullptr);
     auto type = sqlite3_column_type(stmt, i);
     switch(type)
     {
-    case SQLITE_INTEGER: return value::pair(name, std::int64_t{sqlite3_column_int64(stmt, i)});
-    case SQLITE_FLOAT: return value::pair(name, sqlite3_column_double(stmt, i));
+    case SQLITE_INTEGER: return std::int64_t{sqlite3_column_int64(stmt, i)};
+    case SQLITE_FLOAT: return sqlite3_column_double(stmt, i);
     case SQLITE_TEXT:
     case SQLITE_BLOB: {
         // The data must be fetched before sqlite3_column_bytes: the other order can force a
@@ -254,10 +251,10 @@ static value column_value(sqlite3_stmt* stmt, int i)
         assert(bytes >= 0);
         std::size_t size = data == nullptr ? 0 : bytes;
         if(type == SQLITE_TEXT)
-            return value::pair(name, size == 0 ? std::string{} : std::string(data, size));
-        return value::pair(name, value::binary{data, size});
+            return size == 0 ? std::string{} : std::string(data, size);
+        return value::binary{data, size};
     }
-    default: return value::pair(name, nullptr);
+    default: return nullptr;
     }
 }
 
@@ -267,7 +264,13 @@ value sqlite_stmt::to_value() const
     value columns = value::object{};
     const int n   = sqlite3_column_count(stmt);
     for(int i = 0; i < n; ++i)
-        columns.insert(column_value(stmt, i));
+    {
+        // Null only when sqlite runs out of memory; a key cannot be built from a null name.
+        const char* name = sqlite3_column_name(stmt, i);
+        assert(name != nullptr);
+        // Assigned rather than inserted, which would copy the column, blob and all.
+        columns[name] = column_value(stmt, i);
+    }
     return columns;
 }
 

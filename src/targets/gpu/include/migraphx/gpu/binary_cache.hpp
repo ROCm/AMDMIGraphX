@@ -67,9 +67,6 @@ struct binary_cache_settings
  */
 struct MIGRAPHX_GPU_EXPORT binary_cache
 {
-    /// What gets stored for one compiled kernel; see binary_cache_entry.hpp.
-    using entry = binary_cache_entry;
-
     /// Counts of what the cache did.
     struct stats
     {
@@ -92,7 +89,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
 
     /// Record compiled results under their keys. They are handed to the storage backend
     /// together, so it can commit them at once rather than one at a time.
-    void insert(const context& ctx, std::vector<entry> es);
+    void insert(const context& ctx, std::vector<binary_cache_entry> es);
 
     /// True when reused results should be checked against a fresh compile.
     bool verify() const { return settings.verify; }

@@ -850,7 +850,7 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
     if(broadcast)
         detach_unabsorbed_broadcasts(result.dimensions, dims);
     auto axes_map = rebase_ambiguity_resolver{result, dims}.resolve();
-    if(not std::all_of(axes_map.begin(), axes_map.end(), [&](auto& p) {
+    if(not std::all_of(axes_map.begin(), axes_map.end(), [&](const auto& p) {
            const auto& [axis, subs] = p;
            assert(axis < dims.size());
            return rebase_axis(subs, dims[axis], broadcast);

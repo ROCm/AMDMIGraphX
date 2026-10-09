@@ -217,8 +217,8 @@ struct pipeline_factory
             eliminate_identity{},
             eliminate_pad{},
             dead_code_elimination{},
-            insert_pad{{"convolution"}},
-            dead_code_elimination{},
+            // insert_pad{{"convolution"}},
+            // dead_code_elimination{},
             inline_module{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
                         rewrite_pooling{.rewrite_lrn = (not MIGRAPHX_USE_MIOPEN or

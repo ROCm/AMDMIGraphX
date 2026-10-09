@@ -1,3 +1,6 @@
+:selector-toc2: Installation environment
+:selector-toc2-icon: fa-solid fa-computer
+
 .. meta::
   :description: Installing MIGraphX for ROCm
   :keywords: install, pip, package manager, tarball, build, MIGraphX, AMD, ROCm, development, contributing
@@ -16,8 +19,22 @@ Install MIGraphX
 
 MIGraphX is AMD's graph inference engine for optimizing and executing ONNX
 models on AMD GPUs using ROCm. This page describes how to install MIGraphX
-|MIGRAPHX_VERSION| for ROCm |ROCM_VERSION| using your Linux distribution's
-package manager, pip, or a tarball.
+|MIGRAPHX_VERSION| for ROCm |ROCM_VERSION|.
+
+.. selector:: Installation method
+   :key: i
+
+   .. selector-option:: Package manager
+      :value: pkgman
+      :width: 4
+
+   .. selector-option:: pip
+      :value: pip
+      :width: 4
+
+   .. selector-option:: Tarball
+      :value: tar
+      :width: 4
 
 Prerequisites
 =============
@@ -38,253 +55,346 @@ See the `ROCm compatibility matrix`_ for more information.
 
 .. _ROCm compatibility matrix: https://rocm.docs.amd.com/en/docs-|ROCM_VERSION|/compatibility/compatibility-matrix.html
 
-To install MIGraphX using pip, ensure your system has Python 3.12 installed and
-accessible.
+.. selected:: i=pip
+
+   * Ensure your system has Python 3.12 installed and accessible.
+
+.. _migraphx-package-install:
+
+Install MIGraphX on Linux
+=========================
+
+MIGraphX requires ROCm to be installed on your system first.
 
 Install ROCm
-============
+------------
 
-MIGraphX requires ROCm to be installed on your system first. For instructions,
-see `Install AMD ROCm`_ |ROCM_VERSION|. Use the selector panel on that page to
-view instructions appropriate for your system environment.
+For instructions, see `Install AMD ROCm`_ |ROCM_VERSION|. Use the selector
+panel on that page to view instructions appropriate for your system
+environment.
 
 .. _Install AMD ROCm: https://rocm.docs.amd.com/en/docs-|ROCM_VERSION|/install/rocm.html?fam=all
 
-Install MIGraphX using a package manager
-========================================
+.. selected:: i=pkgman
+   :heading: Install MIGraphX 2.18.0 via package manager
+   :heading-level: 3
 
-Use the following steps to install MIGraphX system-wide using your
-distribution's package manager on top of ROCm core libraries.
+   Use the following steps to install MIGraphX system-wide using your
+   distribution's package manager on top of ROCm core libraries.
 
-1. Register the ROCm MIGraphX repository.
+   .. selector:: Linux distribution
+      :key: os
 
-   .. tab-set::
+      .. selector-option:: Ubuntu
+         :value: ubuntu
+         :width: 4
 
-      .. tab-item:: Ubuntu
-         :sync: ubuntu
+      .. selector-option:: Debian
+         :value: debian
+         :width: 4
 
-         .. tab-set::
+      .. selector-option:: RHEL
+         :value: rhel
+         :width: 4
 
-            .. tab-item:: 26.04.1
-               :sync: ubuntu2604
+      .. selector-option:: Oracle Linux
+         :value: oracle-linux
+         :width: 4
 
-               .. code-block:: bash
+      .. selector-option:: Rocky Linux
+         :value: rocky-linux
+         :width: 4
 
-                  sudo mkdir --parents --mode=0755 /etc/apt/keyrings
-                  wget https://stable.repo.amd.com/rocm/gpg/packages.gpg -O - | \
-                      gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
-                  sudo tee /etc/apt/sources.list.d/amdrocm-migraphx.sources << 'EOF'
-                  X-Repo-Id: amdrocm-migraphx
-                  Types: deb
-                  URIs: https://stable.repo.amd.com/rocm/migraphx/packages/ubuntu2604/
-                  Suites: stable
-                  Components: main
-                  Architectures: amd64
-                  Signed-By: /etc/apt/keyrings/amdrocm.gpg
-                  Enabled: yes
-                  EOF
+      .. selector-option:: SLES
+         :value: sles
+         :width: 4
 
-                  sudo apt update
+   .. selected:: os=ubuntu
 
-            .. tab-item:: 24.04.5
-               :sync: ubuntu2404
+      .. selector:: Ubuntu version
+         :key: ubuntu-ver
 
-               .. code-block:: bash
+         .. selector-option:: 26.04.1
+            :width: 4
 
-                  sudo mkdir --parents --mode=0755 /etc/apt/keyrings
-                  wget https://stable.repo.amd.com/rocm/gpg/packages.gpg -O - | \
-                      gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
-                  sudo tee /etc/apt/sources.list.d/amdrocm-migraphx.sources << 'EOF'
-                  X-Repo-Id: amdrocm-migraphx
-                  Types: deb
-                  URIs: https://stable.repo.amd.com/rocm/migraphx/packages/ubuntu2404/
-                  Suites: stable
-                  Components: main
-                  Architectures: amd64
-                  Signed-By: /etc/apt/keyrings/amdrocm.gpg
-                  Enabled: yes
-                  EOF
+         .. selector-option:: 24.04.5
+            :width: 4
 
-                  sudo apt update
+         .. selector-option:: 22.04.5
+            :width: 4
 
-            .. tab-item:: 22.04.5
-               :sync: ubuntu2204
+   .. selected:: os=debian
 
-               .. code-block:: bash
+      .. selector:: Debian version
+         :key: debian-ver
 
-                  sudo mkdir --parents --mode=0755 /etc/apt/keyrings
-                  wget https://stable.repo.amd.com/rocm/gpg/packages.gpg -O - | \
-                      gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
-                  sudo tee /etc/apt/sources.list.d/amdrocm-migraphx.sources << 'EOF'
-                  X-Repo-Id: amdrocm-migraphx
-                  Types: deb
-                  URIs: https://stable.repo.amd.com/rocm/migraphx/packages/ubuntu2204/
-                  Suites: stable
-                  Components: main
-                  Architectures: amd64
-                  Signed-By: /etc/apt/keyrings/amdrocm.gpg
-                  Enabled: yes
-                  EOF
+         .. selector-option:: 13
+            :width: 6
 
-                  sudo apt update
+         .. selector-option:: 12
+            :width: 6
 
-      .. tab-item:: Debian
-         :sync: debian
+   .. selected:: os=rhel
 
-         .. tab-set::
+      .. selector:: RHEL version
+         :key: rhel-ver
 
-            .. tab-item:: 13
-               :sync: debian13
+         .. selector-option:: 10.2
+            :width: 2
 
-               .. code-block:: bash
+         .. selector-option:: 10.0
+            :width: 2
 
-                  sudo mkdir --parents --mode=0755 /etc/apt/keyrings
-                  wget https://stable.repo.amd.com/rocm/gpg/packages.gpg -O - | \
-                      gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
-                  sudo tee /etc/apt/sources.list.d/amdrocm-migraphx.sources << 'EOF'
-                  X-Repo-Id: amdrocm-migraphx
-                  Types: deb
-                  URIs: https://stable.repo.amd.com/rocm/migraphx/packages/debian13/
-                  Suites: stable
-                  Components: main
-                  Architectures: amd64
-                  Signed-By: /etc/apt/keyrings/amdrocm.gpg
-                  Enabled: yes
-                  EOF
+         .. selector-option:: 9.8
+            :width: 2
 
-                  sudo apt update
+         .. selector-option:: 9.6
+            :width: 2
 
-            .. tab-item:: 12
-               :sync: debian12
+         .. selector-option:: 9.4
+            :width: 2
 
-               .. code-block:: bash
+         .. selector-option:: 8.10
+            :width: 2
 
-                  sudo mkdir --parents --mode=0755 /etc/apt/keyrings
-                  wget https://stable.repo.amd.com/rocm/gpg/packages.gpg -O - | \
-                      gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
-                  sudo tee /etc/apt/sources.list.d/amdrocm-migraphx.sources << 'EOF'
-                  X-Repo-Id: amdrocm-migraphx
-                  Types: deb
-                  URIs: https://stable.repo.amd.com/rocm/migraphx/packages/debian12/
-                  Suites: stable
-                  Components: main
-                  Architectures: amd64
-                  Signed-By: /etc/apt/keyrings/amdrocm.gpg
-                  Enabled: yes
-                  EOF
+   .. selected:: os=oracle-linux
 
-                  sudo apt update
+      .. selector:: Oracle Linux version
+         :key: oracle-linux-ver
 
-      .. tab-item:: RHEL
-         :sync: rhel
+         .. selector-option:: 10
+            :width: 4
 
-         .. tab-set::
+         .. selector-option:: 9
+            :width: 4
 
-            .. tab-item:: 10.2, 10.0
-               :sync: rhel10
+         .. selector-option:: 8
+            :width: 4
 
-               .. code-block:: bash
+   .. selected:: os=rocky-linux
 
-                  sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
-                  [amdrocm-migraphx]
-                  name=AMD ROCm MIGraphX
-                  baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel10/x86_64
-                  enabled=1
-                  gpgcheck=1
-                  gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
-                  priority=50
-                  EOF
-                  sudo dnf clean all
+      .. selector:: Rocky Linux version
+         :key: rocky-linux-ver
 
-            .. tab-item:: 9.8, 9.6, 9.4
-               :sync: rhel9
+         .. selector-option:: 9
+            :width: 12
 
-               .. code-block:: bash
+   .. selected:: os=sles
 
-                  sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
-                  [amdrocm-migraphx]
-                  name=AMD ROCm MIGraphX
-                  baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel9/x86_64
-                  enabled=1
-                  gpgcheck=1
-                  gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
-                  priority=50
-                  EOF
-                  sudo dnf clean all
+      .. selector:: SLES version
+         :key: sles-ver
 
-            .. tab-item:: 8.10
-               :sync: rhel8
+         .. selector-option:: 16
+            :width: 6
 
-               .. code-block:: bash
+         .. selector-option:: 15.7
+            :width: 6
 
-                  sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
-                  [amdrocm-migraphx]
-                  name=AMD ROCm MIGraphX
-                  baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel8/x86_64
-                  enabled=1
-                  gpgcheck=1
-                  gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
-                  priority=50
-                  EOF
-                  sudo dnf clean all
+   .. raw:: html
 
-      .. tab-item:: Oracle Linux
-         :sync: oracle-linux
+      <br>
 
-         .. tab-set::
+   1. Register the ROCm MIGraphX repository.
 
-            .. tab-item:: 10
-               :sync: rhel10
+      .. selected:: os=ubuntu
 
-               .. code-block:: bash
+         .. selected:: ubuntu-ver=26.04.1
 
-                  sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
-                  [amdrocm-migraphx]
-                  name=AMD ROCm MIGraphX
-                  baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel10/x86_64
-                  enabled=1
-                  gpgcheck=1
-                  gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
-                  priority=50
-                  EOF
-                  sudo dnf clean all
+            .. code-block:: bash
 
-            .. tab-item:: 9
-               :sync: rhel9
+               sudo mkdir --parents --mode=0755 /etc/apt/keyrings
+               wget https://stable.repo.amd.com/rocm/gpg/packages.gpg -O - | \
+                   gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
+               sudo tee /etc/apt/sources.list.d/amdrocm-migraphx.sources << 'EOF'
+               X-Repo-Id: amdrocm-migraphx
+               Types: deb
+               URIs: https://stable.repo.amd.com/rocm/migraphx/packages/ubuntu2604/
+               Suites: stable
+               Components: main
+               Architectures: amd64
+               Signed-By: /etc/apt/keyrings/amdrocm.gpg
+               Enabled: yes
+               EOF
 
-               .. code-block:: bash
+               sudo apt update
 
-                  sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
-                  [amdrocm-migraphx]
-                  name=AMD ROCm MIGraphX
-                  baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel9/x86_64
-                  enabled=1
-                  gpgcheck=1
-                  gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
-                  priority=50
-                  EOF
-                  sudo dnf clean all
+         .. selected:: ubuntu-ver=24.04.5
 
-            .. tab-item:: 8
-               :sync: rhel8
+            .. code-block:: bash
 
-               .. code-block:: bash
+               sudo mkdir --parents --mode=0755 /etc/apt/keyrings
+               wget https://stable.repo.amd.com/rocm/gpg/packages.gpg -O - | \
+                   gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
+               sudo tee /etc/apt/sources.list.d/amdrocm-migraphx.sources << 'EOF'
+               X-Repo-Id: amdrocm-migraphx
+               Types: deb
+               URIs: https://stable.repo.amd.com/rocm/migraphx/packages/ubuntu2404/
+               Suites: stable
+               Components: main
+               Architectures: amd64
+               Signed-By: /etc/apt/keyrings/amdrocm.gpg
+               Enabled: yes
+               EOF
 
-                  sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
-                  [amdrocm-migraphx]
-                  name=AMD ROCm MIGraphX
-                  baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel8/x86_64
-                  enabled=1
-                  gpgcheck=1
-                  gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
-                  priority=50
-                  EOF
-                  sudo dnf clean all
+               sudo apt update
 
-      .. tab-item:: Rocky Linux
-         :sync: rocky-linux
+         .. selected:: ubuntu-ver=22.04.5
 
-         Rocky Linux 9:
+            .. code-block:: bash
+
+               sudo mkdir --parents --mode=0755 /etc/apt/keyrings
+               wget https://stable.repo.amd.com/rocm/gpg/packages.gpg -O - | \
+                   gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
+               sudo tee /etc/apt/sources.list.d/amdrocm-migraphx.sources << 'EOF'
+               X-Repo-Id: amdrocm-migraphx
+               Types: deb
+               URIs: https://stable.repo.amd.com/rocm/migraphx/packages/ubuntu2204/
+               Suites: stable
+               Components: main
+               Architectures: amd64
+               Signed-By: /etc/apt/keyrings/amdrocm.gpg
+               Enabled: yes
+               EOF
+
+               sudo apt update
+
+      .. selected:: os=debian
+
+         .. selected:: debian-ver=13
+
+            .. code-block:: bash
+
+               sudo mkdir --parents --mode=0755 /etc/apt/keyrings
+               wget https://stable.repo.amd.com/rocm/gpg/packages.gpg -O - | \
+                   gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
+               sudo tee /etc/apt/sources.list.d/amdrocm-migraphx.sources << 'EOF'
+               X-Repo-Id: amdrocm-migraphx
+               Types: deb
+               URIs: https://stable.repo.amd.com/rocm/migraphx/packages/debian13/
+               Suites: stable
+               Components: main
+               Architectures: amd64
+               Signed-By: /etc/apt/keyrings/amdrocm.gpg
+               Enabled: yes
+               EOF
+
+               sudo apt update
+
+         .. selected:: debian-ver=12
+
+            .. code-block:: bash
+
+               sudo mkdir --parents --mode=0755 /etc/apt/keyrings
+               wget https://stable.repo.amd.com/rocm/gpg/packages.gpg -O - | \
+                   gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
+               sudo tee /etc/apt/sources.list.d/amdrocm-migraphx.sources << 'EOF'
+               X-Repo-Id: amdrocm-migraphx
+               Types: deb
+               URIs: https://stable.repo.amd.com/rocm/migraphx/packages/debian12/
+               Suites: stable
+               Components: main
+               Architectures: amd64
+               Signed-By: /etc/apt/keyrings/amdrocm.gpg
+               Enabled: yes
+               EOF
+
+               sudo apt update
+
+      .. selected:: os=rhel
+
+         .. selected:: rhel-ver=10.2 rhel-ver=10.0
+
+            .. code-block:: bash
+
+               sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
+               [amdrocm-migraphx]
+               name=AMD ROCm MIGraphX
+               baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel10/x86_64
+               enabled=1
+               gpgcheck=1
+               gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
+               priority=50
+               EOF
+               sudo dnf clean all
+
+         .. selected:: rhel-ver=9.8 rhel-ver=9.6 rhel-ver=9.4
+
+            .. code-block:: bash
+
+               sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
+               [amdrocm-migraphx]
+               name=AMD ROCm MIGraphX
+               baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel9/x86_64
+               enabled=1
+               gpgcheck=1
+               gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
+               priority=50
+               EOF
+               sudo dnf clean all
+
+         .. selected:: rhel-ver=8.10
+
+            .. code-block:: bash
+
+               sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
+               [amdrocm-migraphx]
+               name=AMD ROCm MIGraphX
+               baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel8/x86_64
+               enabled=1
+               gpgcheck=1
+               gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
+               priority=50
+               EOF
+               sudo dnf clean all
+
+      .. selected:: os=oracle-linux
+
+         .. selected:: oracle-linux-ver=10
+
+            .. code-block:: bash
+
+               sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
+               [amdrocm-migraphx]
+               name=AMD ROCm MIGraphX
+               baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel10/x86_64
+               enabled=1
+               gpgcheck=1
+               gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
+               priority=50
+               EOF
+               sudo dnf clean all
+
+         .. selected:: oracle-linux-ver=9
+
+            .. code-block:: bash
+
+               sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
+               [amdrocm-migraphx]
+               name=AMD ROCm MIGraphX
+               baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel9/x86_64
+               enabled=1
+               gpgcheck=1
+               gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
+               priority=50
+               EOF
+               sudo dnf clean all
+
+         .. selected:: oracle-linux-ver=8
+
+            .. code-block:: bash
+
+               sudo tee /etc/yum.repos.d/amdrocm-migraphx.repo <<EOF
+               [amdrocm-migraphx]
+               name=AMD ROCm MIGraphX
+               baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/rhel8/x86_64
+               enabled=1
+               gpgcheck=1
+               gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
+               priority=50
+               EOF
+               sudo dnf clean all
+
+      .. selected:: os=rocky-linux
 
          .. code-block:: bash
 
@@ -299,197 +409,180 @@ distribution's package manager on top of ROCm core libraries.
             EOF
             sudo dnf clean all
 
-      .. tab-item:: SLES
-         :sync: sles
+      .. selected:: os=sles
 
-         .. tab-set::
+         .. selected:: sles-ver=16
 
-            .. tab-item:: 16
-               :sync: sles16
+            .. code-block:: bash
 
-               .. code-block:: bash
+               sudo tee /etc/zypp/repos.d/amdrocm-migraphx.repo <<EOF
+               [amdrocm-migraphx]
+               name=AMD ROCm MIGraphX
+               baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/sles16/x86_64
+               enabled=1
+               gpgcheck=1
+               gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
+               priority=50
+               EOF
 
-                  sudo tee /etc/zypp/repos.d/amdrocm-migraphx.repo <<EOF
-                  [amdrocm-migraphx]
-                  name=AMD ROCm MIGraphX
-                  baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/sles16/x86_64
-                  enabled=1
-                  gpgcheck=1
-                  gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
-                  priority=50
-                  EOF
+               sudo zypper --gpg-auto-import-keys refresh
 
-                  sudo zypper --gpg-auto-import-keys refresh
+         .. selected:: sles-ver=15.7
 
-            .. tab-item:: 15.7
-               :sync: sles15
+            .. code-block:: bash
 
-               .. code-block:: bash
+               sudo tee /etc/zypp/repos.d/amdrocm-migraphx.repo <<EOF
+               [amdrocm-migraphx]
+               name=AMD ROCm MIGraphX
+               baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/sles15/x86_64
+               enabled=1
+               gpgcheck=1
+               gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
+               priority=50
+               EOF
 
-                  sudo tee /etc/zypp/repos.d/amdrocm-migraphx.repo <<EOF
-                  [amdrocm-migraphx]
-                  name=AMD ROCm MIGraphX
-                  baseurl=https://stable.repo.amd.com/rocm/migraphx/packages/sles15/x86_64
-                  enabled=1
-                  gpgcheck=1
-                  gpgkey=https://stable.repo.amd.com/rocm/gpg/packages.gpg
-                  priority=50
-                  EOF
+               sudo zypper --gpg-auto-import-keys refresh
 
-                  sudo zypper --gpg-auto-import-keys refresh
+   2. Install the MIGraphX packages and ROCm dependencies.
 
-2. Install the MIGraphX packages and ROCm dependencies.
-
-   .. tab-set::
-
-      .. tab-item:: Ubuntu and Debian
-         :sync: ubuntu
+      .. selected:: os=ubuntu os=debian
 
          .. code-block:: bash
 
             sudo apt install amdrocm10-migraphx amdrocm10-migraphx-dev
 
-      .. tab-item:: RHEL, Oracle Linux, and Rocky Linux
-         :sync: rhel
+      .. selected:: os=rhel os=oracle-linux os=rocky-linux
 
          .. code-block:: bash
 
             sudo dnf install amdrocm10-migraphx amdrocm10-migraphx-devel
 
-      .. tab-item:: SLES
-         :sync: sles
+      .. selected:: os=sles
 
          .. code-block:: bash
 
             sudo zypper install amdrocm10-migraphx amdrocm10-migraphx-devel
 
-3. Complete the following post-installation steps.
+   3. Complete the following post-installation steps.
 
-   Configure environment variables so that MIGraphX is added to the ``PATH``
-   and ``LD_LIBRARY_PATH``.
+      Configure environment variables so that MIGraphX is added to the
+      ``PATH`` and ``LD_LIBRARY_PATH``.
 
-   .. tab-set::
+      .. tab-set::
 
-      .. tab-item:: User (~/.bashrc)
-         :sync: bashrc
+         .. tab-item:: User (~/.bashrc)
+            :sync: bashrc
 
-         .. code-block:: bash
+            .. code-block:: bash
 
-            # MIGraphX Environment Setup
-            tee --append ~/.bashrc << 'EOF'
-            # BEGIN MIGraphX environment configuration
-            export ROCM_PATH=/opt/rocm/core-10.1
-            export MIGRAPHX_PATH=/opt/rocm/extras-10
-            export PATH=$MIGRAPHX_PATH/bin:$PATH
-            export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
-            # END MIGraphX environment configuration
-            EOF
+               # MIGraphX Environment Setup
+               tee --append ~/.bashrc << 'EOF'
+               # BEGIN MIGraphX environment configuration
+               export ROCM_PATH=/opt/rocm/core-10.1
+               export MIGRAPHX_PATH=/opt/rocm/extras-10
+               export PATH=$MIGRAPHX_PATH/bin:$PATH
+               export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
+               # END MIGraphX environment configuration
+               EOF
 
-            source ~/.bashrc
+               source ~/.bashrc
 
-      .. tab-item:: User (~/.profile)
-         :sync: profile
+         .. tab-item:: User (~/.profile)
+            :sync: profile
 
-         .. code-block:: bash
+            .. code-block:: bash
 
-            # MIGraphX Environment Setup
-            tee --append ~/.profile << 'EOF'
-            # BEGIN MIGraphX environment configuration
-            export ROCM_PATH=/opt/rocm/core-10.1
-            export MIGRAPHX_PATH=/opt/rocm/extras-10
-            export PATH=$MIGRAPHX_PATH/bin:$PATH
-            export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
-            # END MIGraphX environment configuration
-            EOF
+               # MIGraphX Environment Setup
+               tee --append ~/.profile << 'EOF'
+               # BEGIN MIGraphX environment configuration
+               export ROCM_PATH=/opt/rocm/core-10.1
+               export MIGRAPHX_PATH=/opt/rocm/extras-10
+               export PATH=$MIGRAPHX_PATH/bin:$PATH
+               export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
+               # END MIGraphX environment configuration
+               EOF
 
-            source ~/.profile
+               source ~/.profile
 
-      .. tab-item:: System-wide
-         :sync: system
+         .. tab-item:: System-wide
+            :sync: system
 
-         .. code-block:: bash
+            .. code-block:: bash
 
-            # MIGraphX Environment Setup
-            sudo tee /etc/profile.d/set-migraphx-env.sh << 'EOF'
-            export ROCM_PATH=/opt/rocm/core-10.1
-            export MIGRAPHX_PATH=/opt/rocm/extras-10
-            export PATH=$MIGRAPHX_PATH/bin:$PATH
-            export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
-            EOF
+               # MIGraphX Environment Setup
+               sudo tee /etc/profile.d/set-migraphx-env.sh << 'EOF'
+               export ROCM_PATH=/opt/rocm/core-10.1
+               export MIGRAPHX_PATH=/opt/rocm/extras-10
+               export PATH=$MIGRAPHX_PATH/bin:$PATH
+               export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
+               EOF
 
-            sudo chmod +x /etc/profile.d/set-migraphx-env.sh
-            source /etc/profile.d/set-migraphx-env.sh
+               sudo chmod +x /etc/profile.d/set-migraphx-env.sh
+               source /etc/profile.d/set-migraphx-env.sh
 
-4. Verify your installation.
+   4. Verify your installation.
 
-   Confirm that ``migraphx-driver`` is on your ``PATH`` and reports the
-   expected version.
+      Confirm that ``migraphx-driver`` is on your ``PATH`` and reports the
+      expected version.
 
-   .. code-block:: bash
+      .. code-block:: bash
 
-      migraphx-driver --version
+         migraphx-driver --version
 
-   You should see MIGraphX |MIGRAPHX_VERSION| in the output:
+      You should see MIGraphX |MIGRAPHX_VERSION| in the output:
 
-   .. code-block:: text
-      :substitutions:
+      .. code-block:: text
+         :substitutions:
 
-      MIGraphX Version: |MIGRAPHX_VERSION|
+         MIGraphX Version: |MIGRAPHX_VERSION|
 
-   .. tip::
+      .. tip::
 
-      If the command isn't found, the environment variables from the previous
-      step aren't set in your current shell. Re-run the ``source`` command or
-      open a new shell session.
+         If the command isn't found, the environment variables from the
+         previous step aren't set in your current shell. Re-run the
+         ``source`` command or open a new shell session.
 
-5. ONNX Runtime accelerates machine learning inference using the MIGraphX
-   execution provider on ROCm-supported GPUs. See the `ONNX Runtime
-   installation guide`_.
+   5. ONNX Runtime accelerates machine learning inference using the MIGraphX
+      execution provider on ROCm-supported GPUs. See the `ONNX Runtime
+      installation guide`_.
 
-   .. note::
+      .. note::
 
-      The ONNX Runtime MIGraphX execution provider requires MIGraphX to be
-      installed using pip. The ``onnxruntime-ep-migraphx`` wheel depends on
-      ``migraphx-libs``, which pip can't resolve from a package manager
-      installation. To use the execution provider, install MIGraphX using pip
-      instead.
+         The ONNX Runtime MIGraphX execution provider requires MIGraphX to
+         be installed using pip. The ``onnxruntime-ep-migraphx`` wheel
+         depends on ``migraphx-libs``, which pip can't resolve from a
+         package manager installation. To use the execution provider,
+         install MIGraphX using pip instead.
 
 .. _ONNX Runtime installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html?rocm-ver=|ROCM_VERSION|
 
-Uninstall a package manager installation
-----------------------------------------
+.. selected:: i=pkgman
+   :heading: Uninstall MIGraphX
+   :heading-level: 3
 
-1. Use your package manager to remove the installed packages.
+   1. Use your package manager to remove the installed packages.
 
-   .. tab-set::
-
-      .. tab-item:: Ubuntu and Debian
-         :sync: ubuntu
+      .. selected:: os=ubuntu os=debian
 
          .. code-block:: bash
 
             sudo apt remove amdrocm10-migraphx amdrocm10-migraphx-dev
 
-      .. tab-item:: RHEL, Oracle Linux, and Rocky Linux
-         :sync: rhel
+      .. selected:: os=rhel os=oracle-linux os=rocky-linux
 
          .. code-block:: bash
 
             sudo dnf remove amdrocm10-migraphx amdrocm10-migraphx-devel
 
-      .. tab-item:: SLES
-         :sync: sles
+      .. selected:: os=sles
 
          .. code-block:: bash
 
             sudo zypper remove amdrocm10-migraphx amdrocm10-migraphx-devel
 
-2. Remove the MIGraphX repository.
+   2. Remove the MIGraphX repository.
 
-   .. tab-set::
-
-      .. tab-item:: Ubuntu and Debian
-         :sync: ubuntu
+      .. selected:: os=ubuntu os=debian
 
          .. code-block:: bash
 
@@ -500,8 +593,7 @@ Uninstall a package manager installation
             sudo apt clean
             sudo apt update
 
-      .. tab-item:: RHEL, Oracle Linux, and Rocky Linux
-         :sync: rhel
+      .. selected:: os=rhel os=oracle-linux os=rocky-linux
 
          .. code-block:: bash
 
@@ -511,8 +603,7 @@ Uninstall a package manager installation
             # Clear the cache and clean the system
             sudo dnf clean all
 
-      .. tab-item:: SLES
-         :sync: sles
+      .. selected:: os=sles
 
          .. code-block:: bash
 
@@ -523,228 +614,242 @@ Uninstall a package manager installation
             sudo zypper clean --all
             sudo zypper refresh
 
-3. Remove the MIGraphX environment configuration.
+   3. Remove the MIGraphX environment configuration.
 
-   .. tab-set::
+      .. tab-set::
 
-      .. tab-item:: User (~/.bashrc)
-         :sync: bashrc
+         .. tab-item:: User (~/.bashrc)
+            :sync: bashrc
 
-         If you opted for a user-specific setup during the installation
-         process, remove the MIGraphX environment configuration block -- the
-         lines between the ``BEGIN`` and ``END`` markers -- from ``~/.bashrc``.
+            If you opted for a user-specific setup during the installation
+            process, remove the MIGraphX environment configuration block --
+            the lines between the ``BEGIN`` and ``END`` markers -- from
+            ``~/.bashrc``.
 
-      .. tab-item:: User (~/.profile)
-         :sync: profile
+         .. tab-item:: User (~/.profile)
+            :sync: profile
 
-         If you opted for a user-specific setup during the installation
-         process, remove the MIGraphX environment configuration block -- the
-         lines between the ``BEGIN`` and ``END`` markers -- from ``~/.profile``.
+            If you opted for a user-specific setup during the installation
+            process, remove the MIGraphX environment configuration block --
+            the lines between the ``BEGIN`` and ``END`` markers -- from
+            ``~/.profile``.
 
-      .. tab-item:: System-wide
-         :sync: system
+         .. tab-item:: System-wide
+            :sync: system
 
-         If you opted for a system-wide setup during the installation process,
-         remove the MIGraphX environment variables.
+            If you opted for a system-wide setup during the installation
+            process, remove the MIGraphX environment variables.
 
-         .. code-block:: bash
+            .. code-block:: bash
 
-            sudo rm -f /etc/profile.d/set-migraphx-env.sh
+               sudo rm -f /etc/profile.d/set-migraphx-env.sh
 
-Install MIGraphX using pip
-==========================
+.. selected:: i=pip
+   :heading: Install MIGraphX 2.18.0 using pip
+   :heading-level: 3
 
-After installing ROCm, install MIGraphX. This method installs MIGraphX into a
-Python virtual environment.
+   After installing ROCm, install MIGraphX. This method installs MIGraphX into
+   a Python virtual environment.
 
-1. Create and activate a virtual environment or activate an existing ROCm
-   |ROCM_VERSION| environment.
+   1. Create and activate a virtual environment or activate an existing ROCm
+      |ROCM_VERSION| environment.
 
-   .. code-block:: bash
+      .. tab-set::
 
-      python3.12 -m venv .venv
-      source .venv/bin/activate
+         .. tab-item:: Python 3.12
+            :sync: py312
 
-2. Install the MIGraphX and ``migraphx-libs`` wheels.
+            .. code-block:: bash
 
-   .. code-block:: bash
-      :substitutions:
+               python3.12 -m venv .venv
+               source .venv/bin/activate
 
-      python -m pip install --index-url |PKG_REPO| \
-          |WHL| |WHL_LIBS|
+   2. Install the MIGraphX and ``migraphx-libs`` wheels.
 
-3. Verify your installation.
+      .. code-block:: bash
+         :substitutions:
 
-   Confirm that ``migraphx-driver`` is available in your virtual environment
-   and reports the expected version.
+         python -m pip install --index-url |PKG_REPO| \
+             |WHL| |WHL_LIBS|
 
-   .. code-block:: bash
+   3. Verify your installation.
 
-      migraphx-driver --version
+      Confirm that ``migraphx-driver`` is available in your virtual
+      environment and reports the expected version.
 
-4. ONNX Runtime accelerates machine learning inference using the MIGraphX
-   execution provider on ROCm-supported GPUs. See the `ONNX Runtime
-   installation guide`_.
+      .. code-block:: bash
 
-Install MIGraphX using a tarball
-================================
+         migraphx-driver --version
 
-After installing ROCm, install MIGraphX using the tarball method.
+   4. ONNX Runtime accelerates machine learning inference using the MIGraphX
+      execution provider on ROCm-supported GPUs. See the `ONNX Runtime
+      installation guide`_.
 
-1. Download the MIGraphX tarball.
+.. selected:: i=tar
+   :heading: Install MIGraphX 2.18.0 using tarball
+   :heading-level: 3
 
-   .. code-block:: bash
-      :substitutions:
+   After installing ROCm, install MIGraphX using the tarball method.
 
-      wget |TARBALL_URL|
+   1. Download the MIGraphX tarball.
 
-2. Extract the tarball.
+      .. code-block:: bash
+         :substitutions:
 
-   MIGraphX is part of the ROCm Extras set of tools that work with the ROCm
-   Core SDK and requires configuring the location of a ROCm installation. Set
-   the ``ROCM_INSTALL_PATH`` variable to the install directory of ROCm. For
-   example, if you installed the ROCm Core SDK using your Linux distribution's
-   package manager, set it to ``/opt/rocm/core-10.1``. If ROCm was installed
-   via tarball to a custom location, set ``ROCM_INSTALL_PATH`` to that
-   location, for example ``$HOME/therock-tarball/install``.
+         wget |TARBALL_URL|
 
-   ``MIGRAPHX_INSTALL_PATH`` is set to the installation of MIGraphX to an
-   extras location within the ROCm installation.
+   2. Extract the tarball.
 
-   .. code-block:: bash
-      :substitutions:
-
-      # Set installation paths
-      ROCM_INSTALL_PATH="$HOME/therock-tarball/install"
-      MIGRAPHX_INSTALL_PATH="$HOME/therock-tarball/install/extras-10"
-
-      # Extract to the MIGraphX directory
-      mkdir -p $MIGRAPHX_INSTALL_PATH
-      tar -xzf |TARBALL| -C $MIGRAPHX_INSTALL_PATH
-
-   .. note::
-
-      The installation path for MIGraphX above assumes ROCm was installed to
+      MIGraphX is part of the ROCm Extras set of tools that work with the
+      ROCm Core SDK and requires configuring the location of a ROCm
+      installation. Set the ``ROCM_INSTALL_PATH`` variable to the install
+      directory of ROCm. For example, if you installed the ROCm Core SDK
+      using your Linux distribution's package manager, set it to
+      ``/opt/rocm/core-10.1``. If ROCm was installed via tarball to a custom
+      location, set ``ROCM_INSTALL_PATH`` to that location, for example
       ``$HOME/therock-tarball/install``.
 
-3. Complete the following post-installation steps.
+      ``MIGRAPHX_INSTALL_PATH`` is set to the installation of MIGraphX to an
+      extras location within the ROCm installation.
 
-   Configure environment variables so that MIGraphX is added to the ``PATH``
-   and ``LD_LIBRARY_PATH``. ``MIGRAPHX_PATH`` and ``ROCM_PATH`` are set to the
-   values used during extraction.
+      .. code-block:: bash
+         :substitutions:
 
-   .. tab-set::
+         # Set installation paths
+         ROCM_INSTALL_PATH="$HOME/therock-tarball/install"
+         MIGRAPHX_INSTALL_PATH="$HOME/therock-tarball/install/extras-10"
 
-      .. tab-item:: User (~/.bashrc)
-         :sync: bashrc
+         # Extract to the MIGraphX directory
+         mkdir -p $MIGRAPHX_INSTALL_PATH
+         tar -xzf |TARBALL| -C $MIGRAPHX_INSTALL_PATH
 
-         .. code-block:: bash
+      .. note::
 
-            # MIGraphX Environment Setup
-            tee --append ~/.bashrc << EOF
-            # BEGIN MIGraphX environment configuration
-            export ROCM_PATH=$ROCM_INSTALL_PATH
-            export MIGRAPHX_PATH=$MIGRAPHX_INSTALL_PATH
-            export PATH=\$MIGRAPHX_PATH/bin:\$PATH
-            export LD_LIBRARY_PATH=\$MIGRAPHX_PATH/lib:\$ROCM_PATH/lib:\$LD_LIBRARY_PATH
-            # END MIGraphX environment configuration
-            EOF
+         The installation path for MIGraphX above assumes ROCm was installed
+         to ``$HOME/therock-tarball/install``.
 
-            source ~/.bashrc
+   3. Complete the following post-installation steps.
 
-      .. tab-item:: User (~/.profile)
-         :sync: profile
+      Configure environment variables so that MIGraphX is added to the
+      ``PATH`` and ``LD_LIBRARY_PATH``. ``MIGRAPHX_PATH`` and ``ROCM_PATH``
+      are set to the values used during extraction.
 
-         .. code-block:: bash
+      .. tab-set::
 
-            # MIGraphX Environment Setup
-            tee --append ~/.profile << EOF
-            # BEGIN MIGraphX environment configuration
-            export ROCM_PATH=$ROCM_INSTALL_PATH
-            export MIGRAPHX_PATH=$MIGRAPHX_INSTALL_PATH
-            export PATH=\$MIGRAPHX_PATH/bin:\$PATH
-            export LD_LIBRARY_PATH=\$MIGRAPHX_PATH/lib:\$ROCM_PATH/lib:\$LD_LIBRARY_PATH
-            # END MIGraphX environment configuration
-            EOF
+         .. tab-item:: User (~/.bashrc)
+            :sync: bashrc
 
-            source ~/.profile
+            .. code-block:: bash
 
-      .. tab-item:: System-wide
-         :sync: system
+               # MIGraphX Environment Setup
+               tee --append ~/.bashrc << EOF
+               # BEGIN MIGraphX environment configuration
+               export ROCM_PATH=$ROCM_INSTALL_PATH
+               export MIGRAPHX_PATH=$MIGRAPHX_INSTALL_PATH
+               export PATH=\$MIGRAPHX_PATH/bin:\$PATH
+               export LD_LIBRARY_PATH=\$MIGRAPHX_PATH/lib:\$ROCM_PATH/lib:\$LD_LIBRARY_PATH
+               # END MIGraphX environment configuration
+               EOF
 
-         .. code-block:: bash
+               source ~/.bashrc
 
-            # MIGraphX Environment Setup
-            sudo tee /etc/profile.d/set-migraphx-env.sh << EOF
-            export ROCM_PATH=$ROCM_INSTALL_PATH
-            export MIGRAPHX_PATH=$MIGRAPHX_INSTALL_PATH
-            export PATH=\$MIGRAPHX_PATH/bin:\$PATH
-            export LD_LIBRARY_PATH=\$MIGRAPHX_PATH/lib:\$ROCM_PATH/lib:\$LD_LIBRARY_PATH
-            EOF
+         .. tab-item:: User (~/.profile)
+            :sync: profile
 
-            sudo chmod +x /etc/profile.d/set-migraphx-env.sh
-            source /etc/profile.d/set-migraphx-env.sh
+            .. code-block:: bash
 
-4. Verify your installation.
+               # MIGraphX Environment Setup
+               tee --append ~/.profile << EOF
+               # BEGIN MIGraphX environment configuration
+               export ROCM_PATH=$ROCM_INSTALL_PATH
+               export MIGRAPHX_PATH=$MIGRAPHX_INSTALL_PATH
+               export PATH=\$MIGRAPHX_PATH/bin:\$PATH
+               export LD_LIBRARY_PATH=\$MIGRAPHX_PATH/lib:\$ROCM_PATH/lib:\$LD_LIBRARY_PATH
+               # END MIGraphX environment configuration
+               EOF
 
-   Confirm that ``migraphx-driver`` is on your ``PATH`` and reports the
-   expected version.
+               source ~/.profile
 
-   .. code-block:: bash
+         .. tab-item:: System-wide
+            :sync: system
 
-      migraphx-driver --version
+            .. code-block:: bash
 
-   .. tip::
+               # MIGraphX Environment Setup
+               sudo tee /etc/profile.d/set-migraphx-env.sh << EOF
+               export ROCM_PATH=$ROCM_INSTALL_PATH
+               export MIGRAPHX_PATH=$MIGRAPHX_INSTALL_PATH
+               export PATH=\$MIGRAPHX_PATH/bin:\$PATH
+               export LD_LIBRARY_PATH=\$MIGRAPHX_PATH/lib:\$ROCM_PATH/lib:\$LD_LIBRARY_PATH
+               EOF
 
-      If the command isn't found, the environment variables from the previous
-      step aren't set in your current shell. Re-run the ``source`` command or
-      open a new shell session.
+               sudo chmod +x /etc/profile.d/set-migraphx-env.sh
+               source /etc/profile.d/set-migraphx-env.sh
 
-Uninstall a tarball installation
---------------------------------
+   4. Verify your installation.
 
-1. Remove the installation directory.
+      Confirm that ``migraphx-driver`` is on your ``PATH`` and reports the
+      expected version.
 
-   To uninstall MIGraphX, remove your MIGraphX installation directory.
+      .. code-block:: bash
 
-   .. important::
+         migraphx-driver --version
 
-      The following command assumes you're working with the
-      ``MIGRAPHX_INSTALL_PATH`` directory set to
-      ``$HOME/therock-tarball/install/extras-10``. If you chose a different
-      directory when installing MIGraphX, adjust the command accordingly.
+      .. tip::
 
-   .. code-block:: bash
+         If the command isn't found, the environment variables from the
+         previous step aren't set in your current shell. Re-run the
+         ``source`` command or open a new shell session.
 
-      rm -rf "$HOME/therock-tarball/install/extras-10"
+.. selected:: i=tar
+   :heading: Uninstall MIGraphX
+   :heading-level: 3
 
-2. Remove the MIGraphX environment configuration.
+   1. Remove the installation directory.
 
-   .. tab-set::
+      To uninstall MIGraphX, remove your MIGraphX installation directory.
 
-      .. tab-item:: User (~/.bashrc)
-         :sync: bashrc
+      .. important::
 
-         If you opted for a user-specific setup during the installation
-         process, remove the MIGraphX environment configuration block -- the
-         lines between the ``BEGIN`` and ``END`` markers -- from ``~/.bashrc``.
+         The following command assumes you're working with the
+         ``MIGRAPHX_INSTALL_PATH`` directory set to
+         ``$HOME/therock-tarball/install/extras-10``. If you chose a
+         different directory when installing MIGraphX, adjust the command
+         accordingly.
 
-      .. tab-item:: User (~/.profile)
-         :sync: profile
+      .. code-block:: bash
 
-         If you opted for a user-specific setup during the installation
-         process, remove the MIGraphX environment configuration block -- the
-         lines between the ``BEGIN`` and ``END`` markers -- from ``~/.profile``.
+         rm -rf "$HOME/therock-tarball/install/extras-10"
 
-      .. tab-item:: System-wide
-         :sync: system
+   2. Remove the MIGraphX environment configuration.
 
-         If you opted for a system-wide setup during the installation process,
-         remove the MIGraphX environment variables.
+      .. tab-set::
 
-         .. code-block:: bash
+         .. tab-item:: User (~/.bashrc)
+            :sync: bashrc
 
-            sudo rm -f /etc/profile.d/set-migraphx-env.sh
+            If you opted for a user-specific setup during the installation
+            process, remove the MIGraphX environment configuration block --
+            the lines between the ``BEGIN`` and ``END`` markers -- from
+            ``~/.bashrc``.
+
+         .. tab-item:: User (~/.profile)
+            :sync: profile
+
+            If you opted for a user-specific setup during the installation
+            process, remove the MIGraphX environment configuration block --
+            the lines between the ``BEGIN`` and ``END`` markers -- from
+            ``~/.profile``.
+
+         .. tab-item:: System-wide
+            :sync: system
+
+            If you opted for a system-wide setup during the installation
+            process, remove the MIGraphX environment variables.
+
+            .. code-block:: bash
+
+               sudo rm -f /etc/profile.d/set-migraphx-env.sh
 
 Build MIGraphX from source
 ==========================

@@ -54,6 +54,7 @@ release = version_number
 extensions = [
     "rocm_docs",
     "rocm_docs.doxygen",
+    "rocm_docs.selector",
     "sphinx_collapse",
     "sphinxcontrib.datatemplates",
     "sphinx_substitution_extensions",
@@ -88,3 +89,4 @@ html_theme_options = {
 rocm_docs_generate_llms = True
 
 external_projects_current_project = "amdmigraphx"
+external_projects_remote_repository = ""

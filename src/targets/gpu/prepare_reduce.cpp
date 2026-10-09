@@ -250,10 +250,16 @@ void fuse_reductions(module& m)
     auto rs = find_parallel_reduce(find_reduce(m));
     if(rs.size() < 2)
         return;
-    // Only handle the same reduction operator (and its data-type) for now
+    // The parallel reduction reads one element of each input per step, so
+    // the reductions must share the operator and the input lens; the same
+    // data type is required for now
+    auto first = rs.front();
+
     if(std::any_of(std::next(rs.cbegin()), rs.cend(), [&](auto r) {
-           return (*rs.cbegin())->name() != r->name() or
-                  (*rs.cbegin())->get_shape().type() != r->get_shape().type();
+           return first->get_operator() != r->get_operator() or
+                  first->get_shape().type() != r->get_shape().type() or
+                  first->inputs().front()->get_shape().lens() !=
+                      r->inputs().front()->get_shape().lens();
        }))
         return;
 

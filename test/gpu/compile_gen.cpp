@@ -44,6 +44,33 @@ TEST_CASE(test_find_fast_axis)
                migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
 }
 
+// An input with a stride of two along the vector axis, such as one of two
+// interleaved slices, is read as strided vectors by the reduce kernels only
+TEST_CASE(vectorize_strided)
+{
+    using migraphx::gpu::gen::vectorize;
+    migraphx::shape dense{migraphx::shape::half_type, {4, 2880, 90, 32}};
+    migraphx::shape strided{migraphx::shape::half_type, {4, 2880, 90, 32}, {5760, 0, 64, 2}};
+    auto vec = vectorize::elements(3, {strided, dense}, {32, 16, 8, 4, 2}, true);
+    EXPECT(vec.size == 32);
+    EXPECT(vec.axis == 3);
+    EXPECT(vec.strided);
+    EXPECT(vec.str() == "vectorize<32, 3, true>()");
+    // The other kernels dont read strided vectors
+    auto plain = vectorize::elements(3, {strided, dense}, {32, 16, 8, 4, 2});
+    EXPECT(plain.size == 1);
+    EXPECT(plain.str() == "vectorize<1, 3>()");
+    // The other strides must hold whole vectors of the strided input
+    migraphx::shape misaligned{migraphx::shape::half_type, {4, 2880, 90, 32}, {5760, 0, 48, 2}};
+    EXPECT(vectorize::elements(3, {misaligned, dense}, {32, 16, 8, 4, 2}, true).size == 8);
+    // The block of a stride must be a power of two of bytes to stay aligned
+    migraphx::shape stride3{migraphx::shape::half_type, {4, 2880, 90, 32}, {8640, 0, 96, 3}};
+    EXPECT(vectorize::elements(3, {stride3, dense}, {32, 16, 8, 4, 2}, true).size == 1);
+    migraphx::shape stride2_float{migraphx::shape::float_type, {4, 2880, 90, 32}, {5760, 0, 64, 2}};
+    migraphx::shape dense_float{migraphx::shape::float_type, {4, 2880, 90, 32}};
+    EXPECT(vectorize::elements(3, {stride2_float, dense_float}, {8, 4, 2}, true).size == 8);
+}
+
 static const auto compute_factor = test::make_function(
     "tile::compute_factor", MIGRAPHX_LIFT(migraphx::gpu::gen::tile::compute_factor));
 

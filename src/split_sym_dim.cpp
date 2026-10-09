@@ -530,10 +530,10 @@ struct analyze_shape_transform
             if(sym::strict_less(input_elements, output_elements).value_or(false) or
                sym::strict_less(output_elements, input_elements).value_or(false))
                 return;
-            if(target_reshape.compute_shape({inputs.front()}) != output)
-                return;
             info.freezer             = freeze;
             info.shape_input_indices = {1};
+            if(target_reshape.compute_shape({inputs.front()}) != output)
+                return;
         }
         else if(inputs.size() != 1)
             return;
@@ -1666,6 +1666,44 @@ bool freezer_roots_are_owned(
     return all_of(required, [&](const auto& root) { return contains(owned_roots, root); });
 }
 
+bool owned_shape_transform_dependency(
+    instruction_ref ins,
+    const std::unordered_set<sym::expr>& owned_roots,
+    const std::unordered_map<instruction_ref, const symbolic_op_info*>& info_for_instruction)
+{
+    if(not contains({"contiguous", "flatten", "reshape", "transpose"}, ins->name()))
+        return false;
+    auto found = info_for_instruction.find(ins);
+    if(found == info_for_instruction.end())
+        return false;
+    auto preserves_symbolic_axis_positions = [&] {
+        if(found->second->input_shapes.empty())
+            return false;
+        const auto& input  = found->second->input_shapes.front();
+        const auto& output = found->second->output_shape;
+        if(not input.symbolic() or not output.symbolic())
+            return false;
+        auto find_variable_axes = [](const shape& s) {
+            std::unordered_map<sym::expr, std::size_t> result;
+            for(std::size_t axis = 0; axis < s.ndim(); ++axis)
+                for(const auto& variable : sym::find_variables(s.dyn_dims().at(axis).sym_expr))
+                    if(not result.emplace(variable, axis).second)
+                        return std::optional<decltype(result)>{};
+            return std::optional<decltype(result)>{std::move(result)};
+        };
+        auto input_axes  = find_variable_axes(input);
+        auto output_axes = find_variable_axes(output);
+        return input_axes.has_value() and output_axes.has_value() and *input_axes == *output_axes;
+    };
+    bool freezable_reshape = ins->name() == "reshape" and ins->inputs().size() == 2 and
+                             static_cast<bool>(found->second->freezer) and
+                             preserves_symbolic_axis_positions();
+    if(not found->second->supported and not freezable_reshape)
+        return false;
+    auto required = find_info_roots(*found->second);
+    return all_of(required, [&](const auto& root) { return contains(owned_roots, root); });
+}
+
 bool can_specialize(const symbolic_op_info& info)
 {
     const bool needs_padding =
@@ -1692,10 +1730,10 @@ bool absorbable_dependency(
         return true;
     if(not s.symbolic())
         return false;
-    // Gathering over a variable data axis cannot be padded safely without proving every index is
-    // inside the unpadded prefix. A concat along a variable axis likewise has to materialize its
-    // runtime extent before a consumer can pad it. Keep both at block boundaries.
-    if(info != info_for_instruction.end() and contains({"gather", "concat"}, ins->name()) and
+    // Indexed updates, stepping, and concatenations have to materialize their runtime extents
+    // before a consumer can pad them. Keep them, and any unsupported gather, at block boundaries.
+    if(info != info_for_instruction.end() and
+       contains({"gather", "scatter_none", "step", "concat"}, ins->name()) and
        not info->second->supported)
         return false;
     return all_of(s.dyn_strides(),
@@ -1709,26 +1747,47 @@ bool block_is_closed(
     std::unordered_set<instruction_ref> included;
     for(const auto* op : block.ops)
         included.insert(op->ins);
+    auto owned_roots = get_owned_roots(block);
 
-    std::unordered_set<instruction_ref> visited;
-    std::unordered_set<instruction_ref> boundary_visited;
+    auto boundary_reaches_block = [&](instruction_ref dependency) {
+        std::unordered_set<instruction_ref> boundary_visited;
+        return fix<bool>([&](auto self, instruction_ref current) -> bool {
+            if(not boundary_visited.insert(current).second)
+                return false;
+            if(contains(included, current))
+                return true;
+            return any_of(current->inputs(), self);
+        })(dependency);
+    };
 
-    auto boundary_reaches_block = fix<bool>([&](auto self, auto dependency) -> bool {
-        if(not boundary_visited.insert(dependency).second)
-            return false;
-        if(contains(included, dependency))
-            return true;
-        return any_of(dependency->inputs(), self);
-    });
-
+    std::unordered_map<instruction_ref, bool> dependency_cache;
     auto dependencies_are_closed = fix<bool>([&](auto self, auto current) -> bool {
-        if(not visited.insert(current).second)
-            return true;
+        auto cached = dependency_cache.find(current);
+        if(cached != dependency_cache.end())
+            return cached->second;
+        bool result = false;
         if(contains(included, current))
-            return true;
-        if(absorbable_dependency(current, included, info_for_instruction))
-            return all_of(current->inputs(), self);
-        return not boundary_reaches_block(current);
+            result = true;
+        else if(not freezer_roots_are_owned(current, owned_roots, info_for_instruction))
+            result = not boundary_reaches_block(current);
+        else
+        {
+            auto info               = info_for_instruction.find(current);
+            bool absorbable_freezer = info != info_for_instruction.end() and
+                                      info->second->block.has_value() and info->second->freezer and
+                                      current->name() == "reshape" and
+                                      current->inputs().size() == 2;
+            if(info != info_for_instruction.end() and info->second->block.has_value() and
+               not absorbable_freezer)
+                result = not boundary_reaches_block(current);
+            else if(absorbable_dependency(current, included, info_for_instruction) or
+                    owned_shape_transform_dependency(current, owned_roots, info_for_instruction))
+                result = all_of(current->inputs(), self);
+            else
+                result = not boundary_reaches_block(current);
+        }
+        dependency_cache.emplace(current, result);
+        return result;
     });
 
     for(const auto* op : block.ops)
@@ -1744,7 +1803,10 @@ bool block_is_closed(
             const auto& operand = info.operands.at(index);
             if(contains(included, source))
             {
-                if(operand.pad_value.has_value() and not operand.retained_slice_axes.empty())
+                bool keeps_logical_slice =
+                    source->get_shape().type() != shape::tuple_type and
+                    (not operand.pad_value.has_value() or not operand.retained_slice_axes.empty());
+                if(keeps_logical_slice)
                     return false;
                 continue;
             }
@@ -1792,10 +1854,10 @@ bool merge_block_into(
     block_plan result;
     result.ops = target.ops;
     result.ops.insert(result.ops.end(), source.ops.begin(), source.ops.end());
+    result.roots = std::move(*merged_roots);
     if(not block_is_closed(result, info_for_instruction))
         return false;
-    result.roots = std::move(*merged_roots);
-    target       = std::move(result);
+    target = std::move(result);
     return true;
 }
 
@@ -2478,6 +2540,12 @@ struct dependency_absorption
                not freezer_roots_are_owned(ins, owned_roots, info_for_instruction);
     }
 
+    bool is_absorbable(instruction_ref ins) const
+    {
+        return absorbable_dependency(ins, planned, info_for_instruction) or
+               owned_shape_transform_dependency(ins, owned_roots, info_for_instruction);
+    }
+
     bool operator()(instruction_ref ins)
     {
         auto cached = cache.find(ins);
@@ -2485,12 +2553,28 @@ struct dependency_absorption
             return cached->second;
         if(contains(planned, ins))
             return cache.emplace(ins, true).first->second;
-        if(not absorbable_dependency(ins, planned, info_for_instruction) or rejects_freezer(ins))
+        auto info = info_for_instruction.find(ins);
+        if(info != info_for_instruction.end() and info->second->block.has_value())
+        {
+            bool absorbable_freezer = info->second->freezer and ins->name() == "reshape" and
+                                      ins->inputs().size() == 2 and not rejects_freezer(ins);
+            if(not absorbable_freezer)
+                return cache.emplace(ins, false).first->second;
+        }
+        if(not is_absorbable(ins) or rejects_freezer(ins))
             return cache.emplace(ins, false).first->second;
         auto inputs = clone_inputs_for(info_for_instruction, ins);
+        if(info != info_for_instruction.end() and not info->second->block.has_value() and
+           info->second->freezer)
+        {
+            std::vector<sliced_value> data_inputs;
+            for(std::size_t index = 0; index < inputs.size(); ++index)
+                if(not contains(info->second->shape_input_indices, index))
+                    data_inputs.push_back(inputs.at(index));
+            inputs = std::move(data_inputs);
+        }
         bool result = all_of(inputs, [&](const auto& input) {
-            return not absorbable_dependency(input.source, planned, info_for_instruction) or
-                   (*this)(input.source);
+            return not is_absorbable(input.source) or (*this)(input.source);
         });
         cache.emplace(ins, result);
         return result;

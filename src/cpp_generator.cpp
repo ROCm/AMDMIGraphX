@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -210,22 +210,10 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
         .set_body(m, [&](instruction_ref ins, const auto& names) -> std::string {
             if(ins->name() == "@literal")
             {
-                std::string string_literal;
-                ins->get_literal().visit([&](auto v) {
-                    assert(v.size() == 1);
-                    auto x = v.front();
-                    if(std::isinf(static_cast<double>(x)))
-                    {
-                        string_literal = "__builtin_huge_val()";
-                        if(x < 0)
-                            string_literal = "-__builtin_huge_val()";
-                    }
-                    else if(std::isnan(static_cast<double>(x)))
-                        string_literal = "__builtin_nan(\"0\")";
-                    else
-                        string_literal = ins->get_literal().to_string();
-                });
-                return shape::cpp_type(ins->get_shape().type()) + "(" + string_literal + ")";
+                const auto& lit = ins->get_literal();
+                assert(lit.single());
+                return shape::cpp_type(ins->get_shape().type()) + "(" +
+                       nonfinite_cpp_literal(lit.at<double>()).value_or(lit.to_string()) + ")";
             }
             if(ins->name() == "@return")
             {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,9 +30,13 @@
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/raw_data.hpp>
 #include <migraphx/make_shared_array.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/config.hpp>
 
+#include <algorithm>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -87,6 +91,31 @@ struct literal : raw_data<literal>
         std::copy(x, x + s.bytes(), buffer.get());
     }
 
+    // x holds nbytes: the elements of s in row-major order of s.lens(), regardless of s's strides
+    template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
+    static literal from_standard_buffer(const shape& s, T* x, std::size_t nbytes)
+    {
+        if(nbytes != s.elements() * s.type_size())
+            MIGRAPHX_THROW("literal: buffer size " + std::to_string(nbytes) +
+                           " does not hold shape elements " + std::to_string(s.elements()) +
+                           " of type size " + std::to_string(s.type_size()));
+        literal result;
+        result.m_shape = s;
+        if(s.standard())
+        {
+            result.buffer = make_shared_array<char>(x, x + nbytes);
+            return result;
+        }
+        result.buffer = make_shared_array<char>(s.bytes());
+        // x may not be aligned for the element type, so copy it into typed storage first
+        s.visit_type([&](auto as) {
+            std::vector<typename decltype(as)::type> values(s.elements());
+            std::copy(x, x + nbytes, reinterpret_cast<char*>(values.data()));
+            result.fill(values.begin(), values.end());
+        });
+        return result;
+    }
+
     /// Whether data is available
     bool empty() const { return this->buffer == nullptr; }
 
@@ -108,11 +137,15 @@ struct literal : raw_data<literal>
     std::shared_ptr<char> buffer;
     shape m_shape;
 
-    // Keeps the same data ordering as the given container
+    // Keeps the same data ordering as the given container. Fewer values than the shape's
+    // elements fills only the leading elements; the rest remain zero.
     template <class Iterator>
     void fill(Iterator start, Iterator end)
     {
-        assert(std::distance(start, end) == m_shape.elements());
+        if(m_shape.elements() < std::distance(start, end))
+            MIGRAPHX_THROW("literal: number of values " +
+                           std::to_string(std::distance(start, end)) + " exceeds shape elements " +
+                           std::to_string(m_shape.elements()));
         m_shape.visit_type([&](auto as) {
             auto output = make_view(m_shape, as.from(buffer.get()));
             std::copy(start, end, output.begin());

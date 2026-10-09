@@ -796,6 +796,53 @@ static void detach_unabsorbed_broadcasts(std::vector<dimension>& dimensions,
     }
 }
 
+// Adjust the subdimensions of an axis to its new dim. Returns false when the
+// axis cant be rebased.
+static bool rebase_axis(const std::vector<dimension::sub*>& subs, std::size_t dim, bool broadcast)
+{
+    if(dim == len(subs))
+    {
+        if(not broadcast)
+        {
+            for(auto* sub : subs)
+                sub->expose();
+        }
+    }
+    else if(dim == 1)
+    {
+        for(auto* sub : subs)
+        {
+            if(not sub->has_hidden_axis())
+                sub->len = 1;
+        }
+    }
+    else if(subs.size() == 1)
+    {
+        // A hidden axis of 1 has no broadcast to absorb a different dim
+        if(not broadcast and subs.front()->has_hidden_axis() and subs.front()->len == 1)
+            return false;
+        subs.front()->len = dim;
+        if(broadcast)
+            subs.front()->hide();
+        else
+            subs.front()->expose();
+    }
+    else if(dim == visible_len(subs))
+    {
+        for(auto* sub : subs)
+        {
+            if(sub->has_hidden_axis())
+            {
+                sub->expose();
+                sub->len = 1;
+            }
+        }
+    }
+    else
+        return false;
+    return true;
+}
+
 shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims,
                                                               bool broadcast) const
 {
@@ -803,51 +850,12 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
     if(broadcast)
         detach_unabsorbed_broadcasts(result.dimensions, dims);
     auto axes_map = rebase_ambiguity_resolver{result, dims}.resolve();
-    for(auto& [axis, subs] : axes_map)
-    {
-        assert(axis < dims.size());
-        auto dim       = dims[axis];
-        if(dim == len(subs))
-        {
-            if(not broadcast)
-            {
-                for(auto* sub : subs)
-                    sub->expose();
-            }
-        }
-        else if(dim == 1)
-        {
-            for(auto* sub : subs)
-            {
-                if(not sub->has_hidden_axis())
-                    sub->len = 1;
-            }
-        }
-        else if(subs.size() == 1)
-        {
-            // A hidden axis of 1 has no broadcast to absorb a different dim
-            if(not broadcast and subs.front()->has_hidden_axis() and subs.front()->len == 1)
-                return {};
-            subs.front()->len = dim;
-            if(broadcast)
-                subs.front()->hide();
-            else
-                subs.front()->expose();
-        }
-        else if(dim == visible_len(subs))
-        {
-            for(auto* sub : subs)
-            {
-                if(sub->has_hidden_axis())
-                {
-                    sub->expose();
-                    sub->len = 1;
-                }
-            }
-        }
-        else
-            return {};
-    }
+    if(not std::all_of(axes_map.begin(), axes_map.end(), [&](auto& p) {
+           const auto& [axis, subs] = p;
+           assert(axis < dims.size());
+           return rebase_axis(subs, dims[axis], broadcast);
+       }))
+        return {};
     for(auto& dim : result.dimensions)
         remove_empty_sub_dims(dim.subdimensions);
     if(broadcast and not is_broadcast_only(dimensions, result.dimensions))

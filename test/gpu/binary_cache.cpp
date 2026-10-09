@@ -215,6 +215,46 @@ TEST_CASE(duplicate_kernels_compile_once_without_a_directory)
     EXPECT(cache->get_stats().reused == 1);
 }
 
+static migraphx::program same_pointwise_in_two_submodules()
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 8}};
+    auto cond = mm->add_parameter("cond", {migraphx::shape::bool_type});
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+
+    auto* then_mod = p.create_module("If_0_if");
+    then_mod->add_return(
+        {add_pointwise(p, then_mod, "If_0_if:pointwise0", {x, y}, single_pointwise("add"))});
+
+    auto* else_mod = p.create_module("If_0_else");
+    else_mod->add_return(
+        {add_pointwise(p, else_mod, "If_0_else:pointwise0", {y, x}, single_pointwise("add"))});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret)});
+    return p;
+}
+
+// The compile is batched from the root module, so the same kernel in two submodules compiles
+// once and each submodule still gets its own code object.
+TEST_CASE(same_kernel_in_two_submodules_compiles_once)
+{
+    auto cache = std::make_shared<migraphx::gpu::binary_cache>(
+        migraphx::gpu::binary_cache_settings{.path = ""});
+    migraphx::gpu::context ctx{0, 1};
+    ctx.set_binary_cache(cache);
+
+    auto p = same_pointwise_in_two_submodules();
+    migraphx::run_passes(p,
+                         {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::compile_ops{&ctx}});
+    EXPECT(count_code_objects(*p.get_module("If_0_if")) == 1);
+    EXPECT(count_code_objects(*p.get_module("If_0_else")) == 1);
+    EXPECT(cache->get_stats().compiled == 1);
+    EXPECT(cache->get_stats().reused == 0);
+}
+
 // Compiling twice against the same directory has to leave entries behind and keep producing the
 // same numbers as the reference, whichever half of the run they came from.
 TEST_CASE(compiling_twice_populates_the_cache_and_matches_reference)

@@ -19,8 +19,14 @@ Full documentation for MIGraphX is available at
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).
 * Fixed mixed `uint8` and `int8` quantization (#5075).
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
+* Fixed the GPU `gathernd` kernel reading indices through a raw pointer, which returned the wrong element for a transposed index tensor and could read past the allocation for a broadcast one (#5301).
+* Fixed a GPU `scan_slice` segfault when its index arrives through a `convert` of a GPU-resident value, by copying that value to the host first and re-applying the `convert` on the host copy instead of leaving a host op dereferencing GPU memory (#5301).
+* Fixed the GPU pointwise code generator emitting the raw comparison mask (`-1`) instead of `1` for `logical_and`, `logical_or`, and `logical_xor` (#5301).
+* Fixed a GPU JIT compile failure from `-Werror=unused-parameter` when a fused pointwise module keeps a parameter no instruction consumes, for example `alpha*A*B` with `alpha == 0` (#5301).
 
 ### Optimized
+
+* Optimized GPU compile time in the `eager` compile mode by dropping `optimize_module` from the pre-fusion rewrites, from the fusion pipeline, and from inside `fuse_pointwise_reduce`; `propagate_constant` is still run after `fuse_mlir` in eager so hoisted constant scales are folded. Eager runtime performance regresses in exchange, by up to several tens of percent on some models (#5301).
 
 ### Removed
 

@@ -39,56 +39,66 @@ struct parse_reshape : op_parser<parse_reshape>
 {
     std::vector<op_desc> operators() const { return {{"Reshape"}}; }
 
+    template <class T>
+    static std::optional<instruction_ref> add_runtime_reshape(const onnx_parser::node_info& info,
+                                                              instruction_ref input,
+                                                              const std::vector<T>& reshape_dims)
+    {
+        const auto& input_shape = input->get_shape();
+        const auto output_dims  = resolve_reshape_dims(input_shape.to_symbolic(), reshape_dims);
+        std::vector<sym::expr> output_expressions(output_dims.size());
+        transform(
+            output_dims, output_expressions.begin(), [](const auto& dim) { return dim.sym_expr; });
+        auto sources = find_expression_sources(*info.mod, input, output_expressions);
+        if(not sources.has_value())
+            return std::nullopt;
+        const auto resolved_dims = info.add_instruction(
+            make_op("eval_expr_from_shape", {{"expressions", to_value(output_expressions)}}),
+            *sources);
+        const shape output_shape{input_shape.type(), output_dims};
+        auto allocation = info.add_instruction(
+            make_op("allocate", {{"shape", to_value(output_shape)}}), resolved_dims);
+        return info.add_instruction(make_op("reshape"), input, allocation);
+    }
+
+    static instruction_ref add_shape_tensor_reshape(const onnx_parser::node_info& info,
+                                                    instruction_ref input,
+                                                    instruction_ref shape_input)
+    {
+        auto allocation = info.add_instruction(
+            make_op("allocate", {{"buf_type", input->get_shape().type()}}), shape_input);
+        return info.add_instruction(make_op("reshape"), input, allocation);
+    }
+
+    static instruction_ref
+    add_evaluated_reshape(const onnx_parser::node_info& info,
+                          instruction_ref input,
+                          const std::vector<int64_t>& dims,
+                          std::optional<instruction_ref> shape_input = std::nullopt)
+    {
+        if(not input->get_shape().symbolic())
+            return info.add_instruction(make_op("reshape", {{"dims", dims}}), input);
+        auto result =
+            add_runtime_reshape(info, input, std::vector<dim_like>{dims.begin(), dims.end()});
+        if(result.has_value())
+            return *result;
+        if(shape_input.has_value())
+            return add_shape_tensor_reshape(info, input, *shape_input);
+        MIGRAPHX_THROW("PARSE_RESHAPE: symbolic dimension has no direct shape source");
+    }
+
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
         std::vector<int64_t> dims;
-        auto add_runtime_reshape = [&](const auto& reshape_dims) {
-            const auto& input_shape = args[0]->get_shape();
-            const auto output_dims  = resolve_reshape_dims(input_shape.to_symbolic(), reshape_dims);
-            std::vector<sym::expr> output_expressions(output_dims.size());
-            transform(output_dims, output_expressions.begin(), [](const auto& dim) {
-                return dim.sym_expr;
-            });
-            auto sources = find_expression_sources(*info.mod, args[0], output_expressions);
-            if(not sources.has_value())
-                return std::optional<instruction_ref>{};
-            const auto resolved_dims = info.add_instruction(
-                make_op("eval_expr_from_shape", {{"expressions", to_value(output_expressions)}}),
-                *sources);
-            const shape output_shape{input_shape.type(), output_dims};
-            auto allocation = info.add_instruction(
-                make_op("allocate", {{"shape", to_value(output_shape)}}), resolved_dims);
-            return std::optional<instruction_ref>{
-                info.add_instruction(make_op("reshape"), args[0], allocation)};
-        };
-        auto add_shape_tensor_reshape = [&] {
-            assert(args.size() == 2);
-            const auto& input_shape = args[0]->get_shape();
-            auto allocation         = info.add_instruction(
-                make_op("allocate", {{"buf_type", input_shape.type()}}), args[1]);
-            return info.add_instruction(make_op("reshape"), args[0], allocation);
-        };
-        auto add_evaluated_reshape = [&] {
-            if(not args[0]->get_shape().symbolic())
-                return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
-            auto result = add_runtime_reshape(std::vector<dim_like>{dims.begin(), dims.end()});
-            if(not result.has_value())
-            {
-                if(args.size() == 2)
-                    return add_shape_tensor_reshape();
-                MIGRAPHX_THROW("PARSE_RESHAPE: symbolic dimension has no direct shape source");
-            }
-            return *result;
-        };
 
         if(args.size() == 1)
         {
             literal s = parser.parse_value(info.attributes.at("shape"));
             s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
-            return add_evaluated_reshape();
+            return add_evaluated_reshape(info, args[0], dims);
         }
         else
         {
@@ -102,16 +112,17 @@ struct parse_reshape : op_parser<parse_reshape>
                 if(not symbolic_dims.empty() and
                    (not input_shape.dynamic() or input_shape.symbolic()))
                 {
-                    auto result = add_runtime_reshape(symbolic_dims.get().to_vector());
+                    auto result =
+                        add_runtime_reshape(info, args[0], symbolic_dims.get().to_vector());
                     if(result.has_value())
                         return *result;
                 }
-                return add_shape_tensor_reshape();
+                return add_shape_tensor_reshape(info, args[0], args[1]);
             }
             else
             {
                 s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
-                return add_evaluated_reshape();
+                return add_evaluated_reshape(info, args[0], dims, args[1]);
             }
         }
     }

@@ -826,7 +826,7 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
     using se = migraphx::sym::expr;
 
     auto n        = migraphx::sym::var("n", {1, 4});
-    auto target_n = migraphx::sym::var("_split_sym_dim_n_target", {1, 4}, {1, 4});
+    auto target_n = migraphx::sym::var("split_sym_dim_n_target", {1, 4}, {1, 4});
     migraphx::program p0;
     auto create_submodule0 = [&](const std::string& name, const dd::interval& subrange) {
         auto* submod         = p0.create_module(name);

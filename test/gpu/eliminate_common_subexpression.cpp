@@ -21,26 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/fixed_pad.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/fixed_pad.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/program.hpp>
+#include <test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-shape hip_fixed_pad::compute_shape(std::vector<shape> inputs) const
+static migraphx::program create_program()
 {
-    inputs.pop_back();
-    check_shapes{inputs, *this, true}.has(1);
-    return op.compute_shape(inputs);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    auto x = mm->add_instruction(migraphx::gpu::hip_allocate{s});
+    auto y = mm->add_instruction(migraphx::gpu::hip_allocate{s});
+    mm->add_return({x, y});
+    return p;
 }
 
-argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+TEST_CASE(cse_preserves_gpu_allocations)
 {
-    return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front(), op.value);
+    auto p        = create_program();
+    auto expected = create_program();
+
+    migraphx::run_passes(
+        p, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
+
+    EXPECT(p == expected);
 }
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -21,26 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/fixed_pad.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/fixed_pad.hpp>
+#include <migraphx/split_sym/analyzer.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace split_sym {
+namespace {
 
-shape hip_fixed_pad::compute_shape(std::vector<shape> inputs) const
+struct analyze_roialign : analyzer<analyze_roialign>
 {
-    inputs.pop_back();
-    check_shapes{inputs, *this, true}.has(1);
-    return op.compute_shape(inputs);
-}
+    bool matches(const operation& op) const { return op.name() == "roialign"; }
 
-argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front(), op.value);
-}
+    symbolic_op_info analyze(instruction_ref ins) const
+    {
+        if(ins->inputs().size() != 3)
+            return symbolic_op_info{ins};
+        // Only the proposal count is parallel; padding feature-map axes changes sampling.
+        return analyze_axes(
+            ins,
+            [](std::size_t axis) { return axis == 0; },
+            [](std::size_t input, std::size_t axis) {
+                return input > 0 and axis == 0 ? parallel_axis() : axis_desc{};
+            });
+    }
+};
 
-} // namespace gpu
+} // namespace
+} // namespace split_sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

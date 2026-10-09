@@ -150,7 +150,8 @@ TEST_CASE(split_sym_dim_topk_gather_has_no_dynamic_code_object)
 
     auto target = migraphx::make_target("gpu");
     p.compile(target);
-    EXPECT(std::all_of(p.get_modules().begin(), p.get_modules().end(), [](auto* mod) {
+    auto modules = p.get_modules();
+    EXPECT(std::all_of(modules.begin(), modules.end(), [](auto* mod) {
         return migraphx::none_of(migraphx::iterator_for(*mod), [](auto ins) {
             return ins->name() == "gpu::dynamic_code_object_op";
         });

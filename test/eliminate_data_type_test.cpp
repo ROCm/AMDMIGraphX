@@ -129,6 +129,26 @@ TEST_CASE(skip_convert_fixed_pad)
     EXPECT(mm1 == mm2);
 }
 
+TEST_CASE(skip_convert_dyn_slice_metadata)
+{
+    migraphx::shape data_shape{migraphx::shape::float_type, {4}};
+    migraphx::shape index_shape{migraphx::shape::int64_type, {1}};
+    migraphx::module mm1;
+    auto data   = mm1.add_parameter("data", data_shape);
+    auto starts = mm1.add_parameter("starts", index_shape);
+    auto ends   = mm1.add_parameter("ends", index_shape);
+    auto slice  = mm1.add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}),
+        data,
+        starts,
+        ends);
+    mm1.add_return({slice});
+
+    auto mm2 = mm1;
+    run_pass(mm1, {migraphx::shape::int64_type});
+    EXPECT(mm1 == mm2);
+}
+
 TEST_CASE(skip_convert_dyn_slice)
 {
     migraphx::shape data_shape{migraphx::shape::int64_type, {4}};
@@ -229,4 +249,5 @@ TEST_CASE(unpack_int4_skipped)
     }
     EXPECT(mm1 == mm2);
 }
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

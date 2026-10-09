@@ -299,7 +299,7 @@ struct select_module
                 MIGRAPHX_THROW("SELECT_MODULE: output parameter does not alias a module output");
             const auto& allocation =
                 args.at(output_start + std::distance(module_outputs.begin(), output));
-            auto ps = param_shapes.at(name);
+            const auto& ps = param_shapes.at(name);
             if(ps.bytes() > allocation.get_shape().bytes())
                 MIGRAPHX_THROW("SELECT_MODULE: output allocation is too small");
             p_map.emplace(name, allocation.get_shape() == ps ? allocation : allocation.reshape(ps));

@@ -2533,6 +2533,16 @@ TEST_CASE(shape_is_compatible_lens_static_vs_symbolic)
     EXPECT(not migraphx::shape::is_compatible_lens(actual2, expected));
 }
 
+TEST_CASE(shape_is_compatible_lens_repeated_symbol)
+{
+    auto n = var("n", {1, 4});
+    migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{n}}};
+    migraphx::shape matching{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape mismatching{migraphx::shape::float_type, {2, 3}};
+    EXPECT(migraphx::shape::is_compatible_lens(matching, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(mismatching, expected));
+}
+
 TEST_CASE(make_bcast_shape_static)
 {
     migraphx::shape input{migraphx::shape::float_type, {1, 1, 3, 4}};

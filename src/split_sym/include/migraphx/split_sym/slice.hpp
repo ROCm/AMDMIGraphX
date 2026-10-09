@@ -21,26 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/fixed_pad.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/fixed_pad.hpp>
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_SPLIT_SYM_SLICE_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_SPLIT_SYM_SLICE_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace split_sym {
 
-shape hip_fixed_pad::compute_shape(std::vector<shape> inputs) const
-{
-    inputs.pop_back();
-    check_shapes{inputs, *this, true}.has(1);
-    return op.compute_shape(inputs);
-}
+bool is_prefix_stable_dyn_slice(instruction_ref ins);
 
-argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front(), op.value);
-}
-
-} // namespace gpu
+} // namespace split_sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

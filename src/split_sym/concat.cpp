@@ -21,26 +21,36 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/fixed_pad.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/fixed_pad.hpp>
+#include <migraphx/split_sym/analyzer.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace split_sym {
+namespace {
 
-shape hip_fixed_pad::compute_shape(std::vector<shape> inputs) const
+struct analyze_concat : analyzer<analyze_concat>
 {
-    inputs.pop_back();
-    check_shapes{inputs, *this, true}.has(1);
-    return op.compute_shape(inputs);
-}
+    bool matches(const operation& op) const { return op.name() == "concat"; }
 
-argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front(), op.value);
-}
+    symbolic_op_info analyze(instruction_ref ins) const
+    {
+        auto inputs = to_shapes(ins->inputs());
+        if(inputs.empty())
+            return symbolic_op_info{ins};
+        auto axis = normalize_axis(ins->get_operator().to_value().at("axis").to<int64_t>(),
+                                   inputs.front().ndim());
+        if(not axis.has_value())
+            return symbolic_op_info{ins};
+        if(any_of(inputs, [&](const auto& input) {
+               return input.ndim() != inputs.front().ndim() or
+                      is_variable_axis(input.dyn_dims().at(*axis));
+           }))
+            return symbolic_op_info{ins};
+        return analyze_axes(ins);
+    }
+};
 
-} // namespace gpu
+} // namespace
+} // namespace split_sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -21,26 +21,37 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/fixed_pad.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/fixed_pad.hpp>
+#include <migraphx/split_sym/analyzer.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace split_sym {
+namespace {
 
-shape hip_fixed_pad::compute_shape(std::vector<shape> inputs) const
+bool is_dot(const operation& op)
 {
-    inputs.pop_back();
-    check_shapes{inputs, *this, true}.has(1);
-    return op.compute_shape(inputs);
+    return op.name() == "dot" or op.attributes().get("general_data_type", std::string{}) == "dot";
 }
 
-argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+struct analyze_dot : analyzer<analyze_dot>
 {
-    return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front(), op.value);
-}
+    bool matches(const operation& op) const { return is_dot(op); }
 
-} // namespace gpu
+    symbolic_op_info analyze(instruction_ref ins) const
+    {
+        auto input_shapes = to_shapes(ins->inputs());
+        return analyze_axes(ins, [&](std::size_t input, std::size_t axis) {
+            std::size_t rank = input_shapes.at(input).ndim();
+            assert(rank >= 2);
+            std::size_t contraction_axis = (input == 0) ? rank - 1 : rank - 2;
+            return axis == contraction_axis ? masked_axis(mask_role::contracted, fill_kind::zero)
+                                            : parallel_axis();
+        });
+    }
+};
+
+} // namespace
+} // namespace split_sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

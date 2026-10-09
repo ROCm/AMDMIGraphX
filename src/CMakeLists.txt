@@ -164,6 +164,10 @@ enable_static_init(migraphx)
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp op/builder/torch/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 
+file(GLOB SPLIT_SYM_SRCS CONFIGURE_DEPENDS split_sym/*.cpp)
+target_sources(migraphx PRIVATE ${SPLIT_SYM_SRCS})
+target_include_directories(migraphx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/split_sym/include)
+
 configure_file(config.h.in include/migraphx/config.h)
 
 configure_file(version.h.in include/migraphx/version.h)

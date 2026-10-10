@@ -24,28 +24,23 @@
 
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/pad.hpp>
 
-template <migraphx::shape::type_t DType, std::size_t N, std::size_t Min, std::size_t Max = Min>
-struct test_concat_axis_neg_1 : verify_program<test_concat_axis_neg_1<DType, N, Min, Max>>
+// The softmax is required: verify would otherwise compare -inf against -inf, whose
+// squared difference is NaN, so the rms check could not pass at any tolerance.
+struct test_pad_neg_inf : verify_program<test_pad_neg_inf>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        int axis = -1;
-        migraphx::shape s0{DType, {N, (Min + Max) / 2}};
-        migraphx::shape s1{DType, {N, Max}};
-        migraphx::shape s2{DType, {N, Min}};
-        auto l0 = mm->add_parameter("x", s0);
-        auto l1 = mm->add_parameter("y", s1);
-        auto l2 = mm->add_parameter("z", s2);
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, {2, 6}});
+        migraphx::op::pad op{};
+        op.value    = -std::numeric_limits<float>::infinity();
+        op.pads     = {0, 0, 0, 2};
+        auto padded = mm->add_instruction(op, x);
+        mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), padded);
         return p;
     }
 };
-
-template struct test_concat_axis_neg_1<migraphx::shape::int32_type, 2, 1, 3>;
-
-template struct test_concat_axis_neg_1<migraphx::shape::float_type, 16, 12>;

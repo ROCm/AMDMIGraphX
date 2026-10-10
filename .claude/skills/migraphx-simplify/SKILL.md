@@ -1,4 +1,5 @@
 ---
+name: migraphx-simplify
 description: Review the changed MIGraphX code for reuse, simplification, efficiency, altitude, safety, and comment quality, then apply the fixes. Quality only — it does not hunt for correctness bugs; use /code-review for that.
 allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git merge-base:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(grep:*), Bash(find:*), Read, Edit, Write, Agent
 ---

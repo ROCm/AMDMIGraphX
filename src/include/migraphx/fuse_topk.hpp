@@ -21,31 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_TOPK_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_TOPK_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/config.hpp>
+#include <cstddef>
+#include <string>
 
-template <migraphx::shape::type_t DType, std::size_t N, std::size_t Min, std::size_t Max = Min>
-struct test_concat_axis_neg_1 : verify_program<test_concat_axis_neg_1<DType, N, Min, Max>>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module_pass_manager;
+
+/// Fuse a topk with the fused_reduce operators that produce its input or
+/// consume its outputs along the same axis, so the selection is computed in
+/// the workgroup that holds the reduction. Runs after the reduce fusions.
+struct MIGRAPHX_EXPORT fuse_topk
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        int axis = -1;
-        migraphx::shape s0{DType, {N, (Min + Max) / 2}};
-        migraphx::shape s1{DType, {N, Max}};
-        migraphx::shape s2{DType, {N, Min}};
-        auto l0 = mm->add_parameter("x", s0);
-        auto l1 = mm->add_parameter("y", s1);
-        auto l2 = mm->add_parameter("z", s2);
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
-        return p;
-    }
+    /// Longest reduction a workgroup can sort; topk over longer inputs are not fused
+    std::size_t max_size = 8192;
+    std::string name() const { return "fuse_topk"; }
+    void apply(module_pass_manager& mpm) const;
 };
 
-template struct test_concat_axis_neg_1<migraphx::shape::int32_type, 2, 1, 3>;
-
-template struct test_concat_axis_neg_1<migraphx::shape::float_type, 16, 12>;
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_TOPK_HPP

@@ -679,14 +679,12 @@ struct mlir_program
         if(is_reshape(op.name()))
             v = {{"dims", ins->get_shape().lens()}};
 
-        if(contains({"convolution", "quant_convolution", "convolution_backwards"}, op.name()))
+        if(contains({"convolution", "quant_convolution", "convolution_backwards"}, op.name()) and
+           v.at("padding").size() == v.at("stride").size())
         {
             // Adjust symetrical padding
-            if(v.at("padding").size() == v.at("stride").size())
-            {
-                auto padding = v.at("padding");
-                std::copy(padding.begin(), padding.end(), std::back_inserter(v.at("padding")));
-            }
+            auto padding = v.at("padding");
+            std::copy(padding.begin(), padding.end(), std::back_inserter(v.at("padding")));
         }
 
         if(op.name() == "unpack_int4")

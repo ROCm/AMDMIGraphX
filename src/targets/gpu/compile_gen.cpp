@@ -25,6 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/prepare_reduce.hpp>
+#include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
@@ -184,7 +185,7 @@ static std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
     return (x + y - std::size_t{1}) / y;
 }
 
-static std::size_t compute_tile_factor(std::size_t r, std::size_t max_size = 64)
+std::size_t tile::compute_factor(std::size_t r, std::size_t max_size)
 {
     std::size_t n = 1;
     auto factors  = make_array(2, 3, 5, 7, 11);
@@ -237,8 +238,8 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
 
     const auto& s  = inputs.front();
-    auto dim1      = compute_tile_factor(s.lens()[result.axis]);
-    auto dim2      = compute_tile_factor(s.lens().back(), 4096 / dim1);
+    auto dim1      = compute_factor(s.lens()[result.axis]);
+    auto dim2      = compute_factor(s.lens().back(), 4096 / dim1);
     auto tile_size = dim1 * dim2;
     // equivalent to dim2 * (dim1 + 1) to avoid bank conflicts
     auto tile_bytes = (tile_size + dim2) * s.type_size();
@@ -279,6 +280,23 @@ std::string tile::str() const
                               {{"modes", join_strings(strs, ", ")},
                                {"inner", generate_index_ints(inner)},
                                {"outer", generate_index_ints(outer)}});
+}
+
+std::vector<shape> reduce_dims_axis(std::vector<shape> inputs, std::size_t& axis)
+{
+    // Append a marker shape that is only unit-strided along axis, so reduce_dims
+    // wont merge that axis with an adjacent one and the marker tracks where it lands
+    const auto& s = inputs.back();
+    std::vector<std::size_t> strides(s.ndim());
+    strides[axis] = 1;
+    inputs.push_back(shape{s.type(), s.lens(), strides});
+
+    auto result         = reduce_dims(normalize_permutation(inputs));
+    const auto& rstride = result.back().strides();
+    axis                = std::find(rstride.begin(), rstride.end(), 1) - rstride.begin();
+    assert(axis < result.back().ndim());
+    result.pop_back();
+    return result;
 }
 
 std::size_t find_fast_axis(const shape& input)
@@ -497,6 +515,29 @@ static std::vector<std::size_t> get_rlens(const module& m)
     return reduce->get_shape().lens();
 }
 
+std::size_t topk_k(const instruction& ins)
+{
+    assert(ins.name() == "topk");
+    auto axis = ins.get_operator().to_value().at("axis").to<std::size_t>();
+    return ins.get_shape().sub_shapes().front().lens().at(axis);
+}
+
+/// The reducer call for a make_indices or topk, which select along the
+/// reduction from a single input
+static std::string generate_select(const instruction& ins, const std::vector<std::string>& args)
+{
+    if(args.size() != 1)
+        MIGRAPHX_THROW(ins.name() + " expects one value tensor operand");
+    if(ins.name() == "gpu::make_indices")
+        return "r.make_indices_from(" + args.front() + ")";
+    bool largest = ins.get_operator().to_value().at("largest").to<bool>();
+    return interpolate_string("r.template topk<${k}>(${compare}, ${init})(${x})",
+                              {{"k", std::to_string(topk_k(ins))},
+                               {"compare", largest ? "greater{}" : "less{}"},
+                               {"init", largest ? "lowest{}" : "highest{}"},
+                               {"x", args.front()}});
+}
+
 std::string generate_reduce(const module& m, const std::string& name)
 {
     // Copy into a private program so the rewrites dont touch the module being
@@ -595,13 +636,8 @@ std::string generate_reduce(const module& m, const std::string& name)
             return interpolate_string("${x}[_c<${index}>]",
                                           {{"x", x}, {"index", std::to_string(index)}});
         }
-        if(ins->name() == "gpu::make_indices")
-        {
-            if(ins->inputs().size() != 1)
-                MIGRAPHX_THROW("gpu::make_indices expects one value tensor operand");
-            const auto& val = names.at(ins->inputs().front());
-            return "r.make_indices_from(" + val + ")";
-        }
+        if(contains({"gpu::make_indices", "topk"}, ins->name()))
+            return generate_select(*ins, cpp_generator::to_args(ins->inputs(), names));
         if(ins->name() == "identity")
         {
             const auto& x = names.at(ins->inputs().front());
@@ -627,7 +663,7 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
+        if(contains({"multibroadcast", "contiguous", "identity", "get_tuple_elem"}, ins.name()))
             continue;
         if(ins.name() == "pointwise")
         {

@@ -654,9 +654,30 @@ TEST_CASE(optimize_multibroadcast_transpose)
                    make_op("multibroadcast", {{"out_lens", {2, 320, 64, 64}}}),
                    make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
                }) == ops{
-                         make_op("unsqueeze", {{"axes", {0}}}),
-                         make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
+                         make_op("transpose", {{"permutation", {1, 2, 0}}}),
                          make_op("multibroadcast", {{"out_lens", {2, 64, 64, 320}}}),
+                     });
+}
+
+TEST_CASE(optimize_unsqueeze_multibroadcast_after_1s)
+{
+    // Broadcasting aligns from the right, so an unsqueezed axis that only
+    // follows 1s is added by the multibroadcast
+    EXPECT(check_optimize_shape_transforms(
+               {1, 1, 1, 3},
+               {
+                   make_op("unsqueeze", {{"axes", {3}}}),
+                   make_op("multibroadcast", {{"out_lens", {1, 1, 1, 2, 3}}}),
+               }) == ops{make_op("multibroadcast", {{"out_lens", {1, 1, 1, 2, 3}}})});
+    // A non-1 axis before the unsqueezed axis still needs the unsqueeze
+    EXPECT(check_optimize_shape_transforms(
+               {2, 1, 3},
+               {
+                   make_op("unsqueeze", {{"axes", {2}}}),
+                   make_op("multibroadcast", {{"out_lens", {2, 1, 4, 3}}}),
+               }) == ops{
+                         make_op("unsqueeze", {{"axes", {2}}}),
+                         make_op("multibroadcast", {{"out_lens", {2, 1, 4, 3}}}),
                      });
 }
 
@@ -999,6 +1020,67 @@ TEST_CASE(common_dims_resize)
            ops{make_op("squeeze", {{"axes", {3, 5}}})});
     EXPECT(desc.to_src_from_common().generate({4, 16, 32, 1, 32, 1}) ==
            ops{make_op("squeeze", {{"axes", {3, 5}}})});
+    // The broadcasted common dims have no source axis, so they cant be rebased back
+    EXPECT(desc.to_src_from_common().rebase({4, 16, 32, 2, 32, 2}).empty());
+}
+
+TEST_CASE(common_dims_reduce_unsqueeze_broadcast)
+{
+    auto desc = make_simple_descriptor({1, 1, 1, 3},
+                                       make_op("unsqueeze", {{"axes", {3}}}),
+                                       make_op("multibroadcast", {{"out_lens", {1, 1, 1, 2, 3}}}))
+                    .rebase({1, 384, 480, 3}, true);
+
+    EXPECT(desc.common_dims() == final_lens{1, 384, 480, 2, 3});
+    EXPECT(desc.find_broadcasted_axes() == std::set<std::size_t>{1, 2});
+
+    EXPECT(desc.common_axes_map_from_src() == axes_map{{0}, {1}, {2}, {4}});
+    EXPECT(desc.common_axes_map_from_dst() == axes_map{{0}, {1}, {2}, {3}, {4}});
+
+    EXPECT(desc.to_common_from_src().generate({1, 384, 480, 3}) ==
+           ops{make_op("unsqueeze", {{"axes", {3}}}),
+               make_op("multibroadcast", {{"out_lens", {1, 384, 480, 2, 3}}})});
+    EXPECT(desc.to_common_from_dst().generate({1, 1, 1, 2, 3}, true) == ops{});
+    EXPECT(desc.to_dst_from_common().generate({1, 1, 1, 2, 3}) == ops{});
+
+    EXPECT(desc.to_src_from_common().generate({1, 1, 1, 1, 3}) ==
+           ops{make_op("squeeze", {{"axes", {3}}})});
+    // The broadcasted common dim has no source axis, so it cant be rebased back
+    EXPECT(desc.has_axisless_broadcast());
+    EXPECT(desc.to_src_from_common().rebase({1, 1, 1, 2, 3}).empty());
+    EXPECT(desc.to_src_from_common().rebase(desc.common_dims()).empty());
+}
+
+TEST_CASE(rebase_broadcast_detach_new_axis)
+{
+    // The broadcast is attributed to source axis 2 while it is 1, but once
+    // that axis is rebased to 480 the broadcast becomes a new axis
+    auto base_desc = make_simple_descriptor(
+        {1, 1, 1, 3}, make_op("multibroadcast", {{"out_lens", {1, 1, 1, 2, 3}}}));
+    EXPECT(not base_desc.has_axisless_broadcast());
+    EXPECT(base_desc.find_broadcasted_axes() == std::set<std::size_t>{2});
+
+    auto desc = base_desc.rebase({1, 384, 480, 3}, true);
+    EXPECT(desc.common_dims() == final_lens{1, 384, 480, 2, 3});
+    EXPECT(desc.find_broadcasted_axes() == std::set<std::size_t>{1, 2});
+    EXPECT(desc.has_axisless_broadcast());
+    EXPECT(desc.common_axes_map_from_src() == axes_map{{0}, {1}, {2}, {4}});
+    EXPECT(desc.to_common_from_src().generate({1, 384, 480, 3}) ==
+           ops{make_op("unsqueeze", {{"axes", {3}}}),
+               make_op("multibroadcast", {{"out_lens", {1, 384, 480, 2, 3}}})});
+    EXPECT(desc.to_src_from_common().rebase(desc.common_dims()).empty());
+}
+
+TEST_CASE(rebase_broadcast_reduced_axis)
+{
+    // Broadcasting a reduced axis back to its size stays attached to that axis
+    auto desc = make_simple_descriptor({2, 32, 1},
+                                       make_op("multibroadcast", {{"out_lens", {2, 32, 40960}}}))
+                    .rebase({2, 32, 40960}, true);
+    EXPECT(desc.common_dims() == final_lens{2, 32, 40960});
+    EXPECT(desc.find_broadcasted_axes() == std::set<std::size_t>{2});
+    EXPECT(not desc.has_axisless_broadcast());
+    EXPECT(desc.to_src_from_common().generate({2, 32, 1}) == ops{});
 }
 
 TEST_CASE(common_dims_squeeze_1x1)
@@ -1466,7 +1548,7 @@ TEST_CASE(generate_shape_transforms_for)
 
     EXPECT(generate_for({2, 2, 2, 2, 3}, {0, 2, 0, 1, 0}, {4}) ==
            ops{
-               make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}),
+               make_op("reshape", {{"dims", {2, 1, 2, 1}}}),
                make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}),
            });
 

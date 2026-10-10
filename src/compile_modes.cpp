@@ -60,7 +60,7 @@ compile_modes convert_to_compile_mode(const std::string& mode)
     auto lower       = to_lower(mode);
     const auto modes = enum_entries<compile_modes>();
     // NOLINTNEXTLINE(readability-qualified-auto)
-    auto it          = std::find_if(
+    auto it = std::find_if(
         modes.begin(), modes.end(), [&](compile_modes m) { return to_string(m) == lower; });
     if(it != modes.end())
         return *it;

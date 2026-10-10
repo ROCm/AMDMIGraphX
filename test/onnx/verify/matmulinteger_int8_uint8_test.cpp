@@ -43,6 +43,6 @@ TEST_CASE(matmulinteger_int8_uint8_test)
     auto result = p.eval(pp).back();
     std::vector<int32_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<int32_t> gold = {26, -31, -52, 66, 30, -37, -16, 20};
-    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+    std::vector<int32_t> gold = {-614, -671, 1740, 1858, -866, -933, 496, 532};
+    EXPECT(result_vector == gold);
 }

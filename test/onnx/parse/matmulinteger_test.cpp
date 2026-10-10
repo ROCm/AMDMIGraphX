@@ -34,5 +34,6 @@ TEST_CASE(matmulinteger_test)
 
     auto prog = optimize_onnx("matmulinteger_test.onnx");
 
+    migraphx::run_passes(prog, {migraphx::dead_code_elimination{}});
     EXPECT(p == prog);
 }

@@ -35,28 +35,33 @@ TEST_CASE(matmulinteger_one_zp_test)
     auto l0 = mm->add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {4, 3}});
     auto l1 = mm->add_parameter("2", migraphx::shape{migraphx::shape::uint8_type, {3, 2}});
 
-    // Convert uint8 input 2 to int8
-    auto int8_shift =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
-
-    auto unshifted_input_half = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l1);
-
-    auto mbr3 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}),
-                                    int8_shift);
-
-    auto input_shifted_half =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_input_half, mbr3);
-
-    l1 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        input_shifted_half);
-
-    // Handle bias offset for valid input that's already int8
-    auto mb1 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), l2);
-    auto sub = mm->add_instruction(migraphx::make_op("sub"), l0, mb1);
-
-    mm->add_instruction(migraphx::make_op("quant_dot"), sub, l1);
+    auto za = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1}}}), l2);
+    za = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), za);
+    auto zero = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {0}});
+    auto offset = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {128}});
+    auto zb = migraphx::add_common_op(*mm, migraphx::make_op("sub"), {zero, offset});
+    auto wide_b = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), l1);
+    auto input_offset = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {128}});
+    auto shifted_b = migraphx::add_common_op(*mm, migraphx::make_op("sub"), {wide_b, input_offset});
+    auto qb = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), shifted_b);
+    auto result = mm->add_instruction(migraphx::make_op("quant_dot"), l0, qb);
+    auto wb = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), qb);
+    auto sum_b = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), wb);
+    auto correction_a = migraphx::add_common_op(*mm, migraphx::make_op("mul"), {za, sum_b});
+    result = migraphx::add_common_op(*mm, migraphx::make_op("sub"), {result, correction_a});
+    auto wa = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), l0);
+    auto sum_a = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), wa);
+    auto correction_b = migraphx::add_common_op(*mm, migraphx::make_op("mul"), {sum_a, zb});
+    result = migraphx::add_common_op(*mm, migraphx::make_op("sub"), {result, correction_b});
+    auto k = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {3}});
+    auto correction = migraphx::add_common_op(*mm, migraphx::make_op("mul"), {za, zb});
+    correction = migraphx::add_common_op(*mm, migraphx::make_op("mul"), {correction, k});
+    migraphx::add_common_op(*mm, migraphx::make_op("add"), {result, correction});
 
     auto prog = optimize_onnx("matmulinteger_int8_uint8_one_zp_test.onnx");
 

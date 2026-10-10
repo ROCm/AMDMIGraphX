@@ -37,25 +37,27 @@ TEST_CASE(matmulinteger_dual_zero_zp_test)
 
     // Shift uint8 input
     auto int8_shift2 =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {128}});
 
     // Shift uint8 input
-    auto unshifted_input_half = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l1);
+    auto wide_input = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), l1);
 
     auto mbr2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}),
                                     int8_shift2);
 
-    auto input_shifted_half =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_input_half, mbr2);
+    auto shifted_input =
+        mm->add_instruction(migraphx::make_op("sub"), wide_input, mbr2);
 
     l1 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        input_shifted_half);
+        shifted_input);
 
     mm->add_instruction(migraphx::make_op("quant_dot"), l0, l1);
 
     auto prog = optimize_onnx("matmulinteger_int8_uint8_dual_zero_zp_test.onnx");
 
-    EXPECT(p == prog);
+    migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
+    migraphx::run_passes(prog, {migraphx::dead_code_elimination{}});
+    EXPECT(p.sort() == prog.sort());
 }

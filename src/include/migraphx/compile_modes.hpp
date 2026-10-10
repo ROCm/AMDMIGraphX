@@ -25,18 +25,14 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/enum.hpp>
 #include <cstdint>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-enum class compile_modes
-{
-    eager    = 0,
-    balanced = 50,
-    max      = 100
-};
+MIGRAPHX_ENUM_CLASS(compile_modes, eager = 0, balanced = 50, max = 100)
 
 MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(uint8_t mode);
 MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(const std::string& mode);

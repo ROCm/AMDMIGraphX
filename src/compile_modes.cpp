@@ -28,7 +28,6 @@
 #include <migraphx/stringutils.hpp>
 #include <cstdlib>
 #include <algorithm>
-#include <array>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,8 +39,7 @@ compile_modes convert_to_compile_mode(uint8_t mode)
         log::warn() << "Compile mode value " << mode << " out of range [0, 100], clamping to "
                     << clamped;
 
-    static const std::array<compile_modes, 3> modes = {
-        compile_modes::eager, compile_modes::balanced, compile_modes::max};
+    const auto modes = enum_entries<compile_modes>();
 
     // NOLINTNEXTLINE(readability-qualified-auto)
     auto it = std::find_if(modes.begin(), modes.end(), [&](compile_modes m) {
@@ -59,13 +57,13 @@ compile_modes convert_to_compile_mode(uint8_t mode)
 
 compile_modes convert_to_compile_mode(const std::string& mode)
 {
-    auto lower = to_lower(mode);
-    if(lower == "eager")
-        return compile_modes::eager;
-    if(lower == "balanced")
-        return compile_modes::balanced;
-    if(lower == "max")
-        return compile_modes::max;
+    auto lower       = to_lower(mode);
+    const auto modes = enum_entries<compile_modes>();
+    // NOLINTNEXTLINE(readability-qualified-auto)
+    auto it = std::find_if(
+        modes.begin(), modes.end(), [&](compile_modes m) { return to_string(m) == lower; });
+    if(it != modes.end())
+        return *it;
 
     int val = std::stoi(mode);
     if(val < 0 or val > 100)

@@ -44,7 +44,7 @@ namespace op {
  * arg[0]: input data
  * arg[1]: optional indexing information used for rewrite_topk
  * The indices are returned in the type of arg[1] when it is given, otherwise
- * as `indices_type`.
+ * as `indices_type`. Both outputs keep the layout of the input data.
  */
 struct topk
 {
@@ -82,7 +82,7 @@ struct topk
     {
         auto dds  = s0.dyn_dims();
         dds[axis] = shape::dynamic_dimension{sym::resolve_min(sym::lit(k), dds[axis].sym_expr)};
-        return shape({shape{s0.type(), dds}, shape{ind_type, dds}});
+        return shape({s0.with_lens(s0.type(), dds), s0.with_lens(ind_type, dds)});
     }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
@@ -114,8 +114,8 @@ struct topk
             auto kk    = std::min<std::size_t>(k, lens[axis]);
             lens[axis] = kk;
 
-            shape s_val{type, lens};
-            shape s_ind{ind_type, lens};
+            shape s_val = inputs.at(0).with_lens(type, lens);
+            shape s_ind = inputs.at(0).with_lens(ind_type, lens);
             return shape({s_val, s_ind});
         }
     }

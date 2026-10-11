@@ -146,6 +146,41 @@ TEST_CASE(topk_smallest_custom_indices)
     EXPECT(results.second == gold_ind);
 }
 
+TEST_CASE(topk_transposed)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {5, 3}};
+    auto data = mm->add_parameter("data", s);
+    auto t = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), data);
+    auto r =
+        mm->add_instruction(migraphx::make_op("topk", {{"axis", 1}, {"k", 4}, {"largest", 1}}), t);
+    auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+    auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+    mm->add_return({r0, r1});
+    // The outputs keep the transposed layout of the input
+    EXPECT(r0->get_shape() == migraphx::shape{migraphx::shape::float_type, {3, 4}, {1, 3}});
+    EXPECT(r1->get_shape() == migraphx::shape{migraphx::shape::int64_type, {3, 4}, {1, 3}});
+
+    p.compile(migraphx::make_target("ref"));
+
+    // data is the {3, 5} matrix of the other tests stored column-major
+    std::vector<float> input_data = {
+        2.1, 3.3, 1.0, 2.3, 0.2, 4.5, 2.0, 4.5, 2.1, 2.5, 0.1, 0.8, 1.9, 0.8, 1.5};
+    migraphx::parameter_map pp;
+    pp["data"] = migraphx::argument(s, input_data.data());
+    auto rets  = p.eval(pp);
+
+    std::vector<float> ret_val;
+    rets.front().visit([&](auto v) { ret_val.assign(v.begin(), v.end()); });
+    std::vector<float> gold_val = {2.5, 2.3, 2.1, 2, 4.5, 3.3, 0.8, 0.2, 4.5, 2.1, 1.5, 1};
+    EXPECT(ret_val == gold_val);
+    std::vector<int64_t> ret_ind;
+    rets.back().visit([&](auto v) { ret_ind.assign(v.begin(), v.end()); });
+    std::vector<int64_t> gold_ind = {3, 1, 0, 2, 2, 0, 4, 1, 1, 2, 4, 0};
+    EXPECT(ret_ind == gold_ind);
+}
+
 TEST_CASE(topk_index_input_type)
 {
     migraphx::program p;

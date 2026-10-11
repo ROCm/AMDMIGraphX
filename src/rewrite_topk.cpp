@@ -114,6 +114,8 @@ struct find_large_topk
         auto indices_type  = n < 65536 ? shape::uint16_type : shape::uint32_type;
         auto type          = ins->get_shape().sub_shapes().back().type();
         bool convert_elems = indices_type != type;
+        if(ins->inputs().size() != 1)
+            return;
         if(convert_elems and not all_of(ins->outputs(), [](instruction_ref out) {
                return out->name() == "get_tuple_elem";
            }))

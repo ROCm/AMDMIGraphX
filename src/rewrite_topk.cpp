@@ -109,6 +109,16 @@ struct find_large_topk
         gdims.insert(gdims.begin() + axis, group);
         op["axis"] = axis + 1;
 
+        // Both topk return the indices in the literal type, so the elements of
+        // the final topk are converted back to the original type
+        auto indices_type  = n < 65536 ? shape::uint16_type : shape::uint32_type;
+        auto type          = ins->get_shape().sub_shapes().back().type();
+        bool convert_elems = indices_type != type;
+        if(convert_elems and not all_of(ins->outputs(), [](instruction_ref out) {
+               return out->name() == "get_tuple_elem";
+           }))
+            return;
+
         auto fdims        = dims;
         fdims[axis]       = k * group;
         auto insert_final = [&](auto t, auto i) {
@@ -118,8 +128,7 @@ struct find_large_topk
 
         std::vector<std::size_t> indices_data(n);
         std::iota(indices_data.begin(), indices_data.end(), 0);
-        auto indices_lit = m.add_literal(
-            shape{(n < 65536 ? shape::uint16_type : shape::uint32_type), {n}}, indices_data);
+        auto indices_lit = m.add_literal(shape{indices_type, {n}}, indices_data);
 
         auto indices = m.insert_instruction(
             ins, make_op("broadcast", {{"axis", axis}, {"out_lens", dims}}), indices_lit);
@@ -128,13 +137,20 @@ struct find_large_topk
         auto topk1    = m.insert_instruction(ins, make_op("topk", op), ginput, gindices);
         auto finput   = insert_final(topk1, 0);
         auto findices = insert_final(topk1, 1);
-        // The group indices are in the literal type, and the final topk
-        // returns the type of its index input
-        auto type = ins->get_shape().sub_shapes().back().type();
-        if(findices->get_shape().type() != type)
-            findices =
-                m.insert_instruction(ins, make_op("convert", {{"target_type", type}}), findices);
-        m.replace_instruction(ins, ins->get_operator(), finput, findices);
+        auto topk2    = m.insert_instruction(ins, ins->get_operator(), finput, findices);
+        if(not convert_elems)
+        {
+            m.replace_instruction(ins, topk2);
+            return;
+        }
+        auto elems = ins->outputs();
+        std::for_each(elems.begin(), elems.end(), [&](instruction_ref elem) {
+            auto new_elem = m.insert_instruction(elem, elem->get_operator(), topk2);
+            if(get_tuple_index(elem) == 1)
+                new_elem = m.insert_instruction(
+                    elem, make_op("convert", {{"target_type", type}}), new_elem);
+            m.replace_instruction(elem, new_elem);
+        });
     }
 };
 
@@ -146,6 +162,7 @@ void rewrite_topk::apply(module_pass_manager& mpm) const
     // The split must not see the topk left behind by the folded converts
     mpm.run_pass(dead_code_elimination{});
     match::find_matches(mpm.get_module(), find_large_topk{split_threshold});
+    mpm.run_pass(dead_code_elimination{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

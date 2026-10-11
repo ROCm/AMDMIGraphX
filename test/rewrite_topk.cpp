@@ -62,6 +62,19 @@ TEST_CASE(large_topk_no_split)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(large_topk_tuple_no_split)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {240000}});
+        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}}), x);
+        m1.add_return({r});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(split_topk_batch_1)
 {
     const auto n = 240000;
@@ -69,7 +82,9 @@ TEST_CASE(split_topk_batch_1)
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {n}});
         auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}}), x);
-        m1.add_return({r});
+        auto values  = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+        auto indices = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+        m1.add_return({values, indices});
     }
     run_pass(m1);
     migraphx::module m2;
@@ -93,11 +108,13 @@ TEST_CASE(split_topk_batch_1)
         auto valuer =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8 * group}}}), value1);
         auto idxr = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8 * group}}}), idx1);
-        auto cidxr = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), idxr);
         auto r2 =
-            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), valuer, cidxr);
-        m2.add_return({r2});
+            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), valuer, idxr);
+        auto value2 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r2);
+        auto idx2   = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r2);
+        auto cidx2  = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), idx2);
+        m2.add_return({value2, cidx2});
     }
     EXPECT(m1.sort() == m2.sort());
 }
@@ -110,7 +127,9 @@ TEST_CASE(split_topk_batch_64)
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {batch, n}});
         auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), x);
-        m1.add_return({r});
+        auto values  = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+        auto indices = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+        m1.add_return({values, indices});
     }
     run_pass(m1);
     migraphx::module m2;
@@ -135,11 +154,13 @@ TEST_CASE(split_topk_batch_64)
             migraphx::make_op("reshape", {{"dims", {batch, 8 * group}}}), value1);
         auto idxr =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {batch, 8 * group}}}), idx1);
-        auto cidxr = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), idxr);
         auto r2 =
-            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), valuer, cidxr);
-        m2.add_return({r2});
+            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), valuer, idxr);
+        auto value2 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r2);
+        auto idx2   = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r2);
+        auto cidx2  = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), idx2);
+        m2.add_return({value2, cidx2});
     }
     EXPECT(m1.sort() == m2.sort());
 }
@@ -152,7 +173,9 @@ TEST_CASE(split_topk_batch_64_last)
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {n, batch}});
         auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), x);
-        m1.add_return({r});
+        auto values  = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+        auto indices = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+        m1.add_return({values, indices});
     }
     run_pass(m1);
     migraphx::module m2;
@@ -177,11 +200,13 @@ TEST_CASE(split_topk_batch_64_last)
             migraphx::make_op("reshape", {{"dims", {8 * group, batch}}}), value1);
         auto idxr =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8 * group, batch}}}), idx1);
-        auto cidxr = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), idxr);
         auto r2 =
-            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), valuer, cidxr);
-        m2.add_return({r2});
+            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), valuer, idxr);
+        auto value2 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r2);
+        auto idx2   = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r2);
+        auto cidx2  = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), idx2);
+        m2.add_return({value2, cidx2});
     }
     EXPECT(m1.sort() == m2.sort());
 }
@@ -368,16 +393,16 @@ TEST_CASE(split_topk_convert_indices)
         auto valuer =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8 * group}}}), value1);
         auto idxr = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8 * group}}}), idx1);
-        auto cidxr = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), idxr);
-        auto r2 = m2.add_instruction(
+        auto r2   = m2.add_instruction(
             migraphx::make_op(
                 "topk", {{"k", 8}, {"axis", 0}, {"indices_type", migraphx::shape::int32_type}}),
             valuer,
-            cidxr);
+            idxr);
         auto value2 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r2);
         auto idx2   = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r2);
-        m2.add_return({value2, idx2});
+        auto cidx2  = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), idx2);
+        m2.add_return({value2, cidx2});
     }
     EXPECT(m1.sort() == m2.sort());
 }

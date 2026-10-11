@@ -146,6 +146,78 @@ TEST_CASE(topk_smallest_custom_indices)
     EXPECT(results.second == gold_ind);
 }
 
+TEST_CASE(topk_index_input_type)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3, 5}};
+    migraphx::shape is{migraphx::shape::uint16_type, {3, 5}};
+    auto data = mm->add_parameter("data", s);
+    std::vector<uint16_t> indices(is.elements());
+    std::iota(indices.rbegin(), indices.rend(), 1);
+    auto idx = mm->add_literal(migraphx::literal{is, indices});
+    // The index input decides the type, not indices_type
+    auto r = mm->add_instruction(
+        migraphx::make_op(
+            "topk",
+            {{"axis", 1}, {"k", 4}, {"largest", 1}, {"indices_type", migraphx::shape::int32_type}}),
+        data,
+        idx);
+    auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+    auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+    mm->add_return({r0, r1});
+    EXPECT(r1->get_shape() == migraphx::shape{migraphx::shape::uint16_type, {3, 4}});
+
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data = {
+        2.1, 2.3, 2.0, 2.5, 1.9, 3.3, 0.2, 4.5, 0.1, 0.8, 1.0, 4.5, 2.1, 0.8, 1.5};
+    migraphx::parameter_map pp;
+    pp["data"] = migraphx::argument(s, input_data.data());
+    auto rets  = p.eval(pp);
+
+    EXPECT(rets.back().get_shape() == migraphx::shape{migraphx::shape::uint16_type, {3, 4}});
+    std::vector<uint16_t> ret_ind;
+    rets.back().visit([&](auto v) { ret_ind.assign(v.begin(), v.end()); });
+    std::vector<uint16_t> gold_ind = {12, 14, 15, 13, 8, 10, 6, 9, 4, 3, 1, 5};
+    EXPECT(ret_ind == gold_ind);
+}
+
+TEST_CASE(topk_indices_type)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3, 5}};
+    auto data = mm->add_parameter("data", s);
+    auto r    = mm->add_instruction(
+        migraphx::make_op(
+            "topk",
+            {{"axis", 1}, {"k", 4}, {"largest", 1}, {"indices_type", migraphx::shape::int32_type}}),
+        data);
+    auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+    auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+    mm->add_return({r0, r1});
+    EXPECT(r1->get_shape() == migraphx::shape{migraphx::shape::int32_type, {3, 4}});
+
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data = {
+        2.1, 2.3, 2.0, 2.5, 1.9, 3.3, 0.2, 4.5, 0.1, 0.8, 1.0, 4.5, 2.1, 0.8, 1.5};
+    migraphx::parameter_map pp;
+    pp["data"] = migraphx::argument(s, input_data.data());
+    auto rets  = p.eval(pp);
+
+    std::vector<float> ret_val;
+    rets.front().visit([&](auto v) { ret_val.assign(v.begin(), v.end()); });
+    std::vector<float> gold_val = {2.5, 2.3, 2.1, 2, 4.5, 3.3, 0.8, 0.2, 4.5, 2.1, 1.5, 1};
+    EXPECT(ret_val == gold_val);
+    EXPECT(rets.back().get_shape() == migraphx::shape{migraphx::shape::int32_type, {3, 4}});
+    std::vector<int32_t> ret_ind;
+    rets.back().visit([&](auto v) { ret_ind.assign(v.begin(), v.end()); });
+    std::vector<int32_t> gold_ind = {3, 1, 0, 2, 2, 0, 4, 1, 1, 2, 4, 0};
+    EXPECT(ret_ind == gold_ind);
+}
+
 // Test k > n with dynamic shapes: k=100 placeholder but runtime input has 5 elements
 TEST_CASE(topk_k_greater_than_n_dynamic)
 {

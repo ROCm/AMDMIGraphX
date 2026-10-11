@@ -31,14 +31,16 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
-/// Rewrite topk operators ideally to better performing operators
+/// Rewrite topk operators ideally to better performing operators: the
+/// converts of the indices are folded into the topk, and a long selection is
+/// split into a topk per group followed by a topk of the group results
 struct MIGRAPHX_EXPORT rewrite_topk
 {
     std::size_t split_threshold = 8192;
     std::string name() const { return "rewrite_topk"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

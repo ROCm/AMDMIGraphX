@@ -66,7 +66,6 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_USE_SIMPLE);
 
 static const benchmark_candidate& run_benchmark(const context& ctx,
@@ -582,7 +581,7 @@ struct compile_plan
         return bench_prog;
     }
 
-    void add_cells(bool skip_benchmark)
+    void add_cells(bool skip_benchmark, bool dump_mxr)
     {
         assert(results.empty());
         if(config.has_value())
@@ -603,8 +602,6 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                const bool dump_mxr =
-                    not string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}).empty();
                 if(skip_benchmark or enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
                    (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
@@ -886,11 +883,11 @@ struct compile_manager
 
     void compile()
     {
+        const bool dump_mxr = not mxr_dir.empty();
         for(auto& cp : cps)
-            cp.add_cells(skip_benchmark);
+            cp.add_cells(skip_benchmark, dump_mxr);
         compile_cells();
 
-        const bool dump_mxr = not mxr_dir.empty();
         if(dump_mxr)
             fs::create_directories(mxr_dir);
 
@@ -971,7 +968,7 @@ void compile_ops::apply(module_pass_manager& mpm) const
     compile_manager cm;
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
-    cm.mxr_dir        = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
+    cm.mxr_dir        = dump_mxr_dir;
     for(auto* m : mods)
         cm.add_plans(*ctx, m);
     cm.update_configs();

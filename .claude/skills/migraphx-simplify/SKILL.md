@@ -96,7 +96,14 @@ instead.
 - Raw loops that should be STL `<algorithm>` or MIGraphX `<migraphx/algorithm.hpp>`
   algorithms (`transform_if`, `transform_accumulate`, `group_by`, `group_unique`,
   `adjacent_for_each`, etc.). `std::for_each` is not an acceptable substitute for
-a real algorithm (but can be preferred over a raw loop).
+  a real algorithm, but a raw loop is the *least* preferred form: never rewrite a
+  `std::for_each` into a raw `for` loop. If it is a side-effecting fold with no
+  clean algorithm (e.g. folding `hash_combine` into a seed), leave it alone.
+- A `contiguous` inserted before `reshape` — `reshape` already copies and handles
+  non-standard input layouts, so the extra op is redundant.
+- Pair/tuple member access (`auto r = f(); r.first`) where a structured binding
+  `auto [a, b] = f();` fits; when a C++17 lambda needs the binding, use an
+  init-capture (`[&, &x = x]`) rather than avoiding the binding.
 - Manually written lexicographical comparisons — use `std::tie` or
   `std::lexicographical_compare` instead.
 - Manual offset / stride / index math with mod and division — use the
@@ -107,6 +114,11 @@ a real algorithm (but can be preferred over a raw loop).
   already exists.
 - A new helper that duplicates one already living elsewhere — name the existing
   function.
+- **Not** a duplicate: a bespoke test stub operator (e.g. `view_pass_op` in
+  `test/gpu/hipgraphify.cpp`) that a `basic_ops` stub could replace behaviorally.
+  Check which branch of the predicate under test each one drives (no `compute` → not
+  context-free, versus context-free + aliasing); if they differ, swapping them
+  silently changes what the test covers.
 - (kernel files) Hand-rolled utilities that already exist: `migraphx::array`,
   `tensor_view`, `vec<T, N>` for vector types, `repeat_c` for unrolling loops,
   `uninitialized_buffer` for shared LDS, the `index` class for thread/block
@@ -120,10 +132,23 @@ simpler, smaller, or flatter form. Name the simpler form that does the same job.
 - Redundant or derivable state; intermediate variables that can be used directly.
 - Copy-paste with slight variation that should be factored or parameterized.
 - Deep nesting that an early return or restructuring would flatten.
-- Dead code left behind by the change.
+- Dead code left behind by the change. **Not** dead code: a shared kernel utility
+  (e.g. `partial` in `kernels/functional.hpp`) whose last caller this diff removed —
+  the kernel functional library is kept as a toolkit, so only remove helpers the
+  change itself introduced.
 - Premature abstraction — a helper used only once.
 - Classes masquerading as functions — a stateless struct with one public method
-  should be a free function.
+  *instantiated as an object* should be a free function. A `static` member function
+  that happens to use no member state is **not** this: it is scoped to its class on
+  purpose, so leave it where it is.
+- Locally-called named lambdas (`auto used_outside = [&](...) {...};` followed by a
+  call) — a function in disguise with hidden captures. Convert to a `static` free
+  function taking its captures as parameters, or inline a single use. Lambdas
+  *passed* to an algorithm or callback are fine.
+- Static helpers that each take 5+ parameters to marshal shared state after a
+  function was split — replace with a (nested) struct holding that state in value
+  members, with methods that add to it; keep `context&` and other external state as
+  method parameters.
 - Config / builder structs around what should be 1–2 function arguments; factory
   functions that only call a constructor.
 - Multiple wrapper layers with no distinct responsibility per layer — collapse them.
@@ -133,12 +158,27 @@ simpler, smaller, or flatter form. Name the simpler form that does the same job.
 - Defensive checks at internal boundaries and speculative error handling for
   conditions that cannot occur given caller guarantees — remove them. (This is
   distinct from assertions that document assumptions, which belong to the safety
-  pass.)
+  pass.) An `assert` at an exported function's boundary that a later internal helper
+  re-asserts is **not** a duplicate: each layer documents its own contract, so keep
+  both.
 - Backwards-compat shims that aren't needed: renamed `_unused` parameters,
   re-exports of removed types.
 - Unrequested refactors bundled into the change — flag them for separation.
+- A one-line layout predicate (e.g. `is_nhwc(const shape&)`) added to a widely
+  included core header such as `permutation.hpp` — inline the stride check at each
+  site with a comment instead; narrow GPU/conv helpers do not belong in core headers.
 - (kernel files) `::value` used to read an integral constant — it converts
   implicitly; pass the `integral_constant` through and capture it with `auto`.
+  In **tests**, `::value` is read on purpose to check the stored constant: keep it
+  and add a `cppcheck-suppress migraphx-AvoidNestedValue`.
+- (kernel files) Do **not** flag `if constexpr` special cases that look redundant
+  with the generic path (e.g. `arg_c` for `N == 0`): kernel headers are JIT-compiled
+  at runtime and those branches cut template instantiations. If one lacks a comment
+  saying so, add the one-line comment rather than removing the branch.
+- (kernel files) Do **not** merge per-kernel JIT raw-string source templates into a
+  shared `${...}` shell; the explicit per-kernel template is the preferred form.
+- (kernel files) `static_cast<T&&>(x)` is a move, not a redundant cast — keep it
+  and suppress `migraphx-RedundantCast`; do not introduce a `move()` helper.
 
 ### 3. Efficiency
 Flag wasted work the diff introduces — computation, memory, or build cost that a
@@ -149,6 +189,9 @@ cheaper form avoids without changing behavior. Name the cheaper alternative.
 - Copies where a reference or view suffices; unnecessary `auto&&`.
 - Unused `std::move` and unused casts.
 - Over-broad `#include`s where a forward declaration or a narrower header would do.
+- A non-template helper defined inline in a header — it drags its includes into
+  every consumer. Declare it in the header (with the target's export macro) and
+  move the body to the `.cpp`; only templates and trivial accessors stay inline.
 
 ### 4. Altitude
 Check that each change is implemented at the right depth, not as a fragile
@@ -198,7 +241,9 @@ replacement, or recommend deletion.
 - Correct — the comment matches what the code actually does; flag stale comments
   left after the code changed and comments describing the wrong behavior.
 - Clear — flag confusing, ambiguous, or misleading wording; rewrite to state the
-  non-obvious *why* (a constraint, workaround, or invariant) concisely.
+  non-obvious *why* (a constraint, workaround, or invariant) in one to three lines.
+  A rewrite must not grow the comment: drop parentheticals, cross-references, and
+  enumerated consequences unless they are load-bearing.
 - Relevant — flag comments that discuss unrelated components, files, or code not
   present in the change.
 - Tombstones — flag `// removed ...` / "this used to ..." comments that describe

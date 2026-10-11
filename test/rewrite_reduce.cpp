@@ -25,6 +25,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/half.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -79,8 +80,183 @@ TEST_CASE(softmax_upcast)
     }));
 }
 
+// A small reduction of an affine function of a reduction folds into one
+// reduction over both sets of axes plus the reduction of the shift, in the
+// space of the inner reduce; the views between them are looked through.
+// Scaling the terms before the inner sum needs fast math
+TEST_CASE(reduce_affine_reduce)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {4, 1, 8, 16}};
+    migraphx::shape bs{migraphx::shape::float_type, {4, 1, 8}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", xs);
+        auto b    = m1.add_parameter("b", bs);
+        auto w    = m1.add_parameter("w", {migraphx::shape::float_type, {4, 1, 1}});
+        auto rsum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), x);
+        auto sq   = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), rsum);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), sq, b);
+        auto wb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 8}}}), w);
+        auto mul   = m1.add_instruction(migraphx::make_op("mul"), add, wb);
+        auto r     = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 8}}}), mul);
+        auto rsum2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), r);
+        m1.add_return({rsum2});
+    }
+    run_pass(m1, {.fast_math = true});
+
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", xs);
+        auto b  = m2.add_parameter("b", bs);
+        auto w  = m2.add_parameter("w", {migraphx::shape::float_type, {4, 1, 1}});
+        auto wu = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), w);
+        auto wx =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", xs.lens()}}), wu);
+        auto xw   = m2.add_instruction(migraphx::make_op("mul"), x, wx);
+        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 3}}}), xw);
+        auto wb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 8}}}), w);
+        auto bw   = m2.add_instruction(migraphx::make_op("mul"), b, wb);
+        auto bwu  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), bw);
+        auto bsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), bwu);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), rsum, bsum);
+        auto out  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 8}}}), add);
+        m2.add_return({out});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A large outer reduction is left alone since it would collapse the
+// parallelism of the inner reduction, and so is a non-affine chain
+TEST_CASE(reduce_affine_reduce_unfused)
+{
+    auto create = [](std::size_t n, bool affine) {
+        migraphx::module m;
+        auto x     = m.add_parameter("x", {migraphx::shape::float_type, {n, 8, 16}});
+        auto rsum  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto f     = affine ? m.add_instruction(migraphx::make_op("neg"), rsum)
+                            : m.add_instruction(migraphx::make_op("sigmoid"), rsum);
+        auto rsum2 = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), f);
+        m.add_return({rsum2});
+        return m;
+    };
+    auto m1 = create(128, true);
+    run_pass(m1);
+    EXPECT(m1 == create(128, true));
+    auto m2 = create(4, false);
+    run_pass(m2);
+    EXPECT(m2 == create(4, false));
+}
+
+// An outer reduction over only unit dims has nothing to fold, so the chain
+// is left for simplify_reshapes to drop the trivial outer reduce rather
+// than folded into a reduce over no axes
+TEST_CASE(reduce_affine_reduce_unit_outer_axes_shift)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 1}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xs);
+        auto b     = m1.add_parameter("b", bs);
+        auto rsum  = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto add   = m1.add_instruction(migraphx::make_op("add"), rsum, b);
+        auto rsum2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), add);
+        m1.add_return({rsum2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", xs);
+        auto b    = m2.add_parameter("b", bs);
+        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), rsum, b);
+        m2.add_return({add});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(reduce_affine_reduce_unit_outer_axes_scale)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape ws{migraphx::shape::float_type, {2, 1}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xs);
+        auto w     = m1.add_parameter("w", ws);
+        auto rsum  = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto mul   = m1.add_instruction(migraphx::make_op("mul"), rsum, w);
+        auto rsum2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        m1.add_return({rsum2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", xs);
+        auto w    = m2.add_parameter("w", ws);
+        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto mul  = m2.add_instruction(migraphx::make_op("mul"), rsum, w);
+        m2.add_return({mul});
+    }
+    EXPECT(m1 == m2);
+}
+
+// Without fast math a scaled chain is left alone, since scaling the terms
+// before the inner sum can overflow where the sum itself cancels
+TEST_CASE(reduce_affine_reduce_scale_no_fast_math)
+{
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {4, 8, 16}});
+        auto w     = m1.add_parameter("w", {migraphx::shape::float_type, {4, 8, 1}});
+        auto rsum  = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto mul   = m1.add_instruction(migraphx::make_op("mul"), rsum, w);
+        auto rsum2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), mul);
+        m1.add_return({rsum2});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// The weighted rows cancel only after the inner sum: scaling the fp16
+// terms first overflows to inf and the outer sum becomes nan
+TEST_CASE(reduce_affine_reduce_scale_overflow)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape xs{migraphx::shape::half_type, {2, 2}};
+    migraphx::shape ws{migraphx::shape::half_type, {2, 1}};
+    auto x     = mm->add_parameter("x", xs);
+    auto w     = mm->add_parameter("w", ws);
+    auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+    auto mul   = mm->add_instruction(migraphx::make_op("mul"), rsum, w);
+    auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), mul);
+    mm->add_return({rsum2});
+    run_pass(*mm);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<migraphx::half> xdata{migraphx::half{40000.f},
+                                      migraphx::half{-40000.f},
+                                      migraphx::half{40000.f},
+                                      migraphx::half{-40000.f}};
+    std::vector<migraphx::half> wdata{migraphx::half{2.f}, migraphx::half{2.f}};
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(xs, xdata.data());
+    params["w"] = migraphx::argument(ws, wdata.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.f};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 // The skinny dot rewrite is off by default so the dot is left alone.
 TEST_CASE(dot_skinny_disabled_by_default)
+
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 128}};
     migraphx::shape b_shape{migraphx::shape::float_type, {128, 4}};

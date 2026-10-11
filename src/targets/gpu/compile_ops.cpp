@@ -772,6 +772,10 @@ struct compile_manager
     std::vector<compile_plan> cps;
     bool exhaustive     = false;
     bool skip_benchmark = false;
+    /// When set, plans with several candidates are saved here as benchmark MXR files instead of
+    /// being replaced. Left empty by the nested batch in replace_inserted_device_ops.
+    fs::path mxr_dir             = {};
+    std::size_t dumped_mxr_files = 0;
 
     template <class... Ts>
     void add_plan(Ts&&... xs)
@@ -886,44 +890,18 @@ struct compile_manager
             cp.add_cells(skip_benchmark);
         compile_cells();
 
-        static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
-        bool dump_mxr              = not mxr_path.empty();
-        std::size_t dumped_mxr_files = 0;
-
+        const bool dump_mxr = not mxr_dir.empty();
         if(dump_mxr)
-        {
-            fs::create_directories(fs::path(mxr_path));
-        }
+            fs::create_directories(mxr_dir);
 
         for(const auto& cp : cps)
         {
             if(cp.results.empty())
                 continue;
             if(dump_mxr and cp.results.size() > 1)
-            {
-                dumped_mxr_files += cp.save_binaries(fs::path(mxr_path));
-            }
+                dumped_mxr_files += cp.save_binaries(mxr_dir);
             else
-            {
                 cp.replace(*cp.mod);
-            }
-        }
-
-        if(dump_mxr)
-        {
-            if(dumped_mxr_files > 0)
-            {
-                log::info()
-                    << "Benchmark MXR files dumped to " << mxr_path
-                    << ". Run the MXR files to create a problem cache, then recompile with the "
-                       "cache.";
-            }
-            else
-            {
-                log::info() << "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR is set to " << mxr_path
-                            << ", but no benchmark files were dumped.";
-            }
-            std::exit(0);
         }
 
         // Remove compile_plan already executed
@@ -931,6 +909,24 @@ struct compile_manager
                                  cps.end(),
                                  [](const auto& cp) { return not cp.results.empty(); }),
                   cps.end());
+    }
+
+    /// Report the benchmark MXR files saved by compile() and exit: the kernels are tuned by running
+    /// those files, then the model is compiled again with the resulting problem cache.
+    [[noreturn]] void exit_after_dump() const
+    {
+        if(dumped_mxr_files > 0)
+        {
+            log::info() << "Benchmark MXR files dumped to " << mxr_dir.string()
+                        << ". Run the MXR files to create a problem cache, then recompile with the "
+                           "cache.";
+        }
+        else
+        {
+            log::info() << "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR is set to " << mxr_dir.string()
+                        << ", but no benchmark files were dumped.";
+        }
+        std::exit(0);
     }
 };
 
@@ -975,10 +971,14 @@ void compile_ops::apply(module_pass_manager& mpm) const
     compile_manager cm;
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
+    cm.mxr_dir        = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
     for(auto* m : mods)
         cm.add_plans(*ctx, m);
     cm.update_configs();
     cm.compile();
+    // Dumping leaves the benchmarked problems unsolved, so nothing more can be compiled.
+    if(not cm.mxr_dir.empty())
+        cm.exit_after_dump();
     // Compile already tuned configs
     cm.compile();
     assert(cm.cps.empty());

@@ -141,7 +141,7 @@ run_verify::run_target(const migraphx::target& t,
                        const migraphx::parameter_map& inputs,
                        const migraphx::compile_options& c_opts) const
 {
-    auto_print pp{p, t.name()};
+    auto_print pp{p, auto_print::make_name(t.name(), c_opts.compile_mode)};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, c_opts, (trace_target == t.name()));
     migraphx::parameter_map m;
@@ -226,7 +226,7 @@ void run_verify::verify(const program_info& pi) const
                 migraphx::compile_options mode_opts = c_opts;
                 mode_opts.compile_mode              = mode;
                 results.emplace_back(
-                    tname + "(" + to_string(mode) + ")",
+                    auto_print::make_name(tname, mode),
                     detach_async([=] { return run_target(t, p, m, mode_opts); }, ti.parallel));
             }
         }

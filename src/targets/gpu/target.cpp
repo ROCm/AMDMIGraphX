@@ -288,9 +288,10 @@ struct pipeline_factory
             dead_code_elimination{},
             fuse_topk{},
             dead_code_elimination{},
-            // eager drops optimize_module, so fuse_mlir's hoisted constant scales (e.g. sa*sb for
-            // dot+dequant) are never folded and would otherwise survive as host ops over GPU
-            // literals (segfault). Re-add just propagate_constant (cheap fold) in eager here.
+            // simplify_qdq rewrites dot(dq(a,sa),dq(b,sb)) to dq(quant_dot(a,b),sa*sb). That
+            // sa*sb mul has only scalar-literal inputs, so fuse_pointwise skips it and nothing
+            // lowers it; with no optimize_module to fold it away it reaches the GPU as a host
+            // mul over device literals.
             enable_pass(options.compile_mode == compile_modes::eager, propagate_constant{}),
             enable_pass(options.compile_mode == compile_modes::eager, dead_code_elimination{}),
             fuse_concat{},

@@ -100,6 +100,14 @@ Verifies each instruction
 
 Reduces program and verifies
 
+.. option::  -b, --bisect
+
+Uses binary search to locate the first failing step.
+
+.. option::  -l, --layerwise
+
+Compares corresponding reference and target layers in one execution.
+
 .. option:: --ref-use-double
 
 Converts floating point values to double for the ref target

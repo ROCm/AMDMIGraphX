@@ -49,11 +49,11 @@ namespace op {
  * Concatenate valid prefixes of maximum-capacity inputs.
  *
  * Inputs are ordered as:
- *   data_0, ..., data_n, num_elements_0, ..., num_elements_n
+ *   data_0, ..., data_n, num_elements
  *
- * Each num_elements input is an int64 tensor with shape {1} and gives the valid extent of the
- * corresponding data input along axis. The output is a tuple containing a zero-padded static
- * maximum-capacity buffer and the sum of the valid extents.
+ * num_elements is an int64 tensor with one element per data input and gives each valid extent along
+ * axis. The output is a tuple containing a zero-padded static maximum-capacity buffer and the sum
+ * of the valid extents.
  */
 struct dyn_concat
 {
@@ -76,9 +76,9 @@ struct dyn_concat
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        if(inputs.empty() or inputs.size() % 2 != 0)
-            MIGRAPHX_THROW("DYN_CONCAT: expected an equal number of data and count inputs");
-        const auto n = inputs.size() / 2;
+        if(inputs.size() < 2)
+            MIGRAPHX_THROW("DYN_CONCAT: expected data inputs followed by a count tensor");
+        const auto n = inputs.size() - 1;
         check_shapes{inputs.begin(), inputs.begin() + n, *this, true}.same_ndims().same_type();
 
         const auto rank = inputs.front().ndim();
@@ -86,10 +86,10 @@ struct dyn_concat
             MIGRAPHX_THROW("DYN_CONCAT: axis is out of range");
         const auto normalized_axis = static_cast<std::size_t>(axis);
 
-        const shape count_shape{shape::int64_type, {1}};
-        if(not std::all_of(
-               inputs.begin() + n, inputs.end(), [&](const shape& s) { return s == count_shape; }))
-            MIGRAPHX_THROW("DYN_CONCAT: count inputs must be int64 tensors with shape {1}");
+        const shape count_shape{shape::int64_type, {n}};
+        if(inputs.back() != count_shape)
+            MIGRAPHX_THROW("DYN_CONCAT: count input must be an int64 tensor with one value per "
+                           "data input");
 
         const std::vector<shape> data_shapes(inputs.begin(), inputs.begin() + n);
         const auto dynamic_inputs = shape::to_dynamic(data_shapes);
@@ -119,7 +119,7 @@ struct dyn_concat
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        const auto n               = args.size() / 2;
+        const auto n               = args.size() - 1;
         const auto normalized_axis = static_cast<std::size_t>(axis);
         const auto& output_shapes  = output_shape.sub_shapes();
         argument output{output_shapes.front()};
@@ -130,13 +130,13 @@ struct dyn_concat
             std::fill(values.begin(), values.end(), value_type{0});
         });
 
-        auto indices = range(n);
+        auto indices            = range(n);
+        const auto num_elements = args.back().to_vector<int64_t>();
         std::vector<std::size_t> counts(n);
         std::transform(indices.begin(), indices.end(), counts.begin(), [&](std::size_t i) {
-            const auto count_values = args.at(n + i).to_vector<int64_t>();
-            if(count_values.front() < 0)
+            if(num_elements.at(i) < 0)
                 MIGRAPHX_THROW("DYN_CONCAT: count cannot be negative");
-            const auto count = static_cast<std::size_t>(count_values.front());
+            const auto count = static_cast<std::size_t>(num_elements.at(i));
             if(count > args.at(i).get_shape().lens().at(normalized_axis))
                 MIGRAPHX_THROW("DYN_CONCAT: count exceeds the input dimension");
             return count;

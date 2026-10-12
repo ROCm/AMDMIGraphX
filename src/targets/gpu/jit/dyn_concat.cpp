@@ -72,9 +72,9 @@ struct dyn_concat_compiler : compiler<dyn_concat_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        if(inputs.size() < 3 or inputs.size() % 2 == 0)
+        if(inputs.size() < 3)
             MIGRAPHX_THROW("DYN_CONCAT: invalid precompile input list");
-        const auto num_inputs = (inputs.size() - 1) / 2;
+        const auto num_inputs = inputs.size() - 2;
         const auto rank       = inputs.front().ndim();
         auto axis_value       = v.at("axis").to<int64_t>();
         if(axis_value < 0)
@@ -98,9 +98,7 @@ struct dyn_concat_compiler : compiler<dyn_concat_compiler>
         transform(range(num_inputs), std::back_inserter(lambda_params), [](auto i) {
             return "auto input" + std::to_string(i);
         });
-        transform(range(num_inputs), std::back_inserter(lambda_params), [](auto i) {
-            return "auto count" + std::to_string(i);
-        });
+        lambda_params.push_back("auto counts");
         lambda_params.push_back("auto output");
         lambda_params.push_back("auto total");
 
@@ -111,10 +109,11 @@ struct dyn_concat_compiler : compiler<dyn_concat_compiler>
                 return std::string{"            offsets[0] = 0;"};
             return "            offsets[" + std::to_string(i) + "] = offsets[" +
                    std::to_string(i - 1) + "] + " + "dyn_concat_count<" +
-                   std::to_string(capacities.at(i - 1)) + ">(count" + std::to_string(i - 1) + ");";
+                   std::to_string(capacities.at(i - 1)) + ">(counts, " + std::to_string(i - 1) +
+                   ");";
         });
         transform(range(num_inputs), std::back_inserter(copies), [&](std::size_t i) {
-            auto count = "dyn_concat_count<" + std::to_string(capacities.at(i)) + ">(count" +
+            auto count = "dyn_concat_count<" + std::to_string(capacities.at(i)) + ">(counts, " +
                          std::to_string(i) + ")";
             const auto& input_shape   = inputs.at(i);
             const bool fixed_capacity = not input_shape.dynamic() or
@@ -130,7 +129,7 @@ struct dyn_concat_compiler : compiler<dyn_concat_compiler>
                    "], output);";
         });
         auto total = "offsets[" + std::to_string(num_inputs - 1) + "] + " + "dyn_concat_count<" +
-                     std::to_string(capacities.back()) + ">(count" +
+                     std::to_string(capacities.back()) + ">(counts, " +
                      std::to_string(num_inputs - 1) + ")";
 
         hip_compile_options options;

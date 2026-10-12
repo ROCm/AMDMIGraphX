@@ -32,15 +32,13 @@
 TEST_CASE(dyn_concat_middle_axis)
 {
     migraphx::program p;
-    auto* mm     = p.get_main_module();
-    auto x       = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {2, 3, 2}},
-                                                     {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}});
-    auto y       = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {2, 2, 2}},
-                                                     {100, 101, 102, 103, 104, 105, 106, 107}});
-    auto x_count = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {2}});
-    auto y_count = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {1}});
-    auto result =
-        mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 1}}), x, y, x_count, y_count);
+    auto* mm    = p.get_main_module();
+    auto x      = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {2, 3, 2}},
+                                                    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}});
+    auto y      = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {2, 2, 2}},
+                                                    {100, 101, 102, 103, 104, 105, 106, 107}});
+    auto counts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {2}}, {2, 1}});
+    auto result = mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 1}}), x, y, counts);
     auto buffer = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), result);
     auto count  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), result);
     mm->add_return({buffer, count});
@@ -59,10 +57,9 @@ TEST_CASE(dyn_concat_zero_counts)
     auto* mm = p.get_main_module();
     auto x =
         mm->add_literal(migraphx::literal{{migraphx::shape::float_type, {2, 2}}, {1, 2, 3, 4}});
-    auto y    = mm->add_literal(migraphx::literal{{migraphx::shape::float_type, {1, 2}}, {5, 6}});
-    auto zero = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
-    auto result =
-        mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, zero, zero);
+    auto y      = mm->add_literal(migraphx::literal{{migraphx::shape::float_type, {1, 2}}, {5, 6}});
+    auto counts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {2}}, {0, 0}});
+    auto result = mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
     auto buffer = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), result);
     auto count  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), result);
     mm->add_return({buffer, count});

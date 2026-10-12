@@ -92,26 +92,27 @@ struct find_static_dyn_concat : match::supports_dynamic_shapes
     {
         auto ins    = mr.result;
         auto inputs = ins->inputs();
-        if(inputs.empty() or inputs.size() % 2 != 0)
+        if(inputs.size() < 2)
             return;
-        const auto n = inputs.size() / 2;
+        const auto n = inputs.size() - 1;
         std::vector<instruction_ref> data(inputs.begin(), inputs.begin() + n);
         if(any_of(data, [](auto input) { return input->get_shape().dynamic(); }))
             return;
 
-        auto axis     = tune_axis(data.front()->get_shape().ndim(),
+        auto axis         = tune_axis(data.front()->get_shape().ndim(),
                               ins->get_operator().to_value().at("axis").to<int64_t>(),
                               ins->name());
+        auto count_values = inputs.back()->sym_eval();
+        if(count_values.empty())
+            return;
+        auto values = count_values.get();
+        if(values.size() != n)
+            return;
+
         int64_t total = 0;
         for(std::size_t i = 0; i < n; ++i)
         {
-            auto count = inputs.at(n + i)->sym_eval();
-            if(count.empty())
-                return;
-            auto values = count.get();
-            if(values.size() != 1)
-                return;
-            auto fixed = sym::fixed_value(values.front());
+            auto fixed = sym::fixed_value(values[i]);
             if(not fixed.has_value())
                 return;
             auto value = sym::to<int64_t>(*fixed);
@@ -148,8 +149,8 @@ struct find_static_dyn_concat : match::supports_dynamic_shapes
                     m.replace_instruction(consumer, concat);
             m.replace_instruction(buffer, concat);
         }
-        for(auto count : counts)
-            m.replace_instruction(count, total_literal);
+        for(auto count_output : counts)
+            m.replace_instruction(count_output, total_literal);
     }
 };
 

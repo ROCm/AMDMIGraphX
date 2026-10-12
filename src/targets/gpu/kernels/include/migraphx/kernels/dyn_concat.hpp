@@ -29,10 +29,10 @@
 
 namespace migraphx {
 
-template <index_int Capacity, class Count>
-__device__ index_int dyn_concat_count(Count count)
+template <index_int Capacity, class Counts>
+__device__ index_int dyn_concat_count(Counts counts, index_int i)
 {
-    auto value = count[0];
+    auto value = counts[i];
     if(value <= 0)
         return 0;
     if(value >= Capacity)

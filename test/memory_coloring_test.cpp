@@ -4006,4 +4006,56 @@ TEST_CASE(submodule_scratch_alignment)
     CHECK(get_load_interval(scratch).first % 32 == 0);
 }
 
+// Offset of a load from the outermost scratch, following loads hoisted into parent modules
+static std::size_t get_absolute_offset(migraphx::instruction_ref load)
+{
+    std::size_t offset = 0;
+    while(load->name() == "load")
+    {
+        offset += get_load_interval(load).first;
+        load = load->inputs().front();
+    }
+    return offset;
+}
+
+TEST_CASE(submodule_scratch_nested_alignment)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // Vectorized doubles require a 32 byte alignment
+    migraphx::shape ds{migraphx::shape::double_type, {8}};
+    auto* inner = add_submodule(p, "inner", ds, 2);
+
+    // The middle module only has 4 byte aligned allocations of its own
+    migraphx::shape s{migraphx::shape::int8_type, {100}};
+    auto* mid = p.create_module("mid");
+    {
+        auto a    = add_alloc(*mid, s);
+        auto x    = mid->add_instruction(pass_op{}, a);
+        auto call = mid->add_instruction(mod_pass_op{}, {x}, {inner});
+        mid->add_return({mid->add_instruction(pass_op{}, call, x)});
+    }
+
+    // Larger than the hoisted scratch so it is placed first, pushing the hoisted scratch off a
+    // 32 byte boundary unless the nested alignment is propagated
+    auto a1   = add_alloc(*mm, {migraphx::shape::int8_type, {300}});
+    auto p1   = mm->add_instruction(pass_op{}, a1);
+    auto call = mm->add_instruction(mod_pass_op{}, {p1}, {mid});
+    mm->add_instruction(pass_op{}, call, p1);
+    run_pass(p);
+
+    CHECK(no_allocate(*mm));
+    CHECK(no_allocate(*mid));
+    CHECK(no_allocate(*inner));
+    auto loads = get_loads(*inner);
+    EXPECT(loads.size() == 2);
+    auto inner_scratch = loads.front()->inputs().front();
+    CHECK(mid->has_instruction(inner_scratch));
+    auto mid_scratch = inner_scratch->inputs().front();
+    CHECK(mm->has_instruction(mid_scratch));
+    CHECK(is_disjoint({a1, mid_scratch}));
+    CHECK(std::all_of(
+        loads.begin(), loads.end(), [](auto load) { return get_absolute_offset(load) % 32 == 0; }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

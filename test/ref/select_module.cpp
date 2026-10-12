@@ -289,6 +289,52 @@ TEST_CASE(select_module_static_stride_mismatch_error)
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
 
+TEST_CASE(select_module_empty_stride_mismatch)
+{
+    migraphx::module submodule{"empty"};
+    auto expected = migraphx::shape{migraphx::shape::int64_type, {1, 0}, {0, 1}};
+    auto input    = submodule.add_parameter("data", expected);
+    submodule.add_return({input});
+
+    migraphx::op::select_module select;
+    select.output_dyn_shapes = migraphx::shape{std::vector<migraphx::shape>{expected}};
+    auto actual              = migraphx::shape{migraphx::shape::int64_type, {1, 0}, {100, 1}};
+    bool invoked             = false;
+    auto result              = select.compute(
+        {}, {migraphx::argument{actual, nullptr}}, {&submodule}, [&](auto&, const auto& params) {
+            invoked = true;
+            EXPECT(params.at("data").get_shape() == expected);
+            return std::vector<migraphx::argument>{params.at("data")};
+        });
+    EXPECT(invoked);
+    EXPECT(result.get_sub_objects().front().get_shape() == expected);
+}
+
+TEST_CASE(select_module_unit_stride_mismatch)
+{
+    migraphx::module submodule{"unit"};
+    auto expected = migraphx::shape{migraphx::shape::int64_type, {1, 1}, {1, 1}};
+    auto input    = submodule.add_parameter("data", expected);
+    submodule.add_return({input});
+
+    migraphx::op::select_module select;
+    select.output_dyn_shapes  = migraphx::shape{std::vector<migraphx::shape>{expected}};
+    auto actual               = migraphx::shape{migraphx::shape::int64_type, {1, 1}, {4, 1}};
+    std::vector<int64_t> data = {42};
+    bool invoked              = false;
+    auto result               = select.compute({},
+                                               {migraphx::argument{actual, data.data()}},
+                                               {&submodule},
+                                 [&](auto&, const auto& params) {
+                                     invoked = true;
+                                     EXPECT(params.at("data").get_shape() == expected);
+                                     return std::vector<migraphx::argument>{params.at("data")};
+                                 });
+    EXPECT(invoked);
+    EXPECT(result.get_sub_objects().front().get_shape() == expected);
+    EXPECT(result.get_sub_objects().front().at<int64_t>() == 42);
+}
+
 TEST_CASE(select_module_not_found_error)
 {
     migraphx::program p;

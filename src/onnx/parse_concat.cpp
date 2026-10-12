@@ -58,7 +58,7 @@ struct parse_concat : op_parser<parse_concat>
             return s.symbolic() and s.dyn_dims().at(axis).is_symbolic() and
                    s.dyn_dims().at(axis).sym_expr.name() != "literal";
         });
-        if(symbolic_axis_inputs < 2)
+        if(symbolic_axis_inputs == 0)
         {
             if(any_of(args, [](auto arg) { return arg->get_shape().dynamic(); }))
                 return info.add_instruction(make_op("concat", {{"axis", axis}}), args);
@@ -85,6 +85,11 @@ struct parse_concat : op_parser<parse_concat>
             axis_expressions.begin(),
             std::back_inserter(counts),
             [&](auto arg, const auto& expression) {
+                if(auto count = sym::fixed_value(expression))
+                {
+                    return info.add_literal(
+                        literal{{shape::int64_type, {1}}, {sym::to<int64_t>(*count)}});
+                }
                 auto sources = find_expression_sources(*info.mod, arg, {expression});
                 if(not sources.has_value())
                     MIGRAPHX_THROW("PARSE_CONCAT: cannot resolve symbolic input extent");
@@ -105,9 +110,13 @@ struct parse_concat : op_parser<parse_concat>
                                                       axis_expressions.end(),
                                                       sym::lit(int64_t{0}),
                                                       std::plus<sym::expr>{});
-        const auto total_interval   = shape::dynamic_dimension{total_expression}.get_interval();
-        const auto output_dim       = sym::var(info.name, {total_interval.min, total_interval.max});
-        auto starts                 = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
+        auto output_dim             = total_expression;
+        if(symbolic_axis_inputs > 1)
+        {
+            const auto total_interval = shape::dynamic_dimension{total_expression}.get_interval();
+            output_dim = sym::var(info.name, {total_interval.min, total_interval.max});
+        }
+        auto starts = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
         return info.add_instruction(make_op("dyn_slice",
                                             {{"axes", {axis}},
                                              {"starts", {0}},

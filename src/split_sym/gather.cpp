@@ -28,55 +28,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace split_sym {
 namespace {
 
-bool has_nonnegative_values(instruction_ref ins)
-{
-    const auto& inputs = ins->inputs();
-    if(ins->name() == "@literal")
-    {
-        bool result = true;
-        ins->get_literal().visit(
-            [&](auto values) { result = all_of(values, [](auto value) { return value >= 0; }); });
-        return result;
-    }
-    if(ins->name() == "fill")
-        return not inputs.empty() and has_nonnegative_values(inputs.front());
-    if(contains({"convert",
-                 "contiguous",
-                 "reshape",
-                 "squeeze",
-                 "unsqueeze",
-                 "transpose",
-                 "slice",
-                 "dyn_slice",
-                 "broadcast",
-                 "multibroadcast"},
-                ins->name()))
-        return not inputs.empty() and has_nonnegative_values(inputs.front());
-    if(ins->name() == "concat")
-        return not inputs.empty() and all_of(inputs, has_nonnegative_values);
-    if(ins->name() == "gather")
-        return not inputs.empty() and has_nonnegative_values(inputs.front());
-    if(contains({"add", "mul"}, ins->name()))
-        return not inputs.empty() and all_of(inputs, has_nonnegative_values);
-    if(ins->name() == "eval_expr_from_shape")
-        return true;
-    if(ins->name() != "get_tuple_elem" or inputs.size() != 1)
-        return false;
-
-    auto index  = ins->get_operator().to_value().at("index").to<std::size_t>();
-    auto source = inputs.front();
-    if(source->name() == "dyn_concat" and source->inputs().size() % 2 == 0)
-    {
-        if(index == 1)
-            return true;
-        auto data_inputs = source->inputs();
-        data_inputs.resize(data_inputs.size() / 2);
-        return index == 0 and all_of(data_inputs, has_nonnegative_values);
-    }
-    return (source->name() == "topk" and index == 1) or
-           (contains({"nonzero", "nonmaxsuppression"}, source->name()) and index == 0);
-}
-
 struct analyze_gather : analyzer<analyze_gather>
 {
     bool matches(const operation& op) const { return op.name() == "gather"; }

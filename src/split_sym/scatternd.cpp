@@ -34,34 +34,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace split_sym {
 namespace {
 
-instruction_ref
-make_scatter_prefix_mask(module& m,
-                         const std::vector<std::size_t>& prefix_lens,
-                         const std::vector<std::pair<std::size_t, sym::expr>>& prefix_axes)
-{
-    assert(not prefix_axes.empty());
-    std::optional<instruction_ref> valid;
-    auto sources = m.get_parameters();
-    for(const auto& [axis, extent_expr] : prefix_axes)
-    {
-        std::vector<int64_t> positions(prefix_lens.at(axis));
-        std::iota(positions.begin(), positions.end(), int64_t{0});
-        auto index =
-            m.add_literal(literal{shape{shape::int64_type, {positions.size()}}, positions});
-        index = m.add_instruction(make_op("broadcast", {{"axis", axis}, {"out_lens", prefix_lens}}),
-                                  index);
-        auto extent = m.add_instruction(
-            make_op("eval_expr_from_shape",
-                    {{"expressions", to_value(std::vector<sym::expr>{extent_expr})}}),
-            sources);
-        extent = m.add_instruction(make_op("multibroadcast", {{"out_lens", prefix_lens}}), extent);
-        auto current = m.add_instruction(make_op("less"), index, extent);
-        valid = valid.has_value() ? m.add_instruction(make_op("logical_and"), *valid, current)
-                                  : current;
-    }
-    return *valid;
-}
-
 struct analyze_scatternd : analyzer<analyze_scatternd>
 {
     bool matches(const operation& op) const { return op.name() == "scatternd_none"; }
@@ -113,7 +85,7 @@ struct analyze_scatternd : analyzer<analyze_scatternd>
         auto index_depth = index_lens.back();
         index_lens.pop_back();
 
-        auto valid                 = make_scatter_prefix_mask(m, index_lens, prefix_axes);
+        auto valid                 = make_prefix_mask(m, index_lens, prefix_axes);
         auto effective_index_depth = index_depth;
         if(index_depth == 0)
         {

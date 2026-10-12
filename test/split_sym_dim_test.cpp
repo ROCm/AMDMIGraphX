@@ -2284,6 +2284,135 @@ TEST_CASE(split_sym_dim_rewrites_zero_depth_scatter_indices)
     EXPECT(p.sort() == expected.sort());
 }
 
+TEST_CASE(split_sym_dim_materializes_scatter_elements_with_sink)
+{
+    auto data_count   = var("scatter_data_count", {1, 4}, {2});
+    auto update_count = var("scatter_update_count", {0, 4}, {1});
+    auto index_count  = var("scatter_index_count", {0, 4}, {2});
+    migraphx::program p;
+    auto& m   = *p.get_main_module();
+    auto data = m.add_parameter("data", symbolic_shape({data_count, lit(2)}));
+    auto update_condition =
+        m.add_parameter("update_condition", migraphx::shape{migraphx::shape::bool_type, {4}});
+    auto index_condition =
+        m.add_parameter("index_condition", migraphx::shape{migraphx::shape::bool_type, {4}});
+    auto update_values =
+        m.add_parameter("update_values", migraphx::shape{migraphx::shape::float_type, {4, 2}});
+    auto starts =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+
+    auto update_nonzero = m.add_instruction(migraphx::make_op("nonzero"), update_condition);
+    auto update_indices =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), update_nonzero);
+    auto update_size =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), update_nonzero);
+    update_indices = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(update_count)}},
+                           {"always_leq", true}}),
+        update_indices,
+        starts,
+        update_size);
+    update_indices =
+        m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), update_indices);
+    auto updates = m.add_instruction(
+        migraphx::make_op("gather", {{"axis", 0}}), update_values, update_indices);
+
+    auto index_nonzero = m.add_instruction(migraphx::make_op("nonzero"), index_condition);
+    auto indices =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), index_nonzero);
+    auto index_size =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), index_nonzero);
+    indices = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(index_count)}},
+                           {"always_leq", true}}),
+        indices,
+        starts,
+        index_size);
+    indices = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), indices);
+    auto dims =
+        m.add_instruction(migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 2}}), updates);
+    indices = m.add_instruction(symbolic_broadcast_with_dims({index_count, lit(2)}), indices, dims);
+    indices = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), indices);
+    auto scattered =
+        m.add_instruction(migraphx::make_op("scatter_none", {{"axis", 0}}), data, indices, updates);
+    auto output = m.add_instruction(migraphx::make_op("relu"), scattered);
+    m.add_return({output});
+
+    run_pass(p);
+
+    EXPECT(migraphx::none_of(m, [](const auto& ins) {
+        return ins.name() == "scatter_none" and ins.get_shape().any_of_dynamic();
+    }));
+    EXPECT(migraphx::any_of(p.get_modules(), [&](auto* module) {
+        return module != p.get_main_module() and migraphx::any_of(*module, [](const auto& ins) {
+                   if(ins.name() != "scatter_none" or ins.get_shape().any_of_dynamic())
+                       return false;
+                   EXPECT(ins.inputs().at(1)->get_shape().standard());
+                   EXPECT(ins.inputs().at(1)->get_shape().lens() ==
+                          ins.inputs().at(2)->get_shape().lens());
+                   return true;
+               });
+    }));
+    EXPECT(migraphx::all_of(p.get_modules(), [&](auto* module) {
+        if(module == p.get_main_module())
+            return true;
+        return migraphx::none_of(*module, [](const auto& ins) {
+            return not migraphx::starts_with(ins.name(), "@") and ins.get_shape().any_of_dynamic();
+        });
+    }));
+
+    migraphx::run_passes(p, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}});
+    EXPECT(migraphx::none_of(m, [](const auto& ins) {
+        return ins.name() == "pointwise" and ins.get_shape().any_of_dynamic();
+    }));
+
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> data_values   = {10.0f, 11.0f, 20.0f, 21.0f, 30.0f, 31.0f, 40.0f, 41.0f};
+    std::vector<float> update_data   = {50.0f, 51.0f, 60.0f, 61.0f, 99.0f, 98.0f, 80.0f, 81.0f};
+    std::vector<char> condition_data = {0, 0, 1, 0};
+    migraphx::parameter_map params;
+    params["data"] = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {4, 2}},
+                                        data_values.data()};
+    params["update_condition"] =
+        migraphx::argument{migraphx::shape{migraphx::shape::bool_type, {4}}, condition_data.data()};
+    params["index_condition"] =
+        migraphx::argument{migraphx::shape{migraphx::shape::bool_type, {4}}, condition_data.data()};
+    params["update_values"] = migraphx::argument{
+        migraphx::shape{migraphx::shape::float_type, {4, 2}}, update_data.data()};
+    EXPECT(p.eval(params).back().to_vector<float>() ==
+           std::vector<float>({10.0f, 11.0f, 20.0f, 21.0f, 99.0f, 98.0f, 40.0f, 41.0f}));
+
+    condition_data = {0, 0, 0, 0};
+    EXPECT(p.eval(params).back().to_vector<float>() == data_values);
+}
+
+TEST_CASE(split_sym_dim_keeps_maybe_negative_scatter_at_boundary)
+{
+    auto data_count   = var("negative_scatter_data_count", {1, 4});
+    auto update_count = var("negative_scatter_update_count", {1, 4});
+    migraphx::program p;
+    auto& m   = *p.get_main_module();
+    auto data = m.add_parameter("data", symbolic_shape({data_count}));
+    auto indices =
+        m.add_parameter("indices", symbolic_shape({update_count}, migraphx::shape::int64_type));
+    auto updates = m.add_parameter("updates", symbolic_shape({update_count}));
+    auto scattered =
+        m.add_instruction(migraphx::make_op("scatter_none", {{"axis", 0}}), data, indices, updates);
+    m.add_return({scattered});
+
+    run_pass(p);
+
+    EXPECT(m.has_instruction(scattered));
+    EXPECT(scattered->get_shape().any_of_dynamic());
+}
+
 TEST_CASE(split_sym_dim_materializes_attention_chain)
 {
     auto sequence = var("sequence_length", {1, 4}, {2});

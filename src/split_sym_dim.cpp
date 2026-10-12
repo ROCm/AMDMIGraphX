@@ -727,6 +727,9 @@ bool merge_block_into(
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction,
     const std::unordered_set<sym::expr>& opaque_roots)
 {
+    auto allows_merge = [](const auto* plan) { return plan->info.allow_block_merge; };
+    if(not all_of(target.ops, allows_merge) or not all_of(source.ops, allows_merge))
+        return false;
     if(any_of(opaque_roots, [&](const auto& root) {
            auto uses_root = [&](const block_plan& block) {
                return any_of(block.roots,

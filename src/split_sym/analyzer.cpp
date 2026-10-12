@@ -22,7 +22,10 @@
  * THE SOFTWARE.
  */
 #include <migraphx/split_sym/analyzer.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/make_op.hpp>
 #include <limits>
+#include <numeric>
 #include <utility>
 
 namespace migraphx {
@@ -77,6 +80,83 @@ std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank)
     if(axis < 0 or axis >= static_cast<int64_t>(rank))
         return std::nullopt;
     return static_cast<std::size_t>(axis);
+}
+
+bool has_nonnegative_values(instruction_ref ins)
+{
+    const auto& inputs = ins->inputs();
+    if(ins->name() == "@literal")
+    {
+        bool result = true;
+        ins->get_literal().visit(
+            [&](auto values) { result = all_of(values, [](auto value) { return value >= 0; }); });
+        return result;
+    }
+    if(ins->name() == "fill")
+        return not inputs.empty() and has_nonnegative_values(inputs.front());
+    if(contains({"convert",
+                 "contiguous",
+                 "reshape",
+                 "squeeze",
+                 "unsqueeze",
+                 "transpose",
+                 "slice",
+                 "dyn_slice",
+                 "broadcast",
+                 "multibroadcast",
+                 "broadcast_with_dims"},
+                ins->name()))
+        return not inputs.empty() and has_nonnegative_values(inputs.front());
+    if(ins->name() == "concat")
+        return not inputs.empty() and all_of(inputs, has_nonnegative_values);
+    if(ins->name() == "gather")
+        return not inputs.empty() and has_nonnegative_values(inputs.front());
+    if(contains({"add", "mul"}, ins->name()))
+        return not inputs.empty() and all_of(inputs, has_nonnegative_values);
+    if(ins->name() == "eval_expr_from_shape")
+        return true;
+    if(ins->name() != "get_tuple_elem" or inputs.size() != 1)
+        return false;
+
+    auto index  = ins->get_operator().to_value().at("index").to<std::size_t>();
+    auto source = inputs.front();
+    if(source->name() == "dyn_concat" and source->inputs().size() % 2 == 0)
+    {
+        if(index == 1)
+            return true;
+        auto data_inputs = source->inputs();
+        data_inputs.resize(data_inputs.size() / 2);
+        return index == 0 and all_of(data_inputs, has_nonnegative_values);
+    }
+    return (source->name() == "topk" and index == 1) or
+           (contains({"nonzero", "nonmaxsuppression"}, source->name()) and index == 0);
+}
+
+instruction_ref make_prefix_mask(module& m,
+                                 const std::vector<std::size_t>& prefix_lens,
+                                 const std::vector<std::pair<std::size_t, sym::expr>>& prefix_axes)
+{
+    assert(not prefix_axes.empty());
+    std::optional<instruction_ref> valid;
+    auto sources = m.get_parameters();
+    for(const auto& [axis, extent_expr] : prefix_axes)
+    {
+        std::vector<int64_t> positions(prefix_lens.at(axis));
+        std::iota(positions.begin(), positions.end(), int64_t{0});
+        auto index =
+            m.add_literal(literal{shape{shape::int64_type, {positions.size()}}, positions});
+        index = m.add_instruction(make_op("broadcast", {{"axis", axis}, {"out_lens", prefix_lens}}),
+                                  index);
+        auto extent = m.add_instruction(
+            make_op("eval_expr_from_shape",
+                    {{"expressions", to_value(std::vector<sym::expr>{extent_expr})}}),
+            sources);
+        extent = m.add_instruction(make_op("multibroadcast", {{"out_lens", prefix_lens}}), extent);
+        auto current = m.add_instruction(make_op("less"), index, extent);
+        valid = valid.has_value() ? m.add_instruction(make_op("logical_and"), *valid, current)
+                                  : current;
+    }
+    return *valid;
 }
 
 bool windowed_zero_pad(const std::vector<std::size_t>& padding,

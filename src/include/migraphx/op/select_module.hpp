@@ -203,6 +203,21 @@ struct select_module
         return ret;
     }
 
+    static bool compatible_input_shape(const shape& actual, const shape& expected)
+    {
+        if(actual == expected)
+            return true;
+        if(expected.dynamic())
+            return actual.type() == expected.type() and shape::is_compatible_lens(actual, expected);
+        if(actual.type() != expected.type() or actual.type() == shape::tuple_type or
+           not shape::same_lens(actual, expected))
+            return false;
+        return all_of(range(actual.ndim()), [&](auto axis) {
+            return actual.lens().at(axis) <= 1 or
+                   actual.strides().at(axis) == expected.strides().at(axis);
+        });
+    }
+
     argument compute(const shape&,
                      const std::vector<argument>& args,
                      const std::vector<module_ref>& submodule_list,
@@ -242,13 +257,7 @@ struct select_module
                                   [&](const auto& p_name, const auto& a) {
                                       const auto& actual   = a.get_shape();
                                       const auto& expected = param_shapes.at(p_name);
-                                      if(expected.dynamic())
-                                          return actual.type() == expected.type() and
-                                                 shape::is_compatible_lens(actual, expected);
-                                      if(actual.elements() == 0 and expected.elements() == 0)
-                                          return actual.type() == expected.type() and
-                                                 shape::same_lens(actual, expected);
-                                      return actual == expected;
+                                      return compatible_input_shape(actual, expected);
                                   });
             });
 
@@ -269,8 +278,7 @@ struct select_module
                        std::inserter(p_map, p_map.end()),
                        [&](auto&& name, auto&& a) {
                            const auto& expected = module_to_run->get_parameter_shape(name);
-                           if(not expected.dynamic() and a.get_shape() != expected and
-                              a.get_shape().elements() == 0 and expected.elements() == 0)
+                           if(not expected.dynamic() and a.get_shape() != expected)
                                return std::make_pair(name, a.reshape(expected));
                            return std::make_pair(name, a);
                        });

@@ -41,6 +41,7 @@
 #include <iterator>
 #include <optional>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -117,6 +118,8 @@ struct symbolic_op_info
     op_freezer freezer;
     std::vector<std::size_t> shape_input_indices;
     bool supported = false;
+    // Isolated specializations avoid duplicating large producer blocks across independent roots.
+    bool allow_block_merge = true;
 
     const shape& get_output_shape() const { return ins->get_shape(); }
 
@@ -130,6 +133,12 @@ bool supports_mask(shape::type_t type, fill_kind fill);
 float fill_value(fill_kind fill);
 
 std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank);
+
+bool has_nonnegative_values(instruction_ref ins);
+
+instruction_ref make_prefix_mask(module& m,
+                                 const std::vector<std::size_t>& prefix_lens,
+                                 const std::vector<std::pair<std::size_t, sym::expr>>& prefix_axes);
 
 bool windowed_zero_pad(const std::vector<std::size_t>& padding,
                        std::size_t spatial_dimensions,

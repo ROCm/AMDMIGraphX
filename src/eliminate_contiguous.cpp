@@ -39,11 +39,12 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS)
 
 static bool try_compute_shape(instruction_ref ins,
                               const std::vector<shape>& inputs,
-                              const std::vector<module_ref>& mods)
+                              span<const module_ref> mods)
 {
     try
     {
-        shape new_shape = ins->get_operator().compute_shape(inputs, mods);
+        shape new_shape = ins->get_operator().compute_shape(
+            inputs, std::vector<module_ref>(mods.begin(), mods.end()));
 
         // Cannot tell if a dynamic shape will need to be made contiguous
         if(new_shape.dynamic())
@@ -107,8 +108,8 @@ static bool try_compute_shape(instruction_ref ins,
 }
 
 static bool try_compute_shape(instruction_ref ins,
-                              const std::vector<instruction_ref>& args,
-                              const std::vector<module_ref>& mods)
+                              span<const instruction_ref> args,
+                              span<const module_ref> mods)
 {
     auto inputs = to_shapes(args);
     return try_compute_shape(ins, inputs, mods);

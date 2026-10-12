@@ -232,7 +232,7 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
 }
 
 std::vector<std::string>
-cpp_generator::to_args(const std::vector<instruction_ref>& inputs,
+cpp_generator::to_args(span<const instruction_ref> inputs,
                        const std::unordered_map<instruction_ref, std::string>& names)
 {
     std::vector<std::string> args;

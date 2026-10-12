@@ -49,19 +49,19 @@ static auto equal_to(const T& x)
     return [&](const T& y) { return std::equal_to<T>{}(x, y); };
 }
 
-instruction::instruction(operation o, shape r, std::vector<instruction_ref> args)
-    : op(std::move(o)), result(std::move(r)), arguments(std::move(args))
+instruction::instruction(operation o, shape r, span<const instruction_ref> args)
+    : op(std::move(o)), result(std::move(r)), arguments(args.begin(), args.end())
 {
 }
 
 instruction::instruction(operation o,
                          shape r,
-                         std::vector<instruction_ref> args,
-                         std::vector<module_ref> modules)
+                         span<const instruction_ref> args,
+                         span<const module_ref> modules)
     : op(std::move(o)),
       result(std::move(r)),
-      arguments(std::move(args)),
-      module_args(std::move(modules))
+      arguments(args.begin(), args.end()),
+      module_args(modules.begin(), modules.end())
 {
 }
 
@@ -91,9 +91,9 @@ void instruction::replace(const shape& r)
         {
             return;
         }
-        auto start = std::find_if(output.front()->inputs().begin(),
-                                  output.front()->inputs().end(),
-                                  [&](instruction_ref x) { return this == as_address(x); });
+        const auto* start = std::find_if(output.front()->inputs().begin(),
+                                         output.front()->inputs().end(),
+                                         [&](instruction_ref x) { return this == as_address(x); });
         assert(as_address(*start) == this);
         std::priority_queue<instruction_ref, std::vector<instruction_ref>, replace_shape_order> q(
             output.begin(), output.end(), replace_shape_order{*start});
@@ -144,8 +144,8 @@ bool operator==(const instruction& i, instruction_ref ref)
 bool instruction::valid(instruction_ref start, bool check_order) const
 {
     return valid() and std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
-               auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
-               bool ret  = self != i->outputs().end();
+               const auto* self = std::find(i->outputs().begin(), i->outputs().end(), *this);
+               bool ret         = self != i->outputs().end();
                if(check_order)
                {
                    // check arguments for this instruction before this instruction
@@ -196,11 +196,11 @@ const operation& instruction::get_operator() const { return op; }
 
 std::string instruction::name() const { return op.name(); }
 
-const std::vector<instruction_ref>& instruction::inputs() const { return arguments; }
+const small_vector<instruction_ref>& instruction::inputs() const { return arguments; }
 
-const std::vector<module_ref>& instruction::module_inputs() const { return module_args; }
+const small_vector<module_ref>& instruction::module_inputs() const { return module_args; }
 
-const std::vector<instruction_ref>& instruction::outputs() const { return output; }
+const small_vector<instruction_ref>& instruction::outputs() const { return output; }
 
 const std::set<std::string>& instruction::get_debug_symbols() const { return debug_symbols; }
 
@@ -265,40 +265,40 @@ void instruction::replace_mod_argument(instruction_ref ins, module_ref old, modu
 void instruction::replace(instruction_ref ins,
                           operation o,
                           const shape& r,
-                          std::vector<instruction_ref> args)
+                          span<const instruction_ref> args)
 {
-    ins->replace(std::move(o), r, std::move(args));
+    ins->replace(std::move(o), r, args);
     backreference(ins);
 }
 
 void instruction::replace(instruction_ref ins,
                           operation o,
                           const shape& r,
-                          std::vector<instruction_ref> args,
-                          std::vector<module_ref> module_args)
+                          span<const instruction_ref> args,
+                          span<const module_ref> module_args)
 {
-    ins->replace(std::move(o), r, std::move(args), std::move(module_args));
+    ins->replace(std::move(o), r, args, module_args);
     backreference(ins);
 }
 
-void instruction::replace(operation o, const shape& r, std::vector<instruction_ref> args)
+void instruction::replace(operation o, const shape& r, span<const instruction_ref> args)
 {
     lit        = literal{};
     normalized = false;
     op         = std::move(o);
     replace(r);
-    replace(std::move(args));
+    replace(args);
 }
 
 void instruction::replace(operation o,
                           const shape& r,
-                          std::vector<instruction_ref> args,
-                          std::vector<module_ref> mdl_args)
+                          span<const instruction_ref> args,
+                          span<const module_ref> mdl_args)
 {
     lit = literal{};
     op  = std::move(o);
     replace(r);
-    replace(std::move(args), std::move(mdl_args));
+    replace(args, mdl_args);
 }
 
 void instruction::replace_refs(
@@ -328,17 +328,21 @@ void instruction::replace_refs(
     }
 }
 
-void instruction::replace(std::vector<instruction_ref> args)
+void instruction::replace(span<const instruction_ref> args)
 {
+    // Copy first since args may view the arguments being replaced
+    small_vector<instruction_ref> new_args(args.begin(), args.end());
     clear_arguments();
-    arguments = std::move(args);
+    arguments = std::move(new_args);
 }
 
-void instruction::replace(std::vector<instruction_ref> args, std::vector<module_ref> mdl_args)
+void instruction::replace(span<const instruction_ref> args, span<const module_ref> mdl_args)
 {
+    small_vector<instruction_ref> new_args(args.begin(), args.end());
+    small_vector<module_ref> new_mdl_args(mdl_args.begin(), mdl_args.end());
     clear_arguments();
-    arguments   = std::move(args);
-    module_args = std::move(mdl_args);
+    arguments   = std::move(new_args);
+    module_args = std::move(new_mdl_args);
 }
 
 void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
@@ -649,7 +653,7 @@ std::size_t instruction::get_target_id() const { return target_id; }
 
 void instruction::set_target_id(std::size_t tid) { this->target_id = tid; }
 
-std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
+std::vector<shape> to_shapes(span<const instruction_ref> args)
 {
     std::vector<shape> shapes(args.size());
     std::transform(
@@ -657,23 +661,18 @@ std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
     return shapes;
 }
 
-shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
+shape compute_shape(const operation& op, span<const instruction_ref> args)
 {
     return op.compute_shape(to_shapes(args));
 }
 
 shape compute_shape(const operation& op,
-                    const std::vector<instruction_ref>& args,
-                    const std::vector<module_ref>& mods)
+                    span<const instruction_ref> args,
+                    span<const module_ref> mods)
 {
     if(mods.empty())
-    {
         return op.compute_shape(to_shapes(args));
-    }
-    else
-    {
-        return op.compute_shape(to_shapes(args), mods);
-    }
+    return op.compute_shape(to_shapes(args), std::vector<module_ref>(mods.begin(), mods.end()));
 }
 
 std::vector<shape> try_compute_shape(const operation& op, const std::vector<shape>& inputs)
@@ -690,8 +689,8 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
     return {new_shape};
 }
 
-std::vector<instruction_ref> get_added_instructions(const std::vector<instruction_ref>& starts,
-                                                    const std::vector<instruction_ref>& ends)
+std::vector<instruction_ref> get_added_instructions(span<const instruction_ref> starts,
+                                                    span<const instruction_ref> ends)
 {
     std::vector<instruction_ref> added;
     std::unordered_set<instruction_ref> visited;
@@ -816,7 +815,7 @@ bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
     return reaches(start, end, m, [](auto) { return false; });
 }
 
-bool is_interdependent(const std::vector<instruction_ref>& instructions,
+bool is_interdependent(span<const instruction_ref> instructions,
                        const_module_ref m,
                        instruction_ref root)
 {

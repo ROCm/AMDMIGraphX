@@ -92,8 +92,7 @@ bool is_fusable_topk(instruction_ref topk,
 
 /// The fused_reduce output layout follows its inputs, so the fused outputs
 /// must keep the shapes of the instructions they replace
-bool same_output_shapes(const std::vector<instruction_ref>& inputs,
-                        const std::vector<shape>& outputs)
+bool same_output_shapes(span<const instruction_ref> inputs, const std::vector<shape>& outputs)
 {
     auto perm = find_permutation(to_shapes(inputs));
     return std::all_of(outputs.begin(), outputs.end(), [&](const shape& s) {

@@ -301,8 +301,8 @@ optional<std::vector<instruction_ref>> find_unpack_converts(instruction_ref unpa
     std::vector<instruction_ref> converts;
     for(auto out : unpack->outputs())
     {
-        auto input                             = unpack;
-        std::vector<instruction_ref> consumers = {out};
+        auto input                              = unpack;
+        small_vector<instruction_ref> consumers = {out};
         if(out->name() == "multibroadcast")
         {
             input     = out;

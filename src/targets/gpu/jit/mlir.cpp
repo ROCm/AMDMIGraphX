@@ -250,7 +250,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
-        auto* smod = ins->module_inputs().front();
+        const auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
         auto gemm_like_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
             return contains({"dot", "quant_dot", "convolution", "quant_convolution"}, i.name());
@@ -293,7 +293,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         // context and the solution, so a key built from the unsplit submodule already
         // distinguishes the split and unsplit forms.
         assert(not ins->module_inputs().empty());
-        auto* smod = ins->module_inputs().front();
+        const auto* smod = ins->module_inputs().front();
         return mlir_compile_key(ctx, *smod, to_shapes(ins->inputs()), solution);
     }
 
@@ -301,7 +301,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         return {std::vector<operation>{mco.cop},
                 [=](module& m, instruction_ref ins, const std::vector<operation>& ops) {
-                    std::vector<instruction_ref> inputs = ins->inputs();
+                    auto inputs = ins->inputs();
 
                     // Tuple inputs not supported
                     assert(std::all_of(inputs.begin(), inputs.end() - 1, [](auto i) {
@@ -309,7 +309,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                     }));
 
                     // Multiple output case (allocate ins will give a tuple)
-                    std::vector<instruction_ref> flat_inputs(inputs);
+                    std::vector<instruction_ref> flat_inputs(inputs.begin(), inputs.end());
                     bool multi_out = not flat_inputs.back()->get_shape().sub_shapes().empty();
                     if(multi_out)
                     {
@@ -434,8 +434,8 @@ struct mlir_compiler : compiler<mlir_compiler>
         static const auto mxr_loc  = string_value_of(MIGRAPHX_MLIR_DUMP_TO_MXR{});
         static const auto mlir_loc = string_value_of(MIGRAPHX_MLIR_DUMP{});
 
-        auto shapes = to_shapes(ins->inputs());
-        auto* smod  = ins->module_inputs().front();
+        auto shapes      = to_shapes(ins->inputs());
+        const auto* smod = ins->module_inputs().front();
         if(not mxr_loc.empty())
         {
             dump_mlir_to_mxr(*smod, ins->inputs(), mxr_loc);
@@ -449,8 +449,8 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     static void trace(std::ostream& os, instruction_ref ins)
     {
-        auto shapes = to_shapes(ins->inputs());
-        auto* smod  = ins->module_inputs().front();
+        auto shapes      = to_shapes(ins->inputs());
+        const auto* smod = ins->module_inputs().front();
         os << dump_mlir(*smod, shapes);
     }
 };

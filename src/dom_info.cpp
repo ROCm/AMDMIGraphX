@@ -51,7 +51,7 @@ struct module_visitor
     const module* mm;
     const module& get_nodes() const { return *mm; }
 
-    const std::vector<instruction_ref>& get_children(instruction_ref ins) { return ins->inputs(); }
+    const small_vector<instruction_ref>& get_children(instruction_ref ins) { return ins->inputs(); }
 };
 
 template <class Visitor>
@@ -61,7 +61,7 @@ static dominator_info compute_dominator_generic(Visitor v)
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> instr2_doms;
     for(instruction_ref ins : iterator_for(v.get_nodes()))
     {
-        const std::vector<instruction_ref>& children = v.get_children(ins);
+        const auto& children = v.get_children(ins);
         if(children.size() == 1)
         {
             info.ins2idom[ins] = children.front();

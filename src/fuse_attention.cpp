@@ -206,7 +206,7 @@ std::vector<instruction_ref> get_lse_instructions(const std::vector<instruction_
     if(rsum == group_outs.end())
         return lse_inss;
     auto rsum_outs = (*rsum)->outputs();
-    auto log =
+    auto* log =
         std::find_if(rsum_outs.begin(), rsum_outs.end(), [](auto o) { return o->name() == "log"; });
     if(log == rsum_outs.end())
         return lse_inss;
@@ -824,11 +824,10 @@ struct find_flash_decoding
     };
 
     std::unordered_map<instruction_ref, instruction_ref>
-    map_submod_params_to_inputs(module_ref submod,
-                                const std::vector<instruction_ref>& group_inputs) const
+    map_submod_params_to_inputs(module_ref submod, span<const instruction_ref> group_inputs) const
     {
         auto map_param_to_main = submod->get_ins_param_map(group_inputs, true);
-        assert(submod->get_inputs(map_param_to_main) == group_inputs and
+        assert(equal(submod->get_inputs(map_param_to_main), group_inputs) and
                "Mapped inputs don't match group inputs");
         return map_param_to_main;
     }
@@ -1048,7 +1047,7 @@ struct find_flash_decoding
         for(const auto& entry : param_transforms)
             main_to_split[entry.second.main] = entry.second.split_main;
 
-        std::vector<instruction_ref> new_group_inputs = group_inputs;
+        auto new_group_inputs = group_inputs;
         for(auto& input : new_group_inputs)
         {
             if(contains(main_to_split, input))

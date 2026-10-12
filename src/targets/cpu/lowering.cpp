@@ -490,7 +490,7 @@ struct cpu_apply
     */
     instruction_ref apply_reshape(instruction_ref ins) const
     {
-        std::vector<instruction_ref> before_contiguous_args = ins->inputs();
+        auto before_contiguous_args = ins->inputs();
         auto before_alloc =
             insert_allocation(ins, before_contiguous_args.front()->get_shape().as_standard());
         before_contiguous_args.push_back(before_alloc);
@@ -542,10 +542,11 @@ struct cpu_apply
     }
 
     instruction_ref
-    replace(instruction_ref ins, const operation& op, std::vector<instruction_ref> inputs) const
+    replace(instruction_ref ins, const operation& op, span<const instruction_ref> inputs) const
     {
-        inputs.push_back(insert_allocation(ins, ins->get_shape()));
-        return modl->replace_instruction(ins, op, inputs);
+        small_vector<instruction_ref> args(inputs.begin(), inputs.end());
+        args.push_back(insert_allocation(ins, ins->get_shape()));
+        return modl->replace_instruction(ins, op, args);
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s) const

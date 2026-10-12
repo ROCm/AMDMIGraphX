@@ -250,8 +250,8 @@ void insert_copy(module& m, const allocation_model& model)
 
 void insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)
 {
-    std::vector<instruction_ref> inputs = ins->inputs();
-    std::vector<module_ref> mod_args    = ins->module_inputs();
+    auto inputs   = ins->inputs();
+    auto mod_args = ins->module_inputs();
 
     std::map<std::string, shape> name_shapes;
     for(const auto& smod : mod_args)

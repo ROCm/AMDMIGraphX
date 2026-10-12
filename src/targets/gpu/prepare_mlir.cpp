@@ -228,9 +228,10 @@ struct find_kv_cache_plain_q
             }
             if(not ins->get_operator().attributes().get("pointwise", false))
                 return std::nullopt;
-            auto data = std::find_if(inputs.begin(), inputs.end(), [](instruction_ref input) {
-                return not input->get_shape().broadcasted() and not input->can_eval();
-            });
+            const auto* data =
+                std::find_if(inputs.begin(), inputs.end(), [](instruction_ref input) {
+                    return not input->get_shape().broadcasted() and not input->can_eval();
+                });
             if(data == inputs.end())
                 return std::nullopt;
             ins = *data;

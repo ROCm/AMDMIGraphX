@@ -695,7 +695,7 @@ struct remove_qdq_pairs
             return;
         }
         // Need to copy outputs since will be modifying dq_ins outputs
-        std::vector<instruction_ref> dq_outputs = dq_ins->outputs();
+        auto dq_outputs = dq_ins->outputs();
         for(auto out : dq_outputs)
         {
             instruction::replace_argument(out, dq_ins, q_input);

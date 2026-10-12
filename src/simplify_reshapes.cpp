@@ -260,11 +260,12 @@ struct find_op_shape_transform_op
         return match_op(match::make_basic_fun_matcher(
             [=](match::matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
                 const auto& inputs = ins->inputs();
-                auto it = std::find_if(inputs.begin(), inputs.end(), [&](instruction_ref input) {
-                    if(not reshapes_x_op.match(ctx, input).has_value())
-                        return false;
-                    return is_viable(input, ctx.instructions.at("x"));
-                });
+                const auto* it =
+                    std::find_if(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+                        if(not reshapes_x_op.match(ctx, input).has_value())
+                            return false;
+                        return is_viable(input, ctx.instructions.at("x"));
+                    });
                 if(it == inputs.end())
                     return nullopt;
                 ctx.instructions["input"] = *it;
@@ -353,10 +354,8 @@ struct find_op_shape_transform_op
     }
 
     template <class AxesMap>
-    static instruction_ref insert(module& m,
-                                  instruction_ref ins,
-                                  const std::vector<instruction_ref>& inputs,
-                                  const AxesMap& am)
+    static instruction_ref
+    insert(module& m, instruction_ref ins, span<const instruction_ref> inputs, const AxesMap& am)
     {
         if(is_reduce(ins))
         {
@@ -972,8 +971,7 @@ struct find_concat_multibroadcasts
 
 // Offsets of each concat input along the concat axis, from 0 up to the total
 // length of the axis
-std::vector<std::size_t> concat_offsets(const std::vector<instruction_ref>& inputs,
-                                        std::size_t axis)
+std::vector<std::size_t> concat_offsets(span<const instruction_ref> inputs, std::size_t axis)
 {
     std::vector<std::size_t> result = {0};
     transform_partial_sum(inputs.begin(),
@@ -1681,7 +1679,7 @@ struct find_gather_slice_concat
         auto concat_axis       = concat_ins->get_operator().to_value().at("axis").to<int64_t>();
         const auto& all_inputs = concat_ins->inputs();
 
-        auto rep = std::find_if(all_inputs.begin(), all_inputs.end(), [&](const auto& inp) {
+        const auto* rep = std::find_if(all_inputs.begin(), all_inputs.end(), [&](const auto& inp) {
             return parse_unit_slice(inp) and inp->inputs().at(0)->name() == "gather";
         });
         if(rep == all_inputs.end())

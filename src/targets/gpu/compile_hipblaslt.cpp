@@ -66,7 +66,7 @@ void compile_hipblaslt::apply(module& m) const
             ins, make_op("allocate", {{"shape", to_value(shape{shape::uint8_type, {ws}})}}));
 
         // Replace the workspace size with actual worksapce size needed.
-        auto it = std::find(inputs.begin(), inputs.end(), alloc);
+        auto* it = std::find(inputs.begin(), inputs.end(), alloc);
         if(it != inputs.end())
         {
             *it = alloc_after; // Replace `alloc` with `alloc_after`

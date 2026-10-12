@@ -254,7 +254,7 @@ static bool same_output_layouts(const std::vector<instruction_ref>& instructions
 
 static auto find_input_pointwise(const module& m, instruction_ref ins, bool multi_out)
 {
-    auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+    const auto* it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
         return i->name() == "pointwise" and i->outputs().size() == 1 and m.has_instruction(i);
     });
     if(it == ins->inputs().end() and multi_out)
@@ -460,7 +460,7 @@ static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
         }
         else if(ins->name() == "pointwise")
         {
-            auto it = find_input_pointwise(mpm.get_module(), ins, multi_out);
+            const auto* it = find_input_pointwise(mpm.get_module(), ins, multi_out);
             if(it == ins->inputs().end())
                 continue;
             auto input = *it;

@@ -44,7 +44,7 @@ struct rewrite_reshapes_base
     template <class AxesMap>
     static instruction_ref insert(module_pass_manager& mpm,
                                   instruction_ref ins,
-                                  const std::vector<instruction_ref>& inputs,
+                                  span<const instruction_ref> inputs,
                                   const AxesMap&)
     {
         return mpm.get_module().insert_instruction(
@@ -238,7 +238,7 @@ struct rewrite_reshapes
         template <class AxesMap>
         static instruction_ref insert(module_pass_manager& mpm,
                                       instruction_ref ins,
-                                      const std::vector<instruction_ref>& inputs,
+                                      span<const instruction_ref> inputs,
                                       const AxesMap& am)
         {
             if(ins->name() == "pointwise")

@@ -122,7 +122,7 @@ struct find_concat_past_present
     // One host copy of the sequence length serves every concat that reads it
     static instruction_ref load_scalar(module& m, instruction_ref ins, instruction_ref slk)
     {
-        auto it = std::find_if(slk->outputs().begin(), slk->outputs().end(), [](auto out) {
+        const auto* it = std::find_if(slk->outputs().begin(), slk->outputs().end(), [](auto out) {
             return out->name() == "hip::load_scalar";
         });
         if(it != slk->outputs().end())

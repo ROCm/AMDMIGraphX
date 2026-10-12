@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/span.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -110,7 +111,7 @@ struct MIGRAPHX_EXPORT cpp_generator
     std::string create_function(const function& f);
 
     static std::vector<std::string>
-    to_args(const std::vector<instruction_ref>& inputs,
+    to_args(span<const instruction_ref> inputs,
             const std::unordered_map<instruction_ref, std::string>& names);
 
     private:

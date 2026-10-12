@@ -74,7 +74,7 @@ std::optional<instruction_ref> find_upstream_named(instruction_ref start, const 
             return std::nullopt;
         if(inputs.size() == 1)
             return inputs.front();
-        auto it = std::find_if(inputs.begin(), inputs.end(), [](instruction_ref i) {
+        const auto* it = std::find_if(inputs.begin(), inputs.end(), [](instruction_ref i) {
             return not i->can_eval() and i->get_shape().type() != shape::bool_type;
         });
         if(it == inputs.end())
@@ -458,7 +458,7 @@ struct find_dot_softmax_fp32
                 return std::nullopt;
             if(current->inputs().size() == 1)
                 return current->inputs().front();
-            auto it = std::find_if(
+            const auto* it = std::find_if(
                 current->inputs().begin(), current->inputs().end(), [](instruction_ref input) {
                     return not input->can_eval() and input->get_shape().type() != shape::bool_type;
                 });

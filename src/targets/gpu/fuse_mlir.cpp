@@ -288,7 +288,7 @@ instruction_ref strip_layout_ops(instruction_ref ins)
 
 // Only one mlir_op input may feed from the first gemm
 bool single_chain_input_to_second_gemm(instruction_ref first_gemm_ins,
-                                       const std::vector<instruction_ref>& second_mlir_inputs)
+                                       span<const instruction_ref> second_mlir_inputs)
 {
     const auto chain_anchor = strip_layout_ops(first_gemm_ins);
     bool found_chain        = false;
@@ -322,7 +322,7 @@ get_fusable_input_op_stream(instruction_ref lower_input)
 }
 
 void fuse_input_ops(module_ref mm,
-                    const std::vector<instruction_ref>& inputs,
+                    span<const instruction_ref> inputs,
                     std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
     assert(map_ins != nullptr);
@@ -344,10 +344,8 @@ void fuse_input_ops(module_ref mm,
     }
 }
 
-std::tuple<instruction_ref, std::vector<instruction_ref>>
-fuse_input_ops_and_gemm_based_op(module_ref mm,
-                                 const std::vector<instruction_ref>& gemm_based_op_inputs,
-                                 const operation& gemm_based_op)
+std::tuple<instruction_ref, std::vector<instruction_ref>> fuse_input_ops_and_gemm_based_op(
+    module_ref mm, span<const instruction_ref> gemm_based_op_inputs, const operation& gemm_based_op)
 {
     std::vector<instruction_ref> top_inputs;
     std::vector<instruction_ref> imm_inputs;
@@ -696,7 +694,7 @@ MIGRAPHX_PRED_MATCHER(mlir_input_pointwise, instruction_ref ins)
 }
 
 std::vector<instruction_ref> mlir_contiguous(module_pass_manager& mpm,
-                                             const std::vector<instruction_ref>& inputs)
+                                             span<const instruction_ref> inputs)
 {
     std::vector<instruction_ref> result;
     std::transform(
@@ -918,7 +916,7 @@ struct find_mlir_fused_geg_ops
     }
 
     bool check_heuristic(instruction_ref first_gemm,
-                         const std::vector<instruction_ref>& second_inputs) const
+                         span<const instruction_ref> second_inputs) const
     {
         if(second_inputs.empty())
             return false;

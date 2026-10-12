@@ -7,7 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
-* Added a binary cache for compiled GPU kernels: identical kernels within a model compile once, and setting the `MIGRAPHX_BINARY_CACHE` environment variable (or the `binary_cache` backend option) also persists them on disk so later compiles of the same kernels skip compilation entirely; a `binary_cache_verify` backend option recompiles reused kernels and fails if they differ.
+* Added a binary cache for compiled GPU kernels: identical kernels within a model compile once, and setting the `MIGRAPHX_BINARY_CACHE` environment variable (or the `binary_cache` backend option) also persists them on disk so later compiles of the same kernels skip compilation entirely, in a directory or, for a path ending in `.db` or `.sqlite`, in a single SQLite database; a `binary_cache_verify` backend option recompiles reused kernels and fails if they differ.
 * Optimized GridSample by adding a GPU JIT kernel for the ONNX `nearest`, `linear`/`bilinear`, and `cubic`/`bicubic` modes, replacing the `concat`+`gathernd` decomposition in the ONNX parser for those modes (#5139).
 
 ### Changed
@@ -16,6 +16,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `simplify_reshapes` generating invalid inverse shape transforms when moving an element-expanding shape-transform chain through a shared reduction (#5360).
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).
 * Fixed mixed `uint8` and `int8` quantization (#5075).
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).

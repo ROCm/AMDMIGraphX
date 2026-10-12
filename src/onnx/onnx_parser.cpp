@@ -88,8 +88,10 @@ static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
     return result;
 }
 
-static literal
-create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
+static literal create_literal(shape::type_t shape_type,
+                              const std::vector<size_t>& dims,
+                              const char* data,
+                              std::size_t size)
 {
     // empty input
     auto elem_num = std::accumulate(
@@ -101,8 +103,8 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
 
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
     if(dims.empty())
-        return literal{{shape_type}, data};
-    return literal{{shape_type, dims}, data};
+        return literal::from_standard_buffer({shape_type}, data, size);
+    return literal::from_standard_buffer({shape_type, dims}, data, size);
 }
 
 template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
@@ -115,6 +117,10 @@ static literal create_literal(shape::type_t shape_type, const std::vector<size_t
     {
         return literal{shape_type};
     }
+
+    if(data.size() != elem_num)
+        MIGRAPHX_THROW("PARSE_TENSOR: number of values " + std::to_string(data.size()) +
+                       " does not match tensor elements " + std::to_string(elem_num));
 
     // scalar input
     if(dims.empty())
@@ -867,17 +873,16 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     const auto& dims          = tensor_shape.lens();
     auto type                 = tensor_shape.type();
     const auto& external_data = t.external_data();
-    // Scalars have empty dims; shape::bytes() returns 0 for them, but raw_data
-    // stores one element worth of bytes, matching how create_literal treats them.
-    const std::size_t expected_bytes =
-        tensor_shape.scalar() ? tensor_shape.type_size() : tensor_shape.bytes();
 
     if(not external_data.empty())
     {
+        if(tensor_shape.elements() == 0)
+            return literal{type};
+
         const std::string& data_file = external_data.at(0).value();
         size_t num_data_fields       = external_data.size();
         size_t offset                = 0;
-        size_t nbytes                = expected_bytes;
+        size_t nbytes                = tensor_shape.bytes();
 
         if(num_data_fields > 1) // if offset field is present
         {
@@ -887,30 +892,22 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
         {
             nbytes = parse_external_size(t.external_data().at(2).value(), "length");
         }
+        if(nbytes != tensor_shape.bytes())
+            MIGRAPHX_THROW("PARSE_TENSOR: external data length " + std::to_string(nbytes) + " of " +
+                           t.name() + " does not match tensor bytes " +
+                           std::to_string(tensor_shape.bytes()));
+
         const fs::path base_dir =
             external_data_path.empty() ? path : fs::path{external_data_path};
-        const fs::path data_path = resolve_external_data_path(base_dir, data_file);
+        const fs::path data_path    = resolve_external_data_path(base_dir, data_file);
         std::vector<char> raw_buffer = read_buffer(data_path, offset, nbytes);
-        if(raw_buffer.size() != expected_bytes)
-        {
-            MIGRAPHX_THROW("ONNX external tensor data size mismatch: got " +
-                           std::to_string(raw_buffer.size()) + " bytes, expected " +
-                           std::to_string(expected_bytes));
-        }
-        std::string s(raw_buffer.begin(), raw_buffer.end());
-        return create_literal(type, dims, s.data());
+        return create_literal(type, dims, raw_buffer.data(), raw_buffer.size());
     }
 
     if(t.has_raw_data())
     {
         const std::string& s = t.raw_data();
-        if(s.size() != expected_bytes)
-        {
-            MIGRAPHX_THROW("ONNX tensor raw_data size mismatch: got " +
-                           std::to_string(s.size()) + " bytes, expected " +
-                           std::to_string(expected_bytes));
-        }
-        return create_literal(type, dims, s.data());
+        return create_literal(type, dims, s.data(), s.size());
     }
 
     switch(t.data_type())

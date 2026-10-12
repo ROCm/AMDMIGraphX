@@ -43,6 +43,10 @@ struct MIGRAPHX_EXPORT fuse_reduce
 
     bool enable_rewrite_reshapes   = true;
     bool enable_rewrite_broadcasts = false;
+    // Move the gathers feeding the reduce into it. A reduce with gathered
+    // inputs can no longer be remapped by the reshape and broadcast rewrites,
+    // so this is left to the last reduce fusion of a pipeline.
+    bool enable_gather = true;
 };
 
 /// Inserts the submodule of ins into sm with its parameters mapped to the inputs of ins

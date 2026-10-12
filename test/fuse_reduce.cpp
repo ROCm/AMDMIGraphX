@@ -2552,9 +2552,8 @@ TEST_CASE(reduce_slice_interleaved)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), wr);
         auto w1 = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), wr);
-        auto xr = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
         auto xb =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 2, 4}}}), xr);
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 2, 4}}}), x);
         auto x0 = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), xb);
         auto x1 = mm->add_instruction(

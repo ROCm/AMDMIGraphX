@@ -120,12 +120,12 @@ bool has_nonnegative_values(instruction_ref ins)
 
     auto index  = ins->get_operator().to_value().at("index").to<std::size_t>();
     auto source = inputs.front();
-    if(source->name() == "dyn_concat" and source->inputs().size() % 2 == 0)
+    if(source->name() == "dyn_concat" and source->inputs().size() >= 2)
     {
         if(index == 1)
             return true;
         auto data_inputs = source->inputs();
-        data_inputs.resize(data_inputs.size() / 2);
+        data_inputs.pop_back();
         return index == 0 and all_of(data_inputs, has_nonnegative_values);
     }
     return (source->name() == "topk" and index == 1) or

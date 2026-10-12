@@ -3621,8 +3621,8 @@ TEST_CASE(split_sym_dim_dyn_concat_count_root)
             "eval_expr_from_shape",
             {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{b})}}),
         y);
-    auto concat =
-        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, a_count, b_count);
+    auto counts   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a_count, b_count);
+    auto concat   = m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
     auto buffer   = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total    = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
     auto starts   = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
@@ -3703,8 +3703,9 @@ TEST_CASE(split_sym_dim_dyn_concat_opaque_boundary)
         m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), values1, squeezed1);
     auto branch1 = m.add_instruction(migraphx::make_op("relu"), gathered1);
 
-    auto concat = m.add_instruction(
-        migraphx::make_op("dyn_concat", {{"axis", 0}}), branch0, branch1, count0, count1);
+    auto counts = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), count0, count1);
+    auto concat =
+        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), branch0, branch1, counts);
     auto buffer   = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total    = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
     auto selected = m.add_instruction(
@@ -3771,8 +3772,9 @@ TEST_CASE(split_sym_dim_dyn_concat_same_root_fusion)
             "eval_expr_from_shape",
             {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{m})}}),
         y);
-    auto concat = mod.add_instruction(
-        migraphx::make_op("dyn_concat", {{"axis", 0}}), joined, tanh, n_count, m_count);
+    auto counts = mod.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), n_count, m_count);
+    auto concat =
+        mod.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), joined, tanh, counts);
     auto buffer = mod.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total  = mod.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
     auto starts = mod.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
@@ -4318,8 +4320,10 @@ TEST_CASE(split_sym_dim_nms_dyn_concat_separate_roots)
                 selected_nms));
             return selected_nms;
         });
+    auto concat_counts =
+        m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), selected_counts);
     auto concat_inputs = selected_indices;
-    concat_inputs.insert(concat_inputs.end(), selected_counts.begin(), selected_counts.end());
+    concat_inputs.push_back(concat_counts);
     auto concat = m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), concat_inputs);
     auto buffer = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total  = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
@@ -4473,8 +4477,10 @@ TEST_CASE(split_sym_dim_maskrcnn_long_five_branch_stress)
             side_outputs.push_back(m.add_instruction(migraphx::make_op("abs"), side));
             return selected_nms;
         });
+    auto concat_counts =
+        m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), branch_counts);
     auto concat_inputs = branch_outputs;
-    concat_inputs.insert(concat_inputs.end(), branch_counts.begin(), branch_counts.end());
+    concat_inputs.push_back(concat_counts);
     auto concat = m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), concat_inputs);
     auto buffer = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total  = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
@@ -4639,8 +4645,10 @@ TEST_CASE(split_sym_dim_maskrcnn_40_branch_stress)
             side_outputs.push_back(m.add_instruction(migraphx::make_op("relu"), side));
             return selected_nms;
         });
+    auto concat_counts =
+        m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), branch_counts);
     auto concat_inputs = branch_outputs;
-    concat_inputs.insert(concat_inputs.end(), branch_counts.begin(), branch_counts.end());
+    concat_inputs.push_back(concat_counts);
     auto concat = m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), concat_inputs);
     auto buffer = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total  = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);

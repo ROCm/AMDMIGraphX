@@ -47,6 +47,22 @@ bool intervals_overlap(const shape::dynamic_dimension& a, const shape::dynamic_d
     return std::max(a_interval.min, b_interval.min) <= std::min(a_interval.max, b_interval.max);
 }
 
+bool elementwise_dims_match_without_broadcast(const std::vector<shape::dynamic_dimension>& input,
+                                              const std::vector<shape::dynamic_dimension>& target)
+{
+    if(input.size() != target.size())
+        return false;
+    return std::equal(input.begin(), input.end(), target.begin(), [](const auto& a, const auto& b) {
+        if(a == b)
+            return true;
+        if(a == 1 or b == 1)
+            return false;
+        if(is_symbolic_literal(a) and is_symbolic_literal(b))
+            return false;
+        return intervals_overlap(a, b);
+    });
+}
+
 } // namespace
 
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
@@ -195,7 +211,9 @@ std::vector<instruction_ref> insert_common_args(module& m,
         auto c_type       = compute_common_types(input_shapes);
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             auto s = input->get_shape();
-            if(options.common_lens and not(s.symbolic() and s.dyn_dims() == c_dyn_dims))
+            if(options.common_lens and
+               not(s.symbolic() and
+                   elementwise_dims_match_without_broadcast(s.dyn_dims(), c_dyn_dims)))
             {
                 input = m.insert_instruction(
                     ins,

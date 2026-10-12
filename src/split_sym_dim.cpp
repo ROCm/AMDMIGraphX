@@ -747,6 +747,9 @@ struct block_plan
                                           const block_assignment& assignment,
                                           std::size_t max_clones) const
     {
+        auto allows_merge = [](const auto* plan) { return plan->info.allow_block_merge; };
+        if(not all_of(ops, allows_merge) or not all_of(source.ops, allows_merge))
+            return std::nullopt;
         auto merged_roots = merge_roots(source, max_clones);
         if(not merged_roots.has_value())
             return std::nullopt;
@@ -1087,7 +1090,8 @@ struct block_dependency_graph
         std::for_each(plans.values.begin(), plans.values.end(), [&](const auto& plan) {
             if(not plan.info.starts_specialization_block())
                 return;
-            auto required_roots = find_instruction_roots(plan.info, roots, max_clones);
+            auto clone_limit    = plan.info.allow_block_merge ? max_clones : 0;
+            auto required_roots = find_instruction_roots(plan.info, roots, clone_limit);
             if(required_roots.has_value())
                 add({{&plan}, std::move(*required_roots)});
         });
@@ -1113,7 +1117,8 @@ struct block_dependency_graph
             if(is_planned(plan.info.ins) or not plan.info.needs_deferred_specialization_block() or
                contains(absorbed_candidates, plan.info.ins))
                 return;
-            auto required_roots = find_instruction_roots(plan.info, roots, max_clones);
+            auto clone_limit    = plan.info.allow_block_merge ? max_clones : 0;
+            auto required_roots = find_instruction_roots(plan.info, roots, clone_limit);
             if(required_roots.has_value())
                 add({{&plan}, std::move(*required_roots)});
         });

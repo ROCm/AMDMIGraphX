@@ -679,14 +679,12 @@ struct mlir_program
         if(is_reshape(op.name()))
             v = {{"dims", ins->get_shape().lens()}};
 
-        if(contains({"convolution", "quant_convolution", "convolution_backwards"}, op.name()))
+        if(contains({"convolution", "quant_convolution", "convolution_backwards"}, op.name()) and
+           v.at("padding").size() == v.at("stride").size())
         {
             // Adjust symetrical padding
-            if(v.at("padding").size() == v.at("stride").size())
-            {
-                auto padding = v.at("padding");
-                std::copy(padding.begin(), padding.end(), std::back_inserter(v.at("padding")));
-            }
+            auto padding = v.at("padding");
+            std::copy(padding.begin(), padding.end(), std::back_inserter(v.at("padding")));
         }
 
         if(op.name() == "unpack_int4")
@@ -1433,7 +1431,25 @@ std::string mlir_compile_key(const context& migraphx_ctx,
     // also become fields of the code object that the caller inserts.
     for(const auto& s : in_shapes)
         ss << "input=" << s << "\n";
-    ss << mlir_print(&mlirOperationPrint, mlirModuleGetOperation(mp.mmodule.get()));
+    // The printer's defaults come from LLVM's global command-line options: rocMLIR sets
+    // --mlir-print-local-scope when it is registered, and the in-process lld linker resets every
+    // option during the first compile. Pinning the flags keeps the key the same however many
+    // kernels the process has compiled.
+    // Local scope is the form rocMLIR selects, so keys computed before any compile, which is
+    // most of those already stored, still match.
+    mlir_op_printing_flags flags{mlirOpPrintingFlagsCreate()};
+    mlirOpPrintingFlagsUseLocalScope(flags.get());
+    mlirOpPrintingFlagsEnableDebugInfo(flags.get(), /*enable=*/false, /*prettyForm=*/false);
+    // Never elide constants: kernels that differ only in a large literal must not share a key.
+    mlirOpPrintingFlagsElideLargeElementsAttrs(flags.get(), INTPTR_MAX);
+    mlirOpPrintingFlagsElideLargeResourceString(flags.get(), INTPTR_MAX);
+    // A module that fails to verify would otherwise be printed in the generic form.
+    mlirOpPrintingFlagsAssumeVerified(flags.get());
+    ss << mlir_print(
+        [&](MlirOperation op, MlirStringCallback callback, void* data) {
+            mlirOperationPrintWithFlags(op, flags.get(), callback, data);
+        },
+        mlirModuleGetOperation(mp.mmodule.get()));
     return ss.str();
 }
 

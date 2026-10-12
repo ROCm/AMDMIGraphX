@@ -85,6 +85,7 @@ add_library(migraphx
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
+    fuse_topk.cpp
     gemm.cpp
     generate.cpp
     graphviz.cpp

@@ -113,6 +113,10 @@ struct vec_or_scalar<T, 0>
 };
 } // namespace vec_detail
 
+/// A vec of N elements of T, or T itself when N is 0
+template <class T, index_int N>
+using vec_or_scalar_t = typename vec_detail::vec_or_scalar<T, N>::type;
+
 template <class... Ts>
 struct common_vec
 {
@@ -178,6 +182,68 @@ __device__ __host__ auto as_vec(const T* x)
 
 template <class T, index_int N>
 using safe_vec = vec<conditional_t<is_same<T, bool>{}, uint8_t, T>, N>;
+
+// A vector of N elements S apart in memory as one tensor element, so an input
+// strided along the vector axis is still read with wide loads. It is never
+// read through the struct: load_strided loads the S-aligned block of N*S
+// elements holding the lanes and selects them by the phase of the pointer
+// within the block.
+template <class T, index_int N, index_int S>
+struct strided_vec
+{
+    static_assert(S > 1, "A strided vector needs a stride greater than one");
+    T data[N * S];
+};
+
+template <class T>
+struct is_strided_vec : false_type
+{
+};
+
+template <class T, index_int N, index_int S>
+struct is_strided_vec<strided_vec<T, N, S>> : true_type
+{
+};
+
+// The vector width of the loaded lanes
+template <class T, index_int N, index_int S>
+constexpr auto vec_size(strided_vec<T, N, S>)
+{
+    return index_constant<N>{};
+}
+
+// The type an element of a tensor is loaded as
+template <class T>
+struct load_type_impl
+{
+    using type = T;
+};
+
+template <class T, index_int N, index_int S>
+struct load_type_impl<strided_vec<T, N, S>>
+{
+    using type = vec<T, N>;
+};
+
+template <class T, index_int N, index_int S>
+struct load_type_impl<const strided_vec<T, N, S>> : load_type_impl<strided_vec<T, N, S>>
+{
+};
+
+template <class T>
+using load_type = typename load_type_impl<T>::type;
+
+template <index_int N, index_int S, class T>
+__device__ __host__ auto as_strided_vec(T* x)
+{
+    return reinterpret_cast<strided_vec<T, N, S>*>(x);
+}
+
+template <index_int N, index_int S, class T>
+__device__ __host__ auto as_strided_vec(const T* x)
+{
+    return reinterpret_cast<const strided_vec<T, N, S>*>(x);
+}
 
 // Build a vector with one element per index: the callback runs for each index implied
 // by the length n, and n is fixed at compile time

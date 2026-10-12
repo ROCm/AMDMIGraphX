@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 
 #include <test.hpp>
 
@@ -58,6 +59,31 @@ TEST_CASE(nop_convert)
     EXPECT(m0 == m1);
 }
 
+TEST_CASE(nop_convert_dynamic)
+{
+    migraphx::module m0;
+    {
+        auto s = migraphx::shape{migraphx::shape::float_type,
+                                 std::vector<migraphx::shape::dynamic_dimension>{{1, 4}, {3, 3}}};
+        auto x = m0.add_parameter("x", s);
+        auto t = m0.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
+            x);
+        m0.add_return({t});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        auto s = migraphx::shape{migraphx::shape::float_type,
+                                 std::vector<migraphx::shape::dynamic_dimension>{{1, 4}, {3, 3}}};
+        auto x = m1.add_parameter("x", s);
+        m1.add_return({x});
+    }
+    EXPECT(m0 == m1);
+}
+
 TEST_CASE(nested_convert0)
 {
     migraphx::module m0;
@@ -81,6 +107,40 @@ TEST_CASE(nested_convert0)
         auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
         auto x = m1.add_parameter("x", s);
         m1.add_return({x});
+    }
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(nested_convert_int32_int64_int32_symbolic)
+{
+    auto n = migraphx::sym::var("n", {0, 100});
+    migraphx::module m0;
+    {
+        auto s = migraphx::shape{migraphx::shape::int32_type,
+                                 std::vector<migraphx::shape::dynamic_dimension>{{n}}};
+        auto x = m0.add_parameter("x", s);
+        auto a = m0.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::int64_type)}}),
+            x);
+        auto b = m0.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+            a);
+        m0.add_return({a, b});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        auto s = migraphx::shape{migraphx::shape::int32_type,
+                                 std::vector<migraphx::shape::dynamic_dimension>{{n}}};
+        auto x = m1.add_parameter("x", s);
+        auto a = m1.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::int64_type)}}),
+            x);
+        m1.add_return({a, x});
     }
     EXPECT(m0 == m1);
 }

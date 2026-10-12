@@ -37,7 +37,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  * If input to the sequence is not the same shape as the last convert,
  * replace last convert with convert from the input to the last shape.
  */
-struct find_nested_convert
+struct find_nested_convert : match::supports_dynamic_shapes
 {
     auto matcher() const { return match::name("convert")(match::arg(0)(match::name("convert"))); }
 
@@ -61,7 +61,7 @@ struct find_nested_convert
     }
 };
 
-struct find_nop_converts
+struct find_nop_converts : match::supports_dynamic_shapes
 {
     auto matcher() const { return match::name("convert")(match::same_shape(match::arg(0))); }
 

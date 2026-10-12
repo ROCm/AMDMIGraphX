@@ -27,6 +27,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx/cpu/context.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,6 +44,8 @@ struct cpu_allocate : auto_register_op<cpu_allocate>
     }
 
     std::string name() const { return "cpu::allocate"; }
+    value attributes() const { return {{"side_effect", true}}; }
+
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(0);

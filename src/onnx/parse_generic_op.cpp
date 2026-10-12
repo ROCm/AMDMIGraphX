@@ -46,7 +46,6 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Atan", "atan"},
                 {"Atanh", "atanh"},
                 {"Ceil", "ceil"},
-                {"Concat", "concat"},
                 {"Cos", "cos"},
                 {"Cosh", "cosh"},
                 {"Elu", "elu"},

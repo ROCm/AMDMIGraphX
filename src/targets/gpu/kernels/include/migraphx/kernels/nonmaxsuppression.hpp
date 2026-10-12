@@ -88,10 +88,11 @@ __device__ inline bool nms_iou_over_threshold(const Box a, const Box b, const Th
     return (inter / un) > threshold;
 }
 
-// Packed upper-triangular index for j > i within an N x N matrix.
-constexpr index_int nms_packed_idx(index_int i, index_int j, index_int size)
+constexpr index_int nms_mask_bits = sizeof(uint32_t) * 8;
+
+constexpr index_int nms_mask_col_blocks(index_int size)
 {
-    return (i * size - (i * (i + 1)) / 2) + j - (i + 1);
+    return size / nms_mask_bits + (size % nms_mask_bits != 0);
 }
 
 // Higher score wins, with lower original box index breaking ties.
@@ -209,11 +210,10 @@ __device__ inline auto load_box(Box sorted_boxes, index_int i)
                       sorted_boxes[make_array(0, i, 3)]);
 }
 
-// Build the packed upper-triangular IoU mask for the first NumBoxes sorted
-// boxes. Threads are paired across the triangle so each does roughly the same
-// amount of work.
+// Build a row mask for the first NumBoxes sorted boxes. Each uint32_t word
+// represents one 32-box column block.
 // `sorted_boxes`: per-block 3D view, dims([1, >=NumBoxes, 4])
-// `mask`:         bool mask tensor
+// `mask`:         uint32 mask tensor, dims([NumBoxes * ceil_div(NumBoxes, 32)])
 template <index_int NumBoxes, class SortedBoxes, class Mask>
 __device__ void nms_make_iou_mask(const index idx,
                                   const SortedBoxes sorted_boxes,
@@ -221,27 +221,26 @@ __device__ void nms_make_iou_mask(const index idx,
                                   const float iou_threshold)
 {
     static_assert(NumBoxes > 1);
-    constexpr auto half = _c<NumBoxes / 2>;
-    auto fill_row       = [&](index_int i) {
-        const auto box_i = load_box(sorted_boxes, i);
-        for(index_int j = i + 1; j < NumBoxes; ++j)
+    constexpr index_int col_blocks = nms_mask_col_blocks(NumBoxes);
+    constexpr index_int mask_words = NumBoxes * col_blocks;
+    idx.local_stride(mask_words, [&](auto word_idx) {
+        const index_int i         = word_idx / col_blocks;
+        const index_int col_block = word_idx % col_blocks;
+        const index_int col_start = col_block * nms_mask_bits;
+        const index_int col_end   = min(col_start + nms_mask_bits, NumBoxes);
+        const index_int start     = max(i + 1, col_start);
+        uint32_t word             = 0;
+        if(start < col_end)
         {
-            mask[nms_packed_idx(i, j, NumBoxes)] =
-                nms_iou_over_threshold(box_i, load_box(sorted_boxes, j), iou_threshold);
+            const auto box_i = load_box(sorted_boxes, i);
+            for(index_int j = start; j < col_end; ++j)
+            {
+                if(nms_iou_over_threshold(box_i, load_box(sorted_boxes, j), iou_threshold))
+                    word |= uint32_t{1} << (j - col_start);
+            }
         }
-    };
-
-    idx.local_stride(half, [&](auto i) {
-        fill_row(i);
-        fill_row(_c<NumBoxes - 1> - i);
+        mask[word_idx] = word;
     });
-
-    // Have thread 0 do middle row if odd NumBoxes
-    if constexpr((NumBoxes % 2) != 0 and NumBoxes > 1)
-    {
-        if(idx.local == 0)
-            fill_row(half);
-    }
 }
 
 // Greedy filter that writes selections into a per-batch per-class region of
@@ -263,21 +262,32 @@ __device__ void nms_filter_per_block(const index idx,
                                      Counts bc_counts)
 {
     static_assert(NumBoxes > 1);
-    const index_int block_id = idx.group;
-    const int batch_idx      = block_id / NumClasses;
-    const int class_idx      = block_id % NumClasses;
-    // TODO: use bits for removed mask
-    __shared__ uninitialized_buffer<uint8_t, NumBoxes> removed;
+    const index_int block_id       = idx.group;
+    const int batch_idx            = block_id / NumClasses;
+    const int class_idx            = block_id % NumClasses;
+    constexpr index_int col_blocks = nms_mask_col_blocks(NumBoxes);
+    __shared__ uninitialized_buffer<uint32_t, col_blocks> removed;
     // Match the ref op: only filter by score when score_threshold > 0.
     const bool do_score_filter = score_thr > 0.f;
-    idx.local_stride(
-        NumBoxes, [&](auto i) { removed[i] = (do_score_filter and sorted_scores[i] < score_thr); });
+    idx.local_stride(col_blocks, [&](auto col_block) {
+        const index_int col_start = col_block * nms_mask_bits;
+        const index_int col_end   = min(col_start + nms_mask_bits, NumBoxes);
+        uint32_t word             = 0;
+        for(index_int i = col_start; i < col_end; ++i)
+        {
+            if(do_score_filter and sorted_scores[i] < score_thr)
+                word |= uint32_t{1} << (i - col_start);
+        }
+        removed[col_block] = word;
+    });
     __syncthreads();
     // sequential per-block greedy filter to match greedy NMS algorithm
     auto num_selected = block_sync_copy_index_if_n(
         NumBoxes,
         max_output,
-        [&](auto i) { return not removed[i]; },
+        [&](auto i) {
+            return (removed[i / nms_mask_bits] & (uint32_t{1} << (i % nms_mask_bits))) == 0;
+        },
         [&](auto i, auto output_idx) {
             if(idx.local == 0)
             {
@@ -286,10 +296,10 @@ __device__ void nms_filter_per_block(const index idx,
                 auto output_iter = block_output.begin_at(array<index_int, 3>{0, output_idx, 0});
                 copy(tmp.begin(), tmp.end(), output_iter);
             }
-            auto start = i + 1;
-            idx.local_stride(NumBoxes - start, [&](auto ls) {
-                auto j = start + ls;
-                removed[j] |= mask[nms_packed_idx(i, j, NumBoxes)];
+            const index_int start_block = i / nms_mask_bits;
+            idx.local_stride(col_blocks - start_block, [&](auto block_offset) {
+                const auto col_block = start_block + block_offset;
+                removed[col_block] |= mask[i * col_blocks + col_block];
             });
         });
 

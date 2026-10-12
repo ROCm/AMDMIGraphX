@@ -50,6 +50,8 @@ struct dynamic_dimensions_check
 static optional<std::vector<dynamic_dimensions_check>>
 has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes)
 {
+    if(any_of(param_shapes, [](const auto& p) { return p.second.symbolic(); }))
+        return std::nullopt;
     auto is_dynamic = [](const auto& p) { return p.second.dynamic(); };
     std::vector<std::decay_t<decltype(param_shapes)>::value_type> dyn_params{};
     std::copy_if(
@@ -109,14 +111,29 @@ static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimension
     return false;
 }
 
+static bool compatible_outputs(const std::vector<shape>& expected,
+                               const std::vector<instruction_ref>& outputs)
+{
+    return expected.size() == outputs.size() and
+           std::equal(outputs.begin(),
+                      outputs.end(),
+                      expected.begin(),
+                      [](instruction_ref output, const shape& s) {
+                          return output->get_shape().type() == s.type() and
+                                 shape::is_compatible_lens(output->get_shape(), s);
+                      });
+}
+
 /**
- * Makes all the shapes in the dynamic_dimension range.  Probably won't work for `if`
- * and `loop` instructions, depending on how the submodules for those
- * work. Inserts select_module instruction to the top. Replaces return, bypassing other
- * instructions. Skips if the dynamic parameter outputs to a select_module operator.
+ * Makes all the shapes in the dynamic_dimension range. Inserts select_module instruction to the
+ * top and replaces the return, bypassing other instructions. Skips non-root modules, incompatible
+ * clone outputs, and dynamic parameters that output to a select_module operator.
  */
 void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {
+    if(&mpm.get_module() != mpm.get_root_module())
+        return;
+
     module_ref mm     = &mpm.get_module();
     auto param_names  = mm->get_parameter_names();
     auto param_shapes = mm->get_parameter_shapes();
@@ -126,12 +143,12 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
     {
         // all dynamic dimension objects should be the same for all parameters in dd_check_vec
         auto dyn_dim = dd_check_vec->at(0).dd;
-        // create submodules for each dimension size
-        std::vector<module_ref> submodules;
+        auto output_shapes = mm->get_output_shapes();
+        std::vector<module> clones;
         auto dim_interval = dyn_dim.get_interval();
         for(size_t dim_size : migraphx::range(dim_interval.min, dim_interval.max + 1))
         {
-            auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
+            module clone{"dim_" + std::to_string(dim_size)};
             // instruction map for new static shaped submodule parameters
             std::unordered_map<instruction_ref, instruction_ref> map_ins;
             for(const auto& dd_check : dd_check_vec.value())
@@ -140,12 +157,20 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                 const auto& dyn_param = mm->get_parameter(dd_check.dyn_param_str);
                 auto dyn_param_shape  = mm->get_parameter_shape(dd_check.dyn_param_str);
                 auto static_shape     = dyn_param_shape.to_static(dim_size);
-                map_ins[dyn_param]    = submod->add_parameter(dd_check.dyn_param_str, static_shape);
+                map_ins[dyn_param]    = clone.add_parameter(dd_check.dyn_param_str, static_shape);
             }
-            auto outputs = submod->add_instructions(mm, &map_ins);
-            submod->add_return({outputs});
-            submodules.push_back(submod);
+            auto outputs = clone.add_instructions(mm, &map_ins);
+            if(not compatible_outputs(output_shapes, outputs))
+                return;
+            clone.add_return(outputs);
+            clones.push_back(std::move(clone));
         }
+        std::vector<module_ref> submodules;
+        std::transform(
+            clones.begin(), clones.end(), std::back_inserter(submodules), [&](module& clone) {
+                auto name = clone.name();
+                return mpm.create_module(name, std::move(clone));
+            });
         // sort parameters by name for consistency (vs. parameter order attr)
         std::sort(param_names.begin(), param_names.end());
         // redirect to select_module operator and return
@@ -154,7 +179,6 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                        param_names.cend(),
                        std::back_inserter(sm_inputs),
                        [&](auto pn) { return mm->get_parameter(std::move(pn)); });
-        auto output_shapes       = mm->get_output_shapes();
         migraphx::shape out_attr = migraphx::shape{output_shapes};
         auto sm_ins              = mm->add_instruction(
             migraphx::make_op("select_module",

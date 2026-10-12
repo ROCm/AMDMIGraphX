@@ -1587,12 +1587,14 @@ collect_free_vars(const expr& e, const std::function<std::optional<interval>(con
 static interval
 eval_interval_impl(const expr& e,
                    const std::function<std::optional<interval>(const expr&)>& lookup,
-                   std::unordered_map<expr, interval>& cache);
+                   std::unordered_map<expr, interval>& cache,
+                   bool tighten);
 
 // For each free variable v, compute d(e)/dv and check its sign over v's range;
 // if every variable has a definite direction the expression is monotone in
 // each one and the extrema are at corners, so two evals give the exact range.
-// Derivative intervals go through eval_interval_impl so they hit the cache too.
+// Derivative intervals go through eval_interval_impl so they hit the cache too, but disable
+// monotonicity tightening to avoid recursively differentiating the derivative itself.
 static std::optional<interval>
 try_monotone_interval(const expr& e,
                       const std::function<std::optional<interval>(const expr&)>& lookup,
@@ -1623,7 +1625,7 @@ try_monotone_interval(const expr& e,
         auto deriv = diff(e, fv.first);
         if(deriv.empty())
             return std::nullopt;
-        auto di = eval_interval_impl(deriv, lookup, cache);
+        auto di = eval_interval_impl(deriv, lookup, cache, false);
         // 0 <= min => non-negative derivative => non-decreasing in this var
         bool nonneg = not scalar_less(di.min, scalar{int64_t{0}});
         // max <= 0 => non-positive derivative => non-increasing
@@ -1656,7 +1658,8 @@ try_monotone_interval(const expr& e,
 static interval
 eval_interval_impl(const expr& e,
                    const std::function<std::optional<interval>(const expr&)>& lookup,
-                   std::unordered_map<expr, interval>& cache)
+                   std::unordered_map<expr, interval>& cache,
+                   bool tighten)
 {
     return generic_eval<interval>(
         e,
@@ -1689,7 +1692,9 @@ eval_interval_impl(const expr& e,
         // when the subtree is monotone in each free variable.
         [&](const expr& sub, const op_node& op, const std::vector<interval>& args) -> interval {
             auto structural = generic_eval_auto_apply(sub, op, args);
-            auto mono       = try_monotone_interval(sub, lookup, cache);
+            std::optional<interval> mono;
+            if(tighten)
+                mono = try_monotone_interval(sub, lookup, cache);
             interval result = structural;
             if(mono)
             {
@@ -1945,7 +1950,7 @@ interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) con
         return std::nullopt;
     };
     std::unordered_map<expr, interval> cache;
-    return eval_interval_impl(*this, lookup, cache);
+    return eval_interval_impl(*this, lookup, cache, true);
 }
 
 interval expr::eval_interval_default(interval default_bounds) const
@@ -1962,7 +1967,7 @@ interval expr::eval_interval_default(interval default_bounds) const
         return variable_interval(*v).value_or(default_bounds);
     };
     std::unordered_map<expr, interval> cache;
-    return eval_interval_impl(*this, lookup, cache);
+    return eval_interval_impl(*this, lookup, cache, true);
 }
 
 struct optimal_sample

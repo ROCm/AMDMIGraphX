@@ -28,6 +28,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 #include <test.hpp>
 
 static void run_pass(migraphx::module& m)
@@ -83,6 +84,129 @@ TEST_CASE(broadcast_with_dims_invalid)
     }
     // replacement will be rejected by multibroadcast operation
     EXPECT(test::throws([&] { run_pass(m0); }));
+}
+
+TEST_CASE(static_dyn_concat)
+{
+    migraphx::module m0;
+    auto x      = m0.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto y      = m0.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
+    auto counts = m0.add_literal(
+        migraphx::literal{{migraphx::shape::int64_type, {2}}, {int64_t{2}, int64_t{3}}});
+    auto dyn_concat =
+        m0.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+    auto buffer =
+        m0.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), dyn_concat);
+    auto total =
+        m0.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), dyn_concat);
+    auto starts =
+        m0.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+    auto output = m0.add_instruction(
+        migraphx::make_op(
+            "dyn_slice",
+            {{"axes", {0}},
+             {"starts", {0}},
+             {"ends", migraphx::value::array{migraphx::to_value(migraphx::sym::lit(5))}},
+             {"always_leq", true}}),
+        buffer,
+        starts,
+        total);
+    m0.add_return({output});
+
+    run_pass(m0);
+
+    migraphx::module m1;
+    auto expected_x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto expected_y = m1.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
+    auto expected =
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), expected_x, expected_y);
+    m1.add_return({expected});
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(static_dyn_concat_shape_counts)
+{
+    migraphx::module m0;
+    auto x      = m0.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto y      = m0.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
+    auto counts = m0.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions",
+                            migraphx::to_value(std::vector<migraphx::sym::expr>{
+                                migraphx::sym::lit(2), migraphx::sym::lit(3)})}}),
+        x,
+        y);
+    auto dyn_concat =
+        m0.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+    auto buffer =
+        m0.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), dyn_concat);
+    auto total =
+        m0.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), dyn_concat);
+    m0.add_return({buffer, total});
+
+    run_pass(m0);
+
+    migraphx::module m1;
+    auto expected_x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto expected_y = m1.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
+    auto expected =
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), expected_x, expected_y);
+    auto expected_count =
+        m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{5}}});
+    m1.add_return({expected, expected_count});
+    EXPECT(m0.sort() == m1.sort());
+}
+
+TEST_CASE(partial_count_dyn_concat_is_not_simplified)
+{
+    migraphx::module m;
+    auto x      = m.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto y      = m.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
+    auto counts = m.add_literal(
+        migraphx::literal{{migraphx::shape::int64_type, {2}}, {int64_t{1}, int64_t{3}}});
+    auto dyn_concat =
+        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+    auto buffer =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), dyn_concat);
+    m.add_return({buffer});
+
+    run_pass(m);
+
+    EXPECT(m.has_instruction(dyn_concat));
+}
+
+TEST_CASE(runtime_count_dyn_concat_is_not_simplified)
+{
+    migraphx::module m;
+    auto x      = m.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto y      = m.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
+    auto counts = m.add_parameter("counts", {migraphx::shape::int64_type, {2}});
+    auto dyn_concat =
+        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+    auto buffer =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), dyn_concat);
+    m.add_return({buffer});
+
+    run_pass(m);
+
+    EXPECT(m.has_instruction(dyn_concat));
+}
+
+TEST_CASE(dynamic_data_dyn_concat_is_not_simplified)
+{
+    migraphx::module m;
+    auto x      = m.add_parameter("x", {migraphx::shape::float_type, {{1, 2}, {2, 2}}});
+    auto y      = m.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
+    auto counts = m.add_parameter("counts", {migraphx::shape::int64_type, {2}});
+    auto dyn_concat =
+        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+    auto buffer =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), dyn_concat);
+    m.add_return({buffer});
+
+    run_pass(m);
+
+    EXPECT(m.has_instruction(dyn_concat));
 }
 
 TEST_CASE(resize)
@@ -817,6 +941,68 @@ TEST_CASE(onehot_cannot_simplify)
     migraphx::module m1 = m0;
     run_pass(m0);
     EXPECT(m0 == m1);
+}
+
+TEST_CASE(select_module_preserves_symbolic_output_shape)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using se = migraphx::sym::expr;
+
+    auto n        = migraphx::sym::var("n", {1, 4});
+    auto target_n = migraphx::sym::var("split_sym_dim_n_target", {1, 4}, {1, 4});
+    migraphx::program p0;
+    auto create_submodule0 = [&](const std::string& name, const dd::interval& subrange) {
+        auto* submod         = p0.create_module(name);
+        std::vector<dd> dims = {{migraphx::sym::var("n", {subrange.min, subrange.max})},
+                                {migraphx::sym::lit(4)}};
+        auto input =
+            submod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims});
+        auto output = submod->add_instruction(migraphx::make_op("fixed_pad"), input);
+        submod->add_return({output});
+        return submod;
+    };
+    auto* first0                = create_submodule0("main:split_sym_dim_0_0", {1, 1});
+    auto* second0               = create_submodule0("main:split_sym_dim_0_1", {2, 4});
+    auto* main0                 = p0.get_main_module();
+    std::vector<dd> input_dims0 = {{n}, {migraphx::sym::lit(4)}};
+    auto input0 =
+        main0->add_parameter("data", migraphx::shape{migraphx::shape::float_type, input_dims0});
+    std::vector<dd> output_dims0 = {{target_n}, {migraphx::sym::lit(4)}};
+    migraphx::shape output_shape0{
+        std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type, output_dims0}}};
+    std::vector<dd> logical_output_dims0 = {{n}, {migraphx::sym::lit(4)}};
+    migraphx::shape logical_output_shape0{std::vector<migraphx::shape>{
+        migraphx::shape{migraphx::shape::float_type, logical_output_dims0}}};
+    auto select0 = main0->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape0)},
+                           {"logical_output_dyn_shapes", migraphx::to_value(logical_output_shape0)},
+                           {"num_inputs", 1}}),
+        {input0},
+        {first0, second0});
+    auto selected0 =
+        main0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select0);
+    std::vector<se> starts0 = {migraphx::sym::lit(0)};
+    std::vector<se> ends0   = {n};
+    auto start0             = main0->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(starts0)}}),
+        input0);
+    auto end0 = main0->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(ends0)}}),
+        input0);
+    auto result0 =
+        main0->add_instruction(migraphx::make_op("dyn_slice",
+                                                 {{"axes", {0}},
+                                                  {"starts", migraphx::to_value(starts0)},
+                                                  {"ends", migraphx::to_value(ends0)}}),
+                               selected0,
+                               start0,
+                               end0);
+    main0->add_return({result0});
+
+    auto expected = p0;
+    migraphx::run_passes(p0, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
+    EXPECT(p0 == expected);
 }
 
 // Test case with static output shape in the submodules (look at `sm_shape`)

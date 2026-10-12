@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,15 +36,15 @@ static T generic_read_file(const fs::path& filename, size_t offset = 0, size_t n
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     if(not is.is_open())
         MIGRAPHX_THROW("Failure opening file: " + filename);
+    std::size_t file_size = is.tellg();
+    if(offset > file_size)
+        MIGRAPHX_THROW("offset is larger than file size");
+    // if nbytes is not set, read the remaining bytes after offset
     if(nbytes == 0)
-    {
-        // if there is a non-zero offset and nbytes is not set,
-        // calculate size of remaining bytes to read
-        nbytes = is.tellg();
-        if(offset > nbytes)
-            MIGRAPHX_THROW("offset is larger than file size");
-        nbytes -= offset;
-    }
+        nbytes = file_size - offset;
+    else if(nbytes > file_size - offset)
+        MIGRAPHX_THROW("Reading " + std::to_string(nbytes) + " bytes at offset " +
+                       std::to_string(offset) + " exceeds size of file: " + filename);
     if(nbytes < 1)
         MIGRAPHX_THROW("Invalid size for: " + filename);
     is.seekg(offset, std::ios::beg);

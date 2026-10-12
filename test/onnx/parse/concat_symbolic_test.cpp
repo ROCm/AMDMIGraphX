@@ -35,21 +35,16 @@ TEST_CASE(concat_symbolic_test)
     const auto b = var("b", {0, 6});
 
     migraphx::program p;
-    auto* mm     = p.get_main_module();
-    auto x       = mm->add_parameter("x", {migraphx::shape::float_type, sym_dims({a, lit(4)})});
-    auto y       = mm->add_parameter("y", {migraphx::shape::float_type, sym_dims({b, lit(4)})});
-    auto x_count = mm->add_instruction(
+    auto* mm    = p.get_main_module();
+    auto x      = mm->add_parameter("x", {migraphx::shape::float_type, sym_dims({a, lit(4)})});
+    auto y      = mm->add_parameter("y", {migraphx::shape::float_type, sym_dims({b, lit(4)})});
+    auto counts = mm->add_instruction(
         migraphx::make_op(
             "eval_expr_from_shape",
-            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{a})}}),
-        x);
-    auto y_count = mm->add_instruction(
-        migraphx::make_op(
-            "eval_expr_from_shape",
-            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{b})}}),
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{a, b})}}),
+        x,
         y);
-    auto concat =
-        mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, x_count, y_count);
+    auto concat = mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
     auto buffer = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
     const auto concat_count = var("main_Concat_2", {0, 10});

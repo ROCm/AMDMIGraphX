@@ -71,16 +71,17 @@ static std::unordered_set<std::string> gather_index_params(const module& sm)
 
 /// The args of the reduce in the order of its inputs without the indices of
 /// the gathers in the submodule, since those are not reduced over
-template <class T>
-static std::vector<T> reduce_tensor_args(const module& sm, const std::vector<T>& args)
+template <class Range>
+static std::vector<typename Range::value_type> reduce_tensor_args(const module& sm,
+                                                                  const Range& args)
 {
     auto index_names = gather_index_params(sm);
     if(index_names.empty())
-        return args;
+        return std::vector<typename Range::value_type>(args.begin(), args.end());
     auto names = sm.get_parameter_names();
     std::sort(names.begin(), names.end());
     assert(names.size() == args.size());
-    std::vector<T> result;
+    std::vector<typename Range::value_type> result;
     auto is = range(names.size());
     transform_if(
         is.begin(),
@@ -214,10 +215,11 @@ MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
         auto is_broadcast = [](instruction_ref output) {
             return contains(output->name(), "broadcast");
         };
-        auto broadcast = std::find_if(ins->outputs().begin(), ins->outputs().end(), is_broadcast);
+        const auto* broadcast =
+            std::find_if(ins->outputs().begin(), ins->outputs().end(), is_broadcast);
         if(broadcast == ins->outputs().end())
             return false;
-        auto non_broadcast =
+        const auto* non_broadcast =
             std::find_if_not(ins->outputs().begin(), ins->outputs().end(), is_broadcast);
         if(non_broadcast == ins->outputs().end())
             return false;
@@ -883,7 +885,7 @@ struct reduce_reshape : rewrite_reshapes_base
     template <class AxesMap>
     static instruction_ref insert(module_pass_manager& mpm,
                                   instruction_ref ins,
-                                  const std::vector<instruction_ref>& inputs,
+                                  span<const instruction_ref> inputs,
                                   const AxesMap& am)
     {
         auto op = any_cast<fused_reduce>(ins->get_operator());
@@ -917,11 +919,12 @@ struct reduce_reshape : rewrite_reshapes_base
         return mpm.get_module().insert_instruction(ins, fused_reduce{axes}, inputs, {sm});
     }
 
-    static std::vector<std::size_t> base_dims(const std::vector<instruction_ref>& inputs)
+    static std::vector<std::size_t> base_dims(span<const instruction_ref> inputs)
     {
-        auto input = std::max_element(inputs.begin(), inputs.end(), by(std::less<>{}, [](auto i) {
-                                          return i->get_shape().elements();
-                                      }));
+        const auto* input =
+            std::max_element(inputs.begin(), inputs.end(), by(std::less<>{}, [](auto i) {
+                                 return i->get_shape().elements();
+                             }));
         return (*input)->get_shape().lens();
     }
 
@@ -1578,14 +1581,14 @@ struct find_unpack_broadcast_reduce
         sm->set_bypass();
         sm->add_params(inputs, &map_ins);
         // The packed bytes are in place of the broadcast, the select is last
-        auto bit    = std::find(reduce->inputs().begin(), reduce->inputs().end(), broadcast);
-        auto bytes  = inputs[std::distance(reduce->inputs().begin(), bit)];
-        auto* pm    = create_nibble_module(mpm, sm->name() + ":nibble");
-        auto nibble = sm->add_instruction(
+        const auto* bit = std::find(reduce->inputs().begin(), reduce->inputs().end(), broadcast);
+        auto bytes      = inputs[std::distance(reduce->inputs().begin(), bit)];
+        auto* pm        = create_nibble_module(mpm, sm->name() + ":nibble");
+        auto nibble     = sm->add_instruction(
             make_op("pointwise"), {map_ins.at(bytes), map_ins.at(inputs.back())}, {pm});
         for(auto&& [param, input] : oldm->get_ins_param_map(reduce->inputs(), true))
         {
-            auto it        = std::find(reduce->inputs().begin(), reduce->inputs().end(), input);
+            const auto* it = std::find(reduce->inputs().begin(), reduce->inputs().end(), input);
             auto i         = std::distance(reduce->inputs().begin(), it);
             map_ins[param] = input == broadcast ? nibble : map_ins.at(inputs[i]);
         }

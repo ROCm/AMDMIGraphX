@@ -64,7 +64,7 @@ TEST_CASE(incomplete_args)
 }
 
 MIGRAPHX_ROB(access_ins_arguments,
-             std::vector<migraphx::instruction_ref>,
+             migraphx::small_vector<migraphx::instruction_ref>,
              migraphx::instruction,
              arguments)
 

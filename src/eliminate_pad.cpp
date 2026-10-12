@@ -59,7 +59,7 @@ static void update_op(const instruction_ref& input, const instruction_ref& ins, 
 
     op.from_value({{"padding", padding}});
 
-    std::vector<instruction_ref> new_inputs{ins->inputs()};
+    auto new_inputs    = ins->inputs();
     new_inputs.front() = input->inputs().front();
 
     m.replace_instruction(ins, op, new_inputs);
@@ -88,7 +88,7 @@ static void update_pooling(const instruction_ref& input, const instruction_ref& 
                    op.padding.begin() + kdims,
                    std::plus<size_t>());
 
-    std::vector<instruction_ref> new_inputs{ins->inputs()};
+    auto new_inputs    = ins->inputs();
     new_inputs.front() = input->inputs().front();
 
     m.replace_instruction(ins, op, new_inputs);

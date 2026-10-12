@@ -679,7 +679,7 @@ struct find_inner_broadcast
                        });
         auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
         // Find broadcast op on a non-scalar instruction if it exists
-        auto first =
+        const auto* first =
             std::find_if(broadcasts.begin(), broadcasts.end(), [&](instruction_ref broadcast) {
                 return not broadcast->get_shape().scalar();
             });
@@ -817,7 +817,7 @@ struct find_inner_broadcast
            }))
             return;
         // Find first broadcast that is not a scalar
-        auto first =
+        const auto* first =
             std::find_if(broadcasts.begin(), broadcasts.end(), [&](instruction_ref broadcast) {
                 return not broadcast->get_shape().scalar();
             });
@@ -965,7 +965,7 @@ struct find_concat_op
         });
     }
 
-    static bool rejected_inputs(const std::vector<instruction_ref>& inputs)
+    static bool rejected_inputs(span<const instruction_ref> inputs)
     {
         if(inputs.empty())
             return true;
@@ -1087,7 +1087,7 @@ struct find_concat_op
 
         std::vector<std::pair<instruction_ref, instruction_ref>> replacements;
 
-        std::vector<instruction_ref> args;
+        small_vector<instruction_ref> args;
         auto update_args = [&](auto start, auto last) {
             auto x = fuse_group(m, ins, axis, replacements, start, last);
             args.insert(args.end(), x.begin(), x.end());
@@ -1349,7 +1349,7 @@ struct find_conv_concat_split_fuse
             [&](instruction_ref output) -> std::vector<conv_prefix> {
                 if(output->name() != "concat")
                     return {{output, 1}};
-                auto fi = std::find_if(
+                const auto* fi = std::find_if(
                     output->outputs().begin(), output->outputs().end(), [&](instruction_ref o) {
                         return is_fusable_conv(o, output, conv_b, conv_b_val);
                     });
@@ -1444,12 +1444,13 @@ struct find_conv_concat_split_fuse
 };
 
 static void
-move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
+move_instructions_back(module& m, instruction_ref pos, span<const instruction_ref> instructions)
 {
+    small_vector<instruction_ref> inss(instructions.begin(), instructions.end());
     auto start = range(m.begin(), pos);
     for(auto ins : iterator_for(start))
     {
-        auto it = std::find(inss.begin(), inss.end(), ins);
+        auto* it = std::find(inss.begin(), inss.end(), ins);
         if(it != inss.end())
             inss.erase(it);
     }
@@ -1592,7 +1593,7 @@ struct find_splits
             }
             else
             {
-                auto it = get_matching_ins(split, out);
+                const auto* it = get_matching_ins(split, out);
                 if(it == split->outputs().end())
                     return {};
                 // Bail if there is a duplicate
@@ -1665,7 +1666,7 @@ struct find_splits
                                 std::vector<instruction_ref> splits) const
     {
         auto first_group_inputs = group.front()->inputs();
-        auto arg_it =
+        auto* arg_it =
             std::find_if(first_group_inputs.begin(), first_group_inputs.end(), [&](auto i) {
                 return std::find(splits.begin(), splits.end(), i) != splits.end();
             });
@@ -1965,7 +1966,7 @@ struct find_split_concat
         // Find where the slices are in the concat instruction's inputs (concat can have
         // any number of inputs)
         auto args = concat->inputs();
-        auto it =
+        auto* it =
             std::find_if(args.begin(), args.end(), [&](auto i) { return i == splits.front(); });
         // Verify the slices were found, and the list is long enough
         if(std::distance(it, args.end()) < splits.size())
@@ -2477,7 +2478,7 @@ struct find_split_reshape
         {
             if(split->get_shape().lens() != slc->get_shape().lens())
                 continue;
-            auto it = find_if(split->outputs(), [&](instruction_ref out) {
+            const auto* it = find_if(split->outputs(), [&](instruction_ref out) {
                 if(not is_reshape(out))
                     return false;
                 auto last = find_last(get_reshapes(out));

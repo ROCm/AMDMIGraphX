@@ -140,7 +140,7 @@ struct find_ck_gemm_pointwise
         auto names    = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         auto inputs   = ins->inputs();
-        auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);
+        auto* gemm_it = std::find(inputs.begin(), inputs.end(), x_ins);
         auto gemm_idx = gemm_it - inputs.begin();
         if(gemm_ins->get_shape().type() != shape::int32_type and
            ins->get_shape().type() != gemm_ins->get_shape().type())

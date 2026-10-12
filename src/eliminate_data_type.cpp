@@ -36,8 +36,8 @@ static void insert_convert_to_supported_type(module& m,
                                              migraphx::shape::type_t target_type,
                                              std::set<migraphx::shape::type_t> unsupported_types)
 {
-    migraphx::shape::type_t orig_type   = ins->get_shape().type();
-    std::vector<instruction_ref> inputs = ins->inputs();
+    migraphx::shape::type_t orig_type = ins->get_shape().type();
+    auto inputs                       = ins->inputs();
     std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](const auto& i) {
         if(contains(unsupported_types, i->get_shape().type()))
         {

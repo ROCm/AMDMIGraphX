@@ -215,11 +215,11 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 }
 #endif
 
-static void move_broadcasted_back(std::vector<instruction_ref>& args)
+static void move_broadcasted_back(span<instruction_ref> args)
 {
     // Ensure the last arguments is the broadcasted one
-    auto last = std::prev(args.end());
-    auto it =
+    auto* last = std::prev(args.end());
+    auto* it =
         std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().broadcasted(); });
     if(it != last)
         std::swap(*it, *std::prev(last));
@@ -976,7 +976,7 @@ struct find_layernorm_pointwise
             return;
         auto* pm       = pw_ins->module_inputs().front();
         auto pw_inputs = pw_ins->inputs();
-        auto ln_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), layernorm);
+        auto* ln_pos   = std::find(pw_inputs.begin(), pw_inputs.end(), layernorm);
         assert(ln_pos != pw_inputs.end());
         pw_inputs.erase(ln_pos);
         auto inputs = layernorm->inputs();
@@ -1008,7 +1008,7 @@ struct find_channelwise_conv_pointwise
             return;
         auto* pm       = pw_ins->module_inputs().front();
         auto pw_inputs = pw_ins->inputs();
-        auto cw_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), channelwise_ins);
+        auto* cw_pos   = std::find(pw_inputs.begin(), pw_inputs.end(), channelwise_ins);
         assert(cw_pos != pw_inputs.end());
         pw_inputs.erase(cw_pos);
         auto inputs = channelwise_ins->inputs();
@@ -1045,7 +1045,7 @@ struct find_winograd_conv_pointwise
         assert(not pw_ins->module_inputs().empty());
         auto* pm       = pw_ins->module_inputs().front();
         auto pw_inputs = pw_ins->inputs();
-        auto wn_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), winograd_ins);
+        auto* wn_pos   = std::find(pw_inputs.begin(), pw_inputs.end(), winograd_ins);
         assert(wn_pos != pw_inputs.end());
         pw_inputs.erase(wn_pos);
         // Winograd's inputs are (x, u, output_alloc). Drop that alloc, then

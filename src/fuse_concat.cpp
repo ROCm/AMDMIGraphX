@@ -231,7 +231,7 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                            return pm;
                        });
 
-        auto* post_pm                  = ins->module_inputs().front();
+        const auto* post_pm            = ins->module_inputs().front();
         auto* rm                       = mpm.create_module(post_pm->name() + ":concat", *post_pm);
         std::vector<std::string> names = rm->get_parameter_names();
         std::sort(names.begin(), names.end());

@@ -30,6 +30,8 @@
 #include <migraphx/module_ref.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/erase.hpp>
+#include <migraphx/small_vector.hpp>
+#include <migraphx/span.hpp>
 #include <migraphx/config.hpp>
 #include <set>
 #include <unordered_set>
@@ -38,11 +40,11 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_EXPORT shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
+MIGRAPHX_EXPORT shape compute_shape(const operation& op, span<const instruction_ref> args);
 MIGRAPHX_EXPORT shape compute_shape(const operation& op,
-                                    const std::vector<instruction_ref>& args,
-                                    const std::vector<module_ref>& mods);
-MIGRAPHX_EXPORT std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
+                                    span<const instruction_ref> args,
+                                    span<const module_ref> mods);
+MIGRAPHX_EXPORT std::vector<shape> to_shapes(span<const instruction_ref> args);
 MIGRAPHX_EXPORT std::vector<shape> try_compute_shape(const operation& op,
                                                      const std::vector<shape>& inputs);
 
@@ -50,7 +52,7 @@ MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end);
 
 MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end, const_module_ref m);
 
-MIGRAPHX_EXPORT bool is_interdependent(const std::vector<instruction_ref>& instructions,
+MIGRAPHX_EXPORT bool is_interdependent(span<const instruction_ref> instructions,
                                        const_module_ref m,
                                        instruction_ref root);
 MIGRAPHX_EXPORT std::unordered_set<instruction_ref>
@@ -64,19 +66,18 @@ find_instructions_between(instruction_ref start, instruction_ref end, const_modu
  * `ends`: instructions returned by parser/builder.
  */
 MIGRAPHX_EXPORT std::vector<instruction_ref>
-get_added_instructions(const std::vector<instruction_ref>& starts,
-                       const std::vector<instruction_ref>& ends);
+get_added_instructions(span<const instruction_ref> starts, span<const instruction_ref> ends);
 
 struct MIGRAPHX_EXPORT instruction
 {
     instruction() {}
 
-    instruction(operation o, shape r, std::vector<instruction_ref> args);
+    instruction(operation o, shape r, span<const instruction_ref> args);
 
     instruction(operation o,
                 shape r,
-                std::vector<instruction_ref> args,
-                std::vector<module_ref> modules);
+                span<const instruction_ref> args,
+                span<const module_ref> modules);
 
     instruction(literal l);
 
@@ -99,12 +100,12 @@ struct MIGRAPHX_EXPORT instruction
 
     std::string name() const;
 
-    const std::vector<instruction_ref>& inputs() const;
+    const small_vector<instruction_ref>& inputs() const;
 
-    const std::vector<module_ref>& module_inputs() const;
+    const small_vector<module_ref>& module_inputs() const;
 
     /// Where this instruction is used as an input to another instruction
-    const std::vector<instruction_ref>& outputs() const;
+    const small_vector<instruction_ref>& outputs() const;
 
     const std::set<std::string>& get_debug_symbols() const;
 
@@ -143,13 +144,13 @@ struct MIGRAPHX_EXPORT instruction
     static void replace_mod_argument(instruction_ref ins, module_ref old, module_ref new_mod);
 
     static void
-    replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
+    replace(instruction_ref ins, operation o, const shape& r, span<const instruction_ref> args);
 
     static void replace(instruction_ref ins,
                         operation o,
                         const shape& r,
-                        std::vector<instruction_ref> args,
-                        std::vector<module_ref> module_args);
+                        span<const instruction_ref> args,
+                        span<const module_ref> module_args);
 
     bool can_eval() const;
 
@@ -181,19 +182,19 @@ struct MIGRAPHX_EXPORT instruction
 
     private:
     // internal
-    void replace(operation o, const shape& r, std::vector<instruction_ref> args);
+    void replace(operation o, const shape& r, span<const instruction_ref> args);
 
     // internal
     void replace(operation o,
                  const shape& r,
-                 std::vector<instruction_ref> args,
-                 std::vector<module_ref> mdl_args);
+                 span<const instruction_ref> args,
+                 span<const module_ref> mdl_args);
 
     // internal
-    void replace(std::vector<instruction_ref> args);
+    void replace(span<const instruction_ref> args);
 
     // internal
-    void replace(std::vector<instruction_ref> args, std::vector<module_ref> mdl_args);
+    void replace(span<const instruction_ref> args, span<const module_ref> mdl_args);
 
     // internal
     void replace_argument(instruction_ref old, instruction_ref new_ins);
@@ -205,9 +206,9 @@ struct MIGRAPHX_EXPORT instruction
 
     operation op;
     shape result{};
-    std::vector<instruction_ref> output;
-    std::vector<instruction_ref> arguments;
-    std::vector<module_ref> module_args;
+    small_vector<instruction_ref> output;
+    small_vector<instruction_ref> arguments;
+    small_vector<module_ref> module_args;
     std::set<std::string> debug_symbols;
     literal lit;
     bool normalized       = false;

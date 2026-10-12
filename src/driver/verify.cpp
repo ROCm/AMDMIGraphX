@@ -480,13 +480,14 @@ get_parent(const std::unordered_map<instruction_ref, std::size_t>& weights, inst
 {
     if(ins->inputs().empty())
         return nullopt;
-    auto next = std::max_element(ins->inputs().begin(),
-                                 ins->inputs().end(),
-                                 by(std::less<>{}, [&](instruction_ref input) -> std::size_t {
-                                     if(not contains(weights, input))
-                                         return 0;
-                                     return weights.at(input);
-                                 }));
+    const auto* next =
+        std::max_element(ins->inputs().begin(),
+                         ins->inputs().end(),
+                         by(std::less<>{}, [&](instruction_ref input) -> std::size_t {
+                             if(not contains(weights, input))
+                                 return 0;
+                             return weights.at(input);
+                         }));
     return *next;
 }
 

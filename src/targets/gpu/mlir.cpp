@@ -1182,7 +1182,7 @@ static std::vector<shape> adjust_return_shapes(module& m, const std::vector<shap
     assert(ret->name() == "@return");
     auto returns = ret->inputs();
     assert(returns.size() == outputs.size());
-    std::vector<instruction_ref> new_returns;
+    small_vector<instruction_ref> new_returns;
     std::transform(returns.begin(),
                    returns.end(),
                    outputs.begin(),
@@ -1240,7 +1240,7 @@ std::vector<shape> adjust_param_shapes(module& m, const std::vector<shape>& inpu
     return result;
 }
 
-static void replace_params_with_literals(module& m, const std::vector<instruction_ref>& inputs)
+static void replace_params_with_literals(module& m, span<const instruction_ref> inputs)
 {
     auto names = m.get_parameter_names();
     std::sort(names.begin(), names.end());
@@ -1453,10 +1453,8 @@ std::string mlir_compile_key(const context& migraphx_ctx,
     return ss.str();
 }
 
-instruction_ref insert_mlir(module& m,
-                            instruction_ref ins,
-                            code_object_op co,
-                            const std::vector<instruction_ref>& inputs)
+instruction_ref
+insert_mlir(module& m, instruction_ref ins, code_object_op co, span<const instruction_ref> inputs)
 {
 
     std::vector<instruction_ref> refs;
@@ -1514,9 +1512,7 @@ bool mlir_lds_usage_fits_arch(int64_t gemm_o,
         gemm_o, arch.c_str(), prog.make_type(elem_type), MlirModule{});
 }
 
-void dump_mlir_to_mxr(module m,
-                      const std::vector<instruction_ref>& inputs,
-                      const fs::path& location)
+void dump_mlir_to_mxr(module m, span<const instruction_ref> inputs, const fs::path& location)
 {
     static std::mutex mutex;
     const std::lock_guard<std::mutex> lock(mutex);
@@ -1565,7 +1561,7 @@ std::string mlir_compile_key(const context&, module, const std::vector<shape>&, 
 
 instruction_ref
 // cppcheck-suppress funcArgNamesDifferent
-insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<instruction_ref>&)
+insert_mlir(module& m, instruction_ref, code_object_op co, span<const instruction_ref>)
 {
     use(co);
     use(m);
@@ -1591,7 +1587,7 @@ std::vector<shape> adjust_param_shapes(module&, const std::vector<shape>&) { ret
 
 void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
 
-void dump_mlir_to_mxr(module, const std::vector<instruction_ref>&, const fs::path&) {}
+void dump_mlir_to_mxr(module, span<const instruction_ref>, const fs::path&) {}
 // NOLINTEND(performance-unnecessary-value-param)
 
 #endif

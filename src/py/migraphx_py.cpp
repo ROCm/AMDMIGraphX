@@ -29,6 +29,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/small_vector.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/autocast_fp8.hpp>
@@ -148,6 +149,11 @@ namespace detail {
 
 template <>
 struct type_caster<migraphx::value::binary> : list_caster<migraphx::value::binary, std::uint8_t>
+{
+};
+
+template <class T, std::size_t N>
+struct type_caster<migraphx::small_vector<T, N>> : list_caster<migraphx::small_vector<T, N>, T>
 {
 };
 

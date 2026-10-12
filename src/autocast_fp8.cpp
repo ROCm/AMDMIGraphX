@@ -55,7 +55,7 @@ void autocast_fp8_pass::apply(module& m) const
 
         if(ins_name == "@return")
         {
-            std::vector<instruction_ref> inputs = ins->inputs();
+            const auto& inputs = ins->inputs();
             std::vector<instruction_ref> new_inputs;
             std::transform(
                 inputs.begin(), inputs.end(), std::back_inserter(new_inputs), [&](auto i) {

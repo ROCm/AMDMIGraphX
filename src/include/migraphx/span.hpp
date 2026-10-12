@@ -30,6 +30,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
 #include <stdexcept>
@@ -232,6 +233,19 @@ struct span
     constexpr explicit span(Range&& r) : storage(std::data(r), std::size(r))
     {
         assert(std::size(r) == Extent);
+    }
+
+    /// A braced list may only be viewed through a span of const elements, as in C++26
+    template <MIGRAPHX_REQUIRES(Extent == dynamic_extent and std::is_const<T>{})>
+    constexpr span(std::initializer_list<value_type> il) noexcept : storage(il.begin(), il.size())
+    {
+    }
+
+    template <MIGRAPHX_REQUIRES(Extent != dynamic_extent and std::is_const<T>{})>
+    constexpr explicit span(std::initializer_list<value_type> il) noexcept
+        : storage(il.begin(), il.size())
+    {
+        assert(il.size() == Extent);
     }
 
     template <class U,

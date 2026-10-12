@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <initializer_list>
 #include <iterator>
 #include <list>
 #include <numeric>
@@ -214,6 +215,39 @@ TEST_CASE(construct_small_vector)
     migraphx::span deduced(sv);
     static_assert(std::is_same<decltype(deduced), migraphx::span<int>>{});
     EXPECT(views(deduced, {1, 2, 3}));
+}
+
+TEST_CASE(construct_initializer_list)
+{
+    // The array behind a braced list only lives for the full expression, so a span of one is
+    // held through a named initializer_list here
+    std::initializer_list<int> il = {1, 2, 3};
+    migraphx::span<const int> s   = il;
+    EXPECT(views(s, {1, 2, 3}));
+    std::initializer_list<int> il2 = {4, 5};
+    migraphx::span<const int, 2> f(il2);
+    EXPECT(views(f, {4, 5}));
+    migraphx::span<const int> e = {};
+    EXPECT(e.empty());
+    static_assert(std::is_convertible<std::initializer_list<int>, migraphx::span<const int>>{});
+    static_assert(
+        not std::is_convertible<std::initializer_list<int>, migraphx::span<const int, 2>>{});
+    static_assert(
+        std::is_constructible<migraphx::span<const int, 2>, std::initializer_list<int>>{});
+    static_assert(not std::is_constructible<migraphx::span<int>, std::initializer_list<int>>{});
+}
+
+static int sum_span(migraphx::span<const int> s) { return std::accumulate(s.begin(), s.end(), 0); }
+
+TEST_CASE(pass_braced_list)
+{
+    std::vector<int> v   = {1, 2};
+    std::array<int, 2> a = {{3, 4}};
+    EXPECT(sum_span({5, 6, 7}) == 18);
+    EXPECT(sum_span(v) == 3);
+    EXPECT(sum_span(a) == 7);
+    EXPECT(sum_span({}) == 0);
+    EXPECT(sum_span({v.front()}) == 1);
 }
 
 TEST_CASE(construct_from_span)

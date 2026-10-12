@@ -30,6 +30,8 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/module_ref.hpp>
+#include <migraphx/small_vector.hpp>
+#include <migraphx/span.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
@@ -102,11 +104,11 @@ struct MIGRAPHX_EXPORT module
         return add_instruction(op, {args...});
     }
 
-    instruction_ref add_instruction(const operation& op, std::vector<instruction_ref> args);
+    instruction_ref add_instruction(const operation& op, span<const instruction_ref> args);
 
     instruction_ref add_instruction(const operation& op,
-                                    std::vector<instruction_ref> args,
-                                    std::vector<module_ref> module_args);
+                                    span<const instruction_ref> args,
+                                    span<const module_ref> module_args);
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref insert_instruction(instruction_ref ins, operation op, Ts... args)
@@ -114,26 +116,25 @@ struct MIGRAPHX_EXPORT module
         return insert_instruction(ins, op, {args...});
     }
     instruction_ref
-    insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
+    insert_instruction(instruction_ref ins, const operation& op, span<const instruction_ref> args);
 
     instruction_ref insert_instruction(instruction_ref ins,
                                        const operation& op,
-                                       std::vector<instruction_ref> args,
-                                       std::vector<module_ref> module_args);
+                                       span<const instruction_ref> args,
+                                       span<const module_ref> module_args);
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref replace_instruction(instruction_ref ins, operation op, Ts... args)
     {
         return replace_instruction(ins, op, {args...});
     }
-    instruction_ref replace_instruction(instruction_ref ins,
-                                        const operation& op,
-                                        std::vector<instruction_ref> args);
+    instruction_ref
+    replace_instruction(instruction_ref ins, const operation& op, span<const instruction_ref> args);
 
     instruction_ref replace_instruction(instruction_ref ins,
                                         const operation& op,
-                                        std::vector<instruction_ref> args,
-                                        std::vector<module_ref> module_args);
+                                        span<const instruction_ref> args,
+                                        span<const module_ref> module_args);
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 
@@ -141,8 +142,8 @@ struct MIGRAPHX_EXPORT module
     {
         instruction_ref ins;
         operation op;
-        std::vector<instruction_ref> args;
-        std::vector<module_ref> module_args;
+        small_vector<instruction_ref> args;
+        small_vector<module_ref> module_args;
     };
 
     /// Replaces an array of instructions within the same function to properly handle debug symbols
@@ -159,7 +160,7 @@ struct MIGRAPHX_EXPORT module
     void move_output_instructions_after(instruction_ref src, instruction_ref dst);
 
     std::vector<instruction_ref>
-    add_instructions(const std::vector<instruction_ref>& instructions,
+    add_instructions(span<const instruction_ref> instructions,
                      std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
                      inserter insert                                               = nullptr);
 
@@ -176,7 +177,7 @@ struct MIGRAPHX_EXPORT module
 
     std::vector<instruction_ref>
     insert_instructions(instruction_ref ins,
-                        const std::vector<instruction_ref>& instructions,
+                        span<const instruction_ref> instructions,
                         std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
                         inserter insert                                               = nullptr);
 
@@ -205,9 +206,9 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref add_parameter(std::string name, shape s);
 
-    instruction_ref add_return(std::vector<instruction_ref> args);
+    instruction_ref add_return(span<const instruction_ref> args);
 
-    instruction_ref replace_return(std::vector<instruction_ref> args);
+    instruction_ref replace_return(span<const instruction_ref> args);
 
     instruction_ref insert_literal(instruction_ref ins, literal l);
 
@@ -259,7 +260,7 @@ struct MIGRAPHX_EXPORT module
     /// parameter instruction. Use the `reverse` flag to reverse the lookup
     /// to be from parameter instruction to input instread.
     std::unordered_map<instruction_ref, instruction_ref>
-    get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse = false) const;
+    get_ins_param_map(span<const instruction_ref> inputs, bool reverse = false) const;
 
     /// Given a mapping from submodule instructions to parent module instructions
     /// construct a vector of inputs with parent module instructions in the
@@ -274,18 +275,18 @@ struct MIGRAPHX_EXPORT module
     /// module. As such the inputs instructions to the second module will use
     /// the split instructions as input placeholders that can be replaced
     /// later.
-    std::array<with_inputs, 2> split(const std::vector<instruction_ref>& args,
-                                     const std::vector<instruction_ref>& splits) const;
+    std::array<with_inputs, 2> split(span<const instruction_ref> args,
+                                     span<const instruction_ref> splits) const;
 
     /// This will split the module in 3 parts using different split
     /// instruction for each additional module.
-    std::array<with_inputs, 3> split(const std::vector<instruction_ref>& args,
-                                     const std::vector<instruction_ref>& splits1,
-                                     const std::vector<instruction_ref>& splits2) const;
+    std::array<with_inputs, 3> split(span<const instruction_ref> args,
+                                     span<const instruction_ref> splits1,
+                                     span<const instruction_ref> splits2) const;
 
     // Insert params to module based on given input instructions and add
     // mappings from inputs to corresponding params in instructions map
-    void add_params(const std::vector<instruction_ref>& inputs,
+    void add_params(span<const instruction_ref> inputs,
                     std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
                     const std::function<shape(const shape&)>& shape_transform     = nullptr);
 
@@ -295,7 +296,7 @@ struct MIGRAPHX_EXPORT module
      * `map_ins` is mapping from previous instructions to new instructions.
      */
     std::vector<instruction_ref>
-    fuse(const std::vector<instruction_ref>& inss,
+    fuse(span<const instruction_ref> inss,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
          inserter insert                                               = nullptr,
          const std::function<shape(const shape&)>& shape_transform     = nullptr);
@@ -308,7 +309,7 @@ struct MIGRAPHX_EXPORT module
      */
     std::vector<instruction_ref>
     fuse(const module& m,
-         const std::vector<instruction_ref>& inputs,
+         span<const instruction_ref> inputs,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
          inserter insert                                               = nullptr,
          const std::function<shape(const shape&)>& shape_transform     = nullptr);
@@ -318,7 +319,7 @@ struct MIGRAPHX_EXPORT module
     std::vector<instruction_ref>
     insert_inline(instruction_ref ins,
                   const module& m,
-                  const std::vector<instruction_ref>& inputs,
+                  span<const instruction_ref> inputs,
                   std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
                   inserter insert                                               = nullptr);
 
@@ -326,7 +327,7 @@ struct MIGRAPHX_EXPORT module
     void debug_print(instruction_ref ins) const;
     void debug_print(instruction_ref ins,
                      std::unordered_map<instruction_ref, std::string>& names) const;
-    void debug_print(const std::vector<instruction_ref>& inss) const;
+    void debug_print(span<const instruction_ref> inss) const;
 
     std::unordered_map<instruction_ref, std::string> print(
         const std::function<void(
@@ -405,8 +406,7 @@ struct MIGRAPHX_EXPORT module_with_inputs
 
     /// Replace the input instructions of the keys with the instructions
     /// passed as values. Both vectors should be in the same order.
-    void replace(const std::vector<instruction_ref>& keys,
-                 const std::vector<instruction_ref>& values);
+    void replace(span<const instruction_ref> keys, span<const instruction_ref> values);
 };
 
 inline module& get_module(module& m) { return m; }

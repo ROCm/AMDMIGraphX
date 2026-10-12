@@ -327,8 +327,9 @@ insert_generic_instructions_impl(module& m,
         }
         else
         {
-            auto mod_args = sins->module_inputs();
-            auto inputs   = sins->inputs();
+            std::vector<module_ref> mod_args(sins->module_inputs().begin(),
+                                             sins->module_inputs().end());
+            auto inputs = sins->inputs();
             std::vector<instruction_ref> copy_inputs(inputs.size());
             std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
                 return contains(map_ins, i) ? map_ins[i] : i;
@@ -366,40 +367,40 @@ insert_generic_instructions(module& m,
         m, ins, static_cast<Range&&>(instructions), map_ins, std::move(insert));
 }
 
-instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
+instruction_ref module::add_instruction(const operation& op, span<const instruction_ref> args)
 {
-    return insert_instruction(this->insert_end(), op, std::move(args));
+    return insert_instruction(this->insert_end(), op, args);
 }
 
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
-                                           std::vector<instruction_ref> args)
+                                           span<const instruction_ref> args)
 {
     assert(has_instruction(ins) or is_end(ins, this->end()));
     assert(not starts_with(op.name(), "@") or op.name() == "@comment");
     shape r     = compute_shape(op, args);
-    auto result = impl->insert(ins, {op, r, std::move(args)});
+    auto result = impl->insert(ins, {op, r, args});
     instruction::backreference(result);
     assert(result->valid(begin()));
     return result;
 }
 
 instruction_ref module::add_instruction(const operation& op,
-                                        std::vector<instruction_ref> args,
-                                        std::vector<module_ref> module_args)
+                                        span<const instruction_ref> args,
+                                        span<const module_ref> module_args)
 {
-    return insert_instruction(this->insert_end(), op, std::move(args), std::move(module_args));
+    return insert_instruction(this->insert_end(), op, args, module_args);
 }
 
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
-                                           std::vector<instruction_ref> args,
-                                           std::vector<module_ref> module_args)
+                                           span<const instruction_ref> args,
+                                           span<const module_ref> module_args)
 {
     assert(has_instruction(ins) or is_end(ins, this->end()));
     assert(not starts_with(op.name(), "@") or op.name() == "@comment");
     auto out_shape = compute_shape(op, args, module_args);
-    auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
+    auto result    = impl->insert(ins, {op, out_shape, args, module_args});
     instruction::backreference(result);
     assert(result->valid(begin()));
     return result;
@@ -415,7 +416,7 @@ static std::unordered_set<instruction_ref> gather_max_splice(
     const_module_ref m, instruction_ref ins, std::unordered_set<instruction_ref> stops = {})
 {
     std::unordered_set<instruction_ref> result = {ins};
-    fix<void>([&](auto self, const std::vector<instruction_ref>& inputs) {
+    fix<void>([&](auto self, span<const instruction_ref> inputs) {
         for(auto input : inputs)
         {
             if(not m->has_instruction(input))
@@ -506,7 +507,7 @@ static void propagate_debug_symbols(module_ref m,
 // Adds a placeholder identity instruction for when replacing an instruction in place.
 static void propagate_debug_symbols_with_placeholder(module_ref m,
                                                      instruction_ref ins,
-                                                     const std::vector<instruction_ref>& prev_args)
+                                                     span<const instruction_ref> prev_args)
 {
     auto id_ins = m->insert_instruction(ins, make_op("identity"), prev_args);
     // Get old_max_splice after replacement to get smallest dependent splice
@@ -519,27 +520,27 @@ static void propagate_debug_symbols_with_placeholder(module_ref m,
 
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
-                                            std::vector<instruction_ref> args)
+                                            span<const instruction_ref> args)
 {
-    return replace_instruction(ins, op, std::move(args), {});
+    return replace_instruction(ins, op, args, {});
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
-                                            std::vector<instruction_ref> args,
-                                            std::vector<module_ref> module_args)
+                                            span<const instruction_ref> args,
+                                            span<const module_ref> module_args)
 {
     impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
     auto guard     = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
     auto out_shape = compute_shape(op, args, module_args);
-    std::vector<instruction_ref> prev_args;
+    small_vector<instruction_ref> prev_args;
     if(has_debug_symbols())
     {
         prev_args = ins->inputs();
     }
-    instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
+    instruction::replace(ins, op, out_shape, args, module_args);
     if(has_debug_symbols() and not prev_args.empty())
     {
         propagate_debug_symbols_with_placeholder(this, ins, prev_args);
@@ -613,7 +614,7 @@ module::batch_replace_instruction(const std::vector<instruction_replacement>& re
     {
         assert(has_instruction(replacer.ins));
         assert(not starts_with(replacer.op.name(), "@"));
-        std::vector<instruction_ref> prev_args;
+        small_vector<instruction_ref> prev_args;
         if(has_debug_symbols())
         {
             prev_args = replacer.ins->inputs();
@@ -774,7 +775,7 @@ void module::move_output_instructions_after(instruction_ref src, instruction_ref
 }
 
 std::vector<instruction_ref>
-module::add_instructions(const std::vector<instruction_ref>& instructions,
+module::add_instructions(span<const instruction_ref> instructions,
                          std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                          module::inserter insert)
 {
@@ -800,7 +801,7 @@ module::add_instructions(instruction_ref start,
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
-                            const std::vector<instruction_ref>& instructions,
+                            span<const instruction_ref> instructions,
                             std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                             module::inserter insert)
 {
@@ -855,10 +856,10 @@ instruction_ref module::add_parameter(std::string name, shape s)
     return insert_parameter(begin(), std::move(name), std::move(s));
 }
 
-instruction_ref module::add_return(std::vector<instruction_ref> args)
+instruction_ref module::add_return(span<const instruction_ref> args)
 {
     shape instr_shape = compute_shape(builtin::returns{}, args);
-    impl->push_back({builtin::returns{}, instr_shape, std::move(args)});
+    impl->push_back({builtin::returns{}, instr_shape, args});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));
@@ -879,7 +880,7 @@ instruction_ref module::insert_parameter(instruction_ref ins, std::string name, 
     return std::prev(ins);
 }
 
-instruction_ref module::replace_return(std::vector<instruction_ref> args)
+instruction_ref module::replace_return(span<const instruction_ref> args)
 {
     impl->changed.notify();
     auto last = std::prev(this->end());
@@ -894,7 +895,7 @@ instruction_ref module::replace_return(std::vector<instruction_ref> args)
 
     auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*last); });
     shape r    = compute_shape(last->get_operator(), args);
-    instruction::replace(last, last->get_operator(), r, std::move(args));
+    instruction::replace(last, last->get_operator(), r, args);
     assert(last->valid(begin()));
 
     return last;
@@ -1089,7 +1090,9 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
             if(ins->name() == "@return")
                 return input_shapes;
             auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
-            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes, ins->module_inputs());
+            std::vector<module_ref> mod_args(ins->module_inputs().begin(),
+                                             ins->module_inputs().end());
+            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes, mod_args);
         }
     }
     MIGRAPHX_THROW("No return found in the submodule");
@@ -1104,7 +1107,7 @@ std::vector<instruction_ref> module::get_returns() const
 {
     auto last = std::prev(this->end());
     if(last->name() == "@return")
-        return last->inputs();
+        return {last->inputs().begin(), last->inputs().end()};
     return {last};
 }
 
@@ -1148,7 +1151,7 @@ instruction_ref module::find_dangling_reference() const
     auto last = std::prev(end());
     if(last->name() == "@return")
     {
-        auto dangling = std::find_if(
+        const auto* dangling = std::find_if(
             last->inputs().begin(), last->inputs().end(), [](auto x) { return is_dangling(x); });
         if(dangling != last->inputs().end())
             return *dangling;
@@ -1185,7 +1188,7 @@ void module::finalize(std::vector<context>& contexts)
 }
 
 std::unordered_map<instruction_ref, instruction_ref>
-module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse) const
+module::get_ins_param_map(span<const instruction_ref> inputs, bool reverse) const
 {
     std::unordered_map<instruction_ref, instruction_ref> result;
     auto params = this->get_parameters();
@@ -1247,15 +1250,15 @@ select_params(const std::vector<instruction_ref>& instructions,
 
 static std::array<module::with_inputs, 2>
 generic_split(const module& m,
-              const std::vector<instruction_ref>& args,
-              const std::vector<instruction_ref>& splits,
+              span<const instruction_ref> args,
+              span<const instruction_ref> splits,
               std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr)
 {
     std::unordered_map<instruction_ref, instruction_ref> param_map =
         m.get_ins_param_map(args, true);
 
     std::unordered_set<instruction_ref> selected_instructions;
-    fix([&](auto self, const std::vector<instruction_ref>& inputs) {
+    fix([&](auto self, span<const instruction_ref> inputs) {
         for(auto input : inputs)
         {
             if(contains(selected_instructions, input))
@@ -1304,7 +1307,7 @@ generic_split(const module& m,
         instructions2.push_back(ins);
     }
 
-    std::vector<instruction_ref> inputs2 = splits;
+    std::vector<instruction_ref> inputs2(splits.begin(), splits.end());
     module m2;
     std::size_t n = 0;
     std::unordered_map<instruction_ref, instruction_ref> map_ins2;
@@ -1326,15 +1329,15 @@ generic_split(const module& m,
     return {{{std::move(m1), std::move(inputs1)}, {std::move(m2), std::move(inputs2)}}};
 }
 
-std::array<module::with_inputs, 2> module::split(const std::vector<instruction_ref>& args,
-                                                 const std::vector<instruction_ref>& splits) const
+std::array<module::with_inputs, 2> module::split(span<const instruction_ref> args,
+                                                 span<const instruction_ref> splits) const
 {
     return generic_split(*this, args, splits);
 }
 
-std::array<module::with_inputs, 3> module::split(const std::vector<instruction_ref>& args,
-                                                 const std::vector<instruction_ref>& splits1,
-                                                 const std::vector<instruction_ref>& splits2) const
+std::array<module::with_inputs, 3> module::split(span<const instruction_ref> args,
+                                                 span<const instruction_ref> splits1,
+                                                 span<const instruction_ref> splits2) const
 {
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     auto mods1 = generic_split(*this, args, splits1, &map_ins);
@@ -1364,7 +1367,7 @@ std::array<module::with_inputs, 3> module::split(const std::vector<instruction_r
 // Insert parameters into the module based on the input instructions and then
 // update the map_ins to map the input to the parameter.
 static void insert_params(module& m,
-                          const std::vector<instruction_ref>& inputs,
+                          span<const instruction_ref> inputs,
                           std::unordered_map<instruction_ref, instruction_ref>& map_ins,
                           const std::function<shape(const shape&)>& shape_transform = nullptr)
 {
@@ -1379,7 +1382,7 @@ static void insert_params(module& m,
     }
 }
 
-void module::add_params(const std::vector<instruction_ref>& inputs,
+void module::add_params(span<const instruction_ref> inputs,
                         std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                         const std::function<shape(const shape&)>& shape_transform)
 {
@@ -1390,7 +1393,7 @@ void module::add_params(const std::vector<instruction_ref>& inputs,
 }
 
 std::vector<instruction_ref>
-module::fuse(const std::vector<instruction_ref>& inss,
+module::fuse(span<const instruction_ref> inss,
              std::unordered_map<instruction_ref, instruction_ref>* map_ins,
              module::inserter insert,
              const std::function<shape(const shape&)>& shape_transform)
@@ -1416,7 +1419,7 @@ module::fuse(const std::vector<instruction_ref>& inss,
 
 std::vector<instruction_ref>
 module::fuse(const module& m,
-             const std::vector<instruction_ref>& inputs,
+             span<const instruction_ref> inputs,
              std::unordered_map<instruction_ref, instruction_ref>* map_ins,
              module::inserter insert,
              const std::function<shape(const shape&)>& shape_transform)
@@ -1436,7 +1439,7 @@ module::fuse(const module& m,
 std::vector<instruction_ref>
 module::insert_inline(instruction_ref ins,
                       const module& m,
-                      const std::vector<instruction_ref>& inputs,
+                      span<const instruction_ref> inputs,
                       std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                       module::inserter insert)
 {
@@ -1467,12 +1470,12 @@ void module_with_inputs::replace(
         ins = map_ins.at(ins);
     }
 }
-void module_with_inputs::replace(const std::vector<instruction_ref>& keys,
-                                 const std::vector<instruction_ref>& values)
+void module_with_inputs::replace(span<const instruction_ref> keys,
+                                 span<const instruction_ref> values)
 {
     for(auto& ins : inputs)
     {
-        auto it = std::find(keys.begin(), keys.end(), ins);
+        const auto* it = std::find(keys.begin(), keys.end(), ins);
         if(it == keys.end())
             continue;
         assert(ins->get_shape().lens() == values[it - keys.begin()]->get_shape().lens());
@@ -1513,7 +1516,7 @@ void module::debug_print(instruction_ref ins) const
     this->debug_print(ins, names);
 }
 
-void module::debug_print(const std::vector<instruction_ref>& inss) const
+void module::debug_print(span<const instruction_ref> inss) const
 {
     for(auto ins : inss)
         this->debug_print(ins);

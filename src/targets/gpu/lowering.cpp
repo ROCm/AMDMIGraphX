@@ -236,8 +236,8 @@ struct miopen_apply
 
     instruction_ref insert_precompile_op(instruction_ref ins) const
     {
-        auto output                       = insert_allocation(ins, ins->get_shape());
-        std::vector<instruction_ref> refs = ins->inputs();
+        auto output = insert_allocation(ins, ins->get_shape());
+        auto refs   = ins->inputs();
         refs.push_back(output);
 
         return mod->replace_instruction(
@@ -271,7 +271,7 @@ struct miopen_apply
     void add_gemm_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
-            std::vector<instruction_ref> refs = ins->inputs();
+            auto refs = ins->inputs();
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
@@ -333,8 +333,8 @@ struct miopen_apply
     void add_generic_op(const std::string& op_name, const std::string& gpu_name)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
-            auto output                       = insert_allocation(ins, ins->get_shape());
-            std::vector<instruction_ref> refs = ins->inputs();
+            auto output = insert_allocation(ins, ins->get_shape());
+            auto refs   = ins->inputs();
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name), refs);
@@ -346,9 +346,9 @@ struct miopen_apply
     void add_extend_op(const std::string& op_name, const std::string& gpu_name)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
-            auto&& op                         = ins->get_operator();
-            auto output                       = insert_allocation(ins, ins->get_shape());
-            std::vector<instruction_ref> refs = ins->inputs();
+            auto&& op   = ins->get_operator();
+            auto output = insert_allocation(ins, ins->get_shape());
+            auto refs   = ins->inputs();
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
@@ -387,9 +387,9 @@ struct miopen_apply
                 return insert_dynamic_code_object_op(preop);
             }
 #if MIGRAPHX_USE_MIOPEN
-            auto output                       = insert_allocation(ins, ins->get_shape());
-            std::vector<instruction_ref> refs = ins->inputs();
-            auto&& op                         = ins->get_operator();
+            auto output = insert_allocation(ins, ins->get_shape());
+            auto refs   = ins->inputs();
+            auto&& op   = ins->get_operator();
             refs.push_back(output);
             return mod->replace_instruction(ins, make_op("gpu::pooling", op.to_value()), refs);
 #else
@@ -416,7 +416,7 @@ struct miopen_apply
     void add_if_op()
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
-            std::vector<instruction_ref> inputs = ins->inputs();
+            auto inputs = ins->inputs();
             auto cpu_cond =
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.front());
             auto sync_cond = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_cond);
@@ -430,7 +430,7 @@ struct miopen_apply
     void add_loop_op()
     {
         apply_map.emplace("loop", [=](instruction_ref ins) {
-            std::vector<instruction_ref> inputs = ins->inputs();
+            auto inputs = ins->inputs();
             // copy max_iter from gpu to cpu
             auto cpu_max_iter =
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(0));
@@ -650,9 +650,9 @@ struct miopen_apply
     void add_select_module_op()
     {
         apply_map.emplace("select_module", [=](instruction_ref ins) {
-            auto s                              = ins->get_shape();
-            auto output                         = insert_allocation(ins, s);
-            std::vector<instruction_ref> inputs = ins->inputs();
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            auto inputs = ins->inputs();
             inputs.push_back(output);
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });

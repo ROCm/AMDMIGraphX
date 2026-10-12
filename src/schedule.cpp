@@ -97,7 +97,7 @@ struct stream_info
     }
 
     template <class Compare>
-    void sort_args_by_weight(std::vector<instruction_ref>& args, Compare compare) const
+    void sort_args_by_weight(small_vector<instruction_ref>& args, Compare compare) const
     {
         if(args.size() < 2)
             return;
@@ -107,7 +107,7 @@ struct stream_info
                   }));
     }
 
-    std::vector<instruction_ref>::iterator sort_args(std::vector<instruction_ref>& args)
+    small_vector<instruction_ref>::iterator sort_args(small_vector<instruction_ref>& args)
     {
         if(args.size() < 2)
         {
@@ -117,10 +117,10 @@ struct stream_info
         const std::size_t min_partition_threshold = 2;
         sort_args_by_weight(args, std::greater<>{});
 
-        auto it = std::lower_bound(std::next(args.begin()),
-                                   args.end(),
-                                   min_partition_threshold,
-                                   [&](auto i, std::size_t w) { return this->weights[i] > w; });
+        auto* it = std::lower_bound(std::next(args.begin()),
+                                    args.end(),
+                                    min_partition_threshold,
+                                    [&](auto i, std::size_t w) { return this->weights[i] > w; });
         assert(it == args.end() or this->weights[*it] <= min_partition_threshold);
         assert(it == args.end() or std::prev(it) == args.begin() or
                this->weights[*std::prev(it)] > min_partition_threshold);

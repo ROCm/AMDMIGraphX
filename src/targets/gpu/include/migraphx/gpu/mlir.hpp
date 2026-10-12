@@ -28,6 +28,7 @@
 #include <vector>
 #include <migraphx/value.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/span.hpp>
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -84,7 +85,7 @@ MIGRAPHX_GPU_EXPORT std::string mlir_compile_key(const context& migraphx_ctx,
 MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
                                                 instruction_ref ins,
                                                 code_object_op co,
-                                                const std::vector<instruction_ref>& inputs);
+                                                span<const instruction_ref> inputs);
 
 MIGRAPHX_GPU_EXPORT tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                                          module m,
@@ -92,7 +93,7 @@ MIGRAPHX_GPU_EXPORT tuning_config get_tuning_config_mlir(const context& migraphx
                                                          bool exhaustive);
 
 MIGRAPHX_GPU_EXPORT void
-dump_mlir_to_mxr(module m, const std::vector<instruction_ref>& inputs, const fs::path& location);
+dump_mlir_to_mxr(module m, span<const instruction_ref> inputs, const fs::path& location);
 
 // Returns true if rocMLIR estimates that a two-gemm problem with
 // the given second gemm's output dimension (gemm_o) fits within the target arch's LDS budget

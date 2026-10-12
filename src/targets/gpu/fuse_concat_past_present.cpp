@@ -24,17 +24,17 @@
 #include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/gpu/precompile_op.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/eliminate_concat.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_traversal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/optional.hpp>
-#include <migraphx/reshape_dims.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <algorithm>
 #include <cassert>
+#include <numeric>
 #include <string>
 
 namespace migraphx {
@@ -113,29 +113,17 @@ struct find_concat_past_present
         return {ks.type(), lens, ks.strides()};
     }
 
-    // The producer must write exactly the elements of the cache slot in the
-    // same memory order. The views between it and the concat only re-index a
-    // standard tensor, so the slot is re-indexed back to the producer dims
-    // as a lazy reshape; nullopt when it cant be.
-    static optional<shape>
-    producer_slot(instruction_ref producer, instruction_ref cur, instruction_ref cache)
+    // The concat input must cover exactly one cache slot
+    static bool fills_slot(instruction_ref cur, instruction_ref cache)
     {
-        const auto& ps = producer->get_shape();
         const auto& cs = cur->get_shape();
         const auto& ks = cache->get_shape();
-        if(not ps.standard() or not cs.standard() or not ks.standard())
-            return nullopt;
-        if(ps.type() != cs.type() or ps.elements() != cs.elements())
-            return nullopt;
+        if(not ks.standard() or cs.type() != ks.type())
+            return false;
         if(cs.ndim() != 4 or ks.ndim() != 4)
-            return nullopt;
-        auto slot = slot_shape(cur, cache);
-        if(cs.lens() != slot.lens() or slot.lens()[seq_axis] > ks.lens()[seq_axis])
-            return nullopt;
-        auto reshaped = reshape_dims(slot, ps.lens(), {.lazy = true});
-        if(not reshaped.has_value())
-            return nullopt;
-        return reshaped->to_static();
+            return false;
+        return cs.lens() == slot_shape(cur, cache).lens() and
+               cs.lens()[seq_axis] <= ks.lens()[seq_axis];
     }
 
     // One host copy of the sequence length serves every concat that reads it
@@ -156,12 +144,25 @@ struct find_concat_past_present
         auto cur      = ins->inputs()[0];
         auto slk      = ins->inputs()[1];
         auto cache    = ins->inputs()[2];
-        auto pslot    = producer_slot(producer, cur, cache);
-        if(not pslot.has_value())
+        if(not fills_slot(cur, cache))
             return;
         assert(not producer->inputs().empty());
         auto alloc = producer->inputs().back();
         if(alloc->name() != "allocate" or alloc->outputs().size() != 1)
+            return;
+
+        // The producer writes in its own dims and layout, so the slot is
+        // re-indexed back through the views between it and the concat
+        auto path = get_input_path(cur);
+        std::vector<instruction_ref> chain(path.begin(),
+                                           std::find(path.begin(), path.end(), producer));
+        std::vector<operation> chain_ops;
+        std::transform(chain.rbegin(),
+                       chain.rend(),
+                       std::back_inserter(chain_ops),
+                       [](instruction_ref x) { return x->get_operator(); });
+        auto inverse = invert_view_chain(chain_ops, producer->get_shape(), slot_shape(cur, cache));
+        if(not inverse.has_value())
             return;
 
         auto seq = cur->get_shape().lens()[seq_axis];
@@ -188,20 +189,19 @@ struct find_concat_past_present
 
         // The view is defined at the concat, so the producer and its view chain
         // move down to it; both are single-use so nothing in between needs them
-        auto path = get_input_path(cur);
-        std::vector<instruction_ref> chain(path.begin(),
-                                           std::find(path.begin(), path.end(), producer));
         m.move_instruction(producer, ins);
         std::for_each(chain.rbegin(), chain.rend(), [&](auto x) { m.move_instruction(x, ins); });
 
         assert(view->get_shape() == slot_shape(cur, cache));
-        // The producer writes its own dims, so give it the slot re-indexed as a view
-        if(view->get_shape() != *pslot)
-            view =
-                m.insert_instruction(ins, make_op("reshape_lazy", {{"dims", pslot->lens()}}), view);
-        assert(view->get_shape() == *pslot);
+        view = std::accumulate(inverse->first.begin(),
+                               inverse->first.end(),
+                               view,
+                               [&](instruction_ref start, const operation& op) {
+                                   return m.insert_instruction(ins, op, start);
+                               });
+        assert(view->get_shape() == inverse->second);
         auto v            = producer->get_operator().to_value();
-        v["output_shape"] = to_value(*pslot);
+        v["output_shape"] = to_value(inverse->second);
         auto inputs       = producer->inputs();
         inputs.back()     = view;
         m.replace_instruction(

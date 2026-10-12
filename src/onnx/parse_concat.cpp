@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/onnx/symbolic_shape.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -78,29 +77,10 @@ struct parse_concat : op_parser<parse_concat>
                 return arg->get_shape().to_symbolic().dyn_dims().at(axis).sym_expr;
             });
 
-        std::vector<instruction_ref> counts;
-        std::transform(
-            args.begin(),
-            args.end(),
-            axis_expressions.begin(),
-            std::back_inserter(counts),
-            [&](auto arg, const auto& expression) {
-                if(auto count = sym::fixed_value(expression))
-                {
-                    return info.add_literal(
-                        literal{{shape::int64_type, {1}}, {sym::to<int64_t>(*count)}});
-                }
-                auto sources = find_expression_sources(*info.mod, arg, {expression});
-                if(not sources.has_value())
-                    MIGRAPHX_THROW("PARSE_CONCAT: cannot resolve symbolic input extent");
-                return info.add_instruction(
-                    make_op("eval_expr_from_shape",
-                            {{"expressions", to_value(std::vector<sym::expr>{expression})}}),
-                    *sources);
-            });
-
+        auto counts = info.add_instruction(
+            make_op("eval_expr_from_shape", {{"expressions", to_value(axis_expressions)}}), args);
         auto dyn_concat_inputs = args;
-        dyn_concat_inputs.insert(dyn_concat_inputs.end(), counts.begin(), counts.end());
+        dyn_concat_inputs.push_back(counts);
         auto concat =
             info.add_instruction(make_op("dyn_concat", {{"axis", axis}}), dyn_concat_inputs);
         auto buffer = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), concat);

@@ -33,32 +33,27 @@
 TEST_CASE(dyn_concat_gpu_middle_axis)
 {
     migraphx::program p;
-    auto* mm     = p.get_main_module();
-    auto x       = mm->add_parameter("x", {migraphx::shape::int32_type, {2, 3, 2}});
-    auto y       = mm->add_parameter("y", {migraphx::shape::int32_type, {2, 2, 2}});
-    auto x_count = mm->add_parameter("x_count", {migraphx::shape::int64_type, {1}});
-    auto y_count = mm->add_parameter("y_count", {migraphx::shape::int64_type, {1}});
-    auto result =
-        mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 1}}), x, y, x_count, y_count);
+    auto* mm    = p.get_main_module();
+    auto x      = mm->add_parameter("x", {migraphx::shape::int32_type, {2, 3, 2}});
+    auto y      = mm->add_parameter("y", {migraphx::shape::int32_type, {2, 2, 2}});
+    auto counts = mm->add_parameter("counts", {migraphx::shape::int64_type, {2}});
+    auto result = mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 1}}), x, y, counts);
     auto buffer = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), result);
     auto count  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), result);
     mm->add_return({buffer, count});
 
     auto target = migraphx::make_target("gpu");
     p.compile(target);
-    std::vector<int32_t> x_data       = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-    std::vector<int32_t> y_data       = {100, 101, 102, 103, 104, 105, 106, 107};
-    std::vector<int64_t> x_count_data = {2};
-    std::vector<int64_t> y_count_data = {1};
+    std::vector<int32_t> x_data     = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    std::vector<int32_t> y_data     = {100, 101, 102, 103, 104, 105, 106, 107};
+    std::vector<int64_t> count_data = {2, 1};
     migraphx::parameter_map params;
     params["x"] =
         target.copy_to(migraphx::argument{{migraphx::shape::int32_type, {2, 3, 2}}, x_data.data()});
     params["y"] =
         target.copy_to(migraphx::argument{{migraphx::shape::int32_type, {2, 2, 2}}, y_data.data()});
-    params["x_count"] =
-        target.copy_to(migraphx::argument{{migraphx::shape::int64_type, {1}}, x_count_data.data()});
-    params["y_count"] =
-        target.copy_to(migraphx::argument{{migraphx::shape::int64_type, {1}}, y_count_data.data()});
+    params["counts"] =
+        target.copy_to(migraphx::argument{{migraphx::shape::int64_type, {2}}, count_data.data()});
     for(const auto& [name, s] : p.get_parameter_shapes())
         if(not contains(params, name))
             params[name] = target.allocate(s);
@@ -85,10 +80,8 @@ TEST_CASE(dyn_concat_gpu_dynamic_zero_input)
         "x", {shape::float_type, std::vector<dynamic_dimension>{{lit(2)}, {n}, {lit(2)}}});
     auto y = mm->add_parameter(
         "y", {shape::float_type, std::vector<dynamic_dimension>{{lit(2)}, {m}, {lit(2)}}});
-    auto x_count = mm->add_parameter("x_count", {shape::int64_type, {1}});
-    auto y_count = mm->add_parameter("y_count", {shape::int64_type, {1}});
-    auto result =
-        mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 1}}), x, y, x_count, y_count);
+    auto counts = mm->add_parameter("counts", {shape::int64_type, {2}});
+    auto result = mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 1}}), x, y, counts);
     auto buffer = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), result);
     auto count  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), result);
     mm->add_return({buffer, count});
@@ -96,16 +89,13 @@ TEST_CASE(dyn_concat_gpu_dynamic_zero_input)
     auto target = migraphx::make_target("gpu");
     p.compile(target);
     migraphx::argument x_arg{{shape::float_type, {2, 0, 2}}};
-    std::vector<float> y_data         = {5.0f, 6.0f, 7.0f, 8.0f};
-    std::vector<int64_t> x_count_data = {0};
-    std::vector<int64_t> y_count_data = {1};
+    std::vector<float> y_data       = {5.0f, 6.0f, 7.0f, 8.0f};
+    std::vector<int64_t> count_data = {0, 1};
     migraphx::parameter_map params;
     params["x"] = target.copy_to(x_arg);
     params["y"] = target.copy_to(migraphx::argument{{shape::float_type, {2, 1, 2}}, y_data.data()});
-    params["x_count"] =
-        target.copy_to(migraphx::argument{{shape::int64_type, {1}}, x_count_data.data()});
-    params["y_count"] =
-        target.copy_to(migraphx::argument{{shape::int64_type, {1}}, y_count_data.data()});
+    params["counts"] =
+        target.copy_to(migraphx::argument{{shape::int64_type, {2}}, count_data.data()});
     for(const auto& [name, s] : p.get_parameter_shapes())
         if(not contains(params, name))
             params[name] = target.allocate(s);

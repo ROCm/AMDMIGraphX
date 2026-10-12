@@ -31,13 +31,13 @@ struct test_dyn_concat : verify_program<test_dyn_concat>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm     = p.get_main_module();
-        auto x       = mm->add_parameter("x", {migraphx::shape::float_type, {2, 3, 2}});
-        auto y       = mm->add_parameter("y", {migraphx::shape::float_type, {2, 2, 2}});
-        auto x_count = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {2}});
-        auto y_count = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {1}});
-        auto result  = mm->add_instruction(
-            migraphx::make_op("dyn_concat", {{"axis", 1}}), x, y, x_count, y_count);
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {2, 3, 2}});
+        auto y   = mm->add_parameter("y", {migraphx::shape::float_type, {2, 2, 2}});
+        auto counts =
+            mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {2}}, {2, 1}});
+        auto result =
+            mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 1}}), x, y, counts);
         auto buffer =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), result);
         auto count =

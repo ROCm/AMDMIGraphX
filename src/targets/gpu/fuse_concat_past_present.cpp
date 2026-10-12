@@ -29,6 +29,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/reshape_dims.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <algorithm>
@@ -102,21 +104,38 @@ struct find_concat_past_present
                                                       match::arg(0)(match::skip(view)(producer)));
     }
 
-    // The producer must write exactly the elements of the cache slot, in the
-    // same memory order
-    static bool fills_slot(instruction_ref producer, instruction_ref cur, instruction_ref cache)
+    // The cache slot the append writes, in the layout of cur
+    static shape slot_shape(instruction_ref cur, instruction_ref cache)
+    {
+        const auto& ks = cache->get_shape();
+        auto lens      = ks.lens();
+        lens[seq_axis] = cur->get_shape().lens()[seq_axis];
+        return {ks.type(), lens, ks.strides()};
+    }
+
+    // The producer must write exactly the elements of the cache slot in the
+    // same memory order. The views between it and the concat only re-index a
+    // standard tensor, so the slot is re-indexed back to the producer dims
+    // as a lazy reshape; nullopt when it cant be.
+    static optional<shape>
+    producer_slot(instruction_ref producer, instruction_ref cur, instruction_ref cache)
     {
         const auto& ps = producer->get_shape();
         const auto& cs = cur->get_shape();
         const auto& ks = cache->get_shape();
-        if(ps != cs or not ps.standard() or not ks.standard())
-            return false;
+        if(not ps.standard() or not cs.standard() or not ks.standard())
+            return nullopt;
+        if(ps.type() != cs.type() or ps.elements() != cs.elements())
+            return nullopt;
         if(cs.ndim() != 4 or ks.ndim() != 4)
-            return false;
-        auto seq       = cs.lens()[seq_axis];
-        auto slot      = ks.lens();
-        slot[seq_axis] = seq;
-        return cs.lens() == slot and seq <= ks.lens()[seq_axis];
+            return nullopt;
+        auto slot = slot_shape(cur, cache);
+        if(cs.lens() != slot.lens() or slot.lens()[seq_axis] > ks.lens()[seq_axis])
+            return nullopt;
+        auto reshaped = reshape_dims(slot, ps.lens(), {.lazy = true});
+        if(not reshaped.has_value())
+            return nullopt;
+        return reshaped->to_static();
     }
 
     // One host copy of the sequence length serves every concat that reads it
@@ -137,7 +156,8 @@ struct find_concat_past_present
         auto cur      = ins->inputs()[0];
         auto slk      = ins->inputs()[1];
         auto cache    = ins->inputs()[2];
-        if(not fills_slot(producer, cur, cache))
+        auto pslot    = producer_slot(producer, cur, cache);
+        if(not pslot.has_value())
             return;
         assert(not producer->inputs().empty());
         auto alloc = producer->inputs().back();
@@ -174,8 +194,14 @@ struct find_concat_past_present
         m.move_instruction(producer, ins);
         std::for_each(chain.rbegin(), chain.rend(), [&](auto x) { m.move_instruction(x, ins); });
 
+        assert(view->get_shape() == slot_shape(cur, cache));
+        // The producer writes its own dims, so give it the slot re-indexed as a view
+        if(view->get_shape() != *pslot)
+            view =
+                m.insert_instruction(ins, make_op("reshape_lazy", {{"dims", pslot->lens()}}), view);
+        assert(view->get_shape() == *pslot);
         auto v            = producer->get_operator().to_value();
-        v["output_shape"] = to_value(view->get_shape());
+        v["output_shape"] = to_value(*pslot);
         auto inputs       = producer->inputs();
         inputs.back()     = view;
         m.replace_instruction(

@@ -150,6 +150,89 @@ TEST_CASE(skip_multi_use_producer)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// pointwise over the present shape split as {b, h, seq, 2, head/2} ->
+// reshape_lazy -> concat_past_present; the producer writes the slot through
+// the reshape
+TEST_CASE(fuse_decode_reshaped_producer)
+{
+    migraphx::shape split_shape{migraphx::shape::half_type, {1, 2, 1, 2, 2}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", split_shape);
+        auto y     = mm->add_parameter("y", split_shape);
+        auto slk   = mm->add_parameter("slk", index_shape());
+        auto cache = mm->add_parameter("cache", cache_shape());
+        auto* pm = create_pointwise_module(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(split_shape)}}));
+        auto pw  = mm->add_instruction(make_precompile_op("pointwise"), {x, y, alloc}, {pm});
+        auto rsp = mm->add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", present_shape(1).lens()}}), pw);
+        auto cpp = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}),
+                               cache_shape()),
+            rsp,
+            slk,
+            cache);
+        mm->add_return({cpp});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", split_shape);
+        auto y     = mm->add_parameter("y", split_shape);
+        auto slk   = mm->add_parameter("slk", index_shape());
+        auto cache = mm->add_parameter("cache", cache_shape());
+        auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
+        auto slot =
+            mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar);
+        auto view = mm->add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", split_shape.lens()}}), slot);
+        migraphx::shape split_slot{migraphx::shape::half_type, {1, 2, 1, 2, 2}, {64, 32, 4, 2, 1}};
+        auto pw = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("pointwise"), split_slot), {x, y, view}, {pm});
+        auto dep = mm->add_instruction(migraphx::make_op("identity"), cache, pw);
+        mm->add_return({dep});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A transpose that reorders non-unit dims changes the memory order, so the
+// producer cannot write the slot directly
+TEST_CASE(skip_transposed_producer)
+{
+    migraphx::shape transposed_shape{migraphx::shape::half_type, {1, 4, 1, 2}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", transposed_shape);
+        auto y     = mm->add_parameter("y", transposed_shape);
+        auto slk   = mm->add_parameter("slk", index_shape());
+        auto cache = mm->add_parameter("cache", cache_shape());
+        auto* pm = create_pointwise_module(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(transposed_shape)}}));
+        auto pw  = mm->add_instruction(make_precompile_op("pointwise"), {x, y, alloc}, {pm});
+        auto trp = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 2, 1}}}), pw);
+        auto cpp = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}),
+                               cache_shape()),
+            trp,
+            slk,
+            cache);
+        mm->add_return({cpp});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+
+    EXPECT(p1.sort() == p2.sort());
+}
+
 // Unlowered decode append: mul(x, y) -> concat_past_present(mul, slk, cache)
 static migraphx::program make_decode_program()
 {

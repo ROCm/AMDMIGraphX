@@ -25,6 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/prepare_reduce.hpp>
+#include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
@@ -62,8 +63,9 @@ static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
 
 /// Whether the stride of the input along the axis can be read as strided
 /// vectors: the kernel loads the block of stride elements around each lane,
-/// which stays inside the allocation when the block is a power of two of
-/// bytes, and a larger stride would load too many unused elements per lane
+/// which can read past the last lane but never past its own block, so the
+/// bytes are mapped when the block is a power of two of bytes and so never
+/// straddles a page; a larger stride would load too many unused elements
 static bool strided_vectorizable(const shape& input, std::size_t axis)
 {
     const std::size_t max_stride = 4;
@@ -207,7 +209,7 @@ static std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
     return (x + y - std::size_t{1}) / y;
 }
 
-static std::size_t compute_tile_factor(std::size_t r, std::size_t max_size = 64)
+std::size_t tile::compute_factor(std::size_t r, std::size_t max_size)
 {
     std::size_t n = 1;
     auto factors  = make_array(2, 3, 5, 7, 11);
@@ -260,8 +262,8 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
 
     const auto& s  = inputs.front();
-    auto dim1      = compute_tile_factor(s.lens()[result.axis]);
-    auto dim2      = compute_tile_factor(s.lens().back(), 4096 / dim1);
+    auto dim1      = compute_factor(s.lens()[result.axis]);
+    auto dim2      = compute_factor(s.lens().back(), 4096 / dim1);
     auto tile_size = dim1 * dim2;
     // equivalent to dim2 * (dim1 + 1) to avoid bank conflicts
     auto tile_bytes = (tile_size + dim2) * s.type_size();
@@ -270,7 +272,7 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
 
     result.ntiles = s.elements() / tile_size;
-    result.inner = s.lens();
+    result.inner  = s.lens();
     std::fill(result.inner.begin(), result.inner.end(), 1);
     result.inner[result.axis] = dim1;
     result.inner.back()       = dim2;
@@ -302,6 +304,23 @@ std::string tile::str() const
                               {{"modes", join_strings(strs, ", ")},
                                {"inner", generate_index_ints(inner)},
                                {"outer", generate_index_ints(outer)}});
+}
+
+std::vector<shape> reduce_dims_axis(std::vector<shape> inputs, std::size_t& axis)
+{
+    // Append a marker shape that is only unit-strided along axis, so reduce_dims
+    // wont merge that axis with an adjacent one and the marker tracks where it lands
+    const auto& s = inputs.back();
+    std::vector<std::size_t> strides(s.ndim());
+    strides[axis] = 1;
+    inputs.push_back(shape{s.type(), s.lens(), strides});
+
+    auto result         = reduce_dims(normalize_permutation(inputs));
+    const auto& rstride = result.back().strides();
+    axis                = std::find(rstride.begin(), rstride.end(), 1) - rstride.begin();
+    assert(axis < result.back().ndim());
+    result.pop_back();
+    return result;
 }
 
 std::size_t find_fast_axis(const shape& input)
@@ -658,7 +677,7 @@ std::string generate_reduce(const module& m, const std::string& name)
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
             return interpolate_string("${x}[_c<${index}>]",
-                                          {{"x", x}, {"index", std::to_string(index)}});
+                                      {{"x", x}, {"index", std::to_string(index)}});
         }
         if(contains({"gpu::make_indices", "topk"}, ins->name()))
             return generate_select(*ins, cpp_generator::to_args(ins->inputs(), names));

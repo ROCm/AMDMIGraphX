@@ -531,12 +531,18 @@ std::string symbol_name_registry::resolve(std::string_view external_name)
     if(it != resolved_names.end())
         return it->second;
 
-    auto base      = sanitize_symbol_name(external_name);
+    auto candidate = allocate(external_name);
+    resolved_names.emplace(std::move(name), candidate);
+    return candidate;
+}
+
+std::string symbol_name_registry::allocate(std::string_view preferred_name)
+{
+    auto base      = sanitize_symbol_name(preferred_name);
     auto candidate = base;
     for(std::size_t i = 2; contains(used_names, candidate); i++)
         candidate = base + "_" + std::to_string(i);
 
-    resolved_names.emplace(std::move(name), candidate);
     used_names.insert(candidate);
     return candidate;
 }

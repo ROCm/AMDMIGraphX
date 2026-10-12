@@ -382,7 +382,7 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
     auto is          = range(reduce_shape.lens().size());
     using array_type = std::array<std::size_t, 2>;
     auto initial     = array_type{std::numeric_limits<std::size_t>::max(),
-                              std::numeric_limits<std::size_t>::max()};
+                                  std::numeric_limits<std::size_t>::max()};
     auto faxis       = transform_accumulate(
         is.begin(), is.end(), initial, MIGRAPHX_LIFT(std::min), [&](auto i) -> array_type {
             if(input_shape.lens()[i] == output_shape.lens()[i])
@@ -438,7 +438,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         return inputs.front().elements() / inputs.back().elements();
     }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    hip_src make_src(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
         options.inputs         = inputs;
@@ -457,7 +457,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
             // load instructions for the same parallelism across outputs.
             if(options.virtual_inputs.back().lens()[faxis] == 1)
                 vec = vectorize::elements(faxis, options.virtual_inputs, {8, 4, 2});
-            auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
+            auto relements = get_reduce_elements(options.virtual_inputs) / vec.size;
             if(algo == "block")
             {
                 auto block_size = compute_block_size(ctx, relements, 256);
@@ -501,7 +501,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         }
         options.kernel_name  = "reduce_kernel";
         std::string identity = "[](auto x) { return x; }";
-        auto src             = interpolate_string(simple_reduce_kernel,
+        auto src = interpolate_string(simple_reduce_kernel,
                                       {{"reduction", v.at("reduction").to<std::string>()},
                                        {"init", v.get("init", std::string{"0"})},
                                        {"read", v.get("read", identity)},
@@ -510,10 +510,15 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
                                        {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
-        return compile_hip_code_object(ctx, src, options);
+        return {src, options};
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        return compile_hip_code_object(ctx, make_src(ctx, inputs, v));
+    }
+
+    static value make_value(instruction_ref ins, const operation& op)
     {
         value v = value::object{};
         reduce_op r{};
@@ -522,7 +527,18 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         v["read"]      = r.read;
         v["write"]     = r.write;
         v["init"]      = r.init;
-        return compile_op(ctx, to_shapes(ins->inputs()), v);
+        return v;
+    }
+
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    {
+        return compile_op(ctx, to_shapes(ins->inputs()), make_value(ins, op));
+    }
+
+    std::string
+    compile_key(context& ctx, instruction_ref ins, const operation& op, const value&) const
+    {
+        return hip_compile_key(ctx, make_src(ctx, to_shapes(ins->inputs()), make_value(ins, op)));
     }
 };
 
@@ -650,7 +666,7 @@ value find_packed_args(const module& rm)
 {
     value result = value::array{};
     auto params  = sorted_params(rm);
-    auto is = range(params.size());
+    auto is      = range(params.size());
     transform_if(
         is.begin(),
         is.end(),
@@ -1030,7 +1046,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 
     std::vector<std::string> names() const { return {"fused_reduce", "split_fused_reduce"}; }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    hip_src make_src(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto plan      = compute_fused_reduce_plan(ctx, inputs, v);
         auto noutputs  = plan.finputs.size() - inputs.size() + 1;
@@ -1081,6 +1097,10 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(contains({"block_tile", "block_batch"}, algo) and
            plan.is_gather_axis(v.at("tile_axis").to<std::size_t>()))
             algo = "block";
+        // The batch slice moves the tile axis to the front, which the gather
+        // view cant follow since it slices on its original axis
+        if(algo == "block_batch" and not plan.gather_args.empty())
+            algo = "block_tile";
         if(contains({"block", "block_tile", "block_batch"}, algo))
         {
             auto n_per_block = v.get("n_per_block", std::size_t{1});
@@ -1155,18 +1175,21 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                                 {"noutputs", std::to_string(noutputs)},
                                 {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
-        return compile_hip_code_object(ctx, src, options);
+        return {src, options};
     }
 
-    compiler_replace
-    compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        return compile_hip_code_object(ctx, make_src(ctx, inputs, v));
+    }
+
+    static value make_value(instruction_ref ins, const operation& op, const value& solution)
     {
         assert(not ins->module_inputs().empty());
         auto v = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
         auto* rm    = ins->module_inputs().front();
-        auto shapes = to_shapes(ins->inputs());
         auto erased = prepare_reduce_module(*rm, v);
         // A cached solution can be for a different module with the same
         // shapes, so recheck that the module supports the batched algorithm
@@ -1175,7 +1198,20 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         v["preamble"] = generate_reduce(erased, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
-        return compile_op(ctx, shapes, v);
+        return v;
+    }
+
+    compiler_replace
+    compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
+    {
+        return compile_op(ctx, to_shapes(ins->inputs()), make_value(ins, op, solution));
+    }
+
+    std::string
+    compile_key(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
+    {
+        return hip_compile_key(
+            ctx, make_src(ctx, to_shapes(ins->inputs()), make_value(ins, op, solution)));
     }
 
     /// The tuning solutions for a fused reduce, built from its plan
@@ -1313,7 +1349,6 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         /// every size the block algorithm fits. The extra parameters are included
         /// in each solution.
         void add_topk_block_sizes(const context& ctx,
-
                                   bool exhaustive,
                                   std::size_t n,
                                   std::size_t block_size,
@@ -1364,7 +1399,6 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto v      = op.to_value();
         auto rm     = prepare_reduce_module(*ins->module_inputs().front(), v);
         tuning_solutions ts;
-
         ts.plan       = compute_fused_reduce_plan(ctx, shapes, v);
         ts.noutputs   = ts.plan.finputs.size() - shapes.size() + 1;
         ts.tc.problem = to_value(shapes);
@@ -1386,7 +1420,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         // the gathered ones
         if(ts.tile.has_value() and ts.plan.is_gather_axis(ts.tile->axis))
             ts.tile = nullopt;
-        ts.batchable = ts.tile.has_value() and ts.noutputs == 1 and can_batch_reduce(rm);
+        // The batch slice cant move the tile axis past a gathered input
+        ts.batchable = ts.tile.has_value() and ts.noutputs == 1 and ts.plan.gather_args.empty() and
+                       can_batch_reduce(rm);
         if(exhaustive)
             ts.add_exhaustive_solutions(ctx);
         else

@@ -71,6 +71,42 @@ TEST_CASE(strided_vec_load_stride4)
     EXPECT(strided_load_matches<8, 4, 16>());
 }
 
+// A view offset past the first S elements of an aligned block cant load the
+// block aligned, so its lanes are read one at a time: every offset within a
+// block of N*S elements reads the elements S apart from the view pointer
+template <migraphx::index_int N, migraphx::index_int S, migraphx::index_int L>
+__device__ bool strided_load_offset_matches()
+{
+    constexpr migraphx::index_int size = (L + N) * S;
+    alignas(16) migraphx::array<migraphx::half, size> buffer;
+    for(migraphx::index_int i = 0; i < size; i++)
+        buffer[i] = migraphx::half(i);
+    bool matches = true;
+    for(migraphx::index_int offset = 0; offset < N * S; offset++)
+    {
+        auto view = migraphx::make_tensor_view(
+            &buffer[offset],
+            migraphx::make_shape(migraphx::index_ints<L>{}, migraphx::index_ints<S>{}));
+        auto v = migraphx::vectorize_tensor<N, 0, true>(migraphx::as_const(view));
+        for(migraphx::index_int k = 0; k < L / N; k++)
+        {
+            auto x = migraphx::load_element(v, k);
+            for(migraphx::index_int i = 0; i < N; i++)
+            {
+                if(not migraphx::float_equal(x[i], migraphx::half(offset + (k * N + i) * S)))
+                    matches = false;
+            }
+        }
+    }
+    return matches;
+}
+
+TEST_CASE(strided_vec_load_offset_view)
+{
+    EXPECT(strided_load_offset_matches<8, 2, 32>());
+    EXPECT(strided_load_offset_matches<4, 4, 16>());
+}
+
 // A strided view along the inner axis counts the other strides in vectors
 TEST_CASE(strided_vec_shape_step)
 {

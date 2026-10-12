@@ -253,12 +253,13 @@ MIGRAPHX_EXPORT expr var(std::string name,
                          std::vector<interval> constraints,
                          std::set<scalar> optimals = {});
 
-// Map arbitrary external names to unique identifiers accepted by var() and parse(). Repeated
-// external names resolve identically; distinct names that sanitize alike receive numeric suffixes.
+// Map names to unique identifiers accepted by var() and parse(). resolve() keeps repeated external
+// names stable, while allocate() reserves a new name for an internal symbol.
 class MIGRAPHX_EXPORT symbol_name_registry
 {
     public:
     std::string resolve(std::string_view external_name);
+    std::string allocate(std::string_view preferred_name);
 
     private:
     std::unordered_map<std::string, std::string> resolved_names;

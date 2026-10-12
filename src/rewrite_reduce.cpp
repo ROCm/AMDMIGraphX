@@ -166,6 +166,8 @@ struct find_reduce_affine_reduce
     /// A larger outer reduction would collapse the parallelism of the inner one
     static constexpr std::size_t max_outer_elements = 64;
 
+    bool fast_math = false;
+
     auto matcher() const { return match::name("reduce_sum")(match::used_once()); }
 
     static std::vector<std::size_t> reduce_axes(instruction_ref reduce)
@@ -242,6 +244,9 @@ struct find_reduce_affine_reduce
                 return nullopt;
             result.push_back(*it);
         }
+        // Nothing left to fold when the outer reduce only covers unit dims
+        if(result.empty())
+            return nullopt;
         return result;
     }
 
@@ -337,6 +342,10 @@ struct find_reduce_affine_reduce
         if(not outer_axes.has_value())
             return;
         if(any_of(*outer_axes, [&](auto axis) { return contains(inner_axes, axis); }))
+            return;
+        // Scaling the terms before the inner sum can overflow where the sum
+        // itself cancels, so it needs relaxed math; negation is exact
+        if(not fast_math and any_of(ops, [](instruction_ref ins) { return ins->name() == "mul"; }))
             return;
         affine_builder builder{&m, outer};
         affine a;
@@ -695,11 +704,8 @@ bool needs_wide_accumulator(const std::string& reduce, shape::type_t type, std::
     {
         return true;
     }
-    if(reduce == "reduce_prod")
-    {
-        if(type == shape::half_type)
-            return true;
-    }
+    if(reduce == "reduce_prod" and type == shape::half_type)
+        return true;
     if(type == shape::half_type or type == shape::bf16_type)
     {
         return n > wide_reduce_elements_threshold;
@@ -796,7 +802,7 @@ void rewrite_reduce::apply(module& m) const
     // attention (Q*K^T and softmax*V) so find_dot can skip them.
     if(enable_skinny_dot)
         match::find_matches(m, find_dot{collect_attention_dots(m)});
-    match::find_matches(m, find_reduce_affine_reduce{});
+    match::find_matches(m, find_reduce_affine_reduce{.fast_math = fast_math});
 
     if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
     {

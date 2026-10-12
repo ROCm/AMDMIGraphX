@@ -106,7 +106,9 @@ static std::vector<migraphx::shape> default_arg_shapes(const migraphx::module& m
     std::transform(names.begin(), names.end(), std::back_inserter(shapes), [&](const auto& name) {
         return mmlir.get_parameter_shape(name);
     });
-    shapes.push_back(mmlir.get_output_shapes().front());
+    // A multi-output module writes into a single tuple-shaped output argument
+    auto out_shapes = mmlir.get_output_shapes();
+    shapes.push_back(out_shapes.size() == 1 ? out_shapes.front() : migraphx::shape{out_shapes});
     return shapes;
 }
 
@@ -145,7 +147,25 @@ static migraphx::parameter_map generate_params(const migraphx::program& p)
     return m;
 }
 
-static migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter_map& inputs)
+// Flatten a tuple argument into its sub-arguments so multi-output results
+// compare one-to-one with the reference outputs
+static std::vector<migraphx::argument>
+flatten_arguments(const std::vector<migraphx::argument>& args)
+{
+    std::vector<migraphx::argument> result;
+    for(const auto& arg : args)
+    {
+        auto sub = arg.get_sub_objects();
+        if(sub.empty())
+            result.push_back(arg);
+        else
+            result.insert(result.end(), sub.begin(), sub.end());
+    }
+    return result;
+}
+
+static std::vector<migraphx::argument> run_gpu(migraphx::program p,
+                                               const migraphx::parameter_map& inputs)
 {
     mlir_gpu_target t;
     p.compile(t);
@@ -161,13 +181,20 @@ static migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter
             m[x.first] = t.allocate(x.second);
         }
     }
-    return t.copy_from(p.eval(m).front());
+    auto results = p.eval(m);
+    std::vector<migraphx::argument> outputs;
+    std::transform(results.begin(),
+                   results.end(),
+                   std::back_inserter(outputs),
+                   [&](const auto& result) { return t.copy_from(result); });
+    return flatten_arguments(outputs);
 }
 
-static migraphx::argument run_ref(migraphx::program p, const migraphx::parameter_map& inputs)
+static std::vector<migraphx::argument> run_ref(migraphx::program p,
+                                               const migraphx::parameter_map& inputs)
 {
     p.compile(migraphx::make_target("ref"));
-    return p.eval(inputs).front();
+    return flatten_arguments(p.eval(inputs));
 }
 
 // Run the module on the reference target with the parameters in the given layouts
@@ -187,19 +214,32 @@ static migraphx::program create_ref_program(const migraphx::module& mmlir,
     return ref;
 }
 
-static bool verify_mlir(const migraphx::module& mmlir, const std::vector<migraphx::shape>& shapes)
+// Parameters in fixed replace the generated inputs of the same name
+static bool verify_mlir(const migraphx::module& mmlir,
+                        const std::vector<migraphx::shape>& shapes,
+                        const migraphx::parameter_map& fixed = {})
 {
     auto ref    = create_ref_program(mmlir, shapes);
     auto inputs = generate_params(ref);
+    for(const auto& input : fixed)
+        inputs[input.first] = input.second;
 
-    auto mlir = create_program_from_mlir(mmlir, shapes);
-    return migraphx::verify_args_with_tolerance(
-        "mlir", run_gpu(mlir, inputs), migraphx::verify::expected{run_ref(ref, inputs)});
+    auto mlir     = create_program_from_mlir(mmlir, shapes);
+    auto results  = run_gpu(mlir, inputs);
+    auto expected = run_ref(ref, inputs);
+    return results.size() == expected.size() and
+           std::equal(results.begin(),
+                      results.end(),
+                      expected.begin(),
+                      [](const auto& result, const auto& gold) {
+                          return migraphx::verify_args_with_tolerance(
+                              "mlir", result, migraphx::verify::expected{gold});
+                      });
 }
 
-static bool verify_mlir(const migraphx::module& mmlir)
+static bool verify_mlir(const migraphx::module& mmlir, const migraphx::parameter_map& fixed = {})
 {
-    return verify_mlir(mmlir, default_arg_shapes(mmlir));
+    return verify_mlir(mmlir, default_arg_shapes(mmlir), fixed);
 }
 
 static std::string get_attrs()
@@ -1083,6 +1123,275 @@ TEST_CASE_SKIP(prefill_integer_reduce, "temporarily disabled")
     EXPECT(migraphx::all_of(mco.prefill_values, [](const migraphx::value& v) {
         return v.is_int64() and v.to<int>() == 0;
     }));
+}
+
+// Decode-shaped kv-cache attention module with a per-batch sequence-length
+// mask and GQA broadcasting, as produced by find_kv_cache_attention. Q is a
+// plain parameter so the module also exercises find_kv_cache_plain_q.
+static migraphx::module make_kv_cache_attention_module(bool with_lse, std::size_t batch)
+{
+    migraphx::module m;
+    migraphx::shape s_q{migraphx::shape::half_type, {batch, 4, 1, 4}};
+    migraphx::shape s_kv{migraphx::shape::half_type, {batch, 2, 8, 4}};
+    migraphx::shape s_scalar{migraphx::shape::half_type, {1}};
+    std::vector<std::size_t> mask_lens{batch, 4, 1, 8};
+
+    auto scale = m.add_literal(migraphx::literal{s_scalar, {0.125}});
+    auto ninf =
+        m.add_literal(migraphx::literal{s_scalar, {-std::numeric_limits<float>::infinity()}});
+    auto range = m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {8}},
+                                                 {0, 1, 2, 3, 4, 5, 6, 7}});
+    auto q     = m.add_parameter("q", s_q);
+    auto k     = m.add_parameter("k", s_kv);
+    auto v     = m.add_parameter("v", s_kv);
+    auto seq_len = m.add_parameter("seq_len", {migraphx::shape::int32_type, {batch, 1}});
+
+    auto unsq_k = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), k);
+    auto tsp_k  = m.add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 4, 3}}}), unsq_k);
+    auto bc_k = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch, 2, 2, 4, 8}}}), tsp_k);
+    auto rsp_k =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {batch, 4, 4, 8}}}), bc_k);
+    auto unsq_v = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), v);
+    auto bc_v   = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch, 2, 2, 8, 4}}}), unsq_v);
+    auto rsp_v =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {batch, 4, 8, 4}}}), bc_v);
+    auto gemm1 = m.add_instruction(migraphx::make_op("dot"), q, rsp_k);
+    auto bc_scale =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mask_lens}}), scale);
+    auto scaled = m.add_instruction(migraphx::make_op("mul"), gemm1, bc_scale);
+    auto bc_range =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mask_lens}}), range);
+    auto rsp_sl =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {batch, 1, 1, 1}}}), seq_len);
+    auto bc_sl =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mask_lens}}), rsp_sl);
+    auto grt  = m.add_instruction(migraphx::make_op("greater"), bc_range, bc_sl);
+    auto cond = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), grt);
+    auto bc_ninf =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mask_lens}}), ninf);
+    auto mask = m.add_instruction(migraphx::make_op("where"), cond, bc_ninf, scaled);
+    auto rmax = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mask);
+    auto bc_rm =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mask_lens}}), rmax);
+    auto sub  = m.add_instruction(migraphx::make_op("sub"), mask, bc_rm);
+    auto exp  = m.add_instruction(migraphx::make_op("exp"), sub);
+    auto rsum = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+    auto bc_rs =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mask_lens}}), rsum);
+    auto div   = m.add_instruction(migraphx::make_op("div"), exp, bc_rs);
+    auto gemm2 = m.add_instruction(migraphx::make_op("dot"), div, rsp_v);
+    auto tsp_out =
+        m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);
+    auto rsp_out =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {batch, 1, 16}}}), tsp_out);
+    if(with_lse)
+    {
+        auto log_sum = m.add_instruction(migraphx::make_op("log"), rsum);
+        auto lse     = m.add_instruction(migraphx::make_op("add"), rmax, log_sum);
+        m.add_return({rsp_out, lse});
+    }
+    else
+    {
+        m.add_return({rsp_out});
+    }
+    return m;
+}
+
+// The scalar sequence-length mask must be emitted with the sequence length
+// broadcast over the leading {batch, heads} dims in a separate step
+// (find_kv_cache_mask_seq_len) so rocMLIR can bind a currentSeqLen matching
+// the attention batch even when Q is a plain input.
+TEST_CASE(kv_cache_attention_seq_len_mask)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unsqueeze_transpose_reshape_unsqueeze_reshape_reshape_transpose_dot_mul_reshape_unsqueeze_greater_convert_where_reshape_reduce_max_reshape_sub_exp_reshape_reduce_sum_reshape_div_dot_transpose_reshape(%arg0: !migraphx.shaped<1x2x8x4xf16, 64x32x4x1>, %arg1: !migraphx.shaped<1x4x1x4xf16, 16x4x4x1>, %arg2: !migraphx.shaped<1x1xsi32, 1x1>, %arg3: !migraphx.shaped<1x2x8x4xf16, 64x32x4x1>) -> !migraphx.shaped<1x1x16xf16, 16x16x1> attributes ${attrs} {
+    %0 = migraphx.literal(dense<[0, 1, 2, 3, 4, 5, 6, 7]> : tensor<8xsi32>) : <8xsi32, 1>
+    %1 = migraphx.literal(dense<0xFC00> : tensor<1xf16>) : <1xf16, 1>
+    %2 = migraphx.literal(dense<1.250000e-01> : tensor<1xf16>) : <1xf16, 1>
+    %3 = migraphx.reshape %arg0 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
+    %4 = migraphx.transpose %3 {permutation = [0, 1, 2, 4, 3]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x1x4x8xf16, 64x32x32x1x4>
+    %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [1, 2, 2, 4, 8]} : <1x2x1x4x8xf16, 64x32x32x1x4> -> <1x2x2x4x8xf16, 64x32x0x1x4>
+    %6 = migraphx.reshape %5 {dims = [1, 4, 4, 8]} : <1x2x2x4x8xf16, 64x32x0x1x4> -> <1x4x4x8xf16, 128x32x8x1>
+    %7 = migraphx.reshape %arg3 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
+    %8 = migraphx.multibroadcast %7 {out_dyn_dims = [], out_lens = [1, 2, 2, 8, 4]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x2x8x4xf16, 64x32x0x4x1>
+    %9 = migraphx.reshape %8 {dims = [1, 4, 8, 4]} : <1x2x2x8x4xf16, 64x32x0x4x1> -> <1x4x8x4xf16, 128x32x4x1>
+    %10 = migraphx.reshape %arg1 {dims = [1, 1, 4, 4]} : <1x4x1x4xf16, 16x4x4x1> -> <1x1x4x4xf16, 16x16x4x1>
+    %11 = migraphx.transpose %10 {permutation = [0, 2, 1, 3]} : <1x1x4x4xf16, 16x16x4x1> -> <1x4x1x4xf16, 16x4x16x1>
+    %12 = migraphx.dot %11, %6 : <1x4x1x4xf16, 16x4x16x1>, <1x4x4x8xf16, 128x32x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %13 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1xf16, 1> -> <1x4x1x8xf16, 0x0x0x0>
+    %14 = migraphx.mul %12, %13 : <1x4x1x8xf16, 32x8x8x1>, <1x4x1x8xf16, 0x0x0x0> -> <1x4x1x8xf16, 32x8x8x1>
+    %15 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <8xsi32, 1> -> <1x4x1x8xsi32, 0x0x0x1>
+    %16 = migraphx.reshape %arg2 {dims = [1, 1]} : <1x1xsi32, 1x1> -> <1x1xsi32, 1x1>
+    %17 = migraphx.multibroadcast %16 {out_dyn_dims = [], out_lens = [1, 4]} : <1x1xsi32, 1x1> -> <1x4xsi32, 1x0>
+    %18 = migraphx.reshape %17 {dims = [1, 4, 1, 1]} : <1x4xsi32, 1x0> -> <1x4x1x1xsi32, 1x0x1x1>
+    %19 = migraphx.multibroadcast %18 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1x4x1x1xsi32, 1x0x1x1> -> <1x4x1x8xsi32, 1x0x1x0>
+    %20 = migraphx.greater %15, %19 : <1x4x1x8xsi32, 0x0x0x1>, <1x4x1x8xsi32, 1x0x1x0> -> <1x4x1x8xsi32, 0x0x0x1>
+    %21 = migraphx.convert %20 {target_type = 0 : i64} : <1x4x1x8xsi32, 0x0x0x1> to <1x4x1x8xsi8, 0x0x0x1>
+    %22 = migraphx.multibroadcast %1 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1xf16, 1> -> <1x4x1x8xf16, 0x0x0x0>
+    %23 = migraphx.where %21, %22, %14 : <1x4x1x8xsi8, 0x0x0x1>, <1x4x1x8xf16, 0x0x0x0>, <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %24 = migraphx.reshape %23 {dims = [1, 4, 1, 8]} : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %25 = migraphx.reduce_max %24 {axes = [3]} : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x1xf16, 4x1x1x1>
+    %26 = migraphx.reshape %25 {dims = [1, 4, 1, 1]} : <1x4x1x1xf16, 4x1x1x1> -> <1x4x1x1xf16, 4x1x1x1>
+    %27 = migraphx.multibroadcast %26 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1x4x1x1xf16, 4x1x1x1> -> <1x4x1x8xf16, 4x1x1x0>
+    %28 = migraphx.sub %23, %27 : <1x4x1x8xf16, 32x8x8x1>, <1x4x1x8xf16, 4x1x1x0> -> <1x4x1x8xf16, 32x8x8x1>
+    %29 = migraphx.exp %28 : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %30 = migraphx.reshape %29 {dims = [1, 4, 1, 8]} : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %31 = migraphx.reduce_sum %30 {axes = [3]} : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x1xf16, 4x1x1x1>
+    %32 = migraphx.reshape %31 {dims = [1, 4, 1, 1]} : <1x4x1x1xf16, 4x1x1x1> -> <1x4x1x1xf16, 4x1x1x1>
+    %33 = migraphx.multibroadcast %32 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1x4x1x1xf16, 4x1x1x1> -> <1x4x1x8xf16, 4x1x1x0>
+    %34 = migraphx.div %29, %33 : <1x4x1x8xf16, 32x8x8x1>, <1x4x1x8xf16, 4x1x1x0> -> <1x4x1x8xf16, 32x8x8x1>
+    %35 = migraphx.dot %34, %9 : <1x4x1x8xf16, 32x8x8x1>, <1x4x8x4xf16, 128x32x4x1> -> <1x4x1x4xf16, 16x4x4x1>
+    %36 = migraphx.transpose %35 {permutation = [0, 2, 1, 3]} : <1x4x1x4xf16, 16x4x4x1> -> <1x1x4x4xf16, 16x4x4x1>
+    %37 = migraphx.reshape %36 {dims = [1, 1, 16]} : <1x1x4x4xf16, 16x4x4x1> -> <1x1x16xf16, 16x16x1>
+    return %37 : !migraphx.shaped<1x1x16xf16, 16x16x1>
+  }
+}
+)__migraphx__";
+    auto m                  = make_kv_cache_attention_module(false, 1);
+    auto s                  = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // A random sequence length can mask every column, making the softmax nan
+    auto seq_len = migraphx::fill_argument({migraphx::shape::int32_type, {1, 1}}, 5);
+    EXPECT(verify_mlir(m, {{"seq_len", seq_len}}));
+}
+
+// With more than one batch the sequence length holds one value per batch;
+// it is broadcast over the heads only so rocMLIR's folded {batch * heads}
+// attention batch keeps a distinct length per batch.
+TEST_CASE(kv_cache_attention_seq_len_mask_batched)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unsqueeze_transpose_reshape_unsqueeze_reshape_reshape_transpose_dot_mul_reshape_unsqueeze_greater_convert_where_reshape_reduce_max_reshape_sub_exp_reshape_reduce_sum_reshape_div_dot_transpose_reshape(%arg0: !migraphx.shaped<2x2x8x4xf16, 64x32x4x1>, %arg1: !migraphx.shaped<2x4x1x4xf16, 16x4x4x1>, %arg2: !migraphx.shaped<2x1xsi32, 1x1>, %arg3: !migraphx.shaped<2x2x8x4xf16, 64x32x4x1>) -> !migraphx.shaped<2x1x16xf16, 16x16x1> attributes ${attrs} {
+    %0 = migraphx.literal(dense<[0, 1, 2, 3, 4, 5, 6, 7]> : tensor<8xsi32>) : <8xsi32, 1>
+    %1 = migraphx.literal(dense<0xFC00> : tensor<1xf16>) : <1xf16, 1>
+    %2 = migraphx.literal(dense<1.250000e-01> : tensor<1xf16>) : <1xf16, 1>
+    %3 = migraphx.reshape %arg0 {dims = [2, 2, 1, 8, 4]} : <2x2x8x4xf16, 64x32x4x1> -> <2x2x1x8x4xf16, 64x32x32x4x1>
+    %4 = migraphx.transpose %3 {permutation = [0, 1, 2, 4, 3]} : <2x2x1x8x4xf16, 64x32x32x4x1> -> <2x2x1x4x8xf16, 64x32x32x1x4>
+    %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [2, 2, 2, 4, 8]} : <2x2x1x4x8xf16, 64x32x32x1x4> -> <2x2x2x4x8xf16, 64x32x0x1x4>
+    %6 = migraphx.reshape %5 {dims = [2, 4, 4, 8]} : <2x2x2x4x8xf16, 64x32x0x1x4> -> <2x4x4x8xf16, 128x32x8x1>
+    %7 = migraphx.reshape %arg3 {dims = [2, 2, 1, 8, 4]} : <2x2x8x4xf16, 64x32x4x1> -> <2x2x1x8x4xf16, 64x32x32x4x1>
+    %8 = migraphx.multibroadcast %7 {out_dyn_dims = [], out_lens = [2, 2, 2, 8, 4]} : <2x2x1x8x4xf16, 64x32x32x4x1> -> <2x2x2x8x4xf16, 64x32x0x4x1>
+    %9 = migraphx.reshape %8 {dims = [2, 4, 8, 4]} : <2x2x2x8x4xf16, 64x32x0x4x1> -> <2x4x8x4xf16, 128x32x4x1>
+    %10 = migraphx.reshape %arg1 {dims = [2, 1, 4, 4]} : <2x4x1x4xf16, 16x4x4x1> -> <2x1x4x4xf16, 16x16x4x1>
+    %11 = migraphx.transpose %10 {permutation = [0, 2, 1, 3]} : <2x1x4x4xf16, 16x16x4x1> -> <2x4x1x4xf16, 16x4x16x1>
+    %12 = migraphx.dot %11, %6 : <2x4x1x4xf16, 16x4x16x1>, <2x4x4x8xf16, 128x32x8x1> -> <2x4x1x8xf16, 32x8x8x1>
+    %13 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <1xf16, 1> -> <2x4x1x8xf16, 0x0x0x0>
+    %14 = migraphx.mul %12, %13 : <2x4x1x8xf16, 32x8x8x1>, <2x4x1x8xf16, 0x0x0x0> -> <2x4x1x8xf16, 32x8x8x1>
+    %15 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <8xsi32, 1> -> <2x4x1x8xsi32, 0x0x0x1>
+    %16 = migraphx.reshape %arg2 {dims = [2, 1]} : <2x1xsi32, 1x1> -> <2x1xsi32, 1x1>
+    %17 = migraphx.multibroadcast %16 {out_dyn_dims = [], out_lens = [2, 4]} : <2x1xsi32, 1x1> -> <2x4xsi32, 1x0>
+    %18 = migraphx.reshape %17 {dims = [2, 4, 1, 1]} : <2x4xsi32, 1x0> -> <2x4x1x1xsi32, 1x0x1x1>
+    %19 = migraphx.multibroadcast %18 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <2x4x1x1xsi32, 1x0x1x1> -> <2x4x1x8xsi32, 1x0x1x0>
+    %20 = migraphx.greater %15, %19 : <2x4x1x8xsi32, 0x0x0x1>, <2x4x1x8xsi32, 1x0x1x0> -> <2x4x1x8xsi32, 8x0x8x1>
+    %21 = migraphx.convert %20 {target_type = 0 : i64} : <2x4x1x8xsi32, 8x0x8x1> to <2x4x1x8xsi8, 8x0x8x1>
+    %22 = migraphx.multibroadcast %1 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <1xf16, 1> -> <2x4x1x8xf16, 0x0x0x0>
+    %23 = migraphx.where %21, %22, %14 : <2x4x1x8xsi8, 8x0x8x1>, <2x4x1x8xf16, 0x0x0x0>, <2x4x1x8xf16, 32x8x8x1> -> <2x4x1x8xf16, 32x8x8x1>
+    %24 = migraphx.reshape %23 {dims = [2, 4, 1, 8]} : <2x4x1x8xf16, 32x8x8x1> -> <2x4x1x8xf16, 32x8x8x1>
+    %25 = migraphx.reduce_max %24 {axes = [3]} : <2x4x1x8xf16, 32x8x8x1> -> <2x4x1x1xf16, 4x1x1x1>
+    %26 = migraphx.reshape %25 {dims = [2, 4, 1, 1]} : <2x4x1x1xf16, 4x1x1x1> -> <2x4x1x1xf16, 4x1x1x1>
+    %27 = migraphx.multibroadcast %26 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <2x4x1x1xf16, 4x1x1x1> -> <2x4x1x8xf16, 4x1x1x0>
+    %28 = migraphx.sub %23, %27 : <2x4x1x8xf16, 32x8x8x1>, <2x4x1x8xf16, 4x1x1x0> -> <2x4x1x8xf16, 32x8x8x1>
+    %29 = migraphx.exp %28 : <2x4x1x8xf16, 32x8x8x1> -> <2x4x1x8xf16, 32x8x8x1>
+    %30 = migraphx.reshape %29 {dims = [2, 4, 1, 8]} : <2x4x1x8xf16, 32x8x8x1> -> <2x4x1x8xf16, 32x8x8x1>
+    %31 = migraphx.reduce_sum %30 {axes = [3]} : <2x4x1x8xf16, 32x8x8x1> -> <2x4x1x1xf16, 4x1x1x1>
+    %32 = migraphx.reshape %31 {dims = [2, 4, 1, 1]} : <2x4x1x1xf16, 4x1x1x1> -> <2x4x1x1xf16, 4x1x1x1>
+    %33 = migraphx.multibroadcast %32 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <2x4x1x1xf16, 4x1x1x1> -> <2x4x1x8xf16, 4x1x1x0>
+    %34 = migraphx.div %29, %33 : <2x4x1x8xf16, 32x8x8x1>, <2x4x1x8xf16, 4x1x1x0> -> <2x4x1x8xf16, 32x8x8x1>
+    %35 = migraphx.dot %34, %9 : <2x4x1x8xf16, 32x8x8x1>, <2x4x8x4xf16, 128x32x4x1> -> <2x4x1x4xf16, 16x4x4x1>
+    %36 = migraphx.transpose %35 {permutation = [0, 2, 1, 3]} : <2x4x1x4xf16, 16x4x4x1> -> <2x1x4x4xf16, 16x4x4x1>
+    %37 = migraphx.reshape %36 {dims = [2, 1, 16]} : <2x1x4x4xf16, 16x4x4x1> -> <2x1x16xf16, 16x16x1>
+    return %37 : !migraphx.shaped<2x1x16xf16, 16x16x1>
+  }
+}
+)__migraphx__";
+    auto m                  = make_kv_cache_attention_module(false, 2);
+    auto s                  = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // Distinct lengths per batch so a length applied to the wrong batch is
+    // caught, and none masks every column (which would make the softmax nan)
+    auto seq_len = migraphx::literal{{migraphx::shape::int32_type, {2, 1}}, {3, 6}}.get_argument();
+    EXPECT(verify_mlir(m, {{"seq_len", seq_len}}));
+}
+
+// Attention sinks return {output, lse} from the fused module
+// (find_attention_sinks + find_kv_cache_attention); the module must lower to a
+// two-result function with the log/add lse chain intact.
+TEST_CASE(kv_cache_attention_sinks_lse)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unsqueeze_transpose_reshape_unsqueeze_reshape_reshape_transpose_dot_mul_reshape_unsqueeze_greater_convert_where_reshape_reduce_max_reshape_sub_exp_reshape_reduce_sum_reshape_div_dot_transpose_reshape_log_add(%arg0: !migraphx.shaped<1x2x8x4xf16, 64x32x4x1>, %arg1: !migraphx.shaped<1x4x1x4xf16, 16x4x4x1>, %arg2: !migraphx.shaped<1x1xsi32, 1x1>, %arg3: !migraphx.shaped<1x2x8x4xf16, 64x32x4x1>) -> (!migraphx.shaped<1x1x16xf16, 16x16x1>, !migraphx.shaped<1x4x1x1xf16, 4x1x1x1>) attributes ${attrs} {
+    %0 = migraphx.literal(dense<[0, 1, 2, 3, 4, 5, 6, 7]> : tensor<8xsi32>) : <8xsi32, 1>
+    %1 = migraphx.literal(dense<0xFC00> : tensor<1xf16>) : <1xf16, 1>
+    %2 = migraphx.literal(dense<1.250000e-01> : tensor<1xf16>) : <1xf16, 1>
+    %3 = migraphx.reshape %arg0 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
+    %4 = migraphx.transpose %3 {permutation = [0, 1, 2, 4, 3]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x1x4x8xf16, 64x32x32x1x4>
+    %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [1, 2, 2, 4, 8]} : <1x2x1x4x8xf16, 64x32x32x1x4> -> <1x2x2x4x8xf16, 64x32x0x1x4>
+    %6 = migraphx.reshape %5 {dims = [1, 4, 4, 8]} : <1x2x2x4x8xf16, 64x32x0x1x4> -> <1x4x4x8xf16, 128x32x8x1>
+    %7 = migraphx.reshape %arg3 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
+    %8 = migraphx.multibroadcast %7 {out_dyn_dims = [], out_lens = [1, 2, 2, 8, 4]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x2x8x4xf16, 64x32x0x4x1>
+    %9 = migraphx.reshape %8 {dims = [1, 4, 8, 4]} : <1x2x2x8x4xf16, 64x32x0x4x1> -> <1x4x8x4xf16, 128x32x4x1>
+    %10 = migraphx.reshape %arg1 {dims = [1, 1, 4, 4]} : <1x4x1x4xf16, 16x4x4x1> -> <1x1x4x4xf16, 16x16x4x1>
+    %11 = migraphx.transpose %10 {permutation = [0, 2, 1, 3]} : <1x1x4x4xf16, 16x16x4x1> -> <1x4x1x4xf16, 16x4x16x1>
+    %12 = migraphx.dot %11, %6 : <1x4x1x4xf16, 16x4x16x1>, <1x4x4x8xf16, 128x32x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %13 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1xf16, 1> -> <1x4x1x8xf16, 0x0x0x0>
+    %14 = migraphx.mul %12, %13 : <1x4x1x8xf16, 32x8x8x1>, <1x4x1x8xf16, 0x0x0x0> -> <1x4x1x8xf16, 32x8x8x1>
+    %15 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <8xsi32, 1> -> <1x4x1x8xsi32, 0x0x0x1>
+    %16 = migraphx.reshape %arg2 {dims = [1, 1]} : <1x1xsi32, 1x1> -> <1x1xsi32, 1x1>
+    %17 = migraphx.multibroadcast %16 {out_dyn_dims = [], out_lens = [1, 4]} : <1x1xsi32, 1x1> -> <1x4xsi32, 1x0>
+    %18 = migraphx.reshape %17 {dims = [1, 4, 1, 1]} : <1x4xsi32, 1x0> -> <1x4x1x1xsi32, 1x0x1x1>
+    %19 = migraphx.multibroadcast %18 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1x4x1x1xsi32, 1x0x1x1> -> <1x4x1x8xsi32, 1x0x1x0>
+    %20 = migraphx.greater %15, %19 : <1x4x1x8xsi32, 0x0x0x1>, <1x4x1x8xsi32, 1x0x1x0> -> <1x4x1x8xsi32, 0x0x0x1>
+    %21 = migraphx.convert %20 {target_type = 0 : i64} : <1x4x1x8xsi32, 0x0x0x1> to <1x4x1x8xsi8, 0x0x0x1>
+    %22 = migraphx.multibroadcast %1 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1xf16, 1> -> <1x4x1x8xf16, 0x0x0x0>
+    %23 = migraphx.where %21, %22, %14 : <1x4x1x8xsi8, 0x0x0x1>, <1x4x1x8xf16, 0x0x0x0>, <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %24 = migraphx.reshape %23 {dims = [1, 4, 1, 8]} : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %25 = migraphx.reduce_max %24 {axes = [3]} : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x1xf16, 4x1x1x1>
+    %26 = migraphx.reshape %25 {dims = [1, 4, 1, 1]} : <1x4x1x1xf16, 4x1x1x1> -> <1x4x1x1xf16, 4x1x1x1>
+    %27 = migraphx.multibroadcast %26 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1x4x1x1xf16, 4x1x1x1> -> <1x4x1x8xf16, 4x1x1x0>
+    %28 = migraphx.sub %23, %27 : <1x4x1x8xf16, 32x8x8x1>, <1x4x1x8xf16, 4x1x1x0> -> <1x4x1x8xf16, 32x8x8x1>
+    %29 = migraphx.exp %28 : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %30 = migraphx.reshape %29 {dims = [1, 4, 1, 8]} : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %31 = migraphx.reduce_sum %30 {axes = [3]} : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x1xf16, 4x1x1x1>
+    %32 = migraphx.reshape %31 {dims = [1, 4, 1, 1]} : <1x4x1x1xf16, 4x1x1x1> -> <1x4x1x1xf16, 4x1x1x1>
+    %33 = migraphx.multibroadcast %32 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1x4x1x1xf16, 4x1x1x1> -> <1x4x1x8xf16, 4x1x1x0>
+    %34 = migraphx.div %29, %33 : <1x4x1x8xf16, 32x8x8x1>, <1x4x1x8xf16, 4x1x1x0> -> <1x4x1x8xf16, 32x8x8x1>
+    %35 = migraphx.dot %34, %9 : <1x4x1x8xf16, 32x8x8x1>, <1x4x8x4xf16, 128x32x4x1> -> <1x4x1x4xf16, 16x4x4x1>
+    %36 = migraphx.transpose %35 {permutation = [0, 2, 1, 3]} : <1x4x1x4xf16, 16x4x4x1> -> <1x1x4x4xf16, 16x4x4x1>
+    %37 = migraphx.reshape %36 {dims = [1, 1, 16]} : <1x1x4x4xf16, 16x4x4x1> -> <1x1x16xf16, 16x16x1>
+    %38 = migraphx.log %32 : <1x4x1x1xf16, 4x1x1x1> -> <1x4x1x1xf16, 4x1x1x1>
+    %39 = migraphx.add %26, %38 : <1x4x1x1xf16, 4x1x1x1>, <1x4x1x1xf16, 4x1x1x1> -> <1x4x1x1xf16, 4x1x1x1>
+    return %37, %39 : !migraphx.shaped<1x1x16xf16, 16x16x1>, !migraphx.shaped<1x4x1x1xf16, 4x1x1x1>
+  }
+}
+)__migraphx__";
+    auto m                  = make_kv_cache_attention_module(true, 1);
+    auto s                  = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // A random sequence length can mask every column, making the softmax nan
+    auto seq_len = migraphx::fill_argument({migraphx::shape::int32_type, {1, 1}}, 5);
+    EXPECT(verify_mlir(m, {{"seq_len", seq_len}}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

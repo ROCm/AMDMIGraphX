@@ -94,8 +94,7 @@ TEST_CASE(simplify_symbolic_dimensions_shape_attributes)
         migraphx::make_op("dyn_slice",
                            {{"axes", {1}},
                             {"starts", {0}},
-                            {"ends", migraphx::value::array{migraphx::to_value(nonzero_count)}},
-                            {"always_leq", true}}),
+                           {"ends", migraphx::value::array{migraphx::to_value(nonzero_count)}}}),
         indices,
         zero,
         count);

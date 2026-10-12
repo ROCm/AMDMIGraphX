@@ -73,10 +73,6 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
         size_t relative_slice_offset      = 0;
         for(size_t idx = 0; idx < num_slice_dims; ++idx)
         {
-            // Read indices through the stride-aware accessor (operator[]) so non-standard
-            // layouts resolve correctly. The raw .data() pointer assumed a packed row-major
-            // buffer: it returned the wrong element for a transposed index tensor and
-            // over-read a broadcast one.
             int64_t index                   = indices_t[slice_start + idx];
             const size_t input_dim_idx      = batch_dims + idx;
             const auto input_dim            = data_shape_lens[input_dim_idx];

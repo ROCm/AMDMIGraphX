@@ -101,31 +101,37 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             continue;
         if(ins->get_operator().name() == "layout")
             continue;
-        // Skip names that are already taken. This pass can run more than once on the same
-        // module, and the modules it fused on an earlier run keep their names, while n
-        // restarts at 0 on every call. Previously the intervening optimize_module happened
-        // to leave nothing for the later runs to wrap, so the collision never surfaced;
-        // when it does, it asserts in debug and silently aliases the existing module in
-        // release (create_module uses emplace, which does not overwrite).
-        std::string pm_name;
-        do
+        // Dynamic shapes always become a parameter even if the input is scalar.
+        auto is_pointwise_input = [](instruction_ref input, const literal& scalar) {
+            return scalar.empty() or input->get_shape().dynamic();
+        };
+        std::vector<literal> scalars;
+        scalars.reserve(ins->inputs().size());
+        bool any_pointwise_input = false;
+        for(auto input : ins->inputs())
         {
-            pm_name = mpm.get_module().name() + ":pointwise" + std::to_string(n++);
-        } while(mpm.has_module(pm_name));
-        auto* pm = mpm.create_module(pm_name);
+            scalars.push_back(get_scalar(input));
+            any_pointwise_input |= is_pointwise_input(input, scalars.back());
+        }
+        // Every input folds to a scalar literal, so there is nothing to fuse. Decide this
+        // before creating the module, since one created and then abandoned keeps its name.
+        if(not any_pointwise_input)
+            continue;
+
+        auto* pm = mpm.create_module(mpm.get_module().name() + ":pointwise" + std::to_string(n++));
         pm->set_bypass();
 
         std::unordered_map<instruction_ref, instruction_ref> param_map;
         std::vector<instruction_ref> pointwise_inputs;
         std::size_t i = 0;
 
+        auto scalar_it = scalars.begin();
         for(auto input : ins->inputs())
         {
+            const auto& scalar = *scalar_it++;
             if(contains(param_map, input))
                 continue;
-            auto scalar = get_scalar(input);
-            // Have dynamic shapes always get put into a pointwise module even if scalar input
-            if(scalar.empty() or input->get_shape().dynamic())
+            if(is_pointwise_input(input, scalar))
             {
                 pointwise_inputs.push_back(input);
                 param_map[input] =
@@ -137,10 +143,6 @@ static void create_pointwise_modules(module_pass_manager& mpm)
                 param_map[input] = pm->add_literal(scalar);
             }
         }
-
-        // Don't create pointwise module if no inputs are detected
-        if(pointwise_inputs.empty())
-            continue;
 
         std::vector<instruction_ref> inputs;
         std::transform(ins->inputs().begin(),

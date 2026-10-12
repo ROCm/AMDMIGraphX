@@ -2054,13 +2054,11 @@ TEST_CASE(hoist_silu_above_slices)
     EXPECT(p1 == p2);
 }
 
-// An add of two scalar literals leaves pointwise_inputs empty, so create_pointwise_modules
-// creates a module and then hits the pointwise_inputs.empty() early-continue without wrapping
-// the instruction - the module is never referenced and leaks. A second run restarts its counter
-// at 0, so without skipping names that are already taken it lands on the leaked module and
-// aliases it (emplace does not overwrite). Debug builds catch that on create_module's assert;
-// this EXPECT pins the resulting module down for both.
-TEST_CASE(rerun_does_not_reuse_leaked_module_name)
+// An add of two scalar literals has nothing to fuse: every input folds to a scalar, so the
+// module would have no parameters. create_pointwise_modules has to decide that before creating
+// it - a module created and then abandoned keeps its name, and this pass runs several times per
+// pipeline with its counter restarting at 0, so the next run collides with the abandoned name.
+TEST_CASE(no_module_created_when_all_inputs_are_scalar)
 {
     migraphx::program p1;
     {
@@ -2072,6 +2070,8 @@ TEST_CASE(rerun_does_not_reuse_leaked_module_name)
     }
     run_pass(p1);
     run_pass(p1);
+    // get_modules only walks what main reaches, so an abandoned module would not show up there.
+    EXPECT(test::throws([&] { p1.get_module("main:pointwise0"); }));
 
     migraphx::program p2;
     {

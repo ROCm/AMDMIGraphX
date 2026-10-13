@@ -131,19 +131,21 @@ float fill_value(fill_kind fill);
 
 std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank);
 
+bool has_nonnegative_values(instruction_ref ins);
+
 bool windowed_zero_pad(const std::vector<std::size_t>& padding,
                        std::size_t spatial_dimensions,
                        std::size_t axis);
 
 template <class OutputRule, class InputRule>
 symbolic_op_info analyze_axes(instruction_ref ins,
+                              const shape& output_shape,
                               std::vector<std::size_t> shape_input_indices,
                               const OutputRule& output_rule,
                               const InputRule& input_rule)
 {
     symbolic_op_info info{ins};
     info.shape_input_indices = std::move(shape_input_indices);
-    const auto& output_shape = info.get_output_shape();
     auto output_axes         = range(output_shape.ndim());
 
     std::copy_if(output_axes.begin(),
@@ -202,10 +204,29 @@ symbolic_op_info analyze_axes(instruction_ref ins,
 }
 
 template <class OutputRule, class InputRule>
+symbolic_op_info analyze_axes(instruction_ref ins,
+                              std::vector<std::size_t> shape_input_indices,
+                              const OutputRule& output_rule,
+                              const InputRule& input_rule)
+{
+    return analyze_axes(
+        ins, ins->get_shape(), std::move(shape_input_indices), output_rule, input_rule);
+}
+
+template <class OutputRule, class InputRule>
+symbolic_op_info analyze_axes(instruction_ref ins,
+                              const shape& output_shape,
+                              const OutputRule& output_rule,
+                              const InputRule& input_rule)
+{
+    return analyze_axes(ins, output_shape, {}, output_rule, input_rule);
+}
+
+template <class OutputRule, class InputRule>
 symbolic_op_info
 analyze_axes(instruction_ref ins, const OutputRule& output_rule, const InputRule& input_rule)
 {
-    return analyze_axes(ins, {}, output_rule, input_rule);
+    return analyze_axes(ins, ins->get_shape(), {}, output_rule, input_rule);
 }
 
 template <class InputRule>

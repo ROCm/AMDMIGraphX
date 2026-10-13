@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/split_sym/analyzer.hpp>
+#include <migraphx/literal.hpp>
 #include <limits>
 #include <utility>
 
@@ -77,6 +78,56 @@ std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank)
     if(axis < 0 or axis >= static_cast<int64_t>(rank))
         return std::nullopt;
     return static_cast<std::size_t>(axis);
+}
+
+bool has_nonnegative_values(instruction_ref ins)
+{
+    const auto& inputs = ins->inputs();
+    if(ins->name() == "@literal")
+    {
+        bool result = true;
+        ins->get_literal().visit(
+            [&](auto values) { result = all_of(values, [](auto value) { return value >= 0; }); });
+        return result;
+    }
+    if(ins->name() == "fill")
+        return not inputs.empty() and has_nonnegative_values(inputs.front());
+    if(contains({"convert",
+                 "contiguous",
+                 "reshape",
+                 "squeeze",
+                 "unsqueeze",
+                 "transpose",
+                 "slice",
+                 "dyn_slice",
+                 "broadcast",
+                 "multibroadcast",
+                 "broadcast_with_dims"},
+                ins->name()))
+        return not inputs.empty() and has_nonnegative_values(inputs.front());
+    if(ins->name() == "concat")
+        return not inputs.empty() and all_of(inputs, has_nonnegative_values);
+    if(ins->name() == "gather")
+        return not inputs.empty() and has_nonnegative_values(inputs.front());
+    if(contains({"add", "mul"}, ins->name()))
+        return not inputs.empty() and all_of(inputs, has_nonnegative_values);
+    if(ins->name() == "eval_expr_from_shape")
+        return true;
+    if(ins->name() != "get_tuple_elem" or inputs.size() != 1)
+        return false;
+
+    auto index  = ins->get_operator().to_value().at("index").to<std::size_t>();
+    auto source = inputs.front();
+    if(source->name() == "dyn_concat" and source->inputs().size() >= 2)
+    {
+        if(index == 1)
+            return true;
+        auto data_inputs = source->inputs();
+        data_inputs.pop_back();
+        return index == 0 and all_of(data_inputs, has_nonnegative_values);
+    }
+    return (source->name() == "topk" and index == 1) or
+           (contains({"nonzero", "nonmaxsuppression"}, source->name()) and index == 0);
 }
 
 bool windowed_zero_pad(const std::vector<std::size_t>& padding,

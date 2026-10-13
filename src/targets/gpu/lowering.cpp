@@ -484,7 +484,7 @@ struct miopen_apply
             constexpr std::size_t mask_bits = std::numeric_limits<std::uint32_t>::digits;
             const auto col_blocks           = num_boxes / mask_bits + (num_boxes % mask_bits != 0);
             constexpr auto max_kernel_elements = std::numeric_limits<std::uint32_t>::max();
-            // GPU tensor views use 32-bit element indices. Check the packed mask without
+            // GPU tensor views use 32-bit element indices. Check the rectangular mask without
             // overflowing the host-side size calculation.
             if(num_boxes > max_kernel_elements / col_blocks or
                num_bc > max_kernel_elements / (num_boxes * col_blocks))
@@ -534,7 +534,8 @@ struct miopen_apply
 
         // Scratch mask; replace_allocate later turns it into hip::allocate.
         constexpr std::size_t mask_bits = std::numeric_limits<std::uint32_t>::digits;
-        const auto col_blocks           = num_boxes / mask_bits + static_cast<std::size_t>(num_boxes % mask_bits != 0);
+        const auto col_blocks =
+            num_boxes / mask_bits + static_cast<std::size_t>(num_boxes % mask_bits != 0);
         shape mask_shape{shape::uint32_type, {num_batches * num_classes, num_boxes * col_blocks}};
         auto mask_alloc = insert_allocation(ins, mask_shape);
 

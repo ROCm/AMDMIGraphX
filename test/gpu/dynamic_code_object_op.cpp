@@ -29,6 +29,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/register_target.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
 

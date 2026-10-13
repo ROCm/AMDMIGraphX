@@ -1328,6 +1328,15 @@ shape dispatch_shape_for_clones(const shape& planned,
                 clone_output.outputs.at(output_index).with_lens(planned.type(), planned.dyn_dims());
             if(represents_clone_outputs(actual_layout, clone_outputs, output_index))
                 return actual_layout;
+            const auto& output = clone_output.outputs.at(output_index);
+            std::vector<sym::expr> exact_strides(output.ndim());
+            std::transform(output.strides().begin(),
+                           output.strides().end(),
+                           exact_strides.begin(),
+                           [](auto stride) { return sym::lit(stride); });
+            shape exact_layout{planned.type(), planned.dyn_dims(), std::move(exact_strides)};
+            if(represents_clone_outputs(exact_layout, clone_outputs, output_index))
+                return exact_layout;
         }
     }
 

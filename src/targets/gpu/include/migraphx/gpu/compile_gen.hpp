@@ -44,15 +44,19 @@ struct context;
 
 namespace gen {
 
-struct vectorize
+struct MIGRAPHX_GPU_EXPORT vectorize
 {
     std::size_t size = 1;
     std::size_t axis = 0;
+    /// Inputs with a stride greater than one along the axis are read as
+    /// strided vectors, which only the reduce kernels support
+    bool strided = false;
     static vectorize elements(std::size_t axis, const std::vector<shape>& inputs);
     static vectorize elements(context& ctx, std::size_t axis, const std::vector<shape>& inputs);
     static vectorize elements(std::size_t axis,
                               const std::vector<shape>& inputs,
-                              const std::vector<std::size_t>& sizes);
+                              const std::vector<std::size_t>& sizes,
+                              bool strided = false);
     std::string str() const;
 };
 struct preload

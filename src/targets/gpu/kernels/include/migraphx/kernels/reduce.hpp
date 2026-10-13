@@ -480,12 +480,13 @@ struct reducer_base
         {
             auto&& derived = static_cast<const Derived&>(*this);
             auto t         = derived.slice(x);
-            using type     = typename decltype(t)::type;
+            using raw_type = typename decltype(t)::type;
+            using type     = load_type<raw_type>;
             // Inputs are passed as const views and are streamed; non-const views are
             // outputs and need a reference so they are written in place.
             return make_storage_access<type>([=](auto i, auto...) -> decltype(auto) {
-                if constexpr(is_const<type>{})
-                    return stream_load(t, i);
+                if constexpr(is_const<raw_type>{})
+                    return load_element(t, i);
                 else
                     return t[i];
             });

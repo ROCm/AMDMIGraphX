@@ -288,10 +288,7 @@ struct pipeline_factory
             dead_code_elimination{},
             fuse_topk{},
             dead_code_elimination{},
-            // simplify_qdq rewrites dot(dq(a,sa),dq(b,sb)) to dq(quant_dot(a,b),sa*sb). That
-            // sa*sb mul has only scalar-literal inputs, so fuse_pointwise skips it and nothing
-            // lowers it; with no optimize_module to fold it away it reaches the GPU as a host
-            // mul over device literals.
+            // folds a still-literal scan_slice index convert before it reaches the GPU unfused
             enable_pass(options.compile_mode == compile_modes::eager, propagate_constant{}),
             enable_pass(options.compile_mode == compile_modes::eager, dead_code_elimination{}),
             fuse_concat{},

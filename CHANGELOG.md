@@ -27,7 +27,7 @@ Full documentation for MIGraphX is available at
 
 ### Optimized
 
-* Optimized GPU compile time in the `eager` compile mode by dropping `optimize_module` from the pre-fusion rewrites, from the fusion pipeline, and from inside `fuse_pointwise_reduce`; `propagate_constant` still runs after `fuse_mlir` in eager so that the constant scale product left behind by `simplify_qdq` is folded instead of reaching the GPU as a host operation over device literals. Eager runtime performance regresses in exchange, by up to several tens of percent on some models (#5301).
+* Optimized GPU compile time in the `eager` compile mode by dropping `optimize_module` from the pre-fusion rewrites, from the fusion pipeline, and from inside `fuse_pointwise_reduce`; `propagate_constant` still runs after `fuse_mlir` in eager so that a `scan_slice` index left as a literal `convert` by `eliminate_data_type_for_gpu`'s int64->int32 narrowing is folded instead of reaching the GPU as a host operation over a device literal. Eager runtime performance regresses in exchange, by up to several tens of percent on some models (#5301).
 
 ### Removed
 

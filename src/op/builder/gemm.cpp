@@ -87,50 +87,46 @@ struct gemm : op_builder<gemm>
 
         auto dot_ins = m.insert_instruction(ins, make_op("dot"), a_arg, b_arg);
 
-        if(args.size() == 3)
+        if(args.size() == 3 and not float_equal(beta, 0.0f))
         {
-            if(not float_equal(beta, 0.0f))
+            auto c_arg = args[2];
+            if(dot_ins->get_shape().symbolic())
             {
-                auto c_arg = args[2];
-                if(dot_ins->get_shape().symbolic())
+                c_arg = m.insert_instruction(
+                    ins,
+                    make_op("multibroadcast",
+                            {{"out_dyn_dims", to_value(dot_ins->get_shape().dyn_dims())}}),
+                    args[2],
+                    dot_ins);
+            }
+            else if(dot_ins->get_shape().dynamic())
+            {
+                c_arg = m.insert_instruction(ins, make_op("multibroadcast"), args[2], dot_ins);
+            }
+            else
+            {
+                auto out_lens   = a_arg->get_shape().lens();
+                out_lens.back() = b_arg->get_shape().lens().back();
+                auto c_lens     = c_arg->get_shape().lens();
+                if(not std::equal(out_lens.begin(), out_lens.end(), c_lens.begin(), c_lens.end()))
                 {
                     c_arg = m.insert_instruction(
-                        ins,
-                        make_op("multibroadcast",
-                                {{"out_dyn_dims", to_value(dot_ins->get_shape().dyn_dims())}}),
-                        args[2],
-                        dot_ins);
+                        ins, make_op("multibroadcast", {{"out_lens", out_lens}}), args[2]);
                 }
-                else if(dot_ins->get_shape().dynamic())
-                {
-                    c_arg = m.insert_instruction(ins, make_op("multibroadcast"), args[2], dot_ins);
-                }
-                else
-                {
-                    auto out_lens   = a_arg->get_shape().lens();
-                    out_lens.back() = b_arg->get_shape().lens().back();
-                    auto c_lens     = c_arg->get_shape().lens();
-                    if(not std::equal(
-                           out_lens.begin(), out_lens.end(), c_lens.begin(), c_lens.end()))
-                    {
-                        c_arg = m.insert_instruction(
-                            ins, make_op("multibroadcast", {{"out_lens", out_lens}}), args[2]);
-                    }
-                }
-
-                if(not float_equal(beta, 1.0f))
-                {
-                    auto beta_literal = m.add_literal(beta);
-                    c_arg             = insert_common_op(m, ins, "mul", c_arg, beta_literal);
-                    if(c_arg->get_shape().type() != dot_type)
-                    {
-                        c_arg = m.insert_instruction(
-                            ins, make_op("convert", {{"target_type", dot_type}}), c_arg);
-                    }
-                }
-
-                return {m.insert_instruction(ins, make_op("add"), dot_ins, c_arg)};
             }
+
+            if(not float_equal(beta, 1.0f))
+            {
+                auto beta_literal = m.add_literal(beta);
+                c_arg             = insert_common_op(m, ins, "mul", c_arg, beta_literal);
+                if(c_arg->get_shape().type() != dot_type)
+                {
+                    c_arg = m.insert_instruction(
+                        ins, make_op("convert", {{"target_type", dot_type}}), c_arg);
+                }
+            }
+
+            return {m.insert_instruction(ins, make_op("add"), dot_ins, c_arg)};
         }
         return {dot_ins};
     }

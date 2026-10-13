@@ -24,6 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/select_module.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/sym.hpp>

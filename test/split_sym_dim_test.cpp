@@ -26,6 +26,7 @@
 #include <migraphx/dim_like.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -5513,6 +5514,70 @@ TEST_CASE(split_sym_dim_keeps_reduction_of_padded_body_outside_clone)
     expected_main.add_return({expected_output});
 
     EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
+{
+    auto count = var("nonzero_count", {0, 4});
+    migraphx::program p;
+    auto& m      = *p.get_main_module();
+    auto data    = m.add_parameter("data", migraphx::shape{migraphx::shape::bool_type, {2, 2}});
+    auto nonzero = m.add_instruction(migraphx::make_op("nonzero"), data);
+    auto indices = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+    auto num_nonzero =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero);
+    auto starts   = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto selected = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(count)}},
+                           {"ends_in_bounds", true}}),
+        indices,
+        starts,
+        num_nonzero);
+    auto converted = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), selected);
+    auto output = m.add_instruction(migraphx::make_op("relu"), converted);
+    m.add_return({output});
+
+    run_pass(p);
+
+    EXPECT(m.has_instruction(selected));
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 1);
+    if(selections.size() == 1)
+        EXPECT(migraphx::contains(selections.front()->inputs(), selected));
+    for(auto* mod : p.get_modules())
+    {
+        if(mod == p.get_main_module())
+            continue;
+        EXPECT(migraphx::none_of(*mod, [](const auto& ins) {
+            return not migraphx::starts_with(ins.name(), "@") and ins.get_shape().dynamic();
+        }));
+    }
+
+    p.compile(migraphx::make_target("ref"));
+    auto check_result = [&](std::vector<char> input_data,
+                            const migraphx::shape& expected_shape,
+                            const std::vector<float>& expected_values) {
+        migraphx::parameter_map params;
+        params["data"] = migraphx::argument{migraphx::shape{migraphx::shape::bool_type, {2, 2}},
+                                            input_data.data()};
+        auto result    = p.eval(params).back();
+        std::vector<float> values;
+        result.visit(
+            [&](auto output_values) { values.assign(output_values.begin(), output_values.end()); });
+        EXPECT(result.get_shape() == expected_shape);
+        EXPECT(values == expected_values);
+    };
+    check_result({0, 1, 1, 0},
+                 migraphx::shape{migraphx::shape::float_type, {2, 2}, {4, 1}},
+                 {0.0f, 1.0f, 1.0f, 0.0f});
+    check_result({1, 1, 1, 1},
+                 migraphx::shape{migraphx::shape::float_type, {2, 4}, {4, 1}},
+                 {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f});
 }
 
 TEST_CASE(split_sym_dim_keeps_unsupported_dependency_outside_clone)

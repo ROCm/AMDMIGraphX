@@ -16,6 +16,8 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `simplify_qdq` broadcasting singleton-expanded scale and zero-point tensors during convolution and MatMul fusion, and left unsupported parameter layouts unfused.
+
 * Fixed `simplify_reshapes` generating invalid inverse shape transforms when moving an element-expanding shape-transform chain through a shared reduction (#5360).
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).
 * Fixed mixed `uint8` and `int8` quantization (#5075).

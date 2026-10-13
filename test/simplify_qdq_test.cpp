@@ -229,11 +229,14 @@ TEST_CASE(dot_fp16)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(dot_multi_scale)
+template <bool Expanded>
+static void dot_multi_scale()
 {
     migraphx::shape sh1{migraphx::shape::float_type, {1280, 1000}};
     migraphx::shape sh2{migraphx::shape::float_type, {1000, 1024}};
-    migraphx::shape sh3{migraphx::shape::float_type, {1280}};
+    migraphx::shape sh3{migraphx::shape::float_type,
+                        Expanded ? std::vector<std::size_t>{1280, 1}
+                                 : std::vector<std::size_t>{1280}};
 
     migraphx::module m1;
     {
@@ -243,6 +246,9 @@ TEST_CASE(dot_multi_scale)
         auto scale2 = m1.add_literal(0.4f);
         auto zero   = m1.add_literal(std::int8_t{0});
 
+        if(Expanded)
+            scale1 = m1.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", sh1.lens()}}), scale1);
         auto q1  = add_quantize_op(m1, "quantizelinear", t1, scale1, zero, 0);
         auto d1  = add_quantize_op(m1, "dequantizelinear", q1, scale1, zero, 0);
         auto q2  = add_quantize_op(m1, "quantizelinear", t2, scale2, zero, 1);
@@ -259,18 +265,27 @@ TEST_CASE(dot_multi_scale)
         auto scale2 = m2.add_literal(0.4f);
         auto zero   = m2.add_literal(std::int8_t{0});
 
-        auto q1 = add_quantize_op(m2, "quantizelinear", t1, scale1, zero, 0);
+        auto input_scale = scale1;
+        if(Expanded)
+            input_scale = m2.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", sh1.lens()}}), scale1);
+        auto q1 = add_quantize_op(m2, "quantizelinear", t1, input_scale, zero, 0);
         auto q2 = add_quantize_op(m2, "quantizelinear", t2, scale2, zero, 1);
 
         auto dot       = m2.add_instruction(migraphx::make_op("quant_dot"), q1, q2);
+        if(Expanded)
+            scale1 = m2.add_instruction(migraphx::make_op("squeeze"), scale1);
         auto out_scale = add_scale_mul(m2, scale1, scale2, 0, 1, dot->get_shape().lens());
         auto d3        = add_quantize_op(m2, "dequantizelinear", dot, out_scale);
         m2.add_return({d3});
     }
 
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
+
+TEST_CASE_REGISTER(dot_multi_scale<false>);
+TEST_CASE_REGISTER(dot_multi_scale<true>);
 
 TEST_CASE(dot_broadcasted)
 {
@@ -661,18 +676,22 @@ TEST_CASE(dot_asymmetric_second_arg)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(dot_asymmetric_both_args)
+template <bool Expanded>
+static void dot_asymmetric_both_args()
 {
     migraphx::shape sh1{migraphx::shape::float_type, {1280, 1000}};
     migraphx::shape sh2{migraphx::shape::float_type, {1000, 1024}};
+
+    auto zp_shape = Expanded ? migraphx::shape{migraphx::shape::int8_type, {1, 1}}
+                             : migraphx::shape{migraphx::shape::int8_type};
 
     migraphx::module m1;
     {
         auto t1    = m1.add_parameter("t1", sh1);
         auto t2    = m1.add_parameter("t2", sh2);
         auto scale = m1.add_literal(0.5f);
-        auto zp1   = m1.add_literal(std::int8_t{2});
-        auto zp2   = m1.add_literal(std::int8_t{1});
+        auto zp1   = m1.add_literal(migraphx::literal{zp_shape, {2}});
+        auto zp2   = m1.add_literal(migraphx::literal{zp_shape, {1}});
 
         auto q1  = add_quantize_op(m1, "quantizelinear", t1, scale, zp1);
         auto d1  = add_quantize_op(m1, "dequantizelinear", q1, scale, zp1);
@@ -687,8 +706,8 @@ TEST_CASE(dot_asymmetric_both_args)
         auto t1    = m2.add_parameter("t1", sh1);
         auto t2    = m2.add_parameter("t2", sh2);
         auto scale = m2.add_literal(0.5f);
-        auto zp1   = m2.add_literal(std::int8_t{2});
-        auto zp2   = m2.add_literal(std::int8_t{1});
+        auto zp1   = m2.add_literal(migraphx::literal{zp_shape, {2}});
+        auto zp2   = m2.add_literal(migraphx::literal{zp_shape, {1}});
 
         auto q1  = add_quantize_op(m2, "quantizelinear", t1, scale, zp1);
         auto q2  = add_quantize_op(m2, "quantizelinear", t2, scale, zp2);
@@ -696,9 +715,16 @@ TEST_CASE(dot_asymmetric_both_args)
 
         auto out_scale = add_scale_mul(m2, scale, scale, 1, 1, dot->get_shape().lens());
 
+        auto shift1 = zp1;
+        auto shift2 = zp2;
+        if(Expanded)
+        {
+            shift1 = m2.add_instruction(migraphx::make_op("squeeze"), zp1);
+            shift2 = m2.add_instruction(migraphx::make_op("squeeze"), zp2);
+        }
         auto out_zp   = init_zero_point(m2, dot);
-        auto zp1_bc   = broadcast_shift(m2, zp1, t1->get_shape().lens());
-        auto zp2_bc   = broadcast_shift(m2, zp2, t2->get_shape().lens());
+        auto zp1_bc   = broadcast_shift(m2, shift1, t1->get_shape().lens());
+        auto zp2_bc   = broadcast_shift(m2, shift2, t2->get_shape().lens());
         auto zp_term1 = m2.add_instruction(migraphx::make_op("quant_dot"), zp1_bc, q2);
         out_zp        = m2.add_instruction(migraphx::make_op("add"), out_zp, zp_term1);
         auto zp_term2 = m2.add_instruction(migraphx::make_op("quant_dot"), q1, zp2_bc);
@@ -711,8 +737,11 @@ TEST_CASE(dot_asymmetric_both_args)
     }
 
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
+
+TEST_CASE_REGISTER(dot_asymmetric_both_args<false>);
+TEST_CASE_REGISTER(dot_asymmetric_both_args<true>);
 
 TEST_CASE(dot_uint8)
 {
@@ -1061,11 +1090,14 @@ TEST_CASE(conv_uint8_input)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(conv_multi_scale)
+template <bool Expanded>
+static void conv_multi_scale()
 {
     migraphx::shape s4{migraphx::shape::int8_type, {1280, 320, 1, 1}};
     migraphx::shape s7{migraphx::shape::float_type, {1, 320, 7, 7}};
-    migraphx::shape s8{migraphx::shape::float_type, {1280}};
+    migraphx::shape s8{migraphx::shape::float_type,
+                       Expanded ? std::vector<std::size_t>{1280, 1, 1, 1}
+                                : std::vector<std::size_t>{1280}};
 
     migraphx::module m1;
     {
@@ -1075,6 +1107,9 @@ TEST_CASE(conv_multi_scale)
         auto inp_scale = m1.add_literal(0.5f);
         auto zero      = m1.add_literal(std::int8_t{0});
 
+        if(Expanded)
+            w_scale = m1.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", s4.lens()}}), w_scale);
         auto d1 = add_quantize_op(m1, "dequantizelinear", weights, w_scale, zero, 0);
         auto q1 = add_quantize_op(m1, "quantizelinear", input, inp_scale, zero);
         auto d5 = add_quantize_op(m1, "dequantizelinear", q1, inp_scale, zero);
@@ -1106,14 +1141,19 @@ TEST_CASE(conv_multi_scale)
                                                                {"padding_mode", 0}}),
                                      q_inp,
                                      weights);
+        if(Expanded)
+            w_scale = m2.add_instruction(migraphx::make_op("squeeze"), w_scale);
         auto out_scale = add_scale_mul(m2, inp_scale, w_scale, 1, 1, c1->get_shape().lens());
         auto d1        = add_quantize_op(m2, "dequantizelinear", c1, out_scale);
         m2.add_return({d1});
     }
 
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
+
+TEST_CASE_REGISTER(conv_multi_scale<false>);
+TEST_CASE_REGISTER(conv_multi_scale<true>);
 
 TEST_CASE(conv_multi_scale_unsupported_axis)
 {
@@ -2711,5 +2751,156 @@ TEST_CASE(add_fp16_overflow)
     });
     EXPECT(rv1 == rv2);
 }
+
+template <bool Multidimensional>
+static void conv_unsupported_qparam_layout()
+{
+    migraphx::module m;
+    auto input  = m.add_parameter("input",
+                                  {migraphx::shape::int8_type,
+                                   Multidimensional ? std::vector<std::size_t>{1, 2, 3, 2}
+                                                    : std::vector<std::size_t>{1, 4, 2, 2}});
+    auto weight = m.add_parameter("weight",
+                                  {migraphx::shape::int8_type,
+                                   Multidimensional ? std::vector<std::size_t>{4, 2, 2, 1}
+                                                    : std::vector<std::size_t>{4, 4, 1, 1}});
+    auto si     = m.add_literal(0.5f);
+    auto zi     = m.add_literal(std::int8_t{1});
+    auto di     = add_quantize_op(m, "dequantizelinear", input, si, zi);
+    auto scale =
+        m.add_literal(migraphx::literal{{migraphx::shape::float_type,
+                                         Multidimensional ? std::vector<std::size_t>{1, 2, 2, 1}
+                                                          : std::vector<std::size_t>{1, 4, 1, 1}},
+                                        {0.25f, 0.5f, 0.75f, 1.0f}});
+    auto zero = m.add_literal(std::int8_t{2});
+    auto sb   = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}), scale);
+    auto zb = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}), zero);
+    auto dw   = m.add_instruction(migraphx::make_op("dequantizelinear"), weight, sb, zb);
+    auto conv = m.add_instruction(migraphx::make_op("convolution"), di, dw);
+    m.add_return({conv});
+    migraphx::module expected = m;
+    run_pass(m);
+    EXPECT(m == expected);
+}
+
+TEST_CASE_REGISTER(conv_unsupported_qparam_layout<false>);
+TEST_CASE_REGISTER(conv_unsupported_qparam_layout<true>);
+
+template <int Layout, std::size_t Channels>
+static void conv_expanded_qparams_layout()
+{
+    // Layout 2 starts with NHWC logical axes and materializes the transposed DQ outputs.
+    auto input_shape = Layout == 1
+                           ? migraphx::shape::from_permutation(
+                                 migraphx::shape::int8_type, {1, 2, 4, 5}, {0, 2, 3, 1})
+                           : migraphx::shape{migraphx::shape::int8_type,
+                                             Layout == 2 ? std::vector<std::size_t>{1, 4, 5, 2}
+                                                         : std::vector<std::size_t>{1, 2, 4, 5}};
+    auto weight_shape =
+        Layout == 1 ? migraphx::shape::from_permutation(
+                          migraphx::shape::int8_type, {Channels, 2, 2, 3}, {0, 2, 3, 1})
+                    : migraphx::shape{migraphx::shape::int8_type,
+                                      Layout == 2 ? std::vector<std::size_t>{Channels, 2, 3, 2}
+                                                  : std::vector<std::size_t>{Channels, 2, 2, 3}};
+    migraphx::module m1;
+    {
+        auto input  = m1.add_parameter("input", input_shape);
+        auto weight = m1.add_parameter("weight", weight_shape);
+        auto si     = m1.add_literal(0.5f);
+        auto zi     = m1.add_literal(std::int8_t{1});
+        auto sw     = m1.add_literal(migraphx::literal{
+            {migraphx::shape::float_type, {Channels, 1, 1, 1}},
+            Channels == 1 ? std::vector<float>{0.25f} : std::vector<float>{0.25f, 0.5f, 0.75f}});
+        auto zw     = m1.add_literal(migraphx::literal{
+            {migraphx::shape::int8_type, {Channels, 1, 1, 1}},
+            Channels == 1 ? std::vector<std::int8_t>{2} : std::vector<std::int8_t>{2, 3, 4}});
+        auto si_bc  = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", input_shape.lens()}}), si);
+        auto zi_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", input_shape.lens()}}), zi);
+        auto sw_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", weight_shape.lens()}}), sw);
+        auto zw_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", weight_shape.lens()}}), zw);
+        auto di = m1.add_instruction(migraphx::make_op("dequantizelinear"), input, si_bc, zi_bc);
+        auto dw = m1.add_instruction(migraphx::make_op("dequantizelinear"), weight, sw_bc, zw_bc);
+        if constexpr(Layout == 2)
+        {
+            di = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}),
+                                    di);
+            dw = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}),
+                                    dw);
+            di = m1.add_instruction(migraphx::make_op("contiguous"), di);
+            dw = m1.add_instruction(migraphx::make_op("contiguous"), dw);
+        }
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), di, dw);
+        m1.add_return({conv});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto input  = m2.add_parameter("input", input_shape);
+        auto weight = m2.add_parameter("weight", weight_shape);
+        auto si     = m2.add_literal(0.5f);
+        auto zi     = m2.add_literal(std::int8_t{1});
+        auto sw     = m2.add_literal(migraphx::literal{
+            {migraphx::shape::float_type, {Channels, 1, 1, 1}},
+            Channels == 1 ? std::vector<float>{0.25f} : std::vector<float>{0.25f, 0.5f, 0.75f}});
+        auto zw     = m2.add_literal(migraphx::literal{
+            {migraphx::shape::int8_type, {Channels, 1, 1, 1}},
+            Channels == 1 ? std::vector<std::int8_t>{2} : std::vector<std::int8_t>{2, 3, 4}});
+        if constexpr(Layout == 2)
+        {
+            input = m2.add_instruction(
+                migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), input);
+            weight = m2.add_instruction(
+                migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), weight);
+            input  = m2.add_instruction(migraphx::make_op("contiguous"), input);
+            weight = m2.add_instruction(migraphx::make_op("contiguous"), weight);
+        }
+        auto conv  = m2.add_instruction(migraphx::make_op("quant_convolution"), input, weight);
+        auto si_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", conv->get_shape().lens()}}), si);
+        sw         = m2.add_instruction(migraphx::make_op("squeeze"), sw);
+        auto sw_bc = m2.add_instruction(
+            Channels == 1
+                ? migraphx::make_op("multibroadcast", {{"out_lens", conv->get_shape().lens()}})
+                : migraphx::make_op("broadcast",
+                                    {{"out_lens", conv->get_shape().lens()}, {"axis", 1}}),
+            sw);
+        auto scale  = m2.add_instruction(migraphx::make_op("mul"), si_bc, sw_bc);
+        auto zero   = m2.add_literal(migraphx::literal{{migraphx::shape::int32_type}, {0}});
+        auto out_zp = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", conv->get_shape().lens()}}), zero);
+        auto zi_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", input->get_shape().lens()}}), zi);
+        zw         = m2.add_instruction(migraphx::make_op("squeeze"), zw);
+        auto zw_bc = m2.add_instruction(
+            Channels == 1
+                ? migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}})
+                : migraphx::make_op("broadcast",
+                                    {{"out_lens", weight->get_shape().lens()}, {"axis", 0}}),
+            zw);
+        auto zp1 = m2.add_instruction(migraphx::make_op("quant_convolution"), zi_bc, weight);
+        out_zp   = m2.add_instruction(migraphx::make_op("add"), out_zp, zp1);
+        auto zp2 = m2.add_instruction(migraphx::make_op("quant_convolution"), input, zw_bc);
+        out_zp   = m2.add_instruction(migraphx::make_op("add"), out_zp, zp2);
+        auto zp3 = m2.add_instruction(migraphx::make_op("quant_convolution"), zi_bc, zw_bc);
+        out_zp   = m2.add_instruction(migraphx::make_op("sub"), out_zp, zp3);
+        auto dq  = m2.add_instruction(migraphx::make_op("dequantizelinear"), conv, scale, out_zp);
+        m2.add_return({dq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE_REGISTER(conv_expanded_qparams_layout<0, 1>);
+TEST_CASE_REGISTER(conv_expanded_qparams_layout<0, 3>);
+TEST_CASE_REGISTER(conv_expanded_qparams_layout<1, 1>);
+TEST_CASE_REGISTER(conv_expanded_qparams_layout<1, 3>);
+TEST_CASE_REGISTER(conv_expanded_qparams_layout<2, 1>);
+TEST_CASE_REGISTER(conv_expanded_qparams_layout<2, 3>);
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

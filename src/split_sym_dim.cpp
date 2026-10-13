@@ -894,12 +894,26 @@ shape dispatch_shape_for_clones(const shape& planned,
     if(represents_clone_outputs(planned, clone_outputs, output_index))
         return planned;
 
+    std::vector<shape> layouts;
     for(const auto& clone_output : clone_outputs)
     {
-        auto actual_layout =
-            clone_output.outputs.at(output_index).with_lens(planned.type(), planned.dyn_dims());
-        if(represents_clone_outputs(actual_layout, clone_outputs, output_index))
-            return actual_layout;
+        const auto& output        = clone_output.outputs.at(output_index);
+        auto add_broadcast_layout = [&](shape layout) {
+            auto strides = layout.dyn_strides();
+            std::transform(output.strides().begin(),
+                           output.strides().end(),
+                           strides.begin(),
+                           strides.begin(),
+                           [](auto actual, const auto& symbolic) {
+                               return actual == 0 ? sym::lit(std::size_t{0}) : symbolic;
+                           });
+            layouts.emplace_back(planned.type(), planned.dyn_dims(), std::move(strides));
+            return represents_clone_outputs(layouts.back(), clone_outputs, output_index);
+        };
+        if(add_broadcast_layout(planned))
+            return layouts.back();
+        if(add_broadcast_layout(output.with_lens(planned.type(), planned.dyn_dims())))
+            return layouts.back();
     }
 
     std::vector<shape> outputs;
@@ -908,7 +922,8 @@ shape dispatch_shape_for_clones(const shape& planned,
                    std::back_inserter(outputs),
                    [&](const auto& clone_output) { return clone_output.outputs.at(output_index); });
     MIGRAPHX_THROW("SPLIT_SYM_DIM: planned dispatch shape " + to_string(planned) +
-                   " does not represent clone outputs " + to_string_range(outputs));
+                   " and candidate layouts " + to_string_range(layouts) +
+                   " do not represent clone outputs " + to_string_range(outputs));
 }
 
 bool is_shape_input(const symbolic_op_plan* plan, std::size_t index)

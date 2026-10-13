@@ -1520,7 +1520,7 @@ std::unordered_set<instruction_ref> find_required_block_outputs(
                        std::inserter(planned, planned.end()),
                        [](const auto* plan) { return plan->info.ins; });
         auto owned_roots = get_owned_roots(block);
-        dependency_absorption can_absorb{planned, owned_roots, info_for_instruction};
+        dependency_absorption can_absorb{planned, owned_roots, info_for_instruction, {}};
 
         std::vector<instruction_ref> boundaries;
         std::unordered_set<instruction_ref> visited;
@@ -1565,7 +1565,6 @@ std::unordered_set<instruction_ref> find_required_block_outputs(
 
 void collect_frame_outputs(
     const module& m,
-    const block_plan& block,
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction,
     const std::unordered_set<instruction_ref>& planned_instructions,
     const std::unordered_set<instruction_ref>& body_instructions,
@@ -1690,7 +1689,8 @@ std::optional<block_frame> find_block_frame(
     block_frame result;
     std::unordered_set<instruction_ref> body_instructions;
     auto owned_roots = get_owned_roots(block);
-    dependency_absorption can_absorb{planned_instructions, owned_roots, info_for_instruction};
+    dependency_absorption can_absorb{
+        planned_instructions, owned_roots, info_for_instruction, {}};
     for(const auto* plan : block.ops)
         collect_block_body(plan->info.ins,
                            info_for_instruction,
@@ -1712,7 +1712,6 @@ std::optional<block_frame> find_block_frame(
                         result.inputs.end());
 
     collect_frame_outputs(m,
-                          block,
                           info_for_instruction,
                           planned_instructions,
                           body_instructions,
@@ -1834,6 +1833,8 @@ struct clone_context
 
         if(clone->get_shape().dynamic())
             MIGRAPHX_THROW("SPLIT_SYM_DIM: cloned " + source->name() +
+                           " as " + clone->name() + " with inputs " +
+                           to_string_range(to_shapes(args)) +
                            " is not fully static: " + to_string(clone->get_shape()));
         clone_map[source] = clone;
         if(not source->get_debug_symbols().empty())

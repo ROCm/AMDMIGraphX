@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/value.hpp>
 #include <algorithm>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,13 +41,11 @@ bool is_prefix_stable_dyn_slice(instruction_ref ins)
     auto attributes = ins->get_operator().to_value();
     if(not attributes.contains("axes"))
         return false;
-    auto starts_value = inputs.at(1)->sym_eval();
-    auto ends_value   = inputs.at(2)->sym_eval();
-    if(starts_value.empty() or ends_value.empty())
+    if(not attributes.contains("starts") or not attributes.contains("ends"))
         return false;
     auto axes   = attributes.at("axes").to_vector<int64_t>();
-    auto starts = starts_value.get().to_vector();
-    auto ends   = ends_value.get().to_vector();
+    auto starts = from_value<std::vector<sym::expr>>(attributes.at("starts"));
+    auto ends   = from_value<std::vector<sym::expr>>(attributes.at("ends"));
     if(axes.size() != starts.size() or axes.size() != ends.size())
         return false;
 
@@ -77,13 +76,11 @@ bool is_prefix_stable_dyn_slice(instruction_ref ins)
 
 namespace {
 
-std::vector<int64_t> evaluate_slice_input(const std::vector<instruction_ref>& args,
-                                          std::size_t index,
+std::vector<int64_t> evaluate_slice_input(const value& attributes,
+                                          const std::string& name,
                                           const std::unordered_map<sym::expr, std::size_t>& values)
 {
-    auto symbolic_value = args.at(index)->sym_eval();
-    assert(not symbolic_value.empty());
-    auto expressions = symbolic_value.get();
+    auto expressions = from_value<std::vector<sym::expr>>(attributes.at(name));
     std::vector<int64_t> result(expressions.size());
     std::transform(expressions.begin(), expressions.end(), result.begin(), [&](const auto& e) {
         return e.eval_uint(values);
@@ -120,7 +117,12 @@ struct analyze_slice : analyzer<analyze_slice>
 
         if(inputs.size() != 3 or not is_prefix_stable_dyn_slice(ins))
             return symbolic_op_info{ins};
-        auto result    = analyze_axes(ins);
+        const auto& analysis_output = inputs.front().symbolic() ? inputs.front() : ins->get_shape();
+        auto result    = analyze_axes(
+            ins,
+            analysis_output,
+            [](std::size_t) { return true; },
+            [](std::size_t, std::size_t) { return parallel_axis(); });
         result.freezer = freeze;
         return result;
     }
@@ -134,8 +136,9 @@ struct analyze_slice : analyzer<analyze_slice>
         auto attributes = source->get_operator().to_value();
         return m.add_instruction(make_op("slice",
                                          {{"axes", attributes.at("axes")},
-                                          {"starts", evaluate_slice_input(args, 1, values)},
-                                          {"ends", evaluate_slice_input(args, 2, values)}}),
+                                          {"starts",
+                                           evaluate_slice_input(attributes, "starts", values)},
+                                          {"ends", evaluate_slice_input(attributes, "ends", values)}}),
                                  args.front());
     }
 };

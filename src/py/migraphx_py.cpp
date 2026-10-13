@@ -529,7 +529,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             [](migraphx::module& mm,
                migraphx::argument a,
                const std::vector<std::string>& debug_symbols) {
-                auto ins = mm.add_literal(a.get_shape(), a.data());
+                auto ins =
+                    mm.add_literal(migraphx::literal::from_raw_buffer(a.get_shape(), a.data()));
                 if(not debug_symbols.empty())
                     mm.add_debug_symbols(ins, {debug_symbols.begin(), debug_symbols.end()});
                 return ins;
@@ -543,7 +544,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                const std::vector<std::string>& debug_symbols) {
                 py::buffer_info info = data.request();
                 auto literal_shape   = to_shape(info);
-                auto ins = mm.add_literal(literal_shape, reinterpret_cast<char*>(info.ptr));
+                auto ins             = mm.add_literal(migraphx::literal::from_raw_buffer(
+                    literal_shape, reinterpret_cast<char*>(info.ptr)));
                 if(not debug_symbols.empty())
                     mm.add_debug_symbols(ins, {debug_symbols.begin(), debug_symbols.end()});
                 return ins;

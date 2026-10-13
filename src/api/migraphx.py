@@ -285,6 +285,7 @@ def module(h):
              returns='migraphx::instruction_ref')
     h.method('add_literal',
              api.params(shape='const migraphx::shape&', buffer='const char*'),
+             invoke='migraphx::add_literal($@)',
              returns='migraphx::instruction_ref')
     h.method('add_parameter',
              api.params(name='const char*', shape='const migraphx::shape&'),

@@ -387,7 +387,7 @@ TEST_CASE(skip_ops)
         auto scale = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}),
                                         m1.add_literal(0.5f));
         auto zp    = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}),
-                                     m1.add_literal(0));
+                                        m1.add_literal(0));
         auto q     = m1.add_instruction(migraphx::make_op("quantizelinear"), l, scale, zp);
         m1.add_instruction(migraphx::make_op("dequantizelinear"), q, scale, zp);
     }
@@ -554,8 +554,8 @@ TEST_CASE(pack_unpack_fp4)
     {
         using migraphx::shape;
         const std::vector<uint8_t> vec = {0x2, 0x4};
-        auto l                         = m2.add_literal(migraphx::literal(s2, vec.data()));
-        auto unpack                    = m2.add_instruction(migraphx::make_op("unpack_fp4"), l);
+        auto l      = m2.add_literal(migraphx::literal::from_raw_buffer(s2, vec.data()));
+        auto unpack = m2.add_instruction(migraphx::make_op("unpack_fp4"), l);
         m2.add_return({unpack});
     }
 

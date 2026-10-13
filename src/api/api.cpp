@@ -466,6 +466,12 @@ static migraphx::instruction_ref add_allocation(module& m, const migraphx::shape
     return m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}), {});
 }
 
+static migraphx::instruction_ref
+add_literal(module& m, const migraphx::shape& s, const char* buffer)
+{
+    return m.add_literal(migraphx::literal::from_raw_buffer(s, buffer));
+}
+
 struct experimental_custom_op
 {
     std::string name;
@@ -1866,7 +1872,7 @@ extern "C" migraphx_status migraphx_module_add_literal(migraphx_instruction_t* o
         if(shape == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
         *out = allocate<migraphx_instruction_t>(
-            (module->object).add_literal((shape->object), (buffer)));
+            migraphx::add_literal((module->object), (shape->object), (buffer)));
     });
     return api_error_result;
 }

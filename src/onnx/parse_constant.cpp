@@ -74,7 +74,7 @@ struct parse_constant : op_parser<parse_constant>
         if(attr.has_t() and attr.t().dims_size() == 0)
         {
             migraphx::shape scalar_shape{v.get_shape().type()};
-            return info.add_literal(migraphx::literal{scalar_shape, v.data()});
+            return info.add_literal(migraphx::literal::from_raw_buffer(scalar_shape, v.data()));
         }
 
         return info.add_literal(v);

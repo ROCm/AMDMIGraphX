@@ -840,6 +840,7 @@ static std::size_t parse_external_size(const std::string& value, const char* fie
 static fs::path lexically_normalize(const fs::path& p)
 {
     std::vector<fs::path> parts;
+    // cppcheck-suppress useStlAlgorithm
     for(const auto& part : p)
     {
         if(part == ".")
@@ -850,6 +851,7 @@ static fs::path lexically_normalize(const fs::path& p)
             parts.push_back(part);
     }
     fs::path result;
+    // cppcheck-suppress useStlAlgorithm
     for(const auto& part : parts)
         result /= part;
     return result;
@@ -897,9 +899,8 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
                            t.name() + " does not match tensor bytes " +
                            std::to_string(tensor_shape.bytes()));
 
-        const fs::path base_dir =
-            external_data_path.empty() ? path : fs::path{external_data_path};
-        const fs::path data_path    = resolve_external_data_path(base_dir, data_file);
+        const fs::path base_dir  = external_data_path.empty() ? path : fs::path{external_data_path};
+        const fs::path data_path = resolve_external_data_path(base_dir, data_file);
         std::vector<char> raw_buffer = read_buffer(data_path, offset, nbytes);
         return create_literal(type, dims, raw_buffer.data(), raw_buffer.size());
     }

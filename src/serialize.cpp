@@ -51,7 +51,11 @@ void migraphx_from_value(const value& v, literal& l)
         if(data.size() != s.bytes())
             MIGRAPHX_THROW("literal: data size " + std::to_string(data.size()) +
                            " does not match shape bytes " + std::to_string(s.bytes()));
+<<<<<<< HEAD
         l = literal::from_raw_buffer(s, data.data());
+=======
+        l = literal(s, data.data());
+>>>>>>> 07615c84c22fcb6e3547c1e75d3611bc65c5d005
     }
     else
     {

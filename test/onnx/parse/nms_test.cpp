@@ -53,7 +53,8 @@ TEST_CASE(nms_test)
     auto num_selected_var = var("main_NonMaxSuppression_5", {0, 6});
     auto ends             = migraphx::value::array{migraphx::to_value(num_selected_var)};
     auto ret              = mm->add_instruction(
-        migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", ends}}),
+        migraphx::make_op("dyn_slice",
+                                       {{"axes", {0}}, {"starts", {0}}, {"ends", ends}, {"always_leq", true}}),
         indices,
         starts,
         num_selected);

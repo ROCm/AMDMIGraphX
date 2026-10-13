@@ -1019,13 +1019,17 @@ struct find_concat_op
         }
         else if(op.name() == "multibroadcast")
         {
-            shape bshape = (*start)->get_shape();
-            auto input   = (*start)->inputs()[0];
-            if(iaxis >= bshape.strides().size() or bshape.strides()[iaxis] == 0)
+            auto input_rank = (*start)->inputs().front()->get_shape().ndim();
+            // The inputs are concatenated, so the axis cant be broadcasted and
+            // the inputs need the same rank for it to map to the same input axis
+            if(std::any_of(start, last, [&](instruction_ref i) {
+                   const auto& s = i->get_shape();
+                   return iaxis >= s.ndim() or s.strides()[iaxis] == 0 or
+                          i->inputs().front()->get_shape().ndim() != input_rank;
+               }))
                 return {start, last};
             op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
-            auto delta = bshape.lens().size() - input->get_shape().lens().size();
-            iaxis -= delta;
+            iaxis -= (*start)->get_shape().ndim() - input_rank;
         }
         else if(op.name() == "unsqueeze")
         {

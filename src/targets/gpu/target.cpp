@@ -37,6 +37,7 @@
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
+#include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/json.hpp>
@@ -248,7 +249,8 @@ struct pipeline_factory
             prefuse_ops{get_context()},
             dead_code_elimination{},
             dead_code_elimination{},
-            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
+            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                           .fast_math         = options.fast_math},
             rewrite_topk{},
             rewrite_low_precision{},
             enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
@@ -281,6 +283,8 @@ struct pipeline_factory
             enable_pass(mlir_enabled(),
                         fuse_mlir{.ctx              = get_context(),
                                   .use_specific_ops = backend_opts.mlir_use_specific_ops}),
+            dead_code_elimination{},
+            fuse_topk{},
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},
@@ -379,7 +383,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             p.required_pipeline(),
             {optimize_module{},
              dead_code_elimination{},
-             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
+             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                            .fast_math         = options.fast_math},
              rewrite_topk{},
              dead_code_elimination{}},
             p.fusion_pipeline(),

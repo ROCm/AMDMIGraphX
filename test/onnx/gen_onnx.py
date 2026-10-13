@@ -4301,9 +4301,10 @@ def external_data_path_traversal_test():
 
 def external_data_invalid_length_test():
     # non-numeric length field -> parse_external_size must reject it
-    _save_external_data_model('external_data_invalid_length_test',
-                              [('location', 'external_data_invalid_length_test.weight'),
-                               ('offset', '0'), ('length', '123abc')])
+    _save_external_data_model(
+        'external_data_invalid_length_test',
+        [('location', 'external_data_invalid_length_test.weight'),
+         ('offset', '0'), ('length', '123abc')])
 
 
 def external_data_size_mismatch_test():

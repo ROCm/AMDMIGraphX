@@ -212,6 +212,8 @@ struct select_module
         if(actual.type() != expected.type() or actual.type() == shape::tuple_type or
            not shape::same_lens(actual, expected))
             return false;
+        if(actual.elements() == 0)
+            return true;
         return all_of(range(actual.ndim()), [&](auto axis) {
             return actual.lens().at(axis) <= 1 or
                    actual.strides().at(axis) == expected.strides().at(axis);

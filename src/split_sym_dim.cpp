@@ -1287,6 +1287,14 @@ shape dispatch_shape_for_clones(const shape& planned,
         };
         if(add_broadcast_layout(planned))
             return layouts.back();
+        std::vector<sym::expr> exact_strides(output.ndim());
+        std::transform(output.strides().begin(),
+                       output.strides().end(),
+                       exact_strides.begin(),
+                       [](auto stride) { return sym::lit(stride); });
+        layouts.emplace_back(planned.type(), planned.dyn_dims(), std::move(exact_strides));
+        if(represents_clone_outputs(layouts.back(), clone_outputs, output_index))
+            return layouts.back();
         if(add_broadcast_layout(output.with_lens(planned.type(), planned.dyn_dims())))
             return layouts.back();
     }

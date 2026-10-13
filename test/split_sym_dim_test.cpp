@@ -447,7 +447,7 @@ TEST_CASE(split_sym_dim_materializes_roialign)
     auto expected_rois = expected_main.add_parameter("rois", symbolic_shape({r, lit(4)}));
     auto expected_batch_ind =
         expected_main.add_parameter("batch_ind", symbolic_shape({r}, migraphx::shape::int64_type));
-    auto target_r = var("#split_sym_dim_r_target", {1, 4}, {1, 2, 4});
+    auto target_r = var("split_sym_dim_r_target", {1, 4}, {1, 2, 4});
     std::vector<migraphx::instruction_ref> select_inputs = {
         expected_batch_ind, expected_rois, expected_x};
     std::vector<migraphx::shape> select_outputs = {
@@ -537,7 +537,7 @@ TEST_CASE(split_sym_dim_splits_at_nonparallel_symbolic_reshape)
     auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
         auto clone_n = var("n", {clone.min, clone.max});
         auto input =
-            sm.add_parameter("#split_sym_dim_input_0_0", symbolic_shape({lit(4), clone_n}));
+            sm.add_parameter("split_sym_dim_input_0_0", symbolic_shape({lit(4), clone_n}));
         sm.add_parameter("data", symbolic_shape({clone_n, lit(4)}));
         auto padded = sm.add_instruction(fixed_pad(), input);
         auto result = sm.add_instruction(migraphx::make_op("relu"), padded);
@@ -1353,7 +1353,7 @@ TEST_CASE(split_sym_dim_keeps_variable_stride_dependency_at_boundary)
                 migraphx::shape::float_type, {dd{lit(4)}, dd{lit(4)}}, {clone_n + 4, lit(1)}};
         }
         auto clone_dependency =
-            sm.add_parameter("#split_sym_dim_input_0_0", clone_dependency_shape);
+            sm.add_parameter("split_sym_dim_input_0_0", clone_dependency_shape);
         auto padded_data       = sm.add_instruction(fixed_pad(), clone_data);
         auto padded_dependency = sm.add_instruction(fixed_pad(), clone_dependency);
         auto clone_output =
@@ -1818,7 +1818,7 @@ TEST_CASE(split_sym_dim_splits_windowed_boundary)
             migraphx::shape::float_type,
             {dd{lit(1)}, dd{lit(1)}, dd{clone_extent}, dd{clone_extent}},
             {conv_extent * conv_extent, conv_extent * conv_extent, conv_extent, lit(1)}};
-        auto boundary = sm.add_parameter("#split_sym_dim_input_1_0", clone_boundary_shape);
+        auto boundary = sm.add_parameter("split_sym_dim_input_1_0", clone_boundary_shape);
         auto pad = sm.add_instruction(fixed_pad(std::numeric_limits<float>::lowest()), boundary);
         auto output =
             sm.add_instruction(migraphx::make_op("pooling",
@@ -1913,7 +1913,7 @@ TEST_CASE(split_sym_dim_retains_only_nonparallel_boundary_axes)
             migraphx::shape::float_type,
             {dd{lit(clone.batch)}, dd{lit(1)}, dd{clone_extent}, dd{clone_extent}},
             {conv_extent * conv_extent, conv_extent * conv_extent, conv_extent, lit(1)}};
-        auto boundary = sm.add_parameter("#split_sym_dim_input_1_0", clone_boundary_shape);
+        auto boundary = sm.add_parameter("split_sym_dim_input_1_0", clone_boundary_shape);
         auto pad = sm.add_instruction(fixed_pad(std::numeric_limits<float>::lowest()), boundary);
         auto output =
             sm.add_instruction(migraphx::make_op("pooling",
@@ -2254,7 +2254,7 @@ TEST_CASE(split_sym_dim_materializes_fill_range_and_scatter)
         auto clone_delta = sm.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
         auto clone_n = var("n", {clone.min, clone.max});
-        sm.add_parameter("#split_sym_dim_input_0_1",
+        sm.add_parameter("split_sym_dim_input_0_1",
                          migraphx::shape{migraphx::shape::int64_type, {1}});
         auto clone_data    = sm.add_parameter("data_buffer", symbolic_shape({clone_n}));
         auto clone_updates = sm.add_parameter("update_buffer", symbolic_shape({clone_n}));
@@ -2469,7 +2469,7 @@ TEST_CASE(split_sym_dim_materializes_attention_chain)
         auto clone_table =
             sm.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}));
         auto clone_sequence = var("sequence_length", {clone.min, clone.max});
-        sm.add_parameter("#split_sym_dim_input_0_2",
+        sm.add_parameter("split_sym_dim_input_0_2",
                          migraphx::shape{migraphx::shape::int64_type, {1}});
         auto clone_ids = sm.add_parameter(
             "input_ids", symbolic_shape({lit(1), clone_sequence}, migraphx::shape::int64_type));
@@ -2570,7 +2570,7 @@ TEST_CASE(split_sym_dim_clones_fixed_shape_dependencies_into_cases)
     auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
         auto clone_sequence = var("sequence_length", {clone.min, clone.max});
         auto clone_input    = sm.add_parameter("input", symbolic_shape({clone_sequence, lit(4)}));
-        auto clone_extent   = sm.add_parameter("#split_sym_dim_input_0_0",
+        auto clone_extent   = sm.add_parameter("split_sym_dim_input_0_0",
                                                migraphx::shape{migraphx::shape::int64_type, {1}});
         auto clone_scale    = sm.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),

@@ -122,6 +122,18 @@ std::optional<instruction_ref> find_dyn_concat(instruction_ref slice)
     return concat;
 }
 
+bool is_data_dependent_output_slice(instruction_ref slice)
+{
+    const auto& inputs = slice->inputs();
+    if(inputs.empty())
+        return false;
+    auto buffer = inputs.front();
+    if(buffer->name() != "get_tuple_elem" or buffer->inputs().size() != 1)
+        return false;
+    return contains({"nonzero", "nonmaxsuppression", "topk", "dyn_concat"},
+                    buffer->inputs().front()->name());
+}
+
 bool register_shape_roots(root_registry& registry, instruction_ref source)
 {
     const auto& s = source->get_shape();
@@ -146,7 +158,7 @@ root_registry find_root_sources(const module& m)
     {
         if(ins->name() != "dyn_slice" or not ins->get_shape().symbolic())
             continue;
-        bool boundary = false;
+        bool boundary = is_data_dependent_output_slice(ins);
         for(const auto& d : ins->get_shape().dyn_dims())
         {
             if(not d.is_symbolic() or d.sym_expr.name() != "variable")

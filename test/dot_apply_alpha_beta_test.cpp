@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -150,6 +150,60 @@ TEST_CASE(quant_dot_apply_alpha_beta)
         auto z_beta_i32 = m2.add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
         auto z_add      = m2.add_instruction(migraphx::make_op("add"), dot_res, z_beta_i32);
         m2.add_instruction(migraphx::make_op("identity"), z_add);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(dot_apply_alpha_beta_zero_alpha)
+{
+    migraphx::module m1;
+    {
+        auto ft = migraphx::shape::float_type;
+        auto x  = m1.add_parameter("x", migraphx::shape{ft, {2, 2}});
+        auto y  = m1.add_parameter("y", migraphx::shape{ft, {2, 2}});
+        auto z  = m1.add_parameter("z", migraphx::shape{ft, {2, 2}});
+        auto dot_res =
+            migraphx::add_apply_alpha_beta(m1, {x, y, z}, migraphx::make_op("dot"), 0.0f, 2.0f);
+        m1.add_instruction(migraphx::make_op("identity"), dot_res);
+    }
+    migraphx::module m2;
+    {
+        auto ft = migraphx::shape::float_type;
+        auto x  = m2.add_parameter("x", migraphx::shape{ft, {2, 2}});
+        auto y  = m2.add_parameter("y", migraphx::shape{ft, {2, 2}});
+        auto z  = m2.add_parameter("z", migraphx::shape{ft, {2, 2}});
+        m2.add_instruction(migraphx::make_op("dot"), x, y);
+        auto beta_literal   = m2.add_literal(2.0f);
+        auto beta_broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", z->get_shape().lens()}}),
+            beta_literal);
+        auto z_beta = m2.add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
+        m2.add_instruction(migraphx::make_op("identity"), z_beta);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(dot_apply_alpha_beta_zero_alpha_no_c)
+{
+    migraphx::module m1;
+    {
+        auto ft = migraphx::shape::float_type;
+        auto x  = m1.add_parameter("x", migraphx::shape{ft, {2, 2}});
+        auto y  = m1.add_parameter("y", migraphx::shape{ft, {2, 2}});
+        auto dot_res =
+            migraphx::add_apply_alpha_beta(m1, {x, y}, migraphx::make_op("dot"), 0.0f, 0.0f);
+        m1.add_instruction(migraphx::make_op("identity"), dot_res);
+    }
+    migraphx::module m2;
+    {
+        auto ft = migraphx::shape::float_type;
+        auto x  = m2.add_parameter("x", migraphx::shape{ft, {2, 2}});
+        auto y  = m2.add_parameter("y", migraphx::shape{ft, {2, 2}});
+        m2.add_instruction(migraphx::make_op("dot"), x, y);
+        auto zero = m2.add_literal(migraphx::literal{migraphx::shape{ft}, {0}});
+        auto bc =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), zero);
+        m2.add_instruction(migraphx::make_op("identity"), bc);
     }
     EXPECT(m1 == m2);
 }

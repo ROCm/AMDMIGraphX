@@ -665,7 +665,7 @@ environment.
 
          python -m pip install --index-url |WHL_PKG_REPO| \
              "migraphx==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|" \
-             "migraphx-libs==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|
+            "migraphx-libs==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|"
 
    3. Verify your installation.
 

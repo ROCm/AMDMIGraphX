@@ -46,7 +46,6 @@ static std::size_t get_split_size(std::size_t default_split)
 void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
 {
     mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = false});
-    // optimize_module is skipped in eager (see gpu/target.cpp); balanced/max still run it
     if(run_optimize_module)
         mpm.run_pass(optimize_module{});
     mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = false, .enable_gather = false});

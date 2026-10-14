@@ -26,12 +26,10 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// A transposed-but-still-packed index tensor is the other failure mode test_gathernd_broadcast_
-// indices doesn't cover: it has no over-read at all (element_space() == elements()), so it never
-// crashed, it just silently read the wrong element through a raw pointer that assumed row-major
-// order. After the transpose the index rows are (0,0) and (1,1); the old raw-pointer read
-// ignores the transpose and sees {0,1} twice, so a reversion produces a visibly wrong result
-// instead of coincidentally matching.
+// Transposed but still packed, so unlike test_gathernd_broadcast_indices there is no over-read
+// and nothing crashes - the old raw-pointer read just took the wrong element. The rows here are
+// (0,0) and (1,1), which that read sees as {0,1} twice, so a reversion is visibly wrong rather
+// than coincidentally right.
 struct test_gathernd_transposed_indices : verify_program<test_gathernd_transposed_indices>
 {
     migraphx::program create_program() const

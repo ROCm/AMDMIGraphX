@@ -122,6 +122,40 @@ inline std::size_t calculate_groups(std::size_t groups,
     return 0;
 }
 
+std::pair<instruction_ref, instruction_ref> get_gemms(module_ref submod)
+{
+    std::vector<instruction_ref> gemms;
+    for(auto it = submod->begin(); it != submod->end(); ++it)
+    {
+        if(it->name() == "dot")
+            gemms.push_back(it);
+    }
+    assert(gemms.size() == 2 and "Expected exactly 2 gemm operations in attention submodule");
+    return {gemms[0], gemms[1]};
+}
+
+bool attention_submodule_rebuild_blocked(const module& source_mod,
+                                         const std::vector<std::size_t>& scores_lens)
+{
+    // The rewrites below run from an inserter, which is not given the source instruction,
+    // so anything that must inspect it is checked here, before target_mod is touched.
+    auto unsupported = [&](const instruction& ins) {
+        const auto name = ins.name();
+        // "broadcast" pins an explicit axis, which shifts once gemm output is inserted
+        if(name == "broadcast")
+            return ins.get_shape().lens() == scores_lens;
+        // reductions are rewritten onto the innermost axis of the split rank
+        if(name == "reduce_max" or name == "reduce_sum")
+        {
+            const int64_t last_axis = ins.inputs().front()->get_shape().ndim() - 1;
+            auto axes = ins.get_operator().to_value()["axes"].to_vector<int64_t>();
+            return axes.size() != 1 or (axes.front() != -1 and axes.front() != last_axis);
+        }
+        return false;
+    };
+    return std::any_of(source_mod.begin(), source_mod.end(), unsupported);
+}
+
 bool is_range_literal(const literal& l)
 {
     const auto& s = l.get_shape();
@@ -621,21 +655,6 @@ struct find_flash_decoding
         return match::name("group")(match::has_op_value("tag", "attention")).bind("group");
     }
 
-    std::pair<instruction_ref, instruction_ref> get_gemms(module_ref submod) const
-    {
-        std::vector<instruction_ref> gemms;
-        for(auto it = submod->begin(); it != submod->end(); ++it)
-        {
-            if(it->name() == "dot")
-                gemms.push_back(it);
-        }
-        assert(gemms.size() == 2 and "Expected exactly 2 gemm operations in attention submodule");
-
-        // gemms[0] is Q@K, gemms[1] is P@V
-        // gemms are in order since we iterate from begin to end
-        return {gemms[0], gemms[1]};
-    }
-
     std::vector<shape> get_qkv_shapes(instruction_ref q, instruction_ref k, instruction_ref v) const
     {
         std::vector<shape> qkv_shapes;
@@ -842,23 +861,7 @@ struct find_flash_decoding
     {
         const auto split_lens = get_scores_split_lens(scores_lens, num_groups);
 
-        // The rewrites below run from an inserter, which is not given the source instruction,
-        // so anything that must inspect it is checked here, before target_mod is touched.
-        auto unsupported = [&](const instruction& ins) {
-            const auto name = ins.name();
-            // "broadcast" pins an explicit axis, which shifts once G is inserted
-            if(name == "broadcast")
-                return ins.get_shape().lens() == scores_lens;
-            // reductions are rewritten onto the innermost axis of the split rank
-            if(name == "reduce_max" or name == "reduce_sum")
-            {
-                const int64_t last_axis = ins.inputs().front()->get_shape().ndim() - 1;
-                auto axes = ins.get_operator().to_value()["axes"].to_vector<int64_t>();
-                return axes.size() != 1 or (axes.front() != -1 and axes.front() != last_axis);
-            }
-            return false;
-        };
-        if(std::any_of(source_mod.begin(), source_mod.end(), unsupported))
+        if(attention_submodule_rebuild_blocked(source_mod, scores_lens))
             return false;
 
         // map from instructions in the old module to the new ones in the target module
@@ -1377,12 +1380,43 @@ struct find_kv_cache_flash_decoding
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
+        auto attn_group_ins = r.instructions["group"];
+        auto* submod        = attn_group_ins->module_inputs().front();
+
+        auto return_ins = std::prev(submod->end());
+        assert(return_ins->name() == "@return");
+        if(return_ins->inputs().size() > 1)
+            return;
+
+        const auto [gemm1, gemm2] = get_gemms(submod);
+        (void)gemm2;
+
+        const auto& scores_lens     = gemm1->get_shape().lens();
+        const std::size_t sequence_length = scores_lens.back();
+
+        // read configuration with priority: struct member (if not default) > env var > default
+        const std::size_t groups = get_num_splits(configured_splits);
+        const std::size_t threshold =
+            get_config_value(configured_threshold, 32, MIGRAPHX_FLASH_DECODING_THRESHOLD{});
+        const std::size_t min_chunk_size = get_config_value(
+            configured_min_chunk_size, 32, MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{});
+        const std::size_t max_splits =
+            get_config_value(configured_max_splits, 16, MIGRAPHX_FLASH_DECODING_MAX_SPLITS{});
+
+        const std::size_t actual_groups =
+            calculate_groups(groups, sequence_length, threshold, min_chunk_size, max_splits);
+        if(actual_groups == 0)
+            return;
+
+        // TODO: support uneven splits
+        if(sequence_length % actual_groups != 0)
+            return;
+
+        if(attention_submodule_rebuild_blocked(*submod, scores_lens))
+            return;
+
         (void)mpm;
-        (void)r;
-        (void)configured_splits;
-        (void)configured_threshold;
-        (void)configured_max_splits;
-        (void)configured_min_chunk_size;
+        (void)attn_group_ins;
     }
 };
 

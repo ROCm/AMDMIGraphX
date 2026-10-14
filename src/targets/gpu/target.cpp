@@ -271,8 +271,6 @@ struct pipeline_factory
                                            get_context(), backend_opts.mlir_use_specific_ops),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
-            // optimize_module is skipped in eager (compile-time speedup, accepted runtime cost);
-            // balanced/max keep it.
             enable_pass(options.compile_mode != compile_modes::eager, optimize_module{}),
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
             fuse_pointwise_reduce{.run_optimize_module =

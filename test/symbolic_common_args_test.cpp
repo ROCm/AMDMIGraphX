@@ -38,23 +38,19 @@ TEST_CASE(symbolic_binary_explicit_broadcast)
     std::vector<migraphx::shape::dynamic_dimension> values_dims{{count}};
     migraphx::module m1;
     {
-        auto scalar = m1.add_parameter(
-            "scalar",
-            {migraphx::shape::float_type,
-             std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}}});
-        auto values =
-            m1.add_parameter("values", {migraphx::shape::float_type, values_dims});
-        auto add = migraphx::add_common_op(m1, migraphx::make_op("add"), {scalar, values});
+        auto scalar = m1.add_parameter("scalar",
+                                       {migraphx::shape::float_type,
+                                        std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}}});
+        auto values = m1.add_parameter("values", {migraphx::shape::float_type, values_dims});
+        auto add    = migraphx::add_common_op(m1, migraphx::make_op("add"), {scalar, values});
         m1.add_return({add});
     }
     migraphx::module m2;
     {
-        auto scalar = m2.add_parameter(
-            "scalar",
-            {migraphx::shape::float_type,
-             std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}}});
-        auto values =
-            m2.add_parameter("values", {migraphx::shape::float_type, values_dims});
+        auto scalar = m2.add_parameter("scalar",
+                                       {migraphx::shape::float_type,
+                                        std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}}});
+        auto values = m2.add_parameter("values", {migraphx::shape::float_type, values_dims});
         auto broadcast = m2.add_instruction(
             migraphx::make_op("multibroadcast",
                               {{"out_dyn_dims", migraphx::to_value(values_dims)}}),
@@ -106,12 +102,10 @@ TEST_CASE(symbolic_binary_literal_expression_mismatch)
     migraphx::module m;
     auto x = m.add_parameter(
         "x",
-        {migraphx::shape::float_type,
-         std::vector<migraphx::shape::dynamic_dimension>{{lit(4)}}});
+        {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{lit(4)}}});
     auto y = m.add_parameter(
         "y", {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{n}}});
-    EXPECT(test::throws(
-        [&] { migraphx::add_common_op(m, migraphx::make_op("add"), {x, y}); }));
+    EXPECT(test::throws([&] { migraphx::add_common_op(m, migraphx::make_op("add"), {x, y}); }));
 }
 
 TEST_CASE(symbolic_range_common_dims_mismatch)
@@ -120,10 +114,10 @@ TEST_CASE(symbolic_range_common_dims_mismatch)
 
     std::vector<migraphx::shape::dynamic_dimension> symbolic_dims{{var("n", {2, 8})}};
     std::vector<migraphx::shape::dynamic_dimension> range_dims{{2, 8}};
-    EXPECT(test::throws(
-        [&] { migraphx::compute_broadcasted_dyn_dims(symbolic_dims, range_dims); }));
-    EXPECT(test::throws(
-        [&] { migraphx::compute_broadcasted_dyn_dims(range_dims, symbolic_dims); }));
+    EXPECT(
+        test::throws([&] { migraphx::compute_broadcasted_dyn_dims(symbolic_dims, range_dims); }));
+    EXPECT(
+        test::throws([&] { migraphx::compute_broadcasted_dyn_dims(range_dims, symbolic_dims); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

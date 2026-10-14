@@ -124,6 +124,9 @@ struct backend_options
     // priority over this. The architecture and build-config defaults only force ops on, so a
     // '!' entry cannot disable an op those defaults enable (e.g. attention on gfx94/gfx95).
     std::vector<std::string> mlir_use_specific_ops = {};
+    // Widest attention head dim fuse_attention will fuse; wider attention blocks run as
+    // separate gemm and softmax kernels.
+    std::size_t attn_max_head_dim = 512;
     // Problem caches that new tuning solutions are saved back to.
     std::vector<std::string> problem_cache_files = {};
     // System-level problem caches, searched after the writable ones and never written.
@@ -145,6 +148,7 @@ struct backend_options
                     f(self.binary_cache, "binary_cache"),
                     f(self.binary_cache_verify, "binary_cache_verify"),
                     f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
+                    f(self.attn_max_head_dim, "attn_max_head_dim"),
                     f(self.hip_graph, "hip_graph"),
                     f(self.convolution_layout, "convolution_layout"),
                     f(self.enable_skinny_dot, "enable_skinny_dot"),
@@ -268,6 +272,7 @@ struct pipeline_factory
             enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
                         fuse_attention{.attn_enabled = mlir_attention_enabled(
                                            get_context(), backend_opts.mlir_use_specific_ops),
+                                       .attn_max_head_dim      = backend_opts.attn_max_head_dim,
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},

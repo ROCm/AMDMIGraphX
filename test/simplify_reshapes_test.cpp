@@ -596,7 +596,7 @@ TEST_CASE(unsqueeze_broadcast_single)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x         = m2.add_parameter("x", s);
+        auto x = m2.add_parameter("x", s);
         auto broadcast =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 8}}}), x);
         m2.add_return({broadcast});

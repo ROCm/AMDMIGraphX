@@ -323,6 +323,7 @@ TEST_CASE(binary_sym_different_expressions)
 
 TEST_CASE(binary_sym_overlapping_expressions)
 {
+    // extents of expressions are not checked
     auto n = var("n", {0, 100});
     auto m = var("m", {50, 150});
     migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
@@ -332,6 +333,7 @@ TEST_CASE(binary_sym_overlapping_expressions)
 
 TEST_CASE(binary_sym_disjoint_expressions)
 {
+    // extents of expressions are not checked
     auto n = var("n", {0, 10});
     auto m = var("m", {20, 30});
     migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};

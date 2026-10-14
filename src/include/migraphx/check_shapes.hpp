@@ -215,11 +215,9 @@ struct check_shapes
     /*!
      * Check all shapes have the same dimensions.
      *
-     * Corresponding dimensions in fully symbolic shapes may have different non-literal
-     * expressions when their intervals overlap; the operation asserts that their runtime extents
-     * are equal. Unequal symbolic literals and mismatches involving a literal one are rejected, so
-     * broadcasting must be explicit. Static, range-based, and mixed shapes require equal minimum
-     * and maximum lengths.
+     * Corresponding dimensions in fully symbolic shapes may have different non-literal expressions.
+     * Assuming that the operation requires that their runtime extents are equal.
+     * Any literal dimension must match exactly.
      */
     const check_shapes& same_dims() const
     {
@@ -235,15 +233,8 @@ struct check_shapes
                                          [](const auto& x, const auto& y) {
                                              if(x == y)
                                                  return true;
-                                             if(x == 1 or y == 1)
-                                                 return false;
-                                             if(x.sym_expr.name() == "literal" and
-                                                y.sym_expr.name() == "literal")
-                                                 return false;
-                                             const auto x_interval = x.get_interval();
-                                             const auto y_interval = y.get_interval();
-                                             return std::max(x_interval.min, y_interval.min) <=
-                                                    std::min(x_interval.max, y_interval.max);
+                                             return x.sym_expr.name() != "literal" and
+                                                    y.sym_expr.name() != "literal";
                                          });
                    });
                }))

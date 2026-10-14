@@ -143,6 +143,10 @@ struct binary : op_name<Derived>
             .same_dims();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
+        // Symbolic: compatible expressions may differ, so keep s0's dimensions while selecting
+        // either input's layout.
+        // Non-symbolic: static inputs have equal lens; range-based or mixed inputs require exact
+        // shape equality below.
         const auto output_dyn_dims =
             s0.symbolic() ? s0.dyn_dims() : std::vector<shape::dynamic_dimension>{};
         // Range-based dynamic (or mixed dynamic/static) inputs only support strict equality.
@@ -154,6 +158,10 @@ struct binary : op_name<Derived>
         }
         const bool b0 = s0.broadcasted();
         const bool b1 = s1.broadcasted();
+        // Broadcasted: use the non-broadcasted layout when only one input broadcasts.
+        // Merge the axes on which the inputs vary when both broadcast.
+        // Non-broadcasted: prefer a packed or non-single-element layout. Otherwise select the
+        // common permutation.
         if(s0 == s1 and (s0.packed() or b0))
         {
             return s0;

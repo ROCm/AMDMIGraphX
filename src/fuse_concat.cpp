@@ -56,14 +56,13 @@ struct fused_concat
         // post pointwise module which can take 0 or more input arguments.
         if(mods.size() < 2)
             MIGRAPHX_THROW("FUSED_CONCAT: Missing fused modules");
-        std::size_t expected_inputs = 0;
-        for(const_module_ref mod : range(mods.begin(), mods.end() - 1))
-        {
-            auto nparams = mod->get_parameter_names().size();
-            if(nparams == 0)
-                MIGRAPHX_THROW("FUSED_CONCAT: Pre-concat module requires an input parameter");
-            expected_inputs += nparams;
-        }
+        auto expected_inputs = transform_accumulate(
+            mods.begin(), mods.end() - 1, std::size_t{0}, std::plus<>{}, [](const_module_ref mod) {
+                auto nparams = mod->get_parameter_names().size();
+                if(nparams == 0)
+                    MIGRAPHX_THROW("FUSED_CONCAT: Pre-concat module requires an input parameter");
+                return nparams;
+            });
         const_module_ref post_mod = mods.back();
         auto post_params          = post_mod->get_parameter_names().size();
         if(post_params == 0)

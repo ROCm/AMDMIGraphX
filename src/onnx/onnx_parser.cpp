@@ -840,8 +840,7 @@ static std::size_t parse_external_size(const std::string& value, const char* fie
 static fs::path lexically_normalize(const fs::path& p)
 {
     std::vector<fs::path> parts;
-    // cppcheck-suppress useStlAlgorithm
-    for(const auto& part : p)
+    for(const auto& part : p) // cppcheck-suppress useStlAlgorithm
     {
         if(part == ".")
             continue;
@@ -851,8 +850,7 @@ static fs::path lexically_normalize(const fs::path& p)
             parts.push_back(part);
     }
     fs::path result;
-    // cppcheck-suppress useStlAlgorithm
-    for(const auto& part : parts)
+    for(const auto& part : parts) // cppcheck-suppress useStlAlgorithm
         result /= part;
     return result;
 }

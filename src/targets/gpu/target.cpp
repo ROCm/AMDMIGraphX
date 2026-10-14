@@ -113,8 +113,12 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
-    /// Where compiled kernels are cached between runs. Defaults to ``MIGRAPHX_BINARY_CACHE``.
-    std::string binary_cache = binary_cache_settings{}.path;
+    /// Where compiled kernels are cached between runs. When unset, ``MIGRAPHX_BINARY_CACHE`` is
+    /// used and written to; a cache named here is only read unless ``binary_cache_dev`` is set,
+    /// so a cache shipped with an application is never modified by it.
+    optional<std::string> binary_cache = nullopt;
+    /// Store newly compiled kernels in the cache named by ``binary_cache``, as when building it.
+    bool binary_cache_dev = false;
     /// Compile even when a kernel could be reused, and fail if the two disagree.
     bool binary_cache_verify = false;
     // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
@@ -143,6 +147,7 @@ struct backend_options
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
                     f(self.binary_cache, "binary_cache"),
+                    f(self.binary_cache_dev, "binary_cache_dev"),
                     f(self.binary_cache_verify, "binary_cache_verify"),
                     f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
                     f(self.hip_graph, "hip_graph"),
@@ -171,6 +176,22 @@ backend_options get_backend_options(const compile_options& options)
             opts[opt.get_key()] = opt.without_key();
     }
     return from_value<backend_options>(value(opts));
+}
+
+// A cache named by MIGRAPHX_BINARY_CACHE is a developer's working cache and is written to. One
+// named by a backend option is how an application ships prebuilt kernels to its users, so it is
+// only read unless binary_cache_dev asks for it to be filled. An empty option still turns the
+// disk cache off, whatever the environment says.
+binary_cache_settings get_binary_cache_settings(const backend_options& opts)
+{
+    binary_cache_settings settings;
+    settings.verify = opts.binary_cache_verify;
+    if(opts.binary_cache.has_value())
+    {
+        settings.path      = *opts.binary_cache;
+        settings.read_only = not opts.binary_cache_dev;
+    }
+    return settings;
 }
 
 struct pipeline_factory
@@ -359,8 +380,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     auto backend_opts = get_backend_options(options);
     auto& ctx         = any_cast<context>(gctx);
     // The context predates the compile options, so the cache they configure is installed here.
-    ctx.set_binary_cache(std::make_shared<binary_cache>(
-        binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
+    ctx.set_binary_cache(std::make_shared<binary_cache>(get_binary_cache_settings(backend_opts)));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
 

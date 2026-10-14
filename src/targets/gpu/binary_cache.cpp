@@ -107,7 +107,8 @@ static std::string device_dir(const context& ctx)
 // A path sqlite::is_database_path accepts is a SQLite database; anything else is a directory of
 // entries. A directory is named with the short version id to keep paths short; a database records
 // the full id. Nothing is persisted when the compiler cannot be identified, since entries from
-// different toolchains would be indistinguishable.
+// different toolchains would be indistinguishable. A read-only database is opened for reading
+// only, so it is never locked, created or given the schema.
 binary_cache_backend* binary_cache::get_backend()
 {
     if(backend_opened)
@@ -123,7 +124,7 @@ binary_cache_backend* binary_cache::get_backend()
         return nullptr;
     if(not database)
         backend = binary_cache_backend{file_binary_cache{path}};
-    else if(auto db = sqlite_binary_cache::open(path))
+    else if(auto db = sqlite_binary_cache::open(path, settings.read_only))
         backend = binary_cache_backend{std::move(*db)};
     return backend.has_value() ? &*backend : nullptr;
 }
@@ -159,7 +160,9 @@ void binary_cache::insert(const context& ctx, std::vector<binary_cache_entry> es
     if(es.empty())
         return;
     counters.compiled += es.size();
-    if(auto* b = get_backend())
+    // A read-only cache only looks entries up, so its storage is left exactly as it was found.
+    auto* b = settings.read_only ? nullptr : get_backend();
+    if(b != nullptr)
     {
         try
         {

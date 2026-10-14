@@ -44,7 +44,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BINARY_CACHE)
 struct context;
 
 /// How the cache behaves for one compile. Supplied through the target's backend options, with
-/// the MIGRAPHX_BINARY_CACHE environment variable as the default for the directory.
+/// the MIGRAPHX_BINARY_CACHE environment variable as the default for the directory. A cache named
+/// by the environment is written to; one named by a backend option is read-only unless the
+/// binary_cache_dev option is also set, so a cache shipped to consumers is never modified.
 struct binary_cache_settings
 {
     /// Where entries are kept. Nothing is written to disk when this is empty, though results
@@ -52,6 +54,8 @@ struct binary_cache_settings
     std::string path = string_value_of(MIGRAPHX_BINARY_CACHE{});
     /// Compile even when a result can be reused, and fail if the two disagree.
     bool verify = false;
+    /// Only look entries up. A miss is still compiled and shared in memory, but never stored.
+    bool read_only = false;
 };
 
 /**
@@ -76,7 +80,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         std::size_t hits = 0;
         /// Not found, so the caller had to compile.
         std::size_t misses = 0;
-        /// Written to the cache after being compiled.
+        /// Recorded after being compiled; written to storage unless the cache is read-only.
         std::size_t compiled = 0;
     };
 

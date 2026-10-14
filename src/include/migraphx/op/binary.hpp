@@ -158,10 +158,7 @@ struct binary : op_name<Derived>
         }
         const bool b0 = s0.broadcasted();
         const bool b1 = s1.broadcasted();
-        // Broadcasted: use the non-broadcasted layout when only one input broadcasts.
-        // Merge the axes on which the inputs vary when both broadcast.
-        // Non-broadcasted: prefer a packed or non-single-element layout. Otherwise select the
-        // common permutation.
+        // Prefer a non-broadcasted layout; otherwise preserve every axis on which either input varies.
         if(s0 == s1 and (s0.packed() or b0))
         {
             return s0;

@@ -52,7 +52,8 @@ See the `ROCm compatibility matrix`_ for more information.
 
 .. selected:: i=pip
 
-   * Ensure your system has Python 3.12 installed and accessible.
+   * Ensure your system has Python 3.10, 3.11, 3.12, 3.13, or 3.14 installed
+     and accessible.
 
 .. _migraphx-package-install:
 
@@ -649,15 +650,13 @@ environment.
    1. Create and activate a virtual environment or activate an existing ROCm
       |ROCM_VERSION| environment.
 
-      .. tab-set::
+      .. code-block:: bash
 
-         .. tab-item:: Python 3.12
-            :sync: py312
+         python3.12 -m venv .venv
+         source .venv/bin/activate
 
-            .. code-block:: bash
-
-               python3.12 -m venv .venv
-               source .venv/bin/activate
+      Wheels are published for Python 3.10 through 3.14. Substitute the
+      interpreter you want to use, for example ``python3.14``.
 
    2. Install the MIGraphX and ``migraphx-libs`` wheels.
 

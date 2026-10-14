@@ -28,6 +28,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
@@ -301,6 +302,51 @@ TEST_CASE(allocate_out_parameter_return_copy)
     m2.add_return({copy});
 
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_pointwise_module_parameter_return)
+{
+    migraphx::program p;
+    auto* pointwise = p.create_module("pointwise");
+    auto px =
+        pointwise->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
+    pointwise->add_return({px});
+
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 4}});
+    auto pw  = mm->add_instruction(migraphx::make_op("pointwise"), {x}, {pointwise});
+    mm->add_return({pw});
+
+    run_pass(p, allocation_with_out_model{});
+
+    EXPECT(pointwise->get_returns() == std::vector<migraphx::instruction_ref>{px});
+}
+
+TEST_CASE(allocate_out_select_module_parameter_return)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p;
+    auto* branch = p.create_module("branch");
+    auto bx      = branch->add_parameter("x", s);
+    branch->add_return({bx});
+
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", s);
+    auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s)}}));
+    migraphx::shape output_shape{std::vector<migraphx::shape>{s}};
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
+        {x, alloc},
+        {branch});
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
+
+    run_pass(p, allocation_with_out_model{});
+
+    EXPECT(migraphx::any_of(migraphx::iterator_for(*branch), [](migraphx::instruction_ref ins) {
+        return ins->name() == "test_copy";
+    }));
 }
 
 TEST_CASE(allocate_out_select_module_dynamic_tuple_views)

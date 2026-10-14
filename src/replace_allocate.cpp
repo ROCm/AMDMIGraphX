@@ -255,7 +255,18 @@ bool replace_alias_allocation(module& m, instruction_ref ins)
     return true;
 }
 
-void insert_copy(module& m, const allocation_model& model)
+bool is_select_module_input(module_ref root, module_ref submodule)
+{
+    auto modules = root->get_sub_modules();
+    modules.push_back(root);
+    return any_of(modules, [&](module_ref mod) {
+        return any_of(iterator_for(*mod), [&](instruction_ref ins) {
+            return ins->name() == "select_module" and contains(ins->module_inputs(), submodule);
+        });
+    });
+}
+
+void insert_copy(module& m, const allocation_model& model, bool copy_aliased_returns)
 {
     // Rewriting a return can change the aliases of the other returns, so visit them in order
     std::unordered_set<instruction_ref> visited;
@@ -279,6 +290,9 @@ void insert_copy(module& m, const allocation_model& model)
         auto copy = m.insert_instruction(insert_ins, make_op(model.copy()), ins, alloc);
         m.replace_instruction(ins, copy);
     }
+
+    if(not copy_aliased_returns)
+        return;
 
     auto returns = m.get_returns();
     std::unordered_set<instruction_ref> returned;
@@ -325,7 +339,8 @@ void insert_submod_allocations(instruction_ref ins, module& mod, const allocatio
 void replace_allocate::apply(module_pass_manager& mpm) const
 {
     module& m              = mpm.get_module();
-    bool is_root           = *mpm.get_root_module() == m;
+    module_ref root_module = mpm.get_root_module();
+    bool is_root           = *root_module == m;
     bool root_offload_copy = is_root ? this->offload_copy : false;
     // Adjust allocations before replacing
     for(auto ins : iterator_for(m))
@@ -337,7 +352,7 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         insert_submod_allocations(ins, m, model);
     }
     if(not root_offload_copy and model.needs_out_params())
-        insert_copy(m, model);
+        insert_copy(m, model, is_root or is_select_module_input(root_module, &m));
     auto mod_output_names         = create_output_names(m);
     auto mod_output_debug_symbols = get_output_debug_symbols(m);
     for(auto ins : iterator_for(m))

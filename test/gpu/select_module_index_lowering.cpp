@@ -172,4 +172,49 @@ TEST_CASE(select_module_index_lowering_existing_load)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(select_module_index_lowering_two_submodules)
+{
+    migraphx::shape idx_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape data_s{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape out_s{std::vector<migraphx::shape>{data_s}};
+
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto index = mm->add_parameter("index", idx_s);
+        auto data  = mm->add_parameter("data", data_s);
+        auto* sub0 = p1.create_module("sub_0");
+        auto data0 = sub0->add_parameter("data", data_s);
+        sub0->add_return({sub0->add_instruction(migraphx::make_op("neg"), data0)});
+        auto* sub1 = p1.create_module("sub_1");
+        auto data1 = sub1->add_parameter("data", data_s);
+        sub1->add_return({sub1->add_instruction(migraphx::make_op("abs"), data1)});
+        auto smi = mm->add_instruction(
+            migraphx::make_op("select_module_index"), {index, data}, {sub0, sub1});
+        mm->add_return({smi});
+    }
+
+    run_lowering(*p1.get_main_module());
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto index = mm->add_parameter("index", idx_s);
+        auto data  = mm->add_parameter("data", data_s);
+        auto* sub0 = p2.create_module("sub_0");
+        auto data0 = sub0->add_parameter("data", data_s);
+        sub0->add_return({sub0->add_instruction(migraphx::make_op("neg"), data0)});
+        auto* sub1 = p2.create_module("sub_1");
+        auto data1 = sub1->add_parameter("data", data_s);
+        sub1->add_return({sub1->add_instruction(migraphx::make_op("abs"), data1)});
+        auto loaded = mm->add_instruction(migraphx::make_op("hip::load_scalar"), index);
+        auto output = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
+        auto smi = mm->add_instruction(
+            migraphx::make_op("select_module_index"), {loaded, data, output}, {sub0, sub1});
+        mm->add_return({smi});
+    }
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -914,12 +914,6 @@ static std::vector<std::vector<float>> eval_ref(const migraphx::module& m,
     return outputs;
 }
 
-static bool has_op(const migraphx::module& m, const std::string& name)
-{
-    return std::any_of(
-        m.begin(), m.end(), [&](const migraphx::instruction& ins) { return ins.name() == name; });
-}
-
 TEST_CASE(concat_slice_layout_transpose)
 {
     // Concat on axis 0 of equal slices taken along axis 1
@@ -941,8 +935,10 @@ TEST_CASE(concat_slice_layout_transpose)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(not has_op(m2, "concat"));
-    EXPECT(not has_op(m2, "slice"));
+    EXPECT(std::none_of(
+        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(std::none_of(
+        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "slice"; }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -970,7 +966,8 @@ TEST_CASE(concat_slice_layout_partial_cover)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(not has_op(m2, "concat"));
+    EXPECT(std::none_of(
+        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -995,9 +992,12 @@ TEST_CASE(concat_slice_layout_view_chain)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(not has_op(m2, "concat"));
-    EXPECT(has_op(m2, "transpose"));
-    EXPECT(not has_op(m2, "reshape"));
+    EXPECT(std::none_of(
+        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(std::any_of(
+        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "transpose"; }));
+    EXPECT(std::none_of(
+        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "reshape"; }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -1025,7 +1025,8 @@ TEST_CASE(concat_slice_layout_equivalent_chains)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(not has_op(m2, "concat"));
+    EXPECT(std::none_of(
+        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -1050,7 +1051,8 @@ TEST_CASE(concat_slice_layout_flatten)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(not has_op(m2, "concat"));
+    EXPECT(std::none_of(
+        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -1072,13 +1074,6 @@ TEST_CASE(concat_slice_layout_gap_unchanged)
     migraphx::module m2 = m1;
     run_pass(m1);
     EXPECT(m1 == m2);
-}
-
-static bool has_concat_with_elements(const migraphx::module& m, std::size_t elements)
-{
-    return std::any_of(m.begin(), m.end(), [&](const migraphx::instruction& ins) {
-        return ins.name() == "concat" and ins.get_shape().elements() == elements;
-    });
 }
 
 TEST_CASE(concat_broadcast_axis_stacked_weights)
@@ -1104,8 +1099,12 @@ TEST_CASE(concat_broadcast_axis_stacked_weights)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(not has_concat_with_elements(m2, s.elements()));
-    EXPECT(has_concat_with_elements(m2, 3 * ws.elements()));
+    EXPECT(std::none_of(m2.begin(), m2.end(), [&](const auto& ins) {
+        return ins.name() == "concat" and ins.get_shape().elements() == s.elements();
+    }));
+    EXPECT(std::any_of(m2.begin(), m2.end(), [&](const auto& ins) {
+        return ins.name() == "concat" and ins.get_shape().elements() == 3 * ws.elements();
+    }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -1134,8 +1133,12 @@ TEST_CASE(concat_broadcast_axis_transposed_weights)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(not has_concat_with_elements(m2, s.elements()));
-    EXPECT(has_concat_with_elements(m2, 3 * ws.elements()));
+    EXPECT(std::none_of(m2.begin(), m2.end(), [&](const auto& ins) {
+        return ins.name() == "concat" and ins.get_shape().elements() == s.elements();
+    }));
+    EXPECT(std::any_of(m2.begin(), m2.end(), [&](const auto& ins) {
+        return ins.name() == "concat" and ins.get_shape().elements() == 3 * ws.elements();
+    }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -1160,8 +1163,12 @@ TEST_CASE(concat_broadcast_axis_bias)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(not has_concat_with_elements(m2, s.elements()));
-    EXPECT(has_concat_with_elements(m2, 4 * bs.elements()));
+    EXPECT(std::none_of(m2.begin(), m2.end(), [&](const auto& ins) {
+        return ins.name() == "concat" and ins.get_shape().elements() == s.elements();
+    }));
+    EXPECT(std::any_of(m2.begin(), m2.end(), [&](const auto& ins) {
+        return ins.name() == "concat" and ins.get_shape().elements() == 4 * bs.elements();
+    }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -1186,8 +1193,12 @@ TEST_CASE(concat_broadcast_axis_negative_axis)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(not has_concat_with_elements(m2, s.elements()));
-    EXPECT(has_concat_with_elements(m2, 4 * bs.elements()));
+    EXPECT(std::none_of(m2.begin(), m2.end(), [&](const auto& ins) {
+        return ins.name() == "concat" and ins.get_shape().elements() == s.elements();
+    }));
+    EXPECT(std::any_of(m2.begin(), m2.end(), [&](const auto& ins) {
+        return ins.name() == "concat" and ins.get_shape().elements() == 4 * bs.elements();
+    }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -1240,7 +1251,9 @@ TEST_CASE(concat_broadcast_axis_mixed_unchanged)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(has_concat_with_elements(m2, s.elements()));
+    EXPECT(std::any_of(m2.begin(), m2.end(), [&](const auto& ins) {
+        return ins.name() == "concat" and ins.get_shape().elements() == s.elements();
+    }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }

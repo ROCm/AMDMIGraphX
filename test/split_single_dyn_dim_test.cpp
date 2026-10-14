@@ -81,12 +81,11 @@ TEST_CASE(non_root_module_is_ignored)
     auto* mm    = p.get_main_module();
     auto input  = mm->add_parameter("data", s);
     auto select = mm->add_instruction(
-        migraphx::make_op(
-            "select_module", {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
         {input},
         {branch});
-    auto output =
-        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto output = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     mm->add_return({output});
     auto expected = p;
 
@@ -109,7 +108,7 @@ TEST_CASE(dynamic_batch)
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-            auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
+            auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6}});
             auto broadcast_lit =
                 submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
             auto add_ins =
@@ -192,7 +191,7 @@ TEST_CASE(dynamic_batch_multiple_input)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm0->add_instruction(
             migraphx::make_op("select_module",
-                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0, input1, input2},
             {dim1, dim2, dim3, dim4});
         auto ret =
@@ -233,7 +232,7 @@ TEST_CASE(multiple_outputs)
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-            auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
+            auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6}});
             auto broadcast_lit =
                 submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
             auto add0_ins =

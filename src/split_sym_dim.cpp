@@ -200,6 +200,18 @@ bool zeros_contracted_region(const axis_mask& source, const axis_mask& consumer)
            source.axis == consumer.axis and sym::same_symbol(source.extent, consumer.extent);
 }
 
+bool zeros_contracted_region(const operand_plan& source, const axis_mask& consumer)
+{
+    return any_of(source.masks,
+                  [&](const auto& mask) { return zeros_contracted_region(mask, consumer); });
+}
+
+bool zeros_contracted_region(const symbolic_op_info& source, const axis_mask& consumer)
+{
+    return any_of(source.operands,
+                  [&](const auto& operand) { return zeros_contracted_region(operand, consumer); });
+}
+
 void remove_redundant_masks(
     std::vector<symbolic_op_plan>& infos,
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction)
@@ -214,18 +226,12 @@ void remove_redundant_masks(
             if(source == info_for_instruction.end())
                 continue;
             auto& masks = operand.masks;
-            masks.erase(std::remove_if(
-                            masks.begin(),
-                            masks.end(),
-                            [&](const auto& mask) {
-                                return any_of(
-                                    source->second->info.operands, [&](const auto& source_operand) {
-                                        return any_of(
-                                            source_operand.masks, [&](const auto& source_mask) {
-                                                return zeros_contracted_region(source_mask, mask);
-                                            });
-                                    });
-                            }),
+            masks.erase(std::remove_if(masks.begin(),
+                                       masks.end(),
+                                       [&](const auto& mask) {
+                                           return zeros_contracted_region(source->second->info,
+                                                                          mask);
+                                       }),
                         masks.end());
         }
     }
@@ -596,7 +602,7 @@ bool absorbable_dependency(
     if(found == info_for_instruction.end())
         return false;
     const auto& info = found->second->info;
-    if(not info.supported or not info.freezer)
+    if(not info.supported or (not info.freezer and not s.is_fixed()))
         return false;
     const auto& inputs = ins->inputs();
     assert(inputs.size() == info.operands.size());

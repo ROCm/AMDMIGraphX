@@ -73,9 +73,7 @@ struct test_fixed_pad_lowest_half : verify_program<test_fixed_pad_lowest_half>
         migraphx::shape s{migraphx::shape::half_type, {{1, 1}, {1, 4}}};
         auto x = mm->add_parameter("x", s);
         mm->add_instruction(
-            migraphx::make_op(
-                "fixed_pad", {{"value", std::numeric_limits<float>::lowest()}}),
-            x);
+            migraphx::make_op("fixed_pad", {{"value", std::numeric_limits<float>::lowest()}}), x);
         return p;
     }
 

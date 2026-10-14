@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <iterator>
 #include <functional>
@@ -1892,21 +1893,36 @@ static scalar eval_impl(const expr& root, F lookup)
 
 static bool is_unsigned(scalar x)
 {
-    return std::holds_alternative<int64_t>(x) and std::get<int64_t>(x) >= 0;
+    return visit(
+        [](auto value) {
+            if constexpr(std::is_integral_v<decltype(value)>)
+            {
+                return value >= 0;
+            }
+            else
+            {
+                return std::isfinite(value) and value >= 0 and std::floor(value) == value and
+                       value < std::ldexp(1.0, std::numeric_limits<std::size_t>::digits);
+            }
+        },
+        x);
 }
 
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
-    auto find   = make_find_symbol(symbol_map);
-    auto lookup = [&](const expr& sub) -> std::optional<scalar> {
-        if(const auto* v = find(sub))
-            return scalar(*v);
-        return std::nullopt;
-    };
-    auto r = eval_impl(*this, lookup);
-    if(not is_unsigned(r))
-        MIGRAPHX_THROW("Expression does not evaluate to an unsigned integer: " + this->to_string());
-    return to<std::size_t>(r);
+    std::unordered_map<expr, interval> symbol_intervals;
+    std::transform(symbol_map.begin(),
+                   symbol_map.end(),
+                   std::inserter(symbol_intervals, symbol_intervals.end()),
+                   [](const auto& item) {
+                       const auto& [symbol, value] = item;
+                       return std::make_pair(symbol, interval{value, value});
+                   });
+    auto result = eval_interval(symbol_intervals);
+    if(not scalar_equal(result.min, result.max) or not is_unsigned(result.min))
+        MIGRAPHX_THROW("Expression does not evaluate to an unsigned integer: " + this->to_string() +
+                       " " + migraphx::to_string(result));
+    return to<std::size_t>(result.min);
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const

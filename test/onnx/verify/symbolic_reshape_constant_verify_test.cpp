@@ -37,17 +37,15 @@ TEST_CASE(symbolic_reshape_constant_verify_test)
     std::vector<float> input = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     migraphx::shape other_shape{migraphx::shape::float_type, {2}};
     std::vector<float> other = {12, 13};
-    auto results = p.eval({{"other", migraphx::argument{other_shape, other.data()}},
-                           {"x", migraphx::argument{input_shape, input.data()}}});
+    auto results             = p.eval({{"other", migraphx::argument{other_shape, other.data()}},
+                                       {"x", migraphx::argument{input_shape, input.data()}}});
 
     EXPECT(results.size() == 2);
     EXPECT(results.at(0).get_shape() == input_shape);
     EXPECT(results.at(1).get_shape() == input_shape);
     std::vector<float> result_data;
-    results.at(0).visit(
-        [&](auto output) { result_data.assign(output.begin(), output.end()); });
+    results.at(0).visit([&](auto output) { result_data.assign(output.begin(), output.end()); });
     EXPECT(result_data == input);
-    results.at(1).visit(
-        [&](auto output) { result_data.assign(output.begin(), output.end()); });
+    results.at(1).visit([&](auto output) { result_data.assign(output.begin(), output.end()); });
     EXPECT(result_data == input);
 }

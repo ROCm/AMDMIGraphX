@@ -1505,9 +1505,13 @@ TEST_CASE(split_sym_dim_retries_affected_connected_edge)
                                                  {dd{var("n", {clone.n, clone.n})}, dd{lit(4)}}});
             auto padded_input =
                 sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_input);
-            auto clone_before   = sm.add_instruction(migraphx::make_op("relu"), padded_input);
-            auto clone_expanded = sm.add_parameter(
-                "#split_sym_dim_input_0_0", migraphx::shape{migraphx::shape::float_type, {4, 1}});
+            auto clone_before = sm.add_instruction(migraphx::make_op("relu"), padded_input);
+            auto reduced_input =
+                sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_input);
+            auto clone_reduced =
+                sm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), reduced_input);
+            auto clone_expanded =
+                sm.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 1}}}), clone_reduced);
             clone_expanded = sm.add_instruction(
                 migraphx::make_op("multibroadcast", {{"out_lens", {4, clone.q}}}), clone_expanded);
             auto clone_packed = sm.add_instruction(migraphx::make_op("contiguous"), clone_expanded);
@@ -1537,10 +1541,6 @@ TEST_CASE(split_sym_dim_retries_affected_connected_edge)
         "q_source", migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{q}}});
     std::vector<migraphx::instruction_ref> runtime_sources = {
         expected_q_source, expected_other, expected_input};
-    auto expected_reduced = expected_main.add_instruction(
-        migraphx::make_op("reduce_sum", {{"axes", {0}}}), expected_input);
-    auto expected_expanded = expected_main.add_instruction(
-        migraphx::make_op("reshape", {{"dims", {4, 1}}}), expected_reduced);
 
     auto target_n  = var("split_sym_dim_n_target", {1, 2}, {1, 2});
     auto target_q  = var("split_sym_dim_q_target", {1, 2}, {1, 2});
@@ -1550,8 +1550,7 @@ TEST_CASE(split_sym_dim_retries_affected_connected_edge)
             {{"output_dyn_shapes",
               migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
                   migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{target_q}}}}})}}),
-        std::vector<migraphx::instruction_ref>{
-            expected_expanded, expected_input, expected_q_source},
+        std::vector<migraphx::instruction_ref>{expected_input, expected_q_source},
         connected_modules);
     auto output_nq = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_nq);
@@ -2237,8 +2236,10 @@ TEST_CASE(split_sym_dim_pads_absorbed_reduction_input)
     auto mask =
         m.add_parameter("mask", migraphx::shape{migraphx::shape::int64_type, {dd{batch}, dd{n}}});
     auto values =
-        m.add_parameter("values", migraphx::shape{migraphx::shape::int64_type, {dd{batch}, dd{n}}});
-    auto reduced  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mask);
+        m.add_parameter("values", migraphx::shape{migraphx::shape::int32_type, {dd{batch}, dd{n}}});
+    auto reduced = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mask);
+    reduced      = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), reduced);
     auto expanded = m.add_instruction(
         migraphx::make_op(
             "multibroadcast",
@@ -2257,11 +2258,14 @@ TEST_CASE(split_sym_dim_pads_absorbed_reduction_input)
         auto clone_mask  = sm.add_parameter(
             "mask", migraphx::shape{migraphx::shape::int64_type, {dd{clone_batch}, dd{clone_n}}});
         auto clone_values = sm.add_parameter(
-            "values", migraphx::shape{migraphx::shape::int64_type, {dd{clone_batch}, dd{clone_n}}});
+            "values", migraphx::shape{migraphx::shape::int32_type, {dd{clone_batch}, dd{clone_n}}});
         auto padded_mask =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_mask);
         auto clone_reduced =
             sm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), padded_mask);
+        clone_reduced = sm.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}),
+            clone_reduced);
         clone_reduced =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_reduced);
         auto clone_expanded = sm.add_instruction(
@@ -2277,14 +2281,14 @@ TEST_CASE(split_sym_dim_pads_absorbed_reduction_input)
     auto expected_mask  = expected_main.add_parameter(
         "mask", migraphx::shape{migraphx::shape::int64_type, {dd{batch}, dd{n}}});
     auto expected_values = expected_main.add_parameter(
-        "values", migraphx::shape{migraphx::shape::int64_type, {dd{batch}, dd{n}}});
+        "values", migraphx::shape{migraphx::shape::int32_type, {dd{batch}, dd{n}}});
     auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
               migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::int64_type, {dd{lit(1)}, dd{target_n}}}}})}}),
+                  migraphx::shape{migraphx::shape::int32_type, {dd{lit(1)}, dd{target_n}}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_mask, expected_values},
         modules);
     auto expected_output =

@@ -92,9 +92,7 @@ TEST_CASE(fixed_pad_lowest_half_test)
     migraphx::shape s{migraphx::shape::half_type, {{1, 1}, {1, 4}}};
     auto x = mm->add_parameter("x", s);
     mm->add_instruction(
-        migraphx::make_op(
-            "fixed_pad", {{"value", std::numeric_limits<float>::lowest()}}),
-        x);
+        migraphx::make_op("fixed_pad", {{"value", std::numeric_limits<float>::lowest()}}), x);
     p.compile(migraphx::make_target("ref"));
 
     std::vector<migraphx::half> data = {migraphx::half{1.0f}, migraphx::half{2.0f}};
@@ -102,8 +100,7 @@ TEST_CASE(fixed_pad_lowest_half_test)
     auto result = p.eval({{"x", migraphx::argument{input_shape, data.data()}}}).back();
     std::vector<migraphx::half> result_data;
     result.visit([&](auto output) { result_data.assign(output.begin(), output.end()); });
-    auto lowest = std::numeric_limits<migraphx::half>::lowest();
-    std::vector<migraphx::half> gold = {
-        migraphx::half{1.0f}, migraphx::half{2.0f}, lowest, lowest};
+    auto lowest                      = std::numeric_limits<migraphx::half>::lowest();
+    std::vector<migraphx::half> gold = {migraphx::half{1.0f}, migraphx::half{2.0f}, lowest, lowest};
     EXPECT(result_data == gold);
 }

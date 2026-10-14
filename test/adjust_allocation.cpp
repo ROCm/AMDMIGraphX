@@ -155,8 +155,8 @@ static migraphx::program make_select_module_program()
     auto x      = mm->add_parameter("x", s);
     auto alloc  = mm->add_instruction(test_allocate{s});
     auto select = mm->add_instruction(
-        migraphx::make_op(
-            "select_module", {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
         {x, alloc},
         {branch});
     mm->add_return({select});

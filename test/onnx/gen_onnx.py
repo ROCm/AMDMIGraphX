@@ -16858,9 +16858,6 @@ def symbolic_reshape_loop_test():
                                               [1])
     body_carried = helper.make_tensor_value_info('body_carried',
                                                  TensorProto.FLOAT, [1, 1])
-    body_output = helper.make_tensor_value_info('body_output',
-                                                TensorProto.FLOAT,
-                                                ['batch', 4])
     reduced_output = helper.make_tensor_value_info('reduced_output',
                                                    TensorProto.FLOAT, [1, 1])
     reshape = helper.make_node('Reshape', ['x'], ['body_output'], shape=[0, 4])

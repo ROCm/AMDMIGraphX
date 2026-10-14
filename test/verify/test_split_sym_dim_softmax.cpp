@@ -31,9 +31,9 @@ struct test_split_sym_dim_softmax : verify_program<test_split_sym_dim_softmax>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto s   = migraphx::shape::make_symbolic_shape(
-            migraphx::shape::float_type, {"2", "n[1..8]{8}", "4"});
+        auto* mm    = p.get_main_module();
+        auto s      = migraphx::shape::make_symbolic_shape(migraphx::shape::float_type,
+                                                           {"2", "n[1..8]{8}", "4"});
         auto x      = mm->add_parameter("x", s);
         auto output = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), x);
         mm->add_return({output});

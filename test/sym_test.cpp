@@ -602,6 +602,12 @@ TEST_CASE(eval_uint_falls_back_to_fixed_bounds)
     EXPECT((h + n).eval_uint({{h, 2}}) == 6);
 }
 
+TEST_CASE(eval_uint_fixed_expression)
+{
+    auto n = var("n", {3, 4});
+    EXPECT(((n - 1) / 2 + 1).eval_uint({}) == 2);
+}
+
 TEST_CASE(eval_interval_diff_same_symbol_cancels)
 {
     // x - x is 0 even when the two occurrences carry different metadata. The

@@ -839,20 +839,20 @@ static std::size_t parse_external_size(const std::string& value, const char* fie
 // lacks weakly_canonical and path::lexically_relative, so normalize by hand.
 static fs::path lexically_normalize(const fs::path& p)
 {
-    std::vector<fs::path> parts;
-    for(const auto& part : p) // cppcheck-suppress useStlAlgorithm
-    {
-        if(part == ".")
-            continue;
-        if(part == ".." and not parts.empty() and parts.back() != "..")
-            parts.pop_back();
-        else
-            parts.push_back(part);
-    }
-    fs::path result;
-    for(const auto& part : parts) // cppcheck-suppress useStlAlgorithm
-        result /= part;
-    return result;
+    auto parts = std::accumulate(
+        p.begin(), p.end(), std::vector<fs::path>{}, [](auto acc, const fs::path& part) {
+            if(part == ".")
+                return acc;
+            if(part == ".." and not acc.empty() and acc.back() != "..")
+                acc.pop_back();
+            else
+                acc.push_back(part);
+            return acc;
+        });
+    return std::accumulate(
+        parts.begin(), parts.end(), fs::path{}, [](fs::path acc, const auto& part) {
+            return acc /= part;
+        });
 }
 
 static fs::path resolve_external_data_path(const fs::path& base_dir, const fs::path& relative)

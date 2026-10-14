@@ -299,25 +299,23 @@ TEST_CASE(dynamic_dimension_intersection)
     EXPECT(fib.value() == shape::dynamic_dimension{3, 4});
 }
 
-TEST_CASE(dynamic_dimension_intersection_sym_mismatch)
+TEST_CASE(dynamic_dimension_intersection_symbolic_error)
 {
     auto k1 = var("k1", {1, 128});
     auto k2 = var("k2", {1, 128});
     dd a{k1};
     dd b{k2};
-    EXPECT(not a.intersection(b).has_value());
+    EXPECT(test::throws([&] { a.intersection(a); }));
+    EXPECT(test::throws([&] { a.intersection(b); }));
 }
 
-TEST_CASE(dynamic_dimension_intersection_sym_vs_range)
+TEST_CASE(dynamic_dimension_intersection_symbolic_range_error)
 {
     auto k = var("k", {1, 128});
     dd a{k};
     dd b{1, 64};
-    auto result = a.intersection(b);
-    EXPECT(result.has_value());
-    EXPECT(result->get_interval().min == 1);
-    EXPECT(result->get_interval().max == 64);
-    EXPECT(not result->is_symbolic());
+    EXPECT(test::throws([&] { a.intersection(b); }));
+    EXPECT(test::throws([&] { b.intersection(a); }));
 }
 
 TEST_CASE(dynamic_dimension_serialize)
@@ -1781,38 +1779,6 @@ TEST_CASE(test_symbolic_shape_print)
     migraphx::shape s3{migraphx::shape::float_type, {dd{c}, dd{lit(3)}, dd{lit(4)}}};
     EXPECT(to_str(s1) == to_str(s2));
     EXPECT(to_str(s1) != to_str(s3));
-}
-
-TEST_CASE(dd_intersection_symbolic_with_range)
-{
-    auto n = var("n", {1, 32});
-    dd a{n};
-    dd b{2, 6};
-    auto result = a.intersection(b);
-    EXPECT(result.has_value());
-    EXPECT(result->get_interval().min == 2);
-    EXPECT(result->get_interval().max == 6);
-    EXPECT(result->sym_expr.empty());
-}
-
-TEST_CASE(dd_intersection_symbolic_same_symbol)
-{
-    auto n = var("n", {1, 32});
-    dd a{n};
-    dd b{n};
-    auto result = a.intersection(b);
-    EXPECT(result.has_value());
-    EXPECT(*result == a);
-}
-
-TEST_CASE(dd_intersection_symbolic_different_symbol)
-{
-    auto n = var("n", {1, 32});
-    auto m = var("m", {1, 16});
-    dd a{n};
-    dd b{m};
-    auto result = a.intersection(b);
-    EXPECT(not result.has_value());
 }
 
 // -------------------------------------------------------------------

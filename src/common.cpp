@@ -99,9 +99,10 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                        {
                            return b;
                        }
-                       else if(a.is_symbolic() and b.is_symbolic())
+                       else if(a.is_symbolic() or b.is_symbolic())
                        {
-                           if(not is_symbolic_literal(a) and not is_symbolic_literal(b))
+                           if(a.is_symbolic() and b.is_symbolic() and
+                              not is_symbolic_literal(a) and not is_symbolic_literal(b))
                                return a;
                            MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
                                           migraphx::to_string_range(dds0) + "} and {" +

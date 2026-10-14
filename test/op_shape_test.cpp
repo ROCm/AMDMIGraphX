@@ -4291,6 +4291,26 @@ TEST_CASE(quant_dot_sym_matdims)
     EXPECT(expected.to_static(sym_map) == static_out);
 }
 
+TEST_CASE(quant_dot_sym_k_mismatch)
+{
+    auto m  = var("m", {1, 64});
+    auto k1 = var("k1", {1, 128});
+    auto k2 = var("k2", {1, 128});
+    auto n  = var("n", {1, 32});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{m}, dd{k1}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{k2}, dd{n}}};
+    throws_shape(migraphx::make_op("quant_dot"), s_a, s_b);
+}
+
+TEST_CASE(quant_dot_sym_outer_mismatch)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{m}, dd{lit(5)}, dd{lit(3)}}};
+    throws_shape(migraphx::make_op("quant_dot"), s_a, s_b);
+}
+
 TEST_CASE(qlinear)
 {
     migraphx::shape scales{migraphx::shape::float_type, {2, 4}};

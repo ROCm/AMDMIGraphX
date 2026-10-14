@@ -113,9 +113,8 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
-    /// Where compiled kernels are cached between runs. When unset, ``MIGRAPHX_BINARY_CACHE`` is
-    /// used and written to; a cache named here is only read unless ``binary_cache_dev`` is set,
-    /// so a cache shipped with an application is never modified by it.
+    /// Where compiled kernels are cached between runs; read-only unless ``binary_cache_dev`` is
+    /// set. When unset, ``MIGRAPHX_BINARY_CACHE`` is used and written to.
     optional<std::string> binary_cache = nullopt;
     /// Store newly compiled kernels in the cache named by ``binary_cache``, as when building it.
     bool binary_cache_dev = false;
@@ -178,10 +177,9 @@ backend_options get_backend_options(const compile_options& options)
     return from_value<backend_options>(value(opts));
 }
 
-// A cache named by MIGRAPHX_BINARY_CACHE is a developer's working cache and is written to. One
-// named by a backend option is how an application ships prebuilt kernels to its users, so it is
-// only read unless binary_cache_dev asks for it to be filled. An empty option still turns the
-// disk cache off, whatever the environment says.
+// MIGRAPHX_BINARY_CACHE is a developer's working cache; a backend-option cache is how an
+// application ships prebuilt kernels, so it is only read unless binary_cache_dev is set. An empty
+// option still disables the disk cache, whatever the environment says.
 binary_cache_settings get_binary_cache_settings(const backend_options& opts)
 {
     binary_cache_settings settings;

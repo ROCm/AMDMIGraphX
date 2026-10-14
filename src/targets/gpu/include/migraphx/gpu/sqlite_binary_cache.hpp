@@ -52,7 +52,7 @@ struct MIGRAPHX_GPU_EXPORT sqlite_binary_cache
     /// memory-only rather than raising an error.
     ///
     /// With read_only set the database is only ever opened for reading, so a missing one is not
-    /// created and an existing one is neither locked nor modified.
+    /// created and an existing one is never written to.
     static optional<sqlite_binary_cache> open(const std::string& path, bool read_only = false);
 
     optional<binary_cache_entry>

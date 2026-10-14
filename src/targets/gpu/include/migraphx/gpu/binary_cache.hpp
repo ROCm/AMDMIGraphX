@@ -44,9 +44,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BINARY_CACHE)
 struct context;
 
 /// How the cache behaves for one compile. Supplied through the target's backend options, with
-/// the MIGRAPHX_BINARY_CACHE environment variable as the default for the directory. A cache named
-/// by the environment is written to; one named by a backend option is read-only unless the
-/// binary_cache_dev option is also set, so a cache shipped to consumers is never modified.
+/// the MIGRAPHX_BINARY_CACHE environment variable as the default for the directory.
 struct binary_cache_settings
 {
     /// Where entries are kept. Nothing is written to disk when this is empty, though results

@@ -30,6 +30,7 @@
 #include <migraphx/md5.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
+#include <cassert>
 #include <type_traits>
 #include <utility>
 
@@ -99,18 +100,12 @@ constexpr const char* rollback_sql = "ROLLBACK;";
 
 } // namespace
 
-/// Open the database for writing when allowed, falling back to reading. Nullopt when there is
-/// nothing that can be opened.
+/// Nullopt when nothing can be opened, which the caller reports as a disabled cache.
 static optional<sqlite> open_database(const std::string& path, bool read_only)
 {
-    // A cache that was asked to be read-only must not be created, so only an existing database
-    // is opened, and only for reading.
+    // Opening for writing would create a missing file and take write locks.
     if(read_only)
-    {
-        if(not fs::exists(path))
-            return nullopt;
         return sqlite::read(path);
-    }
 
     // sqlite will not create a missing parent directory, but the file backend does, so
     // this keeps the two backends behaving the same on a fresh machine. A failure here is
@@ -142,6 +137,8 @@ optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path,
             return nullopt;
         }
         r.db = std::move(*db);
+        // The schema and store statement below are skipped only for a read-only connection.
+        assert(not read_only or r.db.read_only());
         r.db.set_busy_timeout(busy_timeout_ms);
         if(r.db.read_only())
         {

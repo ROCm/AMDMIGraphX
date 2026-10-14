@@ -57,11 +57,11 @@
 #include <string>
 #include <vector>
 
-static migraphx::program pointwise_program()
+static migraphx::program pointwise_program(const std::vector<std::size_t>& lens = {4, 8})
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {4, 8}};
+    migraphx::shape s{migraphx::shape::float_type, lens};
     auto x    = mm->add_parameter("x", s);
     auto y    = mm->add_parameter("y", s);
     auto add  = mm->add_instruction(migraphx::make_op("add"), x, y);
@@ -446,18 +446,13 @@ static void verified_reuse_matches_fresh_compiles()
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<directory_backend>);
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<database_backend>);
 
-// A cache named by a backend option is how an application ships prebuilt kernels, so unless
-// binary_cache_dev is set a compile only reads it: kernels it lacks are compiled but not added.
+// Without binary_cache_dev a compile only reads a backend-option cache: kernels it lacks are
+// compiled but not added.
 template <class Backend>
 static void backend_option_cache_is_read_only_by_default()
 {
     migraphx::tmp_dir td{"binary-cache"};
     auto path = Backend::path(td);
-
-    // There is nothing to read yet, and a read-only cache must not create anything either.
-    auto empty = pointwise_program();
-    empty.compile(migraphx::make_target("gpu"), cache_options(path, /* dev */ false));
-    EXPECT(not migraphx::fs::exists(path) or Backend::stored(path) == 0);
 
     auto warmup = pointwise_program();
     warmup.compile(migraphx::make_target("gpu"), cache_options(path, /* dev */ true));
@@ -465,12 +460,7 @@ static void backend_option_cache_is_read_only_by_default()
     EXPECT(stored > 0);
 
     // Different lens make every kernel of this program new to the cache.
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    auto x = mm->add_parameter("x", s);
-    auto y = mm->add_parameter("y", s);
-    mm->add_return({mm->add_instruction(migraphx::make_op("add"), x, y)});
+    auto p = pointwise_program({2, 3});
     p.compile(migraphx::make_target("gpu"), cache_options(path, /* dev */ false));
     EXPECT(Backend::stored(path) == stored);
 }

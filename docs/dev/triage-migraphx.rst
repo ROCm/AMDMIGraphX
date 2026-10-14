@@ -203,7 +203,7 @@ over the environment. This is how an application ships a prebuilt cache to its u
 named this way is **read-only** by default: kernels already in it are reused, and kernels it lacks
 are compiled and kept in memory for the process but never written back. Set ``binary_cache_dev``
 to fill it as the environment variable does, for example when building the cache to ship. A cache
-named by ``MIGRAPHX_BINARY_CACHE`` alone is always written to. An empty ``binary_cache`` turns the
+named by ``MIGRAPHX_BINARY_CACHE`` alone is written to. An empty ``binary_cache`` turns the
 disk cache off even when the environment variable is set.
 
 .. code-block:: python

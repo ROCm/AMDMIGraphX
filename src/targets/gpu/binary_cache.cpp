@@ -26,6 +26,7 @@
 #include <migraphx/gpu/sqlite_binary_cache.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/md5.hpp>
 #include <migraphx/stringutils.hpp>
@@ -107,16 +108,16 @@ static std::string device_dir(const context& ctx)
 // A path sqlite::is_database_path accepts is a SQLite database; anything else is a directory of
 // entries. A directory is named with the short version id to keep paths short; a database records
 // the full id. Nothing is persisted when the compiler cannot be identified, since entries from
-// different toolchains would be indistinguishable. A read-only database is opened for reading
-// only, so it is never locked, created or given the schema.
+// different toolchains would be indistinguishable.
 binary_cache_backend* binary_cache::get_backend()
 {
     if(backend_opened)
         return backend.has_value() ? &*backend : nullptr;
     backend_opened   = true;
     const auto& path = settings.path;
-    // Checked first so that a memory-only cache never compiles the version probe.
-    if(path.empty())
+    // Checked first so that a memory-only cache never compiles the version probe. Missing
+    // read-only storage can never gain entries, so it is a memory-only cache too.
+    if(path.empty() or (settings.read_only and not fs::exists(path)))
         return nullptr;
     const bool database = sqlite::is_database_path(path);
     version             = version_id(not database);
@@ -160,9 +161,8 @@ void binary_cache::insert(const context& ctx, std::vector<binary_cache_entry> es
     if(es.empty())
         return;
     counters.compiled += es.size();
-    // A read-only cache only looks entries up, so its storage is left exactly as it was found.
-    auto* b = settings.read_only ? nullptr : get_backend();
-    if(b != nullptr)
+    // Gated here because the file backend has no read-only mode and would create its directories.
+    if(auto* b = settings.read_only ? nullptr : get_backend())
     {
         try
         {

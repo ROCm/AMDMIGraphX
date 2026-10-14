@@ -80,7 +80,7 @@ environment.
       .. code-block:: bash
          :substitutions:
 
-         python -m pip install --index-url |WHL_PKG_REPO| \
+         python -m pip install --extra-index-url |WHL_PKG_REPO| \
              |WHL|
 
    4. Verify your installation.

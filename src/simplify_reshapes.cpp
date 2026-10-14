@@ -1151,6 +1151,41 @@ struct find_concat_slice
 //     concat[axis=0](slice[axes={1}](x, 0, 8), slice(x, 8, 16), slice(x, 16, 24))
 // is reshape(transpose(reshape(x, {4, 3, 8}), {1, 0, 2}), {12, 8}). The slices don't
 // have to cover all of x, and may each be wrapped in an equivalent chain of view ops.
+//
+// clang-format off
+// x {4, 24}
+// columns:  [ 0:8 | 8:16 | 16:24 ]
+//              |      |       |
+//           slice   slice   slice     each {4, 8}
+//              \      |      /
+//               concat axis 0
+//                    |
+//                 {12, 8}
+//
+// becomes
+//
+// x {4, 24}
+//   | reshape  {4, 3, 8}     split the sliced axis into {n, len}
+//   | transpose {1, 0, 2}    move n to the front
+//   | reshape  {12, 8}       merge n into the concat axis
+//   v
+// {12, 8}
+//
+// Each slice may sit under the same view chain (reshape, squeeze, unsqueeze, transpose,
+// flatten). That chain is applied to every row after n is moved to the front, then n is
+// moved to the concat axis. unsqueeze and reshape that describe the same view still match.
+//
+// A partial cover slices the covered range first and leaves the rest alone:
+//
+// x {2, 3, 34}
+//   | slice columns [0:32]
+//   | layout rewrite of the 4 chunks of 8
+//   v
+// concat result
+//
+// x {2, 3, 34}
+//   | slice columns [32:34]     unchanged gate
+// clang-format on
 struct find_concat_slice_layout
 {
     static const auto& view_ops()

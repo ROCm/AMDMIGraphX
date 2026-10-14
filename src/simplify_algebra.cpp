@@ -1759,6 +1759,43 @@ struct find_splits
     // Returns the fused instruction and its slice-argument index, or a fused
     // instruction of m.end() if the group cannot be fused (in which case the
     // caller aborts, matching the original semantics).
+    //
+    // clang-format off
+    // When the bias expands, the compact inputs are concatenated and broadcast once:
+    //
+    // before                                         after
+    //
+    // x {4,2,3}                                      b0 {3} -- unsqueeze -> {1,1,3}
+    //   | slice row i                                b1 {3} -- unsqueeze -> {1,1,3}
+    //   |        \                                   b2 {3} -- unsqueeze -> {1,1,3}
+    //   |         add <-- broadcast {1,2,3} <-- bi   b3 {3} -- unsqueeze -> {1,1,3}
+    //   |         (one add per row)                            \ concat axis 0
+    //   v                                                      v
+    // out_i {1,2,3}                                      {4,1,3}
+    //                                                    multibroadcast {4,2,3}
+    //                                                           |
+    // x {4,2,3} ------------------------------------------ add
+    //                                                           |
+    //                                                           | slice row i
+    //                                                           v
+    //                                                      out_i {1,2,3}
+    //
+    // When every zero stride is on a length-1 axis, nothing expanded, so the
+    // broadcasts are concatenated as they are:
+    //
+    // x {4,3}
+    //   | slice row i
+    //   |        \
+    //   |         add <-- multibroadcast {1,3} <-- bi {3}
+    //
+    // becomes
+    //
+    // concat(multibroadcast {1,3} of each bi)  ->  {4,3}
+    //                     |
+    // x {4,3} ----------- add
+    //                     | slice row i
+    //                     v
+    // clang-format on
     std::tuple<instruction_ref, int>
     fuse_binary_const_concat(module& m,
                              instruction_ref ins,
@@ -1851,6 +1888,23 @@ struct find_splits
     //     reduce_sum[axes={1}](slice[axes={1}](x{4, 1024}, k*128, (k+1)*128))
     // becomes squeeze(slice k of reduce_sum[axes={2}](reshape(x, {4, 8, 128}))).
     // The splits must be a full cover, which get_splits checks.
+    //
+    // clang-format off
+    // x {4, 1024}
+    //   | slice axis 1, chunk k of 128          k = 0..7
+    //   | reduce_sum axes {1}
+    //   v
+    // one reduce per chunk
+    //
+    // becomes
+    //
+    // x {4, 1024}
+    //   | reshape {4, 8, 128}
+    //   | reduce_sum axes {2}          the old axis 1 is now axis 2
+    //   | slice axis 1, length 1       pick chunk k
+    //   | squeeze axis 2
+    //   v
+    // clang-format on
     void fuse_overlapping_reduce(module& m,
                                  instruction_ref ins,
                                  const std::vector<instruction_ref>& group,
@@ -2003,7 +2057,18 @@ struct find_splits
 
             int split_idx     = 0;
             instruction_ref c = m.end();
-            // Every argument is the same split, e.g. relu(x_i) or mul(x_i, x_i)
+            // Every argument is the same split, e.g. relu(x_i) or mul(x_i, x_i).
+            // The op moves onto the whole tensor and the slices move after it.
+            // clang-format off
+            // before                         after
+            //
+            // x {2,4}                        x {2,4}
+            //   | slice [0:2]                  |
+            //   | slice [2:4]                  mul
+            //   |     \      /                  |
+            //   mul(a,a)  mul(b,b)             | slice [0:2]
+            //                                  | slice [2:4]
+            // clang-format on
             if(std::all_of(group.begin(), group.end(), [](instruction_ref i) {
                    const auto& inputs = i->inputs();
                    return std::all_of(inputs.begin(), inputs.end(), [&](instruction_ref x) {

@@ -317,6 +317,26 @@ bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
                       [](std::size_t in, std::size_t out) { return out == in or in == 1; });
 }
 
+// clang-format off
+// Concatenates broadcast inputs along an axis of length 1 without materializing the broadcast:
+//
+// before                                    after
+//
+// w0 {8,5}                                  w0 {8,5}
+//   | multibroadcast {2,8,5}                  | unsqueeze -> {1,1,8,5}
+//   | unsqueeze -> {1,2,8,5}                   |
+// w1 {8,5}                                  w1 {8,5}          concat axis 0
+//   | ...                                       | ...        ----------------
+// w2 {8,5}                                  w2 {8,5}          {3,1,8,5}
+//   | ...                                       | ...               |
+//   +-----------+                               +-----------+       | multibroadcast
+//               | concat axis 0                             |       v
+//               v                                           v   {3,2,8,5}
+//          {3,2,8,5}                                   {3,2,8,5}
+//          (batch is real data)                        (batch is still a view)
+//
+// The stacked weight stays {n, 1, K, N} instead of {n, batch, K, N}.
+// clang-format on
 optional<instruction_ref> insert_concat_broadcasts(module& m,
                                                    instruction_ref ins,
                                                    const std::vector<instruction_ref>& inputs,

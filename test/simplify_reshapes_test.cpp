@@ -935,10 +935,10 @@ TEST_CASE(concat_slice_layout_transpose)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(std::none_of(
-        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
-    EXPECT(std::none_of(
-        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    EXPECT(
+        std::none_of(m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(
+        std::none_of(m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "slice"; }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -966,8 +966,8 @@ TEST_CASE(concat_slice_layout_partial_cover)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(std::none_of(
-        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(
+        std::none_of(m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -992,8 +992,8 @@ TEST_CASE(concat_slice_layout_view_chain)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(std::none_of(
-        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(
+        std::none_of(m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
     EXPECT(std::any_of(
         m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "transpose"; }));
     EXPECT(std::none_of(
@@ -1025,8 +1025,8 @@ TEST_CASE(concat_slice_layout_equivalent_chains)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(std::none_of(
-        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(
+        std::none_of(m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }
@@ -1051,8 +1051,8 @@ TEST_CASE(concat_slice_layout_flatten)
     }
     migraphx::module m2 = m1;
     run_pass(m2);
-    EXPECT(std::none_of(
-        m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(
+        std::none_of(m2.begin(), m2.end(), [](const auto& ins) { return ins.name() == "concat"; }));
     auto x = migraphx::generate_argument(s);
     EXPECT(eval_ref(m1, x) == eval_ref(m2, x));
 }

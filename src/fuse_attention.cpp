@@ -1363,6 +1363,29 @@ struct find_kv_cache_attention
     }
 };
 
+struct find_kv_cache_flash_decoding
+{
+    std::size_t configured_splits;
+    std::size_t configured_threshold;
+    std::size_t configured_max_splits;
+    std::size_t configured_min_chunk_size;
+
+    auto matcher() const
+    {
+        return match::name("group")(match::has_op_value("tag", "kv_cache_attention")).bind("group");
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        (void)mpm;
+        (void)r;
+        (void)configured_splits;
+        (void)configured_threshold;
+        (void)configured_max_splits;
+        (void)configured_min_chunk_size;
+    }
+};
+
 } // namespace
 
 void fuse_attention::apply(module_pass_manager& mpm) const
@@ -1405,6 +1428,14 @@ void fuse_attention::apply(module_pass_manager& mpm) const
                                 .configured_threshold      = flash_decoding_threshold,
                                 .configured_max_splits     = flash_decoding_max_splits,
                                 .configured_min_chunk_size = flash_decoding_min_chunk_size});
+        mpm.run_pass(dead_code_elimination{});
+        match::find_matches(
+            mpm,
+            find_kv_cache_flash_decoding{.configured_splits         = flash_decoding_num_splits,
+                                         .configured_threshold      = flash_decoding_threshold,
+                                         .configured_max_splits     = flash_decoding_max_splits,
+                                         .configured_min_chunk_size =
+                                             flash_decoding_min_chunk_size});
         mpm.run_pass(dead_code_elimination{});
     }
 }

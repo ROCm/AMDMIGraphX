@@ -24,6 +24,7 @@
 
 #include <migraphx/verify_args.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/logger.hpp>
 #include <test.hpp>
 
 TEST_CASE(verify_args_empty)
@@ -49,33 +50,42 @@ TEST_CASE(verify_args_empty_mismatch)
 {
     migraphx::shape empty_shape{migraphx::shape::float_type, {0, 4}};
     migraphx::shape nonempty_shape{migraphx::shape::float_type, {1, 4}};
-    EXPECT(not migraphx::verify_args(
+    migraphx::log::set_severity(migraphx::log::severity::none);
+    auto result = migraphx::verify_args(
         "empty mismatch",
         migraphx::argument{empty_shape, nullptr},
         migraphx::verify::expected{migraphx::argument{nonempty_shape, nullptr}},
-        migraphx::verify::tolerance{1e-3}));
+        migraphx::verify::tolerance{1e-3});
+    migraphx::log::set_severity(migraphx::log::severity::info);
+    EXPECT(not result);
 }
 
 TEST_CASE(verify_args_empty_shape_mismatch)
 {
     migraphx::shape target_shape{migraphx::shape::float_type, {0, 4}};
     migraphx::shape ref_shape{migraphx::shape::float_type, {0, 5}};
-    EXPECT(not migraphx::verify_args(
+    migraphx::log::set_severity(migraphx::log::severity::none);
+    auto result = migraphx::verify_args(
         "empty shape mismatch",
         migraphx::argument{target_shape, nullptr},
         migraphx::verify::expected{migraphx::argument{ref_shape, nullptr}},
-        migraphx::verify::tolerance{1e-3}));
+        migraphx::verify::tolerance{1e-3});
+    migraphx::log::set_severity(migraphx::log::severity::info);
+    EXPECT(not result);
 }
 
 TEST_CASE(verify_args_empty_type_mismatch)
 {
     migraphx::shape target_shape{migraphx::shape::float_type, {0, 4}};
     migraphx::shape ref_shape{migraphx::shape::int32_type, {0, 4}};
-    EXPECT(not migraphx::verify_args(
+    migraphx::log::set_severity(migraphx::log::severity::none);
+    auto result = migraphx::verify_args(
         "empty type mismatch",
         migraphx::argument{target_shape, nullptr},
         migraphx::verify::expected{migraphx::argument{ref_shape, nullptr}},
-        migraphx::verify::tolerance{1e-3}));
+        migraphx::verify::tolerance{1e-3});
+    migraphx::log::set_severity(migraphx::log::severity::info);
+    EXPECT(not result);
 }
 
 TEST_CASE(verify_args_empty_with_tolerance)

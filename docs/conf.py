@@ -95,5 +95,3 @@ rst_prolog = f"""
 .. |TARBALL_REPO| replace:: https://stable.repo.amd.com/rocm/migraphx/tarball/
 .. |TARBALL_NAME| replace:: amdrocm10-migraphx-2.18.0.tar.gz
 """
-
-external_projects_remote_repository = ""

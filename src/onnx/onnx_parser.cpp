@@ -849,10 +849,10 @@ static fs::path lexically_normalize(const fs::path& p)
                 acc.push_back(part);
             return acc;
         });
-    return std::accumulate(
-        parts.begin(), parts.end(), fs::path{}, [](fs::path acc, const auto& part) {
-            return acc /= part;
-        });
+    return std::accumulate(parts.begin(),
+                           parts.end(),
+                           fs::path{},
+                           [](fs::path acc, const auto& part) { return acc /= part; });
 }
 
 static fs::path resolve_external_data_path(const fs::path& base_dir, const fs::path& relative)

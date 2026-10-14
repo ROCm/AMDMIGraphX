@@ -375,15 +375,10 @@ static void generate_prepared_pointwise(cpp_generator& gg,
     // Add explicit conversions
     g.fresult(
         [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
-    auto f = g.generate_module(m);
-    f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
-    // A fused pointwise module may keep an input that no instruction consumes (e.g. alpha*A*B
-    // folded to 0 when alpha == 0), which trips -Werror=unused-parameter in the JIT compile.
-    // Mark such params used, mirroring the reduce path's out_idx handling below.
-    for(const auto& pname : m.get_parameter_names())
-        if(m.get_parameter(pname)->outputs().empty())
-            f.unused_param(to_c_id(pname));
-    gg.create_function(f);
+    gg.create_function(g.generate_module(m)
+                           .set_attributes({"__device__", "__attribute__((const))"})
+                           .set_generic_types(m)
+                           .set_name(name));
 }
 
 static void generate_pointwise(cpp_generator& gg,

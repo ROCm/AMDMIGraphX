@@ -39,7 +39,11 @@ instruction_ref insert_apply_alpha_beta(module& m,
     auto a          = args[0];
     auto b          = args[1];
     auto input_type = a->get_shape().type();
-    if(not float_equal(alpha.at<float>(0), 1.0))
+    // alpha == 0 kills the op term, so scaling a would only build mul(0, a) for a later fold
+    // to remove. Leave a unscaled - the op below is then unused and dead code elimination
+    // takes it - and return the reduced result directly.
+    const bool alpha_is_zero = float_equal(alpha.at<float>(0), 0.0);
+    if(not alpha_is_zero and not float_equal(alpha.at<float>(0), 1.0))
     {
         auto alpha_literal = m.add_literal(alpha);
         a                  = insert_common_op(m, pos, migraphx::make_op("mul"), {alpha_literal, a});
@@ -68,7 +72,17 @@ instruction_ref insert_apply_alpha_beta(module& m,
             beta_c = m.insert_instruction(
                 pos, migraphx::make_op("convert", {{"target_type", input_type}}), beta_c);
         }
+        if(alpha_is_zero)
+            return beta_c;
         return m.insert_instruction(pos, migraphx::make_op("add"), op_res, beta_c);
+    }
+    if(alpha_is_zero)
+    {
+        auto zero = m.add_literal(literal{shape{op_res->get_shape().type()}, {0}});
+        return m.insert_instruction(
+            pos,
+            migraphx::make_op("multibroadcast", {{"out_lens", op_res->get_shape().lens()}}),
+            zero);
     }
     return op_res;
 }

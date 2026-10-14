@@ -31,6 +31,8 @@
 #include <migraphx/clamp.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/functional.hpp>
+#include <algorithm>
+#include <iterator>
 #include <type_traits>
 
 namespace migraphx {
@@ -73,19 +75,31 @@ static argument fixed_pad_standard_impl(hipStream_t stream,
     return result;
 }
 
+static bool can_use_standard_pad(const shape& output_shape, const shape& input_shape)
+{
+    if(not output_shape.standard() or not input_shape.standard())
+        return false;
+
+    auto input_lens  = input_shape.lens();
+    auto output_lens = output_shape.lens();
+    auto [input_mismatch, output_mismatch] =
+        std::mismatch(input_lens.begin(), input_lens.end(), output_lens.begin());
+    if(input_mismatch == input_lens.end())
+        return true;
+    if(*input_mismatch > *output_mismatch or
+       not std::all_of(input_lens.begin(), input_mismatch, [](auto x) { return x == 1; }))
+        return false;
+    return std::equal(
+        std::next(input_mismatch), input_lens.end(), std::next(output_mismatch), output_lens.end());
+}
+
 argument fixed_pad(hipStream_t stream, const argument& result, const argument& arg, float value)
 {
     if(result.get_shape() == arg.get_shape())
         return arg;
 
-    if(result.get_shape().standard() and arg.get_shape().standard())
-    {
-        auto ilens            = arg.get_shape().lens();
-        auto olens            = result.get_shape().lens();
-        auto [istart, ostart] = std::mismatch(ilens.begin(), ilens.end(), olens.begin());
-        if(std::equal(istart, ilens.end(), ostart, olens.end()))
-            return fixed_pad_standard_impl(stream, result, arg, value);
-    }
+    if(can_use_standard_pad(result.get_shape(), arg.get_shape()))
+        return fixed_pad_standard_impl(stream, result, arg, value);
     return fixed_pad_base_impl(stream, result, arg, value);
 }
 

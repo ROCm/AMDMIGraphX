@@ -347,10 +347,7 @@ struct miopen_apply
     {
         apply_map.emplace("fixed_pad", [=](instruction_ref ins) {
             const auto& input = ins->inputs().front();
-            if(not input->get_shape().dynamic())
-                return mod->replace_instruction(ins, input);
-
-            auto output = insert_allocation(ins, ins->get_shape());
+            auto output       = insert_allocation(ins, ins->get_shape());
             return mod->replace_instruction(
                 ins, make_op("gpu::fixed_pad", ins->get_operator().to_value()), {input, output});
         });

@@ -84,6 +84,13 @@ struct fixed_pad
 
         return out;
     }
+
+    std::vector<std::size_t> output_alias(const std::vector<shape>& inputs) const
+    {
+        if(inputs.front().dynamic())
+            return {};
+        return {0};
+    }
 };
 
 } // namespace op

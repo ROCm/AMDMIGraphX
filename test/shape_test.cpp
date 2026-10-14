@@ -1438,6 +1438,23 @@ TEST_CASE(shape_is_compatible_diff_lens_tuple)
     EXPECT(actual != expected);
     EXPECT(not migraphx::shape::is_compatible(actual, expected));
 }
+TEST_CASE(shape_is_compatible_type_and_lens_static)
+{
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 8}, {1, 1, 1}};
+    migraphx::shape different_strides{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};
+    EXPECT(migraphx::shape::is_compatible_type_and_lens(expected, expected));
+    EXPECT(not migraphx::shape::is_compatible_type_and_lens(different_strides, expected));
+}
+TEST_CASE(shape_is_compatible_type_and_lens_dynamic)
+{
+    migraphx::shape expected{migraphx::shape::float_type, {{1, 1}, {2, 4}, {3, 9}, {16, 32}}};
+    migraphx::shape compatible{migraphx::shape::float_type, {1, 2, 4, 32}};
+    migraphx::shape incompatible_lens{migraphx::shape::float_type, {1, 6, 4, 32}};
+    migraphx::shape incompatible_type{migraphx::shape::half_type, {1, 2, 4, 32}};
+    EXPECT(migraphx::shape::is_compatible_type_and_lens(compatible, expected));
+    EXPECT(not migraphx::shape::is_compatible_type_and_lens(incompatible_lens, expected));
+    EXPECT(not migraphx::shape::is_compatible_type_and_lens(incompatible_type, expected));
+}
 TEST_CASE(shape_is_compatible_lens_static)
 {
     migraphx::shape actual1{migraphx::shape{migraphx::shape::float_type, {1, 2, 8}}};
@@ -1685,6 +1702,21 @@ TEST_CASE(test_symbolic_stride_auto_compute)
     EXPECT(sh.dyn_strides()[2] == lit(1));
     EXPECT(sh.dyn_strides()[1] == lit(4));
     EXPECT(sh.dyn_strides()[0] == s * 4);
+}
+
+TEST_CASE(test_has_fixed_strides)
+{
+    migraphx::shape static_shape{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape range_shape{migraphx::shape::float_type, {{1, 8}, {4, 4}}};
+    auto fixed = var("fixed", {3, 3});
+    migraphx::shape fixed_symbolic{migraphx::shape::float_type, {dd{fixed}, dd{lit(4)}}};
+    auto n = var("n", {1, 8});
+    migraphx::shape variable_symbolic{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(4)}}};
+
+    EXPECT(static_shape.has_fixed_strides());
+    EXPECT(not range_shape.has_fixed_strides());
+    EXPECT(fixed_symbolic.has_fixed_strides());
+    EXPECT(not variable_symbolic.has_fixed_strides());
 }
 
 TEST_CASE(test_symbolic_to_static)

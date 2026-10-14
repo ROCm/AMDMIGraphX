@@ -1099,9 +1099,9 @@ static expr fold_associative_args(expr e)
         return e;
     const auto& op_n = std::get<op_node>(get_node(e));
     auto children    = std::accumulate(e.children().begin() + 1,
-                                    e.children().end(),
-                                    std::vector<expr>{e.children().front()},
-                                    [&](std::vector<expr> c, expr x) {
+                                       e.children().end(),
+                                       std::vector<expr>{e.children().front()},
+                                       [&](std::vector<expr> c, expr x) {
                                         if(std::holds_alternative<literal_node>(get_node(x)) and
                                            std::holds_alternative<literal_node>(get_node(c.back())))
                                         {
@@ -1113,7 +1113,7 @@ static expr fold_associative_args(expr e)
                                             c.push_back(std::move(x));
                                         }
                                         return c;
-                                    });
+                                       });
     return expr(op_n, std::move(children));
 }
 
@@ -1905,7 +1905,7 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
     };
     auto r = eval_impl(*this, lookup);
     if(not is_unsigned(r))
-        MIGRAPHX_THROW("Result is not an unsigned integer.");
+        MIGRAPHX_THROW("Expression does not evaluate to an unsigned integer: " + this->to_string());
     return to<std::size_t>(r);
 }
 

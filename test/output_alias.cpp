@@ -23,6 +23,7 @@
  */
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <test.hpp>
 #include <basic_ops.hpp>
@@ -115,6 +116,25 @@ TEST_CASE(multiple_aliases_cascade)
     EXPECT(migraphx::contains(aliases, x));
     EXPECT(migraphx::contains(aliases, y));
     EXPECT(migraphx::contains(aliases, z));
+}
+
+TEST_CASE(fixed_pad_static_alias)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto pad   = mm->add_instruction(migraphx::make_op("fixed_pad"), input);
+    EXPECT(migraphx::instruction::get_output_alias(pad) == instruction_refs{input});
+}
+
+TEST_CASE(fixed_pad_dynamic_no_alias)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}}});
+    auto pad = mm->add_instruction(migraphx::make_op("fixed_pad"), input);
+    EXPECT(migraphx::instruction::get_output_alias(pad) == instruction_refs{pad});
 }
 
 TEST_CASE(alias_vector_size)

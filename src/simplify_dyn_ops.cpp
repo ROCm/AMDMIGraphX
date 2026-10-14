@@ -155,6 +155,17 @@ struct find_static_2in_broadcasts : match::supports_dynamic_shapes
     }
 };
 
+struct find_static_fixed_pad : match::supports_dynamic_shapes
+{
+    auto matcher() const { return match::name("fixed_pad")(match::arg(0)(match::static_shape())); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        m.replace_instruction(ins, ins->inputs().front());
+    }
+};
+
 /**
  * Simplify slice with 2 inputs to the 1 input version if inputs[1] is constant.
  * From:
@@ -576,8 +587,8 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
             if(current_shapes.size() == num_out_shapes and current_shapes.at(i).symbolic() and
                std::all_of(
                    shapes_at_index.begin(), shapes_at_index.end(), [&](const auto& output_shape) {
-                       return output_shape.type() == current_shapes.at(i).type() and
-                              shape::is_compatible_lens(output_shape, current_shapes.at(i));
+                       return shape::is_compatible_type_and_lens(output_shape,
+                                                                 current_shapes.at(i));
                    }))
             {
                 dyn_shapes.at(i) = current_shapes.at(i);
@@ -683,6 +694,7 @@ void simplify_dyn_ops::apply(module& m) const
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},
+                        find_static_fixed_pad{},
                         find_const_2in_slice{},
                         find_const_3in_slice{},
                         find_const_4in_slice{},

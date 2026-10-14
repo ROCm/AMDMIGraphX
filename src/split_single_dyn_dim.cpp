@@ -23,10 +23,10 @@
  */
 
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/insert_select_module.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/functional.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
 #include <utility>
@@ -119,8 +119,7 @@ static bool compatible_outputs(const std::vector<shape>& expected,
                       outputs.end(),
                       expected.begin(),
                       [](instruction_ref output, const shape& s) {
-                          return output->get_shape().type() == s.type() and
-                                 shape::is_compatible_lens(output->get_shape(), s);
+                          return shape::is_compatible_type_and_lens(output->get_shape(), s);
                       });
 }
 
@@ -142,7 +141,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
     if(dd_check_vec.has_value() and not any_sm_next(mm, dd_check_vec.value()))
     {
         // all dynamic dimension objects should be the same for all parameters in dd_check_vec
-        auto dyn_dim = dd_check_vec->at(0).dd;
+        auto dyn_dim       = dd_check_vec->at(0).dd;
         auto output_shapes = mm->get_output_shapes();
         std::vector<module> clones;
         auto dim_interval = dyn_dim.get_interval();
@@ -165,12 +164,6 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
             clone.add_return(outputs);
             clones.push_back(std::move(clone));
         }
-        std::vector<module_ref> submodules;
-        std::transform(
-            clones.begin(), clones.end(), std::back_inserter(submodules), [&](module& clone) {
-                auto name = clone.name();
-                return mpm.create_module(name, std::move(clone));
-            });
         // sort parameters by name for consistency (vs. parameter order attr)
         std::sort(param_names.begin(), param_names.end());
         // redirect to select_module operator and return
@@ -179,18 +172,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                        param_names.cend(),
                        std::back_inserter(sm_inputs),
                        [&](auto pn) { return mm->get_parameter(std::move(pn)); });
-        migraphx::shape out_attr = migraphx::shape{output_shapes};
-        auto sm_ins              = mm->add_instruction(
-            migraphx::make_op("select_module",
-                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
-            sm_inputs,
-            submodules);
-        std::vector<instruction_ref> outputs(output_shapes.size());
-        for(size_t i = 0; i < output_shapes.size(); ++i)
-        {
-            outputs.at(i) =
-                mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", i}}), sm_ins);
-        }
+        auto outputs = insert_select_module(mpm, *mm, sm_inputs, std::move(clones), output_shapes);
         mm->replace_return(outputs);
     }
 }

@@ -39,12 +39,14 @@ inline namespace MIGRAPHX_INLINE_NS {
  * optimal size and runs the ahead-of-time-compiled static body. Runtime
  * symbolic extents drive clone-local masks and main-module output slices.
  *
- * Supports multiple simultaneous symbolic dimensions. `max_clones` limits the
- * cartesian product; zero disables the limit.
+ * Supports multiple simultaneous symbolic dimensions. Since each clone is
+ * compiled independently, `max_clones` bounds compile time and generated code
+ * size. The default allows four independent dimensions with two
+ * specializations each; zero disables the limit.
  */
 struct MIGRAPHX_EXPORT split_sym_dim
 {
-    std::size_t max_clones = 64;
+    std::size_t max_clones = 16;
 
     std::string name() const { return "split_sym_dim"; }
     void apply(module_pass_manager& mpm) const;

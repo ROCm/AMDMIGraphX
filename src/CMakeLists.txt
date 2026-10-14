@@ -91,6 +91,7 @@ add_library(migraphx
     graphviz.cpp
     inline_module.cpp
     insert_pad.cpp
+    insert_select_module.cpp
     instruction.cpp
     json.cpp
     layout_convolution.cpp

@@ -29,11 +29,9 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
-#include <cmath>
 #include <numeric>
 #include <algorithm>
 #include <functional>
-#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <iostream>
@@ -531,6 +529,13 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
     if(actual.dynamic())
         return false;
     return compatible(actual.lens(), expected.lens(), actual.strides(), expected.strides());
+}
+
+bool shape::is_compatible_type_and_lens(const shape& actual, const shape& expected)
+{
+    if(expected.dynamic())
+        return actual.type() == expected.type() and is_compatible_lens(actual, expected);
+    return actual == expected;
 }
 
 bool shape::is_compatible_lens(const shape& actual, const shape& expected)
@@ -1107,45 +1112,10 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
     const auto& ds = this->dyn_strides();
     if(ds.empty())
         return {type(), static_lens};
-    std::unordered_map<sym::expr, sym::interval> symbol_intervals;
-    std::transform(symbol_map.begin(),
-                   symbol_map.end(),
-                   std::inserter(symbol_intervals, symbol_intervals.end()),
-                   [](const auto& item) {
-                       const auto& [symbol, value] = item;
-                       return std::make_pair(symbol, sym::interval{value, value});
-                   });
     std::vector<std::size_t> static_strides(ds.size());
-    std::transform(
-        ds.cbegin(), ds.cend(), static_strides.begin(), [&](const auto& s) -> std::size_t {
-            auto interval = s.eval_interval(symbol_intervals);
-            auto fixed    = sym::scalar_invoke_common<std::optional<std::size_t>>(
-                [](auto min, auto max) -> std::optional<std::size_t> {
-                    if constexpr(std::is_integral_v<decltype(min)>)
-                    {
-                        if(min != max or min < 0)
-                            return std::nullopt;
-                        using unsigned_type = std::make_unsigned_t<decltype(min)>;
-                        if(static_cast<unsigned_type>(min) >
-                           std::numeric_limits<std::size_t>::max())
-                            return std::nullopt;
-                    }
-                    else
-                    {
-                        auto integral = std::floor(min);
-                        if(not std::isfinite(min) or not std::isfinite(max) or min < 0 or
-                           min < max or max < min or integral < min or min < integral or
-                           min >= std::ldexp(1.0, std::numeric_limits<std::size_t>::digits))
-                            return std::nullopt;
-                    }
-                    return min;
-                },
-                interval.min,
-                interval.max);
-            if(not fixed.has_value())
-                MIGRAPHX_THROW("to_static: stride expression is not a fixed unsigned integer");
-            return *fixed;
-        });
+    std::transform(ds.cbegin(), ds.cend(), static_strides.begin(), [&](const auto& s) {
+        return s.eval_uint(symbol_map);
+    });
     return {type(), static_lens, static_strides};
 }
 
@@ -1180,6 +1150,18 @@ const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
 bool shape::symbolic() const { return impl->all_dims_symbolic(); }
 
 const std::vector<sym::expr>& shape::dyn_strides() const { return impl->m_dyn_strides; }
+
+bool shape::has_fixed_strides() const
+{
+    if(not sub_shapes().empty())
+        return all_of(sub_shapes(), [](const auto& s) { return s.has_fixed_strides(); });
+    if(not dynamic())
+        return true;
+    if(not symbolic())
+        return false;
+    return all_of(dyn_strides(),
+                  [](const auto& stride) { return sym::fixed_value(stride).has_value(); });
+}
 
 std::vector<std::size_t> shape::min_lens() const
 {

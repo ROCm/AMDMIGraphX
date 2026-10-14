@@ -585,6 +585,13 @@ TEST_CASE(eval_unbound_throws)
     EXPECT(test::throws([&] { (h + w).eval_uint({{h, 1}}); }));
 }
 
+TEST_CASE(eval_uint_error_identifies_expression)
+{
+    auto expression = lit(-1);
+    EXPECT(test::throws<migraphx::exception>([&] { expression.eval_uint({}); },
+                                             expression.to_string()));
+}
+
 TEST_CASE(eval_uint_falls_back_to_fixed_bounds)
 {
     // Fixed-bound vars (min == max) are resolved from their own bounds.

@@ -38,7 +38,7 @@ void promote_literals::apply(module_pass_manager& mpm) const
     if(m == *root_module)
     {
         // The root is visited last, after literals from every submodule have been promoted.
-        eliminate_common_subexpression{}.apply(m);
+        mpm.run_pass(eliminate_common_subexpression{});
         return;
     }
 

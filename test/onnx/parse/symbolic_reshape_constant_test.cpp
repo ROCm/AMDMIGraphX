@@ -32,10 +32,11 @@ TEST_CASE(symbolic_reshape_constant)
     const auto batch = var("batch", {1, 4});
     const auto input_shape =
         migraphx::shape{migraphx::shape::float_type, sym_dims({batch, lit(int64_t{4})})};
+    const migraphx::shape other_shape{migraphx::shape::float_type, {2}};
 
     EXPECT(check_parse(
         "symbolic_reshape_constant_test.onnx",
-        {{"x", input_shape}},
+        {{"other", other_shape}, {"x", input_shape}},
         [&](auto& m, const auto& args) {
             m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}},
                                             {int64_t{0}, int64_t{4}}});
@@ -46,11 +47,11 @@ TEST_CASE(symbolic_reshape_constant)
             auto add_reshape = [&] {
                 auto resolved_dims = m.add_instruction(
                     migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}),
-                    args[0]);
+                    std::vector<migraphx::instruction_ref>{args[1], args[0]});
                 auto allocation = m.add_instruction(
                     migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}),
                     resolved_dims);
-                return m.add_instruction(migraphx::make_op("reshape"), args[0], allocation);
+                return m.add_instruction(migraphx::make_op("reshape"), args[1], allocation);
             };
             auto constant_output  = add_reshape();
             auto attribute_output = add_reshape();

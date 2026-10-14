@@ -24,6 +24,7 @@
 #include <migraphx/split_sym/analyzer.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/value.hpp>
 #include <algorithm>
 #include <numeric>
@@ -75,9 +76,9 @@ struct analyze_scatternd : analyzer<analyze_scatternd>
         auto index_rank     = indices.ndim();
         assert(index_rank > 0);
         const auto& index_dims = indices.dyn_dims();
-        bool has_prefix_axis   = false;
-        for(std::size_t axis = 0; axis + 1 < index_rank; ++axis)
-            has_prefix_axis = has_prefix_axis or is_variable_axis(index_dims.at(axis));
+        bool has_prefix_axis   = any_of(range(index_rank - 1), [&](auto axis) {
+            return is_variable_axis(index_dims.at(axis));
+        });
         if(has_prefix_axis and
            (indices.type() != shape::int64_type or
             any_of(inputs, [](const auto& input) { return not input.standard(); })))

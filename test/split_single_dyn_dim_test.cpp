@@ -68,6 +68,33 @@ TEST_CASE(incompatible_clone_output_is_ignored)
     EXPECT(p == expected);
 }
 
+TEST_CASE(non_root_module_is_ignored)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {4, 4}}};
+    migraphx::shape output_shapes{std::vector<migraphx::shape>{s}};
+    migraphx::program p;
+    auto* branch       = p.create_module("branch");
+    auto branch_input  = branch->add_parameter("data", s);
+    auto branch_output = branch->add_instruction(migraphx::make_op("relu"), branch_input);
+    branch->add_return({branch_output});
+
+    auto* mm    = p.get_main_module();
+    auto input  = mm->add_parameter("data", s);
+    auto select = mm->add_instruction(
+        migraphx::make_op(
+            "select_module", {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
+        {input},
+        {branch});
+    auto output =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    mm->add_return({output});
+    auto expected = p;
+
+    run_pass(p);
+
+    EXPECT(p == expected);
+}
+
 TEST_CASE(dynamic_batch)
 {
     // Slightly different from ref_ops_test in that the literal is copied over the submodules.

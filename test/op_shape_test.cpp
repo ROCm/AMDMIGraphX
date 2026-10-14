@@ -2948,6 +2948,35 @@ TEST_CASE(multibroadcast_2in_symbolic_target)
         target);
 }
 
+TEST_CASE(multibroadcast_3in_symbolic_target)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> output_dims{dd{n}, dd{lit(3)}};
+    migraphx::shape a{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(3)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{n}, dd{lit(1)}}};
+    migraphx::shape c{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}}};
+    migraphx::shape expected{migraphx::shape::float_type, output_dims, {lit(0), lit(1)}};
+    expect_shape(
+        expected,
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+        a,
+        b,
+        c);
+}
+
+TEST_CASE(multibroadcast_2in_range_symbolic_target)
+{
+    auto n = var("n", {1, 4});
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    std::vector<dd> output_dims{dd{n}, dd{lit(3)}};
+    migraphx::shape target{migraphx::shape::float_type, output_dims};
+    expect_shape(
+        target,
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+        input,
+        target);
+}
+
 TEST_CASE(multibroadcast_2in_symbolic_target_mismatch_error)
 {
     auto n = var("n", {2, 8});

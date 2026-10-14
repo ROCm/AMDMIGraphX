@@ -264,17 +264,43 @@ TEST_CASE(allocate_copy_with_out)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(allocate_out_duplicate_return_uses_last_output_index)
+TEST_CASE(allocate_out_repeated_return_copy)
 {
-    migraphx::shape s{migraphx::shape::float_type, {5}};
-    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1("sub");
     auto alloc =
-        m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-    m.add_return({alloc, alloc});
+        m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    auto p1 = m1.add_instruction(pass_op{}, alloc);
+    m1.add_return({p1, p1});
 
-    run_pass(m, allocation_with_out_model{});
+    run_pass(m1, allocation_with_out_model{});
 
-    EXPECT(m.get_parameter_names() == std::vector<std::string>{"output_1"});
+    migraphx::module m2("sub");
+    auto output0 = m2.add_parameter("sub:#output_0", s);
+    auto output1 = m2.add_parameter("sub:#output_1", s);
+    auto p2      = m2.add_instruction(pass_op{}, output0);
+    auto copy    = m2.add_instruction(migraphx::make_op("test_copy"), p2, output1);
+    m2.add_return({p2, copy});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_parameter_return_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1("sub");
+    auto input = m1.add_parameter("input", s);
+    m1.add_return({input});
+
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2("sub");
+    auto expected_input = m2.add_parameter("input", s);
+    auto output         = m2.add_parameter("sub:#output_0", s);
+    auto copy = m2.add_instruction(migraphx::make_op("test_copy"), expected_input, output);
+    m2.add_return({copy});
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(allocate_out_select_module_dynamic_tuple_views)
@@ -555,10 +581,12 @@ TEST_CASE(allocate_out_multi_return_partial_alloc)
 
     migraphx::module m2;
     {
-        auto x      = m2.add_parameter("x", s);
-        auto output = m2.add_parameter("output_1", s);
-        auto p1     = m2.add_instruction(pass_op{}, output);
-        m2.add_return({x, p1});
+        auto x       = m2.add_parameter("x", s);
+        auto output0 = m2.add_parameter("output_0", s);
+        auto copy    = m2.add_instruction(migraphx::make_op("test_copy"), x, output0);
+        auto output1 = m2.add_parameter("output_1", s);
+        auto p1      = m2.add_instruction(pass_op{}, output1);
+        m2.add_return({copy, p1});
     }
     EXPECT(m1.sort() == m2.sort());
 }

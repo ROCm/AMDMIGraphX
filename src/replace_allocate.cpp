@@ -56,17 +56,17 @@ optional<instruction_ref> get_select_module_buffer(instruction_ref ins)
     if(producer->name() != "select_module")
         return nullopt;
     const auto& inputs = producer->inputs();
-    auto noutputs      = producer->get_shape().sub_shapes().size();
-    if(inputs.size() <= noutputs)
+    auto aliases       = producer->get_operator().output_alias(to_shapes(inputs));
+    auto index         = ins->get_operator().to_value()["index"].to<std::size_t>();
+    if(index >= aliases.size())
         return nullopt;
-    auto index = ins->get_operator().to_value()["index"].to<std::size_t>();
-    return inputs.at(inputs.size() - noutputs + index);
+    return inputs.at(aliases.at(index));
 }
 
-std::vector<instruction_ref> get_output_alias(instruction_ref ins)
+std::vector<instruction_ref> resolve_output_aliases(instruction_ref ins)
 {
     if(auto buffer = get_select_module_buffer(ins))
-        return get_output_alias(*buffer);
+        return resolve_output_aliases(*buffer);
     auto aliases = instruction::get_output_alias(ins, true);
     if(aliases.size() == 1 and aliases.front() == ins)
         return {ins};
@@ -74,7 +74,7 @@ std::vector<instruction_ref> get_output_alias(instruction_ref ins)
     std::transform(aliases.begin(),
                    aliases.end(),
                    join_back_inserter(result),
-                   [](instruction_ref alias) { return get_output_alias(alias); });
+                   [](instruction_ref alias) { return resolve_output_aliases(alias); });
     return result;
 }
 
@@ -87,7 +87,7 @@ std::vector<instruction_ref> get_alloc_aliases(const module& mod)
     std::transform(returns.begin(),
                    returns.end(),
                    join_back_inserter(alloc_aliases),
-                   [](const auto& i) { return get_output_alias(i); });
+                   [](const auto& i) { return resolve_output_aliases(i); });
     return alloc_aliases;
 }
 
@@ -279,6 +279,23 @@ void insert_copy(module& m, const allocation_model& model)
         auto copy = m.insert_instruction(insert_ins, make_op(model.copy()), ins, alloc);
         m.replace_instruction(ins, copy);
     }
+
+    auto returns = m.get_returns();
+    std::unordered_set<instruction_ref> returned;
+    bool changed = false;
+    std::transform(returns.begin(), returns.end(), returns.begin(), [&](instruction_ref ins) {
+        if(ins->get_shape().any_of_dynamic())
+            return ins;
+        if(returned.insert(ins).second and ins->name() != "@param")
+            return ins;
+        changed    = true;
+        auto alloc = m.insert_instruction(
+            std::prev(m.end()),
+            make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
+        return m.insert_instruction(std::prev(m.end()), make_op(model.copy()), ins, alloc);
+    });
+    if(changed)
+        m.replace_return(returns);
 }
 
 void insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)

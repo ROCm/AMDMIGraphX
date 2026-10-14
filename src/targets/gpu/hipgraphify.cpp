@@ -25,6 +25,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/param_utils.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -42,6 +43,16 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+// Host memory filled by a device-to-host copy (possibly viewed through a
+// sync); its contents only exist at capture time.
+static bool is_host_value(instruction_ref ins)
+{
+    auto path = get_alias_path(ins);
+    return std::any_of(path.begin(), path.end(), [](instruction_ref x) {
+        return contains({"hip::copy_from_gpu", "hip::load_scalar"}, x->name());
+    });
+}
+
 // Ops that cannot be stream-captured; they become partition boundaries.
 static bool is_unsupported(const std::string& name)
 {
@@ -49,6 +60,7 @@ static bool is_unsupported(const std::string& name)
         "hip::copy_from_gpu",
         "hip::copy_to_gpu",
         "hip::sync_stream",
+        "hip::load_scalar",
         // rocblas crashes with a capturing stream
         "gpu::gemm",
         "gpu::quant_gemm",
@@ -57,6 +69,25 @@ static bool is_unsupported(const std::string& name)
         "hip::graph",
     };
     return contains(unsupported, name);
+}
+
+// A view placed by a host value (gpu::slice_at): its address is computed on
+// the host per run, so a captured kernel would replay a stale one.
+static bool is_runtime_view(instruction_ref ins)
+{
+    if(ins->get_operator().output_alias(to_shapes(ins->inputs())).empty())
+        return false;
+    return std::any_of(ins->inputs().begin(), ins->inputs().end(), is_host_value);
+}
+
+// True when an input's buffer is reached through a runtime view, so the
+// kernel's pointer argument depends on a host value.
+static bool reads_runtime_view(instruction_ref ins)
+{
+    return std::any_of(ins->inputs().begin(), ins->inputs().end(), [](instruction_ref input) {
+        auto path = get_alias_path(input);
+        return std::any_of(path.begin(), path.end(), is_runtime_view);
+    });
 }
 
 static bool is_capturable(instruction_ref ins)
@@ -72,6 +103,8 @@ static bool is_capturable(instruction_ref ins)
     // (gpu::literal) issue no work and stay capturable.
     if(not ins->inputs().empty() and op.is_context_free() and
        op.output_alias(to_shapes(ins->inputs())).empty())
+        return false;
+    if(is_runtime_view(ins) or reads_runtime_view(ins))
         return false;
     return true;
 }

@@ -43,6 +43,7 @@ namespace gpu {
 MIGRAPHX_REGISTER_OP(hip_allocate)
 MIGRAPHX_REGISTER_OP(hip_fill)
 MIGRAPHX_REGISTER_OP(hip_sync_stream)
+MIGRAPHX_REGISTER_OP(hip_load_scalar)
 MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy)
@@ -232,6 +233,18 @@ void gpu_sync()
 }
 
 void gpu_sync(const context& ctx) { ctx.finish(); }
+
+void gpu_spin_sync(context& ctx)
+{
+    for(;;)
+    {
+        auto status = hipStreamQuery(ctx.get_stream().get());
+        if(status == hipSuccess)
+            return;
+        if(status != hipErrorNotReady)
+            MIGRAPHX_THROW("hip stream query failed: " + hip_error(status));
+    }
+}
 
 static void hip_async_memset(context& ctx, const argument& dst, int value)
 {

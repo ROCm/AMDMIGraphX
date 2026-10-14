@@ -35,6 +35,10 @@ You can also pass multiple folders, e.g.:
 # Test every model found under the pre-downloaded location
 USE_LOCAL=1 ./test_models.sh /datasets/onnx-model-zoo
 
+# Test the curated CI set
+USE_LOCAL=1 MODEL_LIST=/datasets/onnx-model-zoo/ci-models.txt \
+    ./test_models.sh /datasets/onnx-model-zoo
+
 # Or select a subset
 USE_LOCAL=1 ./test_models.sh \
     /datasets/onnx-model-zoo/text/machine_comprehension/t5 \

@@ -8,6 +8,10 @@ MIGraphX environment variables
 
 The MIGraphX environment variables can be used by contributors to the MIGraphX code base to customize tuning, verification, and tracing.
 
+For user-facing guides on the most common tuning and validation variables, see
+:doc:`Tune model performance <../how-to/model-performance-tuning>` and
+:doc:`Validate model outputs <../how-to/model-validation>`.
+
 
 Model performance tunable variables
 ************************************
@@ -336,14 +340,6 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``0``: Returns to default behavior.
 
       | Default: Full dynamic shape support is disabled.
-
-  * - | ``MIGRAPHX_USE_DYNAMIC_NMS``
-      | When set, the ``NonMaxSuppression`` ONNX parser performs a dynamic slice on the raw indices tensor to trim it to the number of selected boxes, producing an output with a dynamic shape.
-
-    - | ``1``: A dynamic slice is applied to the raw indices tensor, producing a dynamic-shaped output.
-      | ``0``: Returns to default behavior.
-
-      | Default: The whole raw indices tensor is returned without slicing.
 
 Matching
 **********

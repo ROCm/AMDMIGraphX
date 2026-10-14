@@ -3253,6 +3253,16 @@ TEST_CASE(symbol_name_registry_resolves_collisions_stably)
     EXPECT(names.resolve("batch-size") == "batch_size_3");
 }
 
+TEST_CASE(symbol_name_registry_allocates_unique_names)
+{
+    migraphx::sym::symbol_name_registry names;
+    EXPECT(names.resolve("main_NonMaxSuppression_5") == "main_NonMaxSuppression_5");
+    EXPECT(names.allocate("main_NonMaxSuppression_5") == "main_NonMaxSuppression_5_2");
+    EXPECT(names.allocate("main.NonMaxSuppression.5") == "main_NonMaxSuppression_5_3");
+    EXPECT(names.resolve("main.NonMaxSuppression.5") == "main_NonMaxSuppression_5_4");
+    EXPECT(names.resolve("main.NonMaxSuppression.5") == "main_NonMaxSuppression_5_4");
+}
+
 // A double has to read back as the same value, which the six significant digits a stream
 // defaults to cannot promise.
 TEST_CASE(scalar_to_string_round_trips)

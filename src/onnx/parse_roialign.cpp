@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,13 +56,10 @@ struct parse_roialign : op_parser<parse_roialign>
         }
 
         migraphx::op::pooling_mode rmode(migraphx::op::pooling_mode::average);
-        if(contains(info.attributes, "mode"))
+        // read mode; default is "avg"
+        if(contains(info.attributes, "mode") and info.attributes.at("mode").s() == "max")
         {
-            // read mode; default is "avg"
-            if(info.attributes.at("mode").s() == "max")
-            {
-                rmode = migraphx::op::pooling_mode::max;
-            }
+            rmode = migraphx::op::pooling_mode::max;
         }
 
         int64_t output_height = 1;

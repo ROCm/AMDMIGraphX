@@ -49,6 +49,8 @@ pipeline {
                 script {
                     if (sh(returnStatus: true, script: "find '${MODEL_ROOT}' -name '*.tar.gz' -print -quit | grep -q .") != 0)
                         error("No .tar.gz archives under ${MODEL_ROOT}; is the NFS mount available on this agent?")
+                    if (sh(returnStatus: true, script: "test -f '${MODEL_ROOT}/ci-models.txt'") != 0)
+                        error("No ci-models.txt under ${MODEL_ROOT}")
                     if (!(params.IMAGE_TAG ==~ /^[A-Za-z0-9._-]+$/))
                         error("IMAGE_TAG is not a valid docker tag: '${params.IMAGE_TAG}'")
                     withCredentials([string(credentialsId: REPORTS_REPO_CRED,
@@ -99,6 +101,7 @@ pipeline {
                                 set -e
                                 export PYTHONPATH="\$PWD/build/lib"
                                 USE_LOCAL=1 TARGET=gpu \
+                                MODEL_LIST='${MODEL_ROOT}/ci-models.txt' \
                                 DRIVER="\$PWD/build/bin/migraphx-driver" \
                                     ./${ZOO_DIR}/test_models.sh '${MODEL_ROOT}'
                             """

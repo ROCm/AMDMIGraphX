@@ -1,4 +1,4 @@
-	matmulnbits_mm_test:ç
+	matmulnbits_mm_test:ë
 e
 a
 b
@@ -21,11 +21,11 @@ block_size :com.microsoftmatmulnbits_mm_testZ
 scales
 
 
-Z
-zp
-
-
-b
+Z
+zp
+
+
+b
 c
 
 

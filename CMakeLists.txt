@@ -229,6 +229,7 @@ rocm_enable_clang_tidy(
         readability-*
         -bugprone-crtp-constructor-accessibility
         -bugprone-derived-method-shadowing-base-method
+        -bugprone-dynamic-static-initializers
         -bugprone-easily-swappable-parameters
         -bugprone-exception-escape
         -bugprone-fold-init-type

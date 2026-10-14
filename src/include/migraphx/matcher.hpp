@@ -1256,14 +1256,26 @@ inline bool literal_has_value(const migraphx::literal& l, T x, value_tolerance t
     l.visit([&](auto v) {
         // A literal views const data, so drop the qualifier or numeric_limits will miss the
         // specialization for the narrow types and report an epsilon of zero.
-        using type  = std::remove_cv_t<typename decltype(v)::value_type>;
+        using type = std::remove_cv_t<typename decltype(v)::value_type>;
+        // No unsigned element equals a negative x, which an unsigned common type would
+        // wrap to a large value. Test target, as x < 0 warns when T is unsigned.
+        if(std::is_unsigned<type>{} and target < 0)
+            return;
         double eps  = std::numeric_limits<type>::epsilon();
         auto window = eps * (atol + rtol * std::fabs(target));
         if(migraphx::float_equal(window, 0))
         {
-            // cast to the literal's data type before comparing
+            // float_equal compares in the common type of val and x, so a floating x
+            // is never cast to an integral literal type, where it could wrap. A negative
+            // element never equals an unsigned x, which an unsigned common type would
+            // wrap it to.
             b = std::all_of(v.begin(), v.end(), [&](auto val) {
-                return migraphx::float_equal(val, static_cast<type>(x));
+                if constexpr(std::is_unsigned<T>{} and std::is_signed<type>{})
+                {
+                    if(val < 0)
+                        return false;
+                }
+                return migraphx::float_equal(val, x);
             });
         }
         else

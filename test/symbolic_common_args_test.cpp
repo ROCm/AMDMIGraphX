@@ -59,12 +59,12 @@ TEST_CASE(symbolic_binary_explicit_broadcast)
     }
 }
 
-TEST_CASE(symbolic_binary_different_expressions_do_not_broadcast)
+TEST_CASE(symbolic_binary_disjoint_expressions_do_not_broadcast)
 {
     using migraphx::sym::var;
 
-    const auto n = var("n", {0, 100});
-    const auto k = var("k", {0, 100});
+    const auto n = var("n", {0, 10});
+    const auto k = var("k", {20, 30});
     migraphx::module m;
     auto x = m.add_parameter(
         "x", {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{n}}});
@@ -77,6 +77,23 @@ TEST_CASE(symbolic_binary_different_expressions_do_not_broadcast)
                                          [](auto ins) { return ins->name() == "multibroadcast"; });
     EXPECT(broadcasts.empty());
     EXPECT(add->inputs() == std::vector<migraphx::instruction_ref>{x, y});
+}
+
+TEST_CASE(symbolic_binary_literal_expression_mismatch)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto n = var("n", {4, 8});
+    migraphx::module m;
+    auto x = m.add_parameter(
+        "x",
+        {migraphx::shape::float_type,
+         std::vector<migraphx::shape::dynamic_dimension>{{lit(4)}}});
+    auto y = m.add_parameter(
+        "y", {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{n}}});
+    EXPECT(test::throws(
+        [&] { migraphx::add_common_op(m, migraphx::make_op("add"), {x, y}); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

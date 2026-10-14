@@ -329,19 +329,27 @@ TEST_CASE(binary_sym_overlapping_expressions)
     expect_shape(sx, migraphx::make_op("mul"), sx, sy);
 }
 
-TEST_CASE(binary_sym_disjoint_expressions_error)
+TEST_CASE(binary_sym_disjoint_expressions)
 {
     auto n = var("n", {0, 10});
     auto m = var("m", {20, 30});
     migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
     migraphx::shape sy{migraphx::shape::float_type, {dd{m}}};
-    throws_shape(migraphx::make_op("add"), sx, sy);
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
 }
 
 TEST_CASE(binary_sym_literal_mismatch_error)
 {
     migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
     migraphx::shape sy{migraphx::shape::float_type, {dd{lit(5)}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_expression_mismatch_error)
+{
+    auto n = var("n", {4, 8});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}}};
     throws_shape(migraphx::make_op("add"), sx, sy);
 }
 

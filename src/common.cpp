@@ -42,13 +42,6 @@ bool is_symbolic_literal(const shape::dynamic_dimension& d)
     return d.is_symbolic() and d.sym_expr.name() == "literal";
 }
 
-bool intervals_overlap(const shape::dynamic_dimension& a, const shape::dynamic_dimension& b)
-{
-    const auto a_interval = a.get_interval();
-    const auto b_interval = b.get_interval();
-    return std::max(a_interval.min, b_interval.min) <= std::min(a_interval.max, b_interval.max);
-}
-
 bool elementwise_dims_match_without_broadcast(const std::vector<shape::dynamic_dimension>& input,
                                               const std::vector<shape::dynamic_dimension>& target)
 {
@@ -57,11 +50,7 @@ bool elementwise_dims_match_without_broadcast(const std::vector<shape::dynamic_d
     return std::equal(input.begin(), input.end(), target.begin(), [](const auto& a, const auto& b) {
         if(a == b)
             return true;
-        if(a == 1 or b == 1)
-            return false;
-        if(is_symbolic_literal(a) and is_symbolic_literal(b))
-            return false;
-        return intervals_overlap(a, b);
+        return not is_symbolic_literal(a) and not is_symbolic_literal(b);
     });
 }
 
@@ -112,8 +101,7 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                        }
                        else if(a.is_symbolic() and b.is_symbolic())
                        {
-                           if(not(is_symbolic_literal(a) and is_symbolic_literal(b)) and
-                              intervals_overlap(a, b))
+                           if(not is_symbolic_literal(a) and not is_symbolic_literal(b))
                                return a;
                            MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
                                           migraphx::to_string_range(dds0) + "} and {" +

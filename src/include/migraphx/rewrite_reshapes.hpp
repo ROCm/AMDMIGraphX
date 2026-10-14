@@ -111,6 +111,10 @@ struct rewrite_reshapes
             // cppcheck-suppress knownConditionTrueFalse
             if(not T::matches(x_ins))
                 return false;
+            // A fully reduced output has no dimension info left to rebase the
+            // reshapes onto, and there is nothing to gain from the rewrite
+            if(x_ins->get_shape().elements() == 1)
+                return false;
             // If its just a broadcast then skip
             if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
                    return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());

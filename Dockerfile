@@ -26,7 +26,7 @@ FROM ubuntu:24.04
 
 ARG PREFIX=/usr/local
 # ROCm release version (used in versioned package names, e.g. amdrocm-developer-tools7.13)
-ARG ROCM_VERSION="10.0"
+ARG ROCM_VERSION="10.1"
 # GPU architecture family (e.g. gfx942, gfx120x); leave empty for arch-independent packages
 ARG GPU_ARCH=""
 # Install location for the prebuilt MIGraphX dependencies.
@@ -129,8 +129,8 @@ RUN curl -fsSL -o /tmp/clangd.zip \
 
 # Install pytorch
 RUN pip3 install --index-url "${INDEX_URL}" \
-        "torch==2.11.0+rocm${ROCM_VERSION}.0" \
-        "torchvision==0.26.0+rocm${ROCM_VERSION}.0" \
+        "torch==2.12.0+rocm${ROCM_VERSION}.0" \
+        "torchvision==0.27.0+rocm${ROCM_VERSION}.0" \
         "torchaudio==2.11.0+rocm${ROCM_VERSION}.0"
 
 # Location where onnx unit tests models are cached

@@ -143,6 +143,16 @@ bool is_inlinable_constant(instruction_ref ins)
     return ins->get_shape().elements() == 1 or is_range_literal(ins->get_literal());
 }
 
+// A fused attention kernel keeps a head-dim wide output row per q row live in
+// registers, so wide head dims run slower fused than as separate kernels.
+// Checks the gemms in canonical form: gemm1 = dot(q, k), gemm2 = dot(probs, v).
+bool fusable_head_dims(instruction_ref gemm1, instruction_ref gemm2, std::size_t max_head_dim)
+{
+    auto d_qk = gemm1->inputs().front()->get_shape().lens().back();
+    auto d_v  = gemm2->inputs().back()->get_shape().lens().back();
+    return std::max(d_qk, d_v) <= max_head_dim;
+}
+
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
 inline auto pointwise_inputs()
 {
@@ -222,6 +232,8 @@ std::vector<instruction_ref> get_lse_instructions(const std::vector<instruction_
 // find attention blocks that have been quantized and undo them
 struct find_quant_attention
 {
+    std::size_t max_head_dim = 256;
+
     auto matcher() const
     {
         auto gemm1 = match::opaque(
@@ -264,6 +276,10 @@ struct find_quant_attention
         auto deq1   = r.instructions["deq1"];
         auto qgemm2 = r.instructions["qgemm2"];
         auto deq2   = r.instructions["deq2"];
+
+        // Keep the quantization when find_attention will not fuse the block
+        if(not fusable_head_dims(qgemm1, qgemm2, max_head_dim))
+            return;
 
         if(can_dequantize_gemm(qgemm1) and can_dequantize_gemm(qgemm2))
         {
@@ -430,6 +446,8 @@ struct find_attention_sinks
 
 struct find_transposed_attention
 {
+    std::size_t max_head_dim = 256;
+
     auto matcher() const
     {
         auto gemm1 =
@@ -465,6 +483,13 @@ struct find_transposed_attention
         if(input_of_dot2->get_shape().ndim() != perm.size())
             return;
 
+        // Skip blocks find_attention will not fuse; here v is transposed, so
+        // its head dim is the second to last dimension
+        auto d_qk = r.instructions["dot1"]->inputs().front()->get_shape().lens().back();
+        auto d_v  = input_of_dot2->get_shape().lens().rbegin()[1];
+        if(std::max(d_qk, d_v) > max_head_dim)
+            return;
+
         auto values = input_of_dot2;
         if(input_of_dot2->name() == "transpose")
         {
@@ -487,6 +512,7 @@ struct find_transposed_attention
 struct find_attention
 {
     std::size_t* counter;
+    std::size_t max_head_dim = 256;
 
     auto matcher() const
     {
@@ -534,6 +560,9 @@ struct find_attention
         auto gemm2         = r.result;
         auto gemm1         = r.instructions["dot1"];
         auto softmax_input = r.instructions["x"];
+
+        if(not fusable_head_dims(gemm1, gemm2, max_head_dim))
+            return;
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), gemm1, gemm2);
@@ -1384,13 +1413,14 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     {
         // remove quantization from attention blocks so they can be fused; rocMLIR currently does
         // not support fp8 attention
-        match::find_matches(mpm, find_quant_attention{});
+        match::find_matches(mpm, find_quant_attention{.max_head_dim = attn_max_head_dim});
         mpm.run_pass(dead_code_elimination{});
 
-        match::find_matches(mpm, find_transposed_attention{});
+        match::find_matches(mpm, find_transposed_attention{.max_head_dim = attn_max_head_dim});
         mpm.run_pass(dead_code_elimination{});
 
-        match::find_matches(mpm, find_attention{.counter = &counter});
+        match::find_matches(mpm,
+                            find_attention{.counter = &counter, .max_head_dim = attn_max_head_dim});
         mpm.get_module().sort();
         mpm.run_pass(dead_code_elimination{});
     }

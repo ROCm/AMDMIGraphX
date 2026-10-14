@@ -37,7 +37,10 @@ struct module_pass_manager;
 
 struct MIGRAPHX_EXPORT fuse_attention
 {
-    bool attn_enabled                         = false;
+    bool attn_enabled = false;
+    // Widest Q/V head dim to fuse: past this the fused kernel's per-row
+    // accumulator overwhelms the register budget and loses to separate kernels
+    std::size_t attn_max_head_dim             = 256;
     bool flash_decoding_enabled               = false;
     std::size_t flash_decoding_num_splits     = 0;
     std::size_t flash_decoding_threshold      = 32;

@@ -188,6 +188,47 @@ TEST_CASE(gemm_softmax_gemm)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(gemm_softmax_gemm_large_head_dim)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 2, 32, 512}};
+    migraphx::shape s2{migraphx::shape::half_type, {1, 2, 32, 32}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s1);
+        auto k   = mm->add_parameter("k", s1);
+        auto v   = mm->add_parameter("v", s1);
+        auto kt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, kt);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    migraphx::program p2 = p1;
+
+    // Head dims past attn_max_head_dim run slower fused, so nothing is fused
+    run_pass(p1, {.attn_enabled = true});
+    EXPECT(p1.sort() == p2.sort());
+
+    // Raising the limit fuses the block
+    run_pass(p1, {.attn_enabled = true, .attn_max_head_dim = 512});
+    auto* mm = p1.get_main_module();
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "group" and
+               ins.get_operator().to_value()["tag"].template to<std::string>() == "attention";
+    }));
+}
+
 TEST_CASE(gemm_pw_softmax_gemm)
 {
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
@@ -1327,6 +1368,7 @@ TEST_CASE(flash_decoding_4d_with_broadcastable_mask_literal)
     }
     run_pass(p1,
              {.attn_enabled              = true,
+              .attn_max_head_dim         = 384,
               .flash_decoding_enabled    = true,
               .flash_decoding_num_splits = num_splits});
 
@@ -3231,8 +3273,11 @@ TEST_CASE(flash_decoding_3d_auto_split_large_sequence)
         mm->add_return({gemm2});
     }
     // Use auto-splitting: num_splits = 0, with sequence length 512 > threshold 32
-    run_pass(
-        p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 0});
+    run_pass(p1,
+             {.attn_enabled              = true,
+              .attn_max_head_dim         = 512,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = 0});
 
     // Expected program with automatic splitting (should calculate 16 splits for 512 sequence)
     const std::size_t expected_splits = 16; // 512 = 2^9, split until chunk = 32, so 512/16 = 32
@@ -3565,6 +3610,7 @@ TEST_CASE(flash_decoding_auto_split_max_splits_constraint)
     // Use small max_splits to test constraint
     run_pass(p1,
              {.attn_enabled                  = true,
+              .attn_max_head_dim             = 2048,
               .flash_decoding_enabled        = true,
               .flash_decoding_num_splits     = 0, // Auto-calculate
               .flash_decoding_threshold      = 32,
@@ -3670,6 +3716,66 @@ TEST_CASE(fp8_quant_gemm_softmax_gemm)
     }));
 }
 
+// Quantized attention with a head dim past attn_max_head_dim will not be fused, so the
+// q/dq pairs must be kept
+TEST_CASE(fp8_quant_gemm_softmax_gemm_large_head_dim)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 2, 32, 512}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 2, 32, 32}};
+
+    auto quantize = [](migraphx::module* mm, migraphx::instruction_ref x) {
+        auto scale = mm->add_literal(
+            migraphx::literal{migraphx::shape{x->get_shape().type(), {1}}, {0.05f}});
+        scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), scale);
+        auto zp = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}}, {0}});
+        zp = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), zp);
+        return mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale, zp);
+    };
+    auto dequantize = [](migraphx::module* mm,
+                         migraphx::instruction_ref x,
+                         migraphx::shape::type_t out_type) {
+        auto scale = mm->add_literal(migraphx::literal{migraphx::shape{out_type, {1}}, {0.0025f}});
+        scale      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), scale);
+        return mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale);
+    };
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s1);
+        auto k   = mm->add_parameter("k", s1);
+        auto v   = mm->add_parameter("v", s1);
+        auto kt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+
+        auto gemm1 =
+            mm->add_instruction(migraphx::make_op("quant_dot"), quantize(mm, q), quantize(mm, kt));
+        auto deq1 = dequantize(mm, gemm1, migraphx::shape::float_type);
+
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), deq1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), deq1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}),
+                                   rsum);
+        auto div = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+
+        auto gemm2 =
+            mm->add_instruction(migraphx::make_op("quant_dot"), quantize(mm, div), quantize(mm, v));
+        auto deq2 = dequantize(mm, gemm2, migraphx::shape::half_type);
+        mm->add_return({deq2});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1, {.attn_enabled = true});
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(transposed_attention)
 {
     migraphx::shape query_shape{migraphx::shape::half_type, {1, 4, 400, 32}};
@@ -3731,6 +3837,41 @@ TEST_CASE(transposed_attention)
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), group);
         mm->add_return({result});
     }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A transposed value head dim past attn_max_head_dim will not be fused, so the
+// attention block must not be rewritten into canonical form either
+TEST_CASE(transposed_attention_large_head_dim)
+{
+    migraphx::shape query_shape{migraphx::shape::half_type, {1, 4, 400, 32}};
+    migraphx::shape key_shape{migraphx::shape::half_type, {1, 4, 32, 400}};
+    migraphx::shape value_shape{migraphx::shape::half_type, {1, 4, 512, 400}};
+    migraphx::shape softmax_shape{migraphx::shape::half_type, {1, 4, 400, 400}};
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto q    = mm->add_parameter("q", query_shape);
+        auto k    = mm->add_parameter("k", key_shape);
+        auto v    = mm->add_parameter("v", value_shape);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), dot1);
+        rmax      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", softmax_shape.lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), dot1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", softmax_shape.lens()}}), rsum);
+        auto div                = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto transposed_softmax = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), div);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), v, transposed_softmax);
+        mm->add_return({dot2});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1, {.attn_enabled = true});
     EXPECT(p1.sort() == p2.sort());
 }
 

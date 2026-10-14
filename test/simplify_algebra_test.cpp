@@ -2692,6 +2692,7 @@ TEST_CASE(simplify_split_add_broadcast_constant)
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), c);
         auto add = m2.add_instruction(migraphx::make_op("add"), x, mb);
         std::vector<migraphx::instruction_ref> outs;
+        outs.reserve(4);
         for(int64_t i = 0; i < 4; ++i)
         {
             outs.push_back(m2.add_instruction(
@@ -2739,6 +2740,7 @@ TEST_CASE(simplify_split_add_unexpanded_broadcast_constant)
         auto c   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), biases);
         auto add = m2.add_instruction(migraphx::make_op("add"), x, c);
         std::vector<migraphx::instruction_ref> outs;
+        outs.reserve(4);
         for(int64_t i = 0; i < 4; ++i)
         {
             outs.push_back(m2.add_instruction(

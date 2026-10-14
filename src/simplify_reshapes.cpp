@@ -1172,8 +1172,8 @@ struct find_concat_slice_layout
 
     auto matcher() const
     {
-        return match::name("concat")(match::all_of[match::inputs()](
-            match::skip(match::name(view_ops()))(match::name("slice")(match::nargs(1)))));
+        auto slice = match::skip(match::name(view_ops()))(match::name("slice")(match::nargs(1)));
+        return match::name("concat")(match::all_of[match::inputs()](slice));
     }
 
     void apply(module& m, const match::matcher_result& mr) const

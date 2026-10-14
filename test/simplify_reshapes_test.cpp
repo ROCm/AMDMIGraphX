@@ -928,6 +928,7 @@ TEST_CASE(concat_slice_layout_transpose)
     {
         auto x = m1.add_parameter("x", s);
         std::vector<migraphx::instruction_ref> slices;
+        slices.reserve(3);
         for(int64_t i = 0; i < 3; ++i)
         {
             slices.push_back(m1.add_instruction(
@@ -954,6 +955,7 @@ TEST_CASE(concat_slice_layout_partial_cover)
     {
         auto x = m1.add_parameter("x", s);
         std::vector<migraphx::instruction_ref> slices;
+        slices.reserve(4);
         for(int64_t i = 0; i < 4; ++i)
         {
             slices.push_back(m1.add_instruction(

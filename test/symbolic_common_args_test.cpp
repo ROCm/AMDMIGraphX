@@ -114,4 +114,16 @@ TEST_CASE(symbolic_binary_literal_expression_mismatch)
         [&] { migraphx::add_common_op(m, migraphx::make_op("add"), {x, y}); }));
 }
 
+TEST_CASE(symbolic_range_common_dims_mismatch)
+{
+    using migraphx::sym::var;
+
+    std::vector<migraphx::shape::dynamic_dimension> symbolic_dims{{var("n", {2, 8})}};
+    std::vector<migraphx::shape::dynamic_dimension> range_dims{{2, 8}};
+    EXPECT(test::throws(
+        [&] { migraphx::compute_broadcasted_dyn_dims(symbolic_dims, range_dims); }));
+    EXPECT(test::throws(
+        [&] { migraphx::compute_broadcasted_dyn_dims(range_dims, symbolic_dims); }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

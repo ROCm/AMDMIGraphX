@@ -89,7 +89,10 @@ environment.
 
       .. code-block:: bash
 
-         python -c "import torch_migraphx; print(torch_migraphx.__version__)"
+         python -c "import torch_migraphx, importlib.metadata as m; print(m.version('torch_migraphx'))"
+         python -c "import torch, torch_migraphx; print('migraphx' in torch._dynamo.list_backends())"
+
+      This prints ``True`` if the MIGraphX backend is registered as expected.
 
 .. _PyTorch installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver=|ROCM_VERSION|
 

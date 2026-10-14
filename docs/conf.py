@@ -86,4 +86,14 @@ html_theme_options = {
 rocm_docs_generate_llms = True
 
 external_projects_current_project = "amdmigraphx"
+
+rst_prolog = f"""
+.. |ROCM_VERSION| replace:: 10.1.0
+.. |MIGRAPHX_VERSION| replace:: {version}
+.. |TORCH_MIGRAPHX_VERSION| replace:: 1.2
+.. |WHL_PKG_REPO| replace:: https://stable.repo.amd.com/rocm/migraphx/whl-next/
+.. |TARBALL_REPO| replace:: https://stable.repo.amd.com/rocm/migraphx/tarball/
+.. |TARBALL_NAME| replace:: amdrocm10-migraphx-2.18.0.tar.gz
+"""
+
 external_projects_remote_repository = ""

@@ -5,10 +5,6 @@
   :description: Installing Torch-MIGraphX
   :keywords: install, pip, build, MIGraphX, torch_migraphx, PyTorch, AMD, ROCm, development, contributing
 
-.. |TORCH_MIGRAPHX_VERSION| replace:: 1.2
-.. |MIGRAPHX_VERSION| replace:: 2.18.0
-.. |ROCM_VERSION| replace:: 10.1.0
-.. |PKG_REPO| replace:: https://stable.repo.amd.com/rocm/migraphx/whl-next/
 .. |WHL| replace:: "torch_migraphx==1.2+rocm10.1.0"
 
 **********************
@@ -42,17 +38,9 @@ compatibility matrix`_ for more information.
    * Ensure your system has Python 3.12 installed and accessible.
 
    * A ROCm-enabled PyTorch build must be installed in the same environment.
-     Torch-MIGraphX requires ``torch`` 1.11.0 or later.
-
-   * MIGraphX itself does not need to be installed first. The
-     ``torch_migraphx`` wheel depends on
-     :substitution-code:`migraphx==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|`, so
-     pip installs MIGraphX and ``migraphx-libs`` alongside it.
 
 Install Torch-MIGraphX on Linux
 ===============================
-
-Torch-MIGraphX requires ROCm to be installed on your system first.
 
 Install ROCm
 ------------
@@ -92,16 +80,8 @@ environment.
       .. code-block:: bash
          :substitutions:
 
-         python -m pip install --index-url |PKG_REPO| \
+         python -m pip install --index-url |WHL_PKG_REPO| \
              |WHL|
-
-      .. tip::
-
-         To pull in the ROCm runtime libraries for a specific GPU, install the
-         matching device extra, for example
-         ``"torch_migraphx[device-gfx942]==1.2+rocm10.1.0"``. Use
-         ``device-all`` to cover every supported GPU at the cost of a much
-         larger download.
 
    4. Verify your installation.
 

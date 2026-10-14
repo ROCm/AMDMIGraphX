@@ -5,20 +5,12 @@
   :description: Installing MIGraphX for ROCm
   :keywords: install, pip, package manager, tarball, build, MIGraphX, AMD, ROCm, development, contributing
 
-.. |MIGRAPHX_VERSION| replace:: 2.18.0
-.. |ROCM_VERSION| replace:: 10.1.0
-.. |PKG_REPO| replace:: https://stable.repo.amd.com/rocm/migraphx/whl-next/
-.. |WHL| replace:: "migraphx==2.18.0+rocm10.1.0"
-.. |WHL_LIBS| replace:: "migraphx-libs==2.18.0+rocm10.1.0"
-.. |TARBALL| replace:: amdrocm10-migraphx-2.18.0.tar.gz
-.. |TARBALL_URL| replace:: https://stable.repo.amd.com/rocm/migraphx/tarball/amdrocm10-migraphx-2.18.0.tar.gz
-
 ****************
 Install MIGraphX
 ****************
 
-Installing MIGraphX using a package installer is sufficient for most users 
-who want to use the MIGraphX API. If you plan to develop for MIGraphX or 
+Installing MIGraphX using prebuilt packages is sufficient for most users
+who want to use the MIGraphX API. If you plan to develop for MIGraphX or
 contribute to the source code, see `Developing for MIGraphX <../dev/contributing-to-migraphx.html>`_.
 
 For a containerized build environment with prerequisites preinstalled, see
@@ -79,7 +71,7 @@ environment.
 .. _Install AMD ROCm: https://rocm.docs.amd.com/en/docs-|ROCM_VERSION|/install/rocm.html?fam=all
 
 .. selected:: i=pkgman
-   :heading: Install MIGraphX 2.18.0 via package manager
+   :heading: Install MIGraphX via package manager
    :heading-level: 3
 
    Use the following steps to install MIGraphX system-wide using your
@@ -672,8 +664,9 @@ environment.
       .. code-block:: bash
          :substitutions:
 
-         python -m pip install --index-url |PKG_REPO| \
-             |WHL| |WHL_LIBS|
+         python -m pip install --index-url |WHL_PKG_REPO| \
+             "migraphx==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|" \
+             "migraphx-libs==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|
 
    3. Verify your installation.
 
@@ -689,7 +682,7 @@ environment.
       installation guide`_.
 
 .. selected:: i=tar
-   :heading: Install MIGraphX 2.18.0 using tarball
+   :heading: Install MIGraphX via tarball
    :heading-level: 3
 
    After installing ROCm, install MIGraphX using the tarball method.
@@ -699,7 +692,7 @@ environment.
       .. code-block:: bash
          :substitutions:
 
-         wget |TARBALL_URL|
+         wget |TARBALL_REPO||TARBALL_NAME|
 
    2. Extract the tarball.
 
@@ -724,7 +717,7 @@ environment.
 
          # Extract to the MIGraphX directory
          mkdir -p $MIGRAPHX_INSTALL_PATH
-         tar -xzf |TARBALL| -C $MIGRAPHX_INSTALL_PATH
+         tar -xzf |TARBALL_NAME| -C $MIGRAPHX_INSTALL_PATH
 
       .. note::
 

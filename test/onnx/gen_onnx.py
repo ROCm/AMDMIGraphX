@@ -20089,6 +20089,20 @@ def triu_test():
 
 
 @onnx_test()
+def triu_dynamic_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    k = helper.make_tensor_value_info('k', TensorProto.INT64, [1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x', 'k'],
+        outputs=['y'],
+    )
+    return ([node], [x, k], [y])
+
+
+@onnx_test()
 def triu_batch_diff_k_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
     k = np.array([2])

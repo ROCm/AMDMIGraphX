@@ -213,10 +213,34 @@ struct check_shapes
     }
 
     /*!
-     * Check all shapes have the same lens.
+     * Check all shapes have the same dimensions.
+     *
+     * Corresponding dimensions in fully symbolic shapes may have different non-literal expressions.
+     * Assuming that the operation requires that their runtime extents are equal.
+     * Any literal dimension must match exactly.
      */
     const check_shapes& same_dims() const
     {
+        if(begin != end and this->all_of([](const shape& s) { return s.symbolic(); }))
+        {
+            if(not this->same([](const shape& s) { return s.ndim(); }))
+                MIGRAPHX_THROW(prefix() + "Dimensions do not match");
+            if(not this->all_of([&](const shape& x_shape) {
+                   return this->all_of([&](const shape& y_shape) {
+                       return std::equal(x_shape.dyn_dims().begin(),
+                                         x_shape.dyn_dims().end(),
+                                         y_shape.dyn_dims().begin(),
+                                         [](const auto& x, const auto& y) {
+                                             if(x == y)
+                                                 return true;
+                                             return x.sym_expr.name() != "literal" and
+                                                    y.sym_expr.name() != "literal";
+                                         });
+                   });
+               }))
+                MIGRAPHX_THROW(prefix() + "Dimensions do not match");
+            return *this;
+        }
         if(not this->same([](const shape& s) { return s.max_lens(); }))
             MIGRAPHX_THROW(prefix() + "Dimensions do not match");
         if(this->any_of([&](const shape& s) { return s.dynamic(); }))

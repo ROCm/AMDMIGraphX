@@ -312,6 +312,58 @@ TEST_CASE(binary_sym_same_packed)
     expect_shape(s, migraphx::make_op("add"), s, s);
 }
 
+TEST_CASE(binary_sym_different_expressions)
+{
+    auto n = var("n", {0, 100});
+    auto m = var("m", {0, 100});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}, dd{lit(4)}}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_overlapping_expressions)
+{
+    // extents of expressions are not checked
+    auto n = var("n", {0, 100});
+    auto m = var("m", {50, 150});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}}};
+    expect_shape(sx, migraphx::make_op("mul"), sx, sy);
+}
+
+TEST_CASE(binary_sym_disjoint_expressions)
+{
+    // extents of expressions are not checked
+    auto n = var("n", {0, 10});
+    auto m = var("m", {20, 30});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_mismatch_error)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{lit(5)}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_expression_mismatch_error)
+{
+    auto n = var("n", {4, 8});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_one_requires_broadcast)
+{
+    auto n = var("n", {1, 100});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(1)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
 TEST_CASE(binary_sym_packed_vs_broadcasted)
 {
     auto n = var("n", {2, 8});
@@ -319,6 +371,26 @@ TEST_CASE(binary_sym_packed_vs_broadcasted)
     migraphx::shape sx{migraphx::shape::float_type, dims};
     migraphx::shape sy{migraphx::shape::float_type, dims, {lit(0), lit(4), lit(1)}};
     expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_zero_packed_vs_broadcasted)
+{
+    auto k = var("k", {0, 200});
+    std::vector<dd> dims{dd{lit(1)}, dd{k}};
+    migraphx::shape sx{migraphx::shape::int64_type, dims};
+    migraphx::shape sy{migraphx::shape::int64_type, dims, {lit(0), lit(0)}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_broadcasted_vs_different_packed)
+{
+    auto n = var("n", {2, 8});
+    auto m = var("m", {2, 8});
+    std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}};
+    migraphx::shape output{migraphx::shape::float_type, output_dims};
+    expect_shape(output, migraphx::make_op("add"), sx, sy);
 }
 
 TEST_CASE(binary_sym_nonpacked_permutation)
@@ -4085,6 +4157,26 @@ TEST_CASE(quant_dot_sym_matdims)
     migraphx::shape static_b{migraphx::shape::int8_type, {32, 8}};
     migraphx::shape static_out = qdot_op.compute_shape({static_a, static_b});
     EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(quant_dot_sym_k_mismatch)
+{
+    auto m  = var("m", {1, 64});
+    auto k1 = var("k1", {1, 128});
+    auto k2 = var("k2", {1, 128});
+    auto n  = var("n", {1, 32});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{m}, dd{k1}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{k2}, dd{n}}};
+    throws_shape(migraphx::make_op("quant_dot"), s_a, s_b);
+}
+
+TEST_CASE(quant_dot_sym_outer_mismatch)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{m}, dd{lit(5)}, dd{lit(3)}}};
+    throws_shape(migraphx::make_op("quant_dot"), s_a, s_b);
 }
 
 TEST_CASE(qlinear)

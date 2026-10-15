@@ -4632,6 +4632,39 @@ def floor_test():
 
 
 @onnx_test()
+def fp8_initializers_test():
+    values = np.array([0.5, 1.0, -2.0, 3.0], dtype=np.float32)
+    fp8_types = [
+        TensorProto.FLOAT8E4M3FN, TensorProto.FLOAT8E4M3FNUZ,
+        TensorProto.FLOAT8E5M2, TensorProto.FLOAT8E5M2FNUZ
+    ]
+    # make_tensor stores the fp8 bit patterns in int32_data
+    inits = [
+        helper.make_tensor('w{}'.format(i), t, [4], values)
+        for i, t in enumerate(fp8_types)
+    ]
+    # Same values as fp8e4m3fn stored in raw_data
+    inits.append(
+        helper.make_tensor('w4',
+                           TensorProto.FLOAT8E4M3FN, [4],
+                           bytes([0x30, 0x38, 0xc0, 0x44]),
+                           raw=True))
+
+    nodes = [
+        helper.make_node('Cast',
+                         inputs=[t.name],
+                         outputs=['y{}'.format(i)],
+                         to=TensorProto.FLOAT) for i, t in enumerate(inits)
+    ]
+    outputs = [
+        helper.make_tensor_value_info('y{}'.format(i), TensorProto.FLOAT, [4])
+        for i in range(len(inits))
+    ]
+
+    return (nodes, [], outputs, inits)
+
+
+@onnx_test()
 def gather_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
     i = helper.make_tensor_value_info('indices', TensorProto.INT32,
@@ -12516,6 +12549,56 @@ def nonzero_large_test():
                                  outputs=['indices'])
 
     return ([node], [x], [y])
+
+
+def nvfp4_dq_matmul_graph(raw):
+    # NVFP4 weights: fp4e2m1 values with one fp8e4m3fn scale per block of 16
+    # along K, and those block scales dequantized by a float per-tensor scale.
+    # w[k] = [1.0, -3.0] for every k, packed low nibble first as 0xd2
+    # s = [[1.0, 2.0], [0.5, 4.0]] for the two blocks along K
+    if raw:
+        w = helper.make_tensor('w',
+                               TensorProto.FLOAT4E2M1, [32, 2],
+                               bytes([0xd2] * 32),
+                               raw=True)
+        s = helper.make_tensor('s',
+                               TensorProto.FLOAT8E4M3FN, [2, 2],
+                               bytes([0x38, 0x40, 0x30, 0x48]),
+                               raw=True)
+    else:
+        w = helper.make_tensor('w', TensorProto.FLOAT4E2M1, [32, 2],
+                               np.tile([1.0, -3.0], 32).astype(np.float32))
+        s = helper.make_tensor(
+            's', TensorProto.FLOAT8E4M3FN, [2, 2],
+            np.array([1.0, 2.0, 0.5, 4.0], dtype=np.float32))
+    s2 = helper.make_tensor('s2', TensorProto.FLOAT, [], [0.5])
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 32])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2])
+
+    nodes = [
+        helper.make_node('DequantizeLinear',
+                         inputs=['s', 's2'],
+                         outputs=['s_f32']),
+        helper.make_node('DequantizeLinear',
+                         inputs=['w', 's_f32'],
+                         outputs=['w_f32'],
+                         axis=0,
+                         block_size=16),
+        helper.make_node('MatMul', inputs=['x', 'w_f32'], outputs=['y']),
+    ]
+
+    return (nodes, [x], [y], [w, s, s2])
+
+
+@onnx_test(opset_version=23)
+def nvfp4_dq_matmul_test():
+    return nvfp4_dq_matmul_graph(raw=True)
+
+
+@onnx_test(opset_version=23)
+def nvfp4_dq_matmul_int32_data_test():
+    return nvfp4_dq_matmul_graph(raw=False)
 
 
 @onnx_test()

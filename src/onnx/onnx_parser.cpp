@@ -379,6 +379,11 @@ static bool is_type_packed_int4(const onnx::TensorProto& t)
     return t.data_type() == onnx::TensorProto::INT4 or t.data_type() == onnx::TensorProto::UINT4;
 }
 
+static bool is_type_packed_fp4(const onnx::TensorProto& t)
+{
+    return t.data_type() == onnx::TensorProto::FLOAT4E2M1;
+}
+
 static std::unordered_map<std::string, instruction_ref>
 parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {
@@ -395,6 +400,8 @@ parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto
 
         if(is_type_packed_int4(f))
             lit = mod->add_instruction(migraphx::make_op("unpack_int4"), lit);
+        else if(is_type_packed_fp4(f))
+            lit = mod->add_instruction(migraphx::make_op("unpack_fp4"), lit);
 
         mod_insts[f.name()] = lit;
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
@@ -807,13 +814,13 @@ std::string onnx_parser::to_string(const onnx::AttributeProto& attr) const
 static shape parse_tensor_shape(const onnx::TensorProto& t)
 {
     std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
-    if(is_type_packed_int4(t))
+    if(is_type_packed_int4(t) or is_type_packed_fp4(t))
     {
         auto dim_n = dims.back();
         if(dim_n > 0 and (dim_n % 2 == 0))
-            dims.back() = dim_n / 2; // int4-packed dimension converted to int8-sized units
+            dims.back() = dim_n / 2; // 4-bit packed dimension converted to 8-bit units
         else
-            MIGRAPHX_THROW("Int4: currently supports only even-sized packed tensors");
+            MIGRAPHX_THROW("Int4/FP4: currently supports only even-sized packed tensors");
     }
     return shape{get_type(t.data_type()), dims};
 }
@@ -950,19 +957,17 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
     case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, t.float_data());
 
-    case onnx::TensorProto::FLOAT8E4M3FNUZ: {
-        std::vector<int32_t> data_int32(t.int32_data().begin(), t.int32_data().end());
-        std::vector<migraphx::fp8::fp8e4m3fnuz> data_fp8;
-        std::transform(data_int32.begin(),
-                       data_int32.end(),
-                       std::back_inserter(data_fp8),
-                       [](float raw_val) { return migraphx::fp8::fp8e4m3fnuz{raw_val}; });
-        return create_literal(shape::fp8e4m3fnuz_type, dims, data_fp8);
+    // int32_data holds the bit pattern of each fp8 value, or of each packed pair of fp4 values
+    case onnx::TensorProto::FLOAT8E4M3FN:
+    case onnx::TensorProto::FLOAT8E4M3FNUZ:
+    case onnx::TensorProto::FLOAT8E5M2:
+    case onnx::TensorProto::FLOAT8E5M2FNUZ:
+    case onnx::TensorProto::FLOAT4E2M1: {
+        std::vector<uint8_t> data_bits(t.int32_data().begin(), t.int32_data().end());
+        return create_literal(
+            type, dims, reinterpret_cast<const char*>(data_bits.data()), data_bits.size());
     }
 
-    case onnx::TensorProto::FLOAT8E5M2FNUZ:
-    case onnx::TensorProto::FLOAT8E5M2:
-    case onnx::TensorProto::FLOAT8E4M3FN:
     case onnx::TensorProto::UNDEFINED:
     case onnx::TensorProto::STRING:
     case onnx::TensorProto::COMPLEX64:
@@ -1104,16 +1109,16 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
+    case 17: return shape::fp8e4m3fn_type;
     case 18: return shape::fp8e4m3fnuz_type;
+    case 19: return shape::fp8e5m2_type;
+    case 20: return shape::fp8e5m2fnuz_type;
     case 21: return shape::uint8_type;
     case 22: return shape::int8_type;
     case 23: return shape::fp4x2_type;
     case 14:
     case 15:
     case 16: return shape::bf16_type;
-    case 17:
-    case 19:
-    case 20:
     default: {
         MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }

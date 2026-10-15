@@ -2131,6 +2131,106 @@ TEST_CASE(split_sym_dim_default_clone_cap_is_noop)
     EXPECT(p == expected);
 }
 
+TEST_CASE(split_sym_dim_specializes_static_output_reduce)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m     = *p.get_main_module();
+    auto data   = m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto output = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), data);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto input = sm.add_parameter(
+            "data",
+            migraphx::shape{migraphx::shape::float_type, {dd{var("n", {clone.min, clone.max})}}});
+        input = sm.add_instruction(
+            migraphx::make_op("fixed_pad", {{"value", -std::numeric_limits<float>::max()}}), input);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), input);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto input =
+        expected_main.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}}}}})}}),
+        std::vector<migraphx::instruction_ref>{input},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_specializes_static_output_gemm)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto a =
+        m.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{n}}});
+    auto b =
+        m.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
+    auto output = m.add_instruction(migraphx::make_op("dot"), a, b);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_n = var("n", {clone.min, clone.max});
+        auto clone_a = sm.add_parameter(
+            "a", migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{clone_n}}});
+        auto clone_b = sm.add_parameter(
+            "b", migraphx::shape{migraphx::shape::float_type, {dd{clone_n}, dd{lit(4)}}});
+        auto padded_a =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_a);
+        auto padded_b =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_b);
+        std::vector<int64_t> indices_data(clone.max);
+        std::iota(indices_data.begin(), indices_data.end(), 0);
+        auto indices = sm.add_literal(migraphx::literal{
+            migraphx::shape{migraphx::shape::int64_type, {clone.max}}, indices_data});
+        auto extent  = add_expected_clone_extent(sm, n, n, clone, clone_a);
+        auto zero    = sm.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.0f}});
+        auto masked_a     = add_mask(sm, padded_a, indices, extent, zero, 1);
+        auto masked_b     = add_mask(sm, padded_b, indices, extent, zero, 0);
+        auto clone_output = sm.add_instruction(migraphx::make_op("dot"), masked_a, masked_b);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_a     = expected_main.add_parameter(
+        "a", migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{n}}});
+    auto expected_b = expected_main.add_parameter(
+        "b", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
+    auto select = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{lit(4)}}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_a, expected_b},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
 TEST_CASE(split_sym_dim_reduce_mean_is_noop)
 {
     auto b = var("b", {1, 4}, {2, 4});
@@ -3449,6 +3549,64 @@ TEST_CASE(split_sym_dim_materializes_concat_past_present)
         expected_output,
         expected_output_start,
         expected_output_end);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_materializes_concat_past_present_static_cache)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m      = *p.get_main_module();
+    auto present = m.add_parameter(
+        "present",
+        migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(2)}, dd{n}, dd{lit(4)}}});
+    auto seqlens = m.add_parameter("seqlens", {migraphx::shape::int32_type, {1}});
+    auto past    = m.add_parameter("past", {migraphx::shape::float_type, {1, 2, 4, 4}});
+    auto output  = m.add_instruction(
+        migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), present, seqlens, past);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_n = var("n", {clone.min, clone.max});
+        auto clone_present =
+            sm.add_parameter("present",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             {dd{lit(1)}, dd{lit(2)}, dd{clone_n}, dd{lit(4)}}});
+        auto clone_seqlens = sm.add_parameter("seqlens", {migraphx::shape::int32_type, {1}});
+        auto clone_past    = sm.add_parameter("past", {migraphx::shape::float_type, {1, 2, 4, 4}});
+        auto padded_present =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_present);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}),
+                               padded_present,
+                               clone_seqlens,
+                               clone_past);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main   = *expected.get_main_module();
+    auto expected_present = expected_main.add_parameter(
+        "present",
+        migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(2)}, dd{n}, dd{lit(4)}}});
+    auto expected_seqlens =
+        expected_main.add_parameter("seqlens", {migraphx::shape::int32_type, {1}});
+    auto expected_past =
+        expected_main.add_parameter("past", {migraphx::shape::float_type, {1, 2, 4, 4}});
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {1, 2, 4, 4}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_past, expected_present, expected_seqlens},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     expected_main.add_return({expected_output});
 
     EXPECT(p.sort() == expected.sort());

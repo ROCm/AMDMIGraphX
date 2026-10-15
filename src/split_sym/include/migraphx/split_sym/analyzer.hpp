@@ -145,11 +145,12 @@ symbolic_op_info analyze_axes(instruction_ref ins,
     info.shape_input_indices = std::move(shape_input_indices);
     const auto& output_shape = info.get_output_shape();
     auto output_axes         = range(output_shape.ndim());
+    auto output_dims         = output_shape.to_symbolic().dyn_dims();
 
     std::copy_if(output_axes.begin(),
                  output_axes.end(),
                  std::back_inserter(info.output_symbolic_axes),
-                 [&](auto axis) { return is_variable_axis(output_shape.dyn_dims().at(axis)); });
+                 [&](auto axis) { return is_variable_axis(output_dims.at(axis)); });
 
     info.supported = all_of(info.output_symbolic_axes, output_rule);
 

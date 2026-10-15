@@ -46,9 +46,10 @@ operation reshape_from_shape(const shape& target,
 
 std::vector<sym::expr> non_unit_dims(const shape& s)
 {
+    auto symbolic = s.to_symbolic();
     std::vector<sym::expr> result;
-    std::transform(s.dyn_dims().begin(),
-                   s.dyn_dims().end(),
+    std::transform(symbolic.dyn_dims().begin(),
+                   symbolic.dyn_dims().end(),
                    std::back_inserter(result),
                    [](const auto& d) { return d.sym_expr; });
     result.erase(std::remove(result.begin(), result.end(), sym::lit(1)), result.end());

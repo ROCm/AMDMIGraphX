@@ -23,11 +23,11 @@ Full documentation for MIGraphX is available at
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
 * Fixed the GPU `gathernd` kernel reading indices through a raw pointer, which returned the wrong element for a transposed index tensor and could read past the allocation for a broadcast one (#5301).
 * Fixed the GPU pointwise code generator emitting the raw comparison mask (`-1`) instead of `1` for `logical_and`, `logical_or`, and `logical_xor` (#5301).
-* Fixed `apply_alpha_beta` emitting `mul(0, A)` and a dead scaled `dot` when `alpha == 0`, instead of building the reduced graph directly. The dead multiply relied on a later constant fold to disappear; without one it reached the GPU code generator, which folded it internally and left the fused pointwise kernel with a parameter nothing reads, failing the JIT compile on `-Werror=unused-parameter` (#5301).
+* Fixed `apply_alpha_beta` building `mul(0, A)` and a `dot` over it when `alpha == 0` instead of the reduced graph. Removing that multiply relied on a later constant fold; where none runs it reached the GPU code generator, which folded it on its own copy of the fused pointwise submodule and left the emitted kernel with a parameter nothing reads, failing the JIT compile on `-Werror=unused-parameter` (#5301).
 
 ### Optimized
 
-* Optimized GPU compile time in the `eager` compile mode by dropping `optimize_module` from the pre-fusion rewrites, from the fusion pipeline, and from inside `fuse_pointwise_reduce`; `propagate_constant` still runs after `fuse_mlir` in eager so that a `scan_slice` index left as a literal `convert` by `eliminate_data_type_for_gpu`'s int64->int32 narrowing is folded instead of reaching the GPU as a host operation over a device literal. Eager runtime performance regresses in exchange, by up to several tens of percent on some models (#5301).
+* Optimized GPU compile time in the `eager` compile mode by dropping `optimize_module` from the pre-fusion rewrites, from the fusion pipeline, and from inside `fuse_pointwise_reduce`. Eager trades runtime for compile time, and the runtime cost of this change reaches several tens of percent on some diffusion and LLM models (#5301).
 
 ### Removed
 

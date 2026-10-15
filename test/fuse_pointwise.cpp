@@ -2054,10 +2054,9 @@ TEST_CASE(hoist_silu_above_slices)
     EXPECT(p1 == p2);
 }
 
-// An add of two scalar literals has nothing to fuse: every input folds to a scalar, so the
-// module would have no parameters. create_pointwise_modules has to decide that before creating
-// it - a module created and then abandoned keeps its name, and this pass runs several times per
-// pipeline with its counter restarting at 0, so the next run collides with the abandoned name.
+// create_pointwise_modules must decide it has nothing to fuse before creating the module: an
+// abandoned module keeps its name, and the pass runs several times per pipeline with its
+// counter restarting at 0, so the next run would reuse that name.
 TEST_CASE(no_module_created_when_all_inputs_are_scalar)
 {
     migraphx::program p1;

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/simplify_qdq.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -131,7 +132,7 @@ struct match_find_quantizable_ops
     static auto
     qparam_broadcast_op(instruction_ref qparam, std::vector<std::size_t> lens, std::size_t axis)
     {
-        if(qparam->get_shape().scalar())
+        if(qparam->get_shape().elements() == 1)
         {
             return migraphx::make_op("multibroadcast", {{"out_lens", lens}});
         }
@@ -322,67 +323,82 @@ struct match_find_quantizable_ops
     }
 };
 
+bool is_int8(shape::type_t t) { return t == shape::int8_type or t == shape::uint8_type; }
+
+bool is_unit_scale(instruction_ref scale)
+{
+    bool result = false;
+    scale->eval().visit([&](auto v) {
+        result = std::all_of(v.begin(), v.end(), [](auto x) { return float_equal(x, 1); });
+    });
+    return result;
+}
+
+instruction_ref convert_to(module& m, instruction_ref pos, instruction_ref x, shape::type_t type)
+{
+    if(x->get_shape().type() == type)
+        return x;
+    return m.insert_instruction(pos, make_op("convert", {{"target_type", type}}), x);
+}
+
+// Copy dq with its scale divided by out_scale and replay the ops between dq and op_arg, the
+// consumer's input. The math runs in the common scale type: converts between dq and the consumer
+// are dropped, since narrowing the folded scale to fp16 could overflow intermediates finite in
+// the original.
+instruction_ref requantize_input(module& m,
+                                 instruction_ref dq,
+                                 instruction_ref scale,
+                                 instruction_ref out_scale,
+                                 instruction_ref op_arg,
+                                 shape::type_t type)
+{
+    auto scale_lens = scale->get_shape().lens();
+    auto scale_t    = convert_to(m, dq, scale, type);
+    auto out_t      = convert_to(m, dq, out_scale, type);
+    if(out_t->get_shape().lens() != scale_lens)
+        out_t =
+            m.insert_instruction(dq, make_op("multibroadcast", {{"out_lens", scale_lens}}), out_t);
+    auto ratio  = m.insert_instruction(dq, make_op("div"), scale_t, out_t);
+    auto inputs = dq->inputs();
+    inputs[1]   = propagate_quantized_ins(m, dq, ratio, get_between_ins(scale, inputs[1]));
+    auto new_dq = m.insert_instruction(dq, dq->get_operator(), inputs);
+    return propagate_quantized_ins(m, dq, new_dq, get_between_ins(dq, op_arg), true);
+}
+
+auto dequantizelinear_scale(const std::string& scale)
+{
+    return match::name("dequantizelinear")(
+        match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))));
+}
+
+auto quantizelinear_out_scale(const std::string& out_scale)
+{
+    return match::arg(1)(match::skip_broadcasts(match::is_constant().bind(out_scale)));
+}
+
+// Replace q's input with x and its scale with 1, keeping the zero point.
+void replace_with_unit_scale(module& m, instruction_ref q, instruction_ref x)
+{
+    auto one    = m.add_literal(literal{shape{x->get_shape().type()}, {1}});
+    auto inputs = q->inputs();
+    inputs[0]   = x;
+    inputs[1]   = m.insert_instruction(
+        q, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), one);
+    m.replace_instruction(q, q->get_operator(), inputs);
+}
+
 // Rewrites the QLinearAdd pattern quantizelinear(add(dq(x1, s1, z1), dq(x2, s2, z2)), s, z) to
 // quantizelinear(add(dq(x1, s1/s, z1), dq(x2, s2/s, z2)), 1, z), the form used by the onnxruntime
 // kernel. The folded scales also keep remove_qdq_pairs from dropping the rounding around the add.
 struct match_find_quantizable_add
 {
-    static bool is_int8(shape::type_t t) { return t == shape::int8_type or t == shape::uint8_type; }
-
-    static bool is_unit_scale(instruction_ref scale)
-    {
-        bool result = false;
-        scale->eval().visit([&](auto v) {
-            result = std::all_of(v.begin(), v.end(), [](auto x) { return float_equal(x, 1); });
-        });
-        return result;
-    }
-
-    static instruction_ref
-    convert_to(module& m, instruction_ref pos, instruction_ref x, shape::type_t type)
-    {
-        if(x->get_shape().type() == type)
-            return x;
-        return m.insert_instruction(pos, make_op("convert", {{"target_type", type}}), x);
-    }
-
-    // Copy dq with its scale divided by out_scale and replay the ops between dq and the add. The
-    // math runs in the common scale type: converts between dq and the add are dropped, since
-    // narrowing the folded scale to fp16 could overflow intermediates finite in the original.
-    static instruction_ref requantize_input(module& m,
-                                            instruction_ref dq,
-                                            instruction_ref scale,
-                                            instruction_ref out_scale,
-                                            instruction_ref add_arg,
-                                            shape::type_t type)
-    {
-        auto scale_lens = scale->get_shape().lens();
-        auto scale_t    = convert_to(m, dq, scale, type);
-        auto out_t      = convert_to(m, dq, out_scale, type);
-        if(out_t->get_shape().lens() != scale_lens)
-            out_t = m.insert_instruction(
-                dq, make_op("multibroadcast", {{"out_lens", scale_lens}}), out_t);
-        auto ratio  = m.insert_instruction(dq, make_op("div"), scale_t, out_t);
-        auto inputs = dq->inputs();
-        inputs[1]   = propagate_quantized_ins(m, dq, ratio, get_between_ins(scale, inputs[1]));
-        auto new_dq = m.insert_instruction(dq, dq->get_operator(), inputs);
-        return propagate_quantized_ins(m, dq, new_dq, get_between_ins(dq, add_arg), true);
-    }
-
-    static auto dequantizelinear_scale(const std::string& scale)
-    {
-        return match::name("dequantizelinear")(
-            match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))));
-    }
-
     auto matcher() const
     {
         auto dq1 = match::arg(0)(skip_post_dq_ops(dequantizelinear_scale("scale1").bind("dq1")));
         auto dq2 = match::arg(1)(skip_post_dq_ops(dequantizelinear_scale("scale2").bind("dq2")));
         auto add = match::name("add")(dq1, dq2).bind("add");
-        auto out_scale =
-            match::arg(1)(match::skip_broadcasts(match::is_constant().bind("out_scale")));
-        return match::name("quantizelinear")(match::arg(0)(add), out_scale);
+        return match::name("quantizelinear")(match::arg(0)(add),
+                                             quantizelinear_out_scale("out_scale"));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -401,16 +417,67 @@ struct match_find_quantizable_add
         if(out_scale->get_shape().elements() != 1 or is_unit_scale(out_scale))
             return;
 
-        auto type   = compute_common_type(scale1->get_shape().type(), scale2->get_shape().type());
-        auto x1     = requantize_input(m, dq1, scale1, out_scale, add->inputs().at(0), type);
-        auto x2     = requantize_input(m, dq2, scale2, out_scale, add->inputs().at(1), type);
-        auto sum    = m.insert_instruction(q, make_op("add"), x1, x2);
-        auto one    = m.add_literal(literal{shape{sum->get_shape().type()}, {1}});
-        auto inputs = q->inputs();
-        inputs[0]   = sum;
-        inputs[1]   = m.insert_instruction(
-            q, make_op("multibroadcast", {{"out_lens", sum->get_shape().lens()}}), one);
-        m.replace_instruction(q, q->get_operator(), inputs);
+        auto type = compute_common_type(scale1->get_shape().type(), scale2->get_shape().type());
+        auto x1   = requantize_input(m, dq1, scale1, out_scale, add->inputs().at(0), type);
+        auto x2   = requantize_input(m, dq2, scale2, out_scale, add->inputs().at(1), type);
+        auto sum  = m.insert_instruction(q, make_op("add"), x1, x2);
+        replace_with_unit_scale(m, q, sum);
+    }
+};
+
+// Rewrites the QLinearConcat pattern quantizelinear(concat(dq(x1, s1, z1), ...), s, z) to
+// quantizelinear(concat(dq(x1, s1/s, z1), ...), 1, z) with the same fold as the quantized add, so
+// remove_qdq_pairs keeps each branch's own rounding before it is requantized to the concat scale.
+struct match_find_quantizable_concat
+{
+    static auto dq_branch() { return skip_post_dq_ops(dequantizelinear_scale("scale").bind("dq")); }
+
+    auto matcher() const
+    {
+        auto concat =
+            match::name("concat")(match::all_of[match::inputs()](dq_branch())).bind("concat");
+        return match::name("quantizelinear")(match::arg(0)(concat),
+                                             quantizelinear_out_scale("out_scale"));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto q         = r.result;
+        auto concat    = r.instructions["concat"];
+        auto out_scale = r.instructions["out_scale"];
+
+        if(out_scale->get_shape().elements() != 1 or is_unit_scale(out_scale))
+            return;
+
+        // Each input matched dq_branch above, so this only recovers its bindings
+        std::vector<match::matcher_result> branches;
+        std::transform(concat->inputs().begin(),
+                       concat->inputs().end(),
+                       std::back_inserter(branches),
+                       [&](auto arg) { return match::match_instruction(m, arg, dq_branch()); });
+        if(not std::all_of(branches.begin(), branches.end(), [](const auto& b) {
+               return is_int8(b.instructions["dq"]->inputs().front()->get_shape().type());
+           }))
+            return;
+
+        auto type = transform_accumulate(
+            branches.begin(),
+            branches.end(),
+            branches.front().instructions["scale"]->get_shape().type(),
+            &compute_common_type,
+            [](const auto& b) { return b.instructions["scale"]->get_shape().type(); });
+        std::vector<instruction_ref> inputs;
+        std::transform(
+            branches.begin(),
+            branches.end(),
+            concat->inputs().begin(),
+            std::back_inserter(inputs),
+            [&](const auto& b, auto arg) {
+                return requantize_input(
+                    m, b.instructions["dq"], b.instructions["scale"], out_scale, arg, type);
+            });
+        auto cat = m.insert_instruction(q, concat->get_operator(), inputs);
+        replace_with_unit_scale(m, q, cat);
     }
 };
 
@@ -787,6 +854,8 @@ void simplify_qdq::apply(module& m) const
         match::find_matches(m, match_find_quantizable_ops{});
         migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
         match::find_matches(m, match_find_quantizable_add{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        match::find_matches(m, match_find_quantizable_concat{});
         migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
         if(use_mx_quant)
         {

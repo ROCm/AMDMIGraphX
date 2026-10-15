@@ -2766,11 +2766,18 @@ TEST_CASE(add_fp16_overflow)
     EXPECT(rv1 == rv2);
 }
 
-static migraphx::instruction_ref
-add_slice(migraphx::module& m, migraphx::instruction_ref x, std::size_t start, std::size_t end)
+// Quantize x with rows [start, end) of the broadcast scale and zero point
+static migraphx::instruction_ref add_quantize_slice(migraphx::module& m,
+                                                    migraphx::instruction_ref x,
+                                                    migraphx::instruction_ref scale,
+                                                    migraphx::instruction_ref zp,
+                                                    std::size_t start,
+                                                    std::size_t end)
 {
-    return m.add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {start}}, {"ends", {end}}}), x);
+    auto slice = migraphx::make_op("slice", {{"axes", {0}}, {"starts", {start}}, {"ends", {end}}});
+    auto s     = m.add_instruction(slice, scale);
+    auto z     = m.add_instruction(slice, zp);
+    return add_quantize_op(m, "quantizelinear", x, s, z);
 }
 
 TEST_CASE(concat_quantized)
@@ -2818,10 +2825,8 @@ TEST_CASE(concat_quantized)
         auto zp3_b  = broadcast_shift(m2, zp3, cat_lens);
         auto one_b  = broadcast_shift(m2, one, cat_lens);
         // The unit scale quantize is then pushed through the concat
-        auto q1 = add_quantize_op(
-            m2, "quantizelinear", d1, add_slice(m2, one_b, 0, 2), add_slice(m2, zp3_b, 0, 2));
-        auto q2 = add_quantize_op(
-            m2, "quantizelinear", d2, add_slice(m2, one_b, 2, 5), add_slice(m2, zp3_b, 2, 5));
+        auto q1  = add_quantize_slice(m2, d1, one_b, zp3_b, 0, 2);
+        auto q2  = add_quantize_slice(m2, d2, one_b, zp3_b, 2, 5);
         auto cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), q1, q2);
         m2.add_return({cat});
     }
@@ -2831,7 +2836,7 @@ TEST_CASE(concat_quantized)
 }
 
 // Fake quantized branches into a requantizing concat: the folded scales keep each branch's Q/DQ
-// rounding, which remove_qdq_pairs would otherwise drop with the output pair
+// rounding, which remove_qdq_pairs would otherwise drop along with the output pair
 TEST_CASE(concat_quantized_requant)
 {
     migraphx::shape sh1{migraphx::shape::float_type, {2, 4}};
@@ -2881,12 +2886,10 @@ TEST_CASE(concat_quantized_requant)
         auto d2     = add_quantize_op(m2, "dequantizelinear", q2, ratio2, zp2_b);
         auto zp3_b  = broadcast_shift(m2, zp3, cat_lens);
         auto one_b  = broadcast_shift(m2, one, cat_lens);
-        auto rq1    = add_quantize_op(
-            m2, "quantizelinear", d1, add_slice(m2, one_b, 0, 2), add_slice(m2, zp3_b, 0, 2));
-        auto rq2 = add_quantize_op(
-            m2, "quantizelinear", d2, add_slice(m2, one_b, 2, 5), add_slice(m2, zp3_b, 2, 5));
-        auto cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), rq1, rq2);
-        auto d3  = add_quantize_op(m2, "dequantizelinear", cat, scale3, zp3);
+        auto rq1    = add_quantize_slice(m2, d1, one_b, zp3_b, 0, 2);
+        auto rq2    = add_quantize_slice(m2, d2, one_b, zp3_b, 2, 5);
+        auto cat    = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), rq1, rq2);
+        auto d3     = add_quantize_op(m2, "dequantizelinear", cat, scale3, zp3);
         m2.add_return({d3});
     }
 
@@ -2958,11 +2961,9 @@ TEST_CASE(concat_quantized_unquantized_input)
         auto d1       = add_quantize_op(m2, "dequantizelinear", x1, scale1, zp1);
         auto scale3_b = broadcast_scale(m2, scale3, cat_lens, 0);
         auto zp3_b    = broadcast_shift(m2, zp3, cat_lens);
-        auto q1       = add_quantize_op(
-            m2, "quantizelinear", d1, add_slice(m2, scale3_b, 0, 2), add_slice(m2, zp3_b, 0, 2));
-        auto q2 = add_quantize_op(
-            m2, "quantizelinear", x2, add_slice(m2, scale3_b, 2, 5), add_slice(m2, zp3_b, 2, 5));
-        auto cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), q1, q2);
+        auto q1       = add_quantize_slice(m2, d1, scale3_b, zp3_b, 0, 2);
+        auto q2       = add_quantize_slice(m2, x2, scale3_b, zp3_b, 2, 5);
+        auto cat      = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), q1, q2);
         m2.add_return({cat});
     }
 
@@ -3009,11 +3010,9 @@ TEST_CASE(concat_quantized_int32_inputs)
         auto d2       = add_quantize_op(m2, "dequantizelinear", x2, scale2, zp2);
         auto scale3_b = broadcast_scale(m2, scale3, cat_lens, 0);
         auto zp3_b    = broadcast_shift(m2, zp3, cat_lens);
-        auto q1       = add_quantize_op(
-            m2, "quantizelinear", d1, add_slice(m2, scale3_b, 0, 2), add_slice(m2, zp3_b, 0, 2));
-        auto q2 = add_quantize_op(
-            m2, "quantizelinear", d2, add_slice(m2, scale3_b, 2, 5), add_slice(m2, zp3_b, 2, 5));
-        auto cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), q1, q2);
+        auto q1       = add_quantize_slice(m2, d1, scale3_b, zp3_b, 0, 2);
+        auto q2       = add_quantize_slice(m2, d2, scale3_b, zp3_b, 2, 5);
+        auto cat      = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), q1, q2);
         m2.add_return({cat});
     }
 
@@ -3021,36 +3020,37 @@ TEST_CASE(concat_quantized_int32_inputs)
     EXPECT(m1 == m2);
 }
 
+static migraphx::program concat_qdq_program(const migraphx::shape& sh1, const migraphx::shape& sh2)
+{
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto x1     = mm->add_parameter("x1", sh1);
+    auto x2     = mm->add_parameter("x2", sh2);
+    auto scale1 = mm->add_literal(0.02f);
+    auto zp1    = mm->add_literal(std::uint8_t{10});
+    auto scale2 = mm->add_literal(0.05f);
+    auto zp2    = mm->add_literal(std::uint8_t{5});
+    auto scale3 = mm->add_literal(0.03f);
+    auto zp3    = mm->add_literal(std::uint8_t{20});
+
+    auto q1  = add_quantize_op(*mm, "quantizelinear", x1, scale1, zp1);
+    auto d1  = add_quantize_op(*mm, "dequantizelinear", q1, scale1, zp1);
+    auto q2  = add_quantize_op(*mm, "quantizelinear", x2, scale2, zp2);
+    auto d2  = add_quantize_op(*mm, "dequantizelinear", q2, scale2, zp2);
+    auto cat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), d1, d2);
+    auto q3  = add_quantize_op(*mm, "quantizelinear", cat, scale3, zp3);
+    mm->add_return({q3});
+    return p;
+}
+
 TEST_CASE(concat_correctness)
 {
     migraphx::shape sh1{migraphx::shape::float_type, {2, 4}};
     migraphx::shape sh2{migraphx::shape::float_type, {3, 4}};
 
-    auto create_program = [&] {
-        migraphx::program p;
-        auto* mm    = p.get_main_module();
-        auto x1     = mm->add_parameter("x1", sh1);
-        auto x2     = mm->add_parameter("x2", sh2);
-        auto scale1 = mm->add_literal(0.02f);
-        auto zp1    = mm->add_literal(std::uint8_t{10});
-        auto scale2 = mm->add_literal(0.05f);
-        auto zp2    = mm->add_literal(std::uint8_t{5});
-        auto scale3 = mm->add_literal(0.03f);
-        auto zp3    = mm->add_literal(std::uint8_t{20});
-
-        auto q1  = add_quantize_op(*mm, "quantizelinear", x1, scale1, zp1);
-        auto d1  = add_quantize_op(*mm, "dequantizelinear", q1, scale1, zp1);
-        auto q2  = add_quantize_op(*mm, "quantizelinear", x2, scale2, zp2);
-        auto d2  = add_quantize_op(*mm, "dequantizelinear", q2, scale2, zp2);
-        auto cat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), d1, d2);
-        auto q3  = add_quantize_op(*mm, "quantizelinear", cat, scale3, zp3);
-        mm->add_return({q3});
-        return p;
-    };
-
-    auto p1 = create_program();
+    auto p1 = concat_qdq_program(sh1, sh2);
     run_pass(*p1.get_main_module());
-    auto p2 = create_program();
+    auto p2 = concat_qdq_program(sh1, sh2);
 
     // Inputs inside the quantized ranges that do not land on rounding ties
     std::vector<float> v1(sh1.elements());
@@ -3061,17 +3061,11 @@ TEST_CASE(concat_correctness)
     std::transform(v2.begin(), v2.end(), v2.begin(), [](float x) { return 0.1f * x - 0.19f; });
     auto x1 = migraphx::argument(sh1, v1.data());
     auto x2 = migraphx::argument(sh2, v2.data());
-    p1.compile(migraphx::target(migraphx::make_target("ref")));
-    p2.compile(migraphx::target(migraphx::make_target("ref")));
+    p1.compile(migraphx::make_target("ref"));
+    p2.compile(migraphx::make_target("ref"));
 
-    std::vector<std::uint8_t> rv1;
-    p1.eval({{"x1", x1}, {"x2", x2}}).back().visit([&](auto output) {
-        rv1.assign(output.begin(), output.end());
-    });
-    std::vector<std::uint8_t> rv2;
-    p2.eval({{"x1", x1}, {"x2", x2}}).back().visit([&](auto output) {
-        rv2.assign(output.begin(), output.end());
-    });
+    auto rv1 = p1.eval({{"x1", x1}, {"x2", x2}}).back().to_vector<std::uint8_t>();
+    auto rv2 = p2.eval({{"x1", x1}, {"x2", x2}}).back().to_vector<std::uint8_t>();
     EXPECT(rv1 == rv2);
 }
 

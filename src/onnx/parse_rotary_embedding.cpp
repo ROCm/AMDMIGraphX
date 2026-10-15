@@ -60,8 +60,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 {
     std::vector<op_desc> operators() const { return {{"RotaryEmbedding"}}; }
 
-    static std::size_t
-    fixed_dimension(const shape& s, std::size_t axis, const std::string& name)
+    static std::size_t fixed_dimension(const shape& s, std::size_t axis, const std::string& name)
     {
         if(not s.dynamic())
             return s.lens().at(axis);
@@ -168,7 +167,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
             return;
         }
 
-        auto input_lens   = input_shape.lens();
+        auto input_lens  = input_shape.lens();
         param.batch_size = input_lens.at(0);
 
         if(input_dims == 3)
@@ -274,8 +273,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                 "RotaryEmbedding: max_sequence_length must be the same between sin & cos caches!");
         }
 
-        compare_sin_cos_cache_dims(
-            fixed_dimension(cache_shape, 1, "sine cache width"), param);
+        compare_sin_cos_cache_dims(fixed_dimension(cache_shape, 1, "sine cache width"), param);
     }
 
     static void compare_sin_cos_cache_dims(const size_t dim, const rotary_parameters& param)
@@ -321,18 +319,17 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         {
             if(params.input_dims.empty())
             {
-                input = info.add_instruction(
-                    make_op("reshape",
-                            {{"dims",
-                              {params.batch_size,
-                               params.seq_len,
-                               params.num_heads,
-                               params.head_size}}}),
-                    input);
+                input = info.add_instruction(make_op("reshape",
+                                                     {{"dims",
+                                                       {params.batch_size,
+                                                        params.seq_len,
+                                                        params.num_heads,
+                                                        params.head_size}}}),
+                                             input);
             }
             else
             {
-                auto dims = params.input_dims;
+                auto dims  = params.input_dims;
                 dims.at(2) = shape::dynamic_dimension{sym::lit(params.num_heads)};
                 dims.push_back(shape::dynamic_dimension{sym::lit(params.head_size)});
                 input = add_runtime_reshape(info, input, dims);

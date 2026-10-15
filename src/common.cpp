@@ -68,12 +68,8 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                    dds1.cbegin() + offset,
                    out_dims.begin() + offset,
                    [&](auto a, auto b) {
-                       if(a == b)
-                       {
-                           return a;
-                       }
-                       else if(a.is_fixed() and b.is_fixed() and
-                               a.get_interval().min == b.get_interval().min)
+                       if(a.is_fixed() and b.is_fixed() and
+                          a.get_interval().min == b.get_interval().min)
                        {
                            const bool a_has_variables =
                                a.is_symbolic() and not sym::find_variables(a.sym_expr).empty();
@@ -83,7 +79,7 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                                return a_has_variables ? a : b;
                            return a;
                        }
-                       else if(b == 1)
+                       else if(a == b or b == 1)
                        {
                            return a;
                        }

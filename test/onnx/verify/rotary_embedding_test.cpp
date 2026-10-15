@@ -513,21 +513,17 @@ TEST_CASE(rotary_embedding_symbolic_parse_test)
     options.use_symbolic_shapes = true;
     options.map_dyn_input_dims["input"] =
         sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(18)});
-    options.map_dyn_input_dims["pos_ids"] =
-        sym_dims({migraphx::sym::lit(1), sequence});
+    options.map_dyn_input_dims["pos_ids"] = sym_dims({migraphx::sym::lit(1), sequence});
 
     auto p = read_onnx("rotary_embedding_test.onnx", options);
     auto expected =
         migraphx::shape{migraphx::shape::half_type,
                         sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(18)})};
     EXPECT(p.get_output_shapes().back() == expected);
-    EXPECT(std::count_if(p.get_main_module()->begin(),
-                         p.get_main_module()->end(),
-                         [](auto ins) { return ins.name() == "gathernd"; }) == 2);
-    EXPECT(std::none_of(p.get_main_module()->begin(),
-                        p.get_main_module()->end(),
-                        [](auto ins) {
-                            return ins.name() == "reshape" and ins.get_shape().symbolic() and
-                                   ins.inputs().size() == 1;
-                        }));
+    EXPECT(std::count_if(p.get_main_module()->begin(), p.get_main_module()->end(), [](auto ins) {
+               return ins.name() == "gathernd";
+           }) == 2);
+    EXPECT(std::none_of(p.get_main_module()->begin(), p.get_main_module()->end(), [](auto ins) {
+        return ins.name() == "reshape" and ins.get_shape().symbolic() and ins.inputs().size() == 1;
+    }));
 }

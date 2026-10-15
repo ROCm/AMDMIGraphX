@@ -85,12 +85,10 @@ evaluate_slice_expressions(const std::vector<sym::expr>& expressions,
     return result;
 }
 
-std::vector<int64_t>
-evaluate_slice_bound(instruction_ref source,
-                     const std::vector<instruction_ref>& args,
-                     std::size_t input_index,
-                     const std::string& name,
-                     const std::unordered_map<sym::expr, std::size_t>& values)
+std::vector<int64_t> evaluate_slice_bound(instruction_ref source,
+                                          std::size_t input_index,
+                                          const std::string& name,
+                                          const std::unordered_map<sym::expr, std::size_t>& values)
 {
     auto expressions = find_slice_expressions(source, input_index, name);
     assert(expressions.has_value());
@@ -130,7 +128,7 @@ struct analyze_slice : analyzer<analyze_slice>
         auto result     = attributes.contains("starts") and attributes.contains("ends")
                               ? analyze_axes(ins, {1, 2})
                               : analyze_axes(ins);
-        result.freezer = freeze;
+        result.freezer  = freeze;
         return result;
     }
 
@@ -141,13 +139,12 @@ struct analyze_slice : analyzer<analyze_slice>
     {
         assert(args.size() == 1 or args.size() == 3);
         auto attributes = source->get_operator().to_value();
-        return m.add_instruction(make_op("slice",
-                                         {{"axes", attributes.at("axes")},
-                                          {"starts",
-                                           evaluate_slice_bound(source, args, 1, "starts", values)},
-                                          {"ends",
-                                           evaluate_slice_bound(source, args, 2, "ends", values)}}),
-                                 args.front());
+        return m.add_instruction(
+            make_op("slice",
+                    {{"axes", attributes.at("axes")},
+                     {"starts", evaluate_slice_bound(source, 1, "starts", values)},
+                     {"ends", evaluate_slice_bound(source, 2, "ends", values)}}),
+            args.front());
     }
 };
 

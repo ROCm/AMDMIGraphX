@@ -26,11 +26,9 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// All existing gathernd verify tests feed a standard-layout indices literal straight into
-// gathernd, which the GPU kernel used to read through a raw pointer. Broadcasting a smaller
-// indices literal up to the slice count gives a non-standard (stride-0) layout: the same two
-// index values are reused for every slice, so the kernel must read them through a stride-aware
-// accessor rather than assume a packed buffer the size of the broadcasted shape.
+// Every other gathernd verify test feeds a standard-layout indices literal, which the kernel's
+// old raw-pointer read handled by accident. Broadcasting a smaller literal up to the slice
+// count gives a stride-0 layout, where that read runs past the end of the buffer.
 struct test_gathernd_broadcast_indices : verify_program<test_gathernd_broadcast_indices>
 {
     migraphx::program create_program() const

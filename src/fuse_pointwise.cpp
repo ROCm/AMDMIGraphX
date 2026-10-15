@@ -101,7 +101,7 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             continue;
         if(ins->get_operator().name() == "layout")
             continue;
-        // Dynamic shapes always become a parameter even if the input is scalar.
+        // Have dynamic shapes always get put into a pointwise module even if scalar input
         auto is_pointwise_input = [](instruction_ref input, const literal& scalar) {
             return scalar.empty() or input->get_shape().dynamic();
         };
@@ -113,8 +113,7 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             scalars.push_back(get_scalar(input));
             any_pointwise_input |= is_pointwise_input(input, scalars.back());
         }
-        // Every input folds to a scalar literal, so there is nothing to fuse. Decide this
-        // before creating the module, since one created and then abandoned keeps its name.
+        // Decide before creating the module: one created and then abandoned keeps its name.
         if(not any_pointwise_input)
             continue;
 

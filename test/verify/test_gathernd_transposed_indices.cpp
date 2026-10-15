@@ -26,10 +26,9 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// Transposed but still packed, so unlike test_gathernd_broadcast_indices there is no over-read
-// and nothing crashes - the old raw-pointer read just took the wrong element. The rows here are
-// (0,0) and (1,1), which that read sees as {0,1} twice, so a reversion is visibly wrong rather
-// than coincidentally right.
+// Transposed but still packed, so unlike test_gathernd_broadcast_indices nothing over-reads -
+// the old raw-pointer read just took the wrong element. The rows are (0,0) and (1,1), which
+// that read sees as {0,1} twice, so a reversion is visibly wrong rather than accidentally right.
 struct test_gathernd_transposed_indices : verify_program<test_gathernd_transposed_indices>
 {
     migraphx::program create_program() const

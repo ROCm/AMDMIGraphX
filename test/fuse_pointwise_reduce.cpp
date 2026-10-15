@@ -54,9 +54,8 @@ static std::size_t count_op(const migraphx::module& m, const std::string& name)
     return std::count_if(m.begin(), m.end(), [&](const auto& ins) { return ins.name() == name; });
 }
 
-// run_optimize_module gates fuse_pointwise_reduce's internal optimize_module{} run, which
-// gpu/target.cpp turns off in eager compile mode. Either way the pass must still collapse a
-// pointwise chain into one pointwise module.
+// gpu/target.cpp turns run_optimize_module off in eager compile mode. Either way the pass must
+// still collapse a pointwise chain into a single pointwise module.
 TEST_CASE(fuses_pointwise_chain_with_optimize_module)
 {
     auto p = two_op_pointwise_program();

@@ -286,7 +286,7 @@ struct pipeline_factory
             dead_code_elimination{},
             fuse_topk{},
             dead_code_elimination{},
-            // folds a still-literal scan_slice index convert before it reaches the GPU unfused
+            // Folds a still-literal scan_slice index convert before it reaches the GPU unfused.
             enable_pass(options.compile_mode == compile_modes::eager, propagate_constant{}),
             enable_pass(options.compile_mode == compile_modes::eager, dead_code_elimination{}),
             fuse_concat{},

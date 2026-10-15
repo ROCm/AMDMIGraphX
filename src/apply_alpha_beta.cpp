@@ -39,8 +39,8 @@ instruction_ref insert_apply_alpha_beta(module& m,
     auto a          = args[0];
     auto b          = args[1];
     auto input_type = a->get_shape().type();
-    // alpha == 0 kills the op term; scaling a would only build mul(0, a) for a later fold to
-    // remove, and eager has no such fold. The op below is then unused and dce takes it.
+    // alpha == 0: build the reduced graph directly rather than a mul(0, a) that needs a later
+    // constant fold to remove - eager has none. The op below is then unused and dce takes it.
     const bool alpha_is_zero = float_equal(alpha.at<float>(0), 0.0);
     if(not alpha_is_zero and not float_equal(alpha.at<float>(0), 1.0))
     {

@@ -35,7 +35,16 @@ bool verify_args(const std::string& name,
                  const verify::expected<argument>& ref_arg,
                  verify::tolerance tols)
 {
-    bool passed = true;
+    return verify_args(name, target_arg, ref_arg, tols, nullptr);
+}
+
+bool verify_args(const std::string& name,
+                 const argument& target_arg,
+                 const verify::expected<argument>& ref_arg,
+                 verify::tolerance tols,
+                 double* out_rms_error)
+{
+    bool passed    = true;
     argument t_arg = target_arg;
     argument r_arg = ref_arg.data();
     if(not t_arg.get_shape().computable())
@@ -50,6 +59,8 @@ bool verify_args(const std::string& name,
         double rms_error;
         passed =
             verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &rms_error);
+        if(out_rms_error != nullptr)
+            *out_rms_error = rms_error;
         if(not passed)
         {
             // TODO: Check for nans

@@ -22,6 +22,8 @@
  * THE SOFTWARE.
  */
 #include <migraphx/common_dims.hpp>
+#include <migraphx/common.hpp>
+#include <migraphx/sym.hpp>
 #include <test.hpp>
 
 using axes_map = std::vector<std::vector<std::size_t>>;
@@ -120,6 +122,27 @@ TEST_CASE(common_error2)
 {
     auto cd = migraphx::common_dims::compute({3, 7, 2, 5}, {6, 35});
     EXPECT(cd.dims.empty());
+}
+
+TEST_CASE(broadcast_symbolic_fixed_one_preserves_variable)
+{
+    using migraphx::shape;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    auto batch = shape::dynamic_dimension{var("batch", {1, 1})};
+    auto one   = shape::dynamic_dimension{lit(1)};
+    EXPECT(migraphx::compute_broadcasted_dyn_dims({one}, {batch}) ==
+           std::vector<shape::dynamic_dimension>{batch});
+    EXPECT(migraphx::compute_broadcasted_dyn_dims({batch}, {one}) ==
+           std::vector<shape::dynamic_dimension>{batch});
+
+    auto scaled_batch = shape::dynamic_dimension{lit(16) * batch.sym_expr};
+    auto sixteen      = shape::dynamic_dimension{lit(16)};
+    EXPECT(migraphx::compute_broadcasted_dyn_dims({sixteen}, {scaled_batch}) ==
+           std::vector<shape::dynamic_dimension>{scaled_batch});
+    EXPECT(migraphx::compute_broadcasted_dyn_dims({scaled_batch}, {sixteen}) ==
+           std::vector<shape::dynamic_dimension>{scaled_batch});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

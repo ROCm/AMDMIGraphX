@@ -28,6 +28,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/sym.hpp>
 #include <algorithm>
 
 namespace migraphx {
@@ -67,7 +68,22 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                    dds1.cbegin() + offset,
                    out_dims.begin() + offset,
                    [&](auto a, auto b) {
-                       if(a == b or b == 1)
+                       if(a == b)
+                       {
+                           return a;
+                       }
+                       else if(a.is_fixed() and b.is_fixed() and
+                               a.get_interval().min == b.get_interval().min)
+                       {
+                           const bool a_has_variables =
+                               a.is_symbolic() and not sym::find_variables(a.sym_expr).empty();
+                           const bool b_has_variables =
+                               b.is_symbolic() and not sym::find_variables(b.sym_expr).empty();
+                           if(a_has_variables != b_has_variables)
+                               return a_has_variables ? a : b;
+                           return a;
+                       }
+                       else if(b == 1)
                        {
                            return a;
                        }

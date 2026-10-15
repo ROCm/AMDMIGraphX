@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -64,15 +65,31 @@ struct parse_expand : op_parser<parse_expand>
         else
         {
             const shape& shape_0 = args[0]->get_shape();
-            if(shape_0.dynamic())
-            {
-                MIGRAPHX_THROW(
-                    "PARSE_EXPAND: dynamic input tensor with fixed dims input not supported");
-            }
-            const auto& in_lens = shape_0.lens();
             std::vector<std::size_t> dims;
             arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
-            auto out_lens = compute_broadcasted_lens(in_lens, dims);
+            if(shape_0.dynamic())
+            {
+                if(not shape_0.symbolic())
+                    MIGRAPHX_THROW(
+                        "PARSE_EXPAND: range dynamic input tensor with fixed dims input not "
+                        "supported");
+
+                std::vector<sym::expr> expressions;
+                std::transform(dims.begin(),
+                               dims.end(),
+                               std::back_inserter(expressions),
+                               [](auto dim) { return sym::lit(dim); });
+                const std::vector<shape::dynamic_dimension> target_dims(expressions.begin(),
+                                                                        expressions.end());
+                const auto output_dims =
+                    compute_broadcasted_dyn_dims(shape_0.to_symbolic().dyn_dims(), target_dims);
+                return info.add_instruction(
+                    make_op("broadcast_with_dims", {{"out_dyn_dims", to_value(output_dims)}}),
+                    args[0],
+                    args[1]);
+            }
+            const auto& in_lens = shape_0.lens();
+            auto out_lens       = compute_broadcasted_lens(in_lens, dims);
             return info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}),
                                         args[0]);
         }

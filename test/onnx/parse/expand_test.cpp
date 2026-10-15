@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -74,4 +74,31 @@ TEST_CASE(expand_dyn_input_static_dims_throw)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {3, 8};
     EXPECT(test::throws([&] { read_onnx("expand_dyn_input_static_dims_throw.onnx", options); }));
+}
+
+TEST_CASE(expand_symbolic_input_static_dims_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    auto sequence = var("sequence_length", {1, 64}, {1});
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter(
+        "x", migraphx::shape{migraphx::shape::float_type, sym_dims({lit(1), lit(1), sequence})});
+    auto dims = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {3}}, {3, 1, 1}});
+    auto output_dims = sym_dims({lit(3), lit(1), sequence});
+    auto output =
+        mm->add_instruction(migraphx::make_op("broadcast_with_dims",
+                                              {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                            input,
+                            dims);
+    mm->add_return({output});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes = true;
+    options.dim_params = {{"sequence_length", migraphx::shape::dynamic_dimension{1, 64, {1}}}};
+    auto prog          = read_onnx("expand_symbolic_input_static_dims_test.onnx", options);
+    EXPECT(p == prog);
 }

@@ -197,7 +197,7 @@ struct find_concat_past_present
                                inverse->first.end(),
                                view,
                                [&](instruction_ref start, const operation& op) {
-                                   return m.insert_instruction(ins, op, start);
+                                   return m.insert_instruction(producer, op, start);
                                });
         assert(view->get_shape() == inverse->second);
         auto v            = producer->get_operator().to_value();

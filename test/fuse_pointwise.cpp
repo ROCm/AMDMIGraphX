@@ -2054,4 +2054,33 @@ TEST_CASE(hoist_silu_above_slices)
     EXPECT(p1 == p2);
 }
 
+// create_pointwise_modules must decide it has nothing to fuse before creating the module: an
+// abandoned module keeps its name, and the pass runs several times per pipeline with its
+// counter restarting at 0, so the next run would reuse that name.
+TEST_CASE(no_module_created_when_all_inputs_are_scalar)
+{
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto one  = mm->add_literal(1.0f);
+        auto two  = mm->add_literal(2.0f);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), one, two);
+        mm->add_return({add1});
+    }
+    run_pass(p1);
+    run_pass(p1);
+    // get_modules only walks what main reaches, so an abandoned module would not show up there.
+    EXPECT(test::throws([&] { p1.get_module("main:pointwise0"); }));
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto one  = mm->add_literal(1.0f);
+        auto two  = mm->add_literal(2.0f);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), one, two);
+        mm->add_return({add1});
+    }
+    EXPECT(*p1.get_main_module() == *p2.get_main_module());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

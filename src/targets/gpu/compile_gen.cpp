@@ -369,6 +369,9 @@ static void generate_prepared_pointwise(cpp_generator& gg,
     g.add_point_op("less", "migraphx::abs(${0} < ${1})");
     g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
     g.add_point_op("not", "migraphx::abs(not ${0})");
+    g.add_point_op("logical_and", "migraphx::abs(${0} and ${1})");
+    g.add_point_op("logical_or", "migraphx::abs(${0} or ${1})");
+    g.add_point_op("logical_xor", "migraphx::abs(${0} xor ${1})");
     // Add explicit conversions
     g.fresult(
         [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });

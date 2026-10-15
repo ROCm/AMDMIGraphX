@@ -104,6 +104,7 @@ void eliminate_data_type::apply(module& m) const
                                                            "deref",
                                                            "dyn_slice",
                                                            "eval_expr_from_shape",
+                                                           "fixed_pad",
                                                            "get_tuple_elem",
                                                            "if",
                                                            "loop",

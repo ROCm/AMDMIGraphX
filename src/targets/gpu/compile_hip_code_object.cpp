@@ -327,7 +327,8 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
                           options.local,
                           options.inputs,
                           options.output,
-                          options.output_arg};
+                          options.output_arg,
+                          options.indexed_inputs};
 }
 
 operation compile_hip_code_object(context& ctx, hip_src src)

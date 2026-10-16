@@ -47,6 +47,8 @@ struct code_object_op
     std::vector<shape> expected_inputs{};
     shape output{};
     std::int64_t output_arg = -1;
+    // Inputs read only at index-selected positions (gather data); see hip_compile_options.
+    std::vector<std::size_t> indexed_inputs{};
 
     std::map<std::size_t, kernel_argument_value> kernel_args{};
     // Pre-packed kernarg buffer built in finalize(); not reflected.
@@ -66,10 +68,11 @@ struct code_object_op
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
                     f(self.output_arg, "output_arg"),
+                    f(self.indexed_inputs, "indexed_inputs"),
                     f(self.kernel_args, "kernel_args"));
     }
 
-    value attributes() const { return {{"group", group()}}; }
+    value attributes() const { return {{"group", group()}, {"indexed_inputs", indexed_inputs}}; }
 
     std::string group() const { return "gpu::code_object::" + symbol_name; }
 

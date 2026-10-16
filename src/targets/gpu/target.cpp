@@ -137,6 +137,10 @@ struct backend_options
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;
+    // Largest literal to stage through scratch when the weights do not fit in GPU memory, as a
+    // percentage of the shortfall. Literals up to that size are staged largest-first (fewest
+    // copies); 0 stages smallest-first for the lowest scratch peak.
+    std::size_t literal_staging_peak_percent = 5;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -151,6 +155,7 @@ struct backend_options
                     f(self.standardize_outputs, "standardize_outputs"),
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
+                    f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
@@ -328,7 +333,8 @@ struct pipeline_factory
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{.max_memory = max_memory},
+            write_literals{.max_memory           = max_memory,
+                           .staging_peak_percent = backend_opts.literal_staging_peak_percent},
             enable_pass(backend_opts.hip_graph, hipgraphify{}),
             dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},

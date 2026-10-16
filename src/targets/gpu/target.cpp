@@ -198,13 +198,19 @@ std::size_t default_attn_max_head_dim(const context& ctx)
     return ctx.get_current_device().get_wavefront_size() == 64 ? 512 : 256;
 }
 
-// Head dims past attn_max_head_dim stay profitable while the kv loop is short: measured
-// on gfx942 (wave64, with accvgprs doubling the per-lane register budget), d up to 512
-// keeps winning at kv lengths <= 1024 and loses 1.3-1.5x past 4096. No such window was
-// measured on wave32 (gfx1201), where wide head dims lose at every kv length.
+// Head dims past attn_max_head_dim stay profitable while the kv loop is short: on gfx942
+// the fused win at kv lengths <= 1024 (1.3-1.5x loss past 4096) held up to the widest
+// measured d of 512, and is assumed to extend past the limit. No such window was measured
+// on wave32 (gfx1201), where wide head dims lose at every kv length.
 std::size_t default_attn_wide_head_kv_len(const context& ctx)
 {
     return ctx.get_current_device().get_wavefront_size() == 64 ? 1024 : 0;
+}
+
+// A backend option set to 0 picks the device default
+std::size_t option_or(std::size_t option, std::size_t device_default)
+{
+    return option == 0 ? device_default : option;
 }
 
 // The fused kernel needs enough q rows to fill the device while the separate gemms also
@@ -306,8 +312,8 @@ struct pipeline_factory
         };
     }
 
-    // Requesting "attention" in mlir_use_specific_ops fuses every attention block, bypassing
-    // the profitability gate; otherwise the gate picks fused or separate kernels per block.
+    // Requesting "attention" (env var or mlir_use_specific_ops) fuses every attention block,
+    // bypassing the profitability gate; otherwise the gate picks fused or separate per block.
     fuse_attention make_fuse_attention() const
     {
         if(mlir_attention_requested(backend_opts.mlir_use_specific_ops))
@@ -315,16 +321,14 @@ struct pipeline_factory
                     .attn_max_head_dim      = std::numeric_limits<std::size_t>::max(),
                     .attn_min_q_rows        = 1,
                     .flash_decoding_enabled = mlir_flash_decoding_enabled()};
-        return {.attn_enabled          = mlir_attention_enabled(backend_opts.mlir_use_specific_ops),
-                .attn_max_head_dim     = backend_opts.attn_max_head_dim == 0
-                                             ? default_attn_max_head_dim(*get_context())
-                                             : backend_opts.attn_max_head_dim,
-                .attn_min_q_rows       = backend_opts.attn_min_q_rows == 0
-                                             ? default_attn_min_q_rows(*get_context())
-                                             : backend_opts.attn_min_q_rows,
-                .attn_wide_head_kv_len = backend_opts.attn_wide_head_kv_len == 0
-                                             ? default_attn_wide_head_kv_len(*get_context())
-                                             : backend_opts.attn_wide_head_kv_len,
+        const auto& ctx = *get_context();
+        return {.attn_enabled = mlir_attention_enabled(backend_opts.mlir_use_specific_ops),
+                .attn_max_head_dim =
+                    option_or(backend_opts.attn_max_head_dim, default_attn_max_head_dim(ctx)),
+                .attn_min_q_rows =
+                    option_or(backend_opts.attn_min_q_rows, default_attn_min_q_rows(ctx)),
+                .attn_wide_head_kv_len  = option_or(backend_opts.attn_wide_head_kv_len,
+                                                    default_attn_wide_head_kv_len(ctx)),
                 .flash_decoding_enabled = mlir_flash_decoding_enabled()};
     }
 

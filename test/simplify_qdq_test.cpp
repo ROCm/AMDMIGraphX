@@ -1039,8 +1039,8 @@ TEST_CASE(conv_uint8_input)
                                                                {"dilation", {1, 1}},
                                                                {"group", 1},
                                                                {"padding_mode", 0}}),
-                                            a1,
-                                            weights);
+                                     a1,
+                                     weights);
         auto out_scale = add_scale_mul(m2, a_scale, w_scale, 1, 1, c1->get_shape().lens());
         auto out_zp    = init_zero_point(m2, c1);
         auto zp1_bc    = broadcast_shift(m2, zp1, input->get_shape().lens());
@@ -1050,8 +1050,8 @@ TEST_CASE(conv_uint8_input)
                                                                {"dilation", {1, 1}},
                                                                {"group", 1},
                                                                {"padding_mode", 0}}),
-                                            zp1_bc,
-                                            weights);
+                                          zp1_bc,
+                                          weights);
         out_zp         = m2.add_instruction(migraphx::make_op("add"), out_zp, zp_term);
         auto d6        = add_quantize_op(m2, "dequantizelinear", c1, out_scale, out_zp);
         m2.add_return({d6});
@@ -2034,7 +2034,7 @@ TEST_CASE(fp4x2_quant_dot_trans_b)
 
         auto unpack_a = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
         auto unpack_b = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
-        auto trans_b = m2.add_instruction(
+        auto trans_b  = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), unpack_b);
         auto trans_scale_b = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), scale_b);
@@ -2710,6 +2710,157 @@ TEST_CASE(add_fp16_overflow)
         rv2.assign(output.begin(), output.end());
     });
     EXPECT(rv1 == rv2);
+}
+
+TEST_CASE(conv_expanded_qparams)
+{
+    for(std::size_t rank : {3, 4, 5})
+    {
+        for(std::size_t channels : {1, 2})
+        {
+            migraphx::program p;
+            auto* m = p.get_main_module();
+            std::vector<std::size_t> input_lens(rank, 2);
+            input_lens[0] = 1;
+            std::vector<std::size_t> weight_lens(rank, 1);
+            weight_lens[0] = channels;
+            weight_lens[1] = 2;
+            migraphx::shape input_shape{migraphx::shape::int8_type, input_lens};
+            migraphx::shape weight_shape{migraphx::shape::int8_type, weight_lens};
+            auto input  = m->add_parameter("input", input_shape);
+            auto weight = m->add_parameter("weight", weight_shape);
+            std::vector<std::size_t> qlens(rank, 1);
+            qlens[0] = channels;
+            std::vector<float> scales(channels, 0.25f);
+            std::vector<std::int8_t> zeros(channels, -2);
+            auto scale =
+                m->add_literal(migraphx::literal{{migraphx::shape::float_type, qlens}, scales});
+            auto zero =
+                m->add_literal(migraphx::literal{{migraphx::shape::int8_type, qlens}, zeros});
+            auto si = m->add_literal(0.5f);
+            auto zi = m->add_literal(std::int8_t{2});
+            auto di = add_quantize_op(*m, "dequantizelinear", input, si, zi);
+            auto sb = m->add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", weight_lens}}), scale);
+            auto zb = m->add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", weight_lens}}), zero);
+            auto dw = m->add_instruction(migraphx::make_op("dequantizelinear"), weight, sb, zb);
+            std::vector<int64_t> padding(rank - 2, 0);
+            std::vector<int64_t> stride(rank - 2, 1);
+            auto conv = m->add_instruction(
+                migraphx::make_op("convolution",
+                                  {{"padding", padding}, {"stride", stride}, {"dilation", stride}}),
+                di,
+                dw);
+            m->add_return({conv});
+            auto reference = p;
+            run_pass(*m);
+            EXPECT(std::any_of(m->begin(), m->end(), [](const auto& ins) {
+                return ins.name() == "quant_convolution";
+            }));
+            auto iv = migraphx::generate_argument(input_shape, 1);
+            auto wv = migraphx::generate_argument(weight_shape, 2);
+            migraphx::parameter_map params{{"input", iv}, {"weight", wv}};
+            p.compile(migraphx::make_target("ref"));
+            reference.compile(migraphx::make_target("ref"));
+            std::vector<float> actual;
+            std::vector<float> expected;
+            p.eval(params).back().visit(
+                [&](auto values) { actual.assign(values.begin(), values.end()); });
+            reference.eval(params).back().visit(
+                [&](auto values) { expected.assign(values.begin(), values.end()); });
+            EXPECT(migraphx::verify::verify_rms_range(actual, expected));
+        }
+    }
+}
+
+TEST_CASE(dot_expanded_qparams)
+{
+    for(bool transposed : {false, true})
+    {
+        migraphx::program p;
+        auto* m = p.get_main_module();
+        migraphx::shape ashape{migraphx::shape::int8_type, {2, 4}};
+        migraphx::shape bshape{migraphx::shape::int8_type,
+                               transposed ? std::vector<std::size_t>{3, 4}
+                                          : std::vector<std::size_t>{4, 3}};
+        auto a = m->add_parameter("a", ashape);
+        auto b = m->add_parameter("b", bshape);
+        auto sa =
+            m->add_literal(migraphx::literal{{migraphx::shape::float_type, {2, 1}}, {0.25f, 0.5f}});
+        auto za = m->add_literal(migraphx::literal{{migraphx::shape::int8_type, {2, 1}}, {2, -3}});
+        auto qlens = transposed ? std::vector<std::size_t>{3, 1} : std::vector<std::size_t>{1, 3};
+        auto sb    = m->add_literal(
+            migraphx::literal{{migraphx::shape::float_type, qlens}, {0.5f, 0.25f, 0.125f}});
+        auto zb =
+            m->add_literal(migraphx::literal{{migraphx::shape::int8_type, qlens}, {-2, 1, 3}});
+        auto sa_bc = m->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", ashape.lens()}}), sa);
+        auto za_bc = m->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", ashape.lens()}}), za);
+        auto sb_bc = m->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", bshape.lens()}}), sb);
+        auto zb_bc = m->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", bshape.lens()}}), zb);
+        auto da = m->add_instruction(migraphx::make_op("dequantizelinear"), a, sa_bc, za_bc);
+        auto db = m->add_instruction(migraphx::make_op("dequantizelinear"), b, sb_bc, zb_bc);
+        if(transposed)
+            db = m->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), db);
+        auto dot = m->add_instruction(migraphx::make_op("dot"), da, db);
+        m->add_return({dot});
+        auto reference = p;
+        run_pass(*m);
+        EXPECT(std::any_of(
+            m->begin(), m->end(), [](const auto& ins) { return ins.name() == "quant_dot"; }));
+        migraphx::parameter_map params{{"a", migraphx::generate_argument(ashape, 1)},
+                                       {"b", migraphx::generate_argument(bshape, 2)}};
+        p.compile(migraphx::make_target("ref"));
+        reference.compile(migraphx::make_target("ref"));
+        std::vector<float> actual;
+        std::vector<float> expected;
+        p.eval(params).back().visit(
+            [&](auto values) { actual.assign(values.begin(), values.end()); });
+        reference.eval(params).back().visit(
+            [&](auto values) { expected.assign(values.begin(), values.end()); });
+        EXPECT(actual == expected);
+    }
+}
+
+TEST_CASE(conv_unsupported_qparam_layout)
+{
+    for(const auto& qlens : std::vector<std::vector<std::size_t>>{{2, 2, 1, 1}, {1, 4, 1, 1}})
+    {
+        migraphx::module m;
+        const auto multidimensional = qlens[0] == 2;
+        auto input                  = m.add_parameter("input",
+                                                      {migraphx::shape::int8_type,
+                                      multidimensional ? std::vector<std::size_t>{1, 2, 3, 2}
+                                                                        : std::vector<std::size_t>{1, 4, 2, 2}});
+        auto weight                 = m.add_parameter("weight",
+                                                      {migraphx::shape::int8_type,
+                                       multidimensional ? std::vector<std::size_t>{4, 2, 2, 1}
+                                                                        : std::vector<std::size_t>{4, 4, 1, 1}});
+        auto si                     = m.add_literal(0.5f);
+        auto zi                     = m.add_literal(std::int8_t{0});
+        auto di                     = add_quantize_op(m, "dequantizelinear", input, si, zi);
+        auto qshape                 = migraphx::shape{migraphx::shape::float_type, qlens};
+        auto scale = m.add_literal(migraphx::literal{qshape, std::vector<float>(4, 0.25f)});
+        auto zero  = m.add_literal(std::int8_t{0});
+        if(multidimensional)
+            scale =
+                m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 1}}}), scale);
+        auto sb = m.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}), scale);
+        auto zb = m.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}), zero);
+        auto dw   = m.add_instruction(migraphx::make_op("dequantizelinear"), weight, sb, zb);
+        auto conv = m.add_instruction(migraphx::make_op("convolution"), di, dw);
+        m.add_return({conv});
+        run_pass(m);
+        EXPECT(std::any_of(m.begin(), m.end(), is_convolution));
+        EXPECT(std::none_of(
+            m.begin(), m.end(), [](const auto& ins) { return ins.name() == "quant_convolution"; }));
+    }
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

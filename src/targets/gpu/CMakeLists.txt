@@ -300,6 +300,7 @@ add_library(migraphx_gpu
     prepare_reduce.cpp
     pooling.cpp
     problem_cache.cpp
+    retune.cpp
     rocblas.cpp
     schedule_model.cpp
     sqlite_binary_cache.cpp

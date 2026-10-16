@@ -79,6 +79,8 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
+    // Serialized contexts of a program loaded without finalizing, created on first use
+    value pending_contexts = value{};
 
     program_impl()                               = default;
     program_impl(const program_impl&)            = default;
@@ -227,6 +229,7 @@ std::vector<shape> program::get_output_shapes() const
 
 context& program::get_context() const
 {
+    create_pending_contexts();
     assert(impl->contexts.size() == 1);
     return impl->contexts.front();
 }
@@ -235,6 +238,81 @@ void program::clear_context()
 {
     impl->contexts.clear();
     impl->targets.clear();
+    impl->pending_contexts = value{};
+}
+
+void program::create_pending_contexts() const
+{
+    if(impl->pending_contexts.is_null())
+        return;
+    auto pending           = impl->pending_contexts;
+    impl->pending_contexts = value{};
+    for(auto i : range(impl->targets.size()))
+    {
+        impl->contexts.push_back(impl->targets[i].get_context());
+        impl->contexts.back().from_value(pending[i]);
+    }
+}
+
+value program::get_compiled_for() const
+{
+    value ctx_val;
+    if(not impl->pending_contexts.is_null())
+    {
+        if(impl->pending_contexts.empty())
+            return {};
+        ctx_val = impl->pending_contexts[0].without_key();
+    }
+    else if(not impl->contexts.empty())
+    {
+        ctx_val = impl->contexts.front().to_value();
+    }
+    if(not ctx_val.is_object() or not ctx_val.contains("compiled_for"))
+        return {};
+    return ctx_val.at("compiled_for").without_key();
+}
+
+void program::retune(const target& t, compile_options options)
+{
+    if(not this->is_compiled())
+        MIGRAPHX_THROW("retune: the program is not compiled");
+    if(impl->targets.size() != 1 or impl->targets.front().name() != t.name())
+        MIGRAPHX_THROW("retune: the program was not compiled for the " + t.name() + " target");
+
+    value from_ctx;
+    if(not impl->pending_contexts.is_null())
+        from_ctx = impl->pending_contexts[0].without_key();
+    else
+        from_ctx = impl->contexts.front().to_value();
+
+    // Targets that support retuning return the retune pipeline when this option is set
+    value retune_opts = value::object{};
+    if(contains(options.backend_options, "retune"))
+        retune_opts = options.backend_options.at("retune");
+    retune_opts["from"]                = from_ctx;
+    options.backend_options["retune"] = retune_opts;
+
+    if(enabled(MIGRAPHX_TRACE_COMPILE{}))
+        options.trace = tracer{std::cout};
+
+    // Retune a copy so the program is unchanged when retuning fails
+    program p = *this;
+    std::vector<context> contexts = {t.get_context()};
+    auto passes                   = t.get_passes(contexts.front(), options);
+    run_passes(p, passes, options.trace);
+    for(const auto& mod : p.get_modules())
+    {
+        auto invalid = mod->validate();
+        if(invalid != mod->end())
+            MIGRAPHX_THROW("Invalid module " + mod->name() + " from retune at instruction " +
+                           std::to_string(std::distance(mod->begin(), invalid)));
+    }
+    p.impl->targets          = {t};
+    p.impl->contexts         = contexts;
+    p.impl->pending_contexts = value{};
+    if(not is_cross_compiling(p.impl->contexts.front()))
+        p.finalize();
+    *this = std::move(p);
 }
 
 instruction_ref program::validate() const
@@ -286,7 +364,10 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     return p;
 }
 
-bool program::is_compiled() const { return not this->impl->contexts.empty(); }
+bool program::is_compiled() const
+{
+    return not this->impl->contexts.empty() or not this->impl->pending_contexts.is_null();
+}
 
 void program::compile(const std::vector<target>& targets, std::vector<compile_options> compile_opts)
 {
@@ -415,6 +496,7 @@ void program::compile(const target& t, compile_options options)
 
 void program::finalize()
 {
+    create_pending_contexts();
     auto* mm = this->get_main_module();
     mm->finalize(this->impl->contexts);
 }
@@ -697,6 +779,8 @@ static bool is_inspectable(const std::string& op)
 std::vector<argument> program::eval(const parameter_map& params,
                                     execution_environment exec_env) const
 {
+    if(not this->impl->pending_contexts.is_null())
+        MIGRAPHX_THROW("The program was loaded without finalizing; call finalize() before eval");
     auto& contexts = this->impl->contexts;
     auto& targets  = this->impl->targets;
 
@@ -814,7 +898,10 @@ value program::to_value() const
     result["version"]          = get_program_file_version();
     result["migraphx_version"] = get_migraphx_version();
     result["targets"]          = migraphx::to_value(this->impl->targets);
-    result["contexts"]         = migraphx::to_value(this->impl->contexts);
+    if(not this->impl->pending_contexts.is_null())
+        result["contexts"] = this->impl->pending_contexts;
+    else
+        result["contexts"] = migraphx::to_value(this->impl->contexts);
     value module_vals          = value::object{};
     std::unordered_map<instruction_ref, std::string> names;
     for(auto& mod : this->get_modules())
@@ -940,10 +1027,13 @@ static void mod_from_val(module_ref mod,
     }
 }
 
-void program::from_value(const value& v)
+void program::from_value(const value& v) { this->from_value(v, true); }
+
+void program::from_value(const value& v, bool finalize)
 {
     auto version = v.at("version").to<int>();
-    if(version != program_file_version)
+    // Version 9 only added optional retune recipes and compiled_for, so version 8 still loads
+    if(version != program_file_version and version != 8)
     {
         MIGRAPHX_THROW(
             "Error: Program version mismatch. MXR file was created using program file version: " +
@@ -962,10 +1052,11 @@ void program::from_value(const value& v)
 
     migraphx::from_value(v.at("targets"), this->impl->targets);
 
-    for(auto i : range(this->impl->targets.size()))
+    if(not this->impl->targets.empty())
     {
-        this->impl->contexts.push_back(this->impl->targets[i].get_context());
-        this->impl->contexts.back().from_value(v.at("contexts")[i]);
+        this->impl->pending_contexts = v.at("contexts").without_key();
+        if(finalize)
+            create_pending_contexts();
     }
 
     auto module_vals = v.at("modules");
@@ -987,7 +1078,7 @@ void program::from_value(const value& v)
     mod_from_val(mm, module_vals, map_insts, map_mods);
 
     // Finalize a compiled model
-    if(not this->impl->contexts.empty())
+    if(finalize and not this->impl->contexts.empty())
         this->finalize();
 }
 

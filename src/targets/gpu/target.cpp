@@ -92,6 +92,7 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -121,8 +122,9 @@ struct backend_options
     bool hip_graph = false;
     // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
     // prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
-    // priority over this. The architecture and build-config defaults only force ops on, so a
-    // '!' entry cannot disable an op those defaults enable (e.g. attention on gfx94/gfx95).
+    // priority over this. Attention fusion is enabled by default on every device: an
+    // "attention" entry additionally fuses every attention block, bypassing the attn_*
+    // profitability gate below, and "!attention" disables the fusion.
     std::vector<std::string> mlir_use_specific_ops = {};
     // Widest attention head dim fuse_attention will fuse when the kv length is past
     // attn_wide_head_kv_len; wider attention blocks run as separate gemm and softmax
@@ -304,24 +306,33 @@ struct pipeline_factory
         };
     }
 
+    // Requesting "attention" in mlir_use_specific_ops fuses every attention block, bypassing
+    // the profitability gate; otherwise the gate picks fused or separate kernels per block.
+    fuse_attention make_fuse_attention() const
+    {
+        if(mlir_attention_requested(backend_opts.mlir_use_specific_ops))
+            return {.attn_enabled           = true,
+                    .attn_max_head_dim      = std::numeric_limits<std::size_t>::max(),
+                    .attn_min_q_rows        = 1,
+                    .flash_decoding_enabled = mlir_flash_decoding_enabled()};
+        return {.attn_enabled          = mlir_attention_enabled(backend_opts.mlir_use_specific_ops),
+                .attn_max_head_dim     = backend_opts.attn_max_head_dim == 0
+                                             ? default_attn_max_head_dim(*get_context())
+                                             : backend_opts.attn_max_head_dim,
+                .attn_min_q_rows       = backend_opts.attn_min_q_rows == 0
+                                             ? default_attn_min_q_rows(*get_context())
+                                             : backend_opts.attn_min_q_rows,
+                .attn_wide_head_kv_len = backend_opts.attn_wide_head_kv_len == 0
+                                             ? default_attn_wide_head_kv_len(*get_context())
+                                             : backend_opts.attn_wide_head_kv_len,
+                .flash_decoding_enabled = mlir_flash_decoding_enabled()};
+    }
+
     std::vector<pass> fusion_pipeline() const
     {
         return {
-            enable_pass(
-                options.compile_mode != compile_modes::eager and mlir_enabled(),
-                fuse_attention{
-                    .attn_enabled =
-                        mlir_attention_enabled(get_context(), backend_opts.mlir_use_specific_ops),
-                    .attn_max_head_dim      = backend_opts.attn_max_head_dim == 0
-                                                  ? default_attn_max_head_dim(*get_context())
-                                                  : backend_opts.attn_max_head_dim,
-                    .attn_min_q_rows        = backend_opts.attn_min_q_rows == 0
-                                                  ? default_attn_min_q_rows(*get_context())
-                                                  : backend_opts.attn_min_q_rows,
-                    .attn_wide_head_kv_len  = backend_opts.attn_wide_head_kv_len == 0
-                                                  ? default_attn_wide_head_kv_len(*get_context())
-                                                  : backend_opts.attn_wide_head_kv_len,
-                    .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+            enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
+                        make_fuse_attention()),
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},

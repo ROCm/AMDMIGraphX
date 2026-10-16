@@ -349,8 +349,8 @@ struct find_dot_slice
         {
             MIGRAPHX_THROW("FIND_DOT_SLICE: slice is not normalized.");
         }
-        auto dot_inputs     = dot_ins->inputs();
-        auto num_batch_dims = dot_ins->get_shape().lens().size() - 2;
+        const auto& dot_inputs = dot_ins->inputs();
+        auto num_batch_dims    = dot_ins->get_shape().lens().size() - 2;
         std::vector<int64_t> slice_axes_1, starts_1, ends_1; // NOLINT
         std::vector<int64_t> slice_axes_2, starts_2, ends_2; // NOLINT
         for(auto i : range(axes.size()))
@@ -1323,7 +1323,7 @@ struct find_conv_concat_split_fuse
         if(concat_axis != 1)
             return;
 
-        auto concat_inputs = concat_ins->inputs();
+        const auto& concat_inputs = concat_ins->inputs();
         if(concat_inputs.size() < 2)
             return;
 
@@ -1342,7 +1342,7 @@ struct find_conv_concat_split_fuse
                 // Prefix concat whose inputs match a prefix of concat_ins
                 if(output->name() != "concat" or output == concat_ins)
                     return false;
-                auto out_inputs = output->inputs();
+                const auto& out_inputs = output->inputs();
                 return out_inputs.size() < concat_inputs.size() and
                        std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin());
             },
@@ -1701,7 +1701,7 @@ struct find_splits
                 auto args = i->inputs();
                 assert(args.size() == 2);
                 std::reverse(args.begin(), args.end());
-                m.replace_instruction(i, i->get_operator(), args);
+                m.replace_instruction(i, i->get_operator(), std::move(args));
             }
         }
     }
@@ -1964,7 +1964,7 @@ struct find_split_concat
 
         // Find where the slices are in the concat instruction's inputs (concat can have
         // any number of inputs)
-        auto args = concat->inputs();
+        auto args = concat->inputs(); // copy: edited in place below into concat's new inputs
         auto it =
             std::find_if(args.begin(), args.end(), [&](auto i) { return i == splits.front(); });
         // Verify the slices were found, and the list is long enough
@@ -1991,7 +1991,7 @@ struct find_split_concat
         if(args.size() == 1)
             m.replace_instruction(concat, args.front());
         else
-            m.replace_instruction(concat, concat->get_operator(), args);
+            m.replace_instruction(concat, concat->get_operator(), std::move(args));
     }
 };
 
@@ -2190,9 +2190,7 @@ struct find_div_const
 
         auto recip = m.insert_instruction(std::next(c_ins), make_op("recip"), c_ins);
 
-        auto args = ins->inputs();
-
-        m.replace_instruction(ins, make_op("mul"), args.front(), recip);
+        m.replace_instruction(ins, make_op("mul"), ins->inputs().front(), recip);
     }
 };
 
@@ -2310,9 +2308,7 @@ struct find_sub_const
 
         auto neg = m.insert_instruction(std::next(c_ins), make_op("neg"), c_ins);
 
-        auto args = ins->inputs();
-
-        m.replace_instruction(ins, make_op("add"), args.front(), neg);
+        m.replace_instruction(ins, make_op("add"), ins->inputs().front(), neg);
     }
 };
 

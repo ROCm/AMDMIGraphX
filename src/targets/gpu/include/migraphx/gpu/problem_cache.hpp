@@ -28,64 +28,11 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/optional.hpp>
-#include <migraphx/hash.hpp>
-#include <migraphx/reflect.hpp>
 #include <migraphx/gpu/export.h>
-#include <cstddef>
+#include <migraphx/gpu/cache_device_key.hpp>
+#include <migraphx/gpu/problem_cache_backend.hpp>
 #include <string>
-#include <unordered_map>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-// Identifies the device a problem_cache bucket was populated for.
-struct cache_device_key
-{
-    std::string device_name    = {};
-    std::string gfx_name       = {};
-    std::size_t cu_count       = 0;
-    std::size_t wavefront_size = 0;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.device_name, "device_name"),
-                    f(self.gfx_name, "gfx_name"),
-                    f(self.cu_count, "cu_count"),
-                    f(self.wavefront_size, "wavefront_size"));
-    }
-
-    friend bool operator==(const cache_device_key& a, const cache_device_key& b)
-    {
-        return a.device_name == b.device_name and a.gfx_name == b.gfx_name and
-               a.cu_count == b.cu_count and a.wavefront_size == b.wavefront_size;
-    }
-    friend bool operator!=(const cache_device_key& a, const cache_device_key& b)
-    {
-        return not(a == b);
-    }
-};
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-namespace std {
-template <>
-struct hash<migraphx::gpu::cache_device_key>
-{
-    std::size_t operator()(const migraphx::gpu::cache_device_key& k) const noexcept
-    {
-        std::size_t seed = 0;
-        migraphx::hash_combine(seed, k.device_name);
-        migraphx::hash_combine(seed, k.gfx_name);
-        migraphx::hash_combine(seed, k.cu_count);
-        migraphx::hash_combine(seed, k.wavefront_size);
-        return seed;
-    }
-};
-} // namespace std
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -95,21 +42,43 @@ struct context;
 
 struct MIGRAPHX_GPU_EXPORT problem_cache
 {
+    // Seeds an in-memory JSON writable cache, used until load() configures files.
+    problem_cache();
+
     // Build and store this cache's device key from the owning context.
     void set_device_key(const context& ctx);
+    // Directly set the device key (used by tests and multi-cache setup).
+    void set_device_key(const cache_device_key& key);
     const cache_device_key& get_device_key() const;
 
+    /// Look up a problem. The writable caches are searched first, then the
+    /// read-only caches in priority order; first hit wins.
     bool has(const std::string& name, const value& problem) const;
     void insert(const std::string& name, const value& problem, const value& solution);
     void mark(const std::string& name, const value& problem);
     optional<value> get(const std::string& name, const value& problem) const;
-    void load();
+    /// Configure both cache tiers: the read-only caches (searched after the
+    /// writable caches, first hit wins, never written) and the read/write caches
+    /// (every writable file is loaded and saved back to).
+    void load(const std::vector<std::string>& read_only_paths,
+              const std::vector<std::string>& writable_paths);
     void save() const;
-    // One {name, problem} -> solution map per device, so a single file can
-    // hold solutions for many GPUs without collisions.
-    std::unordered_map<cache_device_key, std::unordered_map<value, value>> cache;
 
     private:
+    // Read/write caches (one per writable file), searched before the read-only
+    // layers. Always holds at least one entry: an in-memory JSON cache when no
+    // writable file is configured. New solutions are inserted into the first.
+    std::vector<problem_cache_backend> writable_backends{};
+
+    // Save-back path for each writable file cache, parallel to the leading
+    // entries of writable_backends. Empty means nothing is written (save() is a
+    // no-op); the in-memory cache has no path.
+    std::vector<std::string> save_paths{};
+
+    // Lower-priority read-only layers searched after the writable caches; within
+    // the list the first hit wins. Populated from the read-only paths in load().
+    std::vector<problem_cache_backend> read_only_backends{};
+
     // Device these entries were tuned on; set by the owning context. Empty
     // key = unidentified device, entries land in a single bucket.
     cache_device_key device_key{};

@@ -26,6 +26,7 @@
 
 #include <migraphx/op/unary.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,6 +36,10 @@ struct identity
 {
     std::string name() const { return "identity"; }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
+    sym_argument symbolic_compute(const shape&, const std::vector<sym_argument>& args) const
+    {
+        return args[0];
+    }
     argument compute(shape, std::vector<argument> args) const { return args[0]; }
 
     value attributes() const { return {{"pointwise", true}, {"point_op", "${0}"}}; }

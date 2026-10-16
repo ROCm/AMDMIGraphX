@@ -26,11 +26,15 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/sym.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/program.hpp>
 
 #include <test.hpp>
+
+using dd = migraphx::shape::dynamic_dimension;
 
 TEST_CASE(dynamic_range_float_inc)
 {
@@ -174,4 +178,37 @@ TEST_CASE(dynamic_range_float_start_equals_limit)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     EXPECT(result_vector.empty());
+}
+
+TEST_CASE(dynamic_range_symbolic_output)
+{
+    auto n = dd{migraphx::sym::var("n", {1, 8})};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int64_type, {1}, {0}};
+    auto start = mm->add_parameter("start", s);
+    auto limit = mm->add_parameter("limit", s);
+    auto delta = mm->add_parameter("delta", s);
+    auto range = mm->add_instruction(
+        migraphx::make_op("dynamic_range",
+                          {{"max_output", 8}, {"output_dim", migraphx::to_value(n)}}),
+        start,
+        limit,
+        delta);
+
+    EXPECT(range->get_shape() == migraphx::shape{migraphx::shape::int64_type, {n}});
+    p.compile(migraphx::make_target("ref"));
+
+    std::int64_t start_value = 0;
+    std::int64_t limit_value = 5;
+    std::int64_t delta_value = 1;
+    migraphx::parameter_map params;
+    params["start"] = migraphx::argument{s, &start_value};
+    params["limit"] = migraphx::argument{s, &limit_value};
+    params["delta"] = migraphx::argument{s, &delta_value};
+
+    auto result = p.eval(params).back();
+    std::vector<std::int64_t> output;
+    result.visit([&](auto values) { output.assign(values.begin(), values.end()); });
+    EXPECT(output == std::vector<std::int64_t>{0, 1, 2, 3, 4});
 }

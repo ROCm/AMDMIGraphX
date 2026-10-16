@@ -29,6 +29,7 @@
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -133,6 +134,14 @@ struct multibroadcast
                 return make_bcast_shape(s0, bcast_lens);
             }
         }
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.empty())
+            return {};
+        return args[0].reshape(output_shape);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

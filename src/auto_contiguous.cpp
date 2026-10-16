@@ -76,6 +76,25 @@ void contiguous_mixed_layout_inputs(module& m)
         m.replace_instruction(ins, ins->get_operator(), new_args, ins->module_inputs());
     }
 }
+
+void standardize_module_outputs(module& m)
+{
+    auto last = std::prev(m.end());
+    if(last->name() != "@return")
+        return;
+
+    auto outputs = last->inputs();
+    bool changed = false;
+    std::transform(outputs.begin(), outputs.end(), outputs.begin(), [&](instruction_ref output) {
+        const auto& s = output->get_shape();
+        if(s.dynamic() or s.elements() <= 1 or (s.standard() and s.normalize_standard() == s))
+            return output;
+        changed = true;
+        return m.insert_instruction(last, make_op("contiguous"), output);
+    });
+    if(changed)
+        m.replace_return(outputs);
+}
 } // namespace
 
 void auto_contiguous::apply(module& m) const
@@ -126,6 +145,8 @@ void auto_contiguous::apply(module& m) const
     // instructions that loop inserts.
     contiguous_reshape_inputs(m);
     contiguous_mixed_layout_inputs(m);
+    if(standardize_outputs)
+        standardize_module_outputs(m);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

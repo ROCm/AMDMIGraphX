@@ -41,6 +41,7 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/lifetime.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -62,6 +63,9 @@ struct operation
     /// operation cannot be run with input shapes, then it should throw an
     /// exception.
     shape compute_shape(const std::vector<shape>& input) const;
+    /// Optionally compute exact symbolic values stored in a tensor.
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const;
     /**
      * @brief This performs the operation's computation.
      *
@@ -130,9 +134,8 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_operators
 
 template <class T>
-auto compute_shape_op(rank<3>,
-                      const T& x,
-                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs))
+auto compute_shape_op(rank<3>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.compute_shape(inputs))
 {
     return x.compute_shape(inputs);
 }
@@ -149,9 +152,8 @@ auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
 }
 
 template <class T>
-auto compute_shape_op(rank<1>,
-                      const T& x,
-                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs, {}))
+auto compute_shape_op(rank<1>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.compute_shape(inputs, {}))
 {
     return x.compute_shape(inputs, {});
 }
@@ -167,6 +169,29 @@ template <class T>
 shape compute_shape_op(const T& x, const std::vector<shape>& inputs)
 {
     return compute_shape_op(rank<3>{}, x, inputs);
+}
+
+template <class T>
+auto symbolic_compute_op(rank<1>,
+                         const T& x,
+                         const shape& output_shape,
+                         const std::vector<sym_argument>& args)
+    -> decltype(x.symbolic_compute(output_shape, args))
+{
+    return x.symbolic_compute(output_shape, args);
+}
+
+template <class T>
+sym_argument symbolic_compute_op(rank<0>, const T&, const shape&, const std::vector<sym_argument>&)
+{
+    return {};
+}
+
+template <class T>
+sym_argument
+symbolic_compute_op(const T& x, const shape& output_shape, const std::vector<sym_argument>& args)
+{
+    return symbolic_compute_op(rank<1>{}, x, output_shape, args);
 }
 
 template <class T>
@@ -388,9 +413,8 @@ auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argum
     -> std::false_type;
 
 template <class T>
-auto is_context_free_op(const T& x)
-    -> decltype(is_context_free_op(
-        rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
+auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
+    rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
 {
     return {};
 }
@@ -549,6 +573,12 @@ lifetime get_lifetime_op(const T&)
                 mod_args = 'const std::vector<module_ref>&',
                 const    = True,
                 default  = 'detail::mod_compute_shape_op'),
+        virtual('symbolic_compute',
+                returns      = 'sym_argument',
+                output_shape = 'const shape&',
+                args         = 'const std::vector<sym_argument>&',
+                const        = True,
+                default      = 'detail::symbolic_compute_op'),
         virtual('compute',
                 returns = 'argument',
                 ctx     = 'context&',
@@ -598,10 +628,7 @@ lifetime get_lifetime_op(const T&)
                using   = 'migraphx::detail::operation_operators::operator=='))
 %>
 
-    inline bool operator!=(const operation& x, const operation& y)
-{
-    return not(x == y);
-}
+inline bool operator!=(const operation& x, const operation& y) { return not(x == y); }
 
 inline value
 compile(operation& op, context& ctx, const shape& output_shape, const std::vector<shape>& input)
@@ -627,8 +654,8 @@ inline shape compute_shape(const operation& op, const std::vector<shape>& inputs
 }
 
 template <class T>
-inline auto compute_shape(const T& op,
-                          const std::vector<shape>& inputs) -> decltype(op.compute_shape(inputs))
+inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
+    -> decltype(op.compute_shape(inputs))
 {
     return op.compute_shape(inputs);
 }

@@ -27,6 +27,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import argparse
 
+
 def read_compile_log(file_path):
     # Regex pattern to match lines with "value: __ ms"
     pattern = r'([\w: ]+):\s*([\d.]+(?:e[+-]?\d+)?)ms'

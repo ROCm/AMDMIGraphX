@@ -511,15 +511,11 @@ Operator Support Matrix
 +--------------------------+-----------+-----------------+------------------------------+
 | NegativeLogLikelihoodLoss| ❌        |                 |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| NonMaxSuppression        | ✅        | FP8, FP16,      | Different from ONNX          |
-|                          |           | FP32, FP64      | specification: Fixed output  |
-|                          |           |                 | size with arbitrary padding. |
-|                          |           |                 |                              |
+| NonMaxSuppression        | ✅        | FP8, FP16,      |                              |
+|                          |           | FP32, FP64      |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| NonZero                  | ✅        | FP8, FP16,      | Different from ONNX          |
-|                          |           | FP32, FP64      | specification: Fixed output  |
-|                          |           |                 | size with arbitrary padding. |
-|                          |           |                 |                              |
+| NonZero                  | ✅        | FP8, FP16,      |                              |
+|                          |           | FP32, FP64      |                              |
 +--------------------------+-----------+-----------------+------------------------------+
 | Not                      | ✅        | BOOL            |                              |
 +--------------------------+-----------+-----------------+------------------------------+
@@ -874,11 +870,11 @@ Operator Support Matrix
 |                          |           | FP16, FP32,     |                              |
 |                          |           | FP64            |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| TopK                     | ✅        | UINT8, UINT16,  | dynamic ``k``                |
-|                          |           | UINT32, UINT64, | is not                       |
-|                          |           | INT8, INT16,    | supported,                   |
-|                          |           | INT32, INT64,   | ``sorted`` is                |
-|                          |           | FP8, FP16,      | not supported                |
+| TopK                     | ✅        | UINT8, UINT16,  | dynamic ``k`` needs a        |
+|                          |           | UINT32, UINT64, | static or symbolic input     |
+|                          |           | INT8, INT16,    | shape, ``sorted`` is not     |
+|                          |           | INT32, INT64,   | supported                    |
+|                          |           | FP8, FP16,      |                              |
 |                          |           | FP32, FP64      |                              |
 +--------------------------+-----------+-----------------+------------------------------+
 | Transpose                | ✅        | BOOL, UINT8,    |                              |

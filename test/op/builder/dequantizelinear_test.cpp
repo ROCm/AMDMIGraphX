@@ -68,7 +68,7 @@ struct test_context
     run_with_data(std::vector<x_typ> x_data, std::vector<s_typ> s_data, std::vector<x_typ> zp_data)
     {
         m = make_op_bldr();
-        migraphx::program p{std::move(m)};
+        migraphx::program p{m};
         p.compile(migraphx::make_target("ref"));
 
         migraphx::parameter_map params;

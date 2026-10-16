@@ -25,9 +25,9 @@ import os
 import shutil
 import argparse
 import subprocess
-from git_tools import get_changed_files, get_merge_base, get_top, run
+from git_tools import get_all_files, get_changed_files, get_merge_base, get_top, run
 
-CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
+DEFAULT_CLANG_FORMAT = 'clang-format'
 
 EXCLUDE_FILES = ['requirements.in', 'onnx.proto']
 
@@ -40,41 +40,48 @@ def is_excluded(f):
     return base in EXCLUDE_FILES
 
 
-def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
-    base = get_merge_base(against)
-    clang_format = os.path.join(path, 'clang-format')
-    if not os.path.exists(clang_format):
+def clang_format(against,
+                 apply=False,
+                 all_files=False,
+                 clang_format=DEFAULT_CLANG_FORMAT):
+    if not shutil.which(clang_format):
         print(f"{clang_format} not installed. Skipping format.")
         return
-    git_clang_format = os.path.join(path, 'git-clang-format')
-    if not os.path.exists(git_clang_format):
-        print(f"{git_clang_format} not installed. Skipping format.")
-        return
-    diff_flag = [] if apply else ["--diff"]
-    files = get_changed_files(base)
+    files = get_all_files() if all_files else get_changed_files(against)
     files = [
         f for f in files if f.endswith(CLANG_EXTENSIONS) and not is_excluded(f)
     ]
-    if files:
-        run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
-            files,
-            cwd=get_top(),
-            verbose=True)
-    else:
+    if not files:
         print("No modified cpp files to format")
+        return
+    if all_files:
+        mode_flags = ['-i'] if apply else ['--dry-run', '-Werror']
+        run([clang_format] + mode_flags + files, cwd=get_top(), verbose=True)
+        return
+    git_clang_format = os.path.join(os.path.dirname(clang_format),
+                                    'git-clang-format')
+    if not shutil.which(git_clang_format):
+        print(f"{git_clang_format} not installed. Skipping format.")
+        return
+    diff_flag = [] if apply else ["--diff"]
+    base = get_merge_base(against)
+    run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
+        files,
+        cwd=get_top(),
+        verbose=True)
 
 
-def yapf_format(against, apply=False):
-    if not shutil.which('yapf'):
-        print("yapf not installed. Skipping format.")
+def yapf_format(against, apply=False, all_files=False, yapf='yapf'):
+    if not shutil.which(yapf):
+        print(f"{yapf} not installed. Skipping format.")
         return
     diff_flag = "--in-place" if apply else "--diff"
-    files = ' '.join(get_changed_files(against))
+    files = get_all_files() if all_files else get_changed_files(against)
     files = [
         f for f in files if f.endswith(YAPF_EXTENSIONS) and not is_excluded(f)
     ]
     if files:
-        run(f"yapf {diff_flag} -p {files}", cwd=get_top(), verbose=True)
+        run([yapf, diff_flag, '-p'] + files, cwd=get_top(), verbose=True)
     else:
         print("No modified python files to format")
 
@@ -84,12 +91,29 @@ def main():
     parser.add_argument('against', default='develop', nargs='?')
     parser.add_argument('-i', '--in-place', action='store_true')
     parser.add_argument('-q', '--quiet', action='store_true')
-    parser.add_argument('--exit-zero', action='store_true',
+    parser.add_argument('-a',
+                        '--all',
+                        action='store_true',
+                        help='Format all tracked files, not just changed ones')
+    parser.add_argument('--clang-format-path',
+                        default=DEFAULT_CLANG_FORMAT,
+                        help='Path to the clang-format executable')
+    parser.add_argument('--yapf-path',
+                        default='yapf',
+                        help='Path to the yapf executable')
+    parser.add_argument('--exit-zero',
+                        action='store_true',
                         help='Exit 0 even when formatting differs')
     args = parser.parse_args()
     try:
-        clang_format(args.against, apply=args.in_place)
-        yapf_format(args.against, apply=args.in_place)
+        clang_format(args.against,
+                     apply=args.in_place,
+                     all_files=args.all,
+                     clang_format=args.clang_format_path)
+        yapf_format(args.against,
+                    apply=args.in_place,
+                    all_files=args.all,
+                    yapf=args.yapf_path)
     except subprocess.CalledProcessError as ex:
         if ex.stdout:
             print(ex.stdout)

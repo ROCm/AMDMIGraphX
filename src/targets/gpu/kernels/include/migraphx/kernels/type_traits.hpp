@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -220,7 +220,7 @@ struct common_type<T>
 template <class T, class U>
 struct common_type<T, U>
 {
-    using type = decltype(true ? declval<T>() : declval<U>());
+    using type = remove_cv_t<remove_reference_t<decltype(true ? declval<T>() : declval<U>())>>;
 };
 
 template <class T, class U, class... Us>
@@ -286,6 +286,32 @@ constexpr auto numeric_lowest() -> decltype(numeric_max<T>())
         return -numeric_max<T>();
     }
 }
+
+/// Unsigned integer type of exactly N bytes; other sizes are a compile error
+template <index_int N>
+struct sized_uint;
+template <>
+struct sized_uint<1>
+{
+    using type = uint8_t;
+};
+template <>
+struct sized_uint<2>
+{
+    using type = uint16_t;
+};
+template <>
+struct sized_uint<4>
+{
+    using type = uint32_t;
+};
+template <>
+struct sized_uint<8>
+{
+    using type = uint64_t;
+};
+template <index_int N>
+using sized_uint_t = typename sized_uint<N>::type;
 
 } // namespace migraphx
 

@@ -42,6 +42,15 @@ inline auto get_output_path(instruction_ref ins)
     });
 }
 
+inline auto get_input_path(instruction_ref ins)
+{
+    return unfold(ins, [](instruction_ref in) -> std::optional<instruction_ref> {
+        if(in->inputs().size() != 1)
+            return std::nullopt;
+        return in->inputs().front();
+    });
+}
+
 // The instructions that share the buffer of `ins`, starting with `ins` and ending with the
 // instruction that owns the buffer, such as an allocation or a parameter. The path stops early
 // when an instruction aliases more than one input since there is no single buffer to follow.

@@ -32,6 +32,7 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
 
 namespace migraphx {
@@ -64,11 +65,23 @@ struct topk
 
     std::string name() const { return "topk"; }
 
+    /// Symbolic input: the sorted axis becomes min(k, dim), so every dimension stays symbolic.
+    shape symbolic_compute_shape(const shape& s0) const
+    {
+        auto dds  = s0.dyn_dims();
+        dds[axis] = shape::dynamic_dimension{sym::resolve_min(sym::lit(k), dds[axis].sym_expr)};
+        return shape({shape{s0.type(), dds}, shape{shape::int64_type, dds}});
+    }
+
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2);
         auto type = inputs.at(0).type();
 
+        if(inputs.at(0).symbolic())
+        {
+            return symbolic_compute_shape(inputs.at(0));
+        }
         if(inputs.at(0).dynamic())
         {
             auto dyn_dims     = inputs.at(0).dyn_dims();

@@ -177,6 +177,8 @@ double rms_range(const R1& r1, const R2& r2)
     std::size_t n = range_distance(r1);
     if(n == range_distance(r2))
     {
+        if(n == 0)
+            return 0;
         double square_difference = range_product(r1, r2, 0.0, sum_fn{}, square_diff);
         double mag1              = *std::max_element(r1.begin(), r1.end(), compare_mag);
         double mag2              = *std::max_element(r2.begin(), r2.end(), compare_mag);

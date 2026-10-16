@@ -76,6 +76,7 @@ int main(int argc, const char* argv[])
          "test_select_module_aliased_outputs",
          "test_select_module_reduce",
          "test_select_module_conv",
+         "test_select_module_index",
          "test_split_single_dyn_dim",
          "test_split_sym_dim_softmax",
          "test_fixed_pad_int64",

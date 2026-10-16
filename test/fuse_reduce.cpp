@@ -2754,14 +2754,14 @@ TEST_CASE(reduce_reshape_squeeze_all_pointwise)
         auto y    = mm->add_parameter("y", s);
         auto rsum = add_reduce(
             p2,
-            "main:reduce_sum1:main:pointwise0:main:reduce_sum0",
-            {x, y},
+            "main:reduce_sum0:main:pointwise0:main:reduce_sum1",
+            {y, x},
             {0, 1},
             [&](auto* rm, const auto& inputs, const auto& axes) {
                 auto r1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                              inputs[0]);
-                auto r2 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
                                               inputs[1]);
+                auto r2 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                              inputs[0]);
                 return add_pointwise(p2, rm, "main:pointwise0", {r1, r2}, single_pointwise("add"));
             });
         auto sq = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), rsum);

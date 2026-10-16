@@ -39,7 +39,9 @@ struct analyze_unit_axis_transform : analyzer<analyze_unit_axis_transform>
     {
         if(ins->inputs().size() != 1)
             return symbolic_op_info{ins};
-        return analyze_axes(ins);
+        auto result              = analyze_axes(ins);
+        result.propagate_padding = preserve_padding;
+        return result;
     }
 };
 

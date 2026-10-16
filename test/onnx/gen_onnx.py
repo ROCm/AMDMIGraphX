@@ -18076,6 +18076,41 @@ def slice_max_end_test():
 
 
 @onnx_test()
+def slice_static_data_symbolic_end_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [64, 128])
+    length_source = helper.make_tensor_value_info('length_source',
+                                                  TensorProto.FLOAT,
+                                                  ['sequence_length'])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           ['sequence_length', 128])
+
+    starts = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['starts'],
+        value=helper.make_tensor('starts', TensorProto.INT64, [1], [0]))
+    ends = helper.make_node('Shape',
+                            inputs=['length_source'],
+                            outputs=['ends'])
+    axes = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['axes'],
+        value=helper.make_tensor('axes', TensorProto.INT64, [1], [0]))
+    steps = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['steps'],
+        value=helper.make_tensor('steps', TensorProto.INT64, [1], [1]))
+    node = helper.make_node('Slice',
+                            inputs=['data', 'starts', 'ends', 'axes', 'steps'],
+                            outputs=['output'])
+
+    return ([starts, ends, axes, steps, node], [data, length_source],
+            [output])
+
+
+@onnx_test()
 def slice_var_input_static0():
     data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 2])
     starts = helper.make_tensor_value_info('starts', TensorProto.INT32, [2])
@@ -20437,6 +20472,18 @@ def variable_batch_test():
                                       [None, 3, 16, 16])
 
     node = onnx.helper.make_node('Identity', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def fixed_named_dimension_test():
+    x = helper.make_tensor_value_info(
+        'x', TensorProto.FLOAT, ['batch_size', 'sequence_length'])
+    y = helper.make_tensor_value_info(
+        'y', TensorProto.FLOAT, ['batch_size', 'sequence_length'])
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
 
     return ([node], [x], [y])
 

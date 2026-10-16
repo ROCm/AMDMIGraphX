@@ -1335,11 +1335,20 @@ std::optional<bool> provable_equal(const expr& a, const expr& b, interval defaul
     if(a_value.has_value() and b_value.has_value())
         return scalar_equal(*a_value, *b_value);
 
+    const auto has_safe_interval = fix<bool>([&](auto self, const expr& expression) {
+        if(fixed_value(expression).has_value() or expression.name() == "variable")
+            return true;
+        return expression.name() == "+" and
+               std::all_of(expression.children().begin(),
+                           expression.children().end(),
+                           [&](const auto& child) { return self(child); });
+    });
+
     const auto safe_interval = [&](const expr& expression,
                                    const std::optional<scalar>& value) -> std::optional<interval> {
         if(value.has_value())
             return interval{*value, *value};
-        if(expression.name() == "variable")
+        if(has_safe_interval(expression))
             return expression.eval_interval_default(default_bounds);
         return std::nullopt;
     };

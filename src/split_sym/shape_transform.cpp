@@ -92,7 +92,8 @@ struct analyze_shape_transform : analyzer<analyze_shape_transform>
 
             if(non_unit_dims(inputs.front()) == non_unit_dims(output))
             {
-                auto result = analyze_axes(ins, std::move(shape_input_indices));
+                auto result              = analyze_axes(ins, std::move(shape_input_indices));
+                result.propagate_padding = preserve_padding;
                 if(needs_freezer)
                     result.freezer = freeze;
                 return result;
@@ -128,6 +129,7 @@ struct analyze_shape_transform : analyzer<analyze_shape_transform>
                            ? parallel_axis()
                            : axis_desc{};
             });
+        result.propagate_padding = preserve_padding;
         if(needs_freezer)
             result.freezer = freeze;
         return result;

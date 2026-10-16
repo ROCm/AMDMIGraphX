@@ -36,7 +36,15 @@ axis_desc padded_axis(fill_kind fill, bool coalesce_safe)
 
 axis_desc parallel_axis() { return padded_axis(fill_kind::dont_care, true); }
 
-axis_desc contracted_axis(fill_kind fill) { return padded_axis(fill, false); }
+axis_desc contracted_axis(fill_kind fill)
+{
+    auto result = padded_axis(fill, false);
+    if(fill == fill_kind::lowest)
+        result.semantics = padding_semantics::max_neutral;
+    else if(fill == fill_kind::highest)
+        result.semantics = padding_semantics::min_neutral;
+    return result;
+}
 
 axis_desc masked_axis(mask_role role, fill_kind fill)
 {
@@ -48,8 +56,15 @@ bool is_variable_axis(const shape::dynamic_dimension& d)
     return d.is_symbolic() and not d.is_fixed();
 }
 
-bool supports_mask(shape::type_t type, fill_kind fill)
+bool supports_fill(shape::type_t type, fill_kind fill)
 {
+    if(fill == fill_kind::neg_one and contains({shape::bool_type,
+                                                shape::uint8_type,
+                                                shape::uint16_type,
+                                                shape::uint32_type,
+                                                shape::uint64_type},
+                                               type))
+        return false;
     if(fill != fill_kind::neg_inf)
         return true;
     return contains({shape::half_type, shape::float_type, shape::double_type, shape::bf16_type},
@@ -62,12 +77,47 @@ float fill_value(fill_kind fill)
     {
     case fill_kind::dont_care:
     case fill_kind::zero: return 0.0f;
+    case fill_kind::neg_one: return -1.0f;
     case fill_kind::lowest: return std::numeric_limits<float>::lowest();
     case fill_kind::neg_inf: return -std::numeric_limits<float>::infinity();
     case fill_kind::highest: return std::numeric_limits<float>::max();
     case fill_kind::one: return 1.0f;
     }
     MIGRAPHX_THROW("SPLIT_SYM_DIM: unsupported fill kind");
+}
+
+std::optional<std::vector<input_padding_requirement>>
+propagate_padding_to_input(instruction_ref ins,
+                           std::size_t input,
+                           const padding_requirement& requirement,
+                           std::set<fill_kind> fills,
+                           padding_semantics semantics)
+{
+    if(input >= ins->inputs().size() or requirement.axis >= ins->get_shape().ndim())
+        return std::nullopt;
+    const auto& input_shape = ins->inputs().at(input)->get_shape();
+    if(fills.empty() or not input_shape.symbolic() or
+       not all_of(fills, [&](auto fill) { return supports_fill(input_shape.type(), fill); }))
+        return std::nullopt;
+    const auto output_dims = ins->get_shape().to_symbolic().dyn_dims();
+    if(output_dims.at(requirement.axis).sym_expr != requirement.extent)
+        return std::nullopt;
+    const auto input_dims = input_shape.dyn_dims();
+    auto input_axes       = find_all(range(input_dims.size()), [&](auto axis) {
+        return input_dims.at(axis).sym_expr == requirement.extent;
+    });
+    if(input_axes.size() != 1)
+        return std::nullopt;
+    auto input_axis = static_cast<std::size_t>(input_axes.front());
+    return std::vector<input_padding_requirement>{
+        {input, {input_axis, input_dims.at(input_axis).sym_expr, std::move(fills), semantics}}};
+}
+
+std::optional<std::vector<input_padding_requirement>>
+preserve_padding(instruction_ref ins, const padding_requirement& requirement)
+{
+    return propagate_padding_to_input(
+        ins, 0, requirement, requirement.fills, requirement.semantics);
 }
 
 std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank)

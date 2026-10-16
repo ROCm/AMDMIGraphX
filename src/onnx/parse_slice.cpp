@@ -72,7 +72,7 @@ struct parse_slice : op_parser<parse_slice>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        if(args.size() >= 3 and args[0]->get_shape().symbolic())
+        if(args.size() >= 3 and (args[1]->eval().empty() or args[2]->eval().empty()))
         {
             const auto starts = args[1]->sym_eval();
             const auto ends   = args[2]->sym_eval();

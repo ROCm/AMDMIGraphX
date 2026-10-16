@@ -62,8 +62,9 @@ struct analyze_broadcast : analyzer<analyze_broadcast>
             return symbolic_op_info{ins};
         std::vector<std::size_t> shape_input_indices(input_count - 1);
         std::iota(shape_input_indices.begin(), shape_input_indices.end(), std::size_t{1});
-        auto result    = analyze_axes(ins, std::move(shape_input_indices));
-        result.freezer = freeze;
+        auto result              = analyze_axes(ins, std::move(shape_input_indices));
+        result.freezer           = freeze;
+        result.propagate_padding = preserve_padding;
         return result;
     }
 

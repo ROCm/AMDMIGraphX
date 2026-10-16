@@ -924,6 +924,8 @@ static shape::dynamic_dimension make_symbol(onnx_parser& parser,
                                             const std::string& sym_name,
                                             const shape::dynamic_dimension& bounds)
 {
+    if(bounds.is_fixed())
+        return shape::dynamic_dimension{sym::lit(bounds.get_interval().min)};
     auto iv = bounds.get_interval();
     return shape::dynamic_dimension{
         sym::var(parser.symbol_names.resolve(sym_name), {iv.min, iv.max}, sym_optimals(bounds))};

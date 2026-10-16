@@ -92,23 +92,11 @@ struct scatternd_op : op_name<Derived>
         auto ind_dims  = unified[1].dyn_dims();
         auto upd_dims  = unified[2].dyn_dims();
 
-        auto dimensions_match = [](const auto& x, const auto& y) {
-            if(x == y)
-                return true;
-            return x.is_fixed() and y.is_fixed() and x.get_interval().min == y.get_interval().min;
-        };
-
         // Check that corresponding portions of tensor shapes match.
         // Brackets around q - 1 are placed for safeguarding against the breaking iterator out of
         // vector range.
-        if(not(std::equal(ind_dims.begin(),
-                          ind_dims.begin() + (q - 1),
-                          upd_dims.begin(),
-                          dimensions_match) and
-               std::equal(data_dims.begin() + k,
-                          data_dims.end(),
-                          upd_dims.begin() + (q - 1),
-                          dimensions_match)))
+        if(not(std::equal(ind_dims.begin(), ind_dims.begin() + (q - 1), upd_dims.begin()) and
+               std::equal(data_dims.begin() + k, data_dims.end(), upd_dims.begin() + (q - 1))))
             MIGRAPHX_THROW("ScatterND: incorrect update shape. Update dimensions must match "
                            "indices and data.");
 

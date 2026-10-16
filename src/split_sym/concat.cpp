@@ -41,10 +41,19 @@ struct analyze_concat : analyzer<analyze_concat>
                                    inputs.front().ndim());
         if(not axis.has_value())
             return symbolic_op_info{ins};
-        if(any_of(inputs, [&](const auto& input) {
-               return input.ndim() != inputs.front().ndim() or
-                      is_variable_axis(input.dyn_dims().at(*axis));
-           }))
+        if(not all_of(inputs,
+                      [&](const auto& input) { return input.ndim() == inputs.front().ndim(); }))
+            return symbolic_op_info{ins};
+        auto variable_input_indices = find_all(range(inputs.size()), [&](auto index) {
+            const auto input = inputs.at(index).to_symbolic();
+            return is_variable_axis(input.dyn_dims().at(*axis));
+        });
+        // Padding a concat input extends it in place. That preserves the unpadded prefix only when
+        // a single variable-length input is last; otherwise padding would separate later inputs
+        // from the data that precedes them.
+        if(variable_input_indices.size() > 1 or
+           (variable_input_indices.size() == 1 and
+            variable_input_indices.front() + 1 != inputs.size()))
             return symbolic_op_info{ins};
         return analyze_axes(ins);
     }

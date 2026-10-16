@@ -80,8 +80,41 @@ struct analyze_reduce : analyzer<analyze_reduce>
             return identity.has_value() ? contracted_axis(*identity) : axis_desc{};
         });
         if(identity.has_value() and result.supported)
-            result.freezer = freeze;
+        {
+            result.freezer           = freeze;
+            result.propagate_padding = propagate_padding;
+        }
         return result;
+    }
+
+    static std::optional<std::vector<input_padding_requirement>>
+    propagate_padding(instruction_ref ins, const padding_requirement& requirement)
+    {
+        if(ins->inputs().size() != 1)
+            return std::nullopt;
+        auto identity = reduce_identity(ins->name());
+        if(not identity.has_value())
+            return std::nullopt;
+        const bool preserves_requirement =
+            (requirement.semantics == padding_semantics::exact and
+             contains(requirement.fills, *identity)) or
+            (requirement.semantics == padding_semantics::max_neutral and
+             *identity == fill_kind::lowest) or
+            (requirement.semantics == padding_semantics::min_neutral and
+             *identity == fill_kind::highest);
+        if(not preserves_requirement)
+            return std::nullopt;
+        auto input_fills = requirement.fills;
+        if(requirement.semantics == padding_semantics::exact)
+            input_fills = {*identity};
+        auto propagated = propagate_padding_to_input(
+            ins, 0, requirement, std::move(input_fills), requirement.semantics);
+        if(not propagated.has_value())
+            return std::nullopt;
+        auto axes = reduce_axes(ins->get_operator(), ins->inputs().front()->get_shape().ndim());
+        if(contains(axes, propagated->front().requirement.axis))
+            return std::nullopt;
+        return propagated;
     }
 
     static instruction_ref freeze(module& m,

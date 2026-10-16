@@ -6735,17 +6735,6 @@ TEST_CASE(scatternd_sym_partial_index)
     expect_shape(data, migraphx::make_op("scatternd_none"), data, indices, updates);
 }
 
-TEST_CASE(scatternd_sym_equivalent_fixed_dimensions)
-{
-    auto batch = var("batch", {1, 1});
-    auto n     = var("n", {1, 8}, {4});
-    migraphx::shape data{migraphx::shape::float_type, {dd{batch}, dd{lit(1)}, dd{n}, dd{n}}};
-    migraphx::shape indices{migraphx::shape::int64_type,
-                            {dd{batch}, dd{lit(1)}, dd{n}, dd{n}, dd{lit(4)}}};
-    migraphx::shape updates{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{n}, dd{n}}};
-    expect_shape(data, migraphx::make_op("scatternd_none"), data, indices, updates);
-}
-
 TEST_CASE(scatternd_sym_mismatch_throws)
 {
     auto n = var("n", {2, 8}, {4});

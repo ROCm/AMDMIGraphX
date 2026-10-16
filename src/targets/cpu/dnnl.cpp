@@ -93,7 +93,10 @@ dnnl::memory::format_tag to_dnnl_memory_format_tag(std::size_t n)
 
 dnnl::memory::desc to_dnnl_memory_desc(const shape& s)
 {
-    return {to_dnnl_dims(s.lens()), to_dnnl_memory_data_type(s.type()), to_dnnl_dims(s.strides())};
+    // A standard shape may carry arbitrary strides on unit dims, which dnnl rejects
+    auto ns = s.normalize_standard();
+    return {
+        to_dnnl_dims(ns.lens()), to_dnnl_memory_data_type(ns.type()), to_dnnl_dims(ns.strides())};
 }
 
 dnnl::memory to_dnnl_memory(const dnnl::memory::desc& desc, const argument& a)

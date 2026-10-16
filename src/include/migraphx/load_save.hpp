@@ -34,6 +34,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct file_options
 {
     std::string format = "msgpack";
+    /// Load the kernels of a compiled program. When false, the program can be opened on a
+    /// machine without the device it was compiled for, for example to retune it.
+    bool finalize = true;
 };
 
 MIGRAPHX_EXPORT program load(const std::string& filename,

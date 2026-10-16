@@ -43,6 +43,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -414,7 +415,9 @@ struct dynamic_code_object_op
 MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 
 // forward declared since it requires compile_manager
-static void replace_inserted_device_ops(context& ctx, const std::vector<module_ref>& mods);
+static void replace_inserted_device_ops(context& ctx,
+                                        const std::vector<module_ref>& mods,
+                                        bool keep_recipes = false);
 
 /// One compilation and its result, shared by every result slot whose key matches. Each cell is
 /// written by exactly one worker during the parallel compile; sharers read it after the join.
@@ -723,7 +726,65 @@ struct compile_plan
         return *any_cast<candidate>(best).cr;
     }
 
-    void replace(module& m) const { benchmark().replace(m, ins); }
+    /// The solution that produced cr, which is one of the results
+    value solution_of(const compiler_replace& cr) const
+    {
+        for(auto i : range(results.size()))
+        {
+            if(not results[i]->result.has_value() or &*results[i]->result != &cr)
+                continue;
+            // A shared cell may belong to another plan, so take the solution of this plan
+            if(config.has_value() and results.size() == config->solutions.size())
+                return config->solutions[i];
+            return results[i]->solution;
+        }
+        return value{};
+    }
+
+    void replace(module& m, bool keep_recipe = false, bool exhaustive = false) const
+    {
+        const auto& cr = benchmark();
+        if(not keep_recipe or ins == m.begin())
+        {
+            cr.replace(m, ins);
+            return;
+        }
+        auto start         = std::prev(ins);
+        auto source        = to_value(ins->get_operator());
+        auto source_inputs = to_shapes(ins->inputs());
+        auto mods          = ins->module_inputs();
+        cr.replace(m, ins);
+
+        // The replacement inserts its instructions before ins, or rewrites it in place
+        std::vector<instruction_ref> cos;
+        for(auto it = std::next(start); it != std::next(ins); ++it)
+        {
+            if(it->name() == "gpu::code_object")
+                cos.push_back(it);
+        }
+        // Only a single kernel can be swapped in place by retune
+        if(cos.size() != 1)
+        {
+            log::debug() << "No retune recipe for " << preop.name() << ": compiled to "
+                         << cos.size() << " kernels";
+            return;
+        }
+        auto co_ins      = cos.front();
+        auto co          = any_cast<code_object_op>(co_ins->get_operator());
+        co.source        = source;
+        co.source_inputs = source_inputs;
+        co.problem       = config.has_value() ? config->problem : value{};
+        co.solution      = solution_of(cr);
+        co.tuning_level  = exhaustive ? "exhaustive" : "quick";
+        // Later passes such as write_literals must not rewrite the recipe
+        for(auto* rmod : mods)
+        {
+            rmod->set_bypass();
+            for(auto* smod : rmod->get_sub_modules())
+                smod->set_bypass();
+        }
+        m.replace_instruction(co_ins, co, co_ins->inputs(), mods);
+    }
 
     std::size_t save_binaries(const fs::path& mxr_dir) const
     {
@@ -776,6 +837,7 @@ struct compile_manager
     std::vector<compile_plan> cps;
     bool exhaustive     = false;
     bool skip_benchmark = false;
+    bool keep_recipes   = false;
     /// When set, plans with several candidates are saved here as benchmark MXR files instead of
     /// being replaced. Left empty by the nested batch in replace_inserted_device_ops.
     fs::path mxr_dir             = {};
@@ -922,7 +984,8 @@ struct compile_manager
             if(dump_mxr and cp.results.size() > 1)
                 dumped_mxr_files += cp.save_binaries(mxr_dir);
             else
-                cp.replace(*cp.mod);
+                cp.replace(
+                    *cp.mod, keep_recipes, exhaustive or cp.ctx->get_exhaustive_tune_flag());
         }
 
         // Remove compile_plan already executed
@@ -951,9 +1014,11 @@ struct compile_manager
     }
 };
 
-static void replace_inserted_device_ops(context& ctx, const std::vector<module_ref>& mods)
+static void
+replace_inserted_device_ops(context& ctx, const std::vector<module_ref>& mods, bool keep_recipes)
 {
     compile_manager cm;
+    cm.keep_recipes = keep_recipes;
     for(auto* m : mods)
     {
         run_passes(*m, {dead_code_elimination{}});
@@ -993,6 +1058,7 @@ void compile_ops::apply(module_pass_manager& mpm) const
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
     cm.mxr_dir        = dump_mxr_dir;
+    cm.keep_recipes   = keep_recipes;
     for(auto* m : mods)
         cm.add_plans(*ctx, m);
     cm.update_configs();
@@ -1004,7 +1070,210 @@ void compile_ops::apply(module_pass_manager& mpm) const
     cm.compile();
     assert(cm.cps.empty());
 
-    replace_inserted_device_ops(*ctx, mods);
+    replace_inserted_device_ops(*ctx, mods, keep_recipes);
+}
+
+namespace {
+
+// What must not change when a kernel is swapped in place: its arguments and the prefills
+// (split-K) of its arguments, as (argument index, fill value)
+struct kernel_signature
+{
+    std::vector<shape> inputs;
+    shape output;
+    std::int64_t output_arg = -1;
+    std::vector<std::pair<std::size_t, double>> prefills;
+
+    friend bool operator==(const kernel_signature& x, const kernel_signature& y)
+    {
+        return x.inputs == y.inputs and x.output == y.output and x.output_arg == y.output_arg and
+               x.prefills == y.prefills;
+    }
+};
+
+operation recipe_source(const code_object_op& co)
+{
+    return from_value<operation>(co.source.without_key());
+}
+
+// The fill value of a kernel compiled from hip::fill, read from its recipe
+optional<double> compiled_fill_value(instruction_ref ins)
+{
+    if(ins->name() != "gpu::code_object")
+        return nullopt;
+    const auto& co = any_cast<code_object_op>(ins->get_operator());
+    if(not co.has_recipe())
+        return nullopt;
+    auto op = any_cast<precompile_op>(recipe_source(co)).op;
+    if(op.name() != "hip::fill")
+        return nullopt;
+    return op.to_value().at("value").to<double>();
+}
+
+template <class F>
+kernel_signature
+make_signature(instruction_ref ins, const code_object_op& co, F get_fill_value)
+{
+    kernel_signature sig;
+    sig.inputs     = co.expected_inputs;
+    sig.output     = co.output;
+    sig.output_arg = co.get_output_arg(co.expected_inputs.size());
+    for(auto i : range(ins->inputs().size()))
+    {
+        if(auto fill = get_fill_value(ins->inputs()[i]))
+            sig.prefills.emplace_back(i, *fill);
+    }
+    return sig;
+}
+
+// Insert a compiled candidate into its own module and return its kernel, or nothing when the
+// replacement is not a single kernel
+optional<std::pair<code_object_op, kernel_signature>>
+candidate_kernel(const compiler_replace& cr,
+                 instruction_ref pre_ins,
+                 const std::vector<shape>& source_inputs)
+{
+    module m{"retune_candidate"};
+    std::vector<instruction_ref> params;
+    for(auto i : range(source_inputs.size()))
+        params.push_back(m.add_parameter("x" + std::to_string(i), source_inputs[i]));
+    auto ins = m.add_instruction(pre_ins->get_operator(), params, pre_ins->module_inputs());
+    m.add_return({ins});
+    cr.replace(m, ins);
+    std::vector<instruction_ref> cos;
+    for(auto it : iterator_for(m))
+    {
+        if(it->name() == "gpu::code_object")
+            cos.push_back(it);
+    }
+    if(cos.size() != 1)
+        return nullopt;
+    auto co  = any_cast<code_object_op>(cos.front()->get_operator());
+    auto sig = make_signature(cos.front(), co, [](instruction_ref i) -> optional<double> {
+        if(i->name() != "hip::fill")
+            return nullopt;
+        return i->get_operator().to_value().at("value").to<double>();
+    });
+    return std::make_pair(co, sig);
+}
+
+bool has_result(const std::shared_ptr<compile_cell>& cell) { return cell->result.has_value(); }
+
+} // namespace
+
+std::vector<recompiled_kernel> recompile_kernels(context& ctx,
+                                                 const std::vector<recompile_request>& requests)
+{
+    const auto n = requests.size();
+    std::vector<std::unique_ptr<module>> scratch;
+    std::vector<compile_plan> plans;
+    std::vector<code_object_op> olds;
+    std::vector<kernel_signature> sigs;
+    scratch.reserve(n);
+    plans.reserve(n);
+    for(const auto& req : requests)
+    {
+        auto old = any_cast<code_object_op>(req.ins->get_operator());
+        if(not old.has_recipe())
+            MIGRAPHX_THROW("retune: no recipe for kernel " + old.symbol_name);
+        auto pre = recipe_source(old);
+        // The bypass flag of fused submodules is not serialized
+        for(auto* rmod : req.ins->module_inputs())
+        {
+            rmod->set_bypass();
+            for(auto* smod : rmod->get_sub_modules())
+                smod->set_bypass();
+        }
+        auto m = std::make_unique<module>("retune:" + old.symbol_name);
+        std::vector<instruction_ref> params;
+        for(auto i : range(old.source_inputs.size()))
+            params.push_back(m->add_parameter("x" + std::to_string(i), old.source_inputs[i]));
+        auto ins = m->add_instruction(pre, params, req.ins->module_inputs());
+        m->add_return({ins});
+        plans.push_back({&ctx, any_cast<precompile_op>(pre).op, ins, m.get()});
+        sigs.push_back(make_signature(req.ins, old, &compiled_fill_value));
+        olds.push_back(std::move(old));
+        scratch.push_back(std::move(m));
+    }
+    par_compile(n, [&](auto i) { plans[i].update_config(requests[i].exhaustive); });
+
+    std::vector<recompiled_kernel> result(n);
+    std::vector<bool> done(n, false);
+    // A second pass picks up kernels whose problem was being benchmarked by another kernel
+    for(int pass = 0; pass < 2; pass++)
+    {
+        compile_manager cm;
+        std::vector<std::size_t> batch;
+        for(auto i : range(n))
+        {
+            if(done[i])
+                continue;
+            plans[i].results.clear();
+            plans[i].add_cells(false, false);
+            if(plans[i].results.empty())
+                continue;
+            batch.push_back(i);
+            cm.cps.push_back(plans[i]);
+        }
+        cm.compile_cells();
+
+        for(auto b : range(batch.size()))
+        {
+            auto i   = batch[b];
+            auto& cp = plans[i];
+            cp.results = cm.cps[b].results;
+            std::vector<optional<code_object_op>> kernels(cp.results.size());
+            std::size_t excluded = 0;
+            if(std::none_of(cp.results.begin(), cp.results.end(), &has_result))
+                MIGRAPHX_THROW("retune: kernel " + olds[i].symbol_name + " failed to compile for " +
+                               ctx.get_current_device().get_device_name() +
+                               " (set MIGRAPHX_TRACE_BENCHMARKING=1 to see the compiler errors)");
+            for(auto j : range(cp.results.size()))
+            {
+                if(not has_result(cp.results[j]))
+                    continue;
+                auto k = candidate_kernel(*cp.results[j]->result, cp.ins, olds[i].source_inputs);
+                if(k.has_value() and k->second == sigs[i])
+                {
+                    kernels[j] = k->first;
+                    continue;
+                }
+                // Cells can be shared with other kernels, so drop this slot, not the cell
+                cp.results[j] = std::make_shared<compile_cell>(cp.results[j]->solution);
+                excluded++;
+            }
+            if(excluded > 0)
+                log::info() << "retune: excluded " << excluded << " candidates for "
+                            << olds[i].symbol_name
+                            << " that change the kernel signature (for example split-K)";
+            if(std::none_of(cp.results.begin(), cp.results.end(), &has_result))
+                MIGRAPHX_THROW("retune: no candidate for kernel " + olds[i].symbol_name +
+                               " keeps its signature; recompile from the model");
+            const auto& best = cp.benchmark();
+            auto j           = static_cast<std::size_t>(
+                std::distance(cp.results.begin(),
+                              std::find_if(cp.results.begin(), cp.results.end(), [&](const auto& c) {
+                                  return has_result(c) and &*c->result == &best;
+                              })));
+            auto co          = *kernels.at(j);
+            co.source        = olds[i].source;
+            co.source_inputs = olds[i].source_inputs;
+            co.problem       = cp.config.has_value() ? cp.config->problem : value{};
+            co.solution      = cp.solution_of(best);
+            co.tuning_level =
+                requests[i].exhaustive or ctx.get_exhaustive_tune_flag() ? "exhaustive" : "quick";
+            result[i].code_object = co;
+            result[i].excluded    = excluded;
+            result[i].benchmarked = not ctx.is_cross_compile();
+            done[i]               = true;
+        }
+    }
+    for(auto i : range(n))
+    {
+        if(not done[i])
+            MIGRAPHX_THROW("retune: no valid compilation for kernel " + olds[i].symbol_name);
+    }
+    return result;
 }
 
 } // namespace gpu

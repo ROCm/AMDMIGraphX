@@ -207,6 +207,8 @@ struct loader
     bool brief                  = false;
     bool verbose                = false;
     bool strip_context          = false;
+    // Load the kernels of a compiled MIGraphX file; false opens files compiled for another GPU
+    bool finalize               = true;
     bool use_debug_symbols      = false;
     bool use_symbolic           = false;
     std::string output_type;
@@ -528,8 +530,9 @@ struct loader
             if(file_type == "json")
             {
                 file_options options;
-                options.format = "json";
-                p              = migraphx::load(file, options);
+                options.format   = "json";
+                options.finalize = finalize;
+                p                = migraphx::load(file, options);
             }
 #ifdef MIGRAPHX_ENABLE_ONNX
             else if(file_type == "onnx")
@@ -551,7 +554,9 @@ struct loader
 #endif
             else if(file_type == "migraphx")
             {
-                p = migraphx::load(file);
+                file_options options;
+                options.finalize = finalize;
+                p                = migraphx::load(file, options);
             }
         }
         if(trim > 0)
@@ -870,6 +875,11 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+        ap(co.keep_recipes,
+           {"--keep-recipes"},
+           ap.help("Keep what is needed to recompile each kernel, so the compiled program can "
+                   "be retuned or retargeted to another GPU with the retune command"),
+           ap.set_value(true));
         ap(co.compile_mode,
            {"--compile-mode"},
            ap.help("Set compilation mode: eager, balanced, max, or an integer 0-100"),
@@ -983,7 +993,68 @@ struct read : command<read>
 
     void run()
     {
-        auto p = l.load();
+        // Open files compiled for another GPU without loading their kernels
+        l.finalize = false;
+        auto p     = l.load();
+        auto compiled_for = p.get_compiled_for();
+        if(not compiled_for.is_null())
+            log::info() << "compiled_for: " << to_json_string(compiled_for);
+        l.save(p);
+    }
+};
+
+struct retune_cmd : command<retune_cmd>
+{
+    loader l;
+    compiler_target ct;
+    bool exhaustive_tune = false;
+    bool force           = false;
+    std::string backend_options;
+
+    void parse(argument_parser& ap)
+    {
+        l.parse(ap);
+        ct.parse(ap);
+        ap(exhaustive_tune,
+           {"--exhaustive-tune"},
+           ap.help("Recompile with exhaustive tuning. Without it, each kernel keeps the tuning "
+                   "level recorded in the program"),
+           ap.set_value(true));
+        ap(force,
+           {"--force"},
+           ap.help("Recompile kernels even when they are already at the requested tuning level "
+                   "on the same GPU"),
+           ap.set_value(true));
+        ap(backend_options,
+           {"--backend-options"},
+           ap.help("Target-specific compile options, as a JSON object (format: "
+                   "\"{problem_cache_files:[cache.json]}\")."));
+    }
+
+    void run()
+    {
+        if(l.output.empty())
+            MIGRAPHX_THROW("retune: an output file is required (-o <out.mxr>)");
+        // The kernels may have been compiled for another GPU, so they are not loaded
+        l.finalize = false;
+        auto p     = l.load();
+        if(not p.is_compiled())
+            MIGRAPHX_THROW("retune: " + l.file + " is not a compiled program");
+        compile_options co;
+        co.exhaustive_tune = exhaustive_tune;
+        if(not backend_options.empty())
+        {
+            auto v = from_json_string(convert_to_json(backend_options));
+            if(not v.is_object())
+                MIGRAPHX_THROW("--backend-options must be a JSON object");
+            migraphx::set_backend_options(co, v);
+        }
+        if(force)
+            co.backend_options["retune"] = value{{"force", true}};
+        log::info() << "Retuning ...";
+        timer t{};
+        p.retune(ct.get_target(), co);
+        log::info() << "Retune time: " << t.record<std::chrono::milliseconds>() << "ms";
         l.save(p);
     }
 };

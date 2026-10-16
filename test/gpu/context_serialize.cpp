@@ -33,7 +33,7 @@ TEST_CASE(gpu_context_serialize)
     migraphx::context ctx = migraphx::gpu::context{0, 3};
 
     auto v = ctx.to_value();
-    EXPECT(v.size() == 2);
+    EXPECT(v.size() == 3);
 
     EXPECT(v.contains("events"));
     EXPECT(v.at("events").without_key().to<std::size_t>() == 0);
@@ -41,11 +41,44 @@ TEST_CASE(gpu_context_serialize)
     EXPECT(v.contains("streams"));
     EXPECT(v.at("streams").without_key().to<std::size_t>() == 3);
 
+    EXPECT(v.contains("compiled_for"));
+
     migraphx::gpu::context g_ctx;
     g_ctx.from_value(v);
 
     auto v1 = g_ctx.to_value();
     EXPECT(v == v1);
+}
+
+TEST_CASE(gpu_context_compiled_for)
+{
+    migraphx::gpu::device_description desc;
+    desc.arch   = "gfx1201";
+    desc.num_cu = 32;
+    migraphx::gpu::context cross_ctx{desc};
+    auto v = cross_ctx.to_value();
+    auto compiled_for =
+        migraphx::from_value<migraphx::gpu::device_description>(v.at("compiled_for"));
+    EXPECT(compiled_for.arch == "gfx1201");
+    EXPECT(compiled_for.num_cu == 32);
+    EXPECT(compiled_for.wavefront_size == 32);
+
+    // A program loaded on another device keeps the device it was compiled for
+    migraphx::gpu::context g_ctx;
+    g_ctx.from_value(v);
+    EXPECT(g_ctx.get_compiled_for() == compiled_for);
+    EXPECT(g_ctx.to_value().at("compiled_for") == v.at("compiled_for"));
+}
+
+TEST_CASE(gpu_context_cross_compile_schedule_state)
+{
+    migraphx::gpu::device_description desc;
+    desc.arch = "gfx1100";
+    migraphx::gpu::context cross_ctx{desc};
+    cross_ctx.restore_schedule_state(5, 2);
+    auto v = cross_ctx.to_value();
+    EXPECT(v.at("events").without_key().to<std::size_t>() == 5);
+    EXPECT(v.at("streams").without_key().to<std::size_t>() == 2);
 }
 
 TEST_CASE(context_queue)

@@ -41,6 +41,8 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/device_description.hpp>
+#include <migraphx/serialize.hpp>
+#include <algorithm>
 #include <unordered_map>
 #include <memory>
 #include <optional>
@@ -244,6 +246,8 @@ struct hip_device
 
     std::size_t stream_id() const { return current_stream; }
 
+    std::size_t get_device_id() const { return device_id; }
+
     const device_description& get_device_description() const { return desc; }
 
     std::string get_device_name() const { return desc.arch; }
@@ -392,8 +396,9 @@ struct context
     value to_value() const
     {
         value result;
-        result["events"]  = events.size();
-        result["streams"] = current_device->nstreams();
+        result["events"]       = std::max(events.size(), carried_events);
+        result["streams"]      = std::max(current_device->nstreams(), carried_streams);
+        result["compiled_for"] = migraphx::to_value(get_compiled_for());
 
         return result;
     }
@@ -409,9 +414,42 @@ struct context
 
         auto device          = get_device_id();
         this->current_device = std::make_shared<hip_device>(device, n_streams);
+        if(v.contains("compiled_for"))
+            loaded_compiled_for =
+                migraphx::from_value<device_description>(v.at("compiled_for").without_key());
         // Refresh the cache's device binding to match the rehydrated device.
         if(pc != nullptr)
             pc->set_device_key(*this);
+    }
+
+    /// The device the kernels of the program were compiled for: the one recorded in a loaded
+    /// program, otherwise the device of this context.
+    device_description get_compiled_for() const
+    {
+        if(loaded_compiled_for.has_value())
+            return *loaded_compiled_for;
+        return get_current_device().get_device_description();
+    }
+
+    /// Recreate the streams and events that a schedule computed for another context. On a
+    /// device that is not present only the counts are kept, so they are serialized.
+    void restore_schedule_state(std::size_t n_events, std::size_t n_streams)
+    {
+        if(is_cross_compile())
+        {
+            carried_events  = n_events;
+            carried_streams = n_streams;
+            return;
+        }
+        if(n_streams > current_device->nstreams())
+        {
+            auto device          = current_device->get_device_id();
+            this->current_device = std::make_shared<hip_device>(device, n_streams);
+            if(pc != nullptr)
+                pc->set_device_key(*this);
+        }
+        if(n_events > 0)
+            this->create_events(n_events - 1);
     }
 
     // Pure event-based synchronization point.  Records an event on the
@@ -508,6 +546,10 @@ struct context
     bool exhaustive_tune   = false;
     bool disable_processes = false;
     bool measure_perf      = false;
+    std::optional<device_description> loaded_compiled_for = std::nullopt;
+    // Schedule state kept for serialization when compiling for a device that is not present
+    std::size_t carried_events  = 0;
+    std::size_t carried_streams = 0;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;

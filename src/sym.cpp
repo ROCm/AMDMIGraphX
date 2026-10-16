@@ -1910,6 +1910,22 @@ static bool is_unsigned(scalar x)
 
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
+    std::unordered_map<expr, expr> substitutions;
+    std::transform(symbol_map.begin(),
+                   symbol_map.end(),
+                   std::inserter(substitutions, substitutions.end()),
+                   [](const auto& item) {
+                       const auto& [symbol, value] = item;
+                       return std::make_pair(symbol, lit(value));
+                   });
+    if(auto result = fixed_value(this->subs(substitutions)))
+    {
+        if(not is_unsigned(*result))
+            MIGRAPHX_THROW("Expression does not evaluate to an unsigned integer: " +
+                           this->to_string());
+        return to<std::size_t>(*result);
+    }
+
     std::unordered_map<expr, interval> symbol_intervals;
     std::transform(symbol_map.begin(),
                    symbol_map.end(),

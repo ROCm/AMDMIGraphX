@@ -42,8 +42,9 @@ struct analyze_concat : analyzer<analyze_concat>
         if(not axis.has_value())
             return symbolic_op_info{ins};
         if(any_of(inputs, [&](const auto& input) {
-               return input.ndim() != inputs.front().ndim() or
-                      is_variable_axis(input.dyn_dims().at(*axis));
+               if(input.ndim() != inputs.front().ndim())
+                   return true;
+               return is_variable_axis(input.to_symbolic().dyn_dims().at(*axis));
            }))
             return symbolic_op_info{ins};
         return analyze_axes(ins);

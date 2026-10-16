@@ -552,6 +552,12 @@ TEST_CASE(eval_arithmetic)
     EXPECT((2 * h).eval_uint({{h, 13}}) == 26);
 }
 
+TEST_CASE(eval_bound_remainder)
+{
+    auto n = var("n");
+    EXPECT((n % 4).eval_uint({{n, 3}}) == 3);
+}
+
 TEST_CASE(eval_compound)
 {
     auto h = var("h");

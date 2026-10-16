@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
 #include <cstdint>
 #include <migraphx/instruction.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
@@ -206,6 +207,22 @@ TEST_CASE(dot_apply_alpha_beta_zero_alpha_no_c)
         m2.add_instruction(migraphx::make_op("identity"), bc);
     }
     EXPECT(m1 == m2);
+}
+
+// A zero alpha must not reach for static lens: with a dynamic operand the reduced graph
+// cannot be built, so the scale-then-dot form is kept and a later fold removes it.
+TEST_CASE(dot_apply_alpha_beta_zero_alpha_dynamic)
+{
+    auto ft = migraphx::shape::float_type;
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", migraphx::shape{ft, {{1, 4}, {2, 2}}});
+        auto y = m1.add_parameter("y", migraphx::shape{ft, {2, 3}});
+        auto dot_res =
+            migraphx::add_apply_alpha_beta(m1, {x, y}, migraphx::make_op("dot"), 0.0f, 0.0f);
+        m1.add_instruction(migraphx::make_op("identity"), dot_res);
+    }
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "dot"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

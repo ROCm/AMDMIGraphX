@@ -41,8 +41,11 @@ instruction_ref insert_apply_alpha_beta(module& m,
     auto input_type = a->get_shape().type();
     // alpha == 0: build the reduced graph directly rather than a mul(0, a) that needs a later
     // constant fold to remove - eager has none. The op below is then unused and dce takes it.
-    const bool alpha_is_zero = float_equal(alpha.at<float>(0), 0.0);
-    if(not alpha_is_zero and not float_equal(alpha.at<float>(0), 1.0))
+    // A dynamic operand has no static lens for the zero to broadcast to, so it keeps the
+    // scale-then-op form.
+    const bool fold_alpha_zero = float_equal(alpha.at<float>(0), 0.0) and
+                                 not a->get_shape().dynamic() and not b->get_shape().dynamic();
+    if(not fold_alpha_zero and not float_equal(alpha.at<float>(0), 1.0))
     {
         auto alpha_literal = m.add_literal(alpha);
         a                  = insert_common_op(m, pos, migraphx::make_op("mul"), {alpha_literal, a});
@@ -71,11 +74,11 @@ instruction_ref insert_apply_alpha_beta(module& m,
             beta_c = m.insert_instruction(
                 pos, migraphx::make_op("convert", {{"target_type", input_type}}), beta_c);
         }
-        if(alpha_is_zero)
+        if(fold_alpha_zero)
             return beta_c;
         return m.insert_instruction(pos, migraphx::make_op("add"), op_res, beta_c);
     }
-    if(alpha_is_zero)
+    if(fold_alpha_zero)
     {
         auto zero = m.add_literal(literal{shape{op_res->get_shape().type()}, {0}});
         return m.insert_instruction(

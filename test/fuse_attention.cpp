@@ -229,6 +229,89 @@ TEST_CASE(gemm_softmax_gemm_large_head_dim)
     }));
 }
 
+TEST_CASE(gemm_softmax_gemm_wide_head_kv_len)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 2, 32, 512}};
+    migraphx::shape s2{migraphx::shape::half_type, {1, 2, 32, 32}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s1);
+        auto k   = mm->add_parameter("k", s1);
+        auto v   = mm->add_parameter("v", s1);
+        auto kt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, kt);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    migraphx::program p2 = p1;
+
+    // The head dim is past the limit and the kv length of 32 is past the
+    // wide-head exception, so nothing is fused
+    run_pass(p1, {.attn_enabled = true, .attn_wide_head_kv_len = 16});
+    EXPECT(p1.sort() == p2.sort());
+
+    // The exception is inclusive: a kv length of exactly 32 fuses at a limit of 32
+    run_pass(p1, {.attn_enabled = true, .attn_wide_head_kv_len = 32});
+    auto* mm = p1.get_main_module();
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "group" and
+               ins.get_operator().to_value()["tag"].template to<std::string>() == "attention";
+    }));
+}
+
+TEST_CASE(gemm_softmax_gemm_min_q_rows)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 2, 32, 64}};
+    migraphx::shape s2{migraphx::shape::half_type, {1, 2, 32, 32}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s1);
+        auto k   = mm->add_parameter("k", s1);
+        auto v   = mm->add_parameter("v", s1);
+        auto kt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, kt);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    migraphx::program p2 = p1;
+
+    // The block has 2 * 32 = 64 q rows, under the limit, so nothing is fused
+    run_pass(p1, {.attn_enabled = true, .attn_min_q_rows = 128});
+    EXPECT(p1.sort() == p2.sort());
+
+    // The limit is inclusive: exactly 64 rows fuse at a limit of 64
+    run_pass(p1, {.attn_enabled = true, .attn_min_q_rows = 64});
+    auto* mm = p1.get_main_module();
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "group" and
+               ins.get_operator().to_value()["tag"].template to<std::string>() == "attention";
+    }));
+}
+
 TEST_CASE(gemm_pw_softmax_gemm)
 {
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};

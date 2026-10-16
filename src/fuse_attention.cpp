@@ -144,13 +144,26 @@ bool is_inlinable_constant(instruction_ref ins)
 }
 
 // A fused attention kernel keeps a head-dim wide output row per q row live in
-// registers, so wide head dims run slower fused than as separate kernels.
-// Checks the gemms in canonical form: gemm1 = dot(q, k), gemm2 = dot(probs, v).
-bool fusable_head_dims(instruction_ref gemm1, instruction_ref gemm2, std::size_t max_head_dim)
+// registers, so wide head dims run slower fused than as separate kernels unless
+// the kv loop is short enough to keep them profitable. It also only parallelizes
+// over blocks of q rows (batch * heads * seq), so a block with too few rows
+// leaves the device idle while separate kernels still parallelize over the kv
+// length. Checks the gemms in canonical form: gemm1 = dot(q, k),
+// gemm2 = dot(probs, v).
+bool fusable_attention(instruction_ref gemm1,
+                       instruction_ref gemm2,
+                       std::size_t max_head_dim,
+                       std::size_t min_q_rows,
+                       std::size_t wide_head_kv_len)
 {
-    auto d_qk = gemm1->inputs().front()->get_shape().lens().back();
-    auto d_v  = gemm2->inputs().back()->get_shape().lens().back();
-    return std::max(d_qk, d_v) <= max_head_dim;
+    const auto& q = gemm1->inputs().front()->get_shape();
+    const auto& v = gemm2->inputs().back()->get_shape();
+    auto d_qk     = q.lens().back();
+    auto d_v      = v.lens().back();
+    if(q.elements() / d_qk < min_q_rows)
+        return false;
+    auto kv_len = v.lens().rbegin()[1];
+    return std::max(d_qk, d_v) <= max_head_dim or kv_len <= wide_head_kv_len;
 }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
@@ -232,7 +245,9 @@ std::vector<instruction_ref> get_lse_instructions(const std::vector<instruction_
 // find attention blocks that have been quantized and undo them
 struct find_quant_attention
 {
-    std::size_t max_head_dim = 256;
+    std::size_t max_head_dim     = 256;
+    std::size_t min_q_rows       = 1;
+    std::size_t wide_head_kv_len = 0;
 
     auto matcher() const
     {
@@ -278,7 +293,7 @@ struct find_quant_attention
         auto deq2   = r.instructions["deq2"];
 
         // Keep the quantization when find_attention will not fuse the block
-        if(not fusable_head_dims(qgemm1, qgemm2, max_head_dim))
+        if(not fusable_attention(qgemm1, qgemm2, max_head_dim, min_q_rows, wide_head_kv_len))
             return;
 
         if(can_dequantize_gemm(qgemm1) and can_dequantize_gemm(qgemm2))
@@ -446,7 +461,9 @@ struct find_attention_sinks
 
 struct find_transposed_attention
 {
-    std::size_t max_head_dim = 256;
+    std::size_t max_head_dim     = 256;
+    std::size_t min_q_rows       = 1;
+    std::size_t wide_head_kv_len = 0;
 
     auto matcher() const
     {
@@ -484,10 +501,14 @@ struct find_transposed_attention
             return;
 
         // Skip blocks find_attention will not fuse; here v is transposed, so
-        // its head dim is the second to last dimension
-        auto d_qk = r.instructions["dot1"]->inputs().front()->get_shape().lens().back();
-        auto d_v  = input_of_dot2->get_shape().lens().rbegin()[1];
-        if(std::max(d_qk, d_v) > max_head_dim)
+        // its head dim is the second to last dimension and its kv length is the last
+        const auto& q_shape = r.instructions["dot1"]->inputs().front()->get_shape();
+        const auto& v_shape = input_of_dot2->get_shape();
+        auto d_qk           = q_shape.lens().back();
+        auto d_v            = v_shape.lens().rbegin()[1];
+        if(q_shape.elements() / d_qk < min_q_rows)
+            return;
+        if(std::max(d_qk, d_v) > max_head_dim and v_shape.lens().back() > wide_head_kv_len)
             return;
 
         auto values = input_of_dot2;
@@ -512,7 +533,9 @@ struct find_transposed_attention
 struct find_attention
 {
     std::size_t* counter;
-    std::size_t max_head_dim = 256;
+    std::size_t max_head_dim     = 256;
+    std::size_t min_q_rows       = 1;
+    std::size_t wide_head_kv_len = 0;
 
     auto matcher() const
     {
@@ -561,7 +584,7 @@ struct find_attention
         auto gemm1         = r.instructions["dot1"];
         auto softmax_input = r.instructions["x"];
 
-        if(not fusable_head_dims(gemm1, gemm2, max_head_dim))
+        if(not fusable_attention(gemm1, gemm2, max_head_dim, min_q_rows, wide_head_kv_len))
             return;
 
         // Capture all instructions part of the attention op
@@ -1413,14 +1436,23 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     {
         // remove quantization from attention blocks so they can be fused; rocMLIR currently does
         // not support fp8 attention
-        match::find_matches(mpm, find_quant_attention{.max_head_dim = attn_max_head_dim});
-        mpm.run_pass(dead_code_elimination{});
-
-        match::find_matches(mpm, find_transposed_attention{.max_head_dim = attn_max_head_dim});
+        match::find_matches(mpm,
+                            find_quant_attention{.max_head_dim     = attn_max_head_dim,
+                                                 .min_q_rows       = attn_min_q_rows,
+                                                 .wide_head_kv_len = attn_wide_head_kv_len});
         mpm.run_pass(dead_code_elimination{});
 
         match::find_matches(mpm,
-                            find_attention{.counter = &counter, .max_head_dim = attn_max_head_dim});
+                            find_transposed_attention{.max_head_dim     = attn_max_head_dim,
+                                                      .min_q_rows       = attn_min_q_rows,
+                                                      .wide_head_kv_len = attn_wide_head_kv_len});
+        mpm.run_pass(dead_code_elimination{});
+
+        match::find_matches(mpm,
+                            find_attention{.counter          = &counter,
+                                           .max_head_dim     = attn_max_head_dim,
+                                           .min_q_rows       = attn_min_q_rows,
+                                           .wide_head_kv_len = attn_wide_head_kv_len});
         mpm.get_module().sort();
         mpm.run_pass(dead_code_elimination{});
     }

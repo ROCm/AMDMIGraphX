@@ -75,8 +75,8 @@ struct analyze_scatternd : analyzer<analyze_scatternd>
         const auto& indices = inputs.at(1);
         auto index_rank     = indices.ndim();
         assert(index_rank > 0);
-        const auto& index_dims = indices.dyn_dims();
-        bool has_prefix_axis   = any_of(range(index_rank - 1), [&](auto axis) {
+        auto index_dims      = indices.to_symbolic().dyn_dims();
+        bool has_prefix_axis = any_of(range(index_rank - 1), [&](auto axis) {
             return is_variable_axis(index_dims.at(axis));
         });
         if(has_prefix_axis and
@@ -118,7 +118,10 @@ struct analyze_scatternd : analyzer<analyze_scatternd>
         auto effective_index_depth = index_depth;
         if(index_depth == 0)
         {
-            data                  = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), data);
+            if(data->get_shape().scalar())
+                data = m.add_instruction(make_op("reshape", {{"dims", {1, 1}}}), data);
+            else
+                data = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), data);
             effective_index_depth = 1;
         }
 

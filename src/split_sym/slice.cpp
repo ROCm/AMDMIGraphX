@@ -62,13 +62,17 @@ bool is_prefix_stable_dyn_slice(instruction_ref ins)
 
     const auto& input = inputs.front()->get_shape();
     auto input_dims   = input.to_symbolic().dyn_dims();
+    auto zero         = sym::lit(int64_t{0});
     for(std::size_t i = 0; i < axes.size(); ++i)
     {
-        auto axis = normalize_axis(axes.at(i), input.ndim());
-        if(not axis.has_value() or not sym::find_variables(starts->at(i)).empty())
+        auto axis         = normalize_axis(axes.at(i), input.ndim());
+        const auto& start = starts->at(i);
+        if(not axis.has_value() or not sym::find_variables(start).empty() or
+           sym::strict_less(start, zero).value_or(false))
             return false;
         const auto& end = ends->at(i);
-        if(not sym::find_variables(end).empty() and not(end == input_dims.at(*axis).sym_expr))
+        if(sym::strict_less(end, zero).value_or(false) or
+           (not sym::find_variables(end).empty() and not(end == input_dims.at(*axis).sym_expr)))
             return false;
     }
     return true;

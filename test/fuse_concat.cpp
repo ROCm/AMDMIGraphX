@@ -53,8 +53,11 @@ static concat_arg<F> arg(std::string name, std::vector<migraphx::instruction_ref
 }
 
 template <class Arg, class... Args>
-static migraphx::instruction_ref
-add_pointwise_concat(migraphx::program& p, std::size_t axis, Arg post_arg, const Args&... args)
+static migraphx::instruction_ref add_pointwise_concat(migraphx::program& p,
+                                                      migraphx::module_ref mm,
+                                                      std::size_t axis,
+                                                      Arg post_arg,
+                                                      const Args&... args)
 {
     std::vector<migraphx::module_ref> module_inputs;
     std::vector<migraphx::instruction_ref> ins_inputs;
@@ -77,12 +80,18 @@ add_pointwise_concat(migraphx::program& p, std::size_t axis, Arg post_arg, const
                        });
         return post_arg.f(pm, params);
     }));
-    auto* mm = p.get_main_module();
     return mm->add_instruction(
         migraphx::make_op("fused_concat", {{"axis", axis}}), ins_inputs, module_inputs);
 }
 
-TEST_CASE(fused_concat_rejects_module_input_mismatch)
+template <class Arg, class... Args>
+static migraphx::instruction_ref
+add_pointwise_concat(migraphx::program& p, std::size_t axis, Arg post_arg, const Args&... args)
+{
+    return add_pointwise_concat(p, p.get_main_module(), axis, std::move(post_arg), args...);
+}
+
+TEST_CASE(fused_concat_rejects_invalid_modules)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -97,6 +106,18 @@ TEST_CASE(fused_concat_rejects_module_input_mismatch)
     auto py    = post->add_parameter("!x0", migraphx::shape{migraphx::shape::float_type});
     post->add_return({py});
 
+    auto* no_params = p.create_module("no_params");
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("fused_concat", {{"axis", 1}}), {x}, {post});
+    }));
+    EXPECT(test::throws([&] {
+        mm->add_instruction(
+            migraphx::make_op("fused_concat", {{"axis", 1}}), {x}, {no_params, post});
+    }));
+    EXPECT(test::throws([&] {
+        mm->add_instruction(
+            migraphx::make_op("fused_concat", {{"axis", 1}}), {x}, {pre, no_params});
+    }));
     EXPECT(test::throws([&] {
         mm->add_instruction(migraphx::make_op("fused_concat", {{"axis", 1}}), {x}, {pre, post});
     }));
@@ -229,69 +250,120 @@ TEST_CASE(scoped_noop_modules_across_submodules)
 {
     migraphx::shape input_shape{migraphx::shape::float_type, {2, 3}};
     migraphx::shape output_shape{migraphx::shape::float_type, {2, 6}};
-    migraphx::program p;
-
-    auto create_branch = [&](const std::string& name) {
-        auto* branch = p.create_module(name);
-        auto x       = branch->add_parameter("x", input_shape);
-        auto y       = branch->add_parameter("y", input_shape);
-
-        auto neg0    = add_pointwise(p, branch, name + ":pointwise0", {x}, single_pointwise("neg"));
-        auto concat0 = branch->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), neg0, y);
-        auto relu =
-            add_pointwise(p, branch, name + ":pointwise1", {concat0}, single_pointwise("relu"));
-
-        auto neg1    = add_pointwise(p, branch, name + ":pointwise2", {x}, single_pointwise("neg"));
-        auto concat1 = branch->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), neg1, y);
-        branch->add_return({relu, concat1});
-        return branch;
-    };
-
-    auto* branch0 = create_branch("branch0");
-    auto* branch1 = create_branch("branch1");
-    auto* mm      = p.get_main_module();
-    auto x        = mm->add_parameter("x", input_shape);
-    auto y        = mm->add_parameter("y", input_shape);
     migraphx::shape select_shape{std::vector<migraphx::shape>{output_shape, output_shape}};
-    auto select = mm->add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes", migraphx::to_value(select_shape)}}),
-        {x, y},
-        {branch0, branch1});
-    auto output0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
-    mm->add_return({output0, output1});
-
-    run_pass(p);
-
-    for(const auto& branch_name : {std::string{"branch0"}, std::string{"branch1"}})
+    migraphx::program p1;
     {
-        for(const auto& suffix : {":concat:noop0", ":concat:noop1", ":noop:concat2"})
+        auto* branch0 = p1.create_module("branch0");
         {
-            auto* helper = p.get_module(branch_name + suffix);
-            EXPECT(helper->get_parameter_names().size() == 1);
-            EXPECT(helper->bypass());
-        }
+            auto x = branch0->add_parameter("x", input_shape);
+            auto y = branch0->add_parameter("y", input_shape);
 
-        auto* branch            = p.get_module(branch_name);
-        std::size_t num_fusions = 0;
-        for(const auto& ins : *branch)
-        {
-            if(ins.name() != "fused_concat")
-                continue;
-            num_fusions++;
-            const auto& modules = ins.module_inputs();
-            EXPECT(modules.size() >= 2);
-            if(modules.size() < 2)
-                continue;
-            std::size_t expected_inputs = 0;
-            for(std::size_t i = 0; i + 1 < modules.size(); ++i)
-                expected_inputs += modules[i]->get_parameter_names().size();
-            expected_inputs += modules.back()->get_parameter_names().size() - 1;
-            EXPECT(expected_inputs == ins.inputs().size());
+            auto neg0 =
+                add_pointwise(p1, branch0, "branch0:pointwise0", {x}, single_pointwise("neg"));
+            auto concat0 =
+                branch0->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), neg0, y);
+            auto relu = add_pointwise(
+                p1, branch0, "branch0:pointwise1", {concat0}, single_pointwise("relu"));
+
+            auto neg1 =
+                add_pointwise(p1, branch0, "branch0:pointwise2", {x}, single_pointwise("neg"));
+            auto concat1 =
+                branch0->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), neg1, y);
+            branch0->add_return({relu, concat1});
         }
-        EXPECT(num_fusions == 2);
+        auto* branch1 = p1.create_module("branch1");
+        {
+            auto x = branch1->add_parameter("x", input_shape);
+            auto y = branch1->add_parameter("y", input_shape);
+
+            auto neg0 =
+                add_pointwise(p1, branch1, "branch1:pointwise0", {x}, single_pointwise("neg"));
+            auto concat0 =
+                branch1->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), neg0, y);
+            auto relu = add_pointwise(
+                p1, branch1, "branch1:pointwise1", {concat0}, single_pointwise("relu"));
+
+            auto neg1 =
+                add_pointwise(p1, branch1, "branch1:pointwise2", {x}, single_pointwise("neg"));
+            auto concat1 =
+                branch1->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), neg1, y);
+            branch1->add_return({relu, concat1});
+        }
+        auto* mm    = p1.get_main_module();
+        auto x      = mm->add_parameter("x", input_shape);
+        auto y      = mm->add_parameter("y", input_shape);
+        auto select = mm->add_instruction(
+            migraphx::make_op("select_module",
+                              {{"output_dyn_shapes", migraphx::to_value(select_shape)}}),
+            {x, y},
+            {branch0, branch1});
+        auto output0 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+        auto output1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
+        mm->add_return({output0, output1});
     }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* branch0 = p2.create_module("branch0");
+        {
+            auto x = branch0->add_parameter("x", input_shape);
+            auto y = branch0->add_parameter("y", input_shape);
+
+            auto fused0 =
+                add_pointwise_concat(p2,
+                                     branch0,
+                                     1,
+                                     arg("branch0:pointwise1:concat", {}, single_pointwise("relu")),
+                                     arg("concat:branch0:pointwise0", {x}, single_pointwise("neg")),
+                                     arg("branch0:concat:noop1", {y}, noop_pointwise()));
+            auto fused1 =
+                add_pointwise_concat(p2,
+                                     branch0,
+                                     1,
+                                     arg("branch0:noop:concat2", {}, noop_pointwise()),
+                                     arg("concat:branch0:pointwise2", {x}, single_pointwise("neg")),
+                                     arg("branch0:concat:noop0", {y}, noop_pointwise()));
+            branch0->add_return({fused0, fused1});
+        }
+        auto* branch1 = p2.create_module("branch1");
+        {
+            auto x = branch1->add_parameter("x", input_shape);
+            auto y = branch1->add_parameter("y", input_shape);
+
+            auto fused0 =
+                add_pointwise_concat(p2,
+                                     branch1,
+                                     1,
+                                     arg("branch1:pointwise1:concat", {}, single_pointwise("relu")),
+                                     arg("concat:branch1:pointwise0", {x}, single_pointwise("neg")),
+                                     arg("branch1:concat:noop1", {y}, noop_pointwise()));
+            auto fused1 =
+                add_pointwise_concat(p2,
+                                     branch1,
+                                     1,
+                                     arg("branch1:noop:concat2", {}, noop_pointwise()),
+                                     arg("concat:branch1:pointwise2", {x}, single_pointwise("neg")),
+                                     arg("branch1:concat:noop0", {y}, noop_pointwise()));
+            branch1->add_return({fused0, fused1});
+        }
+        auto* mm    = p2.get_main_module();
+        auto x      = mm->add_parameter("x", input_shape);
+        auto y      = mm->add_parameter("y", input_shape);
+        auto select = mm->add_instruction(
+            migraphx::make_op("select_module",
+                              {{"output_dyn_shapes", migraphx::to_value(select_shape)}}),
+            {x, y},
+            {branch0, branch1});
+        auto output0 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+        auto output1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
+        mm->add_return({output0, output1});
+    }
+    EXPECT(p1 == p2);
 }
 
 TEST_CASE(pointwise_concat_pointwise_multi_out)

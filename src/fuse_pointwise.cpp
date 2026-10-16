@@ -330,7 +330,7 @@ static bool dedup_pointwise_inputs(module_pass_manager& mpm)
     {
         if(ins->name() != "pointwise")
             continue;
-        auto inputs = ins->inputs();
+        const auto& inputs = ins->inputs();
         std::unordered_set<instruction_ref> seen;
         std::vector<instruction_ref> deduped;
         std::copy_if(inputs.begin(), inputs.end(), std::back_inserter(deduped), [&](auto input) {
@@ -347,7 +347,7 @@ static bool dedup_pointwise_inputs(module_pass_manager& mpm)
         pm.add_return(returns);
         auto* new_pm = mpm.create_module(sm->name() + ":dedup", std::move(pm));
         new_pm->set_bypass();
-        m.replace_instruction(ins, make_op("pointwise"), deduped, {new_pm});
+        m.replace_instruction(ins, make_op("pointwise"), std::move(deduped), {new_pm});
         changed = true;
     }
     return changed;
@@ -415,7 +415,8 @@ static bool split_pointwise_through_slices(module_pass_manager& mpm)
         // Split: replace each slice with a pointwise on sliced inputs
         auto* src_pm = ins->module_inputs().front();
         auto pm_name = src_pm->name();
-        auto inputs  = ins->inputs();
+        // Deliberately a copy: the loop below mutates the module while this is live.
+        auto inputs = ins->inputs();
         for(const auto& slice_ins : outputs)
         {
             auto slice_op = slice_ins->get_operator();
@@ -431,7 +432,8 @@ static bool split_pointwise_through_slices(module_pass_manager& mpm)
                 mpm.create_module(pm_name + ":split" + std::to_string(idx++), std::move(pm_copy));
             new_pm->set_bypass();
 
-            m.replace_instruction(slice_ins, make_op("pointwise"), sliced_inputs, {new_pm});
+            m.replace_instruction(
+                slice_ins, make_op("pointwise"), std::move(sliced_inputs), {new_pm});
         }
 
         changed = true;

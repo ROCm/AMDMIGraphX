@@ -87,7 +87,12 @@ struct analyze_shape_transform : analyzer<analyze_shape_transform>
                 shape_input_indices = {1};
                 needs_freezer       = true;
             }
-            else if(inputs.size() != 1)
+            else if(inputs.size() == 1)
+            {
+                auto dims     = from_value<std::vector<dim_like>>(op.to_value().at("dims"));
+                needs_freezer = std::any_of(dims.begin(), dims.end(), is_symbolic);
+            }
+            else
                 return symbolic_op_info{ins};
 
             if(non_unit_dims(inputs.front()) == non_unit_dims(output))
@@ -140,15 +145,27 @@ struct analyze_shape_transform : analyzer<analyze_shape_transform>
                                   const std::vector<instruction_ref>& args,
                                   const std::unordered_map<sym::expr, std::size_t>& values)
     {
-        assert(source->inputs().size() == 2);
         assert(args.size() == 1);
-        const auto& target = source->inputs().back()->get_shape();
-        std::vector<int64_t> dims(target.ndim());
-        std::transform(
-            target.dyn_dims().begin(), target.dyn_dims().end(), dims.begin(), [&](const auto& d) {
-                return static_cast<int64_t>(d.sym_expr.eval_uint(values));
-            });
-        return m.add_instruction(make_op("reshape", {{"dims", dims}}), args);
+        std::vector<dim_like> source_dims;
+        if(source->inputs().size() == 1)
+        {
+            source_dims =
+                from_value<std::vector<dim_like>>(source->get_operator().to_value().at("dims"));
+        }
+        else
+        {
+            assert(source->inputs().size() == 2);
+            const auto& target = source->inputs().back()->get_shape();
+            source_dims.reserve(target.ndim());
+            std::transform(target.dyn_dims().begin(),
+                           target.dyn_dims().end(),
+                           std::back_inserter(source_dims),
+                           [](const auto& d) { return dim_like{d}; });
+        }
+        for(auto& d : source_dims)
+            if(std::holds_alternative<shape::dynamic_dimension>(d))
+                d = std::get<shape::dynamic_dimension>(d).sym_expr.eval_uint(values);
+        return m.add_instruction(make_op("reshape", {{"dims", to_ints(source_dims)}}), args);
     }
 };
 

@@ -36,7 +36,10 @@ struct analyze_concat_past_present : analyzer<analyze_concat_past_present>
     {
         if(ins->inputs().size() != 3)
             return symbolic_op_info{ins};
-        return analyze_axes(ins);
+        return analyze_axes(ins, [](std::size_t input, std::size_t axis) {
+            // Padding the present sequence changes how many elements are written into the cache.
+            return input == 0 and axis == 2 ? axis_desc{} : parallel_axis();
+        });
     }
 };
 

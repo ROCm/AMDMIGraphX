@@ -537,6 +537,42 @@ struct find_dot_add
     }
 };
 
+static bool is_spatially_broadcast(const shape& s)
+{
+    auto dims = range(2, s.ndim());
+    return std::all_of(
+        dims.begin(), dims.end(), [&](auto i) { return s.strides()[i] == 0 or s.lens()[i] == 1; });
+}
+
+// Rows of the dot that replaces a channelwise conv: one shared row when the
+// batch dim is broadcast, otherwise one row per batch
+static std::size_t broadcast_dot_rows(const shape& s)
+{
+    if(s.strides()[0] == 0)
+        return 1;
+    return s.lens()[0];
+}
+
+// conv(bcast(x), w) with no padding is channelwise: every output position reads
+// the same input, so it reduces to a dot that is broadcast back. With padding
+// the border differs from the interior and the full output is materialized.
+static bool is_channelwise_broadcast_conv(const operation& conv, instruction_ref bcast)
+{
+    if(not contains({"broadcast", "multibroadcast"}, bcast->name()))
+        return false;
+    auto v = conv.to_value();
+    if(v["group"].to<int>() != 1 or v["padding_mode"].to<int>() != 0)
+        return false;
+    auto padding = v["padding"].to_vector<std::size_t>();
+    if(std::any_of(padding.begin(), padding.end(), [](auto p) { return p != 0; }))
+        return false;
+    const auto& s = bcast->get_shape();
+    if(not is_spatially_broadcast(s))
+        return false;
+    auto ic = s.lens()[1];
+    return bcast->inputs().front()->get_shape().elements() == broadcast_dot_rows(s) * ic;
+}
+
 struct find_conv_add
 {
     auto matcher() const
@@ -555,6 +591,13 @@ struct find_conv_add
         auto a_ins = r.instructions["a"];
         auto x_ins = r.instructions["x"];
         auto w_ins = r.instructions["w"];
+
+        // Splitting a broadcast constant only pays off when conv(a, w) stays a
+        // broadcast; otherwise constant folding materializes the full conv output
+        const auto& a_shape = a_ins->get_shape();
+        if(a_shape.element_space() < a_shape.elements() and
+           not is_channelwise_broadcast_conv(ins->get_operator(), a_ins))
+            return;
 
         auto conv1 = m.insert_instruction(ins, ins->get_operator(), a_ins, w_ins);
         auto conv2 = m.insert_instruction(ins, ins->get_operator(), x_ins, w_ins);
@@ -2720,75 +2763,60 @@ struct find_conv_broadcast_input
         auto w_ins     = r.instructions["w"];
         auto bcast_ins = r.instructions["bcast"];
 
+        if(is_channelwise_broadcast_conv(ins->get_operator(), bcast_ins))
+        {
+            apply_dot_broadcast(m, ins, x_ins, w_ins, bcast_ins);
+            return;
+        }
+
         auto conv_val = ins->get_operator().to_value();
         if(conv_val["group"].to<int>() != 1)
             return;
         if(conv_val["padding_mode"].to<int>() != 0)
             return;
-
-        const auto& x_shape = x_ins->get_shape();
-        const auto& w_shape = w_ins->get_shape();
-
-        const auto& x_lens = x_shape.lens();
-        if(x_lens.size() > 2 and
-           std::any_of(x_lens.begin() + 2, x_lens.end(), [](auto l) { return l != 1; }))
-            return;
-
-        auto ndim        = w_shape.ndim();
-        auto num_spatial = ndim - 2;
-        auto oc          = w_shape.lens()[0];
-        auto ic          = w_shape.lens()[1];
-        auto out_lens    = ins->get_shape().lens();
-        auto n           = out_lens[0];
-
-        if(x_shape.elements() != n * ic)
+        if(not is_spatially_broadcast(bcast_ins->get_shape()))
             return;
 
         auto padding = conv_val["padding"].to_vector<std::size_t>();
-        bool has_padding =
-            std::any_of(padding.begin(), padding.end(), [](auto p) { return p != 0; });
+        if(std::all_of(padding.begin(), padding.end(), [](auto p) { return p == 0; }))
+            return;
+        auto stride = conv_val["stride"].to_vector<std::size_t>();
+        if(std::any_of(stride.begin(), stride.end(), [](auto s) { return s != 1; }))
+            return;
+        auto dilation = conv_val["dilation"].to_vector<std::size_t>();
+        if(std::any_of(dilation.begin(), dilation.end(), [](auto d) { return d != 1; }))
+            return;
 
-        if(has_padding)
+        const auto& w_shape = w_ins->get_shape();
+        auto num_spatial    = w_shape.ndim() - 2;
+        auto out_lens       = ins->get_shape().lens();
+        if(padding.size() == num_spatial)
         {
-            auto stride = conv_val["stride"].to_vector<std::size_t>();
-            if(std::any_of(stride.begin(), stride.end(), [](auto s) { return s != 1; }))
-                return;
-            auto dilation = conv_val["dilation"].to_vector<std::size_t>();
-            if(std::any_of(dilation.begin(), dilation.end(), [](auto d) { return d != 1; }))
-                return;
-            if(padding.size() == num_spatial)
-            {
-                std::vector<std::size_t> asym = padding;
-                asym.insert(asym.end(), padding.begin(), padding.end());
-                padding = std::move(asym);
-            }
-
-            if(std::any_of(range(num_spatial).begin(), range(num_spatial).end(), [&](auto i) {
-                   return out_lens[i + 2] <= (padding[i] + padding[i + num_spatial]);
-               }))
-                return;
-
-            apply_small_conv(
-                m, ins, x_ins, w_ins, bcast_ins, out_lens, w_shape, padding, num_spatial);
+            std::vector<std::size_t> asym = padding;
+            asym.insert(asym.end(), padding.begin(), padding.end());
+            padding = std::move(asym);
         }
-        else
-        {
-            apply_dot_broadcast(m, ins, x_ins, w_ins, out_lens, x_shape, n, oc, ic, ndim);
-        }
+
+        if(std::any_of(range(num_spatial).begin(), range(num_spatial).end(), [&](auto i) {
+               return out_lens[i + 2] <= (padding[i] + padding[i + num_spatial]);
+           }))
+            return;
+
+        apply_small_conv(m, ins, x_ins, w_ins, bcast_ins, out_lens, w_shape, padding, num_spatial);
     }
 
     static void apply_dot_broadcast(module& m,
                                     instruction_ref ins,
                                     instruction_ref x_ins,
                                     instruction_ref w_ins,
-                                    const std::vector<std::size_t>& out_lens,
-                                    const shape& x_shape,
-                                    std::size_t n,
-                                    std::size_t oc,
-                                    std::size_t ic,
-                                    std::size_t ndim)
+                                    instruction_ref bcast_ins)
     {
-        std::vector<int64_t> spatial_axes(ndim - 2);
+        const auto& w_shape = w_ins->get_shape();
+        auto oc             = w_shape.lens()[0];
+        auto ic             = w_shape.lens()[1];
+        auto rows           = broadcast_dot_rows(bcast_ins->get_shape());
+        auto out_lens       = ins->get_shape().lens();
+        std::vector<int64_t> spatial_axes(w_shape.ndim() - 2);
         std::iota(spatial_axes.begin(), spatial_axes.end(), 2);
 
         auto w_reduced =
@@ -2799,12 +2827,12 @@ struct find_conv_broadcast_input
             ins, make_op("transpose", {{"permutation", std::vector<int64_t>{1, 0}}}), w_2d);
 
         instruction_ref x_2d;
-        if(x_shape.ndim() == 1 and n == 1)
+        if(x_ins->get_shape().ndim() == 1 and rows == 1)
             x_2d = m.insert_instruction(
                 ins, make_op("unsqueeze", {{"axes", std::vector<int64_t>{0}}}), x_ins);
         else
             x_2d = m.insert_instruction(
-                ins, make_op("reshape", {{"dims", std::vector<std::size_t>{n, ic}}}), x_ins);
+                ins, make_op("reshape", {{"dims", std::vector<std::size_t>{rows, ic}}}), x_ins);
         auto dot_result = m.insert_instruction(ins, make_op("dot"), x_2d, w_t);
         auto dot_unsqueezed =
             m.insert_instruction(ins, make_op("unsqueeze", {{"axes", spatial_axes}}), dot_result);

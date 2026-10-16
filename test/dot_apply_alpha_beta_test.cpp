@@ -209,8 +209,7 @@ TEST_CASE(dot_apply_alpha_beta_zero_alpha_no_c)
     EXPECT(m1 == m2);
 }
 
-// A zero alpha must not reach for static lens: with a dynamic operand the reduced graph
-// cannot be built, so the scale-then-dot form is kept and a later fold removes it.
+// The reduced graph needs static lens, so a dynamic operand keeps the scale-then-dot form.
 TEST_CASE(dot_apply_alpha_beta_zero_alpha_dynamic)
 {
     auto ft = migraphx::shape::float_type;

@@ -74,6 +74,7 @@ add_library(migraphx
     eliminate_data_type.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
+    eliminate_unused_params.cpp
     env.cpp
     file_buffer.cpp
     fileutils.cpp

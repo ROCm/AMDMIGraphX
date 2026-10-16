@@ -40,9 +40,8 @@ instruction_ref insert_apply_alpha_beta(module& m,
     auto b          = args[1];
     auto input_type = a->get_shape().type();
     // alpha == 0: build the reduced graph directly rather than a mul(0, a) that needs a later
-    // constant fold to remove - eager has none. The op below is then unused and dce takes it.
-    // A dynamic operand has no static lens for the zero to broadcast to, so it keeps the
-    // scale-then-op form.
+    // constant fold to remove - eager has none, and dce takes the op below. A dynamic operand
+    // has no static lens for the zero to broadcast to, so it keeps the scale-then-op form.
     const bool fold_alpha_zero = float_equal(alpha.at<float>(0), 0.0) and
                                  not a->get_shape().dynamic() and not b->get_shape().dynamic();
     if(not fold_alpha_zero and not float_equal(alpha.at<float>(0), 1.0))

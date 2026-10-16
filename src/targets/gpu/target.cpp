@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/eliminate_unused_params.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
@@ -275,6 +276,10 @@ struct pipeline_factory
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
             fuse_pointwise_reduce{.run_optimize_module =
                                       options.compile_mode != compile_modes::eager},
+            dead_code_elimination{},
+            // Only eager reaches codegen with a pointwise body the frontend would have
+            // folded, so only eager can have a parameter orphaned there.
+            enable_pass(options.compile_mode == compile_modes::eager, eliminate_unused_params{}),
             dead_code_elimination{},
 #ifndef _WIN32
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),

@@ -223,8 +223,10 @@ struct rewrite_reshapes
                 return;
 
             auto cdims = desc.common_dims();
+            // cppcheck-suppress knownConditionTrueFalse
             if(not supports(x_ins, desc.common_dims(dims2), desc.common_axes_map_from_src()))
                 return;
+            // cppcheck-suppress knownConditionTrueFalse
             if(not supports(ins, cdims, desc.common_axes_map_from_dst()))
                 return;
 

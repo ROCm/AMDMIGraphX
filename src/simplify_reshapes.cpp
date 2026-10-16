@@ -198,8 +198,17 @@ struct find_nested_shape_transforms
         }
         else if(x->get_shape().elements() == 1 and ins->get_shape().elements() == 1)
         {
-            // TODO: Use squeeze or unsqueeze
-            m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), x);
+            m.replace_instruction(ins, insert_auto_reshape(m, ins, ins->get_shape().lens(), x));
+        }
+        else if(x->get_shape().elements() == 1)
+        {
+            // A single element can only be broadcasted, but the descriptor keeps
+            // its unit axes in place and may still need a squeeze around the broadcast
+            const auto& out_lens = ins->get_shape().lens();
+            auto y               = x;
+            if(x->get_shape().ndim() > out_lens.size())
+                y = insert_auto_reshape(m, ins, std::vector<std::size_t>(out_lens.size(), 1), x);
+            m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), y);
         }
         else
         {

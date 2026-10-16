@@ -22,23 +22,11 @@
  * THE SOFTWARE.
  */
 #include "verify.hpp"
-#include "perf.hpp"
 
 #include <migraphx/compile_options.hpp>
-#include <migraphx/fp_to_double.hpp>
-#include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/load_save.hpp>
-#include <migraphx/quantization.hpp>
+#include <migraphx/program_verify.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/verify_args.hpp>
-#include <migraphx/simplify_qdq.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/logger.hpp>
-#include <utility>
 
 namespace migraphx {
 namespace driver {
@@ -93,59 +81,23 @@ verify::tolerance get_tolerances(const program& p,
     return result;
 }
 
-static std::vector<argument> run_ref(program p,
-                                     const compile_options& options,
-                                     const verify_options& vo,
-                                     const parameter_map& inputs)
+namespace {
+
+verify::program_options make_program_options(const compile_options& options,
+                                             const verify_options& vo,
+                                             verify::tolerance tols)
 {
-    if(vo.ref_use_double)
-    {
-        run_passes(
-            p, {fp_to_double{}, simplify_qdq{.remove_qdq_only = true}, dead_code_elimination{}});
-    }
-    p.compile(migraphx::make_target("ref"), options);
-    auto out = p.eval(inputs);
-    log::info() << p;
-    return out;
+    verify::program_options result{
+        .compile = options, .tols = tols, .ref_use_double = vo.ref_use_double};
+    result.compiled_model = vo.compiled_model;
+    if(vo.quantize == precision::fp16)
+        result.quantize = verify::program_precision::fp16;
+    else if(vo.quantize == precision::bf16)
+        result.quantize = verify::program_precision::bf16;
+    return result;
 }
 
-static std::vector<argument> run_target(program p,
-                                        const target& t,
-                                        const compile_options& options,
-                                        const verify_options& vo,
-                                        const parameter_map& inputs)
-{
-    if(vo.compiled_model.empty())
-    {
-        if(vo.quantize == precision::fp16)
-        {
-            quantize_fp16(p);
-        }
-        if(vo.quantize == precision::bf16)
-        {
-            quantize_bf16(p);
-        }
-        p.compile(t, options);
-    }
-    else
-    {
-        p = load(vo.compiled_model);
-    }
-
-    parameter_map m;
-    for(auto&& x : p.get_parameter_shapes())
-    {
-        auto arg   = inputs.count(x.first) == 0 ? generate_argument(x.second) : inputs.at(x.first);
-        m[x.first] = options.offload_copy ? arg : t.copy_to(arg);
-    }
-    auto gpu_out = p.eval(m);
-    std::vector<argument> output(gpu_out.size());
-    log::info() << p;
-    std::transform(gpu_out.begin(), gpu_out.end(), output.begin(), [&](auto& argu) {
-        return options.offload_copy ? argu : t.copy_from(argu);
-    });
-    return output;
-}
+} // namespace
 
 bool verify_program(const std::string& name,
                     const program& p,
@@ -155,28 +107,9 @@ bool verify_program(const std::string& name,
                     const parameter_map& inputs,
                     verify::tolerance tols)
 {
-    auto ref_outs    = run_ref(p, options, vo, inputs);
-    auto target_outs = run_target(p, t, options, vo, inputs);
-
-    std::size_t output_num = ref_outs.size();
-    bool passed            = true;
-    for(std::size_t i = 0; i < output_num; ++i)
-    {
-        if(ref_outs[i].get_shape().type() != target_outs[i].get_shape().type() or
-           ref_outs[i].get_shape().lens() != target_outs[i].get_shape().lens())
-        {
-            log::error() << "FAILED: " << name;
-            log::error() << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {"
-                         << target_outs[i].get_shape() << "}";
-        }
-        else
-        {
-            passed &= verify_args(name, target_outs[i], verify::expected{ref_outs[i]}, tols);
-        }
-    }
-    if(passed)
-        log::info() << "MIGraphX verification passed successfully.";
-    return passed;
+    auto opts = make_program_options(options, vo, tols);
+    opts.name = name;
+    return verify::verify_program(p, t, verify::program_mode::outputs, inputs, opts).passed();
 }
 
 void verify_instructions(const program& prog,
@@ -185,68 +118,8 @@ void verify_instructions(const program& prog,
                          const verify_options& vo,
                          verify::tolerance tols)
 {
-    const auto* mm_prog = prog.get_main_module();
-    for(auto&& ins : (*mm_prog))
-    {
-        if(ins.name().front() == '@')
-            continue;
-        if(ins.name() == "broadcast")
-            continue;
-        if(ins.name() == "transpose")
-            continue;
-        if(ins.name() == "reshape")
-            continue;
-        if(ins.name() == "undefined")
-            continue;
-        program p;
-        auto* mm_p = p.get_main_module();
-        std::vector<instruction_ref> inputs;
-        for(auto&& arg : ins.inputs())
-        {
-            if(arg->name() == "@literal")
-                inputs.push_back(mm_p->add_literal(arg->get_literal()));
-            else
-                inputs.push_back(
-                    mm_p->add_parameter(std::to_string(inputs.size()), arg->get_shape()));
-        }
-        mm_p->add_instruction(ins.get_operator(), inputs);
-        try
-        {
-            log::info() << "Verify: " << ins.name();
-            std::cout << p << std::endl;
-            verify_program(ins.name(), p, t, options, vo, create_param_map(p, false), tols);
-        }
-        catch(...)
-        {
-            log::error() << "Instruction " << ins.name() << " threw an exception.";
-            throw;
-        }
-    }
-}
-
-static bool verify_reduced(program p,
-                           int n,
-                           const target& t,
-                           const compile_options& options,
-                           const verify_options& vo,
-                           const parameter_map& inputs,
-                           verify::tolerance tols)
-{
-    auto* mm  = p.get_main_module();
-    auto last = std::prev(mm->end(), n);
-    mm->remove_instructions(last, mm->end());
-    log::info() << "Verify: " << n;
-    log::info() << p;
-    try
-    {
-        return verify_program(std::to_string(n), p, t, options, vo, inputs, tols);
-    }
-    catch(const std::exception& e)
-    {
-        log::error() << "FAILED: " << n;
-        log::error() << "Exception: " << e.what();
-        return false;
-    }
+    verify::verify_program(
+        prog, t, verify::program_mode::instructions, {}, make_program_options(options, vo, tols));
 }
 
 void verify_reduced_program(const program& p,
@@ -256,70 +129,8 @@ void verify_reduced_program(const program& p,
                             const parameter_map& inputs,
                             verify::tolerance tols)
 {
-    const auto* mm = p.get_main_module();
-    auto n         = std::distance(mm->begin(), mm->end());
-    log::info() << "Verify steps: " << n;
-    for(std::size_t i = 1; i < n; i++)
-    {
-        auto last = std::prev(mm->end(), i + 1);
-        if(contains({"@literal", "@param"}, last->name()))
-        {
-            log::info() << "Skip: " << i;
-            continue;
-        }
-        verify_reduced(p, i, t, options, vo, inputs, tols);
-    }
-}
-
-static std::unordered_map<instruction_ref, std::size_t> accumulate_weights(instruction_ref last)
-{
-    std::unordered_map<instruction_ref, std::size_t> weights;
-    fix<std::size_t>([&](auto self, auto ins) -> std::size_t {
-        if(not contains(weights, ins))
-        {
-            if(ins->can_eval())
-                return 0;
-            std::size_t weight = 1;
-            weights[ins]       = std::accumulate(
-                ins->inputs().begin(),
-                ins->inputs().end(),
-                weight,
-                [&](std::size_t w, instruction_ref i) -> std::size_t { return w + self(i); });
-        }
-        return weights[ins];
-    })(last);
-    return weights;
-}
-
-static optional<instruction_ref>
-get_parent(const std::unordered_map<instruction_ref, std::size_t>& weights, instruction_ref ins)
-{
-    if(ins->inputs().empty())
-        return nullopt;
-    auto next = std::max_element(ins->inputs().begin(),
-                                 ins->inputs().end(),
-                                 by(std::less<>{}, [&](instruction_ref input) -> std::size_t {
-                                     if(not contains(weights, input))
-                                         return 0;
-                                     return weights.at(input);
-                                 }));
-    return *next;
-}
-
-static std::vector<std::size_t> find_trim_instructions(const module& m)
-{
-    std::vector<std::size_t> result;
-    auto last     = std::prev(m.end());
-    auto weights  = accumulate_weights(last);
-    auto next     = get_parent(weights, last);
-    std::size_t i = 0;
-    while(auto parent = get_parent(weights, *next))
-    {
-        i += std::distance(*parent, *next);
-        result.push_back(i + 1);
-        next = parent;
-    }
-    return result;
+    verify::verify_program(
+        p, t, verify::program_mode::reduce, inputs, make_program_options(options, vo, tols));
 }
 
 void verify_bisected_program(const program& p,
@@ -329,33 +140,19 @@ void verify_bisected_program(const program& p,
                              const parameter_map& inputs,
                              verify::tolerance tols)
 {
-    const auto* mm = p.get_main_module();
+    verify::verify_program(
+        p, t, verify::program_mode::bisect, inputs, make_program_options(options, vo, tols));
+}
 
-    std::vector<std::size_t> trims = find_trim_instructions(*mm);
-    std::int64_t right             = trims.size();
-    std::int64_t left              = 0;
-    std::int64_t failed            = -1;
-
-    while(left <= right)
-    {
-        std::int64_t mid = left + (right - left) / 2;
-        assert(mid < trims.size() and mid >= 0);
-        std::int64_t trim = trims.rbegin()[mid];
-        bool passed       = verify_reduced(p, trim, t, options, vo, inputs, tols);
-        if(passed)
-        {
-            left = mid + 1;
-        }
-        else
-        {
-            failed = trim;
-            right  = mid - 1;
-        }
-    }
-    if(failed > 0)
-    {
-        std::cout << "Failure starts at: " << failed << std::endl;
-    }
+void verify_layerwise_program(const program& p,
+                              const target& t,
+                              const compile_options& options,
+                              const verify_options& vo,
+                              const parameter_map& inputs,
+                              verify::tolerance tols)
+{
+    verify::verify_program(
+        p, t, verify::program_mode::layerwise, inputs, make_program_options(options, vo, tols));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

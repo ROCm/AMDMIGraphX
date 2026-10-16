@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,9 +25,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/serialize.hpp>
-
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 #include <migraphx/op/common.hpp>
 
@@ -41,7 +40,6 @@ struct test_rnn_sql_1 : verify_program<test_rnn_sql_1<DType>>
         std::size_t hidden_size = 4;
         std::size_t input_size  = 3;
         std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -60,22 +58,13 @@ struct test_rnn_sql_1 : verify_program<test_rnn_sql_1<DType>>
         auto sql = mm->add_literal(migraphx::literal{s_shape, sl_data});
         auto ih  = mm->add_parameter("ih", ih_shape);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto last_hs = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        mm->add_return({hs, last_hs});
+        auto results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
+        mm->add_return({results.at(0), results.at(1)});
 
         return p;
     }

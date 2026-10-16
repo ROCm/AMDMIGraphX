@@ -75,6 +75,7 @@ int main(int argc, const char* argv[])
          "test_select_module_add",
          "test_select_module_reduce",
          "test_select_module_conv",
+         "test_select_module_index",
          "test_split_single_dyn_dim",
          "test_resize_dyn",
          "test_instancenorm_large_3d<migraphx::shape::float_type>",
@@ -143,10 +144,6 @@ int main(int argc, const char* argv[])
          // disabled because CPU does eliminate_data_type to float for everything
          "test_bitwise_and<migraphx::shape::int32_type>",
          "test_bitwise_and<migraphx::shape::uint8_type>",
-         "test_unpack_int4<migraphx::shape::uint8_type>",
-         "test_unpack_int4<migraphx::shape::int8_type>",
-         "test_unpack_int4<migraphx::shape::uint8_type, 0>",
-         "test_unpack_int4<migraphx::shape::int8_type, 0>",
          "test_bit_cast<migraphx::shape::uint8_type, migraphx::shape::int8_type>",
          "test_bit_cast<migraphx::shape::int8_type, migraphx::shape::uint8_type>",
          "test_bit_cast<migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e4m3fnuz_type>",
@@ -172,6 +169,9 @@ int main(int argc, const char* argv[])
                             "test_batch_quant_dot_1<migraphx::fp8::fp8e5m2, float>",
                             "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
                             "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
+                            // Disabled until HSA_STATUS_ERROR_MEMORY_APERTURE_VIOLATION
+                            // in the CK fused attention kernel is fixed.
+                            "test_ck_gemm_softmax_gemm_0<migraphx::shape::half_type>",
                         });
 
     rv.run(argc, argv);

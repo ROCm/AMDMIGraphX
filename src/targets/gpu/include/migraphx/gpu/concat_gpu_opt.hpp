@@ -28,6 +28,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 
 namespace migraphx {
@@ -48,6 +49,19 @@ struct concat_gpu_optimization
     bool supports_non_packed_output(instruction_ref ins, std::size_t) const
     {
         return ins->name() == "gpu::precompile_op";
+    }
+    // precompile_op derives its shape from the data inputs, but the kernel is
+    // compiled for whatever shape is reported, so any static layout can be
+    // pinned through the output_shape field
+    bool supports_output_shape(instruction_ref ins, const shape& s) const
+    {
+        return ins->name() == "gpu::precompile_op" and not s.dynamic();
+    }
+    void set_output_shape(instruction_ref ins, const shape& s) const
+    {
+        auto v            = ins->get_operator().to_value();
+        v["output_shape"] = to_value(s);
+        ins->replace(make_op("gpu::precompile_op", v));
     }
     bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const
     {

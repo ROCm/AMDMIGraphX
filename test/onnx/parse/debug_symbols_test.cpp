@@ -51,12 +51,12 @@ TEST_CASE(debug_symbols_migx_names)
     auto l2       = mm->add_parameter("2", {migraphx::shape::float_type, {1}});
     uint64_t axis = 1;
     auto l3       = mm->add_instruction(migraphx::make_op("convolution"), l0, l1);
-    mm->add_debug_symbols(l3, {"migx_uid:Conv_3"});
+    mm->add_debug_symbols(l3, {"migx_uid:main_Conv_3"});
     auto l4 = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
-    mm->add_debug_symbols(l4, {"migx_uid:Conv_3"});
+    mm->add_debug_symbols(l4, {"migx_uid:main_Conv_3"});
     auto l5 = mm->add_instruction(migraphx::make_op("add"), l3, l4);
-    mm->add_debug_symbols(l5, {"migx_uid:Conv_3"});
+    mm->add_debug_symbols(l5, {"migx_uid:main_Conv_3"});
     auto ret = mm->add_return({l5});
     mm->add_debug_symbols(ret, {"@output_0:3"});
 

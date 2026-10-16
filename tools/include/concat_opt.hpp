@@ -53,6 +53,11 @@ struct concat_optimization
     allocation_model allocation() const;
     bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const;
     bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const;
+    /// Return true if the instruction can report `s` as its output shape once
+    /// its allocation is replaced by a view with that shape
+    bool supports_output_shape(instruction_ref ins, const shape& s) const;
+    /// Update the instruction so it reports `s` as its output shape
+    void set_output_shape(instruction_ref ins, const shape& s) const;
 };
 
 #else
@@ -72,6 +77,16 @@ struct concat_optimization
                 ins     = 'instruction_ref',
                 axis    = 'std::size_t',
                 returns = 'bool',
+                const   = True),
+        virtual('supports_output_shape',
+                ins     = 'instruction_ref',
+                s       = 'const shape&',
+                returns = 'bool',
+                const   = True),
+        virtual('set_output_shape',
+                ins     = 'instruction_ref',
+                s       = 'const shape&',
+                returns = 'void',
                 const   = True),
         virtual('allocation', returns = 'allocation_model', const = True))
 %>

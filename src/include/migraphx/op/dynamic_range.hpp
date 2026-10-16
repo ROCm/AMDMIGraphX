@@ -32,6 +32,7 @@
 #include <migraphx/dyn_output.hpp>
 #include <cmath>
 #include <limits>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,18 +42,27 @@ struct dynamic_range : op_name<dynamic_range>
 {
     // Intentionally capped at int::max to match the maximum tensor size in MIGraphX
     std::size_t max_output = std::numeric_limits<int>::max();
+    // Singular because Range always produces a one-dimensional tensor.
+    std::optional<shape::dynamic_dimension> output_dim;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.max_output, "max_output"));
+        return pack(f(self.max_output, "max_output"), f(self.output_dim, "output_dim"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3).same_type();
         const auto& type = inputs.at(0).type();
-        // The output shape is 1D with unknown size if we don't evaluate.
+        if(output_dim.has_value())
+        {
+            if(not output_dim->is_symbolic())
+                MIGRAPHX_THROW("dynamic_range: output_dim must be symbolic");
+            if(output_dim->get_interval().max > max_output)
+                MIGRAPHX_THROW("dynamic_range: output_dim exceeds max_output");
+            return shape{type, {*output_dim}};
+        }
         return shape{type, {shape::dynamic_dimension{0, max_output}}};
     }
     argument compute(const dyn_output&, std::vector<argument> args) const

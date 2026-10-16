@@ -215,6 +215,23 @@ static std::size_t visible_len(const std::vector<dimension::sub*>& subs)
         });
 }
 
+static bool has_no_axes(const dimension& d)
+{
+    return std::all_of(d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
+        return s.axis.empty() and s.hidden_axis.empty();
+    });
+}
+
+// Length of the dimension before any broadcast is applied
+static std::size_t input_len(const dimension& d)
+{
+    return transform_accumulate(d.subdimensions.begin(),
+                                d.subdimensions.end(),
+                                std::size_t{1},
+                                std::multiplies<>{},
+                                [](const dimension::sub& s) { return s.axis.empty() ? 1 : s.len; });
+}
+
 static std::vector<std::size_t> compute_dims(const operation& op,
                                              const std::vector<std::size_t>& idims)
 {
@@ -742,53 +759,103 @@ struct rebase_ambiguity_resolver
     static const std::size_t last_axis_split = std::numeric_limits<std::size_t>::max();
 };
 
+// A hidden broadcast of an axis that is rebased to another size cant stay
+// attached to that axis. When a dimension of 1 without an axis precedes it,
+// the axes shift down into that dimension and the broadcast becomes its own
+// axis-less dimension, as if the axis had been unsqueezed and broadcasted.
+static void detach_unabsorbed_broadcasts(std::vector<dimension>& dimensions,
+                                         const std::vector<std::size_t>& dims)
+{
+    auto axes_map = group_axes(dimensions);
+    for(std::size_t h : range(dimensions.size()))
+    {
+        auto& subs = dimensions[h].subdimensions;
+        if(subs.size() != 1)
+            continue;
+        auto& s = subs.front();
+        if(not s.has_hidden_axis() or s.hidden_axis.size() != 1)
+            continue;
+        auto axis = s.hidden_axis.front();
+        assert(axis < dims.size());
+        if(axes_map.at(axis).size() != 1)
+            continue;
+        auto dim = dims[axis];
+        if(dim == 0 or dim == 1 or dim == s.len)
+            continue;
+        // Search backwards through dimensions of 1 for one without an axis
+        auto rit = std::find_if(std::make_reverse_iterator(dimensions.begin() + h),
+                                dimensions.rend(),
+                                [](const dimension& d) { return d.len() != 1 or has_no_axes(d); });
+        if(rit == dimensions.rend() or rit->len() != 1)
+            continue;
+        dimension bdim{{dimension::sub{s.len, {}}}};
+        s.expose();
+        s.len = 1;
+        dimensions.erase(std::prev(rit.base()));
+        dimensions.insert(dimensions.begin() + h, bdim);
+    }
+}
+
+// Adjust the subdimensions of an axis to its new dim. Returns false when the
+// axis cant be rebased.
+static bool rebase_axis(const std::vector<dimension::sub*>& subs, std::size_t dim, bool broadcast)
+{
+    if(dim == len(subs))
+    {
+        if(not broadcast)
+        {
+            for(auto* sub : subs)
+                sub->expose();
+        }
+    }
+    else if(dim == 1)
+    {
+        for(auto* sub : subs)
+        {
+            if(not sub->has_hidden_axis())
+                sub->len = 1;
+        }
+    }
+    else if(subs.size() == 1)
+    {
+        // A hidden axis of 1 has no broadcast to absorb a different dim
+        if(not broadcast and subs.front()->has_hidden_axis() and subs.front()->len == 1)
+            return false;
+        subs.front()->len = dim;
+        if(broadcast)
+            subs.front()->hide();
+        else
+            subs.front()->expose();
+    }
+    else if(dim == visible_len(subs))
+    {
+        for(auto* sub : subs)
+        {
+            if(sub->has_hidden_axis())
+            {
+                sub->expose();
+                sub->len = 1;
+            }
+        }
+    }
+    else
+        return false;
+    return true;
+}
+
 shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims,
                                                               bool broadcast) const
 {
-    auto result   = *this;
+    auto result = *this;
+    if(broadcast)
+        detach_unabsorbed_broadcasts(result.dimensions, dims);
     auto axes_map = rebase_ambiguity_resolver{result, dims}.resolve();
-    for(auto& [axis, subs] : axes_map)
-    {
-        assert(axis < dims.size());
-        auto dim       = dims[axis];
-        if(dim == len(subs))
-        {
-            if(not broadcast)
-            {
-                for(auto* sub : subs)
-                    sub->expose();
-            }
-        }
-        else if(dim == 1)
-        {
-            for(auto* sub : subs)
-            {
-                if(not sub->has_hidden_axis())
-                    sub->len = 1;
-            }
-        }
-        else if(subs.size() == 1)
-        {
-            subs.front()->len = dim;
-            if(broadcast)
-                subs.front()->hide();
-            else
-                subs.front()->expose();
-        }
-        else if(dim == visible_len(subs))
-        {
-            for(auto* sub : subs)
-            {
-                if(sub->has_hidden_axis())
-                {
-                    sub->expose();
-                    sub->len = 1;
-                }
-            }
-        }
-        else
-            return {};
-    }
+    if(not std::all_of(axes_map.begin(), axes_map.end(), [&](const auto& p) {
+           const auto& [axis, subs] = p;
+           assert(axis < dims.size());
+           return rebase_axis(subs, dims[axis], broadcast);
+       }))
+        return {};
     for(auto& dim : result.dimensions)
         remove_empty_sub_dims(dim.subdimensions);
     if(broadcast and not is_broadcast_only(dimensions, result.dimensions))
@@ -816,7 +883,7 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
     for(const auto& op : ops)
     {
         auto v = op.to_value();
-        if(contains({"reshape", "squeeze", "unsqueeze", "flatten"}, op.name()))
+        if(contains({"reshape", "reshape_lazy", "squeeze", "unsqueeze", "flatten"}, op.name()))
         {
             dims = compute_dims(op, dims);
             if(not apply_reshape(dims))
@@ -986,6 +1053,153 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
     assert(out_lens.size() == new_dims.size());
     dimensions = new_dims;
     return true;
+}
+
+// The range of an axis subdimension selected by a slice of the output
+struct dimension_slice
+{
+    dimension::sub* sub;
+    std::size_t start;
+    std::size_t end;
+
+    bool full() const { return start == 0 and end == sub->len; }
+    std::size_t size() const { return end - start; }
+};
+
+static bool sub_from_axis(const dimension::sub& s, std::size_t axis)
+{
+    return not s.origin_axis().empty() and s.origin_axis().front() == axis;
+}
+
+// Unit subdimensions carry no element order, so if the wider subdimensions
+// are already in output order, renumber all split indices to output order to
+// avoid generating a gratuitous transpose
+static void renumber_in_output_order(const std::vector<dimension_slice>& dst_slices,
+                                     std::size_t axis)
+{
+    std::vector<dimension::sub*> wider;
+    transform_if(
+        dst_slices.begin(),
+        dst_slices.end(),
+        std::back_inserter(wider),
+        [](const dimension_slice& s) { return s.sub->len > 1; },
+        [](const dimension_slice& s) { return s.sub; });
+    if(not std::is_sorted(
+           wider.begin(), wider.end(), by(std::less<>{}, [](const auto* s) -> const auto& {
+               return s->origin_axis();
+           })))
+        return;
+    for(std::size_t i : range(dst_slices.size()))
+        set_origin_axis(*dst_slices[i].sub, {axis, i});
+}
+
+// Map each subdimension of the axis to the range the slice selects from it.
+// Returns nullopt when a sliced output dimension does not map entirely to a
+// subdimension of the axis.
+static optional<std::vector<dimension_slice>>
+collect_dimension_slices(std::vector<dimension>& dimensions,
+                         std::size_t axis,
+                         const std::vector<std::size_t>& slice_axes,
+                         const std::vector<std::size_t>& starts,
+                         const std::vector<std::size_t>& ends)
+{
+    std::vector<dimension_slice> result;
+    for(auto i : range(dimensions.size()))
+    {
+        auto& dim = dimensions[i];
+        auto it   = std::find(slice_axes.begin(), slice_axes.end(), i);
+        if(it == slice_axes.end())
+        {
+            // Unsliced output axes keep the full range of each subdimension
+            transform_if(
+                dim.subdimensions.begin(),
+                dim.subdimensions.end(),
+                std::back_inserter(result),
+                [&](const auto& s) { return sub_from_axis(s, axis); },
+                [](auto& s) { return dimension_slice{&s, 0, s.len}; });
+            continue;
+        }
+        auto sit =
+            std::find_if(dim.subdimensions.begin(), dim.subdimensions.end(), [&](const auto& s) {
+                return sub_from_axis(s, axis) and s.len == dim.len();
+            });
+        if(sit == dim.subdimensions.end())
+            return nullopt;
+        auto k = std::distance(slice_axes.begin(), it);
+        if(starts[k] >= ends[k])
+            return nullopt;
+        // The remaining subdimensions of the axis have a length of 1, so they
+        // keep their full range
+        transform_if(
+            dim.subdimensions.begin(),
+            dim.subdimensions.end(),
+            std::back_inserter(result),
+            [&](const auto& s) { return sub_from_axis(s, axis); },
+            [&](auto& s) -> dimension_slice {
+                if(&s == &*sit)
+                    return {&s, starts[k], ends[k]};
+                return {&s, 0, s.len};
+            });
+    }
+    return result;
+}
+
+optional<std::pair<std::size_t, std::size_t>>
+shape_transform_descriptor::slice_axis(std::size_t axis,
+                                       const std::vector<std::size_t>& slice_axes,
+                                       const std::vector<std::size_t>& starts,
+                                       const std::vector<std::size_t>& ends)
+{
+    assert(slice_axes.size() == starts.size() and slice_axes.size() == ends.size());
+    auto dst_slices = collect_dimension_slices(dimensions, axis, slice_axes, starts, ends);
+    if(not dst_slices.has_value())
+        return nullopt;
+    // Broadcasted subdimensions do not map back to a source range
+    if(std::any_of(dst_slices->begin(), dst_slices->end(), [](const dimension_slice& s) {
+           return s.sub->has_hidden_axis();
+       }))
+        return nullopt;
+
+    // The subdimensions ordered by their split lineage form a mixed-radix
+    // decomposition of the axis, outermost first
+    auto sub_slices = *dst_slices;
+    std::sort(sub_slices.begin(),
+              sub_slices.end(),
+              by(std::less<>{},
+                 [](const dimension_slice& s) -> const auto& { return s.sub->origin_axis(); }));
+
+    // The selected ranges must form one contiguous range along the axis:
+    // every subdimension outside the innermost restricted one must select a
+    // single index, and everything inside it the full range
+    auto rit = std::find_if(sub_slices.rbegin(), sub_slices.rend(), [](const dimension_slice& s) {
+        return not s.full();
+    });
+    if(rit != sub_slices.rend() and
+       not std::all_of(sub_slices.begin(), std::prev(rit.base()), [](const dimension_slice& s) {
+           return s.size() == 1;
+       }))
+        return nullopt;
+    auto [start, total] = std::accumulate(
+        sub_slices.rbegin(),
+        sub_slices.rend(),
+        std::make_pair(std::size_t{0}, std::size_t{1}),
+        [](auto acc, const dimension_slice& s) {
+            return std::make_pair(acc.first + s.start * acc.second, acc.second * s.sub->len);
+        });
+    auto end = start + transform_accumulate(sub_slices.begin(),
+                                            sub_slices.end(),
+                                            std::size_t{1},
+                                            std::multiplies<>{},
+                                            [](const dimension_slice& s) { return s.size(); });
+    assert(end <= total);
+
+    // Restrict each subdimension to its selected range so the descriptor now
+    // maps the sliced source axis to the sliced output
+    std::for_each(sub_slices.begin(), sub_slices.end(), [](const dimension_slice& s) {
+        s.sub->len = s.size();
+    });
+    renumber_in_output_order(*dst_slices, axis);
+    return std::make_pair(start, end);
 }
 
 // Remove subdimensions of 1
@@ -1557,12 +1771,6 @@ struct operation_list
 
 } // namespace
 
-static bool has_no_axes(const dimension& d)
-{
-    return std::all_of(d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
-        return s.axis.empty() and s.hidden_axis.empty();
-    });
-}
 static bool has_axes(const dimension& d)
 {
     return std::any_of(d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
@@ -1646,6 +1854,14 @@ shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims,
             else
             {
                 result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
+                // Broadcasting aligns from the right, so a dimension without an
+                // axis that only follows input dimensions of 1 needs no unsqueeze
+                auto first_non1 =
+                    std::find_if(new_dims.begin(), new_dims.end(), [](const dimension& d) {
+                        return input_len(d) != 1;
+                    });
+                new_dims.erase(std::remove_if(new_dims.begin(), first_non1, &has_no_axes),
+                               first_non1);
             }
         }
         // If all the dimensions have no axes then there isnt anthing else to do
@@ -1713,6 +1929,13 @@ std::set<std::size_t> shape_transform_descriptor::find_broadcasted_axes() const
     return result;
 }
 
+bool shape_transform_descriptor::has_axisless_broadcast() const
+{
+    auto subs = get_all_subdimensions(dimensions);
+    return std::any_of(subs.begin(), subs.end(), [](const dimension::sub& s) {
+        return s.origin_axis().empty() and s.len != 1;
+    });
+}
 bool shape_transform_descriptor::has_broadcast() const
 {
     return std::any_of(dimensions.begin(), dimensions.end(), [&](const dimension& d) {
@@ -1721,6 +1944,28 @@ bool shape_transform_descriptor::has_broadcast() const
                            [&](const dimension::sub& s) { return s.axis.empty() and s.len != 1; });
     });
 }
+bool shape_transform_descriptor::is_transposed() const
+{
+    auto subs = get_all_subdimensions(dimensions);
+    std::vector<std::vector<std::size_t>> axes;
+    transform_if(
+        subs.begin(),
+        subs.end(),
+        std::back_inserter(axes),
+        [](const dimension::sub& s) { return s.len > 1 and not s.origin_axis().empty(); },
+        [](const dimension::sub& s) { return s.origin_axis(); });
+    return not std::is_sorted(axes.begin(), axes.end());
+}
+
+bool shape_transform_descriptor::is_collapsing() const
+{
+    return std::any_of(dimensions.begin(), dimensions.end(), [](const dimension& d) {
+        return std::count_if(d.subdimensions.begin(),
+                             d.subdimensions.end(),
+                             [](const dimension::sub& s) { return s.len > 1; }) > 1;
+    });
+}
+
 void shape_transform_descriptor::flatten_broadcast()
 {
     for(auto& d : dimensions)
@@ -1821,6 +2066,15 @@ shape_transform_descriptor shape_transform_descriptor::to_src_from_common() cons
         return {subdimensions};
     });
     result.simplify();
+    // A broadcasted dimension with no source axis is squeezed away, so hide
+    // its axis to require it to stay 1 when rebased
+    for_each_subdimension(result.dimensions, [&](dimension::sub& s) {
+        if(s.axis.size() != 1)
+            return;
+        const auto& common_sub = subs[s.axis.front()];
+        if(common_sub.origin_axis().empty() and common_sub.len != 1)
+            s.hide();
+    });
     return result;
 }
 

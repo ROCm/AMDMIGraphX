@@ -48,23 +48,23 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static auto lit_broadcast()
 {
-    return match::any_of(match::is_constant(), match::name("broadcast"));
+    return match::opaque(match::any_of(match::is_constant(), match::name("broadcast")));
 }
 static auto not_lit_broadcast()
 {
-    return match::none_of(match::is_constant(), match::name("broadcast"));
+    return match::opaque(match::none_of(match::is_constant(), match::name("broadcast")));
 }
 static auto op_lit_broadcast(std::string op, std::string x, std::string y)
 {
-    return match::name(std::move(op))(match::either_arg(0, 1)(
-        lit_broadcast().bind(std::move(x)), not_lit_broadcast().bind(std::move(y))));
+    return match::opaque(match::name(std::move(op))(match::either_arg(0, 1)(
+        lit_broadcast().bind(std::move(x)), not_lit_broadcast().bind(std::move(y)))));
 }
 
 static auto conv_const_weights()
 {
-    return match::name("convolution")(
+    return match::opaque(match::name("convolution")(
         match::used_once(),
-        match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
+        match::args(match::none_of(match::is_constant()), match::is_constant().bind("w"))));
 }
 
 static auto from_int4()
@@ -83,7 +83,7 @@ static auto from_int4()
     });
 }
 
-static auto not_from_int4() { return match::none_of(from_int4()); }
+static auto not_from_int4() { return match::opaque(match::none_of(from_int4())); }
 
 static auto reduction() { return match::name_contains("reduce"); }
 
@@ -166,16 +166,17 @@ struct find_mul_slice_conv
 {
     static auto conv()
     {
-        return match::name("convolution")(
-            match::all_of[match::outputs()](match::name("slice")),
-            match::args(match::any(), match::is_constant().bind("w")));
+        return match::opaque(
+            match::name("convolution")(match::all_of[match::outputs()](match::name("slice")),
+                                       match::args(match::any(), match::is_constant().bind("w"))));
     }
     auto matcher() const
     {
-        return match::name("mul")(match::either_arg(0, 1)(
+        auto slice = match::opaque(
             match::name("slice")(match::used_once(), match::arg(0)(conv().bind("conv")))
-                .bind("slice"),
-            match::name("broadcast")(match::is_constant()).bind("a")));
+                .bind("slice"));
+        auto a = match::opaque(match::name("broadcast")(match::is_constant()).bind("a"));
+        return match::name("mul")(match::either_arg(0, 1)(slice, a));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -258,11 +259,12 @@ struct find_mul_dot
 {
     auto matcher() const
     {
-        auto constant = match::is_constant(not_from_int4());
-        auto is_dot_const_inputs =
-            match::name("dot")(match::any_of[match::inputs()](constant), match::used_once());
-        return match::name("mul")(match::either_arg(0, 1)(
-            is_dot_const_inputs.bind("dot"), match::name("broadcast", "multibroadcast").bind("c")));
+        auto constant            = match::opaque(match::is_constant(not_from_int4()));
+        auto is_dot_const_inputs = match::opaque(
+            match::name("dot")(match::any_of[match::inputs()](constant), match::used_once())
+                .bind("dot"));
+        auto c = match::opaque(match::name("broadcast", "multibroadcast").bind("c"));
+        return match::name("mul")(match::either_arg(0, 1)(is_dot_const_inputs, c));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -326,8 +328,9 @@ struct find_dot_slice
 {
     auto matcher() const
     {
-        return match::name("slice")(
-            match::args(match::name("dot", "quant_dot")(match::used_once()).bind("dot_ins")));
+        auto dot_ins =
+            match::opaque(match::name("dot", "quant_dot")(match::used_once()).bind("dot_ins"));
+        return match::name("slice")(match::args(dot_ins));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -346,8 +349,8 @@ struct find_dot_slice
         {
             MIGRAPHX_THROW("FIND_DOT_SLICE: slice is not normalized.");
         }
-        auto dot_inputs     = dot_ins->inputs();
-        auto num_batch_dims = dot_ins->get_shape().lens().size() - 2;
+        const auto& dot_inputs = dot_ins->inputs();
+        auto num_batch_dims    = dot_ins->get_shape().lens().size() - 2;
         std::vector<int64_t> slice_axes_1, starts_1, ends_1; // NOLINT
         std::vector<int64_t> slice_axes_2, starts_2, ends_2; // NOLINT
         for(auto i : range(axes.size()))
@@ -404,13 +407,14 @@ struct find_dot_mul
 {
     auto matcher() const
     {
-        auto const_broadcast = match::name("broadcast", "multibroadcast")(match::is_constant());
-        auto mul             = match::name("mul")(
+        auto const_broadcast =
+            match::opaque(match::name("broadcast", "multibroadcast")(match::is_constant()));
+        auto mul = match::opaque(match::name("mul")(
             match::used_once(),
             match::either_arg(0, 1)(const_broadcast.bind("d"),
-                                    match::none_of(match::is_constant()).bind("z")));
-        return match::name("dot")(
-            match::either_arg(0, 1)(mul, match::is_constant(not_from_int4()).bind("c")));
+                                    match::none_of(match::is_constant()).bind("z"))));
+        auto c   = match::opaque(match::is_constant(not_from_int4()).bind("c"));
+        return match::name("dot")(match::either_arg(0, 1)(mul, c));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -474,14 +478,13 @@ struct find_mul_add
 {
     auto matcher() const
     {
-        return match::name("mul")(match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(
-                    match::any().bind("x"),
-                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()),
-            match::is_constant().bind("a")));
+        auto b = match::opaque(match::any_of(conv_const_weights(), match::is_constant()).bind("b"));
+        auto add = match::opaque(match::name("add")(
+            match::either_arg(0, 1)(match::any().bind("x"), b),
+            match::none_of(match::args(match::is_constant(), match::is_constant())),
+            match::used_once()));
+        auto a   = match::opaque(match::is_constant().bind("a"));
+        return match::name("mul")(match::either_arg(0, 1)(add, a));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -502,13 +505,13 @@ struct find_dot_add
 {
     auto matcher() const
     {
-        return match::name("dot")(match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(match::any().bind("x"),
-                                        match::any_of(match::is_constant()).bind("b")),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()),
-            match::is_constant().bind("a")));
+        auto b   = match::opaque(match::any_of(match::is_constant()).bind("b"));
+        auto add = match::opaque(match::name("add")(
+            match::either_arg(0, 1)(match::any().bind("x"), b),
+            match::none_of(match::args(match::is_constant(), match::is_constant())),
+            match::used_once()));
+        auto a   = match::opaque(match::is_constant().bind("a"));
+        return match::name("dot")(match::either_arg(0, 1)(add, a));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -534,6 +537,42 @@ struct find_dot_add
     }
 };
 
+static bool is_spatially_broadcast(const shape& s)
+{
+    auto dims = range(2, s.ndim());
+    return std::all_of(
+        dims.begin(), dims.end(), [&](auto i) { return s.strides()[i] == 0 or s.lens()[i] == 1; });
+}
+
+// Rows of the dot that replaces a channelwise conv: one shared row when the
+// batch dim is broadcast, otherwise one row per batch
+static std::size_t broadcast_dot_rows(const shape& s)
+{
+    if(s.strides()[0] == 0)
+        return 1;
+    return s.lens()[0];
+}
+
+// conv(bcast(x), w) with no padding is channelwise: every output position reads
+// the same input, so it reduces to a dot that is broadcast back. With padding
+// the border differs from the interior and the full output is materialized.
+static bool is_channelwise_broadcast_conv(const operation& conv, instruction_ref bcast)
+{
+    if(not contains({"broadcast", "multibroadcast"}, bcast->name()))
+        return false;
+    auto v = conv.to_value();
+    if(v["group"].to<int>() != 1 or v["padding_mode"].to<int>() != 0)
+        return false;
+    auto padding = v["padding"].to_vector<std::size_t>();
+    if(std::any_of(padding.begin(), padding.end(), [](auto p) { return p != 0; }))
+        return false;
+    const auto& s = bcast->get_shape();
+    if(not is_spatially_broadcast(s))
+        return false;
+    auto ic = s.lens()[1];
+    return bcast->inputs().front()->get_shape().elements() == broadcast_dot_rows(s) * ic;
+}
+
 struct find_conv_add
 {
     auto matcher() const
@@ -552,6 +591,13 @@ struct find_conv_add
         auto a_ins = r.instructions["a"];
         auto x_ins = r.instructions["x"];
         auto w_ins = r.instructions["w"];
+
+        // Splitting a broadcast constant only pays off when conv(a, w) stays a
+        // broadcast; otherwise constant folding materializes the full conv output
+        const auto& a_shape = a_ins->get_shape();
+        if(a_shape.element_space() < a_shape.elements() and
+           not is_channelwise_broadcast_conv(ins->get_operator(), a_ins))
+            return;
 
         auto conv1 = m.insert_instruction(ins, ins->get_operator(), a_ins, w_ins);
         auto conv2 = m.insert_instruction(ins, ins->get_operator(), x_ins, w_ins);
@@ -923,8 +969,9 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        auto fusable_input = match::any_of(
-            match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4"));
+        auto fusable_input =
+            match::any_of(match::pointwise(),
+                          match::name("broadcast", "multibroadcast", "unpack_int4", "unsqueeze"));
         return match::name("concat")(match::any_of[match::inputs()](fusable_input));
     }
 
@@ -944,7 +991,7 @@ struct find_concat_op
 
     static bool is_valid_op(const operation& op)
     {
-        return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
+        return contains({"broadcast", "multibroadcast", "unpack_int4", "unsqueeze"}, op.name()) or
                (op.attributes().contains("pointwise") and op.name() != "quantizelinear");
     }
 
@@ -1015,13 +1062,29 @@ struct find_concat_op
         }
         else if(op.name() == "multibroadcast")
         {
-            shape bshape = (*start)->get_shape();
-            auto input   = (*start)->inputs()[0];
-            if(iaxis >= bshape.strides().size() or bshape.strides()[iaxis] == 0)
+            auto input_rank = (*start)->inputs().front()->get_shape().ndim();
+            // The inputs are concatenated, so the axis cant be broadcasted and
+            // the inputs need the same rank for it to map to the same input axis
+            if(std::any_of(start, last, [&](instruction_ref i) {
+                   const auto& s = i->get_shape();
+                   return iaxis >= s.ndim() or s.strides()[iaxis] == 0 or
+                          i->inputs().front()->get_shape().ndim() != input_rank;
+               }))
                 return {start, last};
             op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
-            auto delta = bshape.lens().size() - input->get_shape().lens().size();
-            iaxis -= delta;
+            iaxis -= (*start)->get_shape().ndim() - input_rank;
+        }
+        else if(op.name() == "unsqueeze")
+        {
+            value v   = op.to_value();
+            auto axes = v["axes"].to_vector<std::int64_t>();
+            // Cant concat along an inserted unit axis, and steps split dims;
+            // unsqueeze ignores axes for scalar inputs, so the axis remap doesnt apply
+            if(not v["steps"].empty() or contains(axes, iaxis) or
+               any_of(axes, [](auto a) { return a < 0; }) or
+               x->inputs().front()->get_shape().scalar())
+                return {start, last};
+            iaxis -= std::count_if(axes.begin(), axes.end(), [&](auto a) { return a < iaxis; });
         }
         if(not concat_const_foldable(start, last, iaxis))
             return {start, last};
@@ -1077,6 +1140,12 @@ struct find_concat_op
                    i->inputs().size() == j->inputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
+
+        // A matcher can select a concat even when none of its input groups are eligible for
+        // fusion. Avoid replacing it with an equivalent concat, which would report a change and
+        // keep the surrounding fixed-point passes running.
+        if(args == ins->inputs())
+            return;
 
         for(const auto& p : replacements)
         {
@@ -1139,6 +1208,53 @@ struct find_concat_same_input
     }
 };
 
+// Matches `concat` of multibroadcasts along a broadcasted (stride-0) axis
+// where all inputs broadcast the same value. All conditions live in the
+// matcher so declining does not shadow later concat matchers.
+MIGRAPHX_PRED_MATCHER(concat_of_same_broadcast, instruction_ref ins)
+{
+    if(ins->name() != "concat")
+        return false;
+    if(ins->get_shape().dynamic())
+        return false;
+    const auto& inputs = ins->inputs();
+    if(inputs.empty())
+        return false;
+    if(not all_of(inputs, [](instruction_ref i) {
+           return i->name() == "multibroadcast" and i->inputs().size() == 1;
+       }))
+        return false;
+    auto axis        = any_cast<op::concat>(ins->normalized_operator()).axis;
+    const auto& lens = inputs.front()->get_shape().lens();
+    if(not all_of(inputs, [&](instruction_ref i) { return i->get_shape().strides()[axis] == 0; }))
+        return false;
+    auto x = inputs.front()->inputs().front();
+    // The concat axis must not map to a non-unit dimension of x
+    auto offset = lens.size() - x->get_shape().ndim();
+    if(axis >= offset and x->get_shape().lens()[axis - offset] != 1)
+        return false;
+    return all_of(inputs, [&](instruction_ref i) {
+        auto y = i->inputs().front();
+        return y == x or *y == *x;
+    });
+}
+
+// Replace `concat` of multibroadcasts along a broadcasted (stride-0) axis with
+// a single multibroadcast when all inputs broadcast the same value. This avoids
+// materializing a large literal when the concat gets constant folded.
+struct find_concat_same_broadcast
+{
+    auto matcher() const { return concat_of_same_broadcast(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto x   = ins->inputs().front()->inputs().front();
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
+    }
+};
+
 struct find_concat_conv
 {
     auto matcher() const
@@ -1188,6 +1304,20 @@ struct find_concat_conv
     }
 };
 
+static bool
+axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
+{
+    return x.size() == y.size() and x.size() > axis and
+           std::equal(x.begin(), x.begin() + axis, y.begin()) and
+           std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
+}
+
+static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
+{
+    // TODO: Check strides
+    return axis_equal(x.lens(), y.lens(), axis);
+}
+
 // Horizontal fusion for convolutions through concat decomposition.
 // When conv_b operates on concat(A, extra) and conv_a operates on A,
 // we can decompose conv_b = conv(A, w_prefix) + conv(extra, w_suffix)
@@ -1236,7 +1366,7 @@ struct find_conv_concat_split_fuse
         if(concat_axis != 1)
             return;
 
-        auto concat_inputs = concat_ins->inputs();
+        const auto& concat_inputs = concat_ins->inputs();
         if(concat_inputs.size() < 2)
             return;
 
@@ -1255,7 +1385,7 @@ struct find_conv_concat_split_fuse
                 // Prefix concat whose inputs match a prefix of concat_ins
                 if(output->name() != "concat" or output == concat_ins)
                     return false;
-                auto out_inputs = output->inputs();
+                const auto& out_inputs = output->inputs();
                 return out_inputs.size() < concat_inputs.size() and
                        std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin());
             },
@@ -1288,6 +1418,18 @@ struct find_conv_concat_split_fuse
         auto total_chans  = concat_ins->get_shape().lens()[1];
 
         if(prefix_chans >= total_chans)
+            return;
+
+        if(not std::all_of(concat_inputs.begin(), concat_inputs.end(), [&](auto inp) {
+               return axis_shape_equal(input_a->get_shape(), inp->get_shape(), concat_axis);
+           }))
+            return;
+
+        auto weight_b_prefix_lens = weight_b->get_shape().lens();
+        if(weight_b_prefix_lens.size() < 2 or weight_b_prefix_lens[1] < prefix_chans)
+            return;
+        weight_b_prefix_lens[1] = prefix_chans;
+        if(not axis_equal(weight_a->get_shape().lens(), weight_b_prefix_lens, 0))
             return;
 
         auto out_a = weight_a->get_shape().lens()[0];
@@ -1602,7 +1744,7 @@ struct find_splits
                 auto args = i->inputs();
                 assert(args.size() == 2);
                 std::reverse(args.begin(), args.end());
-                m.replace_instruction(i, i->get_operator(), args);
+                m.replace_instruction(i, i->get_operator(), std::move(args));
             }
         }
     }
@@ -1651,8 +1793,8 @@ struct find_splits
     {
         auto start = group.front();
         assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
-                   return i->name() == "slice";
-               }) and "one argument must be a split");
+            return i->name() == "slice";
+        }) and "one argument must be a split");
 
         auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
         assert(not slice_op.axes.empty());
@@ -1733,12 +1875,11 @@ struct find_splits
                                [](int64_t a, int64_t b) { return a - b; });
                 return out;
             };
-            m.replace_instruction(i,
-                                  make_op("slice",
-                                          {{"axes", s.axes},
-                                           {"starts", shift(s.starts)},
-                                           {"ends", shift(s.ends)}}),
-                                  c);
+            m.replace_instruction(
+                i,
+                make_op("slice",
+                        {{"axes", s.axes}, {"starts", shift(s.starts)}, {"ends", shift(s.ends)}}),
+                c);
         }
     }
 
@@ -1778,11 +1919,11 @@ struct find_splits
             if(partial and not base_inserted)
             {
                 base          = m.insert_instruction(std::next(ins),
-                                            make_op("slice",
-                                                    {{"axes", front_slice.axes},
-                                                     {"starts", front_slice.starts},
-                                                     {"ends", back_slice.ends}}),
-                                            ins);
+                                                     make_op("slice",
+                                                             {{"axes", front_slice.axes},
+                                                              {"starts", front_slice.starts},
+                                                              {"ends", back_slice.ends}}),
+                                                     ins);
                 base_inserted = true;
             }
             return base;
@@ -1866,7 +2007,7 @@ struct find_split_concat
 
         // Find where the slices are in the concat instruction's inputs (concat can have
         // any number of inputs)
-        auto args = concat->inputs();
+        auto args = concat->inputs(); // copy: edited in place below into concat's new inputs
         auto it =
             std::find_if(args.begin(), args.end(), [&](auto i) { return i == splits.front(); });
         // Verify the slices were found, and the list is long enough
@@ -1878,12 +2019,12 @@ struct find_split_concat
                return x->get_operator().name() != "slice";
            }))
             return;
-        // Check that the slices passed to concat are in order.
-        if(not std::is_sorted(it, it + splits.size(), [](instruction_ref x, instruction_ref y) {
-               auto xop = any_cast<op::slice>(x->get_operator());
-               auto yop = any_cast<op::slice>(y->get_operator());
-               return std::tie(xop.starts, xop.ends) < std::tie(yop.starts, yop.ends);
-           }))
+        // Make sure that the splits match with the inputs into concat.
+        // This is to reject a case where x0 and y0 have identical slice ranges:
+        //  splits        : [x0, x1]
+        //  concat inputs : [x0, y0, x1, y1]
+        //                  └ mismatch ┘
+        if(not std::equal(splits.begin(), splits.end(), it))
             return;
 
         // Perform the substitution
@@ -1893,23 +2034,9 @@ struct find_split_concat
         if(args.size() == 1)
             m.replace_instruction(concat, args.front());
         else
-            m.replace_instruction(concat, concat->get_operator(), args);
+            m.replace_instruction(concat, concat->get_operator(), std::move(args));
     }
 };
-
-static bool
-axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
-{
-    return x.size() == y.size() and x.size() > axis and
-           std::equal(x.begin(), x.begin() + axis, y.begin()) and
-           std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
-}
-
-static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
-{
-    // TODO: Check strides
-    return axis_equal(x.lens(), y.lens(), axis);
-}
 
 struct find_add_convs
 {
@@ -1982,6 +2109,9 @@ struct find_add_convs
             else
                 return;
         }
+
+        if(not axis_shape_equal(a_input->get_shape(), b_input->get_shape(), 1))
+            return;
 
         auto concat_input =
             m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), a_input, b_input);
@@ -2103,9 +2233,7 @@ struct find_div_const
 
         auto recip = m.insert_instruction(std::next(c_ins), make_op("recip"), c_ins);
 
-        auto args = ins->inputs();
-
-        m.replace_instruction(ins, make_op("mul"), args.front(), recip);
+        m.replace_instruction(ins, make_op("mul"), ins->inputs().front(), recip);
     }
 };
 
@@ -2117,10 +2245,10 @@ struct find_unit_ops
             match::either_arg(0, 1)(match::has_value(1.0f), match::any().bind("x")));
         auto div_1 =
             match::name("div")(match::args(match::any().bind("x"), match::has_value(1.0f)));
-        auto add_0 = match::name("add")(
-            match::either_arg(0, 1)(match::has_value(0.0f, 0, 0), match::any().bind("x")));
-        auto sub_0 =
-            match::name("sub")(match::args(match::any().bind("x"), match::has_value(0.0f, 0, 0)));
+        auto add_0 = match::name("add")(match::either_arg(0, 1)(
+            match::has_value(0.0f, {.atol = 0, .rtol = 0}), match::any().bind("x")));
+        auto sub_0 = match::name("sub")(
+            match::args(match::any().bind("x"), match::has_value(0.0f, {.atol = 0, .rtol = 0})));
         return match::any_of(mul_1, div_1, add_0, sub_0);
     }
 
@@ -2141,8 +2269,8 @@ struct find_neg_unit_ops
             match::either_arg(0, 1)(match::has_value(-1.0f), match::any().bind("x")));
         auto div_neg_1 =
             match::name("div")(match::args(match::any().bind("x"), match::has_value(-1.0f)));
-        auto sub_0 =
-            match::name("sub")(match::args(match::has_value(0.0f, 0, 0), match::any().bind("x")));
+        auto sub_0 = match::name("sub")(
+            match::args(match::has_value(0.0f, {.atol = 0, .rtol = 0}), match::any().bind("x")));
         return match::any_of(mul_neg_1, div_neg_1, sub_0);
     }
 
@@ -2165,9 +2293,10 @@ struct eliminate_zero_point
     }
     auto matcher() const
     {
-        return match::name(get_qlinear_ops_names())(match::arg(0)(match::any().bind("x")),
-                                                    match::arg(1)(match::any().bind("scale")),
-                                                    match::arg(2)(match::has_value(0.0f, 0, 0)));
+        return match::name(get_qlinear_ops_names())(
+            match::arg(0)(match::any().bind("x")),
+            match::arg(1)(match::any().bind("scale")),
+            match::arg(2)(match::has_value(0.0f, {.atol = 0, .rtol = 0})));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -2190,10 +2319,10 @@ struct find_zero_ops
 {
     auto matcher() const
     {
-        auto mul_zero = match::name("mul")(
-            match::either_arg(0, 1)(match::has_value(0.0f, 0, 0).bind("x"), match::any()));
-        auto div_zero =
-            match::name("div")(match::args(match::has_value(0.0f, 0, 0).bind("x"), match::any()));
+        auto mul_zero = match::name("mul")(match::either_arg(0, 1)(
+            match::has_value(0.0f, {.atol = 0, .rtol = 0}).bind("x"), match::any()));
+        auto div_zero = match::name("div")(
+            match::args(match::has_value(0.0f, {.atol = 0, .rtol = 0}).bind("x"), match::any()));
         return match::any_of(mul_zero, div_zero);
     }
 
@@ -2222,9 +2351,7 @@ struct find_sub_const
 
         auto neg = m.insert_instruction(std::next(c_ins), make_op("neg"), c_ins);
 
-        auto args = ins->inputs();
-
-        m.replace_instruction(ins, make_op("add"), args.front(), neg);
+        m.replace_instruction(ins, make_op("add"), ins->inputs().front(), neg);
     }
 };
 
@@ -2636,75 +2763,60 @@ struct find_conv_broadcast_input
         auto w_ins     = r.instructions["w"];
         auto bcast_ins = r.instructions["bcast"];
 
+        if(is_channelwise_broadcast_conv(ins->get_operator(), bcast_ins))
+        {
+            apply_dot_broadcast(m, ins, x_ins, w_ins, bcast_ins);
+            return;
+        }
+
         auto conv_val = ins->get_operator().to_value();
         if(conv_val["group"].to<int>() != 1)
             return;
         if(conv_val["padding_mode"].to<int>() != 0)
             return;
-
-        const auto& x_shape = x_ins->get_shape();
-        const auto& w_shape = w_ins->get_shape();
-
-        const auto& x_lens = x_shape.lens();
-        if(x_lens.size() > 2 and
-           std::any_of(x_lens.begin() + 2, x_lens.end(), [](auto l) { return l != 1; }))
-            return;
-
-        auto ndim        = w_shape.ndim();
-        auto num_spatial = ndim - 2;
-        auto oc          = w_shape.lens()[0];
-        auto ic          = w_shape.lens()[1];
-        auto out_lens    = ins->get_shape().lens();
-        auto n           = out_lens[0];
-
-        if(x_shape.elements() != n * ic)
+        if(not is_spatially_broadcast(bcast_ins->get_shape()))
             return;
 
         auto padding = conv_val["padding"].to_vector<std::size_t>();
-        bool has_padding =
-            std::any_of(padding.begin(), padding.end(), [](auto p) { return p != 0; });
+        if(std::all_of(padding.begin(), padding.end(), [](auto p) { return p == 0; }))
+            return;
+        auto stride = conv_val["stride"].to_vector<std::size_t>();
+        if(std::any_of(stride.begin(), stride.end(), [](auto s) { return s != 1; }))
+            return;
+        auto dilation = conv_val["dilation"].to_vector<std::size_t>();
+        if(std::any_of(dilation.begin(), dilation.end(), [](auto d) { return d != 1; }))
+            return;
 
-        if(has_padding)
+        const auto& w_shape = w_ins->get_shape();
+        auto num_spatial    = w_shape.ndim() - 2;
+        auto out_lens       = ins->get_shape().lens();
+        if(padding.size() == num_spatial)
         {
-            auto stride = conv_val["stride"].to_vector<std::size_t>();
-            if(std::any_of(stride.begin(), stride.end(), [](auto s) { return s != 1; }))
-                return;
-            auto dilation = conv_val["dilation"].to_vector<std::size_t>();
-            if(std::any_of(dilation.begin(), dilation.end(), [](auto d) { return d != 1; }))
-                return;
-            if(padding.size() == num_spatial)
-            {
-                std::vector<std::size_t> asym = padding;
-                asym.insert(asym.end(), padding.begin(), padding.end());
-                padding = std::move(asym);
-            }
-
-            if(std::any_of(range(num_spatial).begin(), range(num_spatial).end(), [&](auto i) {
-                   return out_lens[i + 2] <= (padding[i] + padding[i + num_spatial]);
-               }))
-                return;
-
-            apply_small_conv(
-                m, ins, x_ins, w_ins, bcast_ins, out_lens, w_shape, padding, num_spatial);
+            std::vector<std::size_t> asym = padding;
+            asym.insert(asym.end(), padding.begin(), padding.end());
+            padding = std::move(asym);
         }
-        else
-        {
-            apply_dot_broadcast(m, ins, x_ins, w_ins, out_lens, x_shape, n, oc, ic, ndim);
-        }
+
+        if(std::any_of(range(num_spatial).begin(), range(num_spatial).end(), [&](auto i) {
+               return out_lens[i + 2] <= (padding[i] + padding[i + num_spatial]);
+           }))
+            return;
+
+        apply_small_conv(m, ins, x_ins, w_ins, bcast_ins, out_lens, w_shape, padding, num_spatial);
     }
 
     static void apply_dot_broadcast(module& m,
                                     instruction_ref ins,
                                     instruction_ref x_ins,
                                     instruction_ref w_ins,
-                                    const std::vector<std::size_t>& out_lens,
-                                    const shape& x_shape,
-                                    std::size_t n,
-                                    std::size_t oc,
-                                    std::size_t ic,
-                                    std::size_t ndim)
+                                    instruction_ref bcast_ins)
     {
-        std::vector<int64_t> spatial_axes(ndim - 2);
+        const auto& w_shape = w_ins->get_shape();
+        auto oc             = w_shape.lens()[0];
+        auto ic             = w_shape.lens()[1];
+        auto rows           = broadcast_dot_rows(bcast_ins->get_shape());
+        auto out_lens       = ins->get_shape().lens();
+        std::vector<int64_t> spatial_axes(w_shape.ndim() - 2);
         std::iota(spatial_axes.begin(), spatial_axes.end(), 2);
 
         auto w_reduced =
@@ -2715,12 +2827,12 @@ struct find_conv_broadcast_input
             ins, make_op("transpose", {{"permutation", std::vector<int64_t>{1, 0}}}), w_2d);
 
         instruction_ref x_2d;
-        if(x_shape.ndim() == 1 and n == 1)
+        if(x_ins->get_shape().ndim() == 1 and rows == 1)
             x_2d = m.insert_instruction(
                 ins, make_op("unsqueeze", {{"axes", std::vector<int64_t>{0}}}), x_ins);
         else
             x_2d = m.insert_instruction(
-                ins, make_op("reshape", {{"dims", std::vector<std::size_t>{n, ic}}}), x_ins);
+                ins, make_op("reshape", {{"dims", std::vector<std::size_t>{rows, ic}}}), x_ins);
         auto dot_result = m.insert_instruction(ins, make_op("dot"), x_2d, w_t);
         auto dot_unsqueezed =
             m.insert_instruction(ins, make_op("unsqueeze", {{"axes", spatial_axes}}), dot_result);
@@ -2802,7 +2914,7 @@ struct find_pow2
     auto matcher() const
     {
         return match::name("pow")(match::arg(0)(match::any().bind("x")),
-                                  match::arg(1)(match::has_value(2.0f, 0, 1)));
+                                  match::arg(1)(match::has_value(2.0f, {.atol = 0, .rtol = 1})));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -2846,6 +2958,7 @@ void simplify_algebra::apply(module& m) const
                             find_concat_conv{},
                             find_conv_concat_split_fuse{},
                             find_concat_same_input{},
+                            find_concat_same_broadcast{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,8 +32,10 @@
 #include <migraphx/value.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par_dfor.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/type_traits.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -66,6 +68,11 @@ struct convolution_backwards
         {
             MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: inconsistent attribute sizes");
         }
+
+        if(std::any_of(stride.begin(), stride.end(), [](auto s) { return s == 0; }))
+        {
+            MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: stride must be nonzero");
+        }
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -79,10 +86,25 @@ struct convolution_backwards
             MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: input k-dims does not match attribute size");
         }
 
+        if(group < 1)
+        {
+            MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: group (" + to_string(group) +
+                           ") must be positive");
+        }
+
         if(not x_shape.dynamic() and not w_shape.dynamic() and
            x_shape.lens().at(1) != (w_shape.lens().at(0)))
         {
             MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: mismatched channel numbers");
+        }
+
+        // compute() walks a group's input channels as one contiguous block of
+        // weights_channels / group, so an inexact division leaves part of every group unread.
+        if(not w_shape.dynamic() and w_shape.lens().at(0) % group != 0)
+        {
+            MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: input channels (" +
+                           to_string(w_shape.lens().at(0)) + ") is not divisible by group (" +
+                           to_string(group) + ")");
         }
 
         if(x_shape.dynamic() or w_shape.dynamic())
@@ -142,11 +164,15 @@ struct convolution_backwards
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         argument result{dyn_out.computed_shape};
-        auto num_spatial_dims = this->kdims();
+        auto num_spatial_dims  = this->kdims();
+        const shape& out_shape = dyn_out.computed_shape;
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            using type = typename decltype(output)::value_type;
+            using type        = typename decltype(output)::value_type;
+            using accumulator = accumulator_type<type>;
 
-            std::fill(output.begin(), output.end(), type{0});
+            // Accumulate narrow floating-point values in double so each term is not rounded to the
+            // output type. Integral values use signedness-matched 64-bit storage instead of double.
+            std::vector<accumulator> scratch(out_shape.element_space(), accumulator{0});
 
             auto in_lens = input.get_shape().lens();
             auto in_n    = in_lens[0];
@@ -202,11 +228,15 @@ struct convolution_backwards
                                   out_lens.end(),
                                   std::less<std::ptrdiff_t>{}))
                     {
-                        output(idx_out.begin(), idx_out.end()) +=
-                            input(idx_in.begin(), idx_in.end()) *
-                            weights(idx_wei.begin(), idx_wei.end());
+                        scratch[out_shape.index(idx_out.begin(), idx_out.end())] +=
+                            static_cast<accumulator>(input(idx_in.begin(), idx_in.end())) *
+                            static_cast<accumulator>(weights(idx_wei.begin(), idx_wei.end()));
                     }
                 });
+            });
+
+            par_for(out_shape.elements(), [&](std::size_t i) {
+                output[i] = static_cast<type>(scratch[out_shape.index(i)]);
             });
         });
         return result;

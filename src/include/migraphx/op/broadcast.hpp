@@ -28,6 +28,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -196,6 +197,14 @@ struct broadcast
         if(inputs.size() == 1)
             return compute_shape_1in(inputs.at(0));
         return compute_shape_2in(inputs.at(0), inputs.at(1));
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.empty())
+            return {};
+        return args[0].reshape(output_shape);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

@@ -148,8 +148,24 @@ bool is_inlinable_constant(instruction_ref ins)
 // the kv loop is short enough to keep them profitable. It also only parallelizes
 // over blocks of q rows (batch * heads * seq), so a block with too few rows
 // leaves the device idle while separate kernels still parallelize over the kv
-// length. Checks the gemms in canonical form: gemm1 = dot(q, k),
-// gemm2 = dot(probs, v).
+// length. Narrow heads win with fewer rows, since the separate gemms do less
+// work per element of the M x N matrix the fusion avoids, so the row
+// requirement scales down below a head dim of 128.
+bool fusable_attention(const shape& q,
+                       std::size_t d_v,
+                       std::size_t kv_len,
+                       std::size_t max_head_dim,
+                       std::size_t min_q_rows,
+                       std::size_t wide_head_kv_len)
+{
+    auto d_qk     = q.lens().back();
+    auto min_rows = min_q_rows * std::min<std::size_t>(std::max(d_qk, d_v), 128) / 128;
+    if(q.elements() / d_qk < min_rows)
+        return false;
+    return std::max(d_qk, d_v) <= max_head_dim or kv_len <= wide_head_kv_len;
+}
+
+// Checks the gemms in canonical form: gemm1 = dot(q, k), gemm2 = dot(probs, v)
 bool fusable_attention(instruction_ref gemm1,
                        instruction_ref gemm2,
                        std::size_t max_head_dim,
@@ -158,12 +174,8 @@ bool fusable_attention(instruction_ref gemm1,
 {
     const auto& q = gemm1->inputs().front()->get_shape();
     const auto& v = gemm2->inputs().back()->get_shape();
-    auto d_qk     = q.lens().back();
-    auto d_v      = v.lens().back();
-    if(q.elements() / d_qk < min_q_rows)
-        return false;
-    auto kv_len = v.lens().rbegin()[1];
-    return std::max(d_qk, d_v) <= max_head_dim or kv_len <= wide_head_kv_len;
+    return fusable_attention(
+        q, v.lens().back(), v.lens().rbegin()[1], max_head_dim, min_q_rows, wide_head_kv_len);
 }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
@@ -504,11 +516,12 @@ struct find_transposed_attention
         // its head dim is the second to last dimension and its kv length is the last
         const auto& q_shape = r.instructions["dot1"]->inputs().front()->get_shape();
         const auto& v_shape = input_of_dot2->get_shape();
-        auto d_qk           = q_shape.lens().back();
-        auto d_v            = v_shape.lens().rbegin()[1];
-        if(q_shape.elements() / d_qk < min_q_rows)
-            return;
-        if(std::max(d_qk, d_v) > max_head_dim and v_shape.lens().back() > wide_head_kv_len)
+        if(not fusable_attention(q_shape,
+                                 v_shape.lens().rbegin()[1],
+                                 v_shape.lens().back(),
+                                 max_head_dim,
+                                 min_q_rows,
+                                 wide_head_kv_len))
             return;
 
         auto values = input_of_dot2;

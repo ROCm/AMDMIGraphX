@@ -299,12 +299,14 @@ TEST_CASE(gemm_softmax_gemm_min_q_rows)
     }
     migraphx::program p2 = p1;
 
-    // The block has 2 * 32 = 64 q rows, under the limit, so nothing is fused
-    run_pass(p1, {.attn_enabled = true, .attn_min_q_rows = 128});
+    // The block has 2 * 32 = 64 q rows and a head dim of 64, which halves the
+    // row requirement: 64 rows fall under a limit of 256 (required 128)
+    run_pass(p1, {.attn_enabled = true, .attn_min_q_rows = 256});
     EXPECT(p1.sort() == p2.sort());
 
-    // The limit is inclusive: exactly 64 rows fuse at a limit of 64
-    run_pass(p1, {.attn_enabled = true, .attn_min_q_rows = 64});
+    // The scaled requirement is inclusive: exactly 64 rows fuse at a limit of
+    // 128 (required 64)
+    run_pass(p1, {.attn_enabled = true, .attn_min_q_rows = 128});
     auto* mm = p1.get_main_module();
     EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
         return ins.name() == "group" and

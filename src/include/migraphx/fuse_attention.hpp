@@ -43,7 +43,8 @@ struct MIGRAPHX_EXPORT fuse_attention
     std::size_t attn_max_head_dim = 256;
     // Fewest total q rows (batch * heads * seq) to fuse: the fused kernel only
     // parallelizes over blocks of q rows, so fewer rows leave the device idle
-    // while separate kernels still parallelize over the kv length
+    // while separate kernels still parallelize over the kv length. Scaled down
+    // proportionally for head dims under 128, which win with fewer rows
     std::size_t attn_min_q_rows = 1;
     // Longest kv length where head dims past attn_max_head_dim still fuse: a
     // short kv loop keeps the wide accumulator profitable; 0 allows none

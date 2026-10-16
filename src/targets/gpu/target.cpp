@@ -129,8 +129,8 @@ struct backend_options
     // kernels. 0 picks the device default: 512 on wave64 devices, 256 on wave32.
     std::size_t attn_max_head_dim = 0;
     // Fewest total q rows (batch * heads * seq) fuse_attention will fuse; blocks with
-    // less parallelism run as separate kernels. 0 picks the device default of 24 rows
-    // per CU.
+    // less parallelism run as separate kernels, and the pass scales the requirement
+    // down for head dims under 128. 0 picks the device default of 24 rows per CU.
     std::size_t attn_min_q_rows = 0;
     // Longest kv length where head dims past attn_max_head_dim still fuse. 0 picks the
     // device default: 1024 on wave64 devices, no exception on wave32.

@@ -28,6 +28,8 @@
 #include <migraphx/value.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/module_ref.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 #include <map>
@@ -49,6 +51,16 @@ struct code_object_op
     std::int64_t output_arg = -1;
 
     std::map<std::size_t, kernel_argument_value> kernel_args{};
+
+    // Recipe used by retune to recompile the kernel for another target. The precompile op's
+    // submodule, if any, is kept as the instruction's module input. Empty when the program was
+    // compiled without keep_recipes.
+    value source{};
+    std::vector<shape> source_inputs{};
+    value problem{};
+    value solution{};
+    std::string tuning_level = "";
+
     // Pre-packed kernarg buffer built in finalize(); not reflected.
     std::vector<char> packed_kernargs{};
     // (runtime arg index, byte offset) pairs for pointer patching in compute().
@@ -66,8 +78,15 @@ struct code_object_op
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
                     f(self.output_arg, "output_arg"),
-                    f(self.kernel_args, "kernel_args"));
+                    f(self.kernel_args, "kernel_args"),
+                    f(self.source, "source"),
+                    f(self.source_inputs, "source_inputs"),
+                    f(self.problem, "problem"),
+                    f(self.solution, "solution"),
+                    f(self.tuning_level, "tuning_level"));
     }
+
+    bool has_recipe() const { return not source.is_null(); }
 
     value attributes() const { return {{"group", group()}}; }
 
@@ -75,6 +94,10 @@ struct code_object_op
 
     std::string name() const { return "gpu::code_object"; }
     shape compute_shape(std::vector<shape> inputs) const;
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
+    {
+        return compute_shape(inputs);
+    }
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     void finalize(context&, const shape&, const std::vector<shape>&);
@@ -96,6 +119,8 @@ struct code_object_op
         os << "local=" << op.local << ",";
         if(op.output_arg != -1)
             os << "output_arg=" << op.output_arg << ",";
+        if(op.has_recipe())
+            os << "tuning_level=" << op.tuning_level << ",";
         os << "]";
         return os;
     }

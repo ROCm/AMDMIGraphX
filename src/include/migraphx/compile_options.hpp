@@ -44,6 +44,12 @@ struct compile_options
 
     bool fast_math       = true;
     bool exhaustive_tune = false;
+    /**
+     * Keep on each compiled kernel what is needed to recompile it (source op, submodule,
+     * tuning problem, solution and tuning level), so the program can be retuned or
+     * retargeted with program::retune without the original model.
+     */
+    bool keep_recipes = false;
 
     compile_modes compile_mode = compile_modes::balanced;
     /**

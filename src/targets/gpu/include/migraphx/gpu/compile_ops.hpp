@@ -25,7 +25,10 @@
 #define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/operation.hpp>
 #include <string>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,9 +44,32 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
     context* ctx         = nullptr;
     bool exhaustive_tune = false;
     bool skip_benchmark  = false;
+    bool keep_recipes    = false;
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module_pass_manager& mpm) const;
 };
+
+struct recompile_request
+{
+    // A gpu::code_object instruction with a recipe
+    instruction_ref ins;
+    bool exhaustive = false;
+};
+
+struct recompiled_kernel
+{
+    // The new gpu::code_object, with the recipe of the old one and the new solution
+    operation code_object;
+    // Candidates dropped because they change the kernel signature (for example split-K)
+    std::size_t excluded = 0;
+    bool benchmarked     = false;
+};
+
+/// Recompile gpu::code_object instructions from their recipes for the device of ctx, without
+/// changing the program. Only candidates with the same inputs, output and prefills as the
+/// original kernel are kept. Throws if a kernel has no such candidate.
+MIGRAPHX_GPU_EXPORT std::vector<recompiled_kernel>
+recompile_kernels(context& ctx, const std::vector<recompile_request>& requests);
 
 } // namespace gpu
 

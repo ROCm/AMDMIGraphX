@@ -86,6 +86,7 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/gpu/retune.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -159,11 +160,15 @@ struct backend_options
     // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
     // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
     std::size_t literal_staging_peak_percent = 5;
+    // Set by program::retune: {from: <serialized context of the program>, force: bool}. When
+    // set, the target recompiles the kernels of a compiled program instead of compiling it.
+    value retune = value{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+        return pack(f(self.retune, "retune"),
+                    f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
                     f(self.binary_cache, "binary_cache"),
                     f(self.binary_cache_verify, "binary_cache_verify"),
                     f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
@@ -410,7 +415,8 @@ struct pipeline_factory
             compile_ops{get_context(),
                         options.exhaustive_tune,
                         options.compile_mode == compile_modes::eager,
-                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{})},
+                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}),
+                        options.keep_recipes},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -456,6 +462,9 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
                             backend_opts.problem_cache_files);
+
+    if(not backend_opts.retune.is_null())
+        return {retune_ops{&ctx, backend_opts.retune.without_key(), options.exhaustive_tune}};
 
     pipeline_factory p{&gctx, options, backend_opts};
 

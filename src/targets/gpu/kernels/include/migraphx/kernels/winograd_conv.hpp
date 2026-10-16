@@ -1080,11 +1080,11 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // For SK>1 only the wave_sk_part==0 wave of each NT-group has the summed y.
     using out_type               = typename Output::type;
 #if defined(__gfx1151__)
-    const index_int k_row_offset       = lane / 16;
-    constexpr index_int k_row_stride   = 2; // Alternating K rows per lane
+    const index_int k_row_offset     = lane / 16;
+    constexpr index_int k_row_stride = 2; // Alternating K rows per lane
 #else
-    const index_int k_row_offset       = c_off;
-    constexpr index_int k_row_stride   = 1;
+    const index_int k_row_offset     = c_off;
+    constexpr index_int k_row_stride = 1;
 #endif
     if(not nt_active)
         return;
@@ -1299,8 +1299,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                       (2 * th_idx) * sh + (2 * tw_idx) * sw;
         const bool w_pair_in = (2 * tw_idx + 1 < out_w) and (sw == 1);
         repeat_c<8>([&](auto ki) {
-            const index_int k =
-                k_base + k_idx * bk + k_row_offset + index_int{ki} * k_row_stride;
+            const index_int k = k_base + k_idx * bk + k_row_offset + index_int{ki} * k_row_stride;
             if(k < out_c)
             {
                 const index_int kbase = base_offset + index_int{ki} * k_row_stride * sk;

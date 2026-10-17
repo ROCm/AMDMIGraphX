@@ -386,6 +386,18 @@ TEST_CASE(compile_pointwise)
     EXPECT(result == output_literal.get_argument());
 }
 
+TEST_CASE(compile_gather_indexed_inputs)
+{
+    migraphx::shape data{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape idx{migraphx::shape::int32_type, {2}};
+    migraphx::shape out{migraphx::shape::float_type, {2, 3}};
+    migraphx::gpu::context ctx;
+    auto co = migraphx::gpu::compile_op("gather", ctx, {data, idx, out}, {{"axis", 0}});
+    // Only the data input is read at index-selected positions
+    EXPECT(co.attributes().get("indexed_inputs", std::vector<std::size_t>{}) ==
+           std::vector<std::size_t>{0});
+}
+
 TEST_CASE(compile_math)
 {
     std::vector<std::string> math_invoke = {

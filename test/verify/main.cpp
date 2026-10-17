@@ -67,6 +67,8 @@ int main(int argc, const char* argv[])
 {
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
+    rv.set_compile_modes_for("gpu",
+                             {migraphx::compile_modes::eager, migraphx::compile_modes::balanced});
     rv.disable_test_for(
         "cpu",
         {"test_if_lp",

@@ -139,15 +139,15 @@ struct analyze_slice : analyzer<analyze_slice>
     static instruction_ref freeze(module& m,
                                   instruction_ref source,
                                   const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>& values)
+                                  const freezer_context& context)
     {
         assert(args.size() == 1 or args.size() == 3);
         auto attributes = source->get_operator().to_value();
         return m.add_instruction(
             make_op("slice",
                     {{"axes", attributes.at("axes")},
-                     {"starts", evaluate_slice_bound(source, 1, "starts", values)},
-                     {"ends", evaluate_slice_bound(source, 2, "ends", values)}}),
+                     {"starts", evaluate_slice_bound(source, 1, "starts", context.values)},
+                     {"ends", evaluate_slice_bound(source, 2, "ends", context.values)}}),
             args.front());
     }
 };

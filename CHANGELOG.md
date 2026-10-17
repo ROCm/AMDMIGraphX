@@ -10,6 +10,7 @@ Full documentation for MIGraphX is available at
 * Added a binary cache for compiled GPU kernels: identical kernels within a model compile once, and setting the `MIGRAPHX_BINARY_CACHE` environment variable (or the `binary_cache` backend option) also persists them on disk so later compiles of the same kernels skip compilation entirely, in a directory or, for a path ending in `.db` or `.sqlite`, in a single SQLite database; a `binary_cache_verify` backend option recompiles reused kernels and fails if they differ.
 * Optimized GridSample by adding a GPU JIT kernel for the ONNX `nearest`, `linear`/`bilinear`, and `cubic`/`bicubic` modes, replacing the `concat`+`gathernd` decomposition in the ONNX parser for those modes (#5139).
 * Added the `split_sym_dim` pass to specialize bounded symbolic dimensions into statically compiled `select_module` clones (#4919).
+* Added ONNX support for symbolic GroupQueryAttention and RotaryEmbedding inputs, run-time `k` for Trilu, symbolic Expand targets, and run-time symbolic Slice bounds.
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 
 ### Changed

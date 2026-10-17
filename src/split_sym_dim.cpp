@@ -82,11 +82,50 @@ struct padding_use
     input_padding_requirement propagated;
 };
 
+struct padding_variant_step
+{
+    instruction_ref source;
+    std::size_t input = 0;
+    std::optional<float> boundary_pad_value;
+};
+
+using padding_variant_plan = std::vector<padding_variant_step>;
+
+struct resolved_padding_variant_plan
+{
+    padding_requirement requirement;
+    padding_variant_plan path;
+};
+
+bool same_padding_variant_suffix(const padding_variant_plan& x,
+                                 std::size_t x_step,
+                                 const padding_variant_plan& y,
+                                 std::size_t y_step)
+{
+    if(x_step >= x.size() or y_step >= y.size())
+        return false;
+    if(x.size() - x_step != y.size() - y_step)
+        return false;
+    return std::equal(
+        x.begin() + x_step, x.end(), y.begin() + y_step, [](const auto& left, const auto& right) {
+            return left.source == right.source and left.input == right.input and
+                   left.boundary_pad_value == right.boundary_pad_value;
+        });
+}
+
+struct resolved_input_padding_plan
+{
+    std::optional<fill_kind> fill;
+    std::optional<resolved_padding_variant_plan> variant;
+    std::vector<std::size_t> repad_axes;
+};
+
 struct clone_input_plan
 {
     sliced_value clone_value;
-    operand_plan operand;
-    std::optional<padding_requirement> padding_variant;
+    std::optional<float> pad_value;
+    std::vector<axis_mask> masks;
+    std::optional<padding_variant_plan> padding_variant;
 };
 
 struct symbolic_op_plan
@@ -379,9 +418,7 @@ struct block_plan
     std::vector<symbolic_op_plan*> ops;
     std::vector<const root_spec*> roots;
     std::vector<padding_use> padding_requirements;
-    std::unordered_map<instruction_ref, std::vector<std::optional<fill_kind>>> input_fills;
-    std::unordered_map<instruction_ref, std::vector<std::optional<padding_requirement>>>
-        input_variants;
+    std::unordered_map<instruction_ref, std::vector<resolved_input_padding_plan>> resolved_inputs;
 };
 
 using block_dependency_graph = std::vector<std::set<std::size_t>>;
@@ -710,17 +747,21 @@ std::optional<std::set<fill_kind>> intersect_fills(const std::set<fill_kind>& x,
 std::optional<padding_requirement> meet_padding_requirements(const padding_requirement& x,
                                                              const padding_requirement& y)
 {
-    if(x.axis != y.axis or x.extent != y.extent)
+    if(x.axis != y.axis or not sym::same_symbol(x.extent, y.extent))
         return std::nullopt;
     auto fills = intersect_fills(x.fills, y.fills);
     if(not fills.has_value())
         return std::nullopt;
+    auto materializable = x.materializable and y.materializable;
     if(x.semantics == y.semantics)
-        return padding_requirement{x.axis, x.extent, std::move(*fills), x.semantics};
+        return padding_requirement{
+            x.axis, x.extent, std::move(*fills), x.semantics, materializable};
     if(x.semantics == padding_semantics::exact)
-        return padding_requirement{x.axis, x.extent, std::move(*fills), padding_semantics::exact};
+        return padding_requirement{
+            x.axis, x.extent, std::move(*fills), padding_semantics::exact, materializable};
     if(y.semantics == padding_semantics::exact)
-        return padding_requirement{x.axis, x.extent, std::move(*fills), padding_semantics::exact};
+        return padding_requirement{
+            x.axis, x.extent, std::move(*fills), padding_semantics::exact, materializable};
     return std::nullopt;
 }
 
@@ -729,7 +770,8 @@ resolve_boundary_requirement(const symbolic_op_plan* consumer,
                              const input_padding_requirement& propagated)
 {
     const auto& info = consumer->info;
-    if(propagated.input >= info.operands.size() or propagated.requirement.fills.empty())
+    if(propagated.input >= info.operands.size() or propagated.requirement.fills.empty() or
+       not propagated.requirement.materializable)
         return std::nullopt;
     const auto& operand = info.operands.at(propagated.input);
     const auto& input   = info.ins->inputs().at(propagated.input)->get_shape();
@@ -752,8 +794,8 @@ resolve_boundary_requirement(const symbolic_op_plan* consumer,
 
 bool same_padding_requirement(const padding_requirement& x, const padding_requirement& y)
 {
-    return x.axis == y.axis and x.extent == y.extent and x.fills == y.fills and
-           x.semantics == y.semantics;
+    return x.axis == y.axis and sym::same_symbol(x.extent, y.extent) and x.fills == y.fills and
+           x.semantics == y.semantics and x.materializable == y.materializable;
 }
 
 bool same_padding_use(const padding_use& x, const padding_use& y)
@@ -834,7 +876,8 @@ std::vector<const padding_use*> find_axis_groups(const std::vector<padding_use>&
             const auto& value = requirement.propagated.requirement;
             return none_of(result, [&](const auto* existing) {
                 const auto& grouped = existing->propagated.requirement;
-                return grouped.axis == value.axis and grouped.extent == value.extent;
+                return grouped.axis == value.axis and
+                       sym::same_symbol(grouped.extent, value.extent);
             });
         },
         [](const auto& requirement) { return &requirement; });
@@ -869,7 +912,7 @@ std::vector<const padding_use*> find_axis_group(const std::vector<padding_use>& 
         std::back_inserter(result),
         [&](const auto& requirement) {
             const auto& value = requirement.propagated.requirement;
-            return value.axis == grouped.axis and value.extent == grouped.extent;
+            return value.axis == grouped.axis and sym::same_symbol(value.extent, grouped.extent);
         },
         [](const auto& requirement) { return &requirement; });
     return result;
@@ -905,27 +948,57 @@ meet_padding_group(const std::vector<const padding_use*>& requirements)
     return result;
 }
 
-bool is_padding_transparent(
+std::optional<fill_kind> choose_fill(const std::set<fill_kind>& fills)
+{
+    if(fills.empty())
+        return std::nullopt;
+    return *fills.begin();
+}
+
+std::optional<resolved_padding_variant_plan> resolve_padding_variant_plan(
     instruction_ref source,
     const padding_requirement& requirement,
     const std::unordered_set<instruction_ref>& included,
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction)
 {
-    auto found = info_for_instruction.find(source);
-    if(found == info_for_instruction.end() or requirement.semantics != padding_semantics::exact or
-       not found->second->info.propagate_padding)
-        return false;
-    auto propagated = found->second->info.propagate_padding(source, requirement);
-    if(not propagated.has_value() or propagated->size() != 1)
-        return false;
-    const auto& input = propagated->front();
-    if(input.requirement.semantics != padding_semantics::exact or
-       input.requirement.fills != requirement.fills)
-        return false;
-    auto input_source = source->inputs().at(input.input);
-    if(not contains(included, input_source))
-        return resolve_boundary_requirement(found->second, input).has_value();
-    return is_padding_transparent(input_source, input.requirement, included, info_for_instruction);
+    resolved_padding_variant_plan result{requirement, {}};
+    auto current_source      = source;
+    auto current_requirement = requirement;
+    while(true)
+    {
+        auto found = info_for_instruction.find(current_source);
+        if(found == info_for_instruction.end() or
+           current_requirement.semantics != padding_semantics::exact or
+           not found->second->info.propagate_padding)
+            return std::nullopt;
+        auto propagated =
+            found->second->info.propagate_padding(current_source, current_requirement);
+        if(not propagated.has_value() or propagated->size() != 1)
+            return std::nullopt;
+        const auto& input = propagated->front();
+        if(input.input >= current_source->inputs().size() or
+           input.requirement.semantics != padding_semantics::exact or
+           input.requirement.fills != current_requirement.fills)
+            return std::nullopt;
+
+        padding_variant_step step{current_source, input.input, std::nullopt};
+        auto input_source = current_source->inputs().at(input.input);
+        if(not contains(included, input_source))
+        {
+            auto boundary = resolve_boundary_requirement(found->second, input);
+            if(not boundary.has_value())
+                return std::nullopt;
+            auto fill = choose_fill(boundary->requirement.fills);
+            if(not fill.has_value())
+                return std::nullopt;
+            step.boundary_pad_value = fill_value(*fill);
+            result.path.push_back(std::move(step));
+            return result;
+        }
+        result.path.push_back(std::move(step));
+        current_source      = input_source;
+        current_requirement = input.requirement;
+    }
 }
 
 bool set_padding_variant(
@@ -935,19 +1008,21 @@ bool set_padding_variant(
     const std::unordered_set<instruction_ref>& included,
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction)
 {
-    if(padding_source(use) != source or
-       not is_padding_transparent(
-           source, use.propagated.requirement, included, info_for_instruction))
+    if(padding_source(use) != source)
         return false;
-    auto& variants = block.input_variants
-                         .try_emplace(use.consumer,
-                                      std::vector<std::optional<padding_requirement>>(
-                                          use.consumer->inputs().size()))
-                         .first->second;
-    auto& variant  = variants.at(use.propagated.input);
+    auto resolved = resolve_padding_variant_plan(
+        source, use.propagated.requirement, included, info_for_instruction);
+    if(not resolved.has_value())
+        return false;
+    auto& inputs =
+        block.resolved_inputs
+            .try_emplace(use.consumer,
+                         std::vector<resolved_input_padding_plan>(use.consumer->inputs().size()))
+            .first->second;
+    auto& variant = inputs.at(use.propagated.input).variant;
     if(variant.has_value())
-        return same_padding_requirement(*variant, use.propagated.requirement);
-    variant = use.propagated.requirement;
+        return same_padding_requirement(variant->requirement, use.propagated.requirement);
+    variant = std::move(*resolved);
     return true;
 }
 
@@ -984,16 +1059,16 @@ bool propagate_internal_padding(
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction)
 {
     std::unordered_map<instruction_ref, std::size_t> remaining_consumers;
-    std::for_each(block.ops.begin(), block.ops.end(), [&](const auto* plan) {
+    for(const auto* plan : block.ops)
         remaining_consumers.emplace(plan->info.ins, 0);
-    });
-    std::for_each(block.ops.begin(), block.ops.end(), [&](const auto* plan) {
-        std::for_each(
-            plan->info.ins->inputs().begin(), plan->info.ins->inputs().end(), [&](auto source) {
-                if(contains(included, source))
-                    remaining_consumers.at(source)++;
-            });
-    });
+    for(const auto* plan : block.ops)
+    {
+        for(auto source : plan->info.ins->inputs())
+        {
+            if(contains(included, source))
+                remaining_consumers.at(source)++;
+        }
+    }
 
     std::vector<const symbolic_op_plan*> ready;
     std::copy_if(block.ops.begin(),
@@ -1012,9 +1087,10 @@ bool propagate_internal_padding(
         auto found = propagated.find(plan->info.ins);
         if(found != propagated.end())
         {
-            auto groups = find_axis_groups(found->second);
+            const auto& propagated_requirements = found->second;
+            auto groups                         = find_axis_groups(propagated_requirements);
             if(not all_of(groups, [&](const auto* representative) {
-                   auto requirements = find_axis_group(found->second, *representative);
+                   auto requirements = find_axis_group(propagated_requirements, *representative);
                    return propagate_padding_group(block,
                                                   plan->info.ins,
                                                   requirements,
@@ -1024,24 +1100,17 @@ bool propagate_internal_padding(
                }))
                 return false;
         }
-        std::for_each(
-            plan->info.ins->inputs().begin(), plan->info.ins->inputs().end(), [&](auto source) {
-                if(not contains(included, source))
-                    return;
-                auto& count = remaining_consumers.at(source);
-                count--;
-                if(count == 0)
-                    ready.push_back(info_for_instruction.at(source));
-            });
+        for(auto source : plan->info.ins->inputs())
+        {
+            if(not contains(included, source))
+                continue;
+            auto& count = remaining_consumers.at(source);
+            count--;
+            if(count == 0)
+                ready.push_back(info_for_instruction.at(source));
+        }
     }
     return processed == block.ops.size();
-}
-
-std::optional<fill_kind> choose_fill(const std::set<fill_kind>& fills)
-{
-    if(fills.empty())
-        return std::nullopt;
-    return *fills.begin();
 }
 
 bool resolve_boundary_padding(
@@ -1057,6 +1126,7 @@ bool resolve_boundary_padding(
         return all_of(groups, [&](const auto* representative) {
             auto requirements = find_input_group(entry.second, *representative);
             std::optional<std::set<fill_kind>> fills;
+            std::vector<std::size_t> repad_axes;
             if(not all_of(requirements, [&](const auto* requirement) {
                    auto consumer = info_for_instruction.find(requirement->consumer);
                    if(consumer == info_for_instruction.end())
@@ -1068,19 +1138,22 @@ bool resolve_boundary_padding(
                    fills = fills.has_value()
                                ? intersect_fills(*fills, boundary->requirement.fills)
                                : std::optional<std::set<fill_kind>>{boundary->requirement.fills};
+                   if(not contains(repad_axes, boundary->requirement.axis))
+                       repad_axes.push_back(boundary->requirement.axis);
                    return fills.has_value();
                }))
                 return false;
             auto fill = choose_fill(*fills);
             if(not fill.has_value())
                 return false;
-            auto consumer = representative->consumer;
-            auto& resolved =
-                block.input_fills
-                    .try_emplace(consumer,
-                                 std::vector<std::optional<fill_kind>>(consumer->inputs().size()))
-                    .first->second;
-            resolved.at(representative->propagated.input) = *fill;
+            auto consumer       = representative->consumer;
+            auto& resolved      = block.resolved_inputs
+                                      .try_emplace(consumer,
+                                                   std::vector<resolved_input_padding_plan>(
+                                                       consumer->inputs().size()))
+                                      .first->second.at(representative->propagated.input);
+            resolved.fill       = *fill;
+            resolved.repad_axes = std::move(repad_axes);
             return true;
         });
     });
@@ -1098,13 +1171,10 @@ bool update_padding_requirements(
     if(not add_internal_padding_requirements(block, included))
         return false;
 
-    block.input_fills.clear();
-    block.input_variants.clear();
+    block.resolved_inputs.clear();
     propagated_padding_map propagated;
-    std::for_each(
-        block.padding_requirements.begin(),
-        block.padding_requirements.end(),
-        [&](const auto& requirement) { add_propagated_padding(propagated, requirement); });
+    for(const auto& requirement : block.padding_requirements)
+        add_propagated_padding(propagated, requirement);
     return propagate_internal_padding(block, propagated, included, info_for_instruction) and
            resolve_boundary_padding(block, propagated, included, info_for_instruction);
 }
@@ -1119,12 +1189,11 @@ void append_padding_requirements(block_plan& target, const block_plan& source)
                          return same_padding_use(existing, requirement);
                      });
                  });
-    target.input_fills.clear();
-    target.input_variants.clear();
+    target.resolved_inputs.clear();
 }
 
-bool block_is_closed(
-    block_plan& block,
+std::optional<block_plan> finalize_block(
+    block_plan block,
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction)
 {
     std::unordered_set<instruction_ref> included;
@@ -1143,17 +1212,19 @@ bool block_is_closed(
         {
             if(contains(info.shape_input_indices, index))
                 continue;
-            auto source         = args.at(index);
+            auto source = args.at(index);
             if(contains(included, source))
             {
                 continue;
             }
             if(not dependencies_are_closed(
                    source, included, info_for_instruction, visited, boundary_visited))
-                return false;
+                return std::nullopt;
         }
     }
-    return update_padding_requirements(block, info_for_instruction);
+    if(not update_padding_requirements(block, info_for_instruction))
+        return std::nullopt;
+    return block;
 }
 
 std::optional<std::vector<const root_spec*>>
@@ -1172,48 +1243,63 @@ merge_block_roots(const block_plan& target, const block_plan& source, std::size_
     return result;
 }
 
-bool merge_block_into(
-    block_plan& target,
-    const block_plan& source,
+std::optional<block_plan> build_merged_block(
+    const std::vector<block_plan>& blocks,
+    const std::vector<std::size_t>& block_indices,
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction,
     std::size_t max_clones)
 {
-    auto merged_roots = merge_block_roots(target, source, max_clones);
-    if(not merged_roots.has_value())
-        return false;
-    block_plan result = target;
-    result.ops.insert(result.ops.end(), source.ops.begin(), source.ops.end());
-    append_padding_requirements(result, source);
-    if(not block_is_closed(result, info_for_instruction))
-        return false;
-    result.roots = std::move(*merged_roots);
-    target       = std::move(result);
-    return true;
+    block_plan result;
+    for(auto block_index : block_indices)
+    {
+        const auto& source = blocks.at(block_index);
+        auto merged_roots  = merge_block_roots(result, source, max_clones);
+        if(not merged_roots.has_value())
+            return std::nullopt;
+        result.roots = std::move(*merged_roots);
+        result.ops.insert(result.ops.end(), source.ops.begin(), source.ops.end());
+        append_padding_requirements(result, source);
+    }
+    return finalize_block(std::move(result), info_for_instruction);
 }
 
 // Coalescing turns per-instruction specialization candidates into larger regions so connected
 // operations share one select_module. A merge is accepted only when the combined region is closed
 // over its dynamic dependencies, the cartesian product of root buckets stays within max_clones,
-// and contracting the two blocks keeps the block dependency graph acyclic.
+// and contracting the source blocks keeps the block dependency graph acyclic.
 std::optional<std::size_t> merge_blocks(
     std::vector<block_plan>& blocks,
     block_dependency_graph& dependencies,
-    std::size_t x,
-    std::size_t y,
+    std::vector<std::size_t> block_indices,
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction,
     std::size_t max_clones)
 {
-    const auto target = std::min(x, y);
-    const auto source = std::max(x, y);
-    if(target == source or blocks.at(target).ops.empty() or blocks.at(source).ops.empty())
+    if(block_indices.size() < 2 or
+       any_of(block_indices, [&](auto block_index) { return block_index >= blocks.size(); }))
+        return std::nullopt;
+    std::sort(block_indices.begin(), block_indices.end());
+    block_indices.erase(std::unique(block_indices.begin(), block_indices.end()),
+                        block_indices.end());
+    if(block_indices.size() < 2 or
+       any_of(block_indices, [&](auto block_index) { return blocks.at(block_index).ops.empty(); }))
         return std::nullopt;
 
-    auto candidate = blocks;
-    if(not merge_block_into(
-           candidate.at(target), candidate.at(source), info_for_instruction, max_clones))
+    auto merged = build_merged_block(blocks, block_indices, info_for_instruction, max_clones);
+    if(not merged.has_value())
         return std::nullopt;
-    candidate.at(source).ops.clear();
-    auto candidate_dependencies = contract_block_dependencies(dependencies, target, source);
+
+    const auto target           = block_indices.front();
+    auto candidate              = blocks;
+    candidate.at(target)        = std::move(*merged);
+    auto candidate_dependencies = dependencies;
+    for(auto block_index : block_indices)
+    {
+        if(block_index == target)
+            continue;
+        candidate.at(block_index).ops.clear();
+        candidate_dependencies =
+            contract_block_dependencies(candidate_dependencies, target, block_index);
+    }
     if(not find_block_order(candidate, candidate_dependencies).has_value())
         return std::nullopt;
 
@@ -1224,53 +1310,6 @@ std::optional<std::size_t> merge_blocks(
     return target;
 }
 
-std::optional<std::size_t> merge_block_group(
-    std::vector<block_plan>& blocks,
-    block_dependency_graph& dependencies,
-    const std::vector<std::size_t>& block_indices,
-    const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction,
-    std::size_t max_clones)
-{
-    if(block_indices.size() < 2)
-        return std::nullopt;
-    const auto target = *std::min_element(block_indices.begin(), block_indices.end());
-    block_plan merged;
-    if(not all_of(block_indices,
-                  [&](auto block_index) {
-                      auto merged_roots =
-                          merge_block_roots(merged, blocks.at(block_index), max_clones);
-                      if(not merged_roots.has_value())
-                          return false;
-                      const auto& ops = blocks.at(block_index).ops;
-                      merged.ops.insert(merged.ops.end(), ops.begin(), ops.end());
-                      merged.roots = std::move(*merged_roots);
-                      append_padding_requirements(merged, blocks.at(block_index));
-                      return true;
-                  }) or
-       not block_is_closed(merged, info_for_instruction))
-        return std::nullopt;
-
-    auto candidate              = blocks;
-    candidate.at(target)        = std::move(merged);
-    auto candidate_dependencies = dependencies;
-    std::for_each(block_indices.begin(), block_indices.end(), [&](auto block_index) {
-        if(block_index == target)
-            return;
-        candidate.at(block_index).ops.clear();
-        candidate_dependencies =
-            contract_block_dependencies(candidate_dependencies, target, block_index);
-    });
-    if(not find_block_order(candidate, candidate_dependencies).has_value())
-        return std::nullopt;
-
-    blocks       = std::move(candidate);
-    dependencies = std::move(candidate_dependencies);
-    std::for_each(blocks.at(target).ops.begin(), blocks.at(target).ops.end(), [&](auto* op) {
-        op->block = target;
-    });
-    return target;
-}
-
 void coalesce_equal_root_blocks(
     std::vector<block_plan>& blocks,
     block_dependency_graph& dependencies,
@@ -1278,9 +1317,11 @@ void coalesce_equal_root_blocks(
     std::size_t max_clones)
 {
     auto block_indices = range(blocks.size());
-    std::for_each(block_indices.begin(), block_indices.end(), [&](auto target) {
-        if(blocks.at(target).ops.empty())
-            return;
+    std::vector<bool> attempted(blocks.size(), false);
+    for(auto target : block_indices)
+    {
+        if(blocks.at(target).ops.empty() or attempted.at(target))
+            continue;
         std::vector<std::size_t> group;
         std::copy_if(block_indices.begin(),
                      block_indices.end(),
@@ -1289,8 +1330,10 @@ void coalesce_equal_root_blocks(
                          return not blocks.at(block_index).ops.empty() and
                                 blocks.at(block_index).roots == blocks.at(target).roots;
                      });
-        merge_block_group(blocks, dependencies, group, info_for_instruction, max_clones);
-    });
+        for(auto block_index : group)
+            attempted.at(block_index) = true;
+        merge_blocks(blocks, dependencies, std::move(group), info_for_instruction, max_clones);
+    }
 }
 
 void insert_block_connection(
@@ -1368,8 +1411,7 @@ void coalesce_connected_blocks(
         const auto* producer_info   = info_for_instruction.at(producer);
         auto merged                 = merge_blocks(blocks,
                                                    dependencies,
-                                                   *consumer_info->block,
-                                                   *producer_info->block,
+                                                   {*consumer_info->block, *producer_info->block},
                                                    info_for_instruction,
                                                    max_clones);
         if(merged.has_value())
@@ -1400,7 +1442,7 @@ void coalesce_independent_blocks(
         for(auto source : range(target + 1, blocks.size()))
         {
             auto merged = merge_blocks(
-                blocks, dependencies, target, source, info_for_instruction, max_clones);
+                blocks, dependencies, {target, source}, info_for_instruction, max_clones);
             if(merged.has_value())
             {
                 auto connections = find_block_connections(blocks.at(*merged), info_for_instruction);
@@ -1462,7 +1504,7 @@ bool can_propagate_padding_from_source_block(
             return false;
         auto candidate = blocks.at(*source->second->block);
         candidate.ops.push_back(&plan);
-        return block_is_closed(candidate, info_for_instruction);
+        return finalize_block(std::move(candidate), info_for_instruction).has_value();
     });
 }
 
@@ -1490,15 +1532,16 @@ std::unordered_set<instruction_ref> find_absorbed_candidates(
                        block.ops.end(),
                        std::inserter(planned, planned.end()),
                        [](const auto* plan) { return plan->info.ins; });
-        std::for_each(infos.begin(), infos.end(), [&](auto& plan) {
+        for(const auto& plan : infos)
+        {
             if(plan.block.has_value() or not needs_deferred_specialization_block(plan.info))
-                return;
+                continue;
             if(contains(propagation_candidates, plan.info.ins))
-                return;
+                continue;
             std::unordered_set<instruction_ref> visited;
             if(reaches_specialization_block(plan.info.ins, planned, info_for_instruction, visited))
                 result.insert(plan.info.ins);
-        });
+        }
     });
     return result;
 }
@@ -1520,7 +1563,7 @@ std::vector<block_plan> discover_blocks(
         if(not required_roots.has_value())
             return;
         plan.block = blocks.size();
-        blocks.push_back({{&plan}, std::move(*required_roots), {}, {}, {}});
+        blocks.push_back({{&plan}, std::move(*required_roots), {}, {}});
     });
 
     auto dependencies = find_block_dependencies(blocks, info_for_instruction);
@@ -1543,7 +1586,7 @@ std::vector<block_plan> discover_blocks(
         if(not required_roots.has_value())
             return;
         plan.block = blocks.size();
-        blocks.push_back({{&plan}, std::move(*required_roots), {}, {}, {}});
+        blocks.push_back({{&plan}, std::move(*required_roots), {}, {}});
     });
 
     if(blocks.size() != initial_block_count)
@@ -1635,16 +1678,23 @@ void prepare_clone_infos(
         {
             if(contains(info.shape_input_indices, input_index))
                 continue;
-            auto operand = info.operands.at(input_index);
-            auto propagated_fills = block.input_fills.find(info.ins);
-            if(propagated_fills != block.input_fills.end() and
-               propagated_fills->second.at(input_index).has_value())
-                operand.pad_value = fill_value(*propagated_fills->second.at(input_index));
-            std::optional<padding_requirement> padding_variant;
-            auto propagated_variants = block.input_variants.find(info.ins);
-            if(propagated_variants != block.input_variants.end())
-                padding_variant = propagated_variants->second.at(input_index);
-            auto source  = args.at(input_index);
+            const auto& operand                         = info.operands.at(input_index);
+            const resolved_input_padding_plan* resolved = nullptr;
+            auto resolved_it                            = block.resolved_inputs.find(info.ins);
+            if(resolved_it != block.resolved_inputs.end())
+                resolved = &resolved_it->second.at(input_index);
+
+            auto pad_value = operand.pad_value;
+            auto masks     = operand.masks;
+            std::optional<padding_variant_plan> padding_variant;
+            if(resolved != nullptr)
+            {
+                if(resolved->variant.has_value())
+                    padding_variant = resolved->variant->path;
+                if(resolved->fill.has_value())
+                    pad_value = fill_value(*resolved->fill);
+            }
+            auto source = args.at(input_index);
             sliced_value input{source, {}};
             auto source_info             = info_for_instruction.find(source);
             const bool source_is_planned = source_info != info_for_instruction.end() and
@@ -1659,24 +1709,28 @@ void prepare_clone_infos(
 
             // Fixed symbolic dimensions and strides still require static clone metadata.
             bool emit_pad =
-                operand.pad_value.has_value() or
+                pad_value.has_value() or
                 needs_fixed_retarget(input_shapes.at(input_index), target_substitutions);
-            if(source_in_same_block and operand.pad_value.has_value())
+            if(source_in_same_block and pad_value.has_value())
             {
                 // Internal edges already carry bucket-sized values.
                 input.slice_axes.clear();
                 emit_pad = false;
             }
-            else if(source_in_other_block and operand.pad_value.has_value() and
+            else if(source_in_other_block and pad_value.has_value() and
                     not operand.retained_slice_axes.empty())
             {
-                // Cross-block edges retain only axes where padding can affect the consumer.
+                // Cross-block edges retain axes where padding can affect the consumer and axes
+                // whose existing bucket padding must be discarded before applying a new fill.
                 std::vector<std::size_t> kept_axes;
-                std::copy_if(
-                    input.slice_axes.begin(),
-                    input.slice_axes.end(),
-                    std::back_inserter(kept_axes),
-                    [&](auto axis) { return contains(operand.retained_slice_axes, axis); });
+                std::copy_if(input.slice_axes.begin(),
+                             input.slice_axes.end(),
+                             std::back_inserter(kept_axes),
+                             [&](auto axis) {
+                                 return contains(operand.retained_slice_axes, axis) or
+                                        (resolved != nullptr and
+                                         contains(resolved->repad_axes, axis));
+                             });
                 if(kept_axes.empty())
                 {
                     input.slice_axes.clear();
@@ -1687,11 +1741,11 @@ void prepare_clone_infos(
             }
             // A retarget-only pad has no reachable padded region, so its fill value is irrelevant.
             if(emit_pad)
-                operand.pad_value = operand.pad_value.value_or(0.0f);
+                pad_value = pad_value.value_or(0.0f);
             else
-                operand.pad_value.reset();
+                pad_value.reset();
             plan.clone_inputs.push_back(
-                {std::move(input), std::move(operand), std::move(padding_variant)});
+                {std::move(input), pad_value, std::move(masks), std::move(padding_variant)});
         }
     }
 }
@@ -1963,6 +2017,39 @@ void add_frame_root_inputs(block_frame& frame,
     }
 }
 
+void add_frame_freezer_extent_inputs(
+    block_frame& frame,
+    const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction,
+    const std::unordered_map<sym::expr, instruction_ref>& root_sources)
+{
+    std::vector<sym::expr> required_roots;
+    for(auto ins : frame.body)
+    {
+        auto found = info_for_instruction.find(ins);
+        if(found == info_for_instruction.end())
+            continue;
+        for(const auto& expression : found->second->info.runtime_extent_expressions)
+        {
+            auto variables = sym::find_variables(expression);
+            for(const auto& variable : variables)
+                if(not contains(required_roots, variable))
+                    required_roots.push_back(variable);
+        }
+    }
+    std::sort(required_roots.begin(), required_roots.end(), [](const auto& x, const auto& y) {
+        return x.to_string() < y.to_string();
+    });
+    for(const auto& root : required_roots)
+    {
+        if(not contains(root_sources, root))
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: no parameter resolves freezer extent root " +
+                           root.to_string());
+        auto input_index = add_block_input(frame.inputs, {root_sources.at(root), {}});
+        if(not contains(frame.extent_sources, input_index))
+            frame.extent_sources.push_back(input_index);
+    }
+}
+
 void name_frame_inputs(block_frame& frame, const module& m, std::size_t block_number)
 {
     auto parameter_names = m.get_parameter_names();
@@ -2052,6 +2139,7 @@ std::optional<block_frame> find_block_frame(
         return std::nullopt;
 
     add_frame_root_inputs(result, block, root_sources);
+    add_frame_freezer_extent_inputs(result, info_for_instruction, root_sources);
     name_frame_inputs(result, m, block_number);
     return result;
 }
@@ -2080,6 +2168,13 @@ bool only_used_as_slice_metadata(instruction_ref ins)
 
 struct clone_context
 {
+    struct emitted_padding_variant
+    {
+        const padding_variant_plan* plan = nullptr;
+        std::size_t step                 = 0;
+        instruction_ref result;
+    };
+
     module& clone_module;
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction;
     std::unordered_map<instruction_ref, instruction_ref>& clone_map;
@@ -2087,10 +2182,9 @@ struct clone_context
     const std::unordered_map<sym::expr, std::size_t>& freeze;
     const std::vector<instruction_ref>& runtime_extent_sources;
     const std::unordered_map<sym::expr, sym::expr>& fixed_substitutions;
-    std::size_t block_index;
     runtime_cache cache;
     std::unordered_map<instruction_ref, std::vector<instruction_ref>> reusable_pads;
-    std::vector<std::tuple<instruction_ref, padding_requirement, instruction_ref>> padding_variants;
+    std::vector<emitted_padding_variant> padding_variants;
 
     clone_context(module& clone,
                   const std::unordered_map<instruction_ref, const symbolic_op_plan*>& infos,
@@ -2098,36 +2192,36 @@ struct clone_context
                   const std::vector<std::pair<sliced_value, instruction_ref>>& inputs,
                   const std::unordered_map<sym::expr, std::size_t>& frozen_values,
                   const std::vector<instruction_ref>& runtime_sources,
-                  const std::unordered_map<sym::expr, sym::expr>& substitutions,
-                  std::size_t current_block)
+                  const std::unordered_map<sym::expr, sym::expr>& substitutions)
         : clone_module(clone),
           info_for_instruction(infos),
           clone_map(clones),
           input_values(inputs),
           freeze(frozen_values),
           runtime_extent_sources(runtime_sources),
-          fixed_substitutions(substitutions),
-          block_index(current_block)
+          fixed_substitutions(substitutions)
     {
     }
 
-    instruction_ref emit_padding_variant(instruction_ref source,
-                                         const padding_requirement& requirement)
+    instruction_ref
+    emit_padding_variant(instruction_ref source, const padding_variant_plan& plan, std::size_t step)
     {
+        if(step >= plan.size() or plan.at(step).source != source)
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: invalid concrete padding variant");
         auto cached =
             std::find_if(padding_variants.begin(), padding_variants.end(), [&](const auto& entry) {
-                return std::get<0>(entry) == source and
-                       same_padding_requirement(std::get<1>(entry), requirement);
+                return same_padding_variant_suffix(*entry.plan, entry.step, plan, step);
             });
         if(cached != padding_variants.end())
-            return std::get<2>(*cached);
-        auto result = emit_impl(source, requirement, false);
-        padding_variants.emplace_back(source, requirement, result);
+            return cached->result;
+        auto result = emit_impl(source, &plan, step, false);
+        padding_variants.push_back({&plan, step, result});
         return result;
     }
 
     instruction_ref emit_impl(instruction_ref source,
-                              std::optional<padding_requirement> padding_variant,
+                              const padding_variant_plan* padding_variant,
+                              std::size_t variant_step_index,
                               bool update_clone_map)
     {
         auto found                         = info_for_instruction.find(source);
@@ -2155,55 +2249,48 @@ struct clone_context
                          std::back_inserter(data_input_indices),
                          [&](auto index) { return not is_shape_input(source_info, index); });
             assert(data_input_indices.size() == clone_inputs.size());
-            std::optional<input_padding_requirement> propagated_variant;
-            if(padding_variant.has_value())
+            const padding_variant_step* variant = nullptr;
+            if(padding_variant != nullptr)
             {
-                const auto& propagate = clone_info->info.propagate_padding;
-                if(not propagate)
-                    MIGRAPHX_THROW("SPLIT_SYM_DIM: padding variant cannot be propagated");
-                auto propagated = propagate(source, *padding_variant);
-                if(not propagated.has_value() or propagated->size() != 1)
-                    MIGRAPHX_THROW("SPLIT_SYM_DIM: padding variant is not transparent");
-                propagated_variant = propagated->front();
+                if(variant_step_index >= padding_variant->size() or
+                   padding_variant->at(variant_step_index).source != source)
+                    MIGRAPHX_THROW("SPLIT_SYM_DIM: invalid concrete padding variant");
+                variant = &padding_variant->at(variant_step_index);
             }
+            bool applied_variant = variant == nullptr;
             for(auto&& [arg, clone_input, original_index] :
                 views::zip(args, clone_inputs, data_input_indices))
             {
                 std::optional<float> pad_value;
-                if(propagated_variant.has_value() and propagated_variant->input == original_index)
+                if(variant != nullptr and variant->input == original_index)
                 {
-                    auto input_source              = source->inputs().at(original_index);
-                    auto input_info                = info_for_instruction.find(input_source);
-                    const bool input_in_same_block = input_info != info_for_instruction.end() and
-                                                     input_info->second->block == block_index;
-                    if(input_in_same_block)
-                        arg = emit_padding_variant(input_source, propagated_variant->requirement);
+                    applied_variant   = true;
+                    auto input_source = source->inputs().at(original_index);
+                    if(variant->boundary_pad_value.has_value())
+                        pad_value = variant->boundary_pad_value;
                     else
                     {
-                        auto boundary =
-                            resolve_boundary_requirement(clone_info, *propagated_variant);
-                        if(not boundary.has_value())
-                            MIGRAPHX_THROW(
-                                "SPLIT_SYM_DIM: padding variant cannot reach the boundary");
-                        auto fill = choose_fill(boundary->requirement.fills);
-                        if(not fill.has_value())
-                            MIGRAPHX_THROW("SPLIT_SYM_DIM: padding variant has no concrete fill");
-                        pad_value = fill_value(*fill);
+                        auto next_step = variant_step_index + 1;
+                        if(next_step >= padding_variant->size())
+                            MIGRAPHX_THROW("SPLIT_SYM_DIM: incomplete concrete padding variant");
+                        arg = emit_padding_variant(input_source, *padding_variant, next_step);
                     }
                 }
-                else if(not padding_variant.has_value() and clone_input.padding_variant.has_value())
-                    arg = emit_padding_variant(source->inputs().at(original_index),
-                                               *clone_input.padding_variant);
-                else if(not padding_variant.has_value())
-                    pad_value = clone_input.operand.pad_value;
+                else if(padding_variant == nullptr and clone_input.padding_variant.has_value())
+                    arg = emit_padding_variant(
+                        source->inputs().at(original_index), *clone_input.padding_variant, 0);
+                else if(padding_variant == nullptr)
+                    pad_value = clone_input.pad_value;
                 if(pad_value.has_value())
                     arg = add_or_reuse_pad(clone_module,
                                            make_op("fixed_pad", {{"value", *pad_value}}),
                                            arg,
                                            reusable_pads);
             }
+            if(not applied_variant)
+                MIGRAPHX_THROW("SPLIT_SYM_DIM: concrete padding variant input is not data");
             for(auto&& [arg, clone_input] : views::zip(args, clone_inputs))
-                for(const auto& mask : clone_input.operand.masks)
+                for(const auto& mask : clone_input.masks)
                     arg = add_runtime_mask(clone_module,
                                            arg,
                                            mask,
@@ -2220,7 +2307,8 @@ struct clone_context
 
         instruction_ref clone;
         if(freezer)
-            clone = freezer(clone_module, source, args, freeze);
+            clone = freezer(
+                clone_module, source, args, freezer_context{freeze, runtime_extent_sources});
         else
         {
             clone =
@@ -2236,7 +2324,7 @@ struct clone_context
         return clone;
     }
 
-    instruction_ref emit(instruction_ref source) { return emit_impl(source, std::nullopt, true); }
+    instruction_ref emit(instruction_ref source) { return emit_impl(source, nullptr, 0, true); }
 };
 
 struct fold_fixed_clone_evaluations : match::supports_dynamic_shapes
@@ -2290,7 +2378,6 @@ struct clone_build
 clone_build build_clone(
     const std::string& name,
     const block_frame& frame,
-    std::size_t block_index,
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction,
     const std::unordered_map<sym::expr, std::size_t>& freeze,
     const std::unordered_map<sym::expr, shape::dynamic_dimension::interval>& subranges,
@@ -2335,8 +2422,7 @@ clone_build build_clone(
                           input_values,
                           freeze,
                           runtime_extent_sources,
-                          fixed_substitutions,
-                          block_index};
+                          fixed_substitutions};
     for(auto source : frame.body)
         context.emit(source);
     match::find_matches(clone_module,
@@ -2583,13 +2669,8 @@ void specialize_blocks(
             }
             auto name  = m.name() + ":split_sym_dim_" + std::to_string(block_number) + "_" +
                          std::to_string(clone_index);
-            auto built = build_clone(name,
-                                     *frame,
-                                     block_number,
-                                     info_for_instruction,
-                                     freeze,
-                                     subranges,
-                                     fixed_substitutions);
+            auto built = build_clone(
+                name, *frame, info_for_instruction, freeze, subranges, fixed_substitutions);
             clones.push_back(std::move(built.clone));
             clone_outputs.push_back(std::move(built.output_case));
         }

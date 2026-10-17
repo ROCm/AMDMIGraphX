@@ -1323,6 +1323,26 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
     return std::nullopt;
 }
 
+static bool has_safe_interval(const expr& expression)
+{
+    if(fixed_value(expression).has_value() or expression.name() == "variable")
+        return true;
+    return expression.name() == "+" and std::all_of(expression.children().begin(),
+                                                    expression.children().end(),
+                                                    has_safe_interval);
+}
+
+static std::optional<interval> find_safe_interval(const expr& expression,
+                                                  const std::optional<scalar>& value,
+                                                  interval default_bounds)
+{
+    if(value.has_value())
+        return interval{*value, *value};
+    if(has_safe_interval(expression))
+        return expression.eval_interval_default(default_bounds);
+    return std::nullopt;
+}
+
 std::optional<bool> provable_equal(const expr& a, const expr& b, interval default_bounds)
 {
     if(a.empty() or b.empty())
@@ -1335,25 +1355,8 @@ std::optional<bool> provable_equal(const expr& a, const expr& b, interval defaul
     if(a_value.has_value() and b_value.has_value())
         return scalar_equal(*a_value, *b_value);
 
-    const auto has_safe_interval = fix<bool>([&](auto self, const expr& expression) {
-        if(fixed_value(expression).has_value() or expression.name() == "variable")
-            return true;
-        return expression.name() == "+" and
-               std::all_of(expression.children().begin(),
-                           expression.children().end(),
-                           [&](const auto& child) { return self(child); });
-    });
-
-    const auto safe_interval = [&](const expr& expression,
-                                   const std::optional<scalar>& value) -> std::optional<interval> {
-        if(value.has_value())
-            return interval{*value, *value};
-        if(has_safe_interval(expression))
-            return expression.eval_interval_default(default_bounds);
-        return std::nullopt;
-    };
-    const auto a_interval = safe_interval(a, a_value);
-    const auto b_interval = safe_interval(b, b_value);
+    const auto a_interval = find_safe_interval(a, a_value, default_bounds);
+    const auto b_interval = find_safe_interval(b, b_value, default_bounds);
     if(a_interval.has_value() and b_interval.has_value() and
        (*a_interval < *b_interval or *b_interval < *a_interval))
         return false;

@@ -81,10 +81,10 @@ enum class axis_handling
 
 struct axis_desc
 {
-    axis_handling handling = axis_handling::unsupported;
-    fill_kind fill         = fill_kind::dont_care;
-    bool coalesce_safe     = false;
-    mask_role role         = mask_role::contracted;
+    axis_handling handling      = axis_handling::unsupported;
+    fill_kind fill              = fill_kind::dont_care;
+    bool coalesce_safe          = false;
+    mask_role role              = mask_role::contracted;
     padding_semantics semantics = padding_semantics::exact;
 };
 
@@ -110,6 +110,8 @@ struct padding_requirement
     sym::expr extent;
     std::set<fill_kind> fills;
     padding_semantics semantics;
+    // False when the requirement must be transformed by an upstream operation before padding.
+    bool materializable = true;
 };
 
 struct input_padding_requirement
@@ -129,11 +131,14 @@ struct operand_plan
     std::vector<padding_requirement> padding_requirements;
 };
 
-using op_freezer =
-    std::function<instruction_ref(module&,
-                                  instruction_ref,
-                                  const std::vector<instruction_ref>&,
-                                  const std::unordered_map<sym::expr, std::size_t>&)>;
+struct freezer_context
+{
+    const std::unordered_map<sym::expr, std::size_t>& values;
+    const std::vector<instruction_ref>& runtime_extent_sources;
+};
+
+using op_freezer = std::function<instruction_ref(
+    module&, instruction_ref, const std::vector<instruction_ref>&, const freezer_context&)>;
 
 struct symbolic_op_info
 {
@@ -145,6 +150,7 @@ struct symbolic_op_info
     op_freezer freezer;
     padding_propagator propagate_padding;
     std::vector<std::size_t> shape_input_indices;
+    std::vector<sym::expr> runtime_extent_expressions;
     bool supported = false;
 
     const shape& get_output_shape() const { return ins->get_shape(); }
@@ -161,9 +167,19 @@ float fill_value(fill_kind fill);
 std::optional<std::vector<input_padding_requirement>>
 propagate_padding_to_input(instruction_ref ins,
                            std::size_t input,
+                           std::size_t input_axis,
                            const padding_requirement& requirement,
                            std::set<fill_kind> fills,
-                           padding_semantics semantics);
+                           padding_semantics semantics,
+                           bool materializable = true);
+
+std::optional<std::vector<input_padding_requirement>>
+propagate_padding_to_input(instruction_ref ins,
+                           std::size_t input,
+                           const padding_requirement& requirement,
+                           std::set<fill_kind> fills,
+                           padding_semantics semantics,
+                           bool materializable = true);
 
 std::optional<std::vector<input_padding_requirement>>
 preserve_padding(instruction_ref ins, const padding_requirement& requirement);

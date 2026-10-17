@@ -4278,6 +4278,31 @@ def expand_symbolic_input_static_dims_test():
     return ([shape_const, node], [x], [y])
 
 
+@onnx_test()
+def expand_symbolic_input_static_nonunit_dims_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [1, 'sequence_length'])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3])
+
+    shape_val = np.array([1, 3]).astype(np.int64)
+    shape_ts = helper.make_tensor(name='shape_tensor',
+                                  data_type=TensorProto.INT64,
+                                  dims=shape_val.shape,
+                                  vals=shape_val)
+    shape_const = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['shape'],
+        value=shape_ts,
+    )
+
+    node = onnx.helper.make_node('Expand',
+                                 inputs=['x', 'shape'],
+                                 outputs=['y'])
+
+    return ([shape_const, node], [x], [y])
+
+
 @onnx_test(True)
 def external_constant_test():
     x = np.array([0, 1, 2])
@@ -6297,6 +6322,87 @@ def group_query_attention_defaults_test():
              ], [qkv, key, value, past_key_values_key,
                  past_key_values_value], [output, present_key, present_value],
             [seqlens_k, total_sequence_length, cos_cache, sin_cache])
+
+
+@onnx_test()
+def group_query_attention_batched_seqlens_test():
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16, [2, 1, 16])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
+    past_key_values_key = helper.make_tensor_value_info(
+        'past_key_values_key', TensorProto.FLOAT16, [2, 2, 4, 2])
+    past_key_values_value = helper.make_tensor_value_info(
+        'past_key_values_value', TensorProto.FLOAT16, [2, 2, 4, 2])
+    seqlens_k = helper.make_tensor_value_info('seqlens_k', TensorProto.INT32,
+                                              [2])
+    total_sequence_length = helper.make_tensor(
+        name='total_sequence_length',
+        data_type=TensorProto.INT32,
+        dims=[1],
+        vals=[4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [2, 1, 8])
+    present_key = helper.make_tensor_value_info('present_key',
+                                                TensorProto.FLOAT16,
+                                                [2, 2, 4, 2])
+    present_value = helper.make_tensor_value_info('present_value',
+                                                  TensorProto.FLOAT16,
+                                                  [2, 2, 4, 2])
+
+    node = helper.make_node(
+        'GroupQueryAttention',
+        inputs=[
+            'qkv', 'key', 'value', 'past_key_values_key',
+            'past_key_values_value', 'seqlens_k', 'total_sequence_length'
+        ],
+        outputs=['output', 'present_key', 'present_value'],
+        kv_num_heads=2,
+        num_heads=4,
+        domain='com.microsoft')
+
+    return ([node], [
+        qkv, key, value, past_key_values_key, past_key_values_value, seqlens_k
+    ], [output, present_key, present_value], [total_sequence_length])
+
+
+@onnx_test()
+def group_query_attention_right_padded_prompt_test():
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16, [1, 8, 24])
+    past_key_values_key = helper.make_tensor_value_info(
+        'past_key_values_key', TensorProto.FLOAT16, [1, 1, 8, 8])
+    past_key_values_value = helper.make_tensor_value_info(
+        'past_key_values_value', TensorProto.FLOAT16, [1, 1, 8, 8])
+    seqlens_k = helper.make_tensor(name='seqlens_k',
+                                   data_type=TensorProto.INT32,
+                                   dims=[1],
+                                   vals=[4])
+    total_sequence_length = helper.make_tensor(name='total_sequence_length',
+                                               data_type=TensorProto.INT32,
+                                               dims=[1],
+                                               vals=[8])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 8, 8])
+    present_key = helper.make_tensor_value_info('present_key',
+                                                TensorProto.FLOAT16,
+                                                [1, 1, 8, 8])
+    present_value = helper.make_tensor_value_info('present_value',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 1, 8, 8])
+
+    node = helper.make_node(
+        'GroupQueryAttention',
+        inputs=[
+            'qkv', '', '', 'past_key_values_key', 'past_key_values_value',
+            'seqlens_k', 'total_sequence_length'
+        ],
+        outputs=['output', 'present_key', 'present_value'],
+        kv_num_heads=1,
+        num_heads=1,
+        domain='com.microsoft')
+
+    return ([node], [qkv, past_key_values_key, past_key_values_value],
+            [output, present_key, present_value],
+            [seqlens_k, total_sequence_length])
 
 
 @onnx_test()
@@ -16182,6 +16288,47 @@ def rotary_embedding_test():
 
 
 @onnx_test()
+def rotary_embedding_symbolic_if_test():
+    cond = helper.make_tensor_value_info('cond', TensorProto.BOOL, [])
+    input = helper.make_tensor_value_info(
+        'input', TensorProto.FLOAT16, [1, 'sequence_length', 18])
+    pos_ids = helper.make_tensor_value_info(
+        'pos_ids', TensorProto.INT32, [1, 'sequence_length'])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    then_output = helper.make_tensor_value_info(
+        'then_output', TensorProto.FLOAT16, [1, 'sequence_length', 18])
+    else_output = helper.make_tensor_value_info(
+        'else_output', TensorProto.FLOAT16, [1, 'sequence_length', 18])
+    output = helper.make_tensor_value_info(
+        'output', TensorProto.FLOAT16, [1, 'sequence_length', 18])
+
+    then_rotary = helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['then_output'],
+        interleaved=0,
+        domain='com.microsoft')
+    else_rotary = helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['else_output'],
+        interleaved=0,
+        domain='com.microsoft')
+    then_body = helper.make_graph([then_rotary], 'then_body', [],
+                                  [then_output])
+    else_body = helper.make_graph([else_rotary], 'else_body', [],
+                                  [else_output])
+    node = helper.make_node('If', ['cond'], ['output'],
+                            then_branch=then_body,
+                            else_branch=else_body)
+
+    return ([node], [cond, input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
 def rotary_embedding_interleaved_test():
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
                                           [1, 3, 8])
@@ -16229,7 +16376,8 @@ def rotary_embedding_interleaved_large_test():
 def rotary_embedding_dim_test():
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
                                           [1, 2, 6])
-    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32, [1])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 2])
     cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
                                               [2, 2])
     sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
@@ -18156,6 +18304,41 @@ def slice_static_data_symbolic_end_test():
 
     return ([starts, ends, axes, steps, node], [data, length_source],
             [output])
+
+
+@onnx_test()
+def slice_symbolic_data_static_bounds_test():
+    data = helper.make_tensor_value_info(
+        'data', TensorProto.FLOAT,
+        ['batch_size', 'sequence_length', 128])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           ['batch_size', 3, 128])
+
+    starts = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['starts'],
+        value=helper.make_tensor('starts', TensorProto.INT64, [1], [1]))
+    ends = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['ends'],
+        value=helper.make_tensor('ends', TensorProto.INT64, [1], [4]))
+    axes = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['axes'],
+        value=helper.make_tensor('axes', TensorProto.INT64, [1], [1]))
+    steps = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['steps'],
+        value=helper.make_tensor('steps', TensorProto.INT64, [1], [1]))
+    node = helper.make_node('Slice',
+                            inputs=['data', 'starts', 'ends', 'axes', 'steps'],
+                            outputs=['output'])
+
+    return ([starts, ends, axes, steps, node], [data], [output])
 
 
 @onnx_test()
@@ -20172,6 +20355,19 @@ def triu_test():
 
 
 @onnx_test()
+def triu_empty_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x', ''],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def triu_dynamic_k_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
     k = helper.make_tensor_value_info('k', TensorProto.INT64, [1])
@@ -20534,6 +20730,32 @@ def fixed_named_dimension_test():
     node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def repeated_fixed_named_dimension_test():
+    input = helper.make_tensor_value_info(
+        'input', TensorProto.FLOAT16,
+        ['batch_size', 'sequence_length', 18])
+    position_ids = helper.make_tensor_value_info(
+        'position_ids', TensorProto.INT32,
+        ['batch_size', 'sequence_length'])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    output = helper.make_tensor_value_info(
+        'output', TensorProto.FLOAT16,
+        ['batch_size', 'sequence_length', 18])
+
+    node = helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'position_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        domain='com.microsoft')
+
+    return ([node], [input, position_ids, cos_cache, sin_cache], [output])
 
 
 @onnx_test()

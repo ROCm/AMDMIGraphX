@@ -64,12 +64,12 @@ struct analyze_dynamic_range : analyzer<analyze_dynamic_range>
     static instruction_ref freeze(module& m,
                                   instruction_ref source,
                                   const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>& values)
+                                  const freezer_context& context)
     {
         assert(args.size() == 3);
         auto output_dim = symbolic_range_dim(source->get_operator());
         assert(output_dim.has_value());
-        auto length = output_dim->sym_expr.eval_uint(values);
+        auto length = output_dim->sym_expr.eval_uint(context.values);
         std::vector<int64_t> indices(length);
         std::iota(indices.begin(), indices.end(), int64_t{0});
         auto index = m.add_literal(literal{shape{shape::int64_type, {length}}, indices});

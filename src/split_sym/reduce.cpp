@@ -107,8 +107,12 @@ struct analyze_reduce : analyzer<analyze_reduce>
         auto input_fills = requirement.fills;
         if(requirement.semantics == padding_semantics::exact)
             input_fills = {*identity};
-        auto propagated = propagate_padding_to_input(
-            ins, 0, requirement, std::move(input_fills), requirement.semantics);
+        auto propagated = propagate_padding_to_input(ins,
+                                                     0,
+                                                     requirement,
+                                                     std::move(input_fills),
+                                                     requirement.semantics,
+                                                     requirement.materializable);
         if(not propagated.has_value())
             return std::nullopt;
         auto axes = reduce_axes(ins->get_operator(), ins->inputs().front()->get_shape().ndim());
@@ -120,7 +124,7 @@ struct analyze_reduce : analyzer<analyze_reduce>
     static instruction_ref freeze(module& m,
                                   instruction_ref source,
                                   const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>&)
+                                  const freezer_context&)
     {
         auto identity = reduce_identity(source->name());
         assert(identity.has_value());

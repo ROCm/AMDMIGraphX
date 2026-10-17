@@ -139,6 +139,11 @@ struct onnx_parser
     shape parse_param_shape(const onnx::TypeProto& t,
                             const std::string& name,
                             const std::vector<shape::dynamic_dimension>& override_dims);
+    shape parse_param_shape(
+        const onnx::TypeProto& t,
+        const std::string& name,
+        const std::vector<shape::dynamic_dimension>& override_dims,
+        const std::unordered_map<std::string, shape::dynamic_dimension>& resolved_dim_params);
     shape parse_param_shape(const onnx::TypeProto& t,
                             const std::vector<std::size_t>& input_dims) const;
     std::string to_string(const onnx::AttributeProto& attr) const;

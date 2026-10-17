@@ -102,3 +102,25 @@ TEST_CASE(expand_symbolic_input_static_dims_test)
     auto prog          = read_onnx("expand_symbolic_input_static_dims_test.onnx", options);
     EXPECT(p == prog);
 }
+
+TEST_CASE(expand_symbolic_input_static_nonunit_dims_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    auto sequence = var("sequence_length", {1, 3}, {1, 3});
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {lit(1), sequence}});
+    auto dims = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, {1, 3}});
+    auto output = mm->add_instruction(migraphx::make_op("broadcast_with_dims"), input, dims);
+    mm->add_return({output});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes = true;
+    options.dim_params = {{"sequence_length", migraphx::shape::dynamic_dimension{1, 3, {1, 3}}}};
+    auto prog          = read_onnx("expand_symbolic_input_static_nonunit_dims_test.onnx", options);
+    EXPECT(p == prog);
+}

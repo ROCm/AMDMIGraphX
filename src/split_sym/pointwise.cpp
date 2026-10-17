@@ -68,8 +68,12 @@ struct analyze_pointwise : analyzer<analyze_pointwise>
         {
             auto condition = propagate_padding_to_input(
                 ins, 0, requirement, {fill_kind::zero}, padding_semantics::exact);
-            auto false_value = propagate_padding_to_input(
-                ins, 2, requirement, requirement.fills, requirement.semantics);
+            auto false_value = propagate_padding_to_input(ins,
+                                                          2,
+                                                          requirement,
+                                                          requirement.fills,
+                                                          requirement.semantics,
+                                                          requirement.materializable);
             if(not condition.has_value() or not false_value.has_value())
                 return std::nullopt;
             condition->insert(condition->end(), false_value->begin(), false_value->end());
@@ -91,14 +95,26 @@ struct analyze_pointwise : analyzer<analyze_pointwise>
             if(supports_fill(input_type, fill_kind::neg_one))
                 nonzero_fills.insert(fill_kind::neg_one);
             return propagate_padding_to_input(
-                ins, *input, requirement, std::move(nonzero_fills), padding_semantics::exact);
+                ins, *input, requirement, nonzero_fills, padding_semantics::exact);
         }
         if(ins->name() == "sub" and inputs.size() == 2 and
            contains({padding_semantics::max_neutral, padding_semantics::min_neutral},
-                    requirement.semantics) and
-           scalar_constant(inputs.back()).has_value())
-            return propagate_padding_to_input(
-                ins, 0, requirement, requirement.fills, requirement.semantics);
+                    requirement.semantics))
+        {
+            auto scalar = scalar_constant(inputs.back());
+            if(scalar.has_value())
+            {
+                const bool materializable =
+                    requirement.materializable and
+                    (not shape::is_integral(ins->get_shape().type()) or *scalar == 0.0);
+                return propagate_padding_to_input(ins,
+                                                  0,
+                                                  requirement,
+                                                  requirement.fills,
+                                                  requirement.semantics,
+                                                  materializable);
+            }
+        }
         if(inputs.size() != 1)
             return std::nullopt;
         if(ins->name() == "exp")
@@ -124,8 +140,12 @@ struct analyze_pointwise : analyzer<analyze_pointwise>
                 std::inserter(preserved, preserved.end()),
                 [](auto fill) { return contains({fill_kind::zero, fill_kind::one}, fill); });
             if(not preserved.empty())
-                return propagate_padding_to_input(
-                    ins, 0, requirement, std::move(preserved), padding_semantics::exact);
+                return propagate_padding_to_input(ins,
+                                                  0,
+                                                  requirement,
+                                                  preserved,
+                                                  padding_semantics::exact,
+                                                  requirement.materializable);
         }
         return std::nullopt;
     }

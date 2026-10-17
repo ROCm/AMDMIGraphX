@@ -403,12 +403,88 @@ parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto
     return mod_insts;
 }
 
+static shape::dynamic_dimension dim_param_bounds(const onnx_parser& parser,
+                                                 const std::string& dim_param,
+                                                 const shape::dynamic_dimension* override_dim)
+{
+    if(override_dim != nullptr)
+        return *override_dim;
+    if(contains(parser.dim_params, dim_param))
+        return parser.dim_params.at(dim_param);
+    return parser.default_dyn_dim_value;
+}
+
+static std::unordered_map<std::string, shape::dynamic_dimension>
+resolve_repeated_dim_params(const onnx_parser& parser, const onnx::GraphProto& graph)
+{
+    struct dim_param_state
+    {
+        shape::dynamic_dimension::interval bounds;
+        std::set<std::size_t> optimals;
+        std::size_t count = 0;
+    };
+
+    std::unordered_map<std::string, dim_param_state> states;
+    for(const auto& input : graph.input())
+    {
+        const auto override_it = parser.map_dyn_input_dims.find(input.name());
+        const auto* overrides =
+            override_it == parser.map_dyn_input_dims.end() ? nullptr : &override_it->second;
+        const auto& model_dims = input.type().tensor_type().shape().dim();
+        const auto num_dims =
+            overrides == nullptr or overrides->empty() ? model_dims.size() : overrides->size();
+        for(std::size_t axis = 0; axis < num_dims and axis < model_dims.size(); ++axis)
+        {
+            const auto& model_dim = model_dims.Get(axis);
+            if(not model_dim.has_dim_param())
+                continue;
+            const shape::dynamic_dimension* override_dim =
+                overrides != nullptr and axis < overrides->size() ? &overrides->at(axis) : nullptr;
+            const auto bounds   = dim_param_bounds(parser, model_dim.dim_param(), override_dim);
+            const auto interval = bounds.get_interval();
+            auto& state         = states[model_dim.dim_param()];
+            if(state.count == 0)
+            {
+                state.bounds = interval;
+            }
+            else
+            {
+                state.bounds.min = std::max(state.bounds.min, interval.min);
+                state.bounds.max = std::min(state.bounds.max, interval.max);
+                if(state.bounds.min > state.bounds.max)
+                    MIGRAPHX_THROW("PARSE_GRAPH: Conflicting bounds for named dimension '" +
+                                   model_dim.dim_param() + "'");
+            }
+            const auto optimals = bounds.get_optimals();
+            state.optimals.insert(optimals.begin(), optimals.end());
+            ++state.count;
+        }
+    }
+
+    std::unordered_map<std::string, shape::dynamic_dimension> result;
+    for(auto& [name, state] : states)
+    {
+        if(state.count < 2)
+            continue;
+        auto& optimals = state.optimals;
+        optimals.erase(optimals.begin(), optimals.lower_bound(state.bounds.min));
+        optimals.erase(optimals.upper_bound(state.bounds.max), optimals.end());
+        result.emplace(
+            name,
+            shape::dynamic_dimension{state.bounds.min, state.bounds.max, std::move(optimals)});
+    }
+    return result;
+}
+
 static std::unordered_map<std::string, instruction_ref>
 parse_inputs(onnx_parser& parser,
              module* mod,
              const onnx::GraphProto& graph,
              std::unordered_map<std::string, instruction_ref> mod_insts)
 {
+    const auto resolved_dim_params =
+        parser.use_symbolic_shapes ? resolve_repeated_dim_params(parser, graph)
+                                   : std::unordered_map<std::string, shape::dynamic_dimension>{};
     for(auto&& input : graph.input())
     {
         const std::string& name = input.name();
@@ -434,7 +510,8 @@ parse_inputs(onnx_parser& parser,
                 {
                     // Name each overridden axis from the model's dim_param so it
                     // becomes a symbol; bounds/optimals come from the override.
-                    s = parser.parse_param_shape(input.type(), name, override_dims);
+                    s = parser.parse_param_shape(
+                        input.type(), name, override_dims, resolved_dim_params);
                 }
                 else
                 {
@@ -444,7 +521,7 @@ parse_inputs(onnx_parser& parser,
             }
             else
             {
-                s = parser.parse_param_shape(input.type(), name);
+                s = parser.parse_param_shape(input.type(), name, {}, resolved_dim_params);
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -1001,23 +1078,18 @@ resolve_default_dim(onnx_parser& parser, const std::string& name, int axis)
     return resolve_dim(parser, parser.default_dyn_dim_value, name, axis);
 }
 
-static shape::dynamic_dimension dim_param_bounds(const onnx_parser& parser,
-                                                 const std::string& dim_param,
-                                                 const shape::dynamic_dimension* override_dim)
+static shape::dynamic_dimension
+map_dyn_dim(onnx_parser& parser,
+            const onnx::TensorShapeProto::Dimension* model_dim,
+            const shape::dynamic_dimension* override_dim,
+            const std::string& name,
+            int axis,
+            const std::unordered_map<std::string, shape::dynamic_dimension>& resolved_dim_params)
 {
-    if(override_dim != nullptr)
-        return *override_dim;
-    if(contains(parser.dim_params, dim_param))
-        return parser.dim_params.at(dim_param);
-    return parser.default_dyn_dim_value;
-}
-
-static shape::dynamic_dimension map_dyn_dim(onnx_parser& parser,
-                                            const onnx::TensorShapeProto::Dimension* model_dim,
-                                            const shape::dynamic_dimension* override_dim,
-                                            const std::string& name,
-                                            int axis)
-{
+    if(model_dim != nullptr and model_dim->has_dim_param() and parser.use_symbolic_shapes and
+       contains(resolved_dim_params, model_dim->dim_param()))
+        return make_symbol(
+            parser, model_dim->dim_param(), resolved_dim_params.at(model_dim->dim_param()));
     // An already-symbolic override carries its own symbol; keep it.
     if(override_dim != nullptr and override_dim->is_symbolic())
         return *override_dim;
@@ -1050,7 +1122,7 @@ static shape::dynamic_dimension map_dyn_dim(onnx_parser& parser,
 
 shape onnx_parser::parse_param_shape(const onnx::TypeProto& t, const std::string& name)
 {
-    return parse_param_shape(t, name, {});
+    return parse_param_shape(t, name, {}, {});
 }
 
 // Resolve an input's dims; a map_dyn_input_dims override (if any) supplies bounds while
@@ -1058,6 +1130,15 @@ shape onnx_parser::parse_param_shape(const onnx::TypeProto& t, const std::string
 shape onnx_parser::parse_param_shape(const onnx::TypeProto& t,
                                      const std::string& name,
                                      const std::vector<shape::dynamic_dimension>& override_dims)
+{
+    return parse_param_shape(t, name, override_dims, {});
+}
+
+shape onnx_parser::parse_param_shape(
+    const onnx::TypeProto& t,
+    const std::string& name,
+    const std::vector<shape::dynamic_dimension>& override_dims,
+    const std::unordered_map<std::string, shape::dynamic_dimension>& resolved_dim_params)
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
     auto&& tensor_dims       = t.tensor_type().shape().dim();
@@ -1071,7 +1152,7 @@ shape onnx_parser::parse_param_shape(const onnx::TypeProto& t,
                   const shape::dynamic_dimension* od =
                       axis < override_dims.size() ? &override_dims[axis] : nullptr;
                   const auto* d = axis < tensor_dims.size() ? &tensor_dims[axis] : nullptr;
-                  return map_dyn_dim(*this, d, od, name, axis);
+                  return map_dyn_dim(*this, d, od, name, axis, resolved_dim_params);
               });
 
     if(dynamic_dims.empty())

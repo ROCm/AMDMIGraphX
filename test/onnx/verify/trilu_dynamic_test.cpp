@@ -28,6 +28,7 @@
 #include <onnx_test.hpp>
 #include <onnx_verify_utils.hpp>
 
+#include <limits>
 #include <numeric>
 
 static std::vector<float> eval_trilu(const migraphx::program& p,
@@ -79,12 +80,46 @@ TEST_CASE(triu_symbolic_test)
     EXPECT(eval_trilu(p, {3, 4}) == std::vector<float>{1, 2, 3, 4, 0, 6, 7, 8, 0, 0, 11, 12});
 }
 
+TEST_CASE(triu_empty_k_test)
+{
+    auto p = read_onnx("triu_empty_k_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    EXPECT(eval_trilu(p, {3, 4}) == std::vector<float>{1, 2, 3, 4, 0, 6, 7, 8, 0, 0, 11, 12});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes     = true;
+    options.map_dyn_input_dims["x"] = {{1, 3}, {1, 4}};
+    auto symbolic                   = read_onnx("triu_empty_k_test.onnx", options);
+    expect_symbolic_output(symbolic);
+    symbolic.compile(migraphx::make_target("ref"));
+
+    EXPECT(eval_trilu(symbolic, {2, 3}) == std::vector<float>{1, 2, 3, 0, 5, 6});
+}
+
 TEST_CASE(triu_dynamic_k_static_input_test)
 {
     auto p = read_onnx("triu_dynamic_k_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     EXPECT(eval_trilu(p, {3, 4}, 2) == std::vector<float>{0, 0, 3, 4, 0, 0, 0, 8, 0, 0, 0, 0});
+}
+
+TEST_CASE(triu_dynamic_k_static_input_infinity_test)
+{
+    auto p = read_onnx("triu_dynamic_k_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape input_shape{migraphx::shape::float_type, {3, 4}};
+    const auto ninf = -std::numeric_limits<float>::infinity();
+    std::vector<float> input(input_shape.elements(), ninf);
+    std::int64_t k = 2;
+    migraphx::parameter_map parameters;
+    parameters["x"] = migraphx::argument{input_shape, input.data()};
+    parameters["k"] = migraphx::argument{migraphx::shape{migraphx::shape::int64_type, {1}}, &k};
+
+    const auto result = p.eval(parameters).back().to_vector<float>();
+    EXPECT(result == std::vector<float>{0, 0, ninf, ninf, 0, 0, 0, ninf, 0, 0, 0, 0});
 }
 
 TEST_CASE(triu_symbolic_dynamic_k_test)

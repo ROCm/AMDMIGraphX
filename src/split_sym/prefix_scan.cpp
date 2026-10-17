@@ -35,15 +35,16 @@ struct analyze_prefix_scan : analyzer<analyze_prefix_scan>
     symbolic_op_info analyze(instruction_ref ins) const
     {
         const auto& input = ins->inputs().front()->get_shape();
-        auto attributes = ins->get_operator().to_value();
-        auto axis = normalize_axis(attributes.at("axis").to<int64_t>(), input.ndim());
+        auto attributes   = ins->get_operator().to_value();
+        auto axis         = normalize_axis(attributes.at("axis").to<int64_t>(), input.ndim());
         if(not axis.has_value())
             return symbolic_op_info{ins};
-        auto reverse = attributes.at("reverse").to<bool>();
-        auto result  = analyze_axes(ins, [axis = *axis, reverse](std::size_t, std::size_t current) {
+        auto reverse   = attributes.at("reverse").to<bool>();
+        auto exclusive = attributes.at("exclusive").to<bool>();
+        auto result = analyze_axes(ins, [axis = *axis, reverse](std::size_t, std::size_t current) {
             return current == axis and reverse ? contracted_axis(fill_kind::zero) : parallel_axis();
         });
-        if(not reverse)
+        if(not reverse and not exclusive)
             result.propagate_padding = propagate_padding;
         return result;
     }

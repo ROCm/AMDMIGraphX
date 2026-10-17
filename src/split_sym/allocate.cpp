@@ -62,7 +62,7 @@ struct analyze_allocate : analyzer<analyze_allocate>
     static instruction_ref freeze(module& m,
                                   instruction_ref source_ins,
                                   const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>& values)
+                                  const freezer_context& context)
     {
         auto source = symbolic_allocate_shape(source_ins->get_operator());
         assert(source.has_value());
@@ -70,12 +70,12 @@ struct analyze_allocate : analyzer<analyze_allocate>
         std::transform(source->dyn_dims().begin(),
                        source->dyn_dims().end(),
                        lens.begin(),
-                       [&](const auto& d) { return d.sym_expr.eval_uint(values); });
+                       [&](const auto& d) { return d.sym_expr.eval_uint(context.values); });
         std::vector<std::size_t> strides(source->ndim());
         std::transform(source->dyn_strides().begin(),
                        source->dyn_strides().end(),
                        strides.begin(),
-                       [&](const auto& stride) { return stride.eval_uint(values); });
+                       [&](const auto& stride) { return stride.eval_uint(context.values); });
         shape target{source->type(), lens, strides};
         return m.add_instruction(make_op("allocate", {{"shape", to_value(target)}}), args);
     }

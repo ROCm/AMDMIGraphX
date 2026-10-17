@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/onnx/reshape_helpers.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
@@ -59,31 +60,6 @@ struct rotary_parameters
 struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 {
     std::vector<op_desc> operators() const { return {{"RotaryEmbedding"}}; }
-
-    static std::size_t fixed_dimension(const shape& s, std::size_t axis, const std::string& name)
-    {
-        if(not s.dynamic())
-            return s.lens().at(axis);
-        auto result = sym::fixed_value(s.dyn_dims().at(axis).sym_expr);
-        if(not result.has_value())
-            MIGRAPHX_THROW("RotaryEmbedding: " + name + " must be fixed");
-        return sym::to<std::size_t>(*result);
-    }
-
-    static instruction_ref add_runtime_reshape(const onnx_parser::node_info& info,
-                                               instruction_ref input,
-                                               const std::vector<shape::dynamic_dimension>& dims)
-    {
-        std::vector<sym::expr> expressions(dims.size());
-        transform(dims, expressions.begin(), [](const auto& dim) { return dim.sym_expr; });
-        auto resolved_dims = info.add_instruction(
-            make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
-            info.mod->get_parameters());
-        auto allocation = info.add_instruction(
-            make_op("allocate", {{"shape", to_value(shape{input->get_shape().type(), dims})}}),
-            resolved_dims);
-        return info.add_instruction(make_op("reshape"), input, allocation);
-    }
 
     static void parse_attributes(const onnx_parser& parser,
                                  const onnx_parser::node_info& info,
@@ -155,12 +131,14 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
             param.input_dims = input_shape.dyn_dims();
             if(input_dims == 3)
             {
-                param.hidden_size = fixed_dimension(input_shape, 2, "hidden size");
+                param.hidden_size =
+                    fixed_dimension(input_shape, 2, "RotaryEmbedding", "hidden size");
             }
             else
             {
-                param.num_heads   = fixed_dimension(input_shape, 1, "number of heads");
-                param.head_size   = fixed_dimension(input_shape, 3, "head size");
+                param.num_heads =
+                    fixed_dimension(input_shape, 1, "RotaryEmbedding", "number of heads");
+                param.head_size   = fixed_dimension(input_shape, 3, "RotaryEmbedding", "head size");
                 param.hidden_size = param.num_heads * param.head_size;
                 param.is_bnsh     = true;
             }
@@ -233,8 +211,9 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         const auto& cache_shape = cos_cache->get_shape();
         if(cache_shape.ndim() != 2)
             MIGRAPHX_THROW("RotaryEmbedding: cosine cache must be rank 2");
-        param.max_seq_len = fixed_dimension(cache_shape, 0, "cosine cache sequence length");
-        auto cache_width  = fixed_dimension(cache_shape, 1, "cosine cache width");
+        param.max_seq_len =
+            fixed_dimension(cache_shape, 0, "RotaryEmbedding", "cosine cache sequence length");
+        auto cache_width = fixed_dimension(cache_shape, 1, "RotaryEmbedding", "cosine cache width");
         if(param.num_heads == 0)
         {
             param.head_size = cache_width * 2;
@@ -265,7 +244,8 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         const auto& cache_shape = sin_cache->get_shape();
         if(cache_shape.ndim() != 2)
             MIGRAPHX_THROW("RotaryEmbedding: sine cache must be rank 2");
-        auto max_seq_len = fixed_dimension(cache_shape, 0, "sine cache sequence length");
+        auto max_seq_len =
+            fixed_dimension(cache_shape, 0, "RotaryEmbedding", "sine cache sequence length");
 
         if(param.max_seq_len != max_seq_len)
         {
@@ -273,7 +253,8 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                 "RotaryEmbedding: max_sequence_length must be the same between sin & cos caches!");
         }
 
-        compare_sin_cos_cache_dims(fixed_dimension(cache_shape, 1, "sine cache width"), param);
+        compare_sin_cos_cache_dims(
+            fixed_dimension(cache_shape, 1, "RotaryEmbedding", "sine cache width"), param);
     }
 
     static void compare_sin_cos_cache_dims(const size_t dim, const rotary_parameters& param)
@@ -332,7 +313,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                 auto dims  = params.input_dims;
                 dims.at(2) = shape::dynamic_dimension{sym::lit(params.num_heads)};
                 dims.push_back(shape::dynamic_dimension{sym::lit(params.head_size)});
-                input = add_runtime_reshape(info, input, dims);
+                input = add_symbolic_reshape(info, input, dims);
             }
             input =
                 info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), input);
@@ -344,7 +325,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                                                  {{"axes", {-1}},
                                                   {"starts", {params.rotary_embedding_dim}},
                                                   {"ends", {params.head_size}}}),
-                                        input);
+                                         input);
             input = info.add_instruction(
                 make_op("slice",
                         {{"axes", {-1}}, {"starts", {0}}, {"ends", {params.rotary_embedding_dim}}}),
@@ -374,7 +355,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
             }
             else
             {
-                output = add_runtime_reshape(info, output, params.input_dims);
+                output = add_symbolic_reshape(info, output, params.input_dims);
             }
         }
 

@@ -22,11 +22,15 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/onnx/reshape_helpers.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/op/builder/insert.hpp>
+
+#include <algorithm>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,45 +40,63 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
 
-    static std::size_t fixed_dimension(const shape& s, std::size_t axis, const std::string& name)
+    static void append_shape_source(std::vector<instruction_ref>& sources, instruction_ref source)
     {
-        if(not s.dynamic())
-            return s.lens().at(axis);
-        auto result = sym::fixed_value(s.dyn_dims().at(axis).sym_expr);
-        if(not result.has_value())
-            MIGRAPHX_THROW("GroupQueryAttention: " + name + " must be fixed");
-        return sym::to<std::size_t>(*result);
+        if(std::find(sources.begin(), sources.end(), source) == sources.end())
+            sources.push_back(source);
     }
 
-    static instruction_ref add_runtime_allocation(const onnx_parser::node_info& info,
-                                                  shape::type_t type,
-                                                  const std::vector<shape::dynamic_dimension>& dims)
+    static std::optional<std::vector<std::size_t>>
+    fixed_lens(const std::vector<shape::dynamic_dimension>& dims)
     {
-        std::vector<sym::expr> expressions(dims.size());
-        transform(dims, expressions.begin(), [](const auto& dim) { return dim.sym_expr; });
-        auto resolved_dims = info.add_instruction(
-            make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
-            info.mod->get_parameters());
-        return info.add_instruction(make_op("allocate", {{"shape", to_value(shape{type, dims})}}),
-                                    resolved_dims);
+        std::vector<std::size_t> result;
+        result.reserve(dims.size());
+        for(const auto& dim : dims)
+        {
+            auto value = sym::fixed_value(dim.sym_expr);
+            if(not value.has_value())
+                return std::nullopt;
+            result.push_back(sym::to<std::size_t>(*value));
+        }
+        return result;
     }
 
-    static instruction_ref add_runtime_reshape(const onnx_parser::node_info& info,
-                                               instruction_ref input,
-                                               const std::vector<shape::dynamic_dimension>& dims)
+    static instruction_ref add_reshape(const onnx_parser::node_info& info,
+                                       instruction_ref input,
+                                       const std::vector<shape::dynamic_dimension>& dims,
+                                       const std::vector<instruction_ref>& extra_shape_sources = {})
     {
-        auto allocation = add_runtime_allocation(info, input->get_shape().type(), dims);
-        return info.add_instruction(make_op("reshape"), input, allocation);
+        auto lens = fixed_lens(dims);
+        if(lens.has_value())
+            return info.add_instruction(make_op("reshape", {{"dims", *lens}}), input);
+        return add_symbolic_reshape(info, input, dims, extra_shape_sources);
     }
 
     static instruction_ref
-    add_runtime_multibroadcast(const onnx_parser::node_info& info,
-                               instruction_ref input,
-                               const std::vector<shape::dynamic_dimension>& dims)
+    add_multibroadcast(const onnx_parser::node_info& info,
+                       instruction_ref input,
+                       const std::vector<shape::dynamic_dimension>& dims,
+                       const std::vector<instruction_ref>& extra_shape_sources = {})
     {
-        auto output = add_runtime_allocation(info, input->get_shape().type(), dims);
-        return info.add_instruction(
-            make_op("multibroadcast", {{"out_dyn_dims", to_value(dims)}}), input, output);
+        auto lens = fixed_lens(dims);
+        if(lens.has_value())
+            return info.add_instruction(make_op("multibroadcast", {{"out_lens", *lens}}), input);
+
+        auto shape_sources = info.mod->get_parameters();
+        auto output        = migraphx::try_add_runtime_allocation(
+            *info.mod, input->get_shape().type(), dims, shape_sources);
+        if(not output.has_value())
+        {
+            append_shape_source(shape_sources, input);
+            for(auto source : extra_shape_sources)
+                append_shape_source(shape_sources, source);
+            output = migraphx::try_add_runtime_allocation(
+                *info.mod, input->get_shape().type(), dims, shape_sources);
+        }
+        if(output.has_value())
+            return info.add_instruction(
+                make_op("multibroadcast", {{"out_dyn_dims", to_value(dims)}}), input, *output);
+        MIGRAPHX_THROW("GroupQueryAttention: runtime broadcast dimensions have no shape source");
     }
 
     static bool has_input(const std::vector<instruction_ref>& args, std::size_t index)
@@ -96,150 +118,133 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
     }
 
-    static instruction_ref add_symbolic_attention_mask(const onnx_parser::node_info& info,
-                                                       instruction_ref q,
-                                                       instruction_ref k,
-                                                       instruction_ref past_length,
-                                                       instruction_ref logits,
-                                                       instruction_ref ninf,
-                                                       instruction_ref scale)
+    static instruction_ref add_attention_mask(const onnx_parser::node_info& info,
+                                              instruction_ref q,
+                                              instruction_ref k,
+                                              instruction_ref past_length,
+                                              int local_window_size,
+                                              instruction_ref logits,
+                                              instruction_ref ninf,
+                                              instruction_ref scale)
     {
-        const auto& q_dims    = q->get_shape().dyn_dims();
+        const auto q_dims     = q->get_shape().to_symbolic().dyn_dims();
         const auto cache_dims = k->get_shape().to_symbolic().dyn_dims();
         std::vector<shape::dynamic_dimension> attention_dims{
             q_dims.at(0), q_dims.at(1), q_dims.at(2), cache_dims.at(2)};
-        auto zero =
-            info.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{0}});
-        auto one =
-            info.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{1}});
+        const auto attention_lens = fixed_lens(attention_dims);
+        const bool runtime_shape  = not attention_lens.has_value();
 
-        auto cache_length =
-            info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), k);
-        auto range = info.add_instruction(
-            make_op("dynamic_range", {{"output_dim", to_value(cache_dims.at(2))}}),
-            zero,
-            cache_length,
-            one);
-        range = info.add_instruction(
-            make_op("multibroadcast", {{"out_dyn_dims", to_value(attention_dims)}}), range, logits);
-        ninf = info.add_instruction(
-            make_op("multibroadcast", {{"out_dyn_dims", to_value(attention_dims)}}), ninf, logits);
-        scale = info.add_instruction(
-            make_op("multibroadcast", {{"out_dyn_dims", to_value(attention_dims)}}), scale, logits);
-        logits = info.add_instruction(make_op("mul"), logits, scale);
+        instruction_ref zero;
+        instruction_ref one;
+        instruction_ref range;
+        if(runtime_shape)
+        {
+            zero =
+                info.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{0}});
+            one = info.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{1}});
+            auto cache_length =
+                info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), k);
+            range = info.add_instruction(
+                make_op("dynamic_range", {{"output_dim", to_value(cache_dims.at(2))}}),
+                zero,
+                cache_length,
+                one);
+        }
+        else
+        {
+            std::vector<int> range_values(attention_lens->at(3));
+            std::iota(range_values.begin(), range_values.end(), 0);
+            range = info.add_literal(
+                shape{past_length->get_shape().type(), {attention_lens->at(3)}}, range_values);
+        }
 
-        auto sequence_length =
-            info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), q);
-        auto sequence_range =
-            info.add_instruction(make_op("dynamic_range", {{"output_dim", to_value(q_dims.at(2))}}),
-                                 zero,
-                                 sequence_length,
-                                 one);
-        std::vector<shape::dynamic_dimension> sequence_range_dims{
-            shape::dynamic_dimension{sym::lit(1)},
-            shape::dynamic_dimension{sym::lit(1)},
-            q_dims.at(2),
-            shape::dynamic_dimension{sym::lit(1)}};
-        sequence_range = add_runtime_reshape(info, sequence_range, sequence_range_dims);
-        sequence_range = info.add_instruction(
-            make_op("multibroadcast", {{"out_dyn_dims", to_value(attention_dims)}}),
-            sequence_range,
-            logits);
-
-        past_length = info.add_instruction(make_op("convert", {{"target_type", shape::int64_type}}),
-                                           past_length);
-        std::vector<shape::dynamic_dimension> past_length_dims{
-            q_dims.at(0),
-            q_dims.at(1),
-            shape::dynamic_dimension{sym::lit(1)},
-            shape::dynamic_dimension{sym::lit(1)}};
-        past_length = add_runtime_reshape(info, past_length, past_length_dims);
-        past_length = info.add_instruction(
-            make_op("multibroadcast", {{"out_dyn_dims", to_value(attention_dims)}}),
-            past_length,
-            logits);
-        auto sequence_offset = info.add_instruction(make_op("sub"), sequence_length, one);
-        sequence_offset      = info.add_instruction(
-            make_op("multibroadcast", {{"out_dyn_dims", to_value(attention_dims)}}),
-            sequence_offset,
-            logits);
-        auto query_positions = info.add_instruction(make_op("sub"), past_length, sequence_offset);
-        query_positions  = info.add_instruction(make_op("add"), sequence_range, query_positions);
-        auto causal_mask = info.add_instruction(make_op("greater"), range, query_positions);
-        causal_mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
-                                           causal_mask);
-        logits      = info.add_instruction(make_op("where"), causal_mask, ninf, logits);
-
-        auto length_mask = info.add_instruction(make_op("greater"), range, past_length);
-        length_mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
-                                           length_mask);
-        return info.add_instruction(make_op("where"), length_mask, ninf, logits);
-    }
-
-    static instruction_ref add_static_attention_mask(const onnx_parser::node_info& info,
-                                                     instruction_ref q,
-                                                     instruction_ref k,
-                                                     instruction_ref past_length,
-                                                     std::size_t num_heads,
-                                                     int local_window_size,
-                                                     instruction_ref logits,
-                                                     instruction_ref ninf,
-                                                     instruction_ref scale)
-    {
-        const auto& q_lens         = q->get_shape().lens();
-        const auto& cache_lens     = k->get_shape().lens();
-        const auto batch_size      = q_lens.at(0);
-        const auto sequence_length = q_lens.at(2);
-        const auto max_seq_len     = cache_lens.at(2);
-        std::vector<int> range_values(max_seq_len);
-        std::iota(range_values.begin(), range_values.end(), 0);
-        auto range =
-            info.add_literal(shape{past_length->get_shape().type(), {max_seq_len}}, range_values);
-        std::vector<std::size_t> attention_lens{
-            batch_size, num_heads, sequence_length, max_seq_len};
-        range =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", attention_lens}}), range);
-        ninf =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", attention_lens}}), ninf);
-        scale =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", attention_lens}}), scale);
+        range  = add_multibroadcast(info, range, attention_dims, {logits});
+        ninf   = add_multibroadcast(info, ninf, attention_dims, {logits});
+        scale  = add_multibroadcast(info, scale, attention_dims, {logits});
         logits = info.add_instruction(make_op("mul"), logits, scale);
 
         instruction_ref sequence_range;
-        if(sequence_length > 1)
+        instruction_ref mask_comp;
+        if(runtime_shape)
         {
-            std::vector<int> sequence_values(sequence_length);
-            std::iota(sequence_values.begin(), sequence_values.end(), 0);
-            sequence_range = info.add_literal(
-                shape{past_length->get_shape().type(), {sequence_length}}, sequence_values);
+            auto sequence_length =
+                info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), q);
             sequence_range = info.add_instruction(
-                make_op("reshape", {{"dims", {sequence_length, 1}}}), sequence_range);
-            sequence_range = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", attention_lens}}), sequence_range);
-            auto causal_mask = info.add_instruction(make_op("greater"), range, sequence_range);
+                make_op("dynamic_range", {{"output_dim", to_value(q_dims.at(2))}}),
+                zero,
+                sequence_length,
+                one);
+            std::vector<shape::dynamic_dimension> sequence_range_dims{
+                shape::dynamic_dimension{sym::lit(1)},
+                shape::dynamic_dimension{sym::lit(1)},
+                q_dims.at(2),
+                shape::dynamic_dimension{sym::lit(1)}};
+            sequence_range = add_reshape(info, sequence_range, sequence_range_dims);
+            sequence_range = add_multibroadcast(info, sequence_range, attention_dims, {logits});
+
+            past_length = info.add_instruction(
+                make_op("convert", {{"target_type", shape::int64_type}}), past_length);
+            std::vector<shape::dynamic_dimension> past_length_dims{
+                q_dims.at(0),
+                q_dims.at(1),
+                shape::dynamic_dimension{sym::lit(1)},
+                shape::dynamic_dimension{sym::lit(1)}};
+            mask_comp = add_reshape(info, past_length, past_length_dims);
+            mask_comp = add_multibroadcast(info, mask_comp, attention_dims, {logits});
+
+            auto is_prompt = info.add_instruction(make_op("greater"), sequence_length, one);
+            is_prompt      = info.add_instruction(
+                make_op("convert", {{"target_type", shape::bool_type}}), is_prompt);
+            is_prompt = add_multibroadcast(info, is_prompt, attention_dims, {logits});
+            auto query_positions =
+                info.add_instruction(make_op("where"), is_prompt, sequence_range, mask_comp);
+            auto causal_mask = info.add_instruction(make_op("greater"), range, query_positions);
             causal_mask      = info.add_instruction(
                 make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
             logits = info.add_instruction(make_op("where"), causal_mask, ninf, logits);
         }
-
-        auto mask_comp = info.add_instruction(
-            make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_length);
-        mask_comp = info.add_instruction(make_op("multibroadcast", {{"out_lens", attention_lens}}),
-                                         mask_comp);
-        if(local_window_size > 0)
+        else
         {
-            const bool is_prompt = sequence_length > 1;
-            auto window_offset   = info.add_literal(
-                literal{shape{past_length->get_shape().type(), {1}},
-                        {is_prompt ? -local_window_size : -(local_window_size + 1)}});
-            window_offset = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", attention_lens}}), window_offset);
-            auto window_comp = info.add_instruction(
-                make_op("add"), is_prompt ? sequence_range : mask_comp, window_offset);
-            auto window_mask = info.add_instruction(make_op("greater"), window_comp, range);
-            window_mask      = info.add_instruction(
-                make_op("convert", {{"target_type", shape::bool_type}}), window_mask);
-            logits = info.add_instruction(make_op("where"), window_mask, ninf, logits);
+            const auto sequence_length = attention_lens->at(2);
+            if(sequence_length > 1)
+            {
+                std::vector<int> sequence_values(sequence_length);
+                std::iota(sequence_values.begin(), sequence_values.end(), 0);
+                sequence_range = info.add_literal(
+                    shape{past_length->get_shape().type(), {sequence_length}}, sequence_values);
+                std::vector<shape::dynamic_dimension> sequence_range_dims{
+                    shape::dynamic_dimension{sym::lit(sequence_length)},
+                    shape::dynamic_dimension{sym::lit(1)}};
+                sequence_range = add_reshape(info, sequence_range, sequence_range_dims);
+                sequence_range = add_multibroadcast(info, sequence_range, attention_dims, {logits});
+                auto causal_mask = info.add_instruction(make_op("greater"), range, sequence_range);
+                causal_mask      = info.add_instruction(
+                    make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
+                logits = info.add_instruction(make_op("where"), causal_mask, ninf, logits);
+            }
+
+            std::vector<shape::dynamic_dimension> past_length_dims{
+                q_dims.at(0),
+                q_dims.at(1),
+                shape::dynamic_dimension{sym::lit(1)},
+                shape::dynamic_dimension{sym::lit(1)}};
+            mask_comp = add_reshape(info, past_length, past_length_dims);
+            mask_comp = add_multibroadcast(info, mask_comp, attention_dims);
+
+            if(local_window_size > 0)
+            {
+                const bool is_prompt = sequence_length > 1;
+                auto window_offset   = info.add_literal(
+                    literal{shape{past_length->get_shape().type(), {1}},
+                            {is_prompt ? -local_window_size : -(local_window_size + 1)}});
+                window_offset    = add_multibroadcast(info, window_offset, attention_dims);
+                auto window_comp = info.add_instruction(
+                    make_op("add"), is_prompt ? sequence_range : mask_comp, window_offset);
+                auto window_mask = info.add_instruction(make_op("greater"), window_comp, range);
+                window_mask      = info.add_instruction(
+                    make_op("convert", {{"target_type", shape::bool_type}}), window_mask);
+                logits = info.add_instruction(make_op("where"), window_mask, ninf, logits);
+            }
         }
 
         auto length_mask = info.add_instruction(make_op("greater"), range, mask_comp);
@@ -330,10 +335,9 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                                          instruction_ref scores,
                                                          instruction_ref sink)
     {
-        const auto lens            = scores->get_shape().lens();
-        const std::size_t nheads   = lens.at(1);
-        const std::int64_t columns = lens.at(3);
-        if(sink->get_shape().elements() != nheads)
+        const auto& scores_shape = scores->get_shape();
+        const auto nheads = fixed_dimension(scores_shape, 1, "GroupQueryAttention", "head count");
+        if(sink->get_shape().dynamic() or sink->get_shape().elements() != nheads)
         {
             MIGRAPHX_THROW("GroupQueryAttention: head_sink must have num_heads elements");
         }
@@ -343,10 +347,33 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                 make_op("convert", {{"target_type", scores->get_shape().type()}}), sink);
         }
         sink = info.add_instruction(make_op("reshape", {{"dims", {1, nheads, 1, 1}}}), sink);
-        sink = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", {lens.at(0), nheads, lens.at(2), 1}}}), sink);
+        const auto score_dims = scores_shape.to_symbolic().dyn_dims();
+        std::vector<shape::dynamic_dimension> sink_dims{score_dims.at(0),
+                                                        score_dims.at(1),
+                                                        score_dims.at(2),
+                                                        shape::dynamic_dimension{sym::lit(1)}};
+        sink         = add_multibroadcast(info, sink, sink_dims, {scores});
         auto padded  = info.add_instruction(make_op("concat", {{"axis", 3}}), scores, sink);
         auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), padded);
+
+        if(scores_shape.symbolic())
+        {
+            const auto& columns = scores_shape.dyn_dims().at(3).sym_expr;
+            auto start =
+                info.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{0}});
+            auto end =
+                info.add_instruction(make_op("dimensions_of", {{"start", 3}, {"end", 4}}), scores);
+            return info.add_instruction(
+                make_op("dyn_slice",
+                        {{"axes", {3}},
+                         {"starts", to_value(std::vector<sym::expr>{sym::lit(0)})},
+                         {"ends", to_value(std::vector<sym::expr>{columns})}}),
+                softmax,
+                start,
+                end);
+        }
+
+        const auto columns = scores_shape.lens().at(3);
         return info.add_instruction(
             make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {columns}}}), softmax);
     }
@@ -376,31 +403,21 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                 make_op("concat", {{"axis", 2}}), args.at(0), args.at(1), args.at(2));
         }
 
-        const auto& q_shape      = qkv->get_shape();
-        const auto q_hidden_size = fixed_dimension(q_shape, 2, "hidden size");
-        const auto total_heads   = num_heads + 2 * kv_num_heads;
+        const auto& q_shape = qkv->get_shape();
+        const auto q_hidden_size =
+            fixed_dimension(q_shape, 2, "GroupQueryAttention", "hidden size");
+        const auto total_heads = num_heads + 2 * kv_num_heads;
         if(q_hidden_size % total_heads != 0)
             MIGRAPHX_THROW(
                 "GroupQueryAttention: hidden size must be divisible by the total head count");
         std::size_t head_size = q_hidden_size / total_heads;
 
-        instruction_ref transposed_qkv;
-        if(symbolic)
-        {
-            const auto& q_dims = q_shape.dyn_dims();
-            std::vector<shape::dynamic_dimension> bsnh{
-                q_dims.at(0),
-                q_dims.at(1),
-                shape::dynamic_dimension{sym::lit(total_heads)},
-                shape::dynamic_dimension{sym::lit(head_size)}};
-            transposed_qkv = add_runtime_reshape(info, qkv, bsnh);
-        }
-        else
-        {
-            const auto& q_lens = q_shape.lens();
-            std::vector<std::size_t> bsnh{q_lens.at(0), q_lens.at(1), total_heads, head_size};
-            transposed_qkv = info.add_instruction(make_op("reshape", {{"dims", bsnh}}), qkv);
-        }
+        const auto q_dims = q_shape.to_symbolic().dyn_dims();
+        std::vector<shape::dynamic_dimension> bsnh{q_dims.at(0),
+                                                   q_dims.at(1),
+                                                   shape::dynamic_dimension{sym::lit(total_heads)},
+                                                   shape::dynamic_dimension{sym::lit(head_size)}};
+        auto transposed_qkv = add_reshape(info, qkv, bsnh);
 
         transposed_qkv = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                               transposed_qkv);
@@ -433,6 +450,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto k   = args.at(3);
         auto v   = args.at(4);
         auto slk = args.at(5);
+        if(slk->get_shape().ndim() == 1)
+            slk = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), slk);
         std::vector<instruction_ref> concat_k_inputs{cur_k, slk, k};
         std::vector<instruction_ref> concat_v_inputs{cur_v, slk, v};
 
@@ -448,7 +467,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         {
             const auto& q_dims = q->get_shape().dyn_dims();
             const auto& k_lens = k->get_shape().lens();
-            if(fixed_dimension(q->get_shape(), 0, "batch size") != k_lens.at(0))
+            if(fixed_dimension(q->get_shape(), 0, "GroupQueryAttention", "batch size") !=
+               k_lens.at(0))
                 MIGRAPHX_THROW(
                     "GroupQueryAttention: query and static cache batch sizes must match");
             std::vector<shape::dynamic_dimension> cache_dims{
@@ -456,63 +476,36 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                 shape::dynamic_dimension{sym::lit(k_lens.at(1))},
                 shape::dynamic_dimension{sym::lit(k_lens.at(2))},
                 shape::dynamic_dimension{sym::lit(k_lens.at(3))}};
-            k = add_runtime_reshape(info, k, cache_dims);
-            v = add_runtime_reshape(info, v, cache_dims);
+            k = add_reshape(info, k, cache_dims, {q});
+            v = add_reshape(info, v, cache_dims, {q});
         }
 
-        auto kv_num_heads_factor = num_heads / kv_num_heads;
-        instruction_ref past_sl;
-        if(symbolic)
-        {
-            const auto& q_dims = q->get_shape().dyn_dims();
-            std::vector<shape::dynamic_dimension> past_dims{
-                q_dims.at(0), shape::dynamic_dimension{sym::lit(num_heads)}};
-            past_sl = add_runtime_multibroadcast(info, slk, past_dims);
-        }
-        else
-        {
-            past_sl = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", {q_shape.lens().at(0), num_heads}}}), slk);
-        }
+        auto kv_num_heads_factor    = num_heads / kv_num_heads;
+        const auto q_attention_dims = q->get_shape().to_symbolic().dyn_dims();
+        std::vector<shape::dynamic_dimension> past_dims{
+            q_attention_dims.at(0), shape::dynamic_dimension{sym::lit(num_heads)}};
+        auto past_sl = add_multibroadcast(info, slk, past_dims);
 
         if(kv_num_heads_factor != 1)
         {
-            if(k->get_shape().dynamic())
-            {
-                const auto& kv_dims = k->get_shape().dyn_dims();
-                std::vector<shape::dynamic_dimension> expanded_dims{
-                    kv_dims.at(0),
-                    kv_dims.at(1),
-                    shape::dynamic_dimension{sym::lit(kv_num_heads_factor)},
-                    kv_dims.at(2),
-                    kv_dims.at(3)};
-                std::vector<shape::dynamic_dimension> repeated_dims{
-                    kv_dims.at(0),
-                    shape::dynamic_dimension{sym::lit(num_heads)},
-                    kv_dims.at(2),
-                    kv_dims.at(3)};
-                k = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), k);
-                v = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), v);
-                k = add_runtime_multibroadcast(info, k, expanded_dims);
-                v = add_runtime_multibroadcast(info, v, expanded_dims);
-                k = add_runtime_reshape(info, k, repeated_dims);
-                v = add_runtime_reshape(info, v, repeated_dims);
-            }
-            else
-            {
-                auto kv_new_lens  = k->get_shape().lens();
-                kv_new_lens.at(1) = num_heads;
-                k                 = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), k);
-                v                 = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), v);
-                auto kv_unsqueezed_lens  = k->get_shape().lens();
-                kv_unsqueezed_lens.at(2) = kv_num_heads_factor;
-                k                        = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), k);
-                v = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), v);
-                k = info.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), k);
-                v = info.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), v);
-            }
+            const auto kv_dims = k->get_shape().to_symbolic().dyn_dims();
+            std::vector<shape::dynamic_dimension> expanded_dims{
+                kv_dims.at(0),
+                kv_dims.at(1),
+                shape::dynamic_dimension{sym::lit(kv_num_heads_factor)},
+                kv_dims.at(2),
+                kv_dims.at(3)};
+            std::vector<shape::dynamic_dimension> repeated_dims{
+                kv_dims.at(0),
+                shape::dynamic_dimension{sym::lit(num_heads)},
+                kv_dims.at(2),
+                kv_dims.at(3)};
+            k = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), k);
+            v = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), v);
+            k = add_multibroadcast(info, k, expanded_dims);
+            v = add_multibroadcast(info, v, expanded_dims);
+            k = add_reshape(info, k, repeated_dims);
+            v = add_reshape(info, v, repeated_dims);
         }
         auto kt    = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
         auto gemm1 = info.add_instruction(make_op("dot"), q, kt);
@@ -526,39 +519,19 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         auto scale_ins = info.add_literal(literal{scalar_s, {scale}});
         auto where =
-            symbolic ? add_symbolic_attention_mask(info, q, k_out, past_sl, gemm1, ninf, scale_ins)
-                     : add_static_attention_mask(info,
-                                                 q,
-                                                 k_out,
-                                                 past_sl,
-                                                 num_heads,
-                                                 local_window_size,
-                                                 gemm1,
-                                                 ninf,
-                                                 scale_ins);
+            add_attention_mask(info, q, k_out, past_sl, local_window_size, gemm1, ninf, scale_ins);
         auto softmax = has_input(args, 11)
                            ? insert_softmax_with_head_sink(info, where, args.at(11))
                            : info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
         auto scores  = info.add_instruction(make_op("dot"), softmax, v);
         auto out =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
-        if(symbolic)
-        {
-            const auto& out_dims = out->get_shape().dyn_dims();
-            std::vector<shape::dynamic_dimension> bsh{
-                out_dims.at(0),
-                out_dims.at(1),
-                shape::dynamic_dimension{sym::lit(head_size * num_heads)}};
-            out = add_runtime_reshape(info, out, bsh);
-        }
-        else
-        {
-            const auto& out_lens = out->get_shape().lens();
-            out                  = info.add_instruction(
-                make_op("reshape",
-                        {{"dims", {out_lens.at(0), out_lens.at(1), head_size * num_heads}}}),
-                out);
-        }
+        const auto out_dims = out->get_shape().to_symbolic().dyn_dims();
+        std::vector<shape::dynamic_dimension> bsh{
+            out_dims.at(0),
+            out_dims.at(1),
+            shape::dynamic_dimension{sym::lit(head_size * num_heads)}};
+        out = add_reshape(info, out, bsh);
 
         return {out, k_out, v_out};
     }

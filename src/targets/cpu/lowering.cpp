@@ -49,6 +49,7 @@
 #include <migraphx/par_dfor.hpp>
 #include <migraphx/clamp.hpp>
 #include <migraphx/cpu/context.hpp>
+#include <migraphx/cpu/dnnl.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
@@ -303,6 +304,17 @@ struct cpu_rnn_var_sl_last_output
 };
 MIGRAPHX_REGISTER_OP(cpu_rnn_var_sl_last_output)
 
+static bool has_dnnl_type(instruction_ref ins)
+{
+    return is_dnnl_supported_type(ins->get_shape().type());
+}
+
+// oneDNN cannot run an op whose output or inputs use a type it lacks (bool, int64, fp8, ...)
+static bool has_dnnl_types(instruction_ref ins, const std::vector<instruction_ref>& inputs)
+{
+    return has_dnnl_type(ins) and std::all_of(inputs.begin(), inputs.end(), &has_dnnl_type);
+}
+
 struct cpu_apply
 {
     module* modl;
@@ -319,6 +331,13 @@ struct cpu_apply
         });
     }
 
+    void extend_dnnl_op(const std::string& op_name, const std::string& dnnl_name)
+    {
+        apply_map.emplace(op_name, [=](instruction_ref ins) {
+            return replace_dnnl(ins, make_op(dnnl_name, ins->get_operator().to_value()));
+        });
+    }
+
     void extend_dnnl_algos(const std::string& dnnl_name,
                            const std::vector<std::pair<std::string, std::string>>& algos)
     {
@@ -332,7 +351,7 @@ struct cpu_apply
                     return ins;
                 v["algo"] = algo;
                 auto op   = make_op(dnnl_name, v);
-                return replace(ins, op);
+                return replace_dnnl(ins, op);
             });
         }
     }
@@ -347,8 +366,7 @@ struct cpu_apply
                            bind_inputs.end(),
                            std::back_inserter(inputs),
                            [&](const auto& s) { return r.instructions[s]; });
-            inputs.push_back(this->insert_allocation(ins, ins->get_shape()));
-            modl->replace_instruction(ins, op, inputs);
+            this->replace_dnnl(ins, op, inputs);
         });
     }
 
@@ -381,17 +399,17 @@ struct cpu_apply
                               {"reduce_min", "reduction_min"},
                               {"reduce_sum", "reduction_sum"},
                           });
-        extend_op("concat", "dnnl::concat");
-        extend_op("contiguous", "dnnl::reorder");
-        extend_op("convolution", "dnnl::convolution");
+        extend_dnnl_op("concat", "dnnl::concat");
+        extend_dnnl_op("contiguous", "dnnl::reorder");
+        extend_dnnl_op("convolution", "dnnl::convolution");
 #ifndef MIGRAPHX_ENABLE_ZENDNN
-        extend_op("dot", "dnnl::dot");
+        extend_dnnl_op("dot", "dnnl::dot");
 #endif
         extend_op("erf", "cpu::erf");
         extend_op("gather", "cpu::gather");
-        extend_op("logsoftmax", "dnnl::logsoftmax");
-        extend_op("lrn", "dnnl::lrn");
-        extend_op("softmax", "dnnl::softmax");
+        extend_dnnl_op("logsoftmax", "dnnl::logsoftmax");
+        extend_dnnl_op("lrn", "dnnl::lrn");
+        extend_dnnl_op("softmax", "dnnl::softmax");
 
         extend_op("im2col", "cpu::im2col", false);
         extend_op("pad", "cpu::pad", false);
@@ -413,12 +431,6 @@ struct cpu_apply
         // Apply these operators first so the inputs can be const folded
         for(auto it : iterator_for(*modl))
         {
-            // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
-            // supported yet.
-            if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return contains(fp8_types{}.get(), i->get_shape().type());
-               }))
-                continue;
             if(it->name() == "pow")
             {
                 apply_pow(it);
@@ -426,12 +438,6 @@ struct cpu_apply
         }
         for(auto it : iterator_for(*modl))
         {
-            // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
-            // supported yet.
-            if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return contains(fp8_types{}.get(), i->get_shape().type());
-               }))
-                continue;
             if(it->name() == "pooling")
             {
                 apply_pooling(it);
@@ -458,10 +464,11 @@ struct cpu_apply
         auto beta = read_scalar<float>(ins->inputs()[1]);
         if(beta.empty())
             return ins;
-        return replace(ins,
-                       make_op("dnnl::eltwise",
-                               {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta.front()}}),
-                       {ins->inputs().front()});
+        return replace_dnnl(
+            ins,
+            make_op("dnnl::eltwise",
+                    {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta.front()}}),
+            {ins->inputs().front()});
     }
 
     // TODO:  update lowering to run the reference
@@ -481,7 +488,7 @@ struct cpu_apply
         if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and
            not v["ceil_mode"].to<bool>() and
            v["mode"].to<op::pooling_mode>() != op::pooling_mode::lpnorm)
-            return replace(ins, make_op("dnnl::pooling", op.to_value()));
+            return replace_dnnl(ins, make_op("dnnl::pooling", op.to_value()));
         return ins;
     }
     /*
@@ -490,6 +497,8 @@ struct cpu_apply
     */
     instruction_ref apply_reshape(instruction_ref ins) const
     {
+        if(not has_dnnl_types(ins, ins->inputs()))
+            return ins;
         std::vector<instruction_ref> before_contiguous_args = ins->inputs();
         auto before_alloc =
             insert_allocation(ins, before_contiguous_args.front()->get_shape().as_standard());
@@ -518,7 +527,7 @@ struct cpu_apply
         auto v    = op.to_value();
         if(has_op("dnnl::convolution_backwards") and v["group"].to<int>() == 1)
         {
-            return replace(ins, make_op("dnnl::convolution_backwards", op.to_value()));
+            return replace_dnnl(ins, make_op("dnnl::convolution_backwards", op.to_value()));
         }
         return ins;
     }
@@ -546,6 +555,21 @@ struct cpu_apply
     {
         inputs.push_back(insert_allocation(ins, ins->get_shape()));
         return modl->replace_instruction(ins, op, inputs);
+    }
+
+    // Leave the op for the reference implementation when oneDNN lacks one of its types
+    instruction_ref replace_dnnl(instruction_ref ins, const operation& op) const
+    {
+        return replace_dnnl(ins, op, ins->inputs());
+    }
+
+    instruction_ref replace_dnnl(instruction_ref ins,
+                                 const operation& op,
+                                 const std::vector<instruction_ref>& inputs) const
+    {
+        if(not has_dnnl_types(ins, inputs))
+            return ins;
+        return replace(ins, op, inputs);
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s) const

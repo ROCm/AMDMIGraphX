@@ -69,7 +69,7 @@ struct gather_compiler : compiler<gather_compiler>
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "gather_kernel";
-        options.indexed_inputs = {0};
+        options.annotations["indexed_inputs"] = std::vector<std::size_t>{0};
         options.virtual_inputs = inputs;
 
         auto axis = v.at("axis").to<std::string>();

@@ -54,9 +54,10 @@ struct hip_compile_options
     // keyed by input index. Used for kernel-side-only types such as packed
     // int4 which have no shape::type_t equivalent.
     std::map<std::size_t, std::string> type_overrides = {};
-    // Inputs the kernel reads only at index-selected positions, like gather data. Each launch
-    // touches a few elements, so such an input can be read directly from host memory.
-    std::vector<std::size_t> indexed_inputs = {};
+    // Extra attributes for the code object, returned by its attributes(). For example
+    // "indexed_inputs" lists inputs the kernel reads only at index-selected positions (gather
+    // data), which lets write_literals leave such a literal in host memory.
+    value annotations = value::object{};
 
     /**
      * @brief Set the launch parameters but allow v to override the values

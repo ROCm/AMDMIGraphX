@@ -296,7 +296,7 @@ std::string hip_compile_key(const context& ctx, const hip_src& src)
     ss << "global=" << options.global << "\n";
     ss << "local=" << options.local << "\n";
     ss << "output_arg=" << options.output_arg << "\n";
-    ss << "indexed_inputs=" << to_string_range(options.indexed_inputs) << "\n";
+    ss << "annotations=" << options.annotations << "\n";
     // One param per line so the key keeps the boundaries the compiler command line has.
     for(const auto& p : options.params)
         ss << "param=" << p << "\n";
@@ -322,9 +322,6 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     auto args_hpp = make_args_hpp(options);
     options.additional_src_files.emplace_back("args.hpp", args_hpp);
 
-    assert(std::all_of(options.indexed_inputs.begin(),
-                       options.indexed_inputs.end(),
-                       [&](std::size_t i) { return i < options.inputs.size(); }));
     return code_object_op{value::binary{compile_hip_raw(ctx, content, options)},
                           options.kernel_name,
                           options.global,
@@ -332,7 +329,7 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
                           options.inputs,
                           options.output,
                           options.output_arg,
-                          options.indexed_inputs};
+                          options.annotations};
 }
 
 operation compile_hip_code_object(context& ctx, hip_src src)

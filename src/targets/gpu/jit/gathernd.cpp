@@ -70,7 +70,7 @@ struct gathernd_compiler : compiler<gathernd_compiler>
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "gathernd_kernel";
-        options.indexed_inputs = {0};
+        options.annotations["indexed_inputs"] = std::vector<std::size_t>{0};
         options.virtual_inputs = inputs;
 
         // batch_dims

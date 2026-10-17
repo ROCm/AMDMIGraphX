@@ -28,7 +28,6 @@
 #include <migraphx/value.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 #include <map>
@@ -48,8 +47,8 @@ struct code_object_op
     std::vector<shape> expected_inputs{};
     shape output{};
     std::int64_t output_arg = -1;
-    // Inputs read only at index-selected positions (gather data); see hip_compile_options.
-    std::vector<std::size_t> indexed_inputs{};
+    // Extra attributes merged into attributes(); see hip_compile_options::annotations.
+    value annotations = value::object{};
 
     std::map<std::size_t, kernel_argument_value> kernel_args{};
     // Pre-packed kernarg buffer built in finalize(); not reflected.
@@ -69,11 +68,17 @@ struct code_object_op
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
                     f(self.output_arg, "output_arg"),
-                    f(self.indexed_inputs, "indexed_inputs"),
+                    f(self.annotations, "annotations"),
                     f(self.kernel_args, "kernel_args"));
     }
 
-    value attributes() const { return {{"group", group()}, {"indexed_inputs", indexed_inputs}}; }
+    value attributes() const
+    {
+        // An empty object does not survive serialization as an object
+        value result    = annotations.is_object() ? annotations : value(value::object{});
+        result["group"] = group();
+        return result;
+    }
 
     std::string group() const { return "gpu::code_object::" + symbol_name; }
 
@@ -100,8 +105,8 @@ struct code_object_op
         os << "local=" << op.local << ",";
         if(op.output_arg != -1)
             os << "output_arg=" << op.output_arg << ",";
-        if(not op.indexed_inputs.empty())
-            os << "indexed_inputs=" << to_string_range(op.indexed_inputs) << ",";
+        if(not op.annotations.empty())
+            os << "annotations=" << op.annotations << ",";
         os << "]";
         return os;
     }

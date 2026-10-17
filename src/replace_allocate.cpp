@@ -45,6 +45,39 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
+// A lowered select_module returns a tuple backed by one trailing buffer per tuple element.
+// Map get_tuple_elem directly to its corresponding buffer because generic alias traversal
+// returns every buffer backing the tuple.
+optional<instruction_ref> get_select_module_buffer(instruction_ref ins)
+{
+    if(ins->name() != "get_tuple_elem")
+        return nullopt;
+    auto producer = ins->inputs().front();
+    if(producer->name() != "select_module")
+        return nullopt;
+    const auto& inputs = producer->inputs();
+    auto aliases       = producer->get_operator().output_alias(to_shapes(inputs));
+    auto index         = ins->get_operator().to_value()["index"].to<std::size_t>();
+    if(index >= aliases.size())
+        return nullopt;
+    return inputs.at(aliases.at(index));
+}
+
+std::vector<instruction_ref> resolve_output_aliases(instruction_ref ins)
+{
+    if(auto buffer = get_select_module_buffer(ins))
+        return resolve_output_aliases(*buffer);
+    auto aliases = instruction::get_output_alias(ins, true);
+    if(aliases.size() == 1 and aliases.front() == ins)
+        return {ins};
+    std::vector<instruction_ref> result;
+    std::transform(aliases.begin(),
+                   aliases.end(),
+                   join_back_inserter(result),
+                   [](instruction_ref alias) { return resolve_output_aliases(alias); });
+    return result;
+}
+
 std::vector<instruction_ref> get_alloc_aliases(const module& mod)
 {
     auto returns = mod.get_returns();
@@ -54,7 +87,7 @@ std::vector<instruction_ref> get_alloc_aliases(const module& mod)
     std::transform(returns.begin(),
                    returns.end(),
                    join_back_inserter(alloc_aliases),
-                   [](const auto& i) { return instruction::get_output_alias(i); });
+                   [](const auto& i) { return resolve_output_aliases(i); });
     return alloc_aliases;
 }
 
@@ -113,7 +146,7 @@ get_output_debug_symbols(const module& mod)
         }
         for(const auto& os : range(output_symbols.begin(), output_symbols.end()))
         {
-            mod_output_debug_symbols[alloc_aliases.at(index)] = {os};
+            mod_output_debug_symbols[alloc_aliases.at(index)].insert(os);
             ++index;
         }
         return mod_output_debug_symbols;
@@ -222,7 +255,18 @@ bool replace_alias_allocation(module& m, instruction_ref ins)
     return true;
 }
 
-void insert_copy(module& m, const allocation_model& model)
+bool is_select_module_input(module_ref root, module_ref submodule)
+{
+    auto modules = root->get_sub_modules();
+    modules.push_back(root);
+    return any_of(modules, [&](module_ref mod) {
+        return any_of(iterator_for(*mod), [&](instruction_ref ins) {
+            return ins->name() == "select_module" and contains(ins->module_inputs(), submodule);
+        });
+    });
+}
+
+void insert_copy(module& m, const allocation_model& model, bool copy_aliased_returns)
 {
     // Rewriting a return can change the aliases of the other returns, so visit them in order
     std::unordered_set<instruction_ref> visited;
@@ -246,6 +290,26 @@ void insert_copy(module& m, const allocation_model& model)
         auto copy = m.insert_instruction(insert_ins, make_op(model.copy()), ins, alloc);
         m.replace_instruction(ins, copy);
     }
+
+    if(not copy_aliased_returns)
+        return;
+
+    auto returns = m.get_returns();
+    std::unordered_set<instruction_ref> returned;
+    bool changed = false;
+    std::transform(returns.begin(), returns.end(), returns.begin(), [&](instruction_ref ins) {
+        if(ins->get_shape().any_of_dynamic())
+            return ins;
+        if(returned.insert(ins).second and ins->name() != "@param")
+            return ins;
+        changed    = true;
+        auto alloc = m.insert_instruction(
+            std::prev(m.end()),
+            make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
+        return m.insert_instruction(std::prev(m.end()), make_op(model.copy()), ins, alloc);
+    });
+    if(changed)
+        m.replace_return(returns);
 }
 
 void insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)
@@ -275,7 +339,8 @@ void insert_submod_allocations(instruction_ref ins, module& mod, const allocatio
 void replace_allocate::apply(module_pass_manager& mpm) const
 {
     module& m              = mpm.get_module();
-    bool is_root           = *mpm.get_root_module() == m;
+    module_ref root_module = mpm.get_root_module();
+    bool is_root           = *root_module == m;
     bool root_offload_copy = is_root ? this->offload_copy : false;
     // Adjust allocations before replacing
     for(auto ins : iterator_for(m))
@@ -287,7 +352,7 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         insert_submod_allocations(ins, m, model);
     }
     if(not root_offload_copy and model.needs_out_params())
-        insert_copy(m, model);
+        insert_copy(m, model, is_root or is_select_module_input(root_module, &m));
     auto mod_output_names         = create_output_names(m);
     auto mod_output_debug_symbols = get_output_debug_symbols(m);
     for(auto ins : iterator_for(m))

@@ -137,10 +137,9 @@ struct backend_options
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;
-    // Largest literal to stage through scratch when the weights do not fit in GPU memory, as a
-    // percentage of the shortfall. Literals up to that size are staged largest-first (fewest
-    // copies); 0 stages smallest-first for the lowest scratch peak.
-    std::size_t literal_staging_peak_percent = 5;
+    // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
+    // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
+    std::size_t literal_staging_peak_percent = write_literals{}.staging_peak_percent;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

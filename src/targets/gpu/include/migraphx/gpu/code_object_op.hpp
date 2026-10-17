@@ -28,6 +28,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 #include <map>
@@ -99,6 +100,8 @@ struct code_object_op
         os << "local=" << op.local << ",";
         if(op.output_arg != -1)
             os << "output_arg=" << op.output_arg << ",";
+        if(not op.indexed_inputs.empty())
+            os << "indexed_inputs=" << to_string_range(op.indexed_inputs) << ",";
         os << "]";
         return os;
     }

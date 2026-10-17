@@ -282,9 +282,8 @@ TEST_CASE(memory_limit_stages_smallest_first)
                        add_literal(m1, big, 5)});
     }
     // The literals total 56000 bytes and the padded scratch estimate adds 60000, so this limit
-    // leaves 3000 bytes to free. A staged copy occupies scratch while live, so staging nets every
-    // staged literal but the largest: two medium ones free 4000 bytes at a 4000-byte peak, while
-    // staging the big one would free nothing.
+    // leaves 3000 bytes to free. Staging nets every staged literal but the largest, so two medium
+    // ones free 4000 bytes at a 4000-byte peak while staging the big one alone would free nothing.
     run_pass(m1, {.max_memory = 113000});
 
     migraphx::module m2;
@@ -321,47 +320,49 @@ TEST_CASE(memory_limit_drops_unneeded_small_literal)
     EXPECT(m1 == m2);
 }
 
+// Twelve 4000-byte literals then two 40000-byte ones (128000 bytes), each added by add(m, shape,
+// seed)
+template <class Add>
+static void add_staging_literals(migraphx::module& m, Add add)
+{
+    migraphx::shape medium{migraphx::shape::float_type, {1000}};
+    migraphx::shape big{migraphx::shape::float_type, {10000}};
+    std::vector<migraphx::instruction_ref> outs;
+    std::generate_n(
+        std::back_inserter(outs), 12, [&, seed = 0ul]() mutable { return add(m, medium, ++seed); });
+    outs.push_back(add(m, big, 13));
+    outs.push_back(add(m, big, 14));
+    m.add_return(outs);
+}
+
 TEST_CASE(staging_peak_stages_largest_first)
 {
-    migraphx::shape medium{migraphx::shape::float_type, {1000}}; // 4000 bytes
-    migraphx::shape big{migraphx::shape::float_type, {10000}};   // 40000 bytes
-
-    auto gpu_literal = [](migraphx::module& m, const migraphx::shape& s, unsigned long seed) {
-        return add_gpu_literal(m, s, seed);
-    };
-    auto build = [&](migraphx::module& m, auto add_medium, auto add_big) {
-        std::vector<migraphx::instruction_ref> outs;
-        std::generate_n(std::back_inserter(outs), 12, [&, seed = 0ul]() mutable {
-            return add_medium(m, medium, ++seed);
-        });
-        outs.push_back(add_big(m, big, 13));
-        outs.push_back(add_big(m, big, 14));
-        m.add_return(outs);
-    };
-    // The literals total 128000 bytes and the padded scratch estimate adds 60000, so this limit
-    // leaves 44000 bytes to free. Smallest-first needs all twelve medium copies for that; with a
-    // peak budget equal to the shortfall the big literals are taken first and one medium then
-    // covers the rest, so three copies do.
     migraphx::module m1;
-    build(m1, &add_literal, &add_literal);
+    add_staging_literals(m1, &add_literal);
+    // The literals total 128000 bytes and the padded scratch estimate adds 60000, so this limit
+    // leaves 44000 bytes to free. With a peak budget equal to the shortfall the big literals are
+    // taken first and one medium then covers the rest, so three copies do.
     run_pass(m1, {.max_memory = 144000, .staging_peak_percent = 100});
 
     migraphx::module m2;
-    build(
-        m2,
-        [&](migraphx::module& m, const migraphx::shape& s, unsigned long seed) {
-            return seed == 1 ? add_host_copy(m, s, seed) : gpu_literal(m, s, seed);
-        },
-        &add_host_copy);
+    add_staging_literals(m2, [](auto& m, const auto& s, auto seed) {
+        return (seed == 1 or seed > 12) ? add_host_copy(m, s, seed) : add_gpu_literal(m, s, seed);
+    });
     EXPECT(m1 == m2);
+}
 
-    migraphx::module m3;
-    build(m3, &add_literal, &add_literal);
-    run_pass(m3, {.max_memory = 144000, .staging_peak_percent = 0});
+TEST_CASE(staging_peak_zero_stages_smallest_first)
+{
+    migraphx::module m1;
+    add_staging_literals(m1, &add_literal);
+    // The same 44000-byte shortfall without a peak budget takes all twelve medium copies instead.
+    run_pass(m1, {.max_memory = 144000, .staging_peak_percent = 0});
 
-    migraphx::module m4;
-    build(m4, &add_host_copy, gpu_literal);
-    EXPECT(m3 == m4);
+    migraphx::module m2;
+    add_staging_literals(m2, [](auto& m, const auto& s, auto seed) {
+        return seed <= 12 ? add_host_copy(m, s, seed) : add_gpu_literal(m, s, seed);
+    });
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(staging_peak_exceeded_when_needed)
@@ -474,7 +475,8 @@ TEST_CASE(mixed_use_literal_is_staged)
         auto i   = m1.add_parameter("i", idx);
         m1.add_return({m1.add_instruction(indexed_op{}, lit, i), lit});
     }
-    // The literal is also read in full by the return, so it cannot stay on the host and is staged.
+    // The return also uses the literal as a plain input, so it cannot stay on the host and is
+    // staged.
     run_pass(m1, {.max_memory = 1});
 
     migraphx::module m2;
@@ -486,41 +488,66 @@ TEST_CASE(mixed_use_literal_is_staged)
     EXPECT(m1 == m2);
 }
 
-// The gather kernel reads a zero-copy host literal through its mapped device pointer.
+// Runs a gather-style kernel whose data literal is forced off the GPU by a 1-byte limit, so the
+// kernel reads it zero-copy from host memory.
+struct zero_copy_gather_test
+{
+    std::string op;
+    migraphx::value attrs;
+    migraphx::literal data;
+    migraphx::shape idx_s;
+    migraphx::shape out_s;
+
+    migraphx::argument run(std::vector<int32_t> indices) const
+    {
+        migraphx::gpu::context ctx;
+        auto kernel = migraphx::gpu::compile_op(op, ctx, {data.get_shape(), idx_s, out_s}, attrs);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto lit = mm->add_literal(data);
+        auto idx = mm->add_parameter("indices", idx_s);
+        auto out = mm->add_parameter("output", out_s);
+        mm->add_return({mm->add_instruction(kernel, lit, idx, out)});
+        run_pass(*mm, {.max_memory = 1});
+        EXPECT(migraphx::none_of(migraphx::iterator_for(*mm),
+                                 [](auto ins) { return ins->name() == "hip::copy"; }));
+        p.compile(migraphx::make_target("gpu"), migraphx::compile_options{});
+        return migraphx::gpu::from_gpu(
+            p.eval({{"indices", migraphx::gpu::to_gpu(migraphx::argument(idx_s, indices.data()))},
+                    {"output", migraphx::gpu::allocate_gpu(out_s)}})
+                .front());
+    }
+
+    // The reference implementation of the op gives the expected result
+    migraphx::argument expected(std::vector<int32_t> indices) const
+    {
+        return migraphx::make_op(op, attrs).compute(
+            out_s, {data.get_argument(), migraphx::argument(idx_s, indices.data())});
+    }
+};
+
 TEST_CASE(zero_copy_gather_reads_host_literal)
 {
     migraphx::shape data_s{migraphx::shape::float_type, {4, 3}};
-    migraphx::shape idx_s{migraphx::shape::int32_type, {2}};
-    migraphx::shape out_s{migraphx::shape::float_type, {2, 3}};
-    migraphx::gpu::context ctx;
-    auto gather = migraphx::gpu::compile_op("gather", ctx, {data_s, idx_s, out_s}, {{"axis", 0}});
-
-    migraphx::program p;
-    auto* mm  = p.get_main_module();
-    auto data = migraphx::generate_literal(data_s, 1);
-    auto lit  = mm->add_literal(data);
-    auto idx  = mm->add_parameter("indices", idx_s);
-    auto out  = mm->add_parameter("output", out_s);
-    mm->add_return({mm->add_instruction(gather, lit, idx, out)});
-    run_pass(*mm, {.max_memory = 1});
-    EXPECT(std::none_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
-        return ins.name() == "hip::copy";
-    }));
-    p.compile(migraphx::make_target("gpu"), migraphx::compile_options{});
-
+    zero_copy_gather_test t{"gather",
+                            {{"axis", 0}},
+                            migraphx::generate_literal(data_s, 1),
+                            {migraphx::shape::int32_type, {2}},
+                            {migraphx::shape::float_type, {2, 3}}};
     std::vector<int32_t> indices = {2, 0};
-    auto result                  = migraphx::gpu::from_gpu(
-        p.eval({{"indices", migraphx::gpu::to_gpu(migraphx::argument(idx_s, indices.data()))},
-                {"output", migraphx::gpu::allocate_gpu(out_s)}})
-            .front());
+    EXPECT(t.run(indices) == t.expected(indices));
+}
 
-    std::vector<float> expected;
-    data.visit([&](auto v) {
-        std::for_each(indices.begin(), indices.end(), [&](auto i) {
-            std::copy_n(v.begin() + i * 3, 3, std::back_inserter(expected));
-        });
-    });
-    EXPECT(result == migraphx::argument(out_s, expected.data()));
+TEST_CASE(zero_copy_gathernd_reads_host_literal)
+{
+    migraphx::shape data_s{migraphx::shape::half_type, {4096, 64}};
+    zero_copy_gather_test t{"gathernd",
+                            {{"batch_dims", 0}},
+                            migraphx::generate_literal(data_s, 1),
+                            {migraphx::shape::int32_type, {1, 1, 1}},
+                            {migraphx::shape::half_type, {1, 1, 64}}};
+    std::vector<int32_t> indices = {4000};
+    EXPECT(t.run(indices) == t.expected(indices));
 }
 
 // Build a module of bare hip::allocate buffers with controlled live ranges to exercise memory
@@ -631,41 +658,6 @@ TEST_CASE(scratch_overhead_accounts_for_coloring)
     // program fits within max_memory.
     EXPECT(padded.literal_on_host);
     EXPECT(padded.scratch + padded.gpu_literal <= max_memory);
-}
-
-// The gathernd kernel reads a zero-copy host literal the size of an LLM rotary table.
-TEST_CASE(zero_copy_gathernd_reads_host_literal)
-{
-    migraphx::shape data_s{migraphx::shape::half_type, {131072, 64}};
-    migraphx::shape idx_s{migraphx::shape::int32_type, {1, 1, 1}};
-    migraphx::shape out_s{migraphx::shape::half_type, {1, 1, 64}};
-    migraphx::gpu::context ctx;
-    auto gathernd =
-        migraphx::gpu::compile_op("gathernd", ctx, {data_s, idx_s, out_s}, {{"batch_dims", 0}});
-
-    migraphx::program p;
-    auto* mm  = p.get_main_module();
-    auto data = migraphx::generate_literal(data_s, 1);
-    auto lit  = mm->add_literal(data);
-    auto idx  = mm->add_parameter("indices", idx_s);
-    auto out  = mm->add_parameter("output", out_s);
-    mm->add_return({mm->add_instruction(gathernd, lit, idx, out)});
-    run_pass(*mm, {.max_memory = 1});
-    EXPECT(std::none_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
-        return ins.name() == "hip::copy";
-    }));
-    p.compile(migraphx::make_target("gpu"), migraphx::compile_options{});
-
-    std::vector<int32_t> indices = {131000};
-    auto result                  = migraphx::gpu::from_gpu(
-        p.eval({{"indices", migraphx::gpu::to_gpu(migraphx::argument(idx_s, indices.data()))},
-                {"output", migraphx::gpu::allocate_gpu(out_s)}})
-            .front());
-
-    // Row indices.front() of the data, compared bytewise
-    const char* row = data.data() + indices.front() * data_s.strides().front() * data_s.type_size();
-    std::vector<char> expected(row, row + out_s.bytes());
-    EXPECT(result == migraphx::argument(out_s, expected.data()));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

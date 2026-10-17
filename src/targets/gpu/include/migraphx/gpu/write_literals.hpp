@@ -35,7 +35,7 @@ namespace gpu {
 
 // Places literals in GPU memory. When they do not fit in max_memory (free GPU memory by default),
 // literals that only feed index-selected kernel inputs are left in host memory for the kernel to
-// read directly, and the rest are staged through scratch smallest-first to keep the peak low.
+// read directly, and the rest are staged through scratch (see staging_peak_percent).
 struct MIGRAPHX_GPU_EXPORT write_literals
 {
     std::size_t max_memory = 0;
@@ -43,10 +43,9 @@ struct MIGRAPHX_GPU_EXPORT write_literals
     // liveness-based estimate is incomplete without the scheduler, so the estimate is inflated to
     // avoid exceeding max_memory after compilation.
     std::size_t scratch_overhead_percent = 50;
-    // Largest literal to stage through scratch, as a percentage of the memory shortfall. Literals
-    // up to that size are staged largest-first, which needs the fewest copies while the largest one
-    // wastes at most this share of the bytes moved per run in scratch and copy traffic. With 0 the
-    // literals are staged smallest-first for the lowest peak.
+    // Size cap, as a percentage of the memory shortfall, up to which literals are staged through
+    // scratch largest-first (fewest copies); the largest staged copy frees nothing net, so this
+    // bounds that waste. Larger literals are staged smallest-first, and only when still needed.
     std::size_t staging_peak_percent = 5;
     std::string name() const { return "gpu::write_literals"; }
 

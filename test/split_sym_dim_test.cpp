@@ -61,6 +61,28 @@ void run_pass(migraphx::program& p, std::size_t max_clones = migraphx::split_sym
                          {migraphx::split_sym_dim{max_clones}, migraphx::dead_code_elimination{}});
 }
 
+migraphx::instruction_ref add_expected_dyn_slice(migraphx::module& m,
+                                                 migraphx::instruction_ref input,
+                                                 migraphx::instruction_ref extent_source,
+                                                 const std::vector<int64_t>& axes,
+                                                 const std::vector<se>& ends)
+{
+    std::vector<se> starts(ends.size(), lit(0));
+    auto runtime_starts = m.add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(starts)}}),
+        std::vector<migraphx::instruction_ref>{extent_source});
+    auto runtime_ends = m.add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(ends)}}),
+        std::vector<migraphx::instruction_ref>{extent_source});
+    return m.add_instruction(migraphx::make_op("dyn_slice",
+                                               {{"axes", axes},
+                                                {"starts", migraphx::to_value(starts)},
+                                                {"ends", migraphx::to_value(ends)}}),
+                             input,
+                             runtime_starts,
+                             runtime_ends);
+}
+
 migraphx::instruction_ref add_expected_clone_extent(migraphx::module& m,
                                                     const se& expression,
                                                     const se& root,
@@ -1037,6 +1059,116 @@ TEST_CASE(split_sym_dim_coalesces_into_symbolic_broadcast_with_dims)
                           {{"axes", std::vector<int64_t>{1, 2}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
                            {"ends", migraphx::to_value(std::vector<se>{n, n})}}),
+        expected_output,
+        expected_output_start,
+        expected_output_end);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_does_not_propagate_broadcast_padding_to_unmapped_axis)
+{
+    auto n = var("n", {1, 2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto data =
+        m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}});
+    auto dims =
+        m.add_parameter("dims", migraphx::shape{migraphx::shape::int64_type, {std::size_t{2}}});
+    auto output_dims = std::vector<dd>{dd{n}, dd{n}};
+    auto broadcast =
+        m.add_instruction(migraphx::make_op("broadcast_with_dims",
+                                            {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                          std::vector<migraphx::instruction_ref>{data, dims});
+    auto output = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), broadcast);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}};
+    auto broadcast_modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_n    = var("n", {clone.min, clone.max});
+        auto clone_data = sm.add_parameter(
+            "data", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{clone_n}}});
+        clone_data =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_data);
+        auto clone_output = sm.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max, clone.max}}}),
+            clone_data);
+        sm.add_return({clone_output});
+    });
+    auto reduce_modules    = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
+        auto clone_n = var("n", {clone.min, clone.max});
+        sm.add_parameter("data",
+                         migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{clone_n}}});
+        auto clone_input = sm.add_parameter(
+            "#split_sym_dim_input_1_0",
+            migraphx::shape{migraphx::shape::float_type, {clone.max, clone.max}, {0, 1}});
+        clone_input =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_input);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), clone_input);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_data  = expected_main.add_parameter(
+        "data", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}});
+    auto expected_dims = expected_main.add_parameter(
+        "dims", migraphx::shape{migraphx::shape::int64_type, {std::size_t{2}}});
+    auto target_n = var("split_sym_dim_n_target", {1, 2}, {1, 2});
+    migraphx::shape broadcast_output_shape{
+        migraphx::shape::float_type, {dd{target_n}, dd{target_n}}, {lit(0), lit(1)}};
+    auto broadcast_select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{
+                                std::vector<migraphx::shape>{broadcast_output_shape}})}}),
+        std::vector<migraphx::instruction_ref>{expected_data},
+        broadcast_modules);
+    auto broadcast_output = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), broadcast_select);
+    auto broadcast_output_start = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
+        std::vector<migraphx::instruction_ref>{expected_dims, expected_data});
+    auto broadcast_output_end = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
+        std::vector<migraphx::instruction_ref>{expected_dims, expected_data});
+    broadcast_output = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{0}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+        broadcast_output,
+        broadcast_output_start,
+        broadcast_output_end);
+    auto reduce_select = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{target_n}}}}})}}),
+        std::vector<migraphx::instruction_ref>{broadcast_output, expected_data},
+        reduce_modules);
+    auto expected_output = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), reduce_select);
+    auto expected_output_start = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
+        std::vector<migraphx::instruction_ref>{expected_dims, expected_data});
+    auto expected_output_end = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
+        std::vector<migraphx::instruction_ref>{expected_dims, expected_data});
+    expected_output = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{1}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -2216,10 +2348,10 @@ TEST_CASE(split_sym_dim_specializes_static_output_reduce)
         auto input = sm.add_parameter(
             "data",
             migraphx::shape{migraphx::shape::float_type, {dd{var("n", {clone.min, clone.max})}}});
-        input = sm.add_instruction(
+        auto padded = sm.add_instruction(
             migraphx::make_op("fixed_pad", {{"value", -std::numeric_limits<float>::max()}}), input);
         auto clone_output =
-            sm.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), input);
+            sm.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), padded);
         sm.add_return({clone_output});
     });
 
@@ -2231,6 +2363,213 @@ TEST_CASE(split_sym_dim_specializes_static_output_reduce)
                           {{"output_dyn_shapes",
                             migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
                                 migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}}}}})}}),
+        std::vector<migraphx::instruction_ref>{input},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_propagates_padding_through_exp_and_squeeze)
+{
+    auto n         = var("n", {1, 4}, {2});
+    auto exp_n     = var("n", {1, 4}, {3});
+    auto squeeze_n = var("n", {1, 4}, {4});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto data =
+        m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}});
+    auto values = m.add_instruction(migraphx::make_op("exp"), data);
+    migraphx::instruction::replace(
+        values,
+        values->get_operator(),
+        migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{exp_n}}},
+        values->inputs());
+    values = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), values);
+    migraphx::instruction::replace(values,
+                                   values->get_operator(),
+                                   migraphx::shape{migraphx::shape::float_type, {dd{squeeze_n}}},
+                                   values->inputs());
+    auto output = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), values);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto input =
+            sm.add_parameter("data",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             {dd{lit(1)}, dd{var("n", {clone.min, clone.max})}}});
+        auto padded = sm.add_instruction(
+            migraphx::make_op("fixed_pad", {{"value", -std::numeric_limits<float>::infinity()}}),
+            input);
+        auto clone_values = sm.add_instruction(migraphx::make_op("exp"), padded);
+        clone_values =
+            sm.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), clone_values);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), clone_values);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto input          = expected_main.add_parameter(
+        "data", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}});
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}}}}})}}),
+        std::vector<migraphx::instruction_ref>{input},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_specializes_prefix_scan)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m     = *p.get_main_module();
+    auto data   = m.add_parameter("data", migraphx::shape{migraphx::shape::int64_type, {dd{n}}});
+    auto output = m.add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}}), data);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto input = sm.add_parameter(
+            "data",
+            migraphx::shape{migraphx::shape::int64_type, {dd{var("n", {clone.min, clone.max})}}});
+        auto padded = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), input);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}}), padded);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto input =
+        expected_main.add_parameter("data", migraphx::shape{migraphx::shape::int64_type, {dd{n}}});
+    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto select   = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::int64_type, {dd{target_n}}}}})}}),
+        std::vector<migraphx::instruction_ref>{input},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto starts = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
+        input);
+    auto ends = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
+        input);
+    expected_output = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{0}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+        expected_output,
+        starts,
+        ends);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_propagates_padding_through_reduce)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto data =
+        m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(2)}}});
+    auto values = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), data);
+    auto output = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), values);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto input =
+            sm.add_parameter("data",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             {dd{var("n", {clone.min, clone.max})}, dd{lit(2)}}});
+        input = sm.add_instruction(
+            migraphx::make_op("fixed_pad", {{"value", std::numeric_limits<float>::lowest()}}),
+            input);
+        auto clone_values =
+            sm.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), clone_values);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto input          = expected_main.add_parameter(
+        "data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(2)}}});
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {1, 1}}}})}}),
+        std::vector<migraphx::instruction_ref>{input},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_propagates_min_neutral_padding_through_prefix_scan)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m     = *p.get_main_module();
+    auto data   = m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto values = m.add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}}), data);
+    auto output = m.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0}}}), values);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto input = sm.add_parameter(
+            "data",
+            migraphx::shape{migraphx::shape::float_type, {dd{var("n", {clone.min, clone.max})}}});
+        input = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 1.0f}}), input);
+        auto clone_values =
+            sm.add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}}), input);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0}}}), clone_values);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto input =
+        expected_main.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {1}}}})}}),
         std::vector<migraphx::instruction_ref>{input},
         modules);
     auto expected_output =
@@ -2294,6 +2633,332 @@ TEST_CASE(split_sym_dim_specializes_static_output_gemm)
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_specializes_gather_data_axis)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto data =
+        m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
+    auto index =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {-1}});
+    auto output = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, index);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_index = sm.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {-1}});
+        auto clone_data =
+            sm.add_parameter("data",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             {dd{var("n", {clone.min, clone.max})}, dd{lit(4)}}});
+        auto padded_data =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_data);
+        migraphx::instruction_ref extent;
+        if(clone.min == clone.max)
+        {
+            extent =
+                sm.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}},
+                                                 {static_cast<int64_t>(clone.min)}});
+        }
+        else
+        {
+            extent = sm.add_instruction(
+                migraphx::make_op("eval_expr_from_shape",
+                                  {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
+                clone_data);
+        }
+        extent =
+            sm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1}}}), extent);
+        auto zero = sm.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+        zero = sm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1}}}), zero);
+        auto negative   = sm.add_instruction(migraphx::make_op("less"), clone_index, zero);
+        auto normalized = sm.add_instruction(migraphx::make_op("add"), clone_index, extent);
+        normalized =
+            sm.add_instruction(migraphx::make_op("where"), negative, normalized, clone_index);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), padded_data, normalized);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_data  = expected_main.add_parameter(
+        "data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {1, 4}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_data},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_absorbs_gather_with_compound_data_extent)
+{
+    auto p_extent = var("p", {1, 5}, {1, 2, 3, 4, 5});
+    auto s_extent = var("s", {1, 5}, {1, 2, 3, 4, 5});
+    auto t_extent = var("t", {4, 8}, {4});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    m.add_parameter("p_source", migraphx::shape{migraphx::shape::float_type, {dd{p_extent}}});
+    m.add_parameter("s_source", migraphx::shape{migraphx::shape::float_type, {dd{s_extent}}});
+    auto input =
+        m.add_parameter("input",
+                        migraphx::shape{migraphx::shape::float_type,
+                                        {dd{lit(1)}, dd{lit(1)}, dd{t_extent}, dd{t_extent}}});
+    auto weights = m.add_parameter(
+        "weights",
+        migraphx::shape{migraphx::shape::float_type,
+                        {dd{p_extent + s_extent}, dd{lit(1)}, dd{lit(3)}, dd{lit(3)}}});
+    auto index =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {-1}});
+    auto gathered = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), weights, index);
+    auto output =
+        m.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), input, gathered);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{4, 4}, {5, 8}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_t = var("t", {clone.min, clone.max});
+        auto clone_input =
+            sm.add_parameter("input",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             {dd{lit(1)}, dd{lit(1)}, dd{clone_t}, dd{clone_t}}});
+        auto clone_p_source = sm.add_parameter(
+            "p_source", migraphx::shape{migraphx::shape::float_type, {dd{p_extent}}});
+        auto clone_s_source = sm.add_parameter(
+            "s_source", migraphx::shape{migraphx::shape::float_type, {dd{s_extent}}});
+        auto clone_weights = sm.add_parameter(
+            "weights",
+            migraphx::shape{migraphx::shape::float_type,
+                            {dd{p_extent + s_extent}, dd{lit(1)}, dd{lit(3)}, dd{lit(3)}}});
+        auto clone_index = sm.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {-1}});
+        auto runtime_extent = sm.add_instruction(
+            migraphx::make_op(
+                "eval_expr_from_shape",
+                {{"expressions", migraphx::to_value(std::vector<se>{p_extent + s_extent})}}),
+            clone_p_source,
+            clone_s_source);
+        runtime_extent = sm.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1}}}), runtime_extent);
+        auto zero = sm.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+        zero = sm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1}}}), zero);
+        auto negative   = sm.add_instruction(migraphx::make_op("less"), clone_index, zero);
+        auto normalized = sm.add_instruction(migraphx::make_op("add"), clone_index, runtime_extent);
+        normalized =
+            sm.add_instruction(migraphx::make_op("where"), negative, normalized, clone_index);
+        auto clone_gather = sm.add_instruction(
+            migraphx::make_op("gather", {{"axis", 0}}), clone_weights, normalized);
+        migraphx::instruction::replace(clone_gather,
+                                       clone_gather->get_operator(),
+                                       clone_gather->get_shape().to_static(),
+                                       clone_gather->inputs());
+        clone_input =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_input);
+        auto clone_output = sm.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1}}}), clone_input, clone_gather);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main    = *expected.get_main_module();
+    auto expected_p_source = expected_main.add_parameter(
+        "p_source", migraphx::shape{migraphx::shape::float_type, {dd{p_extent}}});
+    auto expected_s_source = expected_main.add_parameter(
+        "s_source", migraphx::shape{migraphx::shape::float_type, {dd{s_extent}}});
+    auto expected_input = expected_main.add_parameter(
+        "input",
+        migraphx::shape{migraphx::shape::float_type,
+                        {dd{lit(1)}, dd{lit(1)}, dd{t_extent}, dd{t_extent}}});
+    auto expected_weights = expected_main.add_parameter(
+        "weights",
+        migraphx::shape{migraphx::shape::float_type,
+                        {dd{p_extent + s_extent}, dd{lit(1)}, dd{lit(3)}, dd{lit(3)}}});
+    auto target_t = var("split_sym_dim_t_target", {4, 8}, {4, 8});
+    auto select   = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type,
+                                  {dd{lit(1)}, dd{lit(1)}, dd{target_t}, dd{target_t}}}}})}}),
+        std::vector<migraphx::instruction_ref>{
+            expected_input, expected_p_source, expected_s_source, expected_weights},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto extent_sources = expected_main.get_parameters();
+    auto starts         = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
+        extent_sources);
+    auto ends = expected_main.add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<se>{t_extent, t_extent})}}),
+        extent_sources);
+    expected_output = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {2, 3}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{t_extent, t_extent})}}),
+        expected_output,
+        starts,
+        ends);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_accepts_derived_parameter_dimension)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto data =
+        m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
+    m.add_parameter("attention_mask",
+                    migraphx::shape{migraphx::shape::int64_type, {dd{n + lit(16)}}});
+    auto output = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), data);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto input =
+            sm.add_parameter("data",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             {dd{var("n", {clone.min, clone.max})}, dd{lit(4)}}});
+        input = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), input);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), input);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_data  = expected_main.add_parameter(
+        "data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
+    auto expected_attention_mask = expected_main.add_parameter(
+        "attention_mask", migraphx::shape{migraphx::shape::int64_type, {dd{n + lit(16)}}});
+    std::vector<migraphx::instruction_ref> runtime_sources = {expected_attention_mask,
+                                                              expected_data};
+    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto select   = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(1)}}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_data},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto output_start = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
+        runtime_sources);
+    auto output_end = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
+        runtime_sources);
+    expected_output = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{0}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+        expected_output,
+        output_start,
+        output_end);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_specializes_static_prefix_concat)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m      = *p.get_main_module();
+    auto past    = m.add_parameter("past", {migraphx::shape::float_type, {16, 4}});
+    auto current = m.add_parameter(
+        "current", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
+    auto joined = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), past, current);
+    auto output = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), joined);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_past = sm.add_parameter("past", {migraphx::shape::float_type, {16, 4}});
+        auto clone_current =
+            sm.add_parameter("current",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             {dd{var("n", {clone.min, clone.max})}, dd{lit(4)}}});
+        clone_current =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_current);
+        auto clone_joined = sm.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}), clone_past, clone_current);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), clone_joined);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_past =
+        expected_main.add_parameter("past", {migraphx::shape::float_type, {16, 4}});
+    auto expected_current = expected_main.add_parameter(
+        "current", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
+    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+    auto select   = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{target_n + lit(16)}, dd{lit(1)}}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_current, expected_past},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    std::vector<migraphx::instruction_ref> runtime_sources = {expected_current, expected_past};
+    auto output_start                                      = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
+        runtime_sources);
+    auto output_end = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{n + lit(16)})}}),
+        runtime_sources);
+    expected_output = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{0}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{n + lit(16)})}}),
+        expected_output,
+        output_start,
+        output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(p.sort() == expected.sort());
@@ -2806,6 +3471,115 @@ TEST_CASE(split_sym_dim_retains_only_nonparallel_boundary_axes)
         output_start,
         output_end);
     expected_main.add_return({output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_reapplies_propagated_padding_axis_at_boundary)
+{
+    auto s = var("s", {1, 4});
+    auto t = var("t", {1, 4});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto input =
+        m.add_parameter("input", migraphx::shape{migraphx::shape::float_type, {dd{s}, dd{t}}});
+    auto exponential = m.add_instruction(migraphx::make_op("exp"), input);
+    auto row_product =
+        m.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {0}}}), exponential);
+    auto column_product =
+        m.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), exponential);
+    auto inner_sum =
+        m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), exponential);
+    auto outer_sum = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), inner_sum);
+    m.add_return({row_product, column_product, outer_sum});
+
+    run_pass(p);
+
+    struct repad_clone_spec
+    {
+        std::size_t s_min;
+        std::size_t s_max;
+        std::size_t t_min;
+        std::size_t t_max;
+    };
+    std::vector<repad_clone_spec> clones = {{1, 1, 1, 1}, {2, 4, 1, 1}, {1, 1, 2, 4}, {2, 4, 2, 4}};
+
+    migraphx::program expected;
+    auto first_modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_s     = var("s", {clone.s_min, clone.s_max});
+        auto clone_t     = var("t", {clone.t_min, clone.t_max});
+        auto clone_input = sm.add_parameter(
+            "input", migraphx::shape{migraphx::shape::float_type, {dd{clone_s}, dd{clone_t}}});
+        auto pad =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_input);
+        auto exp    = sm.add_instruction(migraphx::make_op("exp"), pad);
+        auto row    = sm.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {0}}}), exp);
+        auto column = sm.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {1}}}), exp);
+        sm.add_return({row, column, exp});
+    });
+
+    auto target_s       = var("split_sym_dim_s_target", {1, 4}, {1, 4});
+    auto target_t       = var("split_sym_dim_t_target", {1, 4}, {1, 4});
+    auto second_modules = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
+        auto clone_s = var("s", {clone.s_min, clone.s_max});
+        auto clone_t = var("t", {clone.t_min, clone.t_max});
+        sm.add_parameter("input",
+                         migraphx::shape{migraphx::shape::float_type, {dd{clone_s}, dd{clone_t}}});
+        auto boundary =
+            sm.add_parameter("#split_sym_dim_input_1_0",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             {dd{migraphx::sym::min(clone_s, lit(clone.s_max))},
+                                              dd{migraphx::sym::min(clone_t, lit(clone.t_max))}},
+                                             {target_t, lit(1)}});
+        auto pad = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), boundary);
+        auto inner = sm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), pad);
+        auto outer = sm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), inner);
+        sm.add_return({outer});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_input = expected_main.add_parameter(
+        "input", migraphx::shape{migraphx::shape::float_type, {dd{s}, dd{t}}});
+    auto first_select = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{
+                      migraphx::shape::float_type, {dd{lit(1)}, dd{target_t}}, {target_t, lit(1)}},
+                  migraphx::shape{
+                      migraphx::shape::float_type, {dd{target_s}, dd{lit(1)}}, {lit(1), lit(1)}},
+                  migraphx::shape{migraphx::shape::float_type,
+                                  {dd{target_s}, dd{target_t}},
+                                  {target_t, lit(1)}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_input},
+        first_modules);
+
+    auto expected_row = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), first_select);
+    expected_row = add_expected_dyn_slice(expected_main, expected_row, expected_input, {1}, {t});
+
+    auto expected_column = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 1}}), first_select);
+    expected_column =
+        add_expected_dyn_slice(expected_main, expected_column, expected_input, {0}, {s});
+
+    auto expected_exp = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 2}}), first_select);
+    expected_exp =
+        add_expected_dyn_slice(expected_main, expected_exp, expected_input, {0, 1}, {s, t});
+
+    auto second_select = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_exp, expected_input},
+        second_modules);
+    auto expected_sum = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), second_select);
+    expected_main.add_return({expected_row, expected_column, expected_sum});
 
     EXPECT(p.sort() == expected.sort());
 }
@@ -3548,25 +4322,6 @@ TEST_CASE(split_sym_dim_materializes_gathernd)
         expected_output_start,
         expected_output_end);
     expected_main.add_return({expected_output});
-
-    EXPECT(p.sort() == expected.sort());
-}
-
-TEST_CASE(split_sym_dim_mixed_static_symbolic_concat_is_noop)
-{
-    auto n = var("n", {1, 4}, {2});
-    migraphx::program p;
-    auto& m = *p.get_main_module();
-    auto static_data =
-        m.add_parameter("static_data", migraphx::shape{migraphx::shape::float_type, {2, 4}});
-    auto symbolic_data = m.add_parameter(
-        "symbolic_data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
-    auto output =
-        m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), static_data, symbolic_data);
-    m.add_return({output});
-
-    auto expected = p;
-    run_pass(p);
 
     EXPECT(p.sort() == expected.sort());
 }
@@ -5224,7 +5979,7 @@ TEST_CASE(split_sym_dim_keeps_softmax_mask_off_contract_axis)
     EXPECT(p.sort() == expected.sort());
 }
 
-TEST_CASE(split_sym_dim_keeps_reduction_of_padded_body_outside_clone)
+TEST_CASE(split_sym_dim_propagates_sum_padding_through_exp)
 {
     auto n = var("n", {1, 8}, {2});
     migraphx::program p;
@@ -5243,31 +5998,16 @@ TEST_CASE(split_sym_dim_keeps_reduction_of_padded_body_outside_clone)
 
     migraphx::program expected;
     std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 8}};
-    auto exp_modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
         auto clone_n = var("n", {clone.min, clone.max});
         auto clone_x =
             sm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{clone_n}}});
-        auto padded_x =
-            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_x);
-        auto clone_output = sm.add_instruction(migraphx::make_op("exp"), padded_x);
-        sm.add_return({clone_output});
-    });
-    auto sub_modules = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
-        auto clone_n      = var("n", {clone.min, clone.max});
-        auto clone_extent = migraphx::sym::min(clone_n, lit(clone.max));
-        sm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{clone_n}}});
-        auto clone_exp =
-            sm.add_parameter("#split_sym_dim_input_1_1",
-                             migraphx::shape{migraphx::shape::float_type, {dd{clone_extent}}});
-        clone_exp =
-            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_exp);
-        auto clone_reduce =
-            sm.add_parameter("#split_sym_dim_input_1_0",
-                             migraphx::shape{migraphx::shape::float_type, {dd{clone_extent}}});
-        clone_reduce =
-            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_reduce);
+        auto padded_x = sm.add_instruction(
+            migraphx::make_op("fixed_pad", {{"value", -std::numeric_limits<float>::infinity()}}),
+            clone_x);
+        auto clone_exp = sm.add_instruction(migraphx::make_op("exp"), padded_x);
         auto clone_sum =
-            sm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), clone_reduce);
+            sm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), clone_exp);
         auto clone_expanded = sm.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_sum);
         auto clone_output = sm.add_instruction(migraphx::make_op("sub"), clone_exp, clone_expanded);
@@ -5277,41 +6017,16 @@ TEST_CASE(split_sym_dim_keeps_reduction_of_padded_body_outside_clone)
     auto& expected_main = *expected.get_main_module();
     auto expected_x =
         expected_main.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
-    auto target_n   = var("split_sym_dim_n_target", {1, 8}, {1, 2, 8});
-    auto select_exp = expected_main.add_instruction(
+    auto target_n = var("split_sym_dim_n_target", {1, 8}, {1, 2, 8});
+    auto select   = expected_main.add_instruction(
         migraphx::make_op("select_module",
                           {{"output_dyn_shapes",
                             migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
                                 migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_x},
-        exp_modules);
-    auto expected_exp = expected_main.add_instruction(
-        migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_exp);
-    auto expected_exp_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_x});
-    auto expected_exp_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_x});
-    expected_exp = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
-        expected_exp,
-        expected_exp_start,
-        expected_exp_end);
-    auto select_sub = expected_main.add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes",
-                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
-        std::vector<migraphx::instruction_ref>{expected_exp, expected_exp, expected_x},
-        sub_modules);
-    auto expected_output = expected_main.add_instruction(
-        migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_sub);
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     auto expected_output_start = expected_main.add_instruction(
         migraphx::make_op("eval_expr_from_shape",
                           {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
@@ -5333,7 +6048,165 @@ TEST_CASE(split_sym_dim_keeps_reduction_of_padded_body_outside_clone)
     EXPECT(p.sort() == expected.sort());
 }
 
-TEST_CASE(split_sym_dim_keeps_unsupported_dependency_outside_clone)
+TEST_CASE(split_sym_dim_refuses_integer_subtraction_padding_propagation)
+{
+    auto check_type = [](auto type, auto scalar_value, const std::string& reduction) {
+        auto n = var("n", {1, 2});
+        migraphx::program p;
+        auto& m = *p.get_main_module();
+        auto x  = m.add_parameter("x", migraphx::shape{type, {dd{n}}});
+        auto scalar =
+            m.add_literal(migraphx::literal{migraphx::shape{type, {1}}, std::vector{scalar_value}});
+        auto scalars = m.add_instruction(
+            migraphx::make_op("multibroadcast",
+                              {{"out_dyn_dims", migraphx::to_value(std::vector<dd>{dd{n}})}}),
+            std::vector<migraphx::instruction_ref>{scalar, x});
+        auto difference = m.add_instruction(migraphx::make_op("sub"), x, scalars);
+        auto output = m.add_instruction(migraphx::make_op(reduction, {{"axes", {0}}}), difference);
+        m.add_return({output});
+
+        run_pass(p);
+
+        migraphx::program expected;
+        std::vector<clone_spec> clones = {{1, 1}, {2, 2}};
+        auto difference_modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+            auto clone_n      = var("n", {clone.min, clone.max});
+            auto clone_scalar = sm.add_literal(
+                migraphx::literal{migraphx::shape{type, {1}}, std::vector{scalar_value}});
+            auto clone_x       = sm.add_parameter("x", migraphx::shape{type, {dd{clone_n}}});
+            auto clone_scalars = sm.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_scalar);
+            clone_x =
+                sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_x);
+            auto clone_difference =
+                sm.add_instruction(migraphx::make_op("sub"), clone_x, clone_scalars);
+            sm.add_return({clone_difference});
+        });
+        auto reduction_modules  = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
+            auto clone_n = var("n", {clone.min, clone.max});
+            sm.add_parameter("x", migraphx::shape{type, {dd{clone_n}}});
+            auto clone_difference =
+                sm.add_parameter("#split_sym_dim_input_1_0", migraphx::shape{type, {dd{clone_n}}});
+            const auto fill  = reduction == "reduce_max" ? std::numeric_limits<float>::lowest()
+                                                         : std::numeric_limits<float>::max();
+            clone_difference = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", fill}}),
+                                                  clone_difference);
+            auto clone_output =
+                sm.add_instruction(migraphx::make_op(reduction, {{"axes", {0}}}), clone_difference);
+            sm.add_return({clone_output});
+        });
+
+        auto& expected_main    = *expected.get_main_module();
+        auto expected_x        = expected_main.add_parameter("x", migraphx::shape{type, {dd{n}}});
+        auto target_n          = var("split_sym_dim_n_target", {1, 2}, {1, 2});
+        auto difference_select = expected_main.add_instruction(
+            migraphx::make_op("select_module",
+                              {{"output_dyn_shapes",
+                                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                    migraphx::shape{type, {dd{target_n}}}}})}}),
+            std::vector<migraphx::instruction_ref>{expected_x},
+            difference_modules);
+        auto expected_difference = expected_main.add_instruction(
+            migraphx::make_op("get_tuple_elem", {{"index", 0}}), difference_select);
+        expected_difference =
+            add_expected_dyn_slice(expected_main, expected_difference, expected_x, {0}, {n});
+        auto reduction_select = expected_main.add_instruction(
+            migraphx::make_op("select_module",
+                              {{"output_dyn_shapes",
+                                migraphx::to_value(migraphx::shape{
+                                    std::vector<migraphx::shape>{migraphx::shape{type, {1}}}})}}),
+            std::vector<migraphx::instruction_ref>{expected_difference, expected_x},
+            reduction_modules);
+        auto expected_output = expected_main.add_instruction(
+            migraphx::make_op("get_tuple_elem", {{"index", 0}}), reduction_select);
+        expected_main.add_return({expected_output});
+
+        EXPECT(p.sort() == expected.sort());
+    };
+
+    check_type(migraphx::shape::int64_type, int64_t{1}, "reduce_max");
+    check_type(migraphx::shape::int64_type, int64_t{1}, "reduce_min");
+    check_type(migraphx::shape::uint64_type, uint64_t{1}, "reduce_max");
+    check_type(migraphx::shape::uint64_type, uint64_t{1}, "reduce_min");
+}
+
+TEST_CASE(split_sym_dim_keeps_single_nonlast_variable_concat_outside_clone)
+{
+    auto n = var("n", {1, 8}, {2});
+    migraphx::program p;
+    auto& m   = *p.get_main_module();
+    auto x    = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto past = m.add_parameter("past", migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}}});
+    auto concat   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, past);
+    auto sum      = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), concat);
+    auto expanded = m.add_instruction(
+        migraphx::make_op("multibroadcast",
+                          {{"out_dyn_dims", migraphx::to_value(std::vector<dd>{dd{n}})}}),
+        std::vector<migraphx::instruction_ref>{sum, x});
+    auto output = m.add_instruction(migraphx::make_op("sub"), x, expanded);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 8}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_n = var("n", {clone.min, clone.max});
+        auto clone_x =
+            sm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{clone_n}}});
+        clone_x = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_x);
+        auto clone_concat =
+            sm.add_parameter("#split_sym_dim_input_0_0",
+                             migraphx::shape{migraphx::shape::float_type, {dd{clone_n + lit(4)}}});
+        clone_concat =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_concat);
+        auto clone_sum =
+            sm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), clone_concat);
+        auto clone_expanded = sm.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_sum);
+        auto clone_output = sm.add_instruction(migraphx::make_op("sub"), clone_x, clone_expanded);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_x =
+        expected_main.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto expected_past = expected_main.add_parameter(
+        "past", migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}}});
+    auto expected_concat = expected_main.add_instruction(
+        migraphx::make_op("concat", {{"axis", 0}}), expected_x, expected_past);
+    auto target_n = var("split_sym_dim_n_target", {1, 8}, {1, 2, 8});
+    auto select   = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_concat, expected_x},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto expected_output_start = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
+        expected_main.get_parameters());
+    auto expected_output_end = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
+        expected_main.get_parameters());
+    expected_output = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{0}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+        expected_output,
+        expected_output_start,
+        expected_output_end);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_keeps_multiple_variable_concat_outside_clone)
 {
     auto n = var("n", {1, 8}, {2});
     migraphx::program p;
@@ -5463,6 +6336,420 @@ TEST_CASE(split_sym_dim_memoizes_unchanged_shared_dependencies)
         expected_output_start,
         expected_output_end);
     expected_main.add_return({expected_output, expected_static_path});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_refuses_reverse_prefix_scan_padding_propagation)
+{
+    auto n = var("n", {1, 2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto x  = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto y  = m.add_instruction(
+        migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"reverse", true}}), x);
+    auto output = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), y);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}};
+    auto scan_modules   = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_x =
+            sm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {clone.max}});
+        clone_x = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_x);
+        auto clone_output = sm.add_instruction(
+            migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"reverse", true}}), clone_x);
+        sm.add_return({clone_output});
+    });
+    auto reduce_modules = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
+        sm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {clone.max}});
+        auto clone_input = sm.add_parameter(
+            "#split_sym_dim_input_1_0", migraphx::shape{migraphx::shape::float_type, {clone.max}});
+        clone_input =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_input);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), clone_input);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_x =
+        expected_main.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto target_n    = var("split_sym_dim_n_target", {1, 2}, {1, 2});
+    auto scan_select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_x},
+        scan_modules);
+    auto scan_output = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), scan_select);
+    auto output_start = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
+        expected_x);
+    auto output_end = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
+        expected_x);
+    scan_output = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{0}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+        scan_output,
+        output_start,
+        output_end);
+    auto reduce_select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {1}}}})}}),
+        std::vector<migraphx::instruction_ref>{scan_output, expected_x},
+        reduce_modules);
+    auto expected_output = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), reduce_select);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_refuses_exclusive_prefix_scan_padding_propagation)
+{
+    auto n = var("n", {1, 2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto x  = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto y  = m.add_instruction(
+        migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", true}}), x);
+    auto output = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), y);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}};
+    auto scan_modules   = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_x =
+            sm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {clone.max}});
+        clone_x = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_x);
+        auto clone_output = sm.add_instruction(
+            migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", true}}), clone_x);
+        sm.add_return({clone_output});
+    });
+    auto reduce_modules = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
+        sm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {clone.max}});
+        auto clone_input = sm.add_parameter(
+            "#split_sym_dim_input_1_0", migraphx::shape{migraphx::shape::float_type, {clone.max}});
+        clone_input = sm.add_instruction(
+            migraphx::make_op("fixed_pad", {{"value", std::numeric_limits<float>::lowest()}}),
+            clone_input);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), clone_input);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_x =
+        expected_main.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto target_n    = var("split_sym_dim_n_target", {1, 2}, {1, 2});
+    auto scan_select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_x},
+        scan_modules);
+    auto scan_output = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), scan_select);
+    auto output_start = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
+        expected_x);
+    auto output_end = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
+        expected_x);
+    scan_output = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{0}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+        scan_output,
+        output_start,
+        output_end);
+    auto reduce_select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {1}}}})}}),
+        std::vector<migraphx::instruction_ref>{scan_output, expected_x},
+        reduce_modules);
+    auto expected_output = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), reduce_select);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_refuses_conflicting_padding_propagation)
+{
+    auto n = var("n", {1, 2});
+    migraphx::program p;
+    auto& m   = *p.get_main_module();
+    auto x    = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto y    = m.add_instruction(migraphx::make_op("exp"), x);
+    auto sum  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), y);
+    auto prod = m.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {0}}}), y);
+    m.add_return({sum, prod});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}};
+    auto sum_modules     = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_x =
+            sm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {clone.max}});
+        clone_x = sm.add_instruction(
+            migraphx::make_op("fixed_pad", {{"value", -std::numeric_limits<float>::infinity()}}),
+            clone_x);
+        auto clone_exp = sm.add_instruction(migraphx::make_op("exp"), clone_x);
+        auto clone_sum =
+            sm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), clone_exp);
+        sm.add_return({clone_sum, clone_exp});
+    });
+    auto product_modules = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
+        sm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {clone.max}});
+        auto clone_input = sm.add_parameter(
+            "#split_sym_dim_input_1_0", migraphx::shape{migraphx::shape::float_type, {clone.max}});
+        clone_input =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 1.0f}}), clone_input);
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {0}}}), clone_input);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_x =
+        expected_main.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto target_n   = var("split_sym_dim_n_target", {1, 2}, {1, 2});
+    auto sum_select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {1}},
+                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_x},
+        sum_modules);
+    auto expected_sum = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), sum_select);
+    auto expected_exp = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 1}}), sum_select);
+    auto output_start = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
+        expected_x);
+    auto output_end = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
+        expected_x);
+    expected_exp = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{0}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+        expected_exp,
+        output_start,
+        output_end);
+    auto product_select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {1}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_exp, expected_x},
+        product_modules);
+    auto expected_product = expected_main.add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), product_select);
+    expected_main.add_return({expected_sum, expected_product});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_meets_compatible_padding_requirements)
+{
+    auto n = var("n", {1, 2});
+    migraphx::program p;
+    auto& m     = *p.get_main_module();
+    auto mask   = m.add_parameter("mask", migraphx::shape{migraphx::shape::int64_type, {dd{n}}});
+    auto shared = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), mask);
+    auto zero =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+    auto zeros = m.add_instruction(
+        migraphx::make_op("multibroadcast",
+                          {{"out_dyn_dims", migraphx::to_value(std::vector<dd>{dd{n}})}}),
+        std::vector<migraphx::instruction_ref>{zero, mask});
+    auto condition = m.add_instruction(migraphx::make_op("equal"), shared, zeros);
+    condition      = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), condition);
+    auto one =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+    auto ones = m.add_instruction(
+        migraphx::make_op("multibroadcast",
+                          {{"out_dyn_dims", migraphx::to_value(std::vector<dd>{dd{n}})}}),
+        std::vector<migraphx::instruction_ref>{one, mask});
+    auto selected = m.add_instruction(migraphx::make_op("where"), condition, ones, shared);
+    auto selected_product =
+        m.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {0}}}), selected);
+    auto shared_product =
+        m.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {0}}}), shared);
+    m.add_return({selected_product, shared_product});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_mask =
+            sm.add_parameter("mask", migraphx::shape{migraphx::shape::int64_type, {clone.max}});
+        clone_mask =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 1.0f}}), clone_mask);
+        auto clone_shared = sm.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}),
+            clone_mask);
+        auto clone_zero = sm.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+        auto clone_zeros = sm.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_zero);
+        auto clone_condition =
+            sm.add_instruction(migraphx::make_op("equal"), clone_shared, clone_zeros);
+        clone_condition = sm.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+            clone_condition);
+        auto clone_one = sm.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+        auto clone_ones = sm.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_one);
+        auto clone_selected = sm.add_instruction(
+            migraphx::make_op("where"), clone_condition, clone_ones, clone_shared);
+        auto clone_selected_product =
+            sm.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {0}}}), clone_selected);
+        auto clone_shared_product =
+            sm.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {0}}}), clone_shared);
+        sm.add_return({clone_selected_product, clone_shared_product});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_mask =
+        expected_main.add_parameter("mask", migraphx::shape{migraphx::shape::int64_type, {dd{n}}});
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::int64_type, {1}},
+                                migraphx::shape{migraphx::shape::int64_type, {1}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_mask},
+        modules);
+    auto expected_selected_product =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto expected_shared_product =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
+    expected_main.add_return({expected_selected_product, expected_shared_product});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_uses_edge_specific_padding_for_position_ids)
+{
+    auto n = var("n", {1, 2});
+    migraphx::program p;
+    auto& m     = *p.get_main_module();
+    auto mask   = m.add_parameter("mask", migraphx::shape{migraphx::shape::int64_type, {dd{n}}});
+    auto shared = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), mask);
+    auto scan = m.add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}}), shared);
+    auto zero =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+    auto zeros = m.add_instruction(
+        migraphx::make_op("multibroadcast",
+                          {{"out_dyn_dims", migraphx::to_value(std::vector<dd>{dd{n}})}}),
+        std::vector<migraphx::instruction_ref>{zero, mask});
+    auto condition = m.add_instruction(migraphx::make_op("equal"), shared, zeros);
+    condition      = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), condition);
+    auto one =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+    auto ones = m.add_instruction(
+        migraphx::make_op("multibroadcast",
+                          {{"out_dyn_dims", migraphx::to_value(std::vector<dd>{dd{n}})}}),
+        std::vector<migraphx::instruction_ref>{one, mask});
+    auto positions = m.add_instruction(migraphx::make_op("where"),
+                                       condition,
+                                       ones,
+                                       m.add_instruction(migraphx::make_op("sub"), scan, ones));
+    auto output    = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), positions);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_mask =
+            sm.add_parameter("mask", migraphx::shape{migraphx::shape::int64_type, {clone.max}});
+        auto clone_zero = sm.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+        auto clone_zeros = sm.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_zero);
+        auto clone_one = sm.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+        auto clone_ones = sm.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_one);
+
+        auto condition_input =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", -1.0f}}), clone_mask);
+        condition_input = sm.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}),
+            condition_input);
+        auto clone_condition =
+            sm.add_instruction(migraphx::make_op("equal"), condition_input, clone_zeros);
+        clone_condition = sm.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+            clone_condition);
+
+        auto scan_input =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_mask);
+        scan_input = sm.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}),
+            scan_input);
+        auto clone_scan =
+            sm.add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}}), scan_input);
+        auto clone_positions = sm.add_instruction(
+            migraphx::make_op("where"),
+            clone_condition,
+            clone_ones,
+            sm.add_instruction(migraphx::make_op("sub"), clone_scan, clone_ones));
+        auto clone_output =
+            sm.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), clone_positions);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_mask =
+        expected_main.add_parameter("mask", migraphx::shape{migraphx::shape::int64_type, {dd{n}}});
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::int64_type, {1}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_mask},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    expected_main.add_return({expected_output});
 
     EXPECT(p.sort() == expected.sort());
 }

@@ -27,6 +27,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
+#include <algorithm>
 
 TEST_CASE(group_query_attention_decode_local_test)
 {
@@ -794,4 +795,148 @@ TEST_CASE(group_query_attention_prefill_test)
                                                          migraphx::verify::expected{gold_k}));
     EXPECT(migraphx::verify::verify_range_with_tolerance(pres_val_vector,
                                                          migraphx::verify::expected{gold_v}));
+}
+
+TEST_CASE(group_query_attention_batched_seqlens_verify_test)
+{
+    auto static_program = read_onnx("group_query_attention_batched_seqlens_test.onnx");
+    static_program.compile(migraphx::make_target("ref"));
+
+    auto sequence = migraphx::sym::var("sequence", {1, 2});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes = true;
+    options.map_dyn_input_dims["qkv"] =
+        sym_dims({migraphx::sym::lit(2), sequence, migraphx::sym::lit(16)});
+
+    auto symbolic_program = read_onnx("group_query_attention_batched_seqlens_test.onnx", options);
+    symbolic_program.compile(migraphx::make_target("ref"));
+
+    migraphx::shape qkv_shape{migraphx::shape::half_type, {2, 1, 16}};
+    std::vector<float> qkv_data(qkv_shape.elements());
+    float qkv_value = -1.0f;
+    std::generate(qkv_data.begin(), qkv_data.end(), [&] {
+        qkv_value += 0.1f;
+        return qkv_value;
+    });
+    migraphx::literal qkv{qkv_shape, qkv_data};
+
+    migraphx::shape key_value_shape{migraphx::shape::float_type, {1}};
+    migraphx::literal key{key_value_shape, {0.0f}};
+    migraphx::literal value{key_value_shape, {0.0f}};
+
+    migraphx::shape cache_shape{migraphx::shape::half_type, {2, 2, 4, 2}};
+    std::vector<float> key_data(cache_shape.elements());
+    float key_value = -0.5f;
+    std::generate(key_data.begin(), key_data.end(), [&] {
+        key_value += 0.05f;
+        return key_value;
+    });
+    std::vector<float> value_data(cache_shape.elements());
+    float value_value = 0.25f;
+    std::generate(value_data.begin(), value_data.end(), [&] {
+        value_value += 0.1f;
+        return value_value;
+    });
+    migraphx::literal past_key_values_key{cache_shape, key_data};
+    migraphx::literal past_key_values_value{cache_shape, value_data};
+
+    auto evaluate = [&](migraphx::program& p, const std::vector<int>& sequence_lengths) {
+        migraphx::literal seqlens_k{migraphx::shape{migraphx::shape::int32_type, {2}},
+                                    sequence_lengths};
+        migraphx::parameter_map parameters;
+        parameters["qkv"]                   = qkv.get_argument();
+        parameters["key"]                   = key.get_argument();
+        parameters["value"]                 = value.get_argument();
+        parameters["past_key_values_key"]   = past_key_values_key.get_argument();
+        parameters["past_key_values_value"] = past_key_values_value.get_argument();
+        parameters["seqlens_k"]             = seqlens_k.get_argument();
+        auto result                         = p.eval(parameters).front();
+        std::vector<float> output;
+        result.visit([&](auto values) { output.assign(values.begin(), values.end()); });
+        return output;
+    };
+
+    auto mixed        = evaluate(symbolic_program, {1, 3});
+    auto low          = evaluate(symbolic_program, {1, 1});
+    auto high         = evaluate(symbolic_program, {3, 3});
+    auto static_mixed = evaluate(static_program, {1, 3});
+    auto batch        = [](const auto& values, std::size_t index) {
+        constexpr std::size_t batch_elements = 8;
+        auto first                           = values.begin() + index * batch_elements;
+        return std::vector<float>{first, first + batch_elements};
+    };
+
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        batch(mixed, 0), migraphx::verify::expected{batch(low, 0)}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        batch(mixed, 1), migraphx::verify::expected{batch(high, 1)}));
+    EXPECT(not migraphx::verify::verify_range_with_tolerance(
+        batch(mixed, 1), migraphx::verify::expected{batch(low, 1)}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(mixed,
+                                                         migraphx::verify::expected{static_mixed}));
+}
+
+TEST_CASE(group_query_attention_right_padded_prompt_symbolic_test)
+{
+    auto static_program = read_onnx("group_query_attention_right_padded_prompt_test.onnx");
+    static_program.compile(migraphx::make_target("ref"));
+
+    auto sequence = migraphx::sym::var("sequence", {1, 8});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes = true;
+    options.map_dyn_input_dims["qkv"] =
+        sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(24)});
+
+    auto symbolic_program =
+        read_onnx("group_query_attention_right_padded_prompt_test.onnx", options);
+    symbolic_program.compile(migraphx::make_target("ref"));
+
+    migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 8, 24}};
+    std::vector<float> qkv_data(qkv_shape.elements());
+    std::generate(qkv_data.begin(), qkv_data.end(), [i = 0]() mutable {
+        return static_cast<float>(i++) / 10.0f - 4.0f;
+    });
+    migraphx::literal qkv{qkv_shape, qkv_data};
+
+    migraphx::shape cache_shape{migraphx::shape::half_type, {1, 1, 8, 8}};
+    std::vector<float> cache_data(cache_shape.elements(), 0.0f);
+    migraphx::literal past_key_values_key{cache_shape, cache_data};
+    migraphx::literal past_key_values_value{cache_shape, cache_data};
+
+    auto evaluate = [&](migraphx::program& p) {
+        migraphx::parameter_map parameters;
+        parameters["qkv"]                   = qkv.get_argument();
+        parameters["past_key_values_key"]   = past_key_values_key.get_argument();
+        parameters["past_key_values_value"] = past_key_values_value.get_argument();
+        auto result                         = p.eval(parameters).front();
+        std::vector<float> output;
+        result.visit([&](auto values) { output.assign(values.begin(), values.end()); });
+        return output;
+    };
+    auto result_vector        = evaluate(symbolic_program);
+    auto static_result_vector = evaluate(static_program);
+
+    // GroupQueryAttention output from ONNX Runtime CPU EP. This is a first prompt with
+    // sequence length 8 and seqlens_k = 4, representing a right-padded four-token prompt.
+    std::vector<float> gold = {
+        -2.400390625,  -2.30078125,   -2.19921875,   -2.099609375,  -2.0,        -1.900390625,
+        -1.80078125,   -1.69921875,   -2.400390625,  -2.30078125,   -2.19921875, -2.099609375,
+        -1.9990234375, -1.8994140625, -1.7998046875, -1.6982421875, 2.396484375, 2.498046875,
+        2.599609375,   2.697265625,   2.798828125,   2.896484375,   2.998046875, 3.099609375,
+        4.796875,      4.8984375,     5.0,           5.1015625,     5.203125,    5.296875,
+        5.3984375,     5.5,           7.203125,      7.296875,      7.3984375,   7.5,
+        7.6015625,     7.703125,      7.796875,      7.8984375,     7.203125,    7.296875,
+        7.3984375,     7.5,           7.6015625,     7.703125,      7.796875,    7.8984375,
+        7.203125,      7.296875,      7.3984375,     7.5,           7.6015625,   7.703125,
+        7.796875,      7.8984375,     7.203125,      7.296875,      7.3984375,   7.5,
+        7.6015625,     7.703125,      7.796875,      7.8984375};
+
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
+                                                         migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(static_result_vector,
+                                                         migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        result_vector, migraphx::verify::expected{static_result_vector}));
 }

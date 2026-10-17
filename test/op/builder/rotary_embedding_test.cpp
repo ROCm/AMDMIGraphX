@@ -394,6 +394,124 @@ TEST_CASE(rotary_embedding_4arg_explicit_2d_positions_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, expected));
 }
 
+TEST_CASE(rotary_embedding_4arg_static_symbolic_positions_parity_test)
+{
+    auto sequence = migraphx::sym::var("sequence", {1, 4}, {2});
+    using dd      = migraphx::shape::dynamic_dimension;
+    auto lit      = [](std::size_t x) { return migraphx::sym::lit(x); };
+    migraphx::shape symbolic_input_shape{
+        migraphx::shape::float_type,
+        std::vector<dd>{dd{lit(2)}, dd{lit(1)}, dd{sequence}, dd{lit(4)}}};
+    migraphx::shape symbolic_position_shape{migraphx::shape::int32_type,
+                                            std::vector<dd>{dd{lit(2)}, dd{sequence}}};
+    migraphx::shape input_shape{migraphx::shape::float_type, {2, 1, 2, 4}};
+    migraphx::shape position_shape{migraphx::shape::int32_type, {2, 2}};
+    migraphx::shape cache_shape{migraphx::shape::float_type, {4, 2}};
+
+    std::vector<float> input_data(16, 1.0f);
+    std::vector<int> position_data    = {3, 1, 0, 2};
+    std::vector<float> cos_cache_data = {1, 0, 0, 1, -1, 0, 0, -1};
+    std::vector<float> sin_cache_data(8, 0.0f);
+
+    auto evaluate = [&](const migraphx::shape& parameter_input_shape,
+                        const migraphx::shape& parameter_position_shape) {
+        migraphx::module mm;
+        auto input   = mm.add_parameter("input", parameter_input_shape);
+        auto pos_ids = mm.add_parameter("pos_ids", parameter_position_shape);
+        auto cos_c   = mm.add_parameter("cos_cache", cache_shape);
+        auto sin_c   = mm.add_parameter("sin_cache", cache_shape);
+        migraphx::op::builder::add(
+            "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", false}});
+
+        migraphx::program p{mm};
+        p.compile(migraphx::make_target("ref"));
+        migraphx::parameter_map pp;
+        pp["input"]     = migraphx::argument(input_shape, input_data.data());
+        pp["pos_ids"]   = migraphx::argument(position_shape, position_data.data());
+        pp["cos_cache"] = migraphx::argument(cache_shape, cos_cache_data.data());
+        pp["sin_cache"] = migraphx::argument(cache_shape, sin_cache_data.data());
+        auto result     = p.eval(pp).back();
+        std::vector<float> output;
+        result.visit([&](auto values) { output.assign(values.begin(), values.end()); });
+        return output;
+    };
+
+    auto static_result          = evaluate(input_shape, position_shape);
+    auto symbolic_result        = evaluate(symbolic_input_shape, symbolic_position_shape);
+    std::vector<float> expected = {0, -1, 0, -1, 0, 1, 0, 1, 1, 0, 1, 0, -1, 0, -1, 0};
+    EXPECT(migraphx::verify::verify_rms_range(static_result, expected));
+    EXPECT(migraphx::verify::verify_rms_range(symbolic_result, expected));
+    EXPECT(migraphx::verify::verify_rms_range(symbolic_result, static_result));
+}
+
+TEST_CASE(rotary_embedding_4arg_offset_explicit_positions_parity_test)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {1, 1, 2, 4}};
+    migraphx::shape cache_shape{migraphx::shape::float_type, {4, 2}};
+    std::vector<float> input_data(8, 1.0f);
+    std::vector<float> cos_cache_data = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f};
+    std::vector<float> sin_cache_data(8, 0.0f);
+
+    auto evaluate = [&](const migraphx::shape& position_shape, std::vector<int> position_data) {
+        migraphx::module mm;
+        auto input   = mm.add_parameter("input", input_shape);
+        auto pos_ids = mm.add_parameter("pos_ids", position_shape);
+        auto cos_c   = mm.add_parameter("cos_cache", cache_shape);
+        auto sin_c   = mm.add_parameter("sin_cache", cache_shape);
+        migraphx::op::builder::add(
+            "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", false}});
+
+        migraphx::program p{mm};
+        p.compile(migraphx::make_target("ref"));
+        migraphx::parameter_map pp;
+        pp["input"]     = migraphx::argument(input_shape, input_data.data());
+        pp["pos_ids"]   = migraphx::argument(position_shape, position_data.data());
+        pp["cos_cache"] = migraphx::argument(cache_shape, cos_cache_data.data());
+        pp["sin_cache"] = migraphx::argument(cache_shape, sin_cache_data.data());
+        auto result     = p.eval(pp).back();
+        std::vector<float> output;
+        result.visit([&](auto values) { output.assign(values.begin(), values.end()); });
+        return output;
+    };
+
+    auto offset_result =
+        evaluate(migraphx::shape{migraphx::shape::int32_type, {1}}, std::vector<int>{2});
+    auto explicit_result =
+        evaluate(migraphx::shape{migraphx::shape::int32_type, {1, 2}}, std::vector<int>{2, 3});
+    std::vector<float> expected = {0.5f, 0.6f, 0.5f, 0.6f, 0.7f, 0.8f, 0.7f, 0.8f};
+    EXPECT(migraphx::verify::verify_rms_range(offset_result, expected));
+    EXPECT(migraphx::verify::verify_rms_range(explicit_result, expected));
+    EXPECT(migraphx::verify::verify_rms_range(offset_result, explicit_result));
+}
+
+TEST_CASE(rotary_embedding_4arg_symbolic_gather_guards_test)
+{
+    auto sequence = migraphx::sym::var("sequence", {1, 4}, {2});
+    using dd      = migraphx::shape::dynamic_dimension;
+    auto lit      = [](std::size_t x) { return migraphx::sym::lit(x); };
+    migraphx::shape input_shape{migraphx::shape::float_type,
+                                std::vector<dd>{dd{lit(1)}, dd{lit(1)}, dd{sequence}, dd{lit(4)}}};
+    migraphx::shape position_shape{migraphx::shape::int32_type,
+                                   std::vector<dd>{dd{lit(1)}, dd{sequence}}};
+    migraphx::shape cache_shape{migraphx::shape::float_type, {4, 2}};
+
+    auto add_rotary = [&](const migraphx::shape& pos_shape, bool is_interleaved) {
+        migraphx::module mm;
+        auto input   = mm.add_parameter("input", input_shape);
+        auto pos_ids = mm.add_parameter("pos_ids", pos_shape);
+        auto cos_c   = mm.add_parameter("cos_cache", cache_shape);
+        auto sin_c   = mm.add_parameter("sin_cache", cache_shape);
+        migraphx::op::builder::add("rotary_embedding",
+                                   mm,
+                                   {input, pos_ids, cos_c, sin_c},
+                                   {{"interleaved", is_interleaved}});
+    };
+
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { add_rotary(migraphx::shape{migraphx::shape::int32_type, {1}}, false); }));
+    EXPECT(test::throws<migraphx::exception>([&] { add_rotary(position_shape, true); }));
+}
+
 TEST_CASE(rotary_embedding_4arg_offset_nontrivial_cos_sin_test)
 {
     // Full rotary computation with non-zero offset and non-trivial cos/sin

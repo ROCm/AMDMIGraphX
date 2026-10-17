@@ -25,11 +25,24 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/value.hpp>
 #include <algorithm>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace split_sym {
 namespace {
+
+std::optional<std::vector<sym::expr>>
+find_slice_expressions(instruction_ref ins, std::size_t input_index, const std::string& name)
+{
+    auto attributes = ins->get_operator().to_value();
+    if(attributes.contains(name))
+        return from_value<std::vector<sym::expr>>(attributes.at(name));
+    auto value = ins->inputs().at(input_index)->sym_eval();
+    if(value.empty())
+        return std::nullopt;
+    return value.get().to_vector();
+}
 
 bool is_prefix_stable_dyn_slice(instruction_ref ins)
 {
@@ -39,14 +52,12 @@ bool is_prefix_stable_dyn_slice(instruction_ref ins)
     auto attributes = ins->get_operator().to_value();
     if(not attributes.contains("axes"))
         return false;
-    auto starts_value = inputs.at(1)->sym_eval();
-    auto ends_value   = inputs.at(2)->sym_eval();
-    if(starts_value.empty() or ends_value.empty())
+    auto starts = find_slice_expressions(ins, 1, "starts");
+    auto ends   = find_slice_expressions(ins, 2, "ends");
+    if(not starts.has_value() or not ends.has_value())
         return false;
-    auto axes   = attributes.at("axes").to_vector<int64_t>();
-    auto starts = starts_value.get().to_vector();
-    auto ends   = ends_value.get().to_vector();
-    if(axes.size() != starts.size() or axes.size() != ends.size())
+    auto axes = attributes.at("axes").to_vector<int64_t>();
+    if(axes.size() != starts->size() or axes.size() != ends->size())
         return false;
 
     const auto& input = inputs.front()->get_shape();
@@ -55,11 +66,11 @@ bool is_prefix_stable_dyn_slice(instruction_ref ins)
     for(std::size_t i = 0; i < axes.size(); ++i)
     {
         auto axis         = normalize_axis(axes.at(i), input.ndim());
-        const auto& start = starts.at(i);
+        const auto& start = starts->at(i);
         if(not axis.has_value() or not sym::find_variables(start).empty() or
            sym::strict_less(start, zero).value_or(false))
             return false;
-        const auto& end = ends.at(i);
+        const auto& end = ends->at(i);
         if(sym::strict_less(end, zero).value_or(false) or
            (not sym::find_variables(end).empty() and not(end == input_dims.at(*axis).sym_expr)))
             return false;
@@ -67,18 +78,25 @@ bool is_prefix_stable_dyn_slice(instruction_ref ins)
     return true;
 }
 
-std::vector<int64_t> evaluate_slice_input(const std::vector<instruction_ref>& args,
-                                          std::size_t index,
-                                          const std::unordered_map<sym::expr, std::size_t>& values)
+std::vector<int64_t>
+evaluate_slice_expressions(const std::vector<sym::expr>& expressions,
+                           const std::unordered_map<sym::expr, std::size_t>& values)
 {
-    auto symbolic_value = args.at(index)->sym_eval();
-    assert(not symbolic_value.empty());
-    auto expressions = symbolic_value.get();
     std::vector<int64_t> result(expressions.size());
     std::transform(expressions.begin(), expressions.end(), result.begin(), [&](const auto& e) {
         return e.eval_uint(values);
     });
     return result;
+}
+
+std::vector<int64_t> evaluate_slice_bound(instruction_ref source,
+                                          std::size_t input_index,
+                                          const std::string& name,
+                                          const std::unordered_map<sym::expr, std::size_t>& values)
+{
+    auto expressions = find_slice_expressions(source, input_index, name);
+    assert(expressions.has_value());
+    return evaluate_slice_expressions(*expressions, values);
 }
 
 struct analyze_slice : analyzer<analyze_slice>
@@ -110,23 +128,27 @@ struct analyze_slice : analyzer<analyze_slice>
 
         if(inputs.size() != 3 or not is_prefix_stable_dyn_slice(ins))
             return symbolic_op_info{ins};
-        auto result    = analyze_axes(ins);
-        result.freezer = freeze;
+        auto attributes = op.to_value();
+        auto result     = attributes.contains("starts") and attributes.contains("ends")
+                              ? analyze_axes(ins, {1, 2})
+                              : analyze_axes(ins);
+        result.freezer  = freeze;
         return result;
     }
 
     static instruction_ref freeze(module& m,
                                   instruction_ref source,
                                   const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>& values)
+                                  const freezer_context& context)
     {
-        assert(args.size() == 3);
+        assert(args.size() == 1 or args.size() == 3);
         auto attributes = source->get_operator().to_value();
-        return m.add_instruction(make_op("slice",
-                                         {{"axes", attributes.at("axes")},
-                                          {"starts", evaluate_slice_input(args, 1, values)},
-                                          {"ends", evaluate_slice_input(args, 2, values)}}),
-                                 args.front());
+        return m.add_instruction(
+            make_op("slice",
+                    {{"axes", attributes.at("axes")},
+                     {"starts", evaluate_slice_bound(source, 1, "starts", context.values)},
+                     {"ends", evaluate_slice_bound(source, 2, "ends", context.values)}}),
+            args.front());
     }
 };
 

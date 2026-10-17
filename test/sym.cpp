@@ -3687,6 +3687,13 @@ TEST_CASE(provable_equal_disjoint_ranges)
     EXPECT(result.has_value() and not *result);
 }
 
+TEST_CASE(provable_equal_disjoint_compound_range)
+{
+    auto x      = var("x", interval{int64_t{1}, int64_t{64}});
+    auto result = provable_equal(x + lit(16), lit(-1));
+    EXPECT(result.has_value() and not *result);
+}
+
 TEST_CASE(provable_equal_fixed_expressions)
 {
     auto x = var("x", interval{int64_t{5}, int64_t{5}});

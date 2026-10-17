@@ -6453,6 +6453,148 @@ TEST_CASE(simplify_concat_same_broadcast_nonunit_axis_dim)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_concat_swapped_halves)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 6}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto hi = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), x);
+        auto lo = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), hi, lo);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    // The unsqueezed slices simplify further into slices of a split reshape
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", s);
+        auto split = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 3}}}), x);
+        auto mask  = m2.add_literal(
+            migraphx::literal{{migraphx::shape::bool_type, {1, 2, 1}}, {true, false}});
+        auto mask_b = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3}}}), mask);
+        auto hi = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), split);
+        auto hi_b =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3}}}), hi);
+        auto lo = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), split);
+        auto lo_b =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3}}}), lo);
+        auto w       = m2.add_instruction(migraphx::make_op("where"), mask_b, hi_b, lo_b);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6}}}), w);
+        m2.add_return({reshape});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_swapped_halves_multi_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 4, 6}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto hi = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 3}}, {"ends", {2, 6}}}),
+            x);
+        auto lo = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 0}}, {"ends", {2, 3}}}),
+            x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), hi, lo);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", s);
+        auto hi = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 3}}, {"ends", {2, 6}}}),
+            x);
+        auto lo = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 0}}, {"ends", {2, 3}}}),
+            x);
+        auto mask = m2.add_literal(
+            migraphx::literal{{migraphx::shape::bool_type, {1, 1, 2, 1}}, {true, false}});
+        auto mask_b = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 3}}}), mask);
+        auto hi_u = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), hi);
+        auto hi_b = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 3}}}), hi_u);
+        auto lo_u = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), lo);
+        auto lo_b = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 3}}}), lo_u);
+        auto w       = m2.add_instruction(migraphx::make_op("where"), mask_b, hi_b, lo_b);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 6}}}), w);
+        m2.add_return({reshape});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_swapped_halves_unequal)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 6}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto hi = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), x);
+        auto lo = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), hi, lo);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_swapped_halves_different_inputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 6}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto y  = m1.add_parameter("y", s);
+        auto hi = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), y);
+        auto lo = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), hi, lo);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_swapped_halves_other_axis_differs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 4, 6}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto hi = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 3}}, {"ends", {2, 6}}}),
+            x);
+        auto lo = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {2, 0}}, {"ends", {4, 3}}}),
+            x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), hi, lo);
+        m1.add_return({concat});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_concat_unsqueeze)
 {
     migraphx::module m1;

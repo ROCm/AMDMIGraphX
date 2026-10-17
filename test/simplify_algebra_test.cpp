@@ -6512,7 +6512,7 @@ TEST_CASE(simplify_concat_unsqueeze_same_axis)
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua, ub);
         m1.add_return({concat});
     }
-    auto m2 = m1;
+    auto m2               = m1;
     std::size_t pass_runs = 0;
     m1.repeat_while_changes(2, [&] {
         pass_runs++;

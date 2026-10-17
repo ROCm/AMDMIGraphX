@@ -92,6 +92,7 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -122,9 +123,21 @@ struct backend_options
     bool hip_graph = false;
     // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
     // prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
-    // priority over this. The architecture and build-config defaults only force ops on, so a
-    // '!' entry cannot disable an op those defaults enable (e.g. attention on gfx94/gfx95).
+    // priority over this. Attention fusion is enabled by default on every device: an
+    // "attention" entry additionally fuses every attention block, bypassing the attn_*
+    // profitability gate below, and "!attention" disables the fusion.
     std::vector<std::string> mlir_use_specific_ops = {};
+    // Widest attention head dim fuse_attention will fuse when the kv length is past
+    // attn_wide_head_kv_len; wider attention blocks run as separate gemm and softmax
+    // kernels. 0 picks the device default: 512 on wave64 devices, 256 on wave32.
+    std::size_t attn_max_head_dim = 0;
+    // Fewest total q rows (batch * heads * seq) fuse_attention will fuse; blocks with
+    // less parallelism run as separate kernels, and the pass scales the requirement
+    // down for head dims under 128. 0 picks the device default of 24 rows per CU.
+    std::size_t attn_min_q_rows = 0;
+    // Longest kv length where head dims past attn_max_head_dim still fuse. 0 picks the
+    // device default: 1024 on wave64 devices, no exception on wave32.
+    std::size_t attn_wide_head_kv_len = 0;
     // Problem caches that new tuning solutions are saved back to.
     std::vector<std::string> problem_cache_files = {};
     // System-level problem caches, searched after the writable ones and never written.
@@ -146,6 +159,9 @@ struct backend_options
                     f(self.binary_cache, "binary_cache"),
                     f(self.binary_cache_verify, "binary_cache_verify"),
                     f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
+                    f(self.attn_max_head_dim, "attn_max_head_dim"),
+                    f(self.attn_min_q_rows, "attn_min_q_rows"),
+                    f(self.attn_wide_head_kv_len, "attn_wide_head_kv_len"),
                     f(self.hip_graph, "hip_graph"),
                     f(self.convolution_layout, "convolution_layout"),
                     f(self.enable_skinny_dot, "enable_skinny_dot"),
@@ -172,6 +188,40 @@ backend_options get_backend_options(const compile_options& options)
             opts[opt.get_key()] = opt.without_key();
     }
     return from_value<backend_options>(value(opts));
+}
+
+// Wave64 devices (accvgprs double the per-lane register budget) fuse head dims up to 512
+// unconditionally: measured on gfx942 they win 30-45% at kv lengths <= 1024 and lose at most
+// ~1.5x at long kv, a bounded cost preferred over disabling a winning fusion. On wave32
+// (gfx1201) head dims past 256 lose at every kv length.
+std::size_t default_attn_max_head_dim(const context& ctx)
+{
+    return ctx.get_current_device().get_wavefront_size() == 64 ? 512 : 256;
+}
+
+// Head dims past attn_max_head_dim stay profitable while the kv loop is short: on gfx942
+// the fused win at kv lengths <= 1024 (1.3-1.5x loss past 4096) held up to the widest
+// measured d of 512, and is assumed to extend past the limit. No such window was measured
+// on wave32 (gfx1201), where wide head dims lose at every kv length.
+std::size_t default_attn_wide_head_kv_len(const context& ctx)
+{
+    return ctx.get_current_device().get_wavefront_size() == 64 ? 1024 : 0;
+}
+
+// A backend option set to 0 picks the device default
+std::size_t option_or(std::size_t option, std::size_t device_default)
+{
+    return option == 0 ? device_default : option;
+}
+
+// The fused kernel needs enough q rows to fill the device while the separate gemms also
+// parallelize over the kv length: the measured crossover sits between 16 and 27 q rows per
+// CU on both gfx942 and gfx1201. Wave32 devices report workgroup processors (two CUs each)
+// rather than CUs, so normalize the count by the wavefront size.
+std::size_t default_attn_min_q_rows(const context& ctx)
+{
+    const auto& device = ctx.get_current_device();
+    return 24 * device.get_cu_count() * 64 / device.get_wavefront_size();
 }
 
 struct pipeline_factory
@@ -263,13 +313,31 @@ struct pipeline_factory
         };
     }
 
+    // Requesting "attention" (env var or mlir_use_specific_ops) fuses every attention block,
+    // bypassing the profitability gate; otherwise the gate picks fused or separate per block.
+    fuse_attention make_fuse_attention() const
+    {
+        if(mlir_attention_requested(backend_opts.mlir_use_specific_ops))
+            return {.attn_enabled           = true,
+                    .attn_max_head_dim      = std::numeric_limits<std::size_t>::max(),
+                    .attn_min_q_rows        = 1,
+                    .flash_decoding_enabled = mlir_flash_decoding_enabled()};
+        const auto& ctx = *get_context();
+        return {.attn_enabled = mlir_attention_enabled(backend_opts.mlir_use_specific_ops),
+                .attn_max_head_dim =
+                    option_or(backend_opts.attn_max_head_dim, default_attn_max_head_dim(ctx)),
+                .attn_min_q_rows =
+                    option_or(backend_opts.attn_min_q_rows, default_attn_min_q_rows(ctx)),
+                .attn_wide_head_kv_len  = option_or(backend_opts.attn_wide_head_kv_len,
+                                                    default_attn_wide_head_kv_len(ctx)),
+                .flash_decoding_enabled = mlir_flash_decoding_enabled()};
+    }
+
     std::vector<pass> fusion_pipeline() const
     {
         return {
             enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
-                        fuse_attention{.attn_enabled = mlir_attention_enabled(
-                                           get_context(), backend_opts.mlir_use_specific_ops),
-                                       .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+                        make_fuse_attention()),
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},

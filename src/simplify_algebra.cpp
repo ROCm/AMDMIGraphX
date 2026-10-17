@@ -1255,6 +1255,74 @@ struct find_concat_same_broadcast
     }
 };
 
+// Matches a concat of the two equal halves of one tensor in swapped order
+// along the concat axis (a rotate-half), with both slices identical on
+// every other axis.
+MIGRAPHX_PRED_MATCHER(concat_of_swapped_halves, instruction_ref ins)
+{
+    if(ins->name() != "concat" or ins->get_shape().dynamic())
+        return false;
+    const auto& inputs = ins->inputs();
+    if(inputs.size() != 2)
+        return false;
+    if(not all_of(inputs, [](instruction_ref i) { return i->name() == "slice"; }))
+        return false;
+    if(inputs[0]->inputs().front() != inputs[1]->inputs().front())
+        return false;
+    auto axis = any_cast<op::concat>(ins->normalized_operator()).axis;
+    auto hi   = any_cast<op::slice>(inputs[0]->normalized_operator());
+    auto lo   = any_cast<op::slice>(inputs[1]->normalized_operator());
+    if(hi.axes != lo.axes)
+        return false;
+    auto it = std::find(hi.axes.begin(), hi.axes.end(), axis);
+    if(it == hi.axes.end())
+        return false;
+    auto i = std::distance(hi.axes.begin(), it);
+    if(hi.starts[i] != lo.ends[i] or hi.ends[i] - hi.starts[i] != lo.ends[i] - lo.starts[i])
+        return false;
+    // The other axes must slice the same range
+    auto starts = lo.starts;
+    auto ends   = lo.ends;
+    starts[i]   = hi.starts[i];
+    ends[i]     = hi.ends[i];
+    return std::tie(hi.starts, hi.ends) == std::tie(starts, ends);
+}
+
+// Replace a swapped-halves concat with a `where` over the split axis, so the
+// data movement becomes a pointwise op over views that can fuse into its
+// consumers (such as the rotary prologue of attention), with no copy kernel.
+struct find_concat_swapped_halves
+{
+    auto matcher() const { return concat_of_swapped_halves(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins             = r.result;
+        auto axis            = any_cast<op::concat>(ins->normalized_operator()).axis;
+        const auto& out_lens = ins->get_shape().lens();
+        // Split the concat axis into {2, half}
+        auto lens = out_lens;
+        lens.insert(lens.begin() + axis, 2);
+        lens[axis + 1] /= 2;
+        std::vector<std::size_t> mask_lens(lens.size(), 1);
+        mask_lens[axis] = 2;
+        auto mask       = m.add_literal(literal{shape{shape::bool_type, mask_lens}, {true, false}});
+        std::vector<instruction_ref> inputs = {
+            m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), mask)};
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(inputs),
+                       [&](instruction_ref half) {
+                           auto unsqueezed = m.insert_instruction(
+                               ins, make_op("unsqueeze", {{"axes", {axis}}}), half);
+                           return m.insert_instruction(
+                               ins, make_op("multibroadcast", {{"out_lens", lens}}), unsqueezed);
+                       });
+        auto w = m.insert_instruction(ins, make_op("where"), inputs);
+        m.replace_instruction(ins, make_op("reshape", {{"dims", out_lens}}), w);
+    }
+};
+
 struct find_concat_conv
 {
     auto matcher() const
@@ -2959,6 +3027,7 @@ void simplify_algebra::apply(module& m) const
                             find_conv_concat_split_fuse{},
                             find_concat_same_input{},
                             find_concat_same_broadcast{},
+                            find_concat_swapped_halves{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

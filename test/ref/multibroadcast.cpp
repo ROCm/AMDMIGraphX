@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -69,6 +69,24 @@ TEST_CASE(multibroadcast_2in_static_test)
     EXPECT(output(0, 1) == -3);
     EXPECT(output(1, 0) == -2);
     EXPECT(output(1, 1) == -3);
+}
+
+TEST_CASE(multibroadcast_2in_static_zero_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape empty_shape{migraphx::shape::int32_type, {0}};
+    auto empty = mm->add_parameter("empty", empty_shape);
+    auto one =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1}}, {1}});
+    auto broadcast = mm->add_instruction(migraphx::make_op("multibroadcast"), one, empty);
+    auto result    = mm->add_instruction(migraphx::make_op("add"), empty, broadcast);
+    mm->add_return({result});
+
+    p.compile(migraphx::make_target("ref"));
+    auto output = p.eval({{"empty", migraphx::argument{empty_shape}}}).back();
+    EXPECT(output.get_shape() == empty_shape);
+    EXPECT(output.get_shape().elements() == 0);
 }
 
 TEST_CASE(multibroadcast_2in_dyn_test)

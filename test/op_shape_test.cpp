@@ -321,6 +321,16 @@ TEST_CASE(binary_sym_packed_vs_broadcasted)
     expect_shape(sx, migraphx::make_op("add"), sx, sy);
 }
 
+TEST_CASE(binary_sym_zero_broadcasted_vs_different_packed)
+{
+    auto n = var("n", {0, 200});
+    std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
+    migraphx::shape sy{migraphx::shape::float_type, output_dims};
+    migraphx::shape output{migraphx::shape::float_type, output_dims};
+    expect_shape(output, migraphx::make_op("add"), sx, sy);
+}
+
 TEST_CASE(binary_sym_nonpacked_permutation)
 {
     std::vector<dd> dims{dd{lit(4)}, dd{lit(3)}};
@@ -2872,6 +2882,17 @@ TEST_CASE(multibroadcast_1in_sym_input_with_static_target_error)
     migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}};
     std::vector<std::size_t> lens{2, 8};
     throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
+}
+
+TEST_CASE(multibroadcast_2in_static_zero)
+{
+    migraphx::shape one{migraphx::shape::float_type, {1}};
+    migraphx::shape empty{migraphx::shape::float_type, {0}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {0}, {0}},
+                 migraphx::make_op("multibroadcast"),
+                 one,
+                 empty);
+    expect_shape(empty, migraphx::make_op("multibroadcast"), empty, one);
 }
 
 TEST_CASE(multibroadcast_2in_static_dyn0)

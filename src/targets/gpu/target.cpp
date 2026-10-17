@@ -139,7 +139,7 @@ struct backend_options
     bool eliminate_concat_past_present = true;
     // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
     // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
-    std::size_t literal_staging_peak_percent = write_literals{}.staging_peak_percent;
+    std::size_t literal_staging_peak_percent = 5;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

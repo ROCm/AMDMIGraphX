@@ -318,3 +318,290 @@ TEST_CASE(ndim_4d)
         spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 8>())>;
     EXPECT(tiler::ndim() == 4);
 }
+
+// ======== channel tiling ========
+
+// Helper: channels-last (NHWC) 4D shape from lens
+template <migraphx::index_int N,
+          migraphx::index_int C,
+          migraphx::index_int H,
+          migraphx::index_int W>
+static constexpr auto make_nhwc_shape()
+{
+    return migraphx::make_shape(migraphx::index_ints<N, C, H, W>{},
+                                migraphx::index_ints<C * H * W, 1, W * C, C>{});
+}
+
+// Channel tile 2 → lane tile {1, 2, 4, 4}, output region {1, 2, 4, 8} with NTiles=2
+TEST_CASE(lane_lens_channel_tile)
+{
+    using tiler = migraphx::spatial_tiler<2,
+                                          migraphx::index_ints<4, 4>,
+                                          decltype(make_4d_shape<1, 8, 8, 8>()),
+                                          migraphx::index_ints<0>,
+                                          2>;
+    EXPECT(tiler::lane_lens() == migraphx::index_ints<1, 2, 4, 4>{});
+    EXPECT(tiler::output_lens() == migraphx::index_ints<1, 2, 4, 8>{});
+    EXPECT(tiler::region_lens() == migraphx::index_ints<1, 2, 8, 8>{});
+    EXPECT(tiler::channel_tiles() == 4);
+}
+
+// Channel tile does not add spatial tiles
+TEST_CASE(tiles_per_dim_channel_tile)
+{
+    using tiler        = migraphx::spatial_tiler<1,
+                                                 migraphx::index_ints<4, 4>,
+                                                 decltype(make_4d_shape<1, 8, 8, 8>()),
+                                                 migraphx::index_ints<0>,
+                                                 4>;
+    constexpr auto tpd = tiler::tiles_per_dim();
+    EXPECT(tpd[1] == 1);
+    EXPECT(tpd[2] == 2);
+    EXPECT(tpd[3] == 2);
+    EXPECT(tiler::tiles_total() == 4);
+}
+
+// Exact tiles with a channel tile larger than 1 are still unpadded
+TEST_CASE(is_padded_channel_tile_exact)
+{
+    using tiler = migraphx::spatial_tiler<1,
+                                          migraphx::index_ints<4, 4>,
+                                          decltype(make_4d_shape<1, 8, 8, 8>()),
+                                          migraphx::index_ints<0>,
+                                          4>;
+    EXPECT(not tiler::is_padded());
+}
+
+TEST_CASE(permutation_nchw)
+{
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 8, 8, 8>())>;
+    EXPECT(tiler::permutation() == migraphx::index_ints<0, 1, 2, 3>{});
+}
+
+TEST_CASE(permutation_nhwc)
+{
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_nhwc_shape<1, 8, 8, 8>())>;
+    EXPECT(tiler::permutation() == migraphx::index_ints<0, 2, 3, 1>{});
+}
+
+// Halo covers the channel tile when input and output have the same channels
+TEST_CASE(halo_lens_channel_tile)
+{
+    using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
+    using input_shape  = decltype(make_4d_shape<1, 8, 10, 10>());
+    using tiler        = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 2>;
+    constexpr auto hl = tiler::template halo_lens_for<input_shape>();
+    EXPECT(hl == migraphx::index_ints<1, 2, 6, 6>{});
+    EXPECT(tiler::template input_channel_tile<input_shape>() == 2);
+}
+
+// One input channel feeds every output channel of the tile: halo has a single channel
+TEST_CASE(halo_lens_channel_multiplier)
+{
+    using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
+    using input_shape  = decltype(make_4d_shape<1, 1, 10, 10>());
+    using tiler        = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 4>;
+    EXPECT(tiler::template channel_multiplier<input_shape>() == 8);
+    EXPECT(tiler::template input_channel_tile<input_shape>() == 1);
+    constexpr auto hl = tiler::template halo_lens_for<input_shape>();
+    EXPECT(hl == migraphx::index_ints<1, 1, 6, 6>{});
+    // The halo view spans the channel tile with a broadcast channel
+    constexpr auto vs = tiler::template halo_view_shape_for<input_shape>();
+    EXPECT(vs.lens == migraphx::index_ints<1, 4, 6, 6>{});
+    EXPECT(vs.strides[1] == 0);
+}
+
+// Shared-memory halo is packed in the memory order of the input
+TEST_CASE(halo_shape_nchw)
+{
+    using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
+    using input_shape  = decltype(make_4d_shape<1, 8, 10, 10>());
+    using tiler        = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 2>;
+    constexpr auto hs = tiler::template halo_shape_for<input_shape>();
+    EXPECT(hs.lens == migraphx::index_ints<1, 2, 6, 6>{});
+    EXPECT(hs.strides == migraphx::index_ints<72, 36, 6, 1>{});
+    EXPECT(tiler::template halo_view_shape_for<input_shape>() == hs);
+}
+
+TEST_CASE(halo_shape_nhwc)
+{
+    using output_shape = decltype(make_nhwc_shape<1, 8, 8, 8>());
+    using input_shape  = decltype(make_nhwc_shape<1, 8, 10, 10>());
+    using tiler        = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 2>;
+    constexpr auto hs = tiler::template halo_shape_for<input_shape>();
+    EXPECT(hs.lens == migraphx::index_ints<1, 2, 6, 6>{});
+    EXPECT(hs.strides == migraphx::index_ints<72, 1, 12, 2>{});
+    EXPECT(hs.packed());
+}
+
+// ======== multi_from_permutation ========
+
+// Identity permutation decomposes row-major
+TEST_CASE(multi_from_permutation_identity)
+{
+    constexpr auto lens = migraphx::index_ints<1, 2, 4, 4>{};
+    constexpr auto perm = migraphx::index_ints<0, 1, 2, 3>{};
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 0) == migraphx::index_ints<0, 0, 0, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 1) == migraphx::index_ints<0, 0, 0, 1>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 4) == migraphx::index_ints<0, 0, 1, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 16) == migraphx::index_ints<0, 1, 0, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 31) == migraphx::index_ints<0, 1, 3, 3>{});
+}
+
+// Channels-last permutation walks channels fastest, then W, then H
+TEST_CASE(multi_from_permutation_nhwc)
+{
+    constexpr auto lens = migraphx::index_ints<1, 2, 4, 4>{};
+    constexpr auto perm = migraphx::index_ints<0, 2, 3, 1>{};
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 0) == migraphx::index_ints<0, 0, 0, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 1) == migraphx::index_ints<0, 1, 0, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 2) == migraphx::index_ints<0, 0, 0, 1>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 8) == migraphx::index_ints<0, 0, 1, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 31) == migraphx::index_ints<0, 1, 3, 3>{});
+}
+
+// ======== halo span (contiguous copy rows) ========
+
+// Tile narrower than the input: each halo row is one contiguous run
+TEST_CASE(halo_span_nchw_rows)
+{
+    using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
+    using input_shape  = decltype(make_4d_shape<1, 8, 10, 10>());
+    using tiler        = migraphx::spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape>;
+    EXPECT(tiler::template halo_span_for<input_shape>() == 6);
+    EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 6, 1>{});
+    EXPECT(tiler::template halo_span_dim_for<input_shape>() == 3);
+}
+
+// Full-width tile: the whole halo is one contiguous chunk of the input
+TEST_CASE(halo_span_nchw_full_width)
+{
+    using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
+    using input_shape  = decltype(make_4d_shape<1, 8, 10, 10>());
+    using tiler        = migraphx::spatial_tiler<2, migraphx::index_ints<4, 4>, output_shape>;
+    EXPECT(tiler::template halo_span_for<input_shape>() == 60);
+    EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 1, 1>{});
+    EXPECT(tiler::template halo_span_dim_for<input_shape>() == 2);
+}
+
+// Channels-last with the whole channel tile: channels and width merge
+TEST_CASE(halo_span_nhwc)
+{
+    using output_shape = decltype(make_nhwc_shape<1, 3, 8, 8>());
+    using input_shape  = decltype(make_nhwc_shape<1, 3, 10, 10>());
+    using tiler        = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 3>;
+    EXPECT(tiler::template halo_span_for<input_shape>() == 18);
+    EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 6, 1>{});
+    EXPECT(tiler::template halo_span_dim_for<input_shape>() == 3);
+}
+
+// Channels-last with a partial channel tile: only the channel run is contiguous
+TEST_CASE(halo_span_nhwc_partial_channels)
+{
+    using output_shape = decltype(make_nhwc_shape<1, 8, 8, 8>());
+    using input_shape  = decltype(make_nhwc_shape<1, 8, 10, 10>());
+    using tiler        = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 4>;
+    EXPECT(tiler::template halo_span_for<input_shape>() == 4);
+    EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 6, 6>{});
+    EXPECT(tiler::template halo_span_dim_for<input_shape>() == 1);
+}
+
+// A padded dim is not fully covered, so it ends the span
+TEST_CASE(halo_span_padded)
+{
+    using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
+    using input_shape  = decltype(make_4d_shape<1, 8, 8, 8>());
+    using tiler        = migraphx::spatial_tiler<2,
+                                                 migraphx::index_ints<4, 4>,
+                                                 output_shape,
+                                                 migraphx::index_ints<1, 1, 1, 1>>;
+    EXPECT(tiler::template halo_span_for<input_shape>() == 10);
+    EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 6, 1>{});
+    EXPECT(tiler::template halo_span_dim_for<input_shape>() == 3);
+}
+
+// ======== row runs (NRows) ========
+
+// NRows scales the first spatial dim, NTiles the last: tile {4, 4} → region {1, 1, 8, 8}
+TEST_CASE(output_lens_nrows)
+{
+    using tiler = migraphx::spatial_tiler<2,
+                                          migraphx::index_ints<4, 4>,
+                                          decltype(make_4d_shape<1, 1, 8, 8>()),
+                                          migraphx::index_ints<0>,
+                                          1,
+                                          2>;
+    EXPECT(tiler::output_lens() == migraphx::index_ints<1, 1, 8, 8>{});
+    EXPECT(tiler::lane_lens() == migraphx::index_ints<1, 1, 4, 4>{});
+    EXPECT(tiler::tiles_per_dim() == migraphx::index_ints<1, 1, 1, 1>{});
+    EXPECT(not tiler::is_padded());
+}
+
+// The halo grows with the row run: 3x3 conv, 4 rows per lane → 2*4+2 = 10 rows
+TEST_CASE(halo_lens_nrows)
+{
+    using output_shape = decltype(make_4d_shape<1, 1, 8, 8>());
+    using input_shape  = decltype(make_4d_shape<1, 1, 10, 10>());
+    using tiler        = migraphx::
+        spatial_tiler<1, migraphx::index_ints<2, 8>, output_shape, migraphx::index_ints<0>, 1, 4>;
+    EXPECT(tiler::template halo_lens_for<input_shape>() == migraphx::index_ints<1, 1, 10, 10>{});
+    EXPECT(tiler::tiles_total() == 1);
+}
+
+// ======== channel vectors (ChannelVec) ========
+
+// Lanes along the channel dim shrink by the vector width; the region does not
+TEST_CASE(lane_lens_channel_vector)
+{
+    using tiler = migraphx::spatial_tiler<1,
+                                          migraphx::index_ints<4, 4>,
+                                          decltype(make_nhwc_shape<1, 16, 8, 8>()),
+                                          migraphx::index_ints<0>,
+                                          16,
+                                          1,
+                                          8>;
+    EXPECT(tiler::lane_lens() == migraphx::index_ints<1, 2, 4, 4>{});
+    EXPECT(tiler::output_lens() == migraphx::index_ints<1, 16, 4, 4>{});
+    EXPECT(tiler::region_lens() == migraphx::index_ints<1, 16, 8, 8>{});
+}
+
+// Channel vectors need a contiguous channel dim with all other strides aligned
+TEST_CASE(channel_vector_aligned)
+{
+    EXPECT(migraphx::channel_vector_aligned<8>(make_nhwc_shape<2, 16, 8, 8>()));
+    EXPECT(migraphx::channel_vector_aligned<4>(make_nhwc_shape<2, 16, 8, 8>()));
+    EXPECT(not migraphx::channel_vector_aligned<8>(make_nhwc_shape<2, 12, 8, 8>()));
+    EXPECT(not migraphx::channel_vector_aligned<8>(make_4d_shape<2, 16, 8, 8>()));
+    EXPECT(not migraphx::channel_vector_aligned<1>(make_nhwc_shape<2, 16, 8, 8>()));
+}
+
+// The halo copy moves whole vectors only when the halo spans every input channel
+TEST_CASE(halo_vector)
+{
+    using output_shape = decltype(make_nhwc_shape<1, 16, 8, 8>());
+    using input_shape  = decltype(make_nhwc_shape<1, 16, 10, 10>());
+    using whole        = migraphx::spatial_tiler<1,
+                                                 migraphx::index_ints<4, 4>,
+                                                 output_shape,
+                                                 migraphx::index_ints<0>,
+                                                 16,
+                                                 1,
+                                                 8>;
+    EXPECT(whole::template halo_vector_for<input_shape>() == 8);
+    using partial = migraphx::spatial_tiler<1,
+                                            migraphx::index_ints<4, 4>,
+                                            output_shape,
+                                            migraphx::index_ints<0>,
+                                            8,
+                                            1,
+                                            8>;
+    EXPECT(partial::template halo_vector_for<input_shape>() == 1);
+}

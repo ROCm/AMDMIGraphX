@@ -2177,7 +2177,8 @@ TEST_CASE(split_sym_dim_clone_cap_is_noop)
 
 TEST_CASE(split_sym_dim_default_clone_cap_is_noop)
 {
-    const auto max_clones = migraphx::split_sym_dim{}.max_clones;
+    const migraphx::split_sym_dim pass{};
+    const auto max_clones = pass.max_clones;
     std::set<migraphx::sym::scalar> optimals;
     auto optimal_values = migraphx::range(std::size_t{2}, max_clones + 1);
     std::transform(optimal_values.begin(),
@@ -3027,7 +3028,6 @@ TEST_CASE(split_sym_dim_orders_merged_blocks_by_dependencies)
 
 TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge)
 {
-    bool convolution_first = false;
     migraphx::program p;
     {
         auto spatial = var("spatial", {4, 8}, {4});
@@ -3041,9 +3041,7 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge)
         auto activation  = m.add_instruction(migraphx::make_op("relu"), x);
         auto convolution = m.add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1}}}), activation, w);
-        auto output = convolution_first
-                          ? m.add_instruction(migraphx::make_op("add"), convolution, activation)
-                          : m.add_instruction(migraphx::make_op("add"), activation, convolution);
+        auto output = m.add_instruction(migraphx::make_op("add"), activation, convolution);
         m.add_return({output});
     }
     run_pass(p);
@@ -3086,10 +3084,7 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge)
                                                 activation);
                 auto convolution = sm.add_instruction(
                     migraphx::make_op("convolution", {{"padding", {1, 1}}}), activation, w);
-                auto output =
-                    convolution_first
-                        ? sm.add_instruction(migraphx::make_op("add"), convolution, activation)
-                        : sm.add_instruction(migraphx::make_op("add"), activation, convolution);
+                auto output = sm.add_instruction(migraphx::make_op("add"), activation, convolution);
                 sm.add_return({output});
             });
         auto& m = *expected.get_main_module();
@@ -3161,7 +3156,6 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge)
 
 TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge_reversed_inputs)
 {
-    bool convolution_first = true;
     migraphx::program p;
     {
         auto spatial = var("spatial", {4, 8}, {4});
@@ -3175,9 +3169,7 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge_reversed_inputs)
         auto activation  = m.add_instruction(migraphx::make_op("relu"), x);
         auto convolution = m.add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1}}}), activation, w);
-        auto output = convolution_first
-                          ? m.add_instruction(migraphx::make_op("add"), convolution, activation)
-                          : m.add_instruction(migraphx::make_op("add"), activation, convolution);
+        auto output = m.add_instruction(migraphx::make_op("add"), convolution, activation);
         m.add_return({output});
     }
     run_pass(p);
@@ -3220,10 +3212,7 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge_reversed_inputs)
                                                 activation);
                 auto convolution = sm.add_instruction(
                     migraphx::make_op("convolution", {{"padding", {1, 1}}}), activation, w);
-                auto output =
-                    convolution_first
-                        ? sm.add_instruction(migraphx::make_op("add"), convolution, activation)
-                        : sm.add_instruction(migraphx::make_op("add"), activation, convolution);
+                auto output = sm.add_instruction(migraphx::make_op("add"), convolution, activation);
                 sm.add_return({output});
             });
         auto& m = *expected.get_main_module();

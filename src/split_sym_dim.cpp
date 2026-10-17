@@ -707,10 +707,8 @@ bool boundary_reaches_block(instruction_ref dependency,
         return false;
     if(contains(included, dependency))
         return true;
-    for(auto input : dependency->inputs())
-        if(boundary_reaches_block(input, included, visited))
-            return true;
-    return false;
+    return any_of(dependency->inputs(),
+                  [&](auto input) { return boundary_reaches_block(input, included, visited); });
 }
 
 bool dependencies_are_closed(
@@ -726,11 +724,10 @@ bool dependencies_are_closed(
         return true;
     if(not absorbable_dependency(current, included, info_for_instruction))
         return not boundary_reaches_block(current, included, boundary_visited);
-    for(auto input : current->inputs())
-        if(not dependencies_are_closed(
-               input, included, info_for_instruction, visited, boundary_visited))
-            return false;
-    return true;
+    return all_of(current->inputs(), [&](auto input) {
+        return dependencies_are_closed(
+            input, included, info_for_instruction, visited, boundary_visited);
+    });
 }
 
 std::optional<std::set<fill_kind>> intersect_fills(const std::set<fill_kind>& x,

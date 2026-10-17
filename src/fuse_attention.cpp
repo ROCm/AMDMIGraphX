@@ -1288,8 +1288,8 @@ struct find_kv_cache_attention
                        strides.begin(), strides.end() - 1, [](auto s) { return s == 0; }) and
                    strides.back() == 1)
                 {
-                    auto new_lit = m_attn.add_literal(
-                        literal{shape{lit_s.type(), {lit_s.lens().back()}}, ins->eval().data()});
+                    auto new_lit = m_attn.add_literal(literal::from_raw_buffer(
+                        shape{lit_s.type(), {lit_s.lens().back()}}, ins->eval().data()));
                     m_attn.replace_instruction(
                         ins, make_op("multibroadcast", {{"out_lens", lit_s.lens()}}), {new_lit});
                 }

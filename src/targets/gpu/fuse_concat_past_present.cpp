@@ -187,26 +187,24 @@ struct find_concat_past_present
                 cache);
         }
 
-        // The view is defined at the concat, so the producer and its view chain
-        // move down to it; both are single-use so nothing in between needs them
-        m.move_instruction(producer, ins);
-        std::for_each(chain.rbegin(), chain.rend(), [&](auto x) { m.move_instruction(x, ins); });
-
+        // A retargeted copy of the producer is inserted at the concat rather
+        // than rewriting it in place: the new strides could make the original
+        // view chain fail shape recomputation before it becomes dead
         assert(view->get_shape() == slot_shape(cur, cache));
         view = std::accumulate(inverse->first.begin(),
                                inverse->first.end(),
                                view,
                                [&](instruction_ref start, const operation& op) {
-                                   return m.insert_instruction(producer, op, start);
+                                   return m.insert_instruction(ins, op, start);
                                });
         assert(view->get_shape() == inverse->second);
         auto v            = producer->get_operator().to_value();
         v["output_shape"] = to_value(inverse->second);
         auto inputs       = producer->inputs();
         inputs.back()     = view;
-        m.replace_instruction(
-            producer, make_op("gpu::precompile_op", v), inputs, producer->module_inputs());
-        m.replace_instruction(ins, make_op("identity"), {cache, producer});
+        auto fused        = m.insert_instruction(
+            ins, make_op("gpu::precompile_op", v), inputs, producer->module_inputs());
+        m.replace_instruction(ins, make_op("identity"), {cache, fused});
     }
 };
 

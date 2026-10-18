@@ -84,8 +84,15 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto params         = init_params(inputs, v);
-        auto gqa_params_str = params.make_init_str();
+        auto compile_inputs = inputs;
+        for(auto& input : compile_inputs)
+        {
+            if(input.dynamic())
+                input = shape{input.type(), input.max_lens()};
+        }
+        auto params                    = init_params(compile_inputs, v);
+        params.seqlen_present_kv_cache = compile_inputs.back().lens().at(2);
+        auto gqa_params_str            = params.make_init_str();
 
         // Every chunk offset is a multiple of head_size, so copy in the widest
         // vector dividing it, capped at 4 since memory coloring only aligns
@@ -102,7 +109,7 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
 
         hip_compile_options options;
         options.set_launch_params(v, compute_global_for(ctx, nelements / elements_per_thread));
-        options.inputs      = inputs;
+        options.inputs      = compile_inputs;
         options.output      = inputs.back();
         options.kernel_name = v.get("kernel", "concat_past_present_kernel");
 

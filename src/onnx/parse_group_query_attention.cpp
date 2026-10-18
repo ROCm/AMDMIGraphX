@@ -79,7 +79,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                        const std::vector<instruction_ref>& extra_shape_sources = {})
     {
         auto lens = fixed_lens(dims);
-        if(lens.has_value())
+        if(lens.has_value() and not input->get_shape().dynamic())
             return info.add_instruction(make_op("multibroadcast", {{"out_lens", *lens}}), input);
 
         auto shape_sources = info.mod->get_parameters();
@@ -454,6 +454,15 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             slk = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), slk);
         std::vector<instruction_ref> concat_k_inputs{cur_k, slk, k};
         std::vector<instruction_ref> concat_v_inputs{cur_v, slk, v};
+        if(symbolic)
+        {
+            auto sequence_length =
+                info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), cur_k);
+            cur_k           = info.add_instruction(make_op("contiguous"), cur_k);
+            cur_v           = info.add_instruction(make_op("contiguous"), cur_v);
+            concat_k_inputs = {cur_k, slk, sequence_length, k};
+            concat_v_inputs = {cur_v, slk, sequence_length, v};
+        }
 
         k = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
                                  concat_k_inputs);

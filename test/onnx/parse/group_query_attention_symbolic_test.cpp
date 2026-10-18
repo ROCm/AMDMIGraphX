@@ -54,6 +54,9 @@ TEST_CASE(group_query_attention_symbolic_parse_test)
     EXPECT(std::count_if(p.get_main_module()->begin(), p.get_main_module()->end(), [](auto ins) {
                return ins.name() == "concat_past_present";
            }) == 2);
+    EXPECT(std::all_of(p.get_main_module()->begin(), p.get_main_module()->end(), [](auto ins) {
+        return ins.name() != "concat_past_present" or ins.inputs().size() == 4;
+    }));
     EXPECT(std::none_of(p.get_main_module()->begin(), p.get_main_module()->end(), [](auto ins) {
         return ins.name() == "reshape" and ins.get_shape().symbolic() and ins.inputs().size() == 1;
     }));

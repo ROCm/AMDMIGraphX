@@ -851,17 +851,24 @@ TEST_CASE(group_query_attention_batched_seqlens_verify_test)
         parameters["past_key_values_key"]   = past_key_values_key.get_argument();
         parameters["past_key_values_value"] = past_key_values_value.get_argument();
         parameters["seqlens_k"]             = seqlens_k.get_argument();
-        auto result                         = p.eval(parameters).front();
-        std::vector<float> output;
-        result.visit([&](auto values) { output.assign(values.begin(), values.end()); });
-        return output;
+        std::vector<std::vector<float>> outputs;
+        for(const auto& result : p.eval(parameters))
+        {
+            outputs.emplace_back();
+            result.visit([&](auto values) { outputs.back().assign(values.begin(), values.end()); });
+        }
+        return outputs;
     };
 
-    auto mixed        = evaluate(symbolic_program, {1, 3});
-    auto low          = evaluate(symbolic_program, {1, 1});
-    auto high         = evaluate(symbolic_program, {3, 3});
-    auto static_mixed = evaluate(static_program, {1, 3});
-    auto batch        = [](const auto& values, std::size_t index) {
+    auto mixed_outputs        = evaluate(symbolic_program, {1, 3});
+    auto low_outputs          = evaluate(symbolic_program, {1, 1});
+    auto high_outputs         = evaluate(symbolic_program, {3, 3});
+    auto static_mixed_outputs = evaluate(static_program, {1, 3});
+    const auto& mixed         = mixed_outputs.front();
+    const auto& low           = low_outputs.front();
+    const auto& high          = high_outputs.front();
+    const auto& static_mixed  = static_mixed_outputs.front();
+    auto batch                = [](const auto& values, std::size_t index) {
         constexpr std::size_t batch_elements = 8;
         auto first                           = values.begin() + index * batch_elements;
         return std::vector<float>{first, first + batch_elements};
@@ -875,6 +882,12 @@ TEST_CASE(group_query_attention_batched_seqlens_verify_test)
         batch(mixed, 1), migraphx::verify::expected{batch(low, 1)}));
     EXPECT(migraphx::verify::verify_range_with_tolerance(mixed,
                                                          migraphx::verify::expected{static_mixed}));
+    EXPECT(mixed_outputs.size() == static_mixed_outputs.size());
+    for(std::size_t i = 1; i < mixed_outputs.size(); ++i)
+    {
+        EXPECT(migraphx::verify::verify_range_with_tolerance(
+            mixed_outputs[i], migraphx::verify::expected{static_mixed_outputs[i]}));
+    }
 }
 
 TEST_CASE(group_query_attention_right_padded_prompt_symbolic_test)

@@ -1432,11 +1432,11 @@ void coalesce_independent_blocks(
 {
     // Combine disconnected regions when doing so still forms a closed block. This avoids separate
     // select_module dispatches for independent branches that use the same compatible root buckets.
-    for(auto target : range(blocks.size()))
+    for(std::size_t target = 0; target < blocks.size(); ++target)
     {
         if(blocks.at(target).ops.empty())
             continue;
-        for(auto source : range(target + 1, blocks.size()))
+        for(std::size_t source = target + 1; source < blocks.size(); ++source)
         {
             auto merged = merge_blocks(
                 blocks, dependencies, {target, source}, info_for_instruction, max_clones);

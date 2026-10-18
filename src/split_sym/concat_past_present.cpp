@@ -34,7 +34,7 @@ struct analyze_concat_past_present : analyzer<analyze_concat_past_present>
 
     symbolic_op_info analyze(instruction_ref ins) const
     {
-        if(ins->inputs().size() != 3)
+        if(ins->inputs().size() != 3 and ins->inputs().size() != 4)
             return symbolic_op_info{ins};
         return analyze_axes(ins, [](std::size_t input, std::size_t axis) {
             // Padding the present sequence changes how many elements are written into the cache.

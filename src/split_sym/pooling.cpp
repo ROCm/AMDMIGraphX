@@ -33,6 +33,7 @@ axis_desc classify_pooling_axis(std::size_t axis,
                                 bool default_padding,
                                 fill_kind fill,
                                 bool ceil_mode,
+                                bool dyn_global,
                                 const std::vector<std::size_t>& padding,
                                 std::size_t spatial_dimensions)
 {
@@ -40,6 +41,8 @@ axis_desc classify_pooling_axis(std::size_t axis,
         return parallel_axis();
     if(not default_padding or fill == fill_kind::dont_care)
         return axis_desc{};
+    if(dyn_global)
+        return contracted_axis(fill);
     return padded_axis(fill,
                        not ceil_mode and windowed_zero_pad(padding, spatial_dimensions, axis));
 }
@@ -59,7 +62,8 @@ struct analyze_pooling : analyzer<analyze_pooling>
         else if(mode == op::pooling_mode::average and
                 (not attributes.at("count_include_pad").to<bool>() or ceil_mode))
             fill = fill_kind::dont_care;
-        if(attributes.at("dyn_global").to<bool>() and mode == op::pooling_mode::average)
+        auto dyn_global = attributes.at("dyn_global").to<bool>();
+        if(dyn_global and mode == op::pooling_mode::average)
             fill = fill_kind::dont_care;
         auto default_padding =
             attributes.at("padding_mode").to<op::padding_mode_t>() == op::padding_mode_t::default_;
@@ -68,13 +72,23 @@ struct analyze_pooling : analyzer<analyze_pooling>
         return analyze_axes(
             ins,
             [&](std::size_t axis) {
-                return classify_pooling_axis(
-                           axis, default_padding, fill, ceil_mode, padding, spatial_dimensions)
+                return classify_pooling_axis(axis,
+                                             default_padding,
+                                             fill,
+                                             ceil_mode,
+                                             dyn_global,
+                                             padding,
+                                             spatial_dimensions)
                            .handling == axis_handling::pad;
             },
             [&](std::size_t, std::size_t axis) {
-                return classify_pooling_axis(
-                    axis, default_padding, fill, ceil_mode, padding, spatial_dimensions);
+                return classify_pooling_axis(axis,
+                                             default_padding,
+                                             fill,
+                                             ceil_mode,
+                                             dyn_global,
+                                             padding,
+                                             spatial_dimensions);
             });
     }
 };

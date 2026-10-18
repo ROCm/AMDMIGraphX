@@ -102,6 +102,8 @@ struct analyze_shape_transform : analyzer<analyze_shape_transform>
                     result.freezer = freeze;
                 return result;
             }
+            if(inputs.size() == 1 and needs_freezer)
+                descriptor_op = make_op("reshape", {{"dims", to_value(output.max_lens())}});
         }
         else if(inputs.size() != 1)
             return symbolic_op_info{ins};

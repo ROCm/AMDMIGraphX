@@ -41,7 +41,7 @@ struct test_copy : migraphx::auto_register_op<test_copy>
     std::string name() const { return "test_copy"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {
-        migraphx::check_shapes{inputs, *this}.has(2);
+        migraphx::check_shapes{inputs, *this, true}.has(2);
         return inputs.back();
     }
     migraphx::argument compute(migraphx::context&,
@@ -302,6 +302,70 @@ TEST_CASE(allocate_out_parameter_return_copy)
     m2.add_return({copy});
 
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_dynamic_parameter_return_copy)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape s{migraphx::shape::float_type, {dd{1, 4}, dd{2, 2}}};
+    migraphx::shape capacity_s{migraphx::shape::float_type, {4, 2}};
+    migraphx::module m1("sub");
+    auto input = m1.add_parameter("input", s);
+    m1.add_return({input});
+
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2("sub");
+    auto expected_input = m2.add_parameter("input", s);
+    auto output         = m2.add_parameter("sub:#output_0", capacity_s);
+    auto dims =
+        m2.add_instruction(migraphx::make_op("dimensions_of", {{"end", 2}}), expected_input);
+    auto output_view = m2.add_instruction(
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}}), output, dims);
+    auto copy = m2.add_instruction(migraphx::make_op("test_copy"), expected_input, output_view);
+    m2.add_return({copy});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_select_module_dynamic_parameter_return)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape s{migraphx::shape::float_type, {dd{1, 4}, dd{2, 2}}};
+    migraphx::shape capacity_s{migraphx::shape::float_type, {4, 2}};
+    migraphx::shape output_shape{std::vector<migraphx::shape>{s}};
+
+    migraphx::program p;
+    auto* branch      = p.create_module("branch");
+    auto branch_input = branch->add_parameter("data", s);
+    branch->add_return({branch_input});
+
+    auto* mm    = p.get_main_module();
+    auto input  = mm->add_parameter("data", s);
+    auto buffer = mm->add_parameter("buffer", capacity_s);
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
+        {input, buffer},
+        {branch});
+    auto output = mm->add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", std::size_t{0}}}), select);
+    mm->add_return({output});
+
+    run_pass(p, allocation_with_out_model{}, true);
+
+    migraphx::shape input_shape{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> input_values{1, 2, 3, 4};
+    std::vector<float> buffer_values(capacity_s.elements(), -1);
+    migraphx::parameter_map params;
+    params["data"]   = migraphx::argument{input_shape, input_values.data()};
+    params["buffer"] = migraphx::argument{capacity_s, buffer_values.data()};
+    std::vector<migraphx::context> contexts(1);
+    auto result = p.eval_with_context(contexts, params).front();
+
+    EXPECT(result.get_shape() == input_shape);
+    EXPECT(result.to_vector<float>() == input_values);
+    EXPECT(buffer_values == std::vector<float>{1, 2, 3, 4, -1, -1, -1, -1});
 }
 
 TEST_CASE(allocate_out_pointwise_module_parameter_return)

@@ -45,39 +45,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-// A lowered select_module returns a tuple backed by one trailing buffer per tuple element.
-// Map get_tuple_elem directly to its corresponding buffer because generic alias traversal
-// returns every buffer backing the tuple.
-optional<instruction_ref> get_select_module_buffer(instruction_ref ins)
-{
-    if(ins->name() != "get_tuple_elem")
-        return nullopt;
-    auto producer = ins->inputs().front();
-    if(producer->name() != "select_module")
-        return nullopt;
-    const auto& inputs = producer->inputs();
-    auto aliases       = producer->get_operator().output_alias(to_shapes(inputs));
-    auto index         = ins->get_operator().to_value()["index"].to<std::size_t>();
-    if(index >= aliases.size())
-        return nullopt;
-    return inputs.at(aliases.at(index));
-}
-
-std::vector<instruction_ref> resolve_output_aliases(instruction_ref ins)
-{
-    if(auto buffer = get_select_module_buffer(ins))
-        return resolve_output_aliases(*buffer);
-    auto aliases = instruction::get_output_alias(ins, true);
-    if(aliases.size() == 1 and aliases.front() == ins)
-        return {ins};
-    std::vector<instruction_ref> result;
-    std::transform(aliases.begin(),
-                   aliases.end(),
-                   join_back_inserter(result),
-                   [](instruction_ref alias) { return resolve_output_aliases(alias); });
-    return result;
-}
-
 std::vector<instruction_ref> get_alloc_aliases(const module& mod)
 {
     auto returns = mod.get_returns();
@@ -266,6 +233,31 @@ bool is_select_module_input(module_ref root, module_ref submodule)
     });
 }
 
+instruction_ref insert_output_copy(module& m,
+                                   const allocation_model& model,
+                                   instruction_ref pos,
+                                   instruction_ref input)
+{
+    auto input_shape = input->get_shape();
+    auto alloc_shape =
+        input_shape.dynamic() ? shape{input_shape.type(), input_shape.max_lens()} : input_shape;
+    auto output = m.insert_instruction(
+        pos, make_op("allocate", migraphx::value{{"shape", to_value(alloc_shape)}}));
+    if(input_shape.dynamic())
+    {
+        std::vector<int64_t> axes(input_shape.ndim());
+        std::iota(axes.begin(), axes.end(), 0);
+        auto dims = m.insert_instruction(
+            pos, make_op("dimensions_of", {{"end", input_shape.ndim()}}), input);
+        output = m.insert_instruction(
+            pos,
+            make_op("slice", {{"axes", axes}, {"starts", std::vector<int64_t>(axes.size(), 0)}}),
+            output,
+            dims);
+    }
+    return m.insert_instruction(pos, make_op(model.copy()), input, output);
+}
+
 void insert_copy(module& m, const allocation_model& model, bool copy_aliased_returns)
 {
     // Rewriting a return can change the aliases of the other returns, so visit them in order
@@ -284,10 +276,7 @@ void insert_copy(module& m, const allocation_model& model, bool copy_aliased_ret
         if(replace_alias_allocation(m, ins))
             continue;
         auto insert_ins = std::next(ins);
-        auto alloc      = m.insert_instruction(
-            insert_ins,
-            make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
-        auto copy = m.insert_instruction(insert_ins, make_op(model.copy()), ins, alloc);
+        auto copy       = insert_output_copy(m, model, insert_ins, ins);
         m.replace_instruction(ins, copy);
     }
 
@@ -298,15 +287,12 @@ void insert_copy(module& m, const allocation_model& model, bool copy_aliased_ret
     std::unordered_set<instruction_ref> returned;
     bool changed = false;
     std::transform(returns.begin(), returns.end(), returns.begin(), [&](instruction_ref ins) {
-        if(ins->get_shape().any_of_dynamic())
+        if(ins->get_shape().any_of_dynamic() and not ins->get_shape().dynamic())
             return ins;
         if(returned.insert(ins).second and ins->name() != "@param")
             return ins;
-        changed    = true;
-        auto alloc = m.insert_instruction(
-            std::prev(m.end()),
-            make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
-        return m.insert_instruction(std::prev(m.end()), make_op(model.copy()), ins, alloc);
+        changed = true;
+        return insert_output_copy(m, model, std::prev(m.end()), ins);
     });
     if(changed)
         m.replace_return(returns);

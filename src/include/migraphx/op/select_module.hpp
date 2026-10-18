@@ -26,6 +26,7 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/stringutils.hpp>
 #include <numeric>
@@ -139,7 +140,7 @@ struct select_module
                 auto parameter = module_to_run->get_parameter(name);
                 auto output    = std::find_if(
                     module_outputs.begin(), module_outputs.end(), [&](instruction_ref result) {
-                        return contains(instruction::get_output_alias(result), parameter);
+                        return contains(resolve_output_aliases(result), parameter);
                     });
                 if(output == module_outputs.end())
                     MIGRAPHX_THROW(

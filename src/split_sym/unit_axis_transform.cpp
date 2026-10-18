@@ -39,6 +39,12 @@ struct analyze_unit_axis_transform : analyzer<analyze_unit_axis_transform>
     {
         if(ins->inputs().size() != 1)
             return symbolic_op_info{ins};
+        if(ins->name() == "unsqueeze")
+        {
+            auto steps = ins->get_operator().to_value().at("steps").to_vector<int64_t>();
+            if(any_of(steps, [](auto step) { return step != 1; }))
+                return symbolic_op_info{ins};
+        }
         return analyze_axes(ins);
     }
 };

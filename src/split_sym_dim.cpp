@@ -859,7 +859,8 @@ using propagated_padding_map = std::unordered_map<instruction_ref, std::vector<p
 
 void add_propagated_padding(propagated_padding_map& propagated, padding_use use)
 {
-    add_padding_use(propagated[padding_source(use)], std::move(use));
+    auto source = padding_source(use);
+    add_padding_use(propagated[source], std::move(use));
 }
 
 std::vector<const padding_use*> find_axis_groups(const std::vector<padding_use>& requirements)
@@ -989,10 +990,10 @@ std::optional<resolved_padding_variant_plan> resolve_padding_variant_plan(
             if(not fill.has_value())
                 return std::nullopt;
             step.boundary_pad_value = fill_value(*fill);
-            result.path.push_back(std::move(step));
+            result.path.push_back(step);
             return result;
         }
-        result.path.push_back(std::move(step));
+        result.path.push_back(step);
         current_source      = input_source;
         current_requirement = input.requirement;
     }
@@ -1075,10 +1076,10 @@ bool propagate_internal_padding(
     std::size_t processed = 0;
     while(not ready.empty())
     {
-        auto next  = std::max_element(ready.begin(), ready.end(), [](const auto* x, const auto* y) {
+        auto next = std::max_element(ready.begin(), ready.end(), [](const auto* x, const auto* y) {
             return std::less<std::size_t>{}(x->rank, y->rank);
         });
-        auto* plan = *next;
+        const auto* plan = *next;
         ready.erase(next);
         processed++;
         auto found = propagated.find(plan->info.ins);
@@ -1149,7 +1150,7 @@ bool resolve_boundary_padding(
                                                    std::vector<resolved_input_padding_plan>(
                                                        consumer->inputs().size()))
                                       .first->second.at(representative->propagated.input);
-            resolved.fill       = *fill;
+            resolved.fill       = fill;
             resolved.repad_axes = std::move(repad_axes);
             return true;
         });
@@ -2218,6 +2219,75 @@ struct clone_context
         return result;
     }
 
+    void apply_clone_input_padding(instruction_ref source,
+                                   const symbolic_op_plan& clone_info,
+                                   const padding_variant_plan* padding_variant,
+                                   std::size_t variant_step_index,
+                                   std::vector<instruction_ref>& args)
+    {
+        const auto& clone_inputs = clone_info.clone_inputs;
+        assert(clone_inputs.size() == args.size());
+        std::vector<std::size_t> data_input_indices;
+        auto input_indices = range(source->inputs().size());
+        std::copy_if(input_indices.begin(),
+                     input_indices.end(),
+                     std::back_inserter(data_input_indices),
+                     [&](auto index) { return not is_shape_input(&clone_info, index); });
+        assert(data_input_indices.size() == clone_inputs.size());
+        const padding_variant_step* variant = nullptr;
+        if(padding_variant != nullptr)
+        {
+            if(variant_step_index >= padding_variant->size() or
+               padding_variant->at(variant_step_index).source != source)
+                MIGRAPHX_THROW("SPLIT_SYM_DIM: invalid concrete padding variant");
+            variant = &padding_variant->at(variant_step_index);
+        }
+        bool applied_variant = variant == nullptr;
+        for(auto&& [arg, clone_input, original_index] :
+            views::zip(args, clone_inputs, data_input_indices))
+        {
+            std::optional<float> pad_value;
+            if(variant != nullptr and variant->input == original_index)
+            {
+                applied_variant   = true;
+                auto input_source = source->inputs().at(original_index);
+                if(variant->boundary_pad_value.has_value())
+                    pad_value = variant->boundary_pad_value;
+                else
+                {
+                    auto next_step = variant_step_index + 1;
+                    if(next_step >= padding_variant->size())
+                        MIGRAPHX_THROW("SPLIT_SYM_DIM: incomplete concrete padding variant");
+                    arg = emit_padding_variant(input_source, *padding_variant, next_step);
+                }
+            }
+            else if(padding_variant == nullptr and clone_input.padding_variant.has_value())
+                arg = emit_padding_variant(
+                    source->inputs().at(original_index), *clone_input.padding_variant, 0);
+            else if(padding_variant == nullptr)
+                pad_value = clone_input.pad_value;
+            if(pad_value.has_value())
+                arg = add_or_reuse_pad(clone_module,
+                                       make_op("fixed_pad", {{"value", *pad_value}}),
+                                       arg,
+                                       reusable_pads);
+        }
+        if(not applied_variant)
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: concrete padding variant input is not data");
+        for(auto&& [arg, clone_input] : views::zip(args, clone_inputs))
+            arg = std::accumulate(clone_input.masks.begin(),
+                                  clone_input.masks.end(),
+                                  arg,
+                                  [&](instruction_ref input, const auto& mask) {
+                                      return add_runtime_mask(clone_module,
+                                                              input,
+                                                              mask,
+                                                              runtime_extent_sources,
+                                                              fixed_substitutions,
+                                                              cache);
+                                  });
+    }
+
     instruction_ref emit_impl(instruction_ref source,
                               const padding_variant_plan* padding_variant,
                               std::size_t variant_step_index,
@@ -2227,8 +2297,6 @@ struct clone_context
         const symbolic_op_plan* clone_info = nullptr;
         if(found != info_for_instruction.end() and found->second->block.has_value())
             clone_info = found->second;
-        const symbolic_op_plan* source_info =
-            found == info_for_instruction.end() ? nullptr : found->second;
         auto source_inputs = clone_inputs_for(info_for_instruction, source);
         std::vector<instruction_ref> args;
         std::transform(source_inputs.begin(),
@@ -2238,69 +2306,8 @@ struct clone_context
                            return find_cloned_input(input, clone_map, input_values);
                        });
         if(clone_info != nullptr)
-        {
-            const auto& clone_inputs = clone_info->clone_inputs;
-            assert(clone_inputs.size() == args.size());
-            std::vector<std::size_t> data_input_indices;
-            auto input_indices = range(source->inputs().size());
-            std::copy_if(input_indices.begin(),
-                         input_indices.end(),
-                         std::back_inserter(data_input_indices),
-                         [&](auto index) { return not is_shape_input(source_info, index); });
-            assert(data_input_indices.size() == clone_inputs.size());
-            const padding_variant_step* variant = nullptr;
-            if(padding_variant != nullptr)
-            {
-                if(variant_step_index >= padding_variant->size() or
-                   padding_variant->at(variant_step_index).source != source)
-                    MIGRAPHX_THROW("SPLIT_SYM_DIM: invalid concrete padding variant");
-                variant = &padding_variant->at(variant_step_index);
-            }
-            bool applied_variant = variant == nullptr;
-            for(auto&& [arg, clone_input, original_index] :
-                views::zip(args, clone_inputs, data_input_indices))
-            {
-                std::optional<float> pad_value;
-                if(variant != nullptr and variant->input == original_index)
-                {
-                    applied_variant   = true;
-                    auto input_source = source->inputs().at(original_index);
-                    if(variant->boundary_pad_value.has_value())
-                        pad_value = variant->boundary_pad_value;
-                    else
-                    {
-                        auto next_step = variant_step_index + 1;
-                        if(next_step >= padding_variant->size())
-                            MIGRAPHX_THROW("SPLIT_SYM_DIM: incomplete concrete padding variant");
-                        arg = emit_padding_variant(input_source, *padding_variant, next_step);
-                    }
-                }
-                else if(padding_variant == nullptr and clone_input.padding_variant.has_value())
-                    arg = emit_padding_variant(
-                        source->inputs().at(original_index), *clone_input.padding_variant, 0);
-                else if(padding_variant == nullptr)
-                    pad_value = clone_input.pad_value;
-                if(pad_value.has_value())
-                    arg = add_or_reuse_pad(clone_module,
-                                           make_op("fixed_pad", {{"value", *pad_value}}),
-                                           arg,
-                                           reusable_pads);
-            }
-            if(not applied_variant)
-                MIGRAPHX_THROW("SPLIT_SYM_DIM: concrete padding variant input is not data");
-            for(auto&& [arg, clone_input] : views::zip(args, clone_inputs))
-                arg = std::accumulate(clone_input.masks.begin(),
-                                      clone_input.masks.end(),
-                                      arg,
-                                      [&](instruction_ref input, const auto& mask) {
-                                          return add_runtime_mask(clone_module,
-                                                                  input,
-                                                                  mask,
-                                                                  runtime_extent_sources,
-                                                                  fixed_substitutions,
-                                                                  cache);
-                                      });
-        }
+            apply_clone_input_padding(
+                source, *clone_info, padding_variant, variant_step_index, args);
 
         op_freezer freezer;
         if(clone_info != nullptr)

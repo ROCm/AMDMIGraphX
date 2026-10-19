@@ -412,9 +412,9 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                 "GroupQueryAttention: hidden size must be divisible by the total head count");
         std::size_t head_size = q_hidden_size / total_heads;
 
-        const auto q_dims = q_shape.to_symbolic().dyn_dims();
-        std::vector<shape::dynamic_dimension> bsnh{q_dims.at(0),
-                                                   q_dims.at(1),
+        const auto qkv_dims = q_shape.to_symbolic().dyn_dims();
+        std::vector<shape::dynamic_dimension> bsnh{qkv_dims.at(0),
+                                                   qkv_dims.at(1),
                                                    shape::dynamic_dimension{sym::lit(total_heads)},
                                                    shape::dynamic_dimension{sym::lit(head_size)}};
         auto transposed_qkv = add_reshape(info, qkv, bsnh);

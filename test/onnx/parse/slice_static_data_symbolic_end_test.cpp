@@ -75,11 +75,11 @@ TEST_CASE(slice_range_data_symbolic_end_test)
 
     const auto* mm  = prog.get_main_module();
     auto dimensions = std::find_if(
-        mm->begin(), mm->end(), [](auto ins) { return ins.name() == "dimensions_of"; });
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "dimensions_of"; });
     EXPECT(dimensions != mm->end());
     EXPECT(not dimensions->sym_eval().empty());
-    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "slice"; }) ==
-           1);
-    EXPECT(
-        std::none_of(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "dyn_slice"; }));
+    EXPECT(std::count_if(
+               mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "slice"; }) == 1);
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "dyn_slice"; }));
 }

@@ -62,7 +62,8 @@ TEST_CASE(rotary_embedding_symbolic_if_test)
     auto expected_output =
         migraphx::shape{migraphx::shape::half_type,
                         sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(18)})};
-    EXPECT(p.get_output_shapes() == std::vector<migraphx::shape>{expected_output});
+    const std::vector<migraphx::shape> expected_outputs{expected_output};
+    EXPECT(p.get_output_shapes() == expected_outputs);
 
     bool found_symbolic_reshape = false;
     for(const auto* mod : p.get_modules())

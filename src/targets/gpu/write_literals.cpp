@@ -36,12 +36,15 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <iostream>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_WRITE_LITERALS)
 
 struct gpu_literal
 {
@@ -87,27 +90,42 @@ static bool is_allocate(instruction_ref ins)
     return contains({"hip::allocate", "allocate"}, ins->name());
 }
 
+// Scratch bytes an instruction occupies: only allocations count, since literals and parameters
+// live outside the scratch buffer
+static std::size_t allocation_bytes(instruction_ref ins, std::size_t alignment)
+{
+    if(not is_allocate(ins))
+        return 0;
+    auto b = (ins->get_shape().bytes() + alignment - 1) / alignment;
+    return b * alignment;
+}
+
 static std::size_t
 estimate_scratch_size(const module& m, std::size_t overhead_percent, std::size_t alignment = 32)
 {
     std::size_t scratch_size = 0;
     liveness(m, [&](instruction_ref ins, const auto& live_set) {
+        // ins was just removed from the live set, so its own buffer is counted separately
         std::size_t n =
             transform_accumulate(live_set.begin(),
                                  live_set.end(),
-                                 ins->get_shape().bytes(),
+                                 allocation_bytes(ins, alignment),
                                  std::plus<>{},
-                                 [&](instruction_ref i) -> std::size_t {
-                                     if(not is_allocate(i))
-                                         return 0;
-                                     auto b = (i->get_shape().bytes() + alignment - 1) / alignment;
-                                     return b * alignment;
-                                 });
+                                 [&](instruction_ref i) { return allocation_bytes(i, alignment); });
         scratch_size = std::max(scratch_size, n);
     });
     // Pad the estimate by overhead_percent since memory coloring is NP-hard and liveness is
     // incomplete without the scheduler, so we might need more space
     return scratch_size + scratch_size * overhead_percent / 100;
+}
+
+// Each loaded code object takes about 2MB of GPU memory
+static std::size_t estimate_code_object_size(const module& m)
+{
+    return std::count_if(m.begin(),
+                         m.end(),
+                         [](const instruction& ins) { return ins.name() == "gpu::code_object"; }) *
+           1024 * 1024 * 2;
 }
 
 static std::size_t get_total_literals(const module& m)
@@ -117,9 +135,6 @@ static std::size_t get_total_literals(const module& m)
                                 std::size_t{0},
                                 std::plus<>{},
                                 [&](const instruction& ins) -> std::size_t {
-                                    // each code obj takes 2mb of gpu memory
-                                    if(ins.name() == "gpu::code_object")
-                                        return 1024 * 1024 * 2;
                                     if(not contains({"@literal", "@param"}, ins.name()))
                                         return 0;
                                     return ins.get_shape().bytes();
@@ -128,7 +143,8 @@ static std::size_t get_total_literals(const module& m)
 
 static std::size_t get_total_memory(const module& m, std::size_t scratch_overhead_percent)
 {
-    return get_total_literals(m) + estimate_scratch_size(m, scratch_overhead_percent);
+    return get_total_literals(m) + estimate_code_object_size(m) +
+           estimate_scratch_size(m, scratch_overhead_percent);
 }
 
 static std::size_t get_available_memory()
@@ -148,6 +164,12 @@ static std::size_t extra_needed(std::size_t available, std::size_t used)
 }
 
 static std::size_t literal_bytes(instruction_ref ins) { return ins->get_shape().bytes(); }
+
+static std::size_t total_bytes(const std::unordered_set<instruction_ref>& literals)
+{
+    return transform_accumulate(
+        literals.begin(), literals.end(), std::size_t{0}, std::plus<>{}, &literal_bytes);
+}
 
 // True when every use of lit in user is an input the kernel reads at index-selected positions
 static bool is_indexed_use(instruction_ref lit, instruction_ref user)
@@ -243,6 +265,15 @@ void write_literals::apply(module& m) const
     std::size_t available = max_memory == 0 ? get_available_memory() : max_memory;
     std::size_t needed    = extra_needed(available, get_total_memory(m, scratch_overhead_percent));
     auto plan             = plan_literals(m, needed, needed * staging_peak_percent / 100);
+    if(enabled(MIGRAPHX_TRACE_WRITE_LITERALS{}))
+    {
+        std::cout << "write_literals: available " << available << " bytes, literals "
+                  << get_total_literals(m) << ", code objects " << estimate_code_object_size(m)
+                  << ", scratch estimate " << estimate_scratch_size(m, scratch_overhead_percent)
+                  << ", shortfall " << needed << ", zero-copy " << plan.zero_copy.size() << " ("
+                  << total_bytes(plan.zero_copy) << " bytes), staged " << plan.staged.size() << " ("
+                  << total_bytes(plan.staged) << " bytes)" << std::endl;
+    }
 
     for(auto ins : iterator_for(m))
     {

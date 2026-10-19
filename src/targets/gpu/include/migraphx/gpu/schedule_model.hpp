@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/gpu/export.h>
 #include <vector>
 
 namespace migraphx {
@@ -36,7 +37,7 @@ struct operation;
 
 namespace gpu {
 
-struct schedule_model
+struct MIGRAPHX_GPU_EXPORT schedule_model
 {
     std::size_t streams = 0;
     std::size_t concurrency() const;

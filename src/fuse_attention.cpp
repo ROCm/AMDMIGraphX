@@ -1231,9 +1231,16 @@ struct find_kv_cache_attention
         const std::vector<instruction_ref>& attn_inss, instruction_ref gemm1, const_module_ref m)
     {
         auto outputs = find_outputs(attn_inss);
+        // attn_inss is in program order, so captured instructions before gemm1
+        // cannot depend on it (reaches also requires start to precede end)
+        std::unordered_set<instruction_ref> before_gemm1(
+            attn_inss.begin(), std::find(attn_inss.begin(), attn_inss.end(), gemm1));
         outputs.erase(std::remove_if(outputs.begin(),
                                      outputs.end(),
-                                     [&](instruction_ref i) { return not reaches(gemm1, i, m); }),
+                                     [&](instruction_ref i) {
+                                         return contains(before_gemm1, i) or
+                                                not reaches(gemm1, i, m);
+                                     }),
                       outputs.end());
         return outputs;
     }

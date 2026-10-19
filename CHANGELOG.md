@@ -17,6 +17,7 @@ Full documentation for MIGraphX is available at
 * Changed the ONNX `NonMaxSuppression` parser to trim its zero-padded indices output down to the number of selected boxes with a `dyn_slice`, so a parsed model now returns the ONNX specification's `[num_selected_indices, 3]` output instead of a fixed padded size. This removes the `MIGRAPHX_USE_DYNAMIC_NMS` environment variable that previously gated the trim (#5150).
 * Changed `fixed_pad` to accept a configurable padding value (#4923).
 * Changed lowered `select_module` instructions to use one caller-provided output buffer per result (#4939).
+* Updated `eliminate_convert` to remove no-op and redundant nested `convert` instructions for dynamic and symbolic shapes (#5385).
 * Updated `nonmaxsuppression` kernel to use uint32_t bitmask instead of bool type to get around number of elements > uint32_t (#5302).
 
 ### Resolved issues

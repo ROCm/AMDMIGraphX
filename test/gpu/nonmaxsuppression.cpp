@@ -21,14 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/lowering.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/operation.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
+
+#include <algorithm>
 
 static std::pair<std::vector<int64_t>, int64_t>
 run_gpu_nms(migraphx::program p, const migraphx::parameter_map& host_params = {})
@@ -1420,6 +1428,101 @@ TEST_CASE(nms_one_box_below_threshold_test)
     std::vector<int64_t> gold = {};
     EXPECT(indices == gold);
     EXPECT(num_selected == 0);
+}
+
+TEST_CASE(nms_mask_word_boundary_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 65, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 65}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{65});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes_p,
+                            scores_p,
+                            max_out_l,
+                            iou_threshold,
+                            score_threshold);
+    add_nms_return(mm, nms);
+
+    std::vector<float> boxes_vec(65 * 4, 1.0f);
+    std::vector<float> scores_vec(65, 0.9f);
+    migraphx::parameter_map host_params;
+    host_params["boxes"]  = migraphx::argument(boxes_s, boxes_vec.data());
+    host_params["scores"] = migraphx::argument(scores_s, scores_vec.data());
+
+    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
+    indices.resize(static_cast<std::size_t>(num_selected) * 3);
+    EXPECT(indices == std::vector<int64_t>{0, 0, 0});
+    EXPECT(num_selected == 1);
+}
+
+TEST_CASE(nms_large_iou_mask_uses_gpu_bitmask)
+{
+    migraphx::program p;
+    auto* mm       = p.get_main_module();
+    auto boxes     = mm->add_parameter("boxes", {migraphx::shape::float_type, {1, 15130, 4}});
+    auto scores    = mm->add_parameter("scores", {migraphx::shape::float_type, {1, 80, 15130}});
+    auto max_out   = mm->add_literal(int64_t{200});
+    auto iou       = mm->add_literal(0.5f);
+    auto threshold = mm->add_literal(0.05f);
+    auto nms       = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression"), boxes, scores, max_out, iou, threshold);
+    auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto count   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    mm->add_return({indices, count});
+
+    auto ctx = migraphx::gpu::context{};
+    migraphx::run_passes(*mm,
+                         {migraphx::gpu::lowering{&ctx, false}, migraphx::dead_code_elimination{}});
+
+    auto filter = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
+        if(ins.name() != "gpu::precompile_op")
+            return false;
+        auto op = migraphx::from_value<migraphx::operation>(ins.get_operator().to_value().at("op"));
+        return op.name() == "gpu::nms_filter";
+    });
+    EXPECT(filter != mm->end());
+    if(filter != mm->end())
+    {
+        EXPECT(filter->inputs().at(4)->get_shape() ==
+               migraphx::shape{migraphx::shape::uint32_type, {80, 7156490}});
+    }
+    EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "hip::copy_from_gpu";
+    }));
+}
+
+TEST_CASE(nms_unaddressable_bitmask_falls_back_to_host)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto boxes   = mm->add_parameter("boxes", {migraphx::shape::float_type, {1, 8192, 4}});
+    auto scores  = mm->add_parameter("scores", {migraphx::shape::float_type, {1, 8192, 8192}});
+    auto nms     = mm->add_instruction(migraphx::make_op("nonmaxsuppression"), boxes, scores);
+    auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto count   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    mm->add_return({indices, count});
+
+    auto ctx = migraphx::gpu::context{};
+    migraphx::run_passes(*mm,
+                         {migraphx::gpu::lowering{&ctx, false}, migraphx::dead_code_elimination{}});
+
+    EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
+        if(ins.name() != "gpu::precompile_op")
+            return false;
+        auto op = migraphx::from_value<migraphx::operation>(ins.get_operator().to_value().at("op"));
+        return op.name() == "gpu::nms_filter";
+    }));
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "hip::copy_from_gpu";
+    }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

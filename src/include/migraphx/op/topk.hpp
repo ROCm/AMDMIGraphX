@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_GATHER_HPP
-#define MIGRAPHX_GUARD_OPERATORS_GATHER_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_TOPK_HPP
+#define MIGRAPHX_GUARD_OPERATORS_TOPK_HPP
 
 #include <algorithm>
 #include <migraphx/check_shapes.hpp>
@@ -43,17 +43,23 @@ namespace op {
  * TopK with constant `k` value. Significantly different from ONNX spec's TopK.
  * arg[0]: input data
  * arg[1]: optional indexing information used for rewrite_topk
+ * The indices are returned in the type of arg[1] when it is given, otherwise
+ * as `indices_type`. Both outputs keep the layout of the input data.
  */
 struct topk
 {
-    int64_t k    = 1;
-    int64_t axis = 0;
-    bool largest = true;
+    int64_t k                  = 1;
+    int64_t axis               = 0;
+    bool largest               = true;
+    shape::type_t indices_type = shape::int64_type;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.k, "k"), f(self.axis, "axis"), f(self.largest, "largest"));
+        return pack(f(self.k, "k"),
+                    f(self.axis, "axis"),
+                    f(self.largest, "largest"),
+                    f(self.indices_type, "indices_type"));
     }
 
     value attributes() const
@@ -65,22 +71,29 @@ struct topk
 
     std::string name() const { return "topk"; }
 
+    /// The indices take the type of the index input when there is one
+    shape::type_t indices_output_type(const std::vector<shape>& inputs) const
+    {
+        return inputs.size() > 1 ? inputs.back().type() : indices_type;
+    }
+
     /// Symbolic input: the sorted axis becomes min(k, dim), so every dimension stays symbolic.
-    shape symbolic_compute_shape(const shape& s0) const
+    shape symbolic_compute_shape(const shape& s0, shape::type_t ind_type) const
     {
         auto dds  = s0.dyn_dims();
         dds[axis] = shape::dynamic_dimension{sym::resolve_min(sym::lit(k), dds[axis].sym_expr)};
-        return shape({shape{s0.type(), dds}, shape{shape::int64_type, dds}});
+        return shape({s0.with_lens(s0.type(), dds), s0.with_lens(ind_type, dds)});
     }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2);
-        auto type = inputs.at(0).type();
+        auto type     = inputs.at(0).type();
+        auto ind_type = indices_output_type(inputs);
 
         if(inputs.at(0).symbolic())
         {
-            return symbolic_compute_shape(inputs.at(0));
+            return symbolic_compute_shape(inputs.at(0), ind_type);
         }
         if(inputs.at(0).dynamic())
         {
@@ -92,7 +105,7 @@ struct topk
             dyn_dims[axis]    = {min_kk, max_kk};
 
             shape s_val{type, dyn_dims};
-            shape s_ind{shape::int64_type, dyn_dims};
+            shape s_ind{ind_type, dyn_dims};
             return shape({s_val, s_ind});
         }
         else
@@ -101,8 +114,8 @@ struct topk
             auto kk    = std::min<std::size_t>(k, lens[axis]);
             lens[axis] = kk;
 
-            shape s_val{type, lens};
-            shape s_ind{shape::int64_type, lens};
+            shape s_val = inputs.at(0).with_lens(type, lens);
+            shape s_ind = inputs.at(0).with_lens(ind_type, lens);
             return shape({s_val, s_ind});
         }
     }

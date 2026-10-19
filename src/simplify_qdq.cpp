@@ -109,6 +109,26 @@ rebias_uint8_to_int8(module& m, instruction_ref pos, instruction_ref qdata, inst
 
 struct match_find_quantizable_ops
 {
+    static optional<shape> reshape_qparam(const shape& input, const std::vector<std::size_t>& lens)
+    {
+        // Singleton strides do not constrain the logical layout of a quantization parameter.
+        auto squeezed = make_op("squeeze").compute_shape({input});
+        std::vector<std::size_t> dims;
+        std::copy_if(
+            lens.begin(), lens.end(), std::back_inserter(dims), [](auto n) { return n != 1; });
+        auto layout = reshape_dims(squeezed, dims, {.lazy = true});
+        if(not layout.has_value())
+            return nullopt;
+        auto result = layout->symbolic() ? layout->to_static() : *layout;
+        std::vector<std::size_t> strides(lens.size());
+        std::transform(
+            lens.begin(),
+            lens.end(),
+            strides.begin(),
+            [stride = result.strides().begin()](auto n) mutable { return n == 1 ? 0 : *stride++; });
+        return shape{input.type(), lens, strides};
+    }
+
     static bool is_valid_qparam(instruction_ref qparam,
                                 instruction_ref dq,
                                 std::size_t index,
@@ -121,17 +141,22 @@ struct match_find_quantizable_ops
         if(std::count_if(lens.begin(), lens.end(), [](auto n) { return n != 1; }) != 1 or
            qparam->get_shape().elements() != operand->get_shape().lens().at(axis))
             return false;
-        auto expanded = dq->inputs().at(index)->get_shape();
-        auto between  = get_between_ins(dq, operand);
+        auto expanded          = qparam->get_shape();
+        auto between           = get_between_ins(dq, operand);
+        auto parameter_between = get_between_ins(qparam, dq->inputs().at(index));
+        between.insert(between.end(), parameter_between.begin(), parameter_between.end());
         for(auto ins : reverse_iterator_for(between))
         {
+            // Materialization changes storage strides, but not which parameter values repeat.
+            if((*ins)->name() == "contiguous")
+                continue;
             auto output = (*ins)->get_operator().compute_shape({expanded});
-            if((*ins)->name() == "reshape" or (*ins)->name() == "contiguous")
+            if((*ins)->name() == "reshape")
             {
-                auto layout = reshape_dims(expanded, output.lens(), {.lazy = true});
+                auto layout = reshape_qparam(expanded, output.lens());
                 if(not layout.has_value())
                     return false;
-                expanded = layout->symbolic() ? layout->to_static() : *layout;
+                expanded = *layout;
             }
             else
                 expanded = output;

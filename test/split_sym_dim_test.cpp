@@ -6238,10 +6238,10 @@ TEST_CASE(split_sym_dim_refuses_integer_subtraction_padding_propagation)
     auto check_type = [](auto type, auto scalar_value, const std::string& reduction) {
         auto n = var("n", {1, 2});
         migraphx::program p;
-        auto& m = *p.get_main_module();
-        auto x  = m.add_parameter("x", migraphx::shape{type, {dd{n}}});
-        auto scalar =
-            m.add_literal(migraphx::literal{migraphx::shape{type, {1}}, std::vector{scalar_value}});
+        auto& m      = *p.get_main_module();
+        auto x       = m.add_parameter("x", migraphx::shape{type, {dd{n}}});
+        auto scalar  = m.add_literal(migraphx::literal{
+            migraphx::shape{type, {1}}, std::vector<decltype(scalar_value)>{scalar_value}});
         auto scalars = m.add_instruction(
             migraphx::make_op("multibroadcast",
                               {{"out_dyn_dims", migraphx::to_value(std::vector<dd>{dd{n}})}}),
@@ -6255,9 +6255,9 @@ TEST_CASE(split_sym_dim_refuses_integer_subtraction_padding_propagation)
         migraphx::program expected;
         std::vector<clone_spec> clones = {{1, 1}, {2, 2}};
         auto difference_modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
-            auto clone_n      = var("n", {clone.min, clone.max});
-            auto clone_scalar = sm.add_literal(
-                migraphx::literal{migraphx::shape{type, {1}}, std::vector{scalar_value}});
+            auto clone_n       = var("n", {clone.min, clone.max});
+            auto clone_scalar  = sm.add_literal(migraphx::literal{
+                migraphx::shape{type, {1}}, std::vector<decltype(scalar_value)>{scalar_value}});
             auto clone_x       = sm.add_parameter("x", migraphx::shape{type, {dd{clone_n}}});
             auto clone_scalars = sm.add_instruction(
                 migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_scalar);

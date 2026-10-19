@@ -72,5 +72,10 @@ struct test_softmax_quantizelinear_tune : verify_program<test_softmax_quantizeli
 
     std::string section() const { return "reduce"; }
 
+    migraphx::compile_options get_compile_options() const
+    {
+        return migraphx::compile_options{.exhaustive_tune = true};
+    }
+
     std::size_t get_tolerance() const { return 1; }
 };

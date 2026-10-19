@@ -427,6 +427,7 @@ TEST_CASE(reduce_topk_multi_axes)
     EXPECT(p1 == p2);
 }
 
+// The topk keeps the layout of the reduce output, so a transposed input fuses
 TEST_CASE(reduce_topk_transposed_input)
 {
     migraphx::shape s{migraphx::shape::float_type, {8, 2}};
@@ -438,8 +439,27 @@ TEST_CASE(reduce_topk_transposed_input)
         auto norm = add_reduce(p1, "main:reduce0", {xt}, {1}, normalize(p1, "main:pointwise0"));
         mm->add_return(add_topk(mm, norm, 2));
     }
-    migraphx::program p2 = p1;
     run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto xt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto topk = add_reduce(p2,
+                               "main:reduce0:topk",
+                               {xt},
+                               {1},
+                               [&](auto* rm, const auto& inputs, const auto& axes) {
+                                   auto norm = normalize(p2, "main:pointwise0")(rm, inputs, axes);
+                                   return add_topk(rm, norm, 2);
+                               });
+        auto values =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
+        auto indices =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), topk);
+        mm->add_return({values, indices});
+    }
     EXPECT(p1 == p2);
 }
 
@@ -516,6 +536,7 @@ TEST_CASE(topk_reduce_max_size)
     EXPECT(p1 == p2);
 }
 
+// The topk outputs keep the transposed layout of the input, so the reduce fuses
 TEST_CASE(topk_reduce_transposed_input)
 {
     migraphx::shape s{migraphx::shape::float_type, {8, 2}};
@@ -529,8 +550,29 @@ TEST_CASE(topk_reduce_transposed_input)
             add_reduce(p1, "main:reduce0", {outs[0]}, {1}, normalize(p1, "main:pointwise0"));
         mm->add_return({norm, outs[1]});
     }
-    migraphx::program p2 = p1;
     run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto xt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto fused = add_reduce(p2,
+                                "main:topk:main:reduce0",
+                                {xt},
+                                {1},
+                                [&](auto* rm, const auto& inputs, const auto& axes) {
+                                    auto outs = add_topk(rm, inputs[0], 2);
+                                    auto norm = normalize(p2, "main:pointwise0")(
+                                        rm, std::vector<migraphx::instruction_ref>{outs[0]}, axes);
+                                    return std::vector<migraphx::instruction_ref>{norm, outs[1]};
+                                });
+        auto indices =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto values =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        mm->add_return({values, indices});
+    }
     EXPECT(p1 == p2);
 }
 

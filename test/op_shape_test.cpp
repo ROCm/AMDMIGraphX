@@ -7259,6 +7259,83 @@ TEST_CASE(topk_sym_shape)
            migraphx::shape{migraphx::shape::float_type, {4, 3}, {3, 1}});
 }
 
+TEST_CASE(topk_indices_type_shape)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 8}};
+    migraphx::shape val{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape ind{migraphx::shape::int32_type, {4, 3}};
+    expect_shape(
+        migraphx::shape({val, ind}),
+        migraphx::make_op("topk",
+                          {{"k", 3}, {"axis", 1}, {"indices_type", migraphx::shape::int32_type}}),
+        input);
+}
+
+TEST_CASE(topk_transposed_shape)
+{
+    // Both outputs keep the layout of the input
+    migraphx::shape input{migraphx::shape::float_type, {4, 8}, {1, 4}};
+    migraphx::shape val{migraphx::shape::float_type, {4, 3}, {1, 4}};
+    migraphx::shape ind{migraphx::shape::int64_type, {4, 3}, {1, 4}};
+    expect_shape(
+        migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}), input);
+    migraphx::shape index{migraphx::shape::uint16_type, {4, 8}};
+    migraphx::shape ind2{migraphx::shape::uint16_type, {4, 3}, {1, 4}};
+    expect_shape(migraphx::shape({val, ind2}),
+                 migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}),
+                 input,
+                 index);
+}
+
+TEST_CASE(topk_transposed_sym_shape)
+{
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 8});
+    auto input =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {dd{n}, dd{m}}, {1, 0});
+    auto sorted = migraphx::sym::min(lit(3), m);
+    auto val =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {dd{n}, dd{sorted}}, {1, 0});
+    auto ind =
+        migraphx::shape::from_permutation(migraphx::shape::int64_type, {dd{n}, dd{sorted}}, {1, 0});
+    expect_shape(
+        migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}), input);
+}
+
+TEST_CASE(topk_index_input_shape)
+{
+    // The index input decides the type of the indices
+    migraphx::shape input{migraphx::shape::float_type, {4, 8}};
+    migraphx::shape index{migraphx::shape::uint16_type, {4, 8}};
+    migraphx::shape val{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape ind{migraphx::shape::uint16_type, {4, 3}};
+    expect_shape(migraphx::shape({val, ind}),
+                 migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}),
+                 input,
+                 index);
+    expect_shape(
+        migraphx::shape({val, ind}),
+        migraphx::make_op("topk",
+                          {{"k", 3}, {"axis", 1}, {"indices_type", migraphx::shape::int32_type}}),
+        input,
+        index);
+}
+
+TEST_CASE(topk_indices_type_sym_shape)
+{
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    auto sorted = migraphx::sym::min(lit(3), m);
+    migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{sorted}}};
+    migraphx::shape ind{migraphx::shape::uint16_type, {dd{n}, dd{sorted}}};
+    expect_shape(
+        migraphx::shape({val, ind}),
+        migraphx::make_op("topk",
+                          {{"k", 3}, {"axis", 1}, {"indices_type", migraphx::shape::uint16_type}}),
+        input);
+}
+
 TEST_CASE(topk_sym_shape_folded_k)
 {
     auto n = var("n", {1, 4});

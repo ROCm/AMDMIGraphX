@@ -6335,11 +6335,10 @@ def group_query_attention_batched_seqlens_test():
         'past_key_values_value', TensorProto.FLOAT16, [2, 2, 4, 2])
     seqlens_k = helper.make_tensor_value_info('seqlens_k', TensorProto.INT32,
                                               [2])
-    total_sequence_length = helper.make_tensor(
-        name='total_sequence_length',
-        data_type=TensorProto.INT32,
-        dims=[1],
-        vals=[4])
+    total_sequence_length = helper.make_tensor(name='total_sequence_length',
+                                               data_type=TensorProto.INT32,
+                                               dims=[1],
+                                               vals=[4])
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
                                            [2, 1, 8])
     present_key = helper.make_tensor_value_info('present_key',
@@ -6349,16 +6348,16 @@ def group_query_attention_batched_seqlens_test():
                                                   TensorProto.FLOAT16,
                                                   [2, 2, 4, 2])
 
-    node = helper.make_node(
-        'GroupQueryAttention',
-        inputs=[
-            'qkv', 'key', 'value', 'past_key_values_key',
-            'past_key_values_value', 'seqlens_k', 'total_sequence_length'
-        ],
-        outputs=['output', 'present_key', 'present_value'],
-        kv_num_heads=2,
-        num_heads=4,
-        domain='com.microsoft')
+    node = helper.make_node('GroupQueryAttention',
+                            inputs=[
+                                'qkv', 'key', 'value', 'past_key_values_key',
+                                'past_key_values_value', 'seqlens_k',
+                                'total_sequence_length'
+                            ],
+                            outputs=['output', 'present_key', 'present_value'],
+                            kv_num_heads=2,
+                            num_heads=4,
+                            domain='com.microsoft')
 
     return ([node], [
         qkv, key, value, past_key_values_key, past_key_values_value, seqlens_k
@@ -6389,20 +6388,20 @@ def group_query_attention_right_padded_prompt_test():
                                                   TensorProto.FLOAT16,
                                                   [1, 1, 8, 8])
 
-    node = helper.make_node(
-        'GroupQueryAttention',
-        inputs=[
-            'qkv', '', '', 'past_key_values_key', 'past_key_values_value',
-            'seqlens_k', 'total_sequence_length'
-        ],
-        outputs=['output', 'present_key', 'present_value'],
-        kv_num_heads=1,
-        num_heads=1,
-        domain='com.microsoft')
+    node = helper.make_node('GroupQueryAttention',
+                            inputs=[
+                                'qkv', '', '', 'past_key_values_key',
+                                'past_key_values_value', 'seqlens_k',
+                                'total_sequence_length'
+                            ],
+                            outputs=['output', 'present_key', 'present_value'],
+                            kv_num_heads=1,
+                            num_heads=1,
+                            domain='com.microsoft')
 
     return ([node], [qkv, past_key_values_key, past_key_values_value],
-            [output, present_key, present_value],
-            [seqlens_k, total_sequence_length])
+            [output, present_key,
+             present_value], [seqlens_k, total_sequence_length])
 
 
 @onnx_test()
@@ -16290,20 +16289,22 @@ def rotary_embedding_test():
 @onnx_test()
 def rotary_embedding_symbolic_if_test():
     cond = helper.make_tensor_value_info('cond', TensorProto.BOOL, [])
-    input = helper.make_tensor_value_info(
-        'input', TensorProto.FLOAT16, [1, 'sequence_length', 18])
-    pos_ids = helper.make_tensor_value_info(
-        'pos_ids', TensorProto.INT32, [1, 'sequence_length'])
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 'sequence_length', 18])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 'sequence_length'])
     cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
                                               [4, 3])
     sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
                                               [4, 3])
-    then_output = helper.make_tensor_value_info(
-        'then_output', TensorProto.FLOAT16, [1, 'sequence_length', 18])
-    else_output = helper.make_tensor_value_info(
-        'else_output', TensorProto.FLOAT16, [1, 'sequence_length', 18])
-    output = helper.make_tensor_value_info(
-        'output', TensorProto.FLOAT16, [1, 'sequence_length', 18])
+    then_output = helper.make_tensor_value_info('then_output',
+                                                TensorProto.FLOAT16,
+                                                [1, 'sequence_length', 18])
+    else_output = helper.make_tensor_value_info('else_output',
+                                                TensorProto.FLOAT16,
+                                                [1, 'sequence_length', 18])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 'sequence_length', 18])
 
     then_rotary = helper.make_node(
         'RotaryEmbedding',
@@ -18280,60 +18281,62 @@ def slice_static_data_symbolic_end_test():
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
                                            ['sequence_length', 128])
 
-    starts = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['starts'],
-        value=helper.make_tensor('starts', TensorProto.INT64, [1], [0]))
+    starts = helper.make_node('Constant',
+                              inputs=[],
+                              outputs=['starts'],
+                              value=helper.make_tensor('starts',
+                                                       TensorProto.INT64, [1],
+                                                       [0]))
     ends = helper.make_node('Shape',
                             inputs=['length_source'],
                             outputs=['ends'])
-    axes = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['axes'],
-        value=helper.make_tensor('axes', TensorProto.INT64, [1], [0]))
-    steps = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['steps'],
-        value=helper.make_tensor('steps', TensorProto.INT64, [1], [1]))
+    axes = helper.make_node('Constant',
+                            inputs=[],
+                            outputs=['axes'],
+                            value=helper.make_tensor('axes', TensorProto.INT64,
+                                                     [1], [0]))
+    steps = helper.make_node('Constant',
+                             inputs=[],
+                             outputs=['steps'],
+                             value=helper.make_tensor('steps',
+                                                      TensorProto.INT64, [1],
+                                                      [1]))
     node = helper.make_node('Slice',
                             inputs=['data', 'starts', 'ends', 'axes', 'steps'],
                             outputs=['output'])
 
-    return ([starts, ends, axes, steps, node], [data, length_source],
-            [output])
+    return ([starts, ends, axes, steps, node], [data, length_source], [output])
 
 
 @onnx_test()
 def slice_symbolic_data_static_bounds_test():
     data = helper.make_tensor_value_info(
-        'data', TensorProto.FLOAT,
-        ['batch_size', 'sequence_length', 128])
+        'data', TensorProto.FLOAT, ['batch_size', 'sequence_length', 128])
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
                                            ['batch_size', 3, 128])
 
-    starts = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['starts'],
-        value=helper.make_tensor('starts', TensorProto.INT64, [1], [1]))
-    ends = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['ends'],
-        value=helper.make_tensor('ends', TensorProto.INT64, [1], [4]))
-    axes = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['axes'],
-        value=helper.make_tensor('axes', TensorProto.INT64, [1], [1]))
-    steps = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['steps'],
-        value=helper.make_tensor('steps', TensorProto.INT64, [1], [1]))
+    starts = helper.make_node('Constant',
+                              inputs=[],
+                              outputs=['starts'],
+                              value=helper.make_tensor('starts',
+                                                       TensorProto.INT64, [1],
+                                                       [1]))
+    ends = helper.make_node('Constant',
+                            inputs=[],
+                            outputs=['ends'],
+                            value=helper.make_tensor('ends', TensorProto.INT64,
+                                                     [1], [4]))
+    axes = helper.make_node('Constant',
+                            inputs=[],
+                            outputs=['axes'],
+                            value=helper.make_tensor('axes', TensorProto.INT64,
+                                                     [1], [1]))
+    steps = helper.make_node('Constant',
+                             inputs=[],
+                             outputs=['steps'],
+                             value=helper.make_tensor('steps',
+                                                      TensorProto.INT64, [1],
+                                                      [1]))
     node = helper.make_node('Slice',
                             inputs=['data', 'starts', 'ends', 'axes', 'steps'],
                             outputs=['output'])
@@ -20722,10 +20725,10 @@ def variable_batch_test():
 
 @onnx_test()
 def fixed_named_dimension_test():
-    x = helper.make_tensor_value_info(
-        'x', TensorProto.FLOAT, ['batch_size', 'sequence_length'])
-    y = helper.make_tensor_value_info(
-        'y', TensorProto.FLOAT, ['batch_size', 'sequence_length'])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      ['batch_size', 'sequence_length'])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      ['batch_size', 'sequence_length'])
 
     node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
 
@@ -20735,18 +20738,15 @@ def fixed_named_dimension_test():
 @onnx_test()
 def repeated_fixed_named_dimension_test():
     input = helper.make_tensor_value_info(
-        'input', TensorProto.FLOAT16,
-        ['batch_size', 'sequence_length', 18])
+        'input', TensorProto.FLOAT16, ['batch_size', 'sequence_length', 18])
     position_ids = helper.make_tensor_value_info(
-        'position_ids', TensorProto.INT32,
-        ['batch_size', 'sequence_length'])
+        'position_ids', TensorProto.INT32, ['batch_size', 'sequence_length'])
     cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
                                               [4, 3])
     sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
                                               [4, 3])
     output = helper.make_tensor_value_info(
-        'output', TensorProto.FLOAT16,
-        ['batch_size', 'sequence_length', 18])
+        'output', TensorProto.FLOAT16, ['batch_size', 'sequence_length', 18])
 
     node = helper.make_node(
         'RotaryEmbedding',

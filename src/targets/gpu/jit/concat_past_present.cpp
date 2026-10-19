@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
 #include <fstream>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/compiler.hpp>
@@ -85,11 +86,12 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto compile_inputs = inputs;
-        for(auto& input : compile_inputs)
-        {
-            if(input.dynamic())
-                input = shape{input.type(), input.max_lens()};
-        }
+        std::transform(compile_inputs.begin(),
+                       compile_inputs.end(),
+                       compile_inputs.begin(),
+                       [](const auto& input) {
+                           return input.dynamic() ? shape{input.type(), input.max_lens()} : input;
+                       });
         auto params                    = init_params(compile_inputs, v);
         params.seqlen_present_kv_cache = compile_inputs.back().lens().at(2);
         auto gqa_params_str            = params.make_init_str();

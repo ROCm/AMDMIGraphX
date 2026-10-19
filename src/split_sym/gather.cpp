@@ -92,9 +92,8 @@ add_runtime_extent(module& m, const sym::expr& expression, const freezer_context
                     {{"expressions", to_value(std::vector<sym::expr>{runtime_expression})}}),
             expression_sources);
 
-    const auto value = runtime_expression.eval_uint({});
-    return m.add_literal(
-        literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{static_cast<int64_t>(value)}});
+    const int64_t value = runtime_expression.eval_uint({});
+    return m.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{value}});
 }
 
 struct analyze_gather : analyzer<analyze_gather>

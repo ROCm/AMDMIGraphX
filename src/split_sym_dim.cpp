@@ -2028,9 +2028,11 @@ void add_frame_freezer_extent_inputs(
         for(const auto& expression : found->second->info.runtime_extent_expressions)
         {
             auto variables = sym::find_variables(expression);
-            for(const auto& variable : variables)
-                if(not contains(required_roots, variable))
-                    required_roots.push_back(variable);
+            std::copy_if(
+                variables.begin(),
+                variables.end(),
+                std::back_inserter(required_roots),
+                [&](const auto& variable) { return not contains(required_roots, variable); });
         }
     }
     std::sort(required_roots.begin(), required_roots.end(), [](const auto& x, const auto& y) {
@@ -2287,13 +2289,17 @@ struct clone_context
             if(not applied_variant)
                 MIGRAPHX_THROW("SPLIT_SYM_DIM: concrete padding variant input is not data");
             for(auto&& [arg, clone_input] : views::zip(args, clone_inputs))
-                for(const auto& mask : clone_input.masks)
-                    arg = add_runtime_mask(clone_module,
-                                           arg,
-                                           mask,
-                                           runtime_extent_sources,
-                                           fixed_substitutions,
-                                           cache);
+                arg = std::accumulate(clone_input.masks.begin(),
+                                      clone_input.masks.end(),
+                                      arg,
+                                      [&](instruction_ref input, const auto& mask) {
+                                          return add_runtime_mask(clone_module,
+                                                                  input,
+                                                                  mask,
+                                                                  runtime_extent_sources,
+                                                                  fixed_substitutions,
+                                                                  cache);
+                                      });
         }
 
         op_freezer freezer;

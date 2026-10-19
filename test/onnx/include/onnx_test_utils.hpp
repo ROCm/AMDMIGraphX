@@ -336,9 +336,9 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
     auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, kt);
 
-    auto scalar_s  = migraphx::shape{query_s.type(), {1}};
-    auto ninf      = mm->add_literal(
-        migraphx::literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
+    auto scalar_s = migraphx::shape{query_s.type(), {1}};
+    auto ninf =
+        mm->add_literal(migraphx::literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
     auto scale_ins = mm->add_literal(migraphx::literal{scalar_s, {scale}});
     std::vector<int> range_vec(max_seq_len);
     std::iota(range_vec.begin(), range_vec.end(), 0);

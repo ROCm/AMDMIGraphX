@@ -34,17 +34,14 @@ TEST_CASE(fixed_named_dimension_test)
 
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_parameter(
-        "x",
-        shape{shape::float_type,
-              sym_dims({lit(1), sequence_length})});
+    auto x = mm->add_parameter("x", shape{shape::float_type, sym_dims({lit(1), sequence_length})});
     auto output = mm->add_instruction(migraphx::make_op("identity"), x);
     mm->add_return({output});
 
     migraphx::onnx_options options;
     options.use_symbolic_shapes     = true;
-    options.map_dyn_input_dims["x"] = {
-        shape::dynamic_dimension{1, 1}, shape::dynamic_dimension{sequence_length}};
+    options.map_dyn_input_dims["x"] = {shape::dynamic_dimension{1, 1},
+                                       shape::dynamic_dimension{sequence_length}};
 
     EXPECT(p == read_onnx("fixed_named_dimension_test.onnx", options));
 }
@@ -67,8 +64,9 @@ TEST_CASE(repeated_fixed_named_dimension_test)
                                                   shape::dynamic_dimension{sequence_length}};
 
     auto p                    = read_onnx("repeated_fixed_named_dimension_test.onnx", options);
-    const auto& input_dims    = p.get_parameter_shapes().at("input").dyn_dims();
-    const auto& position_dims = p.get_parameter_shapes().at("position_ids").dyn_dims();
+    auto parameter_shapes     = p.get_parameter_shapes();
+    const auto& input_dims    = parameter_shapes.at("input").dyn_dims();
+    const auto& position_dims = parameter_shapes.at("position_ids").dyn_dims();
 
     EXPECT(input_dims.at(0).sym_expr == lit(1));
     EXPECT(position_dims.at(0).sym_expr == lit(1));

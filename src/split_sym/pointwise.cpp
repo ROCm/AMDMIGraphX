@@ -107,12 +107,8 @@ struct analyze_pointwise : analyzer<analyze_pointwise>
                 const bool materializable =
                     requirement.materializable and
                     (not shape::is_integral(ins->get_shape().type()) or *scalar == 0.0);
-                return propagate_padding_to_input(ins,
-                                                  0,
-                                                  requirement,
-                                                  requirement.fills,
-                                                  requirement.semantics,
-                                                  materializable);
+                return propagate_padding_to_input(
+                    ins, 0, requirement, requirement.fills, requirement.semantics, materializable);
             }
         }
         if(inputs.size() != 1)

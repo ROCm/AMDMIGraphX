@@ -458,8 +458,8 @@ TEST_CASE(split_sym_dim_stepped_unsqueeze_is_noop)
     migraphx::program p;
     auto& m    = *p.get_main_module();
     auto input = m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
-    auto output = m.add_instruction(
-        migraphx::make_op("unsqueeze", {{"axes", {0}}, {"steps", {2}}}), input);
+    auto output =
+        m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}, {"steps", {2}}}), input);
     m.add_return({output});
 
     run_pass(p);
@@ -2650,22 +2650,17 @@ TEST_CASE(split_sym_dim_global_max_pooling_preserves_runtime_spatial_extent)
     auto& expected_main = *expected.get_main_module();
     auto expected_input = expected_main.add_parameter(
         "data",
-        migraphx::shape{
-            migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{n}, dd{lit(1)}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 8}, {1, 8});
-    auto neg_select =
-        expected_main.add_instruction(
-            migraphx::make_op(
-                "select_module",
-                {{"output_dyn_shapes",
-                  migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                      migraphx::shape{migraphx::shape::float_type,
-                                      {dd{lit(1)},
-                                       dd{lit(1)},
-                                       dd{target_n},
-                                       dd{lit(1)}}}}})}}),
-            std::vector<migraphx::instruction_ref>{expected_input},
-            neg_modules);
+        migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{n}, dd{lit(1)}}});
+    auto target_n   = var("split_sym_dim_n_target", {1, 8}, {1, 8});
+    auto neg_select = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type,
+                                  {dd{lit(1)}, dd{lit(1)}, dd{target_n}, dd{lit(1)}}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_input},
+        neg_modules);
     auto neg_output = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), neg_select);
     auto output_start = expected_main.add_instruction(
@@ -2687,36 +2682,30 @@ TEST_CASE(split_sym_dim_global_max_pooling_preserves_runtime_spatial_extent)
 
     auto pooling_modules = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
         auto clone_n = var("n", {clone.min, clone.max});
-        sm.add_parameter(
-            "data",
-            migraphx::shape{
-                migraphx::shape::float_type,
-                {dd{lit(1)}, dd{lit(1)}, dd{clone_n}, dd{lit(1)}}});
+        sm.add_parameter("data",
+                         migraphx::shape{migraphx::shape::float_type,
+                                         {dd{lit(1)}, dd{lit(1)}, dd{clone_n}, dd{lit(1)}}});
         auto clone_extent = migraphx::sym::min(clone_n, lit(clone.max));
-        auto boundary     = sm.add_parameter(
-            "#split_sym_dim_input_1_0",
-            migraphx::shape{
-                migraphx::shape::float_type,
-                {dd{lit(1)}, dd{lit(1)}, dd{clone_extent}, dd{lit(1)}},
-                {target_n, target_n, lit(1), lit(1)}});
+        auto boundary =
+            sm.add_parameter("#split_sym_dim_input_1_0",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             {dd{lit(1)}, dd{lit(1)}, dd{clone_extent}, dd{lit(1)}},
+                                             {target_n, target_n, lit(1), lit(1)}});
         boundary = sm.add_instruction(
-            migraphx::make_op("fixed_pad",
-                              {{"value", std::numeric_limits<float>::lowest()}}),
+            migraphx::make_op("fixed_pad", {{"value", std::numeric_limits<float>::lowest()}}),
             boundary);
         auto clone_output = sm.add_instruction(
             migraphx::make_op("pooling",
-                              {{"mode", migraphx::op::pooling_mode::max},
-                               {"dyn_global", true}}),
+                              {{"mode", migraphx::op::pooling_mode::max}, {"dyn_global", true}}),
             boundary);
         sm.add_return({clone_output});
     });
 
     auto pool_select = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}}}})}}),
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}}}})}}),
         std::vector<migraphx::instruction_ref>{neg_output, expected_input},
         pooling_modules);
     auto expected_output = expected_main.add_instruction(

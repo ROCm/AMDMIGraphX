@@ -34,6 +34,8 @@
 #include <migraphx/program.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/schedule.hpp>
+#include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -268,6 +270,66 @@ TEST_CASE(existing_allocation)
     EXPECT(m1 == m2);
 }
 
+// A kernel stand-in with the given code object, writing its output in place of its last input
+static migraphx::operation make_code_object(const std::string& image, const migraphx::shape& s)
+{
+    return migraphx::make_op(
+        "gpu::code_object",
+        {{"code_object", migraphx::value::binary{image}},
+         {"symbol_name", "kernel"},
+         {"global", 1},
+         {"local", 1},
+         {"expected_inputs", migraphx::to_value(std::vector<migraphx::shape>{s})},
+         {"output", migraphx::to_value(s)}});
+}
+
+TEST_CASE(literal_is_not_scratch)
+{
+    migraphx::shape s{migraphx::shape::float_type, {10000}}; // 40000 bytes
+
+    migraphx::module m1;
+    {
+        m1.add_return({add_literal(m1, s, 7)});
+    }
+    // Only allocations occupy scratch, so a literal exactly filling the limit stays on the GPU.
+    run_pass(m1, {.max_memory = 40000});
+
+    migraphx::module m2;
+    {
+        m2.add_return({add_gpu_literal(m2, s, 7)});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(staged_copies_sort_next_to_consumer)
+{
+    migraphx::shape s{migraphx::shape::float_type, {10000}};
+
+    migraphx::module m;
+    auto x  = m.add_parameter("x", s);
+    auto l1 = add_literal(m, s, 1);
+    auto l2 = add_literal(m, s, 2);
+    auto a  = m.add_instruction(make_code_object("kernel-a", s), l1);
+    auto b  = m.add_instruction(make_code_object("kernel-b", s), l2);
+    m.add_return({x, a, b});
+    // Stage every literal, then schedule with one stream, which sorts the module by weight
+    migraphx::run_passes(m,
+                         {migraphx::gpu::write_literals{.max_memory = 1},
+                          migraphx::schedule{migraphx::gpu::schedule_model{1}, true},
+                          migraphx::dead_code_elimination{}});
+
+    // Each staged copy is placed just before its consumer, not hoisted with the other copies
+    for(auto ins : migraphx::iterator_for(m))
+    {
+        if(ins->name() != "hip::copy")
+            continue;
+        EXPECT(ins->outputs().size() == 1);
+        EXPECT(std::next(ins) == ins->outputs().front());
+    }
+    EXPECT(std::count_if(
+               m.begin(), m.end(), [](const auto& ins) { return ins.name() == "hip::copy"; }) == 2);
+}
+
 TEST_CASE(memory_limit_stages_smallest_first)
 {
     migraphx::shape medium{migraphx::shape::float_type, {1000}}; // 4000 bytes
@@ -281,10 +343,10 @@ TEST_CASE(memory_limit_stages_smallest_first)
                        add_literal(m1, medium, 4),
                        add_literal(m1, big, 5)});
     }
-    // The literals total 56000 bytes and the padded scratch estimate adds 60000, so this limit
-    // leaves 3000 bytes to free. Staging nets every staged literal but the largest, so two medium
-    // ones free 4000 bytes at a 4000-byte peak while staging the big one alone would free nothing.
-    run_pass(m1, {.max_memory = 113000});
+    // The literals total 56000 bytes with no scratch, so this limit leaves 3000 bytes to free.
+    // Staging nets every staged literal but the largest, so two medium ones free 4000 bytes at a
+    // 4000-byte peak while staging the big one alone would free nothing.
+    run_pass(m1, {.max_memory = 53000});
 
     migraphx::module m2;
     {
@@ -307,10 +369,10 @@ TEST_CASE(memory_limit_drops_unneeded_small_literal)
         m1.add_return(
             {add_literal(m1, small, 1), add_literal(m1, big, 2), add_literal(m1, big, 3)});
     }
-    // The literals total 80008 bytes and the padded scratch estimate adds 60000, so this limit
-    // leaves 20008 bytes to free. Staging smallest-first reaches that only once both big literals
-    // are staged, and the two of them cover it alone, so the small one is left on the GPU.
-    run_pass(m1, {.max_memory = 120000});
+    // The literals total 80008 bytes with no scratch, so this limit leaves 20008 bytes to free.
+    // Staging smallest-first reaches that only once both big literals are staged, and the two of
+    // them cover it alone, so the small one is left on the GPU.
+    run_pass(m1, {.max_memory = 60000});
 
     migraphx::module m2;
     {
@@ -339,10 +401,10 @@ TEST_CASE(staging_peak_stages_largest_first)
 {
     migraphx::module m1;
     add_staging_literals(m1, &add_literal);
-    // The literals total 128000 bytes and the padded scratch estimate adds 60000, so this limit
-    // leaves 44000 bytes to free. With a peak budget equal to the shortfall the big literals are
-    // taken first and one medium then covers the rest, so three copies do.
-    run_pass(m1, {.max_memory = 144000, .staging_peak_percent = 100});
+    // The literals total 128000 bytes with no scratch, so this limit leaves 44000 bytes to free.
+    // With a peak budget equal to the shortfall the big literals are taken first and one medium
+    // then covers the rest, so three copies do.
+    run_pass(m1, {.max_memory = 84000, .staging_peak_percent = 100});
 
     migraphx::module m2;
     add_staging_literals(m2, [](auto& m, const auto& s, auto seed) {
@@ -356,7 +418,7 @@ TEST_CASE(staging_peak_zero_stages_smallest_first)
     migraphx::module m1;
     add_staging_literals(m1, &add_literal);
     // The same 44000-byte shortfall without a peak budget takes all twelve medium copies instead.
-    run_pass(m1, {.max_memory = 144000, .staging_peak_percent = 0});
+    run_pass(m1, {.max_memory = 84000, .staging_peak_percent = 0});
 
     migraphx::module m2;
     add_staging_literals(m2, [](auto& m, const auto& s, auto seed) {
@@ -377,11 +439,10 @@ TEST_CASE(staging_peak_exceeded_when_needed)
                        add_literal(m1, big, 3),
                        add_literal(m1, big, 4)});
     }
-    // The literals total 80016 bytes and the padded scratch estimate adds 60000, so this limit
-    // leaves 20016 bytes to free. Only the small literals fit the 10008-byte peak budget and they
-    // cannot cover it, so the big ones are staged as well and the small ones are dropped as
-    // unneeded.
-    run_pass(m1, {.max_memory = 120000, .staging_peak_percent = 50});
+    // The literals total 80016 bytes with no scratch, so this limit leaves 20016 bytes to free.
+    // Only the small literals fit the 10008-byte peak budget and they cannot cover it, so the big
+    // ones are staged as well and the small ones are dropped as unneeded.
+    run_pass(m1, {.max_memory = 60000, .staging_peak_percent = 50});
 
     migraphx::module m2;
     {
@@ -450,10 +511,10 @@ TEST_CASE(indexed_literal_freed_before_staging)
         auto i   = m1.add_parameter("i", idx);
         m1.add_return({m1.add_instruction(indexed_op{}, lit, i), add_literal(m1, data, 2)});
     }
-    // The literals and parameter total 80004 bytes and the padded scratch estimate adds 60000, so
-    // this limit leaves 20004 bytes to free. The indexed literal is freed in full at no scratch
-    // cost, which covers it, so the dense literal stays on the GPU instead of being staged.
-    run_pass(m1, {.max_memory = 120000});
+    // The literals and parameter total 80004 bytes with no scratch, so this limit leaves 20004
+    // bytes to free. The indexed literal is freed in full at no scratch cost, which covers it, so
+    // the dense literal stays on the GPU instead of being staged.
+    run_pass(m1, {.max_memory = 60000});
 
     migraphx::module m2;
     {

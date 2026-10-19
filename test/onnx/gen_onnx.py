@@ -13947,6 +13947,31 @@ def matmulnbits_invalid_zp_dims_test():
     return matmulnbits_negative_test(zp_dims=[5])
 
 
+@onnx_test()
+def matmulnbits_ryzenai_bias_test():
+    """com.ryzenai MatMulNBits with optional bias (packed weight may follow)."""
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, 16])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [4, 1, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [4])
+    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8, [4])
+    bias = onnx.helper.make_tensor_value_info("bias", onnx.TensorProto.FLOAT,
+                                              [4])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 4])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales", "zp", "bias"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=16,
+                                 N=4,
+                                 domain='com.ryzenai')
+    return ([node], [a, b, scales, zp, bias], [c])
+
+
 def moe_test_base(act="relu",
                   fusion=None,
                   use_fc3=False,

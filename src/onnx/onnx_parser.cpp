@@ -35,6 +35,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/checked_ops.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/sym.hpp>
@@ -42,10 +43,12 @@
 #include <migraphx/logger.hpp>
 #include <onnx.pb.h>
 #include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include <iterator>
 #include <set>
 #include <sstream>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -91,8 +94,8 @@ static literal create_literal(shape::type_t shape_type,
                               std::size_t size)
 {
     // empty input
-    auto elem_num =
-        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    auto elem_num = std::accumulate(
+        dims.begin(), dims.end(), std::size_t{1}, [](auto a, auto b) { return checked_mul(a, b); });
     if(elem_num == 0)
     {
         return literal{shape_type};
@@ -108,8 +111,8 @@ template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
 static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
 {
     // empty input
-    auto elem_num =
-        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    auto elem_num = std::accumulate(
+        dims.begin(), dims.end(), std::size_t{1}, [](auto a, auto b) { return checked_mul(a, b); });
     if(elem_num == 0)
     {
         return literal{shape_type};
@@ -812,6 +815,58 @@ static shape parse_tensor_shape(const onnx::TensorProto& t)
     return shape{get_type(t.data_type()), dims};
 }
 
+static std::size_t parse_external_size(const std::string& value, const char* field)
+{
+    if(value.empty() or
+       not std::all_of(value.begin(), value.end(), [](unsigned char c) { return std::isdigit(c); }))
+        MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+    try
+    {
+        std::size_t pos    = 0;
+        std::size_t parsed = std::stoull(value, &pos);
+        if(pos != value.size())
+            MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+        return parsed;
+    }
+    catch(const std::exception&)
+    {
+        MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+    }
+}
+
+// Lexically resolve '.' and '..' without touching the filesystem. The
+// Filesystem TS (std::experimental::filesystem, used on some older toolchains)
+// lacks weakly_canonical and path::lexically_relative, so normalize by hand.
+static fs::path lexically_normalize(const fs::path& p)
+{
+    auto parts = std::accumulate(
+        p.begin(), p.end(), std::vector<fs::path>{}, [](auto acc, const fs::path& part) {
+            if(part == ".")
+                return acc;
+            if(part == ".." and not acc.empty() and acc.back() != "..")
+                acc.pop_back();
+            else
+                acc.push_back(part);
+            return acc;
+        });
+    return std::accumulate(parts.begin(),
+                           parts.end(),
+                           fs::path{},
+                           [](fs::path acc, const auto& part) { return acc /= part; });
+}
+
+static fs::path resolve_external_data_path(const fs::path& base_dir, const fs::path& relative)
+{
+    const fs::path base     = lexically_normalize(base_dir);
+    const fs::path resolved = lexically_normalize(base_dir / relative);
+    // resolved must stay within base: base's components must be a strict prefix
+    // of resolved's. A '..' that climbs out of base breaks the prefix match.
+    const auto m = std::mismatch(base.begin(), base.end(), resolved.begin(), resolved.end());
+    if(m.first != base.end() or m.second == resolved.end())
+        MIGRAPHX_THROW("ONNX external data path escapes model directory: " + relative.string());
+    return resolved;
+}
+
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
     auto tensor_shape         = parse_tensor_shape(t);
@@ -831,26 +886,20 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
         if(num_data_fields > 1) // if offset field is present
         {
-            offset = std::stoull(t.external_data().at(1).value());
+            offset = parse_external_size(t.external_data().at(1).value(), "offset");
         }
         if(num_data_fields > 2) // if nbytes field is present
         {
-            nbytes = std::stoull(t.external_data().at(2).value());
+            nbytes = parse_external_size(t.external_data().at(2).value(), "length");
         }
         if(nbytes != tensor_shape.bytes())
             MIGRAPHX_THROW("PARSE_TENSOR: external data length " + std::to_string(nbytes) + " of " +
                            t.name() + " does not match tensor bytes " +
                            std::to_string(tensor_shape.bytes()));
 
-        std::vector<char> raw_buffer;
-        if(not external_data_path.empty())
-        {
-            raw_buffer = read_buffer(fs::path{external_data_path} / data_file, offset, nbytes);
-        }
-        else
-        {
-            raw_buffer = read_buffer(path / data_file, offset, nbytes);
-        }
+        const fs::path base_dir  = external_data_path.empty() ? path : fs::path{external_data_path};
+        const fs::path data_path = resolve_external_data_path(base_dir, data_file);
+        std::vector<char> raw_buffer = read_buffer(data_path, offset, nbytes);
         return create_literal(type, dims, raw_buffer.data(), raw_buffer.size());
     }
 

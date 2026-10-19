@@ -596,10 +596,85 @@ TEST_CASE(unsqueeze_broadcast_single)
     run_pass(m1);
     migraphx::module m2;
     {
+        auto x = m2.add_parameter("x", s);
+        auto broadcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 8}}}), x);
+        m2.add_return({broadcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(squeeze_multibroadcast_single_element)
+{
+    auto s = migraphx::shape{migraphx::shape::half_type, {1, 1, 1, 1, 1}};
+    migraphx::module m1;
+    {
+        auto x         = m1.add_parameter("x", s);
+        auto squeeze   = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2, 3}}}), x);
+        auto broadcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 8, 1, 1}}}), squeeze);
+        m1.add_return({broadcast});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
         auto x         = m2.add_parameter("x", s);
         auto broadcast = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {1, 8}}}), x);
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 8, 1, 1}}}), x);
         m2.add_return({broadcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(squeeze_multibroadcast_single_element_lower_rank)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 1, 1}};
+    migraphx::module m1;
+    {
+        auto x         = m1.add_parameter("x", s);
+        auto squeeze   = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto broadcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 8}}}), squeeze);
+        m1.add_return({broadcast});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x         = m2.add_parameter("x", s);
+        auto reshape   = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1}}}), x);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 8}}}), reshape);
+        m2.add_return({broadcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(reduce_squeeze_unary_multibroadcast)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 1, 8, 1, 1}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto sq  = m1.add_instruction(migraphx::make_op("mul"), x, x);
+        auto sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), sq);
+        auto squeeze   = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2, 3}}}), sum);
+        auto rsqrt     = m1.add_instruction(migraphx::make_op("rsqrt"), squeeze);
+        auto broadcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsqrt);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), x, broadcast);
+        m1.add_return({mul});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", s);
+        auto sq    = m2.add_instruction(migraphx::make_op("mul"), x, x);
+        auto sum   = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), sq);
+        auto rsqrt = m2.add_instruction(migraphx::make_op("rsqrt"), sum);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsqrt);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), x, broadcast);
+        m2.add_return({mul});
     }
     EXPECT(m1 == m2);
 }
@@ -5005,34 +5080,25 @@ TEST_CASE(conv_add_layernorm_conv)
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}),
             reshape2);
         auto add1           = m2.add_instruction(migraphx::make_op("add"), reshape1, reshape2b);
-        auto unsqueeze_p_y2 = m2.add_instruction(
-            migraphx::make_op("unsqueeze", {{"axes", {1, 2}}, {"steps", {}}}), p_y2);
-        auto unsqueeze_p_y2b = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}),
-            unsqueeze_p_y2);
-        auto div1 = m2.add_instruction(migraphx::make_op("div"), add1, unsqueeze_p_y2b);
+        auto p_y2b          = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}), p_y2);
+        auto div1 = m2.add_instruction(migraphx::make_op("div"), add1, p_y2b);
         auto reduce_sum1 =
             m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), div1);
         auto reduce_sum1b = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}), reduce_sum1);
         auto sub1           = m2.add_instruction(migraphx::make_op("sub"), add1, reduce_sum1b);
         auto mul1           = m2.add_instruction(migraphx::make_op("mul"), add1, add1);
-        auto unsqueeze_p_y3 = m2.add_instruction(
-            migraphx::make_op("unsqueeze", {{"axes", {1, 2}}, {"steps", {}}}), p_y3);
-        auto p_y3b = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}),
-            unsqueeze_p_y3);
+        auto p_y3b          = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}), p_y3);
         auto div2 = m2.add_instruction(migraphx::make_op("div"), mul1, p_y3b);
         auto reduce_sum2 =
             m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), div2);
         auto mul2 = m2.add_instruction(migraphx::make_op("mul"), reduce_sum1, reduce_sum1);
         auto sub2 = m2.add_instruction(migraphx::make_op("sub"), reduce_sum2, mul2);
-        auto unsqueeze_p_y1 = m2.add_instruction(
-            migraphx::make_op("unsqueeze", {{"axes", {1, 2}}, {"steps", {}}}), p_y1);
-        auto unsqueeze_p_y1b = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {2, 32, 1, 1, 1}}}),
-            unsqueeze_p_y1);
-        auto add2  = m2.add_instruction(migraphx::make_op("add"), sub2, unsqueeze_p_y1b);
+        auto p_y1b = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 1, 1, 1}}}), p_y1);
+        auto add2  = m2.add_instruction(migraphx::make_op("add"), sub2, p_y1b);
         auto sqrt  = m2.add_instruction(migraphx::make_op("sqrt"), add2);
         auto sqrtb = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}), sqrt);
@@ -6431,9 +6497,8 @@ TEST_CASE(dequantizelinear_entry_shape_transform_zero_point)
         auto scale_bcast = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {4, 3, 2}}}), scale_reshape);
         auto x_reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), x);
-        auto zp_unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), zp);
-        auto zp_bcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {4, 3, 2}}}), zp_unsqueeze);
+        auto zp_bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3, 2}}}), zp);
         auto dq = m2.add_instruction(
             migraphx::make_op("dequantizelinear"), x_reshape, scale_bcast, zp_bcast);
         auto dq_flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 6}}}), dq);

@@ -2862,7 +2862,10 @@ TEST_CASE(kv_cache_attention_sinks)
 // full model the other layers). The shared chain is a common subexpression,
 // not an output of the fusion: the group keeps an internal copy, the original
 // stays alive outside, and the lse tuple output is still detected.
-TEST_CASE(kv_cache_attention_sinks_shared_mask)
+// Sinks attention where the mask chain is shared with other consumers (the
+// extra @return output stands in for other layers). mask_before_gemm1 picks its
+// program order, pinning which clause of find_required_outputs filters it.
+static migraphx::program sinks_shared_mask_program(bool mask_before_gemm1)
 {
     migraphx::shape s1{migraphx::shape::half_type, {1}};
     migraphx::shape s2{migraphx::shape::int32_type, {4}};
@@ -2907,14 +2910,11 @@ TEST_CASE(kv_cache_attention_sinks_shared_mask)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), rope);
         auto tsp_k = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), cpp_k);
-        auto gemm1    = mm->add_instruction(migraphx::make_op("dot"), slc_q, tsp_k);
+        migraphx::instruction_ref gemm1;
+        if(not mask_before_gemm1)
+            gemm1 = mm->add_instruction(migraphx::make_op("dot"), slc_q, tsp_k);
         auto bc_range = mm->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 4}}}), range);
-        auto bc_ninf = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), ninf);
-        auto bc_half = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), half);
-        auto scaled = mm->add_instruction(migraphx::make_op("mul"), gemm1, bc_half);
         auto bc_slk =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), slk);
         auto grtr      = mm->add_instruction(migraphx::make_op("greater"), bc_range, bc_slk);
@@ -2924,6 +2924,13 @@ TEST_CASE(kv_cache_attention_sinks_shared_mask)
             migraphx::make_op("unsqueeze", {{"axes", {1, 2}}, {"steps", {}}}), conv_grtr);
         auto bc_grtr = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), unsq_grtr);
+        if(mask_before_gemm1)
+            gemm1 = mm->add_instruction(migraphx::make_op("dot"), slc_q, tsp_k);
+        auto bc_ninf = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), ninf);
+        auto bc_half = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), half);
+        auto scaled    = mm->add_instruction(migraphx::make_op("mul"), gemm1, bc_half);
         auto mask      = mm->add_instruction(migraphx::make_op("where"), bc_grtr, bc_ninf, scaled);
         auto conv_mask = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mask);
@@ -2951,7 +2958,18 @@ TEST_CASE(kv_cache_attention_sinks_shared_mask)
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 4}}}), tsp_out);
         mm->add_return({rsp_out, cpp_k, cpp_v, conv_grtr});
     }
-    run_pass(p1);
+    return p1;
+}
+
+static migraphx::program sinks_shared_mask_expected()
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1}};
+    migraphx::shape s2{migraphx::shape::int32_type, {4}};
+    migraphx::shape s3{migraphx::shape::half_type, {4, 1}};
+    migraphx::shape s4{migraphx::shape::int32_type, {2, 1}};
+    migraphx::shape s5{migraphx::shape::half_type, {2, 2, 4, 2}};
+    migraphx::shape s6{migraphx::shape::half_type, {2, 1, 12}};
+    migraphx::shape s_sinks{migraphx::shape::float_type, {1, 2, 1, 1}};
 
     migraphx::program p2;
     {
@@ -3065,6 +3083,26 @@ TEST_CASE(kv_cache_attention_sinks_shared_mask)
         auto scaled = mm->add_instruction(migraphx::make_op("mul"), out, factor);
         mm->add_return({scaled, cpp_k, cpp_v, conv_grtr});
     }
+    return p2;
+}
+
+// Shared mask chain built after gemm1: the program-order check passes it, so
+// the reaches check must filter it from the fusion outputs
+TEST_CASE(kv_cache_attention_sinks_shared_mask)
+{
+    auto p1 = sinks_shared_mask_program(false);
+    run_pass(p1);
+    auto p2 = sinks_shared_mask_expected();
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// Shared mask chain built before gemm1: filtered by the program-order check,
+// which also keeps reaches from being called with end preceding start
+TEST_CASE(kv_cache_attention_sinks_shared_mask_before_gemm1)
+{
+    auto p1 = sinks_shared_mask_program(true);
+    run_pass(p1);
+    auto p2 = sinks_shared_mask_expected();
     EXPECT(p1.sort() == p2.sort());
 }
 

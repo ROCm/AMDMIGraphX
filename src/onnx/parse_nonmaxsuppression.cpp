@@ -60,7 +60,7 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
                                             {{"axes", {0}},
                                              {"starts", {0}},
                                              {"ends", value::array{to_value(num_selected_var)}},
-                                             {"always_leq", true}}),
+                                             {"ends_in_bounds", true}}),
                                     indices,
                                     starts_lit,
                                     num_selected);

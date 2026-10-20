@@ -52,7 +52,7 @@ namespace op {
 /// axes: axes to slice over
 /// starts: slice starting indices
 /// ends: slice ending indices
-/// always_leq: assert every end is non-negative and no greater than its input axis length
+/// ends_in_bounds: assert every end is non-negative and no greater than its input axis length
 ///
 /// Parameters:
 /// data: the input tensor to slice (static or symbolic shape)
@@ -63,7 +63,7 @@ struct dyn_slice
     std::vector<int64_t> axes{};
     std::vector<sym::expr> starts{};
     std::vector<sym::expr> ends{};
-    bool always_leq = false;
+    bool ends_in_bounds = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -71,7 +71,7 @@ struct dyn_slice
         return pack(f(self.axes, "axes"),
                     f(self.starts, "starts"),
                     f(self.ends, "ends"),
-                    f(self.always_leq, "always_leq"));
+                    f(self.ends_in_bounds, "ends_in_bounds"));
     }
 
     /// Ensure the axes attribute is within limits, and clip starts and ends to the sliced axis
@@ -84,8 +84,8 @@ struct dyn_slice
                                   normalize_attribute::use_len,
                                   normalize_attribute::include_min};
         auto end_bound = bound;
-        if(always_leq)
-            end_bound = value::array{normalize_attribute::assume_max,
+        if(ends_in_bounds)
+            end_bound = value::array{normalize_attribute::assume_leq_max,
                                      normalize_attribute::clip_min,
                                      normalize_attribute::include_max,
                                      normalize_attribute::use_len,
@@ -165,7 +165,7 @@ struct dyn_slice
         const auto& input       = args.front();
         const auto& input_shape = input.get_shape();
         auto axes_attrs         = this->attributes().at("normalize_axes");
-        if(always_leq)
+        if(ends_in_bounds)
         {
             auto runtime_ends = args[2].to_vector<int64_t>();
             migraphx::for_each(
@@ -176,7 +176,7 @@ struct dyn_slice
                         MIGRAPHX_THROW("DYN_SLICE: axis is out of range");
                     if(end < 0 or
                        static_cast<std::size_t>(end) > input_shape.lens().at(normalized_axis))
-                        MIGRAPHX_THROW("DYN_SLICE: always_leq end is outside the input axis");
+                        MIGRAPHX_THROW("DYN_SLICE: ends_in_bounds end is outside the input axis");
                 });
         }
         // The attributes only describe these inputs at compile time; slice by the inputs.

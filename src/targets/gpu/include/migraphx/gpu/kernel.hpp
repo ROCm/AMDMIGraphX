@@ -41,6 +41,29 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct kernel_impl;
+struct code_module_impl;
+
+// GPU memory each loaded code object takes, regardless of its image size
+constexpr std::size_t code_module_bytes = 2 * 1024 * 1024;
+
+// A loaded code object, which the kernels built from it share
+struct MIGRAPHX_GPU_EXPORT code_module
+{
+    code_module() = default;
+    explicit code_module(const char* image);
+    template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
+    explicit code_module(const std::vector<T>& image)
+        : code_module(reinterpret_cast<const char*>(image.data()))
+    {
+    }
+
+    bool empty() const;
+    // The handle of the kernel called name in this module
+    hipFunction_t get_function(const std::string& name) const;
+
+    private:
+    std::shared_ptr<code_module_impl> impl;
+};
 
 // Kernels launch through hipExtModuleLaunchKernel with a packed byte buffer
 // (a mix of pointer slots and inlined scalars) described by an `extra` config
@@ -85,8 +108,7 @@ struct MIGRAPHX_GPU_EXPORT kernel
     };
     kernel() = default;
     kernel(const char* image, const std::string& name);
-    // Looks up name in the module that same_module already loaded instead of loading it again
-    kernel(const kernel& same_module, const std::string& name);
+    kernel(const code_module& m, const std::string& name);
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
     kernel(const std::vector<T>& image, const std::string& name)
         : kernel(reinterpret_cast<const char*>(image.data()), name)

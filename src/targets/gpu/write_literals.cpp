@@ -32,8 +32,6 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/liveness.hpp>
 #include <migraphx/algorithm.hpp>
-#include <migraphx/functional.hpp>
-#include <algorithm>
 #include <cstddef>
 #include <iterator>
 #include <vector>
@@ -111,8 +109,7 @@ estimate_scratch_size(const module& m, std::size_t overhead_percent, std::size_t
     return scratch_size + scratch_size * overhead_percent / 100;
 }
 
-// Code objects with the same module_id share one loaded module (see code_object_op), each
-// taking about 2MB; unassigned ones load their own
+// Code objects with the same module_id share one loaded module; unassigned ones load their own
 static std::size_t estimate_code_object_size(const module& m)
 {
     std::vector<std::int64_t> ids;
@@ -124,11 +121,11 @@ static std::size_t estimate_code_object_size(const module& m)
         [](const instruction& ins) {
             return any_cast<code_object_op>(ins.get_operator()).module_id;
         });
-    auto shared_first =
-        std::partition(ids.begin(), ids.end(), [](std::int64_t id) { return id < 0; });
-    std::sort(shared_first, ids.end());
-    auto last = std::unique(shared_first, ids.end());
-    return std::distance(ids.begin(), last) * 1024 * 1024 * 2;
+    ids.erase(distinct(ids.begin(),
+                       ids.end(),
+                       [](std::int64_t a, std::int64_t b) { return a >= 0 and a == b; }),
+              ids.end());
+    return ids.size() * code_module_bytes;
 }
 
 static std::size_t get_total_literals(const module& m)

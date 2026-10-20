@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/gpu/kernel.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
@@ -279,8 +280,8 @@ static migraphx::module make_code_object_module(Add add)
 
 TEST_CASE(code_objects_sharing_a_module_counted_once)
 {
-    const std::size_t code_object_bytes = 2 * 1024 * 1024;
-    // The literal, its 2x reserve and the padded scratch estimate of its own bytes total 180000
+    const std::size_t code_object_bytes = migraphx::gpu::code_module_bytes;
+    // get_total_memory minus code objects: literal 40000 + 2x reserve 80000 + padded scratch 60000
     const std::size_t literal_budget = 180000;
 
     auto m1 = make_code_object_module(&add_literal);

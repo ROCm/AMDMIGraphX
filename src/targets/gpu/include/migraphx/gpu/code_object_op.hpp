@@ -49,8 +49,8 @@ struct code_object_op
     std::int64_t output_arg = -1;
 
     std::map<std::size_t, kernel_argument_value> kernel_args{};
-    // Code objects with the same module_id hold the same binary and share one loaded module
-    // through the context (assigned by compile_ops); -1 loads a private module.
+    // Assigned by compile_ops: code objects with the same module_id hold the same binary and
+    // share one loaded module through the context; -1 loads a private module.
     std::int64_t module_id = -1;
     // Pre-packed kernarg buffer built in finalize(); not reflected.
     std::vector<char> packed_kernargs{};

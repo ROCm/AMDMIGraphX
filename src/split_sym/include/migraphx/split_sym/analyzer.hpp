@@ -92,6 +92,13 @@ struct axis_mask
     sym::expr extent;
     fill_kind fill;
     mask_role role;
+
+    bool zeros_contracted_region(const axis_mask& consumer) const
+    {
+        return role == mask_role::normalized and fill == fill_kind::neg_inf and
+               consumer.role == mask_role::contracted and consumer.fill == fill_kind::zero and
+               axis == consumer.axis and sym::same_symbol(extent, consumer.extent);
+    }
 };
 
 struct operand_plan
@@ -99,6 +106,12 @@ struct operand_plan
     std::optional<float> pad_value;
     std::vector<std::size_t> retained_slice_axes;
     std::vector<axis_mask> masks;
+
+    bool zeros_contracted_region(const axis_mask& consumer) const
+    {
+        return any_of(masks,
+                      [&](const auto& mask) { return mask.zeros_contracted_region(consumer); });
+    }
 };
 
 using op_freezer =
@@ -121,6 +134,32 @@ struct symbolic_op_info
     const shape& get_output_shape() const { return ins->get_shape(); }
 
     std::vector<shape> get_input_shapes() const { return to_shapes(ins->inputs()); }
+
+    bool can_specialize() const
+    {
+        const bool needs_padding =
+            any_of(operands, [](const auto& operand) { return operand.pad_value.has_value(); });
+        const bool needs_specialization =
+            needs_padding or (freezer and not output_symbolic_axes.empty());
+        return supported and ins->module_inputs().empty() and needs_specialization;
+    }
+
+    bool starts_specialization_block() const
+    {
+        return not output_symbolic_axes.empty() and can_specialize();
+    }
+
+    bool needs_deferred_specialization_block() const
+    {
+        return output_symbolic_axes.empty() and can_specialize();
+    }
+
+    bool zeros_contracted_region(const axis_mask& consumer) const
+    {
+        return any_of(operands, [&](const auto& operand) {
+            return operand.zeros_contracted_region(consumer);
+        });
+    }
 };
 
 bool is_variable_axis(const shape::dynamic_dimension& d);

@@ -85,6 +85,8 @@ struct MIGRAPHX_GPU_EXPORT kernel
     };
     kernel() = default;
     kernel(const char* image, const std::string& name);
+    // Looks up name in the module that same_module already loaded instead of loading it again
+    kernel(const kernel& same_module, const std::string& name);
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
     kernel(const std::vector<T>& image, const std::string& name)
         : kernel(reinterpret_cast<const char*>(image.data()), name)

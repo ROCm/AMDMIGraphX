@@ -248,6 +248,55 @@ TEST_CASE(existing_allocation)
     EXPECT(m1 == m2);
 }
 
+// A kernel stand-in with the given module_id, writing its output in place of its input
+static migraphx::operation make_code_object(std::int64_t module_id, const migraphx::shape& s)
+{
+    return migraphx::make_op(
+        "gpu::code_object",
+        {{"code_object", migraphx::value::binary{std::string("kernel")}},
+         {"symbol_name", "kernel"},
+         {"global", 1},
+         {"local", 1},
+         {"expected_inputs", migraphx::to_value(std::vector<migraphx::shape>{s})},
+         {"output", migraphx::to_value(s)},
+         {"module_id", module_id}});
+}
+
+// A 40000-byte literal, added by add(m, shape, seed), read by three code objects: two sharing
+// module 0 and one without a shared module
+template <class Add>
+static migraphx::module make_code_object_module(Add add)
+{
+    migraphx::shape s{migraphx::shape::float_type, {10000}};
+    migraphx::module m;
+    auto lit = add(m, s, 9);
+    auto a1  = m.add_instruction(make_code_object(0, s), lit);
+    auto a2  = m.add_instruction(make_code_object(0, s), lit);
+    auto b   = m.add_instruction(make_code_object(-1, s), lit);
+    m.add_return({a1, a2, b});
+    return m;
+}
+
+TEST_CASE(code_objects_sharing_a_module_counted_once)
+{
+    const std::size_t code_object_bytes = 2 * 1024 * 1024;
+    // The literal, its 2x reserve and the padded scratch estimate of its own bytes total 180000
+    const std::size_t literal_budget = 180000;
+
+    auto m1 = make_code_object_module(&add_literal);
+    // The two code objects sharing module 0 load it once, so two modules and the literal fit.
+    run_pass(m1, {.max_memory = literal_budget + 2 * code_object_bytes});
+    auto m2 = make_code_object_module(
+        [](auto& m, const auto& s, auto seed) { return add_gpu_literal(m, s, seed); });
+    EXPECT(m1 == m2);
+
+    auto m3 = make_code_object_module(&add_literal);
+    // Without room for the second module, the literal is staged.
+    run_pass(m3, {.max_memory = literal_budget + code_object_bytes});
+    auto m4 = make_code_object_module(&add_host_copy);
+    EXPECT(m3 == m4);
+}
+
 TEST_CASE(memory_limit_copies_some_literals)
 {
     migraphx::shape small{migraphx::shape::float_type, {2}};

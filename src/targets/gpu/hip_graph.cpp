@@ -379,6 +379,8 @@ struct hip_graph_op
                 if(consumer->name() == "gpu::code_object")
                 {
                     const auto& cop = any_cast<code_object_op>(consumer->get_operator());
+                    // Code objects sharing a module_id share this handle too; their binaries
+                    // are identical, so any of them describes the pointer slot layout.
                     out.emplace(cop.k.get_function(), &cop.kernel_args);
                     // An in-place kernel passes the buffer to its readers;
                     // follow so they are patched too.

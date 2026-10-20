@@ -57,29 +57,47 @@ namespace gpu {
 extern std::string hip_error(int error);
 
 using hip_module_ptr = MIGRAPHX_MANAGE_PTR(hipModule_t, hipModuleUnload);
+// Shared between the kernels of one module, since each hipModuleLoadData costs about 2MB of GPU
+// memory regardless of the image size
+using hip_module = std::shared_ptr<hip_module_ptr::element_type>;
 
 struct kernel_impl
 {
-    hip_module_ptr module = nullptr;
-    hipFunction_t fun     = nullptr;
+    hip_module module = nullptr;
+    hipFunction_t fun = nullptr;
 };
 
-static hip_module_ptr load_module(const char* image)
+static hip_module load_module(const char* image)
 {
-    hipModule_t raw_m;
-    auto status = hipModuleLoadData(&raw_m, image);
+    hipModule_t raw_m = nullptr;
+    auto status       = hipModuleLoadData(&raw_m, image);
     hip_module_ptr m{raw_m};
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed to load module: " + hip_error(status));
     return m;
 }
 
+static hipFunction_t get_module_function(const hip_module& m, const std::string& name)
+{
+    hipFunction_t fun = nullptr;
+    auto status       = hipModuleGetFunction(&fun, m.get(), name.c_str());
+    if(hipSuccess != status)
+        MIGRAPHX_THROW("Failed to get function: " + name + ": " + hip_error(status));
+    return fun;
+}
+
 kernel::kernel(const char* image, const std::string& name) : impl(std::make_shared<kernel_impl>())
 {
     impl->module = load_module(image);
-    auto status  = hipModuleGetFunction(&impl->fun, impl->module.get(), name.c_str());
-    if(hipSuccess != status)
-        MIGRAPHX_THROW("Failed to get function: " + name + ": " + hip_error(status));
+    impl->fun    = get_module_function(impl->module, name);
+}
+
+kernel::kernel(const kernel& same_module, const std::string& name)
+    : impl(std::make_shared<kernel_impl>())
+{
+    assert(not same_module.empty());
+    impl->module = same_module.impl->module;
+    impl->fun    = get_module_function(impl->module, name);
 }
 
 bool kernel::empty() const { return impl == nullptr; }

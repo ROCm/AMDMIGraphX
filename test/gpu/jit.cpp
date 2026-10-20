@@ -32,6 +32,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/kernel.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
@@ -219,6 +220,64 @@ TEST_CASE(simple_compile_hip)
     EXPECT(output != input);
     auto data = output.get<std::int8_t>();
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+TEST_CASE(kernel_shares_module)
+{
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, {}, migraphx::gpu::get_device_name());
+    EXPECT(binaries.size() == 1);
+
+    migraphx::gpu::kernel k1{binaries.front(), "write"};
+    // Built from k1's module, so it resolves to the same function handle and still runs
+    migraphx::gpu::kernel k2{k1, "write"};
+    EXPECT(k1.get_function() == k2.get_function());
+
+    migraphx::argument input{{migraphx::shape::int8_type, {5}}};
+    auto ginput = migraphx::gpu::to_gpu(input);
+    k2.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int8_t>());
+    auto output = migraphx::gpu::from_gpu(ginput);
+    auto data   = output.get<std::int8_t>();
+    EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+// The function handle of a code object op for the write kernel with the given module_id, once
+// finalized in ctx
+static hipFunction_t finalize_write_kernel(migraphx::context& ctx,
+                                           const std::vector<char>& binary,
+                                           std::int64_t module_id)
+{
+    migraphx::shape input{migraphx::shape::int8_type, {5}};
+    auto op = migraphx::make_op(
+        "gpu::code_object",
+        {{"code_object", migraphx::value::binary{binary}},
+         {"symbol_name", "write"},
+         {"global", input.elements()},
+         {"local", 1024},
+         {"expected_inputs", migraphx::to_value(std::vector<migraphx::shape>{input})},
+         {"output", migraphx::to_value(input)},
+         {"module_id", module_id}});
+    op.finalize(ctx, input, {input});
+    return migraphx::any_cast<migraphx::gpu::code_object_op>(op).k.get_function();
+}
+
+TEST_CASE(code_objects_with_module_id_share_module)
+{
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, {}, migraphx::gpu::get_device_name());
+    EXPECT(binaries.size() == 1);
+    migraphx::context ctx = migraphx::gpu::context{};
+
+    hipFunction_t shared1 = finalize_write_kernel(ctx, binaries.front(), 0);
+    hipFunction_t shared2 = finalize_write_kernel(ctx, binaries.front(), 0);
+    EXPECT(shared1 == shared2);
+
+    // A different id or no id loads a module of its own
+    hipFunction_t other = finalize_write_kernel(ctx, binaries.front(), 1);
+    EXPECT(other != shared1);
+    hipFunction_t unshared = finalize_write_kernel(ctx, binaries.front(), -1);
+    EXPECT(unshared != shared1);
+    EXPECT(unshared != other);
 }
 
 static auto check_target(const std::string& arch)

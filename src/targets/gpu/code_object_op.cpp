@@ -122,10 +122,13 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
     }
     return args[get_output_arg(args.size())];
 }
-void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
+void code_object_op::finalize(context& ctx, const shape&, const std::vector<shape>&)
 {
     assert(not code_object.empty());
-    k = kernel(code_object, symbol_name);
+    if(module_id < 0)
+        k = kernel(code_object, symbol_name);
+    else
+        k = ctx.load_kernel(module_id, code_object, symbol_name);
 
     if(kernel_args.empty())
         return;

@@ -125,7 +125,7 @@ TEST_CASE(dyn_slice_sym_ends_test)
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 1}, {6, 3, 1}});
 }
 
-TEST_CASE(dyn_slice_always_leq_test)
+TEST_CASE(dyn_slice_ends_in_bounds_test)
 {
     auto n = var("n", {0, 3});
     migraphx::program p;
@@ -139,7 +139,7 @@ TEST_CASE(dyn_slice_always_leq_test)
                                           {{"axes", {0}},
                                            {"starts", {0}},
                                            {"ends", migraphx::value::array{migraphx::to_value(n)}},
-                                           {"always_leq", true}}),
+                                           {"ends_in_bounds", true}}),
                         data,
                         starts,
                         ends);

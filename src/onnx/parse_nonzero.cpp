@@ -70,7 +70,7 @@ struct parse_nonzero : op_parser<parse_nonzero>
                                                 {{"axes", {1}},
                                                  {"starts", {0}},
                                                  {"ends", value::array{to_value(num_nonzero_var)}},
-                                                 {"always_leq", true}}),
+                                                 {"ends_in_bounds", true}}),
                                         indices,
                                         starts,
                                         num_nonzero);

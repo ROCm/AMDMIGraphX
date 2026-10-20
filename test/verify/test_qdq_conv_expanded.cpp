@@ -33,8 +33,9 @@ struct test_qdq_conv_expanded : verify_program<test_qdq_conv_expanded<Rank, Chan
     {
         migraphx::program p;
         auto* m = p.get_main_module();
-        std::vector<std::size_t> input_lens(Rank, 2);
-        input_lens[0] = 1;
+        // Singleton spatial dimensions avoid MLIR's broadcasted output-scale reshape bug.
+        std::vector<std::size_t> input_lens(Rank, 1);
+        input_lens[1] = 2;
         std::vector<std::size_t> weight_lens(Rank, 1);
         weight_lens[0] = Channels;
         weight_lens[1] = 2;
@@ -45,12 +46,12 @@ struct test_qdq_conv_expanded : verify_program<test_qdq_conv_expanded<Rank, Chan
         std::vector<std::size_t> qlens(Rank, 1);
         qlens[0] = Channels;
         std::vector<float> scales(Channels, 0.25f);
-        std::vector<std::int8_t> zeros(Channels, -2);
+        std::vector<std::int8_t> zeros(Channels, 0);
         auto scale =
             m->add_literal(migraphx::literal{{migraphx::shape::float_type, qlens}, scales});
         auto zero = m->add_literal(migraphx::literal{{migraphx::shape::int8_type, qlens}, zeros});
         auto si   = m->add_literal(0.5f);
-        auto zi   = m->add_literal(std::int8_t{2});
+        auto zi   = m->add_literal(std::int8_t{0});
         auto di   = add_quantize_op(*m, "dequantizelinear", input, si, zi);
         auto sb   = m->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", weight_lens}}), scale);

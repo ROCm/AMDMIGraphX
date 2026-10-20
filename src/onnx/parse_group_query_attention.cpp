@@ -22,13 +22,12 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/onnx/matmulnbits.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/op/builder/insert.hpp>
-#include <optional>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -329,9 +328,34 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
     }
 };
 
+namespace {
+
+int required_int_attr(const onnx_parser& parser,
+                      const onnx_parser::node_info& info,
+                      const std::string& name)
+{
+    if(not contains(info.attributes, name))
+        MIGRAPHX_THROW("GQO: Attribute " + name + " required, but is missing");
+    return parser.parse_value(info.attributes.at(name)).at<int>();
+}
+
+instruction_ref lower_matmul_nbits(
+    module& m, const std::vector<instruction_ref>& args, int n, int k, int bits, int block_size)
+{
+    value options;
+    options.insert({"N", n});
+    options.insert({"K", k});
+    options.insert({"bits", bits});
+    options.insert({"block_size", block_size});
+    return op::builder::add("matmulnbits", m, args, options).at(0);
+}
+
+} // namespace
+
 // com.ryzenai.GQO: GroupQueryAttention fused with o_proj MatMulNBits.
-// Inputs: packed_qkv, key, value, past_key, past_value, seqlens_k, total_seq_len,
-//         cos_cache, sin_cache, (optional empties), o_proj qweight/scales/qzeros/bias/packed
+// Inputs 0-11 match microsoft GroupQueryAttention, including optional
+// position_ids, attention_bias, and head_sink. o_proj qweight/scales/qzeros
+// stay at 12-14 when bias or the NPU-only packed input is omitted.
 // Outputs: present_key, present_value, o_proj_output
 struct parse_gqo : op_parser<parse_gqo>
 {
@@ -342,52 +366,32 @@ struct parse_gqo : op_parser<parse_gqo>
                                        onnx_parser::node_info info,
                                        const std::vector<instruction_ref>& args) const
     {
-        if(args.size() < 15)
+        // 12 attention slots plus qweight, scales, and qzeros.
+        constexpr std::size_t weight_index = 12;
+        if(args.size() < weight_index + 3)
             MIGRAPHX_THROW("GQO: expects at least 15 inputs, got " + std::to_string(args.size()));
 
-        // First 9 inputs match microsoft GroupQueryAttention layout.
-        std::vector<instruction_ref> gqa_args(args.begin(), args.begin() + 9);
+        std::vector<instruction_ref> gqa_args(args.begin(), args.begin() + weight_index);
         parse_group_query_attention gqa;
         auto gqa_outs = gqa.parse(opd, parser, info, gqa_args);
-        if(gqa_outs.size() < 3)
-            MIGRAPHX_THROW("GQO: GroupQueryAttention lowering did not return 3 outputs");
+        assert(gqa_outs.size() == 3);
 
         auto attn_out = gqa_outs[0];
         auto k_out    = gqa_outs[1];
         auto v_out    = gqa_outs[2];
 
-        auto get_i = [&](const std::string& name) {
-            if(not contains(info.attributes, name))
-                MIGRAPHX_THROW("GQO: Attribute " + name + " required, but is missing");
-            return parser.parse_value(info.attributes.at(name)).at<int>();
-        };
+        const int n          = required_int_attr(parser, info, "o_proj_N");
+        const int k          = required_int_attr(parser, info, "o_proj_K");
+        const int bits       = required_int_attr(parser, info, "o_proj_bits");
+        const int block_size = required_int_attr(parser, info, "o_proj_block_size");
 
-        const int n          = get_i("o_proj_N");
-        const int k          = get_i("o_proj_K");
-        const int bits       = get_i("o_proj_bits");
-        const int block_size = get_i("o_proj_block_size");
+        std::vector<instruction_ref> mm_args{
+            attn_out, args[weight_index], args[weight_index + 1], args[weight_index + 2]};
+        if(args.size() > weight_index + 3)
+            mm_args.push_back(args[weight_index + 3]);
+        // packed at weight_index + 4 is NPU-only and ignored.
 
-        // o_proj weights begin at input 12 after three optional empty slots (9-11).
-        const std::size_t w = args.size() >= 17 ? 12 : args.size() - 5;
-        auto qweight        = args.at(w);
-        auto scales         = args.at(w + 1);
-        auto qzeros         = args.at(w + 2);
-        std::optional<instruction_ref> bias;
-        if(args.size() > w + 3 and not args.at(w + 3)->is_undefined())
-            bias = args.at(w + 3);
-        // packed at w+4 ignored
-
-        auto o_proj = matmulnbits::add_matmul_nbits(info,
-                                                    attn_out,
-                                                    qweight,
-                                                    scales,
-                                                    std::optional<instruction_ref>{qzeros},
-                                                    bias,
-                                                    n,
-                                                    k,
-                                                    bits,
-                                                    block_size);
-
+        auto o_proj = lower_matmul_nbits(*info.mod, mm_args, n, k, bits, block_size);
         return {k_out, v_out, o_proj};
     }
 };

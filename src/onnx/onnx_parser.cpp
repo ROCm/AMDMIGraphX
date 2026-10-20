@@ -694,7 +694,9 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         else
         {
             result = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node_name, mod}, args);
+                *this,
+                {get_attributes(node), output_num, node_name, mod, std::string{node.domain()}},
+                args);
         }
         output_num = std::min<std::size_t>(output_num, result.size());
         std::transform(node.output().begin(),

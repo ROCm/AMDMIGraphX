@@ -1,0 +1,37 @@
+matmulnbits_g_idx_test:†
+l
+a
+b
+scales
+zp
+g_idxc"MatMulNBits*
+K *
+N *
+bits *
+
+block_size :com.microsoftmatmulnbits_g_idx_testZ
+a
+
+
+Z
+b
+
+
+
+Z
+scales
+
+
+Z
+zp
+
+
+Z
+g_idx
+
+
+b
+c
+
+
+B

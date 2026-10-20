@@ -22,11 +22,10 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/onnx/matmulnbits.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
-#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,13 +33,25 @@ namespace onnx {
 
 namespace {
 
+instruction_ref lower_matmul_nbits(
+    module& m, const std::vector<instruction_ref>& args, int n, int k, int bits, int block_size)
+{
+    value options;
+    options.insert({"N", n});
+    options.insert({"K", k});
+    options.insert({"bits", bits});
+    options.insert({"block_size", block_size});
+    return op::builder::add("matmulnbits", m, args, options).at(0);
+}
+
 // SkipSimplifiedLayerNormalization core: returns {normalized, input_skip_sum}.
-std::pair<instruction_ref, instruction_ref>
-skip_simplified_ln(onnx_parser::node_info& info,
-                   instruction_ref x,
-                   instruction_ref skip,
-                   instruction_ref gamma,
-                   float epsilon)
+// Mean square and epsilon stay in float through rsqrt. Converting the mean square
+// to fp16 first saturates values such as 90000 to 65504.
+std::pair<instruction_ref, instruction_ref> skip_simplified_ln(onnx_parser::node_info& info,
+                                                               instruction_ref x,
+                                                               instruction_ref skip,
+                                                               instruction_ref gamma,
+                                                               float epsilon)
 {
     auto x_dtype = x->get_shape().type();
     int64_t axis = static_cast<int64_t>(x->get_shape().ndim()) - 1;
@@ -50,12 +61,14 @@ skip_simplified_ln(onnx_parser::node_info& info,
         make_op("convert", {{"target_type", migraphx::shape::float_type}}), skip_sum);
     auto x_sq = info.add_common_op("mul", float_x, float_x);
     auto rms  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
-    rms       = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rms);
-    epsilon =
-        (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
-    auto eps  = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
+    auto eps  = info.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {epsilon}});
     rms       = info.add_common_op("add", rms, eps);
     auto rrms = info.add_instruction(make_op("rsqrt"), rms);
+    if(rrms->get_shape().type() != x_dtype)
+    {
+        rrms = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rrms);
+    }
     auto result = info.add_common_op("mul", skip_sum, rrms);
     result      = info.add_common_op("mul", result, gamma);
     return {result, skip_sum};
@@ -97,40 +110,27 @@ struct parse_ssmlp : op_parser<parse_ssmlp>
             return parser.parse_value(info.attributes.at(name)).at<int>();
         };
 
-        auto [mlp_in, residual] =
-            skip_simplified_ln(info, args[1], args[0], args[2], epsilon);
+        auto [mlp_in, residual] = skip_simplified_ln(info, args[1], args[0], args[2], epsilon);
 
-        auto gate = matmulnbits::add_matmul_nbits(info,
-                                                  mlp_in,
-                                                  args[3],
-                                                  args[4],
-                                                  args[5],
-                                                  std::nullopt,
-                                                  get_i("gate_N"),
-                                                  get_i("gate_K"),
-                                                  get_i("gate_bits"),
-                                                  get_i("gate_block_size"));
-        auto up   = matmulnbits::add_matmul_nbits(info,
-                                                mlp_in,
-                                                args[6],
-                                                args[7],
-                                                args[8],
-                                                std::nullopt,
-                                                get_i("up_N"),
-                                                get_i("up_K"),
-                                                get_i("up_bits"),
-                                                get_i("up_block_size"));
+        auto gate = lower_matmul_nbits(*info.mod,
+                                       {mlp_in, args[3], args[4], args[5]},
+                                       get_i("gate_N"),
+                                       get_i("gate_K"),
+                                       get_i("gate_bits"),
+                                       get_i("gate_block_size"));
+        auto up   = lower_matmul_nbits(*info.mod,
+                                       {mlp_in, args[6], args[7], args[8]},
+                                       get_i("up_N"),
+                                       get_i("up_K"),
+                                       get_i("up_bits"),
+                                       get_i("up_block_size"));
         auto mid  = info.add_common_op("mul", silu(info, gate), up);
-        auto down = matmulnbits::add_matmul_nbits(info,
-                                                  mid,
-                                                  args[9],
-                                                  args[10],
-                                                  args[11],
-                                                  std::nullopt,
-                                                  get_i("down_N"),
-                                                  get_i("down_K"),
-                                                  get_i("down_bits"),
-                                                  get_i("down_block_size"));
+        auto down = lower_matmul_nbits(*info.mod,
+                                       {mid, args[9], args[10], args[11]},
+                                       get_i("down_N"),
+                                       get_i("down_K"),
+                                       get_i("down_bits"),
+                                       get_i("down_block_size"));
 
         auto [out, skip_sum] = skip_simplified_ln(info, down, residual, args[12], epsilon);
         return {out, skip_sum};

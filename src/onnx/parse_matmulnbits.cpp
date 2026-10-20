@@ -22,17 +22,32 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/onnx/matmulnbits.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/ranges.hpp>
-#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+namespace {
+
+instruction_ref lower_matmul_nbits(
+    module& m, const std::vector<instruction_ref>& args, int n, int k, int bits, int block_size)
+{
+    value options;
+    options.insert({"N", n});
+    options.insert({"K", k});
+    options.insert({"bits", bits});
+    options.insert({"block_size", block_size});
+    return op::builder::add("matmulnbits", m, args, options).at(0);
+}
+
+} // namespace
+
 // Parses MatMulNBits from both com.microsoft and com.ryzenai.
-// Ryzen AI hybrid graphs may append optional bias and an NPU-only packed weight
-// input after the microsoft schema (A, B/qweight, scales, zero_points).
+// com.microsoft inputs: A, B, scales, zero_points, g_idx, bias.
+// com.ryzenai inputs:   A, B, scales, zero_points, bias, packed (NPU-only, ignored).
 struct parse_matmulnbits : op_parser<parse_matmulnbits>
 {
     std::vector<op_desc> operators() const { return {{"MatMulNBits"}}; }
@@ -51,17 +66,26 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
         const int bits       = parse_attribute(parser, info, "bits");
         const int block_size = parse_attribute(parser, info, "block_size");
 
-        std::optional<instruction_ref> zp;
-        if(args.size() > 3 and not args[3]->is_undefined())
-            zp = args[3];
+        std::vector<instruction_ref> weight_args{args[0], args[1], args[2]};
+        if(info.domain == "com.ryzenai")
+        {
+            if(args.size() > 3)
+                weight_args.push_back(args[3]);
+            if(args.size() > 4)
+                weight_args.push_back(args[4]);
+            // args[5] (qweight.packed), when present, is NPU-only and ignored here.
+        }
+        else
+        {
+            if(args.size() > 4 and not args[4]->is_undefined())
+                MIGRAPHX_THROW("MatMulNBits: g_idx input is not supported");
+            if(args.size() > 3)
+                weight_args.push_back(args[3]);
+            if(args.size() > 5)
+                weight_args.push_back(args[5]);
+        }
 
-        std::optional<instruction_ref> bias;
-        if(args.size() > 4 and not args[4]->is_undefined())
-            bias = args[4];
-
-        // args[5] (qweight.packed), when present, is NPU-only and ignored here.
-        return matmulnbits::add_matmul_nbits(
-            info, args[0], args[1], args[2], zp, bias, n, k, bits, block_size);
+        return lower_matmul_nbits(*info.mod, weight_args, n, k, bits, block_size);
     }
 
     private:

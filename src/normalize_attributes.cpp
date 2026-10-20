@@ -72,7 +72,7 @@ static std::vector<sym::expr> tune_attribute_sym(const std::vector<sym::expr>& e
                 MIGRAPHX_THROW(m() + "bound of indeterminate sign cannot be normalized");
             // Only a from-the-end index can land below zero once it is shifted.
             auto abs_v = *neg ? sym::resolve_max(v + len, zero) : v;
-            if(contains(attrs, op::normalize_attribute::assume_max))
+            if(contains(attrs, op::normalize_attribute::assume_leq_max))
                 return abs_v;
             // Zero is within every tensor axis, including a zero-length one.
             auto fixed_abs = sym::fixed_value(abs_v);
@@ -170,7 +170,7 @@ static std::vector<int64_t> tune_attribute(const std::vector<int64_t>& vec,
 
     // An exclusive bound moves the limit one step inside the range.
     auto max_step = contains(attrs, op::normalize_attribute::include_max) ? 0 : 1;
-    if(not contains(attrs, op::normalize_attribute::assume_max))
+    if(not contains(attrs, op::normalize_attribute::assume_leq_max))
         clip_or_check(
             result,
             *max_vals,

@@ -40,7 +40,7 @@ TEST_CASE(nonzero_dyn_input_test)
         auto r      = m.add_instruction(
             migraphx::make_op(
                 "dyn_slice",
-                {{"axes", {1}}, {"starts", {0}}, {"ends", ends}, {"always_leq", true}}),
+                {{"axes", {1}}, {"starts", {0}}, {"ends", ends}, {"ends_in_bounds", true}}),
             indices,
             starts,
             num_nonzero);

@@ -943,6 +943,11 @@ struct reduce_reshape : rewrite_reshapes_base
         auto axes      = reduce_axes(ins);
         const auto* sm = ins->module_inputs().front();
         return all_of(*sm, [&](const instruction& i) {
+            if(i.name() == "argmin" or i.name() == "argmax")
+            {
+                // Keep arg rewrites on one mapped reduction axis so axes.front() is unambiguous.
+                return axes.size() == 1 and am.at(axes.front()).size() == 1;
+            }
             if(i.name() == "topk")
                 return remap_axis(i.get_operator(), dims, am).has_value();
             // The packed input is half as long on the packed axis, so the

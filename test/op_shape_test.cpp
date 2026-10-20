@@ -323,6 +323,7 @@ TEST_CASE(binary_sym_different_expressions)
 
 TEST_CASE(binary_sym_overlapping_expressions)
 {
+    // extents of expressions are not checked
     auto n = var("n", {0, 100});
     auto m = var("m", {50, 150});
     migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
@@ -330,19 +331,28 @@ TEST_CASE(binary_sym_overlapping_expressions)
     expect_shape(sx, migraphx::make_op("mul"), sx, sy);
 }
 
-TEST_CASE(binary_sym_disjoint_expressions_error)
+TEST_CASE(binary_sym_disjoint_expressions)
 {
+    // extents of expressions are not checked
     auto n = var("n", {0, 10});
     auto m = var("m", {20, 30});
     migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
     migraphx::shape sy{migraphx::shape::float_type, {dd{m}}};
-    throws_shape(migraphx::make_op("add"), sx, sy);
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
 }
 
 TEST_CASE(binary_sym_literal_mismatch_error)
 {
     migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
     migraphx::shape sy{migraphx::shape::float_type, {dd{lit(5)}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_expression_mismatch_error)
+{
+    auto n = var("n", {4, 8});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}}};
     throws_shape(migraphx::make_op("add"), sx, sy);
 }
 
@@ -4147,6 +4157,26 @@ TEST_CASE(quant_dot_sym_matdims)
     migraphx::shape static_b{migraphx::shape::int8_type, {32, 8}};
     migraphx::shape static_out = qdot_op.compute_shape({static_a, static_b});
     EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(quant_dot_sym_k_mismatch)
+{
+    auto m  = var("m", {1, 64});
+    auto k1 = var("k1", {1, 128});
+    auto k2 = var("k2", {1, 128});
+    auto n  = var("n", {1, 32});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{m}, dd{k1}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{k2}, dd{n}}};
+    throws_shape(migraphx::make_op("quant_dot"), s_a, s_b);
+}
+
+TEST_CASE(quant_dot_sym_outer_mismatch)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{m}, dd{lit(5)}, dd{lit(3)}}};
+    throws_shape(migraphx::make_op("quant_dot"), s_a, s_b);
 }
 
 TEST_CASE(qlinear)

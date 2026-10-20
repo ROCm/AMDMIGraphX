@@ -23,11 +23,8 @@
  */
 
 #include <migraphx/common.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/sym.hpp>
 #include <test.hpp>
 #include <vector>
@@ -38,45 +35,89 @@ TEST_CASE(symbolic_binary_explicit_broadcast)
     using migraphx::sym::var;
 
     const auto count = var("count", {1, 100});
-    migraphx::module m;
-    auto scalar = m.add_parameter(
-        "scalar",
-        {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}}});
-    auto values = m.add_parameter(
-        "values",
-        {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{count}}});
-    auto add = migraphx::add_common_op(m, migraphx::make_op("add"), {scalar, values});
-    m.add_return({add});
-
-    auto broadcasts = migraphx::find_all(migraphx::iterator_for(m),
-                                         [](auto ins) { return ins->name() == "multibroadcast"; });
-    EXPECT(broadcasts.size() == 1);
-    if(broadcasts.size() == 1)
+    std::vector<migraphx::shape::dynamic_dimension> values_dims{{count}};
+    migraphx::module m1;
     {
-        EXPECT(add->inputs().front() == broadcasts.front());
-        EXPECT(add->inputs().front()->get_shape().dyn_dims() ==
-               add->inputs().back()->get_shape().dyn_dims());
+        auto scalar = m1.add_parameter("scalar",
+                                       {migraphx::shape::float_type,
+                                        std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}}});
+        auto values = m1.add_parameter("values", {migraphx::shape::float_type, values_dims});
+        auto add    = migraphx::add_common_op(m1, migraphx::make_op("add"), {scalar, values});
+        m1.add_return({add});
     }
+    migraphx::module m2;
+    {
+        auto scalar = m2.add_parameter("scalar",
+                                       {migraphx::shape::float_type,
+                                        std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}}});
+        auto values = m2.add_parameter("values", {migraphx::shape::float_type, values_dims});
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast",
+                              {{"out_dyn_dims", migraphx::to_value(values_dims)}}),
+            scalar,
+            values);
+        auto add = m2.add_instruction(migraphx::make_op("add"), broadcast, values);
+        m2.add_return({add});
+    }
+    EXPECT(m1 == m2);
 }
 
-TEST_CASE(symbolic_binary_different_expressions_do_not_broadcast)
+TEST_CASE(symbolic_binary_disjoint_expressions_do_not_broadcast)
 {
     using migraphx::sym::var;
 
-    const auto n = var("n", {0, 100});
-    const auto k = var("k", {0, 100});
+    const auto n = var("n", {0, 10});
+    const auto k = var("k", {20, 30});
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter(
+            "x",
+            {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{n}}});
+        auto y = m1.add_parameter(
+            "y",
+            {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{k}}});
+        auto add = migraphx::add_common_op(m1, migraphx::make_op("add"), {x, y});
+        m1.add_return({add});
+    }
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter(
+            "x",
+            {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{n}}});
+        auto y = m2.add_parameter(
+            "y",
+            {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{k}}});
+        auto add = m2.add_instruction(migraphx::make_op("add"), x, y);
+        m2.add_return({add});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(symbolic_binary_literal_expression_mismatch)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto n = var("n", {4, 8});
     migraphx::module m;
     auto x = m.add_parameter(
-        "x", {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{n}}});
+        "x",
+        {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{lit(4)}}});
     auto y = m.add_parameter(
-        "y", {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{k}}});
-    auto add = migraphx::add_common_op(m, migraphx::make_op("add"), {x, y});
-    m.add_return({add});
+        "y", {migraphx::shape::float_type, std::vector<migraphx::shape::dynamic_dimension>{{n}}});
+    EXPECT(test::throws([&] { migraphx::add_common_op(m, migraphx::make_op("add"), {x, y}); }));
+}
 
-    auto broadcasts = migraphx::find_all(migraphx::iterator_for(m),
-                                         [](auto ins) { return ins->name() == "multibroadcast"; });
-    EXPECT(broadcasts.empty());
-    EXPECT(add->inputs() == std::vector<migraphx::instruction_ref>{x, y});
+TEST_CASE(symbolic_range_common_dims_mismatch)
+{
+    using migraphx::sym::var;
+
+    std::vector<migraphx::shape::dynamic_dimension> symbolic_dims{{var("n", {2, 8})}};
+    std::vector<migraphx::shape::dynamic_dimension> range_dims{{2, 8}};
+    EXPECT(
+        test::throws([&] { migraphx::compute_broadcasted_dyn_dims(symbolic_dims, range_dims); }));
+    EXPECT(
+        test::throws([&] { migraphx::compute_broadcasted_dyn_dims(range_dims, symbolic_dims); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

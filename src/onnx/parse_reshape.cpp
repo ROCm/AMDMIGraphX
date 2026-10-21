@@ -90,12 +90,13 @@ struct parse_reshape : op_parser<parse_reshape>
                                                  instruction_ref input,
                                                  const std::vector<int64_t>& dims)
     {
-        if(not input->get_shape().symbolic())
-            return info.add_instruction(make_op("reshape", {{"dims", dims}}), input);
-        auto result =
-            add_runtime_reshape(info, input, std::vector<dim_like>{dims.begin(), dims.end()});
-        if(result.has_value())
-            return *result;
+        if(input->get_shape().symbolic())
+        {
+            auto result =
+                add_runtime_reshape(info, input, std::vector<dim_like>{dims.begin(), dims.end()});
+            if(result.has_value())
+                return *result;
+        }
         return info.add_instruction(make_op("reshape", {{"dims", dims}}), input);
     }
 

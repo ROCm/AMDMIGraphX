@@ -34,6 +34,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/zip_view.hpp>
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -59,7 +60,9 @@ enum class fill_kind
 
 enum class mask_role
 {
+    // A softmax-style axis masked with -inf so the padded region contributes zeros.
     normalized,
+    // A reduction axis masked with the reduction identity.
     contracted
 };
 
@@ -74,8 +77,10 @@ struct axis_desc
 {
     axis_handling handling = axis_handling::unsupported;
     fill_kind fill         = fill_kind::dont_care;
-    bool coalesce_safe     = false;
-    mask_role role         = mask_role::contracted;
+    // Padded values on this axis cannot leak into the result, so a cross-block input need not be
+    // sliced back to its runtime extent.
+    bool coalesce_safe = false;
+    mask_role role     = mask_role::contracted;
 };
 
 axis_desc padded_axis(fill_kind fill, bool coalesce_safe);
@@ -104,7 +109,10 @@ struct axis_mask
 struct operand_plan
 {
     std::optional<float> pad_value;
+    // Axes where producer padding would change the result; cross-block inputs are sliced back to
+    // their runtime extent on these axes.
     std::vector<std::size_t> retained_slice_axes;
+    // Runtime masks applied inside the clone instead of relying on the pad fill.
     std::vector<axis_mask> masks;
 
     bool zeros_contracted_region(const axis_mask& consumer) const
@@ -114,6 +122,7 @@ struct operand_plan
     }
 };
 
+// Re-emits the operation in static form for the given fixed symbol values.
 using op_freezer =
     std::function<instruction_ref(module&,
                                   instruction_ref,
@@ -128,6 +137,7 @@ struct symbolic_op_info
     std::vector<std::size_t> output_symbolic_axes;
     std::vector<operand_plan> operands;
     op_freezer freezer;
+    // Inputs that only carry shape metadata, such as allocate dims; they are not operands.
     std::vector<std::size_t> shape_input_indices;
     bool supported = false;
 

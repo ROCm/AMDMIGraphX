@@ -34,10 +34,8 @@ namespace {
 
 std::optional<shape::dynamic_dimension> symbolic_range_dim(const operation& op)
 {
-    if(op.name() != "dynamic_range")
-        return std::nullopt;
     auto attributes = op.to_value();
-    if(not attributes.contains("output_dim") or attributes.at("output_dim").is_null())
+    if(attributes.at("output_dim").is_null())
         return std::nullopt;
     auto output_dim = from_value<shape::dynamic_dimension>(attributes.at("output_dim"));
     if(not output_dim.is_symbolic())

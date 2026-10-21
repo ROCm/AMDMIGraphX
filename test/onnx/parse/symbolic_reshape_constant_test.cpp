@@ -44,17 +44,23 @@ TEST_CASE(symbolic_reshape_constant)
                 migraphx::to_value(std::vector<migraphx::sym::expr>{batch, lit(4)});
             const auto output_shape =
                 migraphx::shape{migraphx::shape::float_type, sym_dims({batch, lit(4)})};
-            auto add_reshape = [&] {
-                auto resolved_dims = m.add_instruction(
-                    migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}),
-                    std::vector<migraphx::instruction_ref>{args[1], args[0]});
-                auto allocation = m.add_instruction(
-                    migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}),
-                    resolved_dims);
-                return m.add_instruction(migraphx::make_op("reshape"), args[1], allocation);
-            };
-            auto constant_output  = add_reshape();
-            auto attribute_output = add_reshape();
+            auto constant_dims = m.add_instruction(
+                migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}),
+                std::vector<migraphx::instruction_ref>{args[1], args[0]});
+            auto constant_allocation = m.add_instruction(
+                migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}),
+                constant_dims);
+            auto constant_output =
+                m.add_instruction(migraphx::make_op("reshape"), args[1], constant_allocation);
+
+            auto attribute_dims = m.add_instruction(
+                migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}),
+                std::vector<migraphx::instruction_ref>{args[1], args[0]});
+            auto attribute_allocation = m.add_instruction(
+                migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}),
+                attribute_dims);
+            auto attribute_output =
+                m.add_instruction(migraphx::make_op("reshape"), args[1], attribute_allocation);
             m.add_return({constant_output, attribute_output});
         }));
 }

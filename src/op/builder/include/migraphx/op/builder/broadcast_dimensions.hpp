@@ -32,6 +32,7 @@
 #include <migraphx/stringutils.hpp>
 
 #include <algorithm>
+#include <cassert>
 #include <optional>
 
 namespace migraphx {
@@ -121,6 +122,7 @@ instruction_ref add_symbolic_broadcast(Builder& bldr,
                                        const std::vector<shape::dynamic_dimension>& other_dds,
                                        const std::vector<shape::dynamic_dimension>& target_dds)
 {
+    assert(not target_dds.empty());
     std::vector<instruction_ref> runtime_dims;
     auto axes = range(target_dds.size());
     std::transform(axes.begin(), axes.end(), std::back_inserter(runtime_dims), [&](auto axis) {
@@ -179,6 +181,7 @@ void broadcast_dimensions(Builder& bldr,
                           instruction_ref& ba0,
                           instruction_ref& ba1)
 {
+    assert(a0->get_shape().ndim() >= 2 and a1->get_shape().ndim() >= 2);
     auto args         = {a0, a1};
     bool any_symbolic = std::any_of(
         args.begin(), args.end(), [](const auto& a) { return a->get_shape().symbolic(); });

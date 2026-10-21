@@ -123,6 +123,7 @@ struct select_module
         auto out_param_names = get_output_parameter_names(module_to_run);
         auto param_shapes    = module_to_run->get_parameter_shapes();
         auto module_outputs  = module_to_run->get_returns();
+        std::vector<std::vector<instruction_ref>> output_aliases;
         if(not out_param_names.empty())
         {
             if(args.size() != in_param_names.size() + num_outputs())
@@ -130,6 +131,10 @@ struct select_module
             if(module_outputs.size() != num_outputs())
                 MIGRAPHX_THROW(
                     "SELECT_MODULE: output allocation count does not match module outputs");
+            std::transform(module_outputs.begin(),
+                           module_outputs.end(),
+                           std::back_inserter(output_aliases),
+                           [](instruction_ref result) { return resolve_output_aliases(result); });
         }
         auto output_start = args.size() - num_outputs();
         std::transform(
@@ -138,15 +143,15 @@ struct select_module
             std::inserter(p_map, p_map.end()),
             [&](const auto& name) {
                 auto parameter = module_to_run->get_parameter(name);
-                auto output    = std::find_if(
-                    module_outputs.begin(), module_outputs.end(), [&](instruction_ref result) {
-                        return contains(resolve_output_aliases(result), parameter);
-                    });
-                if(output == module_outputs.end())
+                auto output =
+                    std::find_if(output_aliases.begin(),
+                                 output_aliases.end(),
+                                 [&](const auto& aliases) { return contains(aliases, parameter); });
+                if(output == output_aliases.end())
                     MIGRAPHX_THROW(
                         "SELECT_MODULE: output parameter does not alias a module output");
                 const auto& allocation =
-                    args.at(output_start + std::distance(module_outputs.begin(), output));
+                    args.at(output_start + std::distance(output_aliases.begin(), output));
                 const auto& ps = param_shapes.at(name);
                 if(ps.bytes() > allocation.get_shape().bytes())
                     MIGRAPHX_THROW("SELECT_MODULE: output allocation for " + name + " requires " +

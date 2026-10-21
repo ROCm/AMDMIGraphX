@@ -23,29 +23,34 @@
  */
 #include <migraphx/split_sym/analyzer.hpp>
 #include <migraphx/op/common.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace split_sym {
 namespace {
 
-axis_desc classify_pooling_axis(std::size_t axis,
-                                bool default_padding,
-                                fill_kind fill,
-                                bool ceil_mode,
-                                bool dyn_global,
-                                const std::vector<std::size_t>& padding,
-                                std::size_t spatial_dimensions)
+struct pooling_axes
 {
-    if(axis < 2)
-        return parallel_axis();
-    if(not default_padding or fill == fill_kind::dont_care)
-        return axis_desc{};
-    if(dyn_global)
-        return contracted_axis(fill);
-    return padded_axis(fill,
-                       not ceil_mode and windowed_zero_pad(padding, spatial_dimensions, axis));
-}
+    bool default_padding = false;
+    fill_kind fill       = fill_kind::dont_care;
+    bool ceil_mode       = false;
+    bool dyn_global      = false;
+    std::vector<std::size_t> padding;
+    std::size_t spatial_dimensions = 0;
+
+    axis_desc classify(std::size_t axis) const
+    {
+        if(axis < 2)
+            return parallel_axis();
+        if(not default_padding or fill == fill_kind::dont_care)
+            return axis_desc{};
+        if(dyn_global)
+            return contracted_axis(fill);
+        return padded_axis(fill,
+                           not ceil_mode and windowed_zero_pad(padding, spatial_dimensions, axis));
+    }
+};
 
 struct analyze_pooling : analyzer<analyze_pooling>
 {
@@ -69,27 +74,12 @@ struct analyze_pooling : analyzer<analyze_pooling>
             attributes.at("padding_mode").to<op::padding_mode_t>() == op::padding_mode_t::default_;
         auto padding            = attributes.at("padding").to_vector<std::size_t>();
         auto spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();
+        pooling_axes axes{
+            default_padding, fill, ceil_mode, dyn_global, std::move(padding), spatial_dimensions};
         return analyze_axes(
             ins,
-            [&](std::size_t axis) {
-                return classify_pooling_axis(axis,
-                                             default_padding,
-                                             fill,
-                                             ceil_mode,
-                                             dyn_global,
-                                             padding,
-                                             spatial_dimensions)
-                           .handling == axis_handling::pad;
-            },
-            [&](std::size_t, std::size_t axis) {
-                return classify_pooling_axis(axis,
-                                             default_padding,
-                                             fill,
-                                             ceil_mode,
-                                             dyn_global,
-                                             padding,
-                                             spatial_dimensions);
-            });
+            [&](std::size_t axis) { return axes.classify(axis).handling == axis_handling::pad; },
+            [&](std::size_t, std::size_t axis) { return axes.classify(axis); });
     }
 };
 

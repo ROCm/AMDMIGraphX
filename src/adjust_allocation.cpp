@@ -34,6 +34,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static instruction_ref get_allocation(instruction_ref ins)
 {
+    // Tuple outputs use separate tensor buffers, so there is no single allocation to adjust.
+    if(ins->get_shape().type() == shape::tuple_type)
+        return ins;
     auto aliases = instruction::get_output_alias(ins, true);
     if(aliases.size() != 1)
         return ins;
@@ -61,11 +64,6 @@ void adjust_allocation::apply(module& m) const
             continue;
 
         auto alias_ins = get_allocation(ins);
-        // Tuple outputs use separate tensor buffers; do not resize one to the aggregate tuple
-        // shape.
-        if(ins->get_shape().type() == shape::tuple_type and
-           alias_ins->get_shape().type() != shape::tuple_type)
-            continue;
         if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
         {
             if(alias_ins != ins and alias_ins->get_shape() != ins->get_shape())

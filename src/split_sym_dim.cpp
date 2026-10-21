@@ -277,10 +277,9 @@ bool collect_root_dimension(const shape::dynamic_dimension& dimension,
 std::optional<std::vector<root_spec>> collect_roots(const module& m)
 {
     std::unordered_map<sym::expr, root_spec> root_specs;
-    auto parameter_names = m.get_parameter_names();
-    for(const auto& parameter_name : parameter_names)
+    for(auto parameter : m.get_parameters())
     {
-        const auto& s = m.get_parameter(parameter_name)->get_shape();
+        const auto& s = parameter->get_shape();
         if(s.dynamic() and not s.symbolic())
             return std::nullopt;
         if(not s.symbolic())
@@ -363,6 +362,16 @@ struct block_plan
 {
     std::vector<symbolic_op_plan*> ops;
     std::vector<const root_spec*> roots;
+
+    std::unordered_set<instruction_ref> instructions() const
+    {
+        std::unordered_set<instruction_ref> result;
+        std::transform(ops.begin(),
+                       ops.end(),
+                       std::inserter(result, result.end()),
+                       [](const auto* plan) { return plan->info.ins; });
+        return result;
+    }
 
     std::size_t rank() const
     {
@@ -477,23 +486,18 @@ bool absorbable_dependency(
         return false;
     const auto& inputs = ins->inputs();
     assert(inputs.size() == info.operands.size());
-    if(any_of(views::zip(info.operands, inputs), unpack([&](const auto& operand, auto input) {
-                  return operand.pad_value.has_value() and
-                         absorbable_dependency(input, planned, info_for_instruction);
-              })))
-        return false;
-    return true;
+    return not any_of(views::zip(info.operands, inputs),
+                      unpack([&](const auto& operand, auto input) {
+                          return operand.pad_value.has_value() and
+                                 absorbable_dependency(input, planned, info_for_instruction);
+                      }));
 }
 
 bool block_is_closed(
     const block_plan& block,
     const std::unordered_map<instruction_ref, const symbolic_op_plan*>& info_for_instruction)
 {
-    std::unordered_set<instruction_ref> included;
-    std::transform(block.ops.begin(),
-                   block.ops.end(),
-                   std::inserter(included, included.end()),
-                   [](const auto* op) { return op->info.ins; });
+    auto included = block.instructions();
 
     std::unordered_set<instruction_ref> visited;
     std::unordered_set<instruction_ref> boundary_visited;
@@ -698,6 +702,7 @@ struct block_dependency_graph
                             block_dependencies.insert(found.begin(), found.end());
                         });
                 });
+                assert(block.ops.front()->block.has_value());
                 block_dependencies.erase(*block.ops.front()->block);
                 return block_dependencies;
             });
@@ -813,7 +818,8 @@ struct block_dependency_graph
             const auto& producer        = consumer->inputs().at(input);
             const auto* consumer_info   = info_for_instruction.at(consumer);
             const auto* producer_info   = info_for_instruction.at(producer);
-            auto merged                 = merge_blocks(
+            assert(consumer_info->block.has_value() and producer_info->block.has_value());
+            auto merged = merge_blocks(
                 *consumer_info->block, *producer_info->block, info_for_instruction, max_clones);
             if(merged.has_value())
             {
@@ -863,11 +869,7 @@ struct block_dependency_graph
         std::for_each(blocks.begin(), blocks.end(), [&](const auto& block) {
             if(block.ops.empty())
                 return;
-            std::unordered_set<instruction_ref> planned;
-            std::transform(block.ops.begin(),
-                           block.ops.end(),
-                           std::inserter(planned, planned.end()),
-                           [](const auto* plan) { return plan->info.ins; });
+            auto planned = block.instructions();
             std::for_each(infos.begin(), infos.end(), [&](const auto& plan) {
                 if(plan.block.has_value() or not plan.info.needs_deferred_specialization_block())
                     return;
@@ -1020,7 +1022,8 @@ void prepare_clone_infos(
             if(source_is_planned)
                 input.slice_axes = source_info->second->info.output_symbolic_axes;
 
-            // Fixed symbolic dimensions and strides still require static clone metadata.
+            // Also pad when fixed symbolic dims or strides change under the target substitution,
+            // so the clone sees a static shape.
             bool emit_pad =
                 operand.pad_value.has_value() or
                 needs_fixed_retarget(input_shapes.at(input_index), target_substitutions);
@@ -1059,25 +1062,15 @@ void prepare_clone_infos(
     }
 }
 
-shape clone_parameter_shape(
-    const shape& s,
-    const std::unordered_map<sym::expr, shape::dynamic_dimension::interval>& subranges,
-    const std::unordered_map<sym::expr, std::size_t>& freeze)
+shape clone_parameter_shape(const shape& s,
+                            const std::unordered_map<sym::expr, sym::expr>& subrange_symbols,
+                            const std::unordered_map<sym::expr, sym::expr>& frozen_symbols)
 {
     if(not s.symbolic())
         return s;
-    std::unordered_map<sym::expr, sym::expr> substitutions;
-    for(const auto& [root, interval] : subranges)
-    {
-        substitutions.emplace(root, sym::var(root.to_string(), {interval.min, interval.max}));
-    }
-    auto result = substitute_shape(s, substitutions);
+    auto result = substitute_shape(s, subrange_symbols);
     if(not result.symbolic())
         return result;
-    std::unordered_map<sym::expr, sym::expr> frozen_symbols;
-    for(const auto& [symbol, value] : freeze)
-        if(not contains(subranges, symbol))
-            frozen_symbols.emplace(symbol, sym::lit(value));
     auto dimensions = result.dyn_dims();
     std::transform(dimensions.begin(), dimensions.end(), dimensions.begin(), [&](const auto& d) {
         return shape::dynamic_dimension{d.sym_expr.subs(frozen_symbols)};
@@ -1262,8 +1255,7 @@ std::size_t add_block_input(std::vector<block_input>& inputs, sliced_value clone
     });
     if(found != inputs.end())
         return static_cast<std::size_t>(std::distance(inputs.begin(), found));
-    auto select_input = clone_value.source;
-    inputs.push_back({std::move(clone_value), select_input});
+    inputs.push_back({std::move(clone_value), {}});
     return inputs.size() - 1;
 }
 
@@ -1281,17 +1273,11 @@ instruction_ref resolve_replacement(
         MIGRAPHX_THROW("SPLIT_SYM_DIM: block dependency " + source->name() + " at rank " +
                        std::to_string(info->second->rank) + " was not specialized before use");
 
-    auto args    = source->inputs();
-    bool changed = false;
-    for(auto& arg : args)
-    {
-        auto replacement = resolve_replacement(m, arg, replacements, info_for_instruction);
-        if(replacement == arg)
-            continue;
-        arg     = replacement;
-        changed = true;
-    }
-    if(not changed)
+    auto args = source->inputs();
+    std::transform(args.begin(), args.end(), args.begin(), [&](instruction_ref arg) {
+        return resolve_replacement(m, arg, replacements, info_for_instruction);
+    });
+    if(args == source->inputs())
     {
         replacements.emplace(source, source);
         return source;
@@ -1381,11 +1367,12 @@ struct block_frame
                 ++generated_suffix;
                 continue;
             }
-            auto name = input_prefix + std::to_string(block_number) + "_" +
-                        std::to_string(generated_suffix++);
-            while(not used_names.insert(name).second)
+            std::string name;
+            do
+            {
                 name = input_prefix + std::to_string(block_number) + "_" +
                        std::to_string(generated_suffix++);
+            } while(not used_names.insert(name).second);
             params.emplace(std::move(name), input_index);
         }
         if(params.size() + literals.size() != inputs.size())
@@ -1442,11 +1429,7 @@ std::optional<block_frame> find_block_frame(
     std::size_t block_number,
     const std::unordered_map<sym::expr, instruction_ref>& root_sources)
 {
-    std::unordered_set<instruction_ref> planned_instructions;
-    std::transform(block.ops.begin(),
-                   block.ops.end(),
-                   std::inserter(planned_instructions, planned_instructions.end()),
-                   [](const auto* plan) { return plan->info.ins; });
+    auto planned_instructions = block.instructions();
 
     block_frame result;
     std::unordered_set<instruction_ref> body_instructions;
@@ -1509,23 +1492,6 @@ struct clone_context
     runtime_cache cache;
     std::unordered_map<instruction_ref, std::vector<instruction_ref>> reusable_pads;
 
-    clone_context(module& clone,
-                  const std::unordered_map<instruction_ref, const symbolic_op_plan*>& infos,
-                  std::unordered_map<instruction_ref, instruction_ref>& clones,
-                  const std::vector<std::pair<sliced_value, instruction_ref>>& inputs,
-                  const std::unordered_map<sym::expr, std::size_t>& frozen_values,
-                  const std::vector<instruction_ref>& runtime_sources,
-                  const std::unordered_map<sym::expr, sym::expr>& substitutions)
-        : clone_module(clone),
-          info_for_instruction(infos),
-          clone_map(clones),
-          input_values(inputs),
-          freeze(frozen_values),
-          runtime_extent_sources(runtime_sources),
-          fixed_substitutions(substitutions)
-    {
-    }
-
     instruction_ref emit(instruction_ref source)
     {
         auto found                         = info_for_instruction.find(source);
@@ -1542,30 +1508,27 @@ struct clone_context
                        });
         if(clone_info != nullptr)
         {
-            const auto& clone_inputs = clone_info->clone_inputs;
-            assert(clone_inputs.size() == args.size());
-            for(std::size_t index = 0; index < clone_inputs.size(); ++index)
-                if(clone_inputs.at(index).operand.pad_value.has_value())
-                    args.at(index) = add_or_reuse_pad(
+            assert(clone_info->clone_inputs.size() == args.size());
+            for(auto&& [arg, input] : views::zip(args, clone_info->clone_inputs))
+            {
+                if(input.operand.pad_value.has_value())
+                    arg = add_or_reuse_pad(
                         clone_module,
-                        make_op("fixed_pad",
-                                {{"value", *clone_inputs.at(index).operand.pad_value}}),
-                        args.at(index),
+                        make_op("fixed_pad", {{"value", *input.operand.pad_value}}),
+                        arg,
                         reusable_pads);
-            for(std::size_t index = 0; index < clone_inputs.size(); ++index)
-                for(const auto& mask : clone_inputs.at(index).operand.masks)
-                    args.at(index) = add_runtime_mask(clone_module,
-                                                      args.at(index),
-                                                      mask,
-                                                      runtime_extent_sources,
-                                                      fixed_substitutions,
-                                                      cache);
+                for(const auto& mask : input.operand.masks)
+                    arg = add_runtime_mask(clone_module,
+                                           arg,
+                                           mask,
+                                           runtime_extent_sources,
+                                           fixed_substitutions,
+                                           cache);
+            }
         }
 
         op_freezer freezer;
-        if(clone_info != nullptr)
-            freezer = clone_info->info.freezer;
-        else if(found != info_for_instruction.end())
+        if(found != info_for_instruction.end())
             freezer = found->second->info.freezer;
 
         instruction_ref clone;
@@ -1643,6 +1606,22 @@ clone_build build_clone(
     const std::unordered_map<sym::expr, sym::expr>& fixed_substitutions)
 {
     module clone_module{name};
+    std::unordered_map<sym::expr, sym::expr> subrange_symbols;
+    std::transform(subranges.begin(),
+                   subranges.end(),
+                   std::inserter(subrange_symbols, subrange_symbols.end()),
+                   [](const auto& item) {
+                       const auto& [root, interval] = item;
+                       return std::make_pair(
+                           root, sym::var(root.to_string(), {interval.min, interval.max}));
+                   });
+    std::unordered_map<sym::expr, sym::expr> frozen_symbols;
+    transform_if(
+        freeze.begin(),
+        freeze.end(),
+        std::inserter(frozen_symbols, frozen_symbols.end()),
+        [&](const auto& item) { return not contains(subranges, item.first); },
+        [](const auto& item) { return std::make_pair(item.first, sym::lit(item.second)); });
     std::unordered_map<instruction_ref, instruction_ref> clone_map;
     std::vector<std::pair<sliced_value, instruction_ref>> input_values;
     for(const auto& [parameter_name, input_index] : frame.params)
@@ -1650,7 +1629,8 @@ clone_build build_clone(
         const auto& input = frame.inputs.at(input_index);
         auto parameter    = clone_module.add_parameter(
             parameter_name,
-            clone_parameter_shape(input.select_input->get_shape(), subranges, freeze));
+            clone_parameter_shape(
+                input.select_input->get_shape(), subrange_symbols, frozen_symbols));
         if(input.clone_value.slice_axes.empty())
             clone_map[input.clone_value.source] = parameter;
         else
@@ -1675,13 +1655,13 @@ clone_build build_clone(
                        return find_cloned_input(
                            frame.inputs.at(input_index).clone_value, clone_map, input_values);
                    });
-    clone_context context{clone_module,
-                          info_for_instruction,
-                          clone_map,
-                          input_values,
-                          freeze,
-                          runtime_extent_sources,
-                          fixed_substitutions};
+    clone_context context{.clone_module           = clone_module,
+                          .info_for_instruction   = info_for_instruction,
+                          .clone_map              = clone_map,
+                          .input_values           = input_values,
+                          .freeze                 = freeze,
+                          .runtime_extent_sources = runtime_extent_sources,
+                          .fixed_substitutions    = fixed_substitutions};
     for(auto source : frame.body)
         context.emit(source);
     match::find_matches(clone_module,
@@ -1706,6 +1686,8 @@ clone_build build_clone(
                    [](instruction_ref output) { return output->get_shape(); });
     clone_module.add_return(clone_outputs);
     run_passes(clone_module, {dead_code_elimination{}});
+    // Keep fixed parameters symbolic when an eval_expr_from_shape still reads them or converting
+    // them would change an output layout.
     if(none_of(clone_module, [](const auto& ins) {
            return ins.name() == "eval_expr_from_shape" and not ins.outputs().empty();
        }))
@@ -1853,6 +1835,7 @@ void specialize_blocks(
             for(auto&& [root, specialization_index] :
                 views::zip(block.roots, specialization_indices))
             {
+                assert(specialization_index < root->specializations.size());
                 auto specialization =
                     std::next(root->specializations.begin(), specialization_index);
                 const auto& [target, runtime_range] = *specialization;

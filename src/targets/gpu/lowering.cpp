@@ -103,7 +103,7 @@ struct miopen_apply
 #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
-        add_fixed_pad_op();
+        add_extend_op("fixed_pad");
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
@@ -345,16 +345,6 @@ struct miopen_apply
     }
 
     void add_extend_op(const std::string& name) { add_extend_op(name, "gpu::" + name); }
-
-    void add_fixed_pad_op()
-    {
-        apply_map.emplace("fixed_pad", [=](instruction_ref ins) {
-            const auto& input = ins->inputs().front();
-            auto output       = insert_allocation(ins, ins->get_shape());
-            return mod->replace_instruction(
-                ins, make_op("gpu::fixed_pad", ins->get_operator().to_value()), {input, output});
-        });
-    }
 
     void add_extend_op(const std::string& op_name, const std::string& gpu_name)
     {
@@ -668,10 +658,8 @@ struct miopen_apply
         });
     }
 
-    /**
-     * Adds one allocation per submodule output so each output is written in place. A ranged
-     * submodule writes the whole range, so a dynamic output is allocated at its maximum extent.
-     */
+    // Adds one allocation per submodule output; a dynamic output is allocated at its maximum
+    // extent.
     void add_select_module_op()
     {
         apply_map.emplace("select_module", [=](instruction_ref ins) {

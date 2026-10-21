@@ -124,9 +124,9 @@ static bool compatible_outputs(const std::vector<shape>& expected,
 }
 
 /**
- * Makes all the shapes in the dynamic_dimension range. Inserts select_module instruction to the
- * top and replaces the return, bypassing other instructions. Skips non-root modules, incompatible
- * clone outputs, and dynamic parameters that output to a select_module operator.
+ * Clones the module once per value of its single dynamic dimension and replaces the return with a
+ * select_module over the clones. Skips non-root modules, clones whose outputs are incompatible
+ * with the module outputs, and dynamic parameters already feeding a select_module.
  */
 void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {

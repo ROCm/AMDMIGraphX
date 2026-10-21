@@ -25,29 +25,38 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/value.hpp>
 #include <algorithm>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace split_sym {
 namespace {
 
-bool is_prefix_stable_dyn_slice(instruction_ref ins)
+struct dyn_slice_bounds
+{
+    std::vector<sym::expr> starts;
+    std::vector<sym::expr> ends;
+};
+
+// A dyn_slice keeps a prefix on every axis when each start is a non-negative constant and each
+// end is a non-negative constant or the full input extent.
+std::optional<dyn_slice_bounds> prefix_stable_dyn_slice_bounds(instruction_ref ins)
 {
     const auto& inputs = ins->inputs();
     if(inputs.size() != 3)
-        return false;
+        return std::nullopt;
     auto attributes = ins->get_operator().to_value();
     if(not attributes.contains("axes"))
-        return false;
+        return std::nullopt;
     auto starts_value = inputs.at(1)->sym_eval();
     auto ends_value   = inputs.at(2)->sym_eval();
     if(starts_value.empty() or ends_value.empty())
-        return false;
+        return std::nullopt;
     auto axes   = attributes.at("axes").to_vector<int64_t>();
     auto starts = starts_value.get().to_vector();
     auto ends   = ends_value.get().to_vector();
     if(axes.size() != starts.size() or axes.size() != ends.size())
-        return false;
+        return std::nullopt;
 
     const auto& input = inputs.front()->get_shape();
     auto input_dims   = input.to_symbolic().dyn_dims();
@@ -58,25 +67,21 @@ bool is_prefix_stable_dyn_slice(instruction_ref ins)
         const auto& start = starts.at(i);
         if(not axis.has_value() or not sym::find_variables(start).empty() or
            sym::strict_less(start, zero).value_or(false))
-            return false;
+            return std::nullopt;
         const auto& end = ends.at(i);
         if(sym::strict_less(end, zero).value_or(false) or
            (not sym::find_variables(end).empty() and not(end == input_dims.at(*axis).sym_expr)))
-            return false;
+            return std::nullopt;
     }
-    return true;
+    return dyn_slice_bounds{std::move(starts), std::move(ends)};
 }
 
-std::vector<int64_t> evaluate_slice_input(const std::vector<instruction_ref>& args,
-                                          std::size_t index,
-                                          const std::unordered_map<sym::expr, std::size_t>& values)
+std::vector<int64_t> evaluate_slice_bounds(const std::vector<sym::expr>& expressions,
+                                           const std::unordered_map<sym::expr, std::size_t>& values)
 {
-    auto symbolic_value = args.at(index)->sym_eval();
-    assert(not symbolic_value.empty());
-    auto expressions = symbolic_value.get();
     std::vector<int64_t> result(expressions.size());
     std::transform(expressions.begin(), expressions.end(), result.begin(), [&](const auto& e) {
-        return e.eval_uint(values);
+        return static_cast<int64_t>(e.eval_uint(values));
     });
     return result;
 }
@@ -96,37 +101,36 @@ struct analyze_slice : analyzer<analyze_slice>
         {
             if(inputs.size() != 1)
                 return symbolic_op_info{ins};
-            auto axes = op.to_value().at("axes").to_vector<int64_t>();
-            for(auto& axis : axes)
-            {
-                auto normalized_axis = normalize_axis(axis, inputs.front().ndim());
-                if(not normalized_axis.has_value() or
-                   is_variable_axis(inputs.front().dyn_dims().at(*normalized_axis)))
-                    return symbolic_op_info{ins};
-                axis = *normalized_axis;
-            }
+            const auto& input = inputs.front();
+            auto axes         = op.to_value().at("axes").to_vector<int64_t>();
+            if(any_of(axes, [&](auto axis) {
+                   auto normalized = normalize_axis(axis, input.ndim());
+                   return not normalized.has_value() or
+                          is_variable_axis(input.dyn_dims().at(*normalized));
+               }))
+                return symbolic_op_info{ins};
             return analyze_axes(ins);
         }
 
-        if(inputs.size() != 3 or not is_prefix_stable_dyn_slice(ins))
+        auto bounds = prefix_stable_dyn_slice_bounds(ins);
+        if(not bounds.has_value())
             return symbolic_op_info{ins};
         auto result    = analyze_axes(ins);
-        result.freezer = freeze;
+        result.freezer = [bounds = std::move(*bounds)](
+                             module& m,
+                             instruction_ref source,
+                             const std::vector<instruction_ref>& args,
+                             const std::unordered_map<sym::expr, std::size_t>& values) {
+            assert(args.size() == 3);
+            auto attributes = source->get_operator().to_value();
+            return m.add_instruction(
+                make_op("slice",
+                        {{"axes", attributes.at("axes")},
+                         {"starts", evaluate_slice_bounds(bounds.starts, values)},
+                         {"ends", evaluate_slice_bounds(bounds.ends, values)}}),
+                args.front());
+        };
         return result;
-    }
-
-    static instruction_ref freeze(module& m,
-                                  instruction_ref source,
-                                  const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>& values)
-    {
-        assert(args.size() == 3);
-        auto attributes = source->get_operator().to_value();
-        return m.add_instruction(make_op("slice",
-                                         {{"axes", attributes.at("axes")},
-                                          {"starts", evaluate_slice_input(args, 1, values)},
-                                          {"ends", evaluate_slice_input(args, 2, values)}}),
-                                 args.front());
     }
 };
 

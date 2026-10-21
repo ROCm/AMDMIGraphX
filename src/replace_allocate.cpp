@@ -284,6 +284,7 @@ void insert_copy(module& m, const allocation_model& model, bool copy_aliased_ret
         return;
 
     auto returns = m.get_returns();
+    auto return_ins = m.insert_end();
     std::unordered_set<instruction_ref> returned;
     bool changed = false;
     std::transform(returns.begin(), returns.end(), returns.begin(), [&](instruction_ref ins) {
@@ -292,7 +293,7 @@ void insert_copy(module& m, const allocation_model& model, bool copy_aliased_ret
         if(returned.insert(ins).second and ins->name() != "@param")
             return ins;
         changed = true;
-        return insert_output_copy(m, model, std::prev(m.end()), ins);
+        return insert_output_copy(m, model, return_ins, ins);
     });
     if(changed)
         m.replace_return(returns);

@@ -48,12 +48,16 @@ bool is_variable_axis(const shape::dynamic_dimension& d)
     return d.is_symbolic() and not d.is_fixed();
 }
 
+// Mask literals are built from float values, so reject fills that cannot be represented by the
+// requested type.
 bool supports_mask(shape::type_t type, fill_kind fill)
 {
-    if(fill != fill_kind::neg_inf)
+    if(contains({fill_kind::dont_care, fill_kind::zero, fill_kind::one}, fill))
         return true;
-    return contains({shape::half_type, shape::float_type, shape::double_type, shape::bf16_type},
-                    type);
+    if(fill == fill_kind::neg_inf)
+        return contains({shape::half_type, shape::float_type, shape::double_type, shape::bf16_type},
+                        type);
+    return contains({shape::float_type, shape::double_type}, type);
 }
 
 float fill_value(fill_kind fill)

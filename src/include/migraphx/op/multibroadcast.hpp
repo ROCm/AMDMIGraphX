@@ -75,24 +75,23 @@ struct multibroadcast
                 MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" + to_string(in_dims.size()) +
                                ") should be <= output size (" + to_string(out_dims.size()) + ")");
             auto offset = out_dims.size() - in_dims.size();
-            for(std::size_t i = 0; i < in_dims.size(); ++i)
-            {
-                if(out_dims[i + offset] != in_dims[i] and in_dims[i] != 1)
-                    MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(in_dims) +
-                                   "} cannot be broadcasted to {" + to_string_range(out_dims) +
-                                   "}!");
-            }
+            if(not std::equal(in_dims.begin(),
+                              in_dims.end(),
+                              out_dims.begin() + offset,
+                              [](const auto& in, const auto& out) { return out == in or in == 1; }))
+                MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(in_dims) +
+                               "} cannot be broadcasted to {" + to_string_range(out_dims) + "}!");
         };
+        const bool symbolic_target = not output_dyn_dims.empty() and
+                                     std::all_of(output_dyn_dims.begin(),
+                                                 output_dyn_dims.end(),
+                                                 [](const auto& d) { return d.is_symbolic(); });
 
         if(inputs.size() == 1)
         {
             // Symbolic 1-input mode: opt-in via a fully-symbolic output_dyn_dims attribute.
             // Input may be static (bridged via to_symbolic()) or already symbolic.
             // Range-based dynamic input is not allowed.
-            const bool symbolic_target = not output_dyn_dims.empty() and
-                                         std::all_of(output_dyn_dims.begin(),
-                                                     output_dyn_dims.end(),
-                                                     [](const auto& d) { return d.is_symbolic(); });
             if(not output_dyn_dims.empty() and not symbolic_target)
                 MIGRAPHX_THROW(
                     "MULTIBROADCAST: output_dyn_dims must be fully symbolic but given {" +
@@ -119,11 +118,6 @@ struct multibroadcast
             if(std::any_of(
                    inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
             {
-                const bool symbolic_target =
-                    not output_dyn_dims.empty() and
-                    std::all_of(output_dyn_dims.begin(), output_dyn_dims.end(), [](const auto& d) {
-                        return d.is_symbolic();
-                    });
                 const bool has_range_input =
                     std::any_of(inputs.begin(), inputs.end(), [](auto input) {
                         return input.dynamic() and not input.symbolic();

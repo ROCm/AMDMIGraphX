@@ -37,6 +37,7 @@
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
+#include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/json.hpp>
@@ -69,6 +70,7 @@
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -104,6 +106,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR)
 
 namespace {
 // Backend options recognized by the GPU target, supplied via
@@ -111,6 +114,10 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    /// Where compiled kernels are cached between runs. Defaults to ``MIGRAPHX_BINARY_CACHE``.
+    std::string binary_cache = binary_cache_settings{}.path;
+    /// Compile even when a kernel could be reused, and fail if the two disagree.
+    bool binary_cache_verify = false;
     // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
     bool hip_graph = false;
     // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
@@ -118,11 +125,9 @@ struct backend_options
     // priority over this. The architecture and build-config defaults only force ops on, so a
     // '!' entry cannot disable an op those defaults enable (e.g. attention on gfx94/gfx95).
     std::vector<std::string> mlir_use_specific_ops = {};
-    // Read/write problem caches (the common case: a user tuning a model). New
-    // tuning solutions are saved back to these files.
+    // Problem caches that new tuning solutions are saved back to.
     std::vector<std::string> problem_cache_files = {};
-    // Read-only problem caches (system-level, e.g. shipped by gpuep or an ISV),
-    // searched after the writable caches and never written back.
+    // System-level problem caches, searched after the writable ones and never written.
     std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
@@ -138,6 +143,8 @@ struct backend_options
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.binary_cache, "binary_cache"),
+                    f(self.binary_cache_verify, "binary_cache_verify"),
                     f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
                     f(self.hip_graph, "hip_graph"),
                     f(self.convolution_layout, "convolution_layout"),
@@ -241,7 +248,8 @@ struct pipeline_factory
             prefuse_ops{get_context()},
             dead_code_elimination{},
             dead_code_elimination{},
-            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
+            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                           .fast_math         = options.fast_math},
             rewrite_topk{},
             rewrite_low_precision{},
             enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
@@ -274,6 +282,8 @@ struct pipeline_factory
             enable_pass(mlir_enabled(),
                         fuse_mlir{.ctx              = get_context(),
                                   .use_specific_ops = backend_opts.mlir_use_specific_ops}),
+            dead_code_elimination{},
+            fuse_topk{},
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},
@@ -315,7 +325,8 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager},
+                        options.compile_mode == compile_modes::eager,
+                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{})},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -338,19 +349,26 @@ struct pipeline_factory
 };
 } // namespace
 
+static migraphx::context make_context(const target& t)
+{
+    if(t.is_cross_compile())
+        return context(t.desc);
+    return context(gpu::get_device_id());
+}
+
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto& ctx         = any_cast<context>(gctx);
     auto backend_opts = get_backend_options(options);
+    auto& ctx         = any_cast<context>(gctx);
+    // The context predates the compile options, so the cache they configure is installed here.
+    ctx.set_binary_cache(std::make_shared<binary_cache>(
+        binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
-    // Problem cache files arrive as GPU backend options. The writable caches
-    // (problem_cache_files) save new tuning solutions back; the read-only caches
-    // (read_only_problem_cache_files) are system-level and never written.
     ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
                             backend_opts.problem_cache_files);
 
@@ -365,7 +383,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             p.required_pipeline(),
             {optimize_module{},
              dead_code_elimination{},
-             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
+             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                            .fast_math         = options.fast_math},
              rewrite_topk{},
              dead_code_elimination{}},
             p.fusion_pipeline(),
@@ -390,12 +409,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 std::string target::name() const { return "gpu"; }
 
-migraphx::context target::get_context() const
-{
-    if(is_cross_compile())
-        return context(desc);
-    return context(gpu::get_device_id());
-}
+migraphx::context target::get_context() const { return make_context(*this); }
 
 argument target::copy_to(const argument& arg) const
 {

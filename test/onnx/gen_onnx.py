@@ -4268,6 +4268,182 @@ def external_constant_test():
     return ([node], [], [y])
 
 
+# The external-data negative tests below craft malformed TensorProto.external_data
+# entries that the standard save_as_external_data path cannot produce, so they build
+# and save the model directly instead of going through the onnx_test decorator.
+def _save_external_data_model(name, external_entries, weight_bytes=None):
+    weight = TensorProto()
+    weight.name = 'weight'
+    weight.data_type = TensorProto.FLOAT
+    weight.dims.extend([10])
+    weight.data_location = TensorProto.EXTERNAL
+    for key, value in external_entries:
+        entry = weight.external_data.add()
+        entry.key = key
+        entry.value = value
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
+    node = onnx.helper.make_node('Add', inputs=['x', 'weight'], outputs=['y'])
+    graph = helper.make_graph([node], name, [x], [y], initializer=[weight])
+    model = helper.make_model(graph, producer_name=name)
+    onnx.save(model, '{}.onnx'.format(name))
+    if weight_bytes is not None:
+        with open('{}.weight'.format(name), 'wb') as f:
+            f.write(weight_bytes)
+
+
+def external_data_path_traversal_test():
+    # location escapes the model directory -> must be rejected before any file read
+    _save_external_data_model('external_data_path_traversal_test',
+                              [('location', '../external_escape.weight')])
+
+
+def external_data_invalid_length_test():
+    # non-numeric length field -> parse_external_size must reject it
+    _save_external_data_model(
+        'external_data_invalid_length_test',
+        [('location', 'external_data_invalid_length_test.weight'),
+         ('offset', '0'), ('length', '123abc')])
+
+
+def external_data_size_mismatch_test():
+    # shape is 10 float32 (40 bytes) but the declared length reads 80 bytes
+    _save_external_data_model(
+        'external_data_size_mismatch_test',
+        [('location', 'external_data_size_mismatch_test.weight'),
+         ('offset', '0'), ('length', '80')],
+        weight_bytes=np.ones(20, dtype=np.float32).tobytes())
+
+
+@onnx_test()
+def external_data_short_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [16])
+
+    weight_file = 'external_data_short_test.weight'
+    np.arange(16, dtype=np.float32).tofile(weight_file)
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([16])
+    tensor.data_location = TensorProto.EXTERNAL
+    for key, value in [('location', weight_file), ('offset', '0'),
+                       ('length', '4')]:
+        entry = tensor.external_data.add()
+        entry.key = key
+        entry.value = value
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def external_data_length_large_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [16])
+
+    weight_file = 'external_data_length_large_test.weight'
+    np.arange(16, dtype=np.float32).tofile(weight_file)
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([16])
+    tensor.data_location = TensorProto.EXTERNAL
+    for key, value in [('location', weight_file), ('offset', '0'),
+                       ('length', '100000000000')]:
+        entry = tensor.external_data.add()
+        entry.key = key
+        entry.value = value
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def external_data_shape_large_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      [1000000, 1000000])
+
+    weight_file = 'external_data_shape_large_test.weight'
+    np.array([1], dtype=np.float32).tofile(weight_file)
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([1000000, 1000000])
+    tensor.data_location = TensorProto.EXTERNAL
+    entry = tensor.external_data.add()
+    entry.key = 'location'
+    entry.value = weight_file
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def raw_data_short_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1024, 1024])
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([1024, 1024])
+    tensor.raw_data = np.array([1], dtype=np.float32).tobytes()
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def raw_data_long_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2])
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([2])
+    tensor.raw_data = np.array([1, 2, 3], dtype=np.float32).tobytes()
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def float_data_too_many_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1])
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([1])
+    tensor.float_data.extend(np.arange(1024, dtype=np.float32))
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def float_data_too_few_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4])
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([4])
+    tensor.float_data.extend([1.0])
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
 @onnx_test()
 def eyelike_default_test():
     T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])

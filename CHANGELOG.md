@@ -9,10 +9,13 @@ Full documentation for MIGraphX is available at
 
 * Added a binary cache for compiled GPU kernels: identical kernels within a model compile once, and setting the `MIGRAPHX_BINARY_CACHE` environment variable (or the `binary_cache` backend option) also persists them on disk so later compiles of the same kernels skip compilation entirely, in a directory or, for a path ending in `.db` or `.sqlite`, in a single SQLite database; a `binary_cache_verify` backend option recompiles reused kernels and fails if they differ.
 * Optimized GridSample by adding a GPU JIT kernel for the ONNX `nearest`, `linear`/`bilinear`, and `cubic`/`bicubic` modes, replacing the `concat`+`gathernd` decomposition in the ONNX parser for those modes (#5139).
+* Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 
 ### Changed
 
 * Changed the ONNX `NonMaxSuppression` parser to trim its zero-padded indices output down to the number of selected boxes with a `dyn_slice`, so a parsed model now returns the ONNX specification's `[num_selected_indices, 3]` output instead of a fixed padded size. This removes the `MIGRAPHX_USE_DYNAMIC_NMS` environment variable that previously gated the trim (#5150).
+* Updated `eliminate_convert` to remove no-op and redundant nested `convert` instructions for dynamic and symbolic shapes (#5385).
+* Updated `nonmaxsuppression` kernel to use uint32_t bitmask instead of bool type to get around number of elements > uint32_t (#5302).
 
 ### Resolved issues
 
@@ -23,6 +26,8 @@ Full documentation for MIGraphX is available at
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
 
 ### Optimized
+
+* Reduced compile-time heap allocations in `simplify_algebra`, `simplify_reshapes`, and `fuse_pointwise`: `match::name` shares its name set across matcher copies, and read-only uses of an instruction's inputs bind a reference or move instead of copying the vector (#5362).
 
 ### Removed
 

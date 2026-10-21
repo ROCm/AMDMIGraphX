@@ -57,6 +57,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <utility>
 
 namespace migraphx {
@@ -66,7 +67,6 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_USE_SIMPLE);
 
 static const benchmark_candidate& run_benchmark(const context& ctx,
@@ -414,7 +414,7 @@ struct dynamic_code_object_op
 MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 
 // forward declared since it requires compile_manager
-static void replace_inserted_device_ops(context& ctx, module& m);
+static void replace_inserted_device_ops(context& ctx, const std::vector<module_ref>& mods);
 
 /// One compilation and its result, shared by every result slot whose key matches. Each cell is
 /// written by exactly one worker during the parallel compile; sharers read it after the join.
@@ -588,7 +588,7 @@ struct compile_plan
         return bench_prog;
     }
 
-    void add_cells(bool skip_benchmark)
+    void add_cells(bool skip_benchmark, bool dump_mxr)
     {
         assert(results.empty());
         if(config.has_value())
@@ -609,8 +609,6 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                const bool dump_mxr =
-                    not string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}).empty();
                 if(skip_benchmark or enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
                    (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
@@ -740,7 +738,7 @@ struct compile_plan
             auto bench_prog      = make_program(*results[i]->result);
             auto* mm             = bench_prog.get_main_module();
 
-            replace_inserted_device_ops(*ctx, *mm);
+            replace_inserted_device_ops(*ctx, {mm});
 
             // Use json encoding for the comment used for benchmarking mxr files.
             value comment_val        = value::object{};
@@ -778,6 +776,10 @@ struct compile_manager
     std::vector<compile_plan> cps;
     bool exhaustive     = false;
     bool skip_benchmark = false;
+    /// When set, plans with several candidates are saved here as benchmark MXR files instead of
+    /// being replaced. Left empty by the nested batch in replace_inserted_device_ops.
+    fs::path mxr_dir             = {};
+    std::size_t dumped_mxr_files = 0;
 
     template <class... Ts>
     void add_plan(Ts&&... xs)
@@ -891,51 +893,36 @@ struct compile_manager
         store_results(tasks);
     }
 
-    void compile(module& m, bool is_root)
+    /// Add every precompile op in the module to the batch.
+    void add_plans(context& ctx, module_ref m)
     {
+        for(auto ins : iterator_for(*m))
+        {
+            if(ins->name() != "gpu::precompile_op")
+                continue;
+            operation preop = any_cast<precompile_op>(ins->get_operator()).op;
+            add_plan(&ctx, preop, ins, m);
+        }
+    }
+
+    void compile()
+    {
+        const bool dump_mxr = not mxr_dir.empty();
         for(auto& cp : cps)
-            cp.add_cells(skip_benchmark);
+            cp.add_cells(skip_benchmark, dump_mxr);
         compile_cells();
 
-        static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
-        bool dump_mxr              = not mxr_path.empty();
-        std::size_t dumped_mxr_files = 0;
-
         if(dump_mxr)
-        {
-            fs::create_directories(fs::path(mxr_path));
-        }
+            fs::create_directories(mxr_dir);
 
         for(const auto& cp : cps)
         {
             if(cp.results.empty())
                 continue;
             if(dump_mxr and cp.results.size() > 1)
-            {
-                dumped_mxr_files += cp.save_binaries(fs::path(mxr_path));
-            }
+                dumped_mxr_files += cp.save_binaries(mxr_dir);
             else
-            {
-                cp.replace(m);
-            }
-        }
-
-        // Exit on the root module so all submodules get processed first.
-        if(dump_mxr and is_root)
-        {
-            if(dumped_mxr_files > 0)
-            {
-                log::info()
-                    << "Benchmark MXR files dumped to " << mxr_path
-                    << ". Run the MXR files to create a problem cache, then recompile with the "
-                       "cache.";
-            }
-            else
-            {
-                log::info() << "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR is set to " << mxr_path
-                            << ", but no benchmark files were dumped.";
-            }
-            std::exit(0);
+                cp.replace(*cp.mod);
         }
 
         // Remove compile_plan already executed
@@ -944,48 +931,80 @@ struct compile_manager
                                  [](const auto& cp) { return not cp.results.empty(); }),
                   cps.end());
     }
+
+    /// Report the benchmark MXR files saved by compile() and exit: the kernels are tuned by running
+    /// those files, then the model is compiled again with the resulting problem cache.
+    [[noreturn]] void exit_after_dump() const
+    {
+        if(dumped_mxr_files > 0)
+        {
+            log::info() << "Benchmark MXR files dumped to " << mxr_dir.string()
+                        << ". Run the MXR files to create a problem cache, then recompile with the "
+                           "cache.";
+        }
+        else
+        {
+            log::info() << "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR is set to " << mxr_dir.string()
+                        << ", but no benchmark files were dumped.";
+        }
+        std::exit(0);
+    }
 };
 
-static void replace_inserted_device_ops(context& ctx, module& m)
+static void replace_inserted_device_ops(context& ctx, const std::vector<module_ref>& mods)
 {
-    run_passes(m, {dead_code_elimination{}});
-    assert(std::none_of(
-        m.begin(), m.end(), [](auto&& ins) { return ins.name() == "gpu::precompile_op"; }));
-    run_passes(m, {lower_device_ops{}});
     compile_manager cm;
-    for(auto ins : iterator_for(m))
+    for(auto* m : mods)
     {
-        if(ins->name() != "gpu::precompile_op")
-            continue;
-        operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        cm.add_plan(&ctx, preop, ins, &m);
+        run_passes(*m, {dead_code_elimination{}});
+        assert(std::none_of(
+            m->begin(), m->end(), [](auto&& ins) { return ins.name() == "gpu::precompile_op"; }));
+        run_passes(*m, {lower_device_ops{}});
+        cm.add_plans(ctx, m);
     }
-    cm.compile(m, false);
+    cm.compile();
     assert(cm.cps.empty());
+}
+
+/// The root module and every module reachable from it, each once, skipping bypassed modules as
+/// the pass manager does.
+static std::vector<module_ref> collect_modules(module_ref root)
+{
+    std::vector<module_ref> mods = {root};
+    auto sub_mods                = root->get_sub_modules();
+    std::copy(sub_mods.begin(), sub_mods.end(), std::back_inserter(mods));
+    std::unordered_set<module_ref> visited;
+    mods.erase(
+        std::remove_if(mods.begin(),
+                       mods.end(),
+                       [&](module_ref m) { return m->bypass() or not visited.insert(m).second; }),
+        mods.end());
+    return mods;
 }
 
 void compile_ops::apply(module_pass_manager& mpm) const
 {
-    bool is_root = &mpm.get_module() == mpm.get_root_module();
-    auto& m      = mpm.get_module();
+    // Compile from the root only, so one batch covers every module and identical kernels in
+    // different modules compile and benchmark once.
+    if(&mpm.get_module() != mpm.get_root_module())
+        return;
+    auto mods = collect_modules(mpm.get_root_module());
     compile_manager cm;
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
-    // Find all precompile ops
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() != "gpu::precompile_op")
-            continue;
-        operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        cm.add_plan(ctx, preop, ins, &m);
-    }
+    cm.mxr_dir        = dump_mxr_dir;
+    for(auto* m : mods)
+        cm.add_plans(*ctx, m);
     cm.update_configs();
-    cm.compile(m, is_root);
+    cm.compile();
+    // Dumping leaves the benchmarked problems unsolved, so nothing more can be compiled.
+    if(not cm.mxr_dir.empty())
+        cm.exit_after_dump();
     // Compile already tuned configs
-    cm.compile(m, is_root);
+    cm.compile();
     assert(cm.cps.empty());
 
-    replace_inserted_device_ops(*ctx, m);
+    replace_inserted_device_ops(*ctx, mods);
 }
 
 } // namespace gpu

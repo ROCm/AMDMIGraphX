@@ -67,6 +67,8 @@ int main(int argc, const char* argv[])
 {
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
+    rv.set_compile_modes_for("gpu",
+                             {migraphx::compile_modes::eager, migraphx::compile_modes::balanced});
     rv.disable_test_for(
         "cpu",
         {"test_if_lp",
@@ -75,6 +77,7 @@ int main(int argc, const char* argv[])
          "test_select_module_add",
          "test_select_module_reduce",
          "test_select_module_conv",
+         "test_select_module_index",
          "test_split_single_dyn_dim",
          "test_resize_dyn",
          "test_instancenorm_large_3d<migraphx::shape::float_type>",

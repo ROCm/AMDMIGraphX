@@ -25,6 +25,7 @@
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/match/softmax.hpp>
@@ -217,17 +218,14 @@ std::vector<instruction_ref> get_lse_instructions(const std::vector<instruction_
     lse_inss.insert(lse_inss.end(), {*log, add});
     // An attention-sink gate sigmoid(lse - sink) hanging off the lse is taken
     // along as the epilogue, so the group returns the gate instead of the lse
-    auto last = add;
-    while(last->outputs().size() == 1)
-    {
-        auto next = last->outputs().front();
-        if(not contains({"sub", "add", "sigmoid", "convert"}, next->name()))
-            break;
-        if(next->inputs().front() != last)
-            break;
-        lse_inss.push_back(next);
-        last = next;
-    }
+    auto path      = get_output_path(add);
+    auto gate_last = std::adjacent_find(
+        path.begin(), path.end(), [](instruction_ref prev, instruction_ref next) {
+            return not contains({"sub", "add", "sigmoid", "convert"}, next->name()) or
+                   next->inputs().front() != prev;
+        });
+    auto gate_end = gate_last == path.end() ? path.end() : std::next(gate_last);
+    std::copy(std::next(path.begin()), gate_end, std::back_inserter(lse_inss));
 
     return lse_inss;
 }

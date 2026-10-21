@@ -33,6 +33,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
@@ -88,13 +89,12 @@ struct rewrite_reshapes
     /// The shape transform operators from x_ins to input_ins in order
     static std::vector<operation> chain_ops(instruction_ref x_ins, instruction_ref input_ins)
     {
+        auto path = get_input_path(input_ins);
+        auto last = std::find(path.begin(), path.end(), x_ins);
         std::vector<operation> ops;
-        auto next_ins = input_ins;
-        while(next_ins != x_ins)
-        {
-            ops.push_back(next_ins->get_operator());
-            next_ins = next_ins->inputs().front();
-        }
+        std::transform(path.begin(), last, std::back_inserter(ops), [](instruction_ref ins) {
+            return ins->get_operator();
+        });
         std::reverse(ops.begin(), ops.end());
         return ops;
     }

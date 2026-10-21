@@ -213,6 +213,10 @@ void run_verify::verify(const program_info& pi, migraphx::compile_modes mode) co
                 m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
             }
         }
+        for(auto&& input : pi.get_inputs())
+        {
+            m[input.first] = input.second;
+        }
         migraphx::compile_options c_opts = pi.compile_options;
         c_opts.compile_mode              = mode;
         auto ref_f                       = detach_async([=] { return run_ref(p, m, c_opts); });

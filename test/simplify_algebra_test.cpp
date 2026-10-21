@@ -541,6 +541,69 @@ TEST_CASE(simplify_conv_add)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_conv_add_broadcast)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 8, 8}};
+    migraphx::shape bs{migraphx::shape::float_type, {3}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto b  = m1.add_literal(migraphx::generate_literal(bs, 1));
+        auto w  = m1.add_literal(migraphx::generate_literal(ws, 2));
+        auto bb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s.lens()}}), b);
+        auto sum  = m1.add_instruction(migraphx::make_op("add"), x, bb);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), sum, w);
+        m1.add_instruction(pass_op{}, conv);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto b   = m2.add_literal(migraphx::generate_literal(bs, 1));
+        auto w   = m2.add_literal(migraphx::generate_literal(ws, 2));
+        auto wr  = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), w);
+        auto w2d = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3}}}), wr);
+        auto wt =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), w2d);
+        auto b2d  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b);
+        auto dr   = m2.add_instruction(migraphx::make_op("dot"), b2d, wt);
+        auto dr4  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
+        auto bias = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 6, 6}}}), dr4);
+        auto conv = m2.add_instruction(migraphx::make_op("convolution"), x, w);
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), bias, conv);
+        m2.add_instruction(pass_op{}, sum);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// With padding conv(b, w) is not spatially uniform, so splitting the add would
+// constant fold into a full-size literal
+TEST_CASE(simplify_conv_add_broadcast_padded)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 8, 8}};
+    migraphx::shape bs{migraphx::shape::float_type, {3}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto b  = m1.add_literal(migraphx::generate_literal(bs, 1));
+        auto w  = m1.add_literal(migraphx::generate_literal(ws, 2));
+        auto bb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s.lens()}}), b);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), x, bb);
+        auto conv =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), sum, w);
+        m1.add_instruction(pass_op{}, conv);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(simplify_inner_broadcast1)
 {
     auto b = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 1, 4, 5}}});
@@ -5486,6 +5549,60 @@ TEST_CASE(conv_concat_split_fuse_no_fusion_mismatched_weights)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(conv_concat_split_fuse_prefix_concat_candidate)
+{
+    // Exercises find_conv_concat_split_fuse's prefix-concat branch: the first input of the
+    // matched concat also feeds a *different* concat whose input list is a strict prefix of
+    // the matched one. That candidate path is otherwise unreached by the suite.
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8, 4, 4}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 8, 3, 3}};
+    migraphx::shape w3s{migraphx::shape::float_type, {4, 16, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", xs);
+        auto w1 = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto w2 = m1.add_literal(migraphx::generate_literal(ws, 2));
+        auto w3 = m1.add_literal(migraphx::generate_literal(w3s, 3));
+        auto conv1 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, w1);
+        auto act1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
+        auto conv2 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, w2);
+        auto act2 = m1.add_instruction(migraphx::make_op("relu"), conv2);
+        // Strict prefix of the matched concat's inputs, and also an output of x
+        auto prefix_cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, act1);
+        auto cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, act1, act2);
+        auto conv3 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), cat, w3);
+        m1.add_return({conv3, prefix_cat});
+    }
+    run_pass(m1);
+
+    // The two convolutions on x fuse into one with concatenated weights; the result is
+    // sliced back apart, and the prefix concat is rewired onto the matching slice.
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", xs);
+        auto w1   = m2.add_literal(migraphx::generate_literal(ws, 1));
+        auto w2   = m2.add_literal(migraphx::generate_literal(ws, 2));
+        auto wcat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), w1, w2);
+        auto conv =
+            m2.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, wcat);
+        auto act = m2.add_instruction(migraphx::make_op("relu"), conv);
+        auto s1  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), act);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), act);
+        auto cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, s1, s2);
+        auto w3  = m2.add_literal(migraphx::generate_literal(w3s, 3));
+        auto conv3 =
+            m2.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), cat, w3);
+        auto prefix_cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, s1);
+        m2.add_return({conv3, prefix_cat});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(conv_concat_split_fuse_after_rewrite_convolution)
 {
     const migraphx::shape::type_t dt = migraphx::shape::half_type;
@@ -5875,6 +5992,58 @@ TEST_CASE(conv_broadcast_input_batch_size_gt_1)
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 64, 2, 2}}}), unsqueezed);
         m2.add_instruction(pass_op{}, r);
     }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(conv_broadcast_input_batch_broadcast)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {64}};
+    migraphx::shape ws{migraphx::shape::float_type, {64, 64, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xs);
+        auto bcast = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 64, 4, 4}}}), x);
+        auto w    = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), bcast, w);
+        m1.add_instruction(pass_op{}, conv);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", xs);
+        auto w   = m2.add_literal(migraphx::generate_literal(ws, 1));
+        auto wr  = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), w);
+        auto w2d = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {64, 64}}}), wr);
+        auto wt =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), w2d);
+        auto x2d = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
+        auto dr  = m2.add_instruction(migraphx::make_op("dot"), x2d, wt);
+        auto dr4 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
+        auto r   = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 64, 2, 2}}}), dr4);
+        m2.add_instruction(pass_op{}, r);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The input is broadcast across the channels, not the spatial dims
+TEST_CASE(conv_broadcast_input_spatial)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {4, 4}};
+    migraphx::shape ws{migraphx::shape::float_type, {8, 16, 1, 1}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xs);
+        auto bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 16, 4, 4}}}), x);
+        auto w    = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), bcast, w);
+        m1.add_instruction(pass_op{}, conv);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 

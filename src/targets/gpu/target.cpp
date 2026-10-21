@@ -106,6 +106,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR)
 
 namespace {
 // Backend options recognized by the GPU target, supplied via
@@ -324,7 +325,8 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager},
+                        options.compile_mode == compile_modes::eager,
+                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{})},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},

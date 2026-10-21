@@ -190,8 +190,17 @@ struct find_nested_shape_transforms
         }
         else if(x->get_shape().elements() == 1 and ins->get_shape().elements() == 1)
         {
-            // TODO: Use squeeze or unsqueeze
-            m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), x);
+            m.replace_instruction(ins, insert_auto_reshape(m, ins, ins->get_shape().lens(), x));
+        }
+        else if(x->get_shape().elements() == 1)
+        {
+            // A single element can only be broadcasted, but the descriptor keeps
+            // its unit axes in place and may still need a squeeze around the broadcast
+            const auto& out_lens = ins->get_shape().lens();
+            auto y               = x;
+            if(x->get_shape().ndim() > out_lens.size())
+                y = insert_auto_reshape(m, ins, std::vector<std::size_t>(out_lens.size(), 1), x);
+            m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), y);
         }
         else
         {
@@ -919,6 +928,7 @@ struct find_concat_multibroadcasts
 
         auto concat_out_lens  = concat_ins->get_shape().lens();
         auto front_mb_strides = concat_inputs.front()->get_shape().strides();
+           assert(concat_op.axis >= 0);
 
         // Only apply when concat axis is not a broadcasted dimension
         if(std::any_of(concat_inputs.begin(), concat_inputs.end(), [&](auto i) {
@@ -1086,7 +1096,8 @@ struct find_concat_slice
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins    = mr.result;
+        auto ins = mr.result;
+        // Deliberately a copy: the loop below mutates the module while this is live.
         auto inputs = ins->inputs();
         auto outs   = ins->outputs();
         std::vector<migraphx::instruction_ref> slice_ins;
@@ -1317,10 +1328,10 @@ struct find_concat_transpose
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins          = mr.result;
-        auto trans_inputs = ins->inputs();
-        auto v            = ins->get_operator().to_value();
-        auto permutation  = get_permutation(trans_inputs.front());
+        auto ins                 = mr.result;
+        const auto& trans_inputs = ins->inputs();
+        auto v                   = ins->get_operator().to_value();
+        auto permutation         = get_permutation(trans_inputs.front());
 
         // permutation should be the same for all inputs
         if(not std::all_of(trans_inputs.begin(), trans_inputs.end(), [&](auto in) {
@@ -1357,9 +1368,9 @@ struct find_concat_reshape
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins          = mr.result;
-        auto concat_shape = ins->get_shape();
-        auto reshapes     = ins->inputs();
+        auto ins             = mr.result;
+        auto concat_shape    = ins->get_shape();
+        const auto& reshapes = ins->inputs();
         if(reshapes.empty())
             return;
         auto input_shape = reshapes.front()->inputs().front()->get_shape();

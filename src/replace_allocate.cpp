@@ -283,7 +283,7 @@ void insert_copy(module& m, const allocation_model& model, bool copy_aliased_ret
     if(not copy_aliased_returns)
         return;
 
-    auto returns = m.get_returns();
+    auto returns    = m.get_returns();
     auto return_ins = m.insert_end();
     std::unordered_set<instruction_ref> returned;
     bool changed = false;

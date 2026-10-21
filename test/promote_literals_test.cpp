@@ -47,6 +47,23 @@ static void run_promote_and_ecs(migraphx::program& p)
                           migraphx::dead_code_elimination{}});
 }
 
+TEST_CASE(promote_without_submodules_does_not_run_cse)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto sum1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto sum2 = mm->add_instruction(migraphx::make_op("add"), x, y);
+    mm->add_return({sum1, sum2});
+    auto expected = p;
+
+    run_promote(p);
+
+    EXPECT(p == expected);
+}
+
 TEST_CASE(promote_only)
 {
     migraphx::program p0;

@@ -71,6 +71,18 @@ bool supports_fill(shape::type_t type, fill_kind fill)
                     type);
 }
 
+// Mask literals are built from float values, so reject fills that cannot be represented by the
+// requested type.
+bool supports_mask(shape::type_t type, fill_kind fill)
+{
+    if(contains({fill_kind::dont_care, fill_kind::zero, fill_kind::one}, fill))
+        return true;
+    if(fill == fill_kind::neg_inf)
+        return contains({shape::half_type, shape::float_type, shape::double_type, shape::bf16_type},
+                        type);
+    return contains({shape::float_type, shape::double_type}, type);
+}
+
 float fill_value(fill_kind fill)
 {
     switch(fill)

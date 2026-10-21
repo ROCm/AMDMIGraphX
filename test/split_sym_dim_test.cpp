@@ -182,13 +182,10 @@ migraphx::instruction_ref add_expected_scatternd(migraphx::module& m,
     condition = m.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", rewritten_index_lens}}), condition);
 
-    std::vector<int64_t> sink_values(effective_index_depth);
-    std::transform(data_lens.begin(),
-                   data_lens.begin() + effective_index_depth,
-                   sink_values.begin(),
-                   [](auto x) { return static_cast<int64_t>(x); });
+    std::vector<int64_t> data_prefix_lens(data_lens.begin(),
+                                          data_lens.begin() + effective_index_depth);
     auto sink = m.add_literal(migraphx::literal{
-        migraphx::shape{migraphx::shape::int64_type, {effective_index_depth}}, sink_values});
+        migraphx::shape{migraphx::shape::int64_type, {effective_index_depth}}, data_prefix_lens});
     sink      = m.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", rewritten_index_lens}}), sink);
 
@@ -207,13 +204,9 @@ migraphx::instruction_ref add_expected_scatternd(migraphx::module& m,
     std::vector<int64_t> axes(effective_index_depth);
     std::iota(axes.begin(), axes.end(), int64_t{0});
     std::vector<int64_t> starts(effective_index_depth, 0);
-    std::vector<int64_t> ends(effective_index_depth);
-    std::transform(data_lens.begin(),
-                   data_lens.begin() + effective_index_depth,
-                   ends.begin(),
-                   [](auto x) { return static_cast<int64_t>(x); });
     auto result = m.add_instruction(
-        migraphx::make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+        migraphx::make_op("slice",
+                          {{"axes", axes}, {"starts", starts}, {"ends", data_prefix_lens}}),
         scattered);
     if(index_depth == 0)
         result = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), result);

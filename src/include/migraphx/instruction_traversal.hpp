@@ -30,6 +30,7 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/unfold.hpp>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -67,48 +68,10 @@ inline auto get_alias_path(instruction_ref ins)
     });
 }
 
-// A lowered select_module returns a tuple backed by one trailing buffer per tuple element.
-// Map get_tuple_elem directly to its corresponding buffer because generic alias traversal
-// returns every buffer backing the tuple.
-inline optional<instruction_ref> get_select_module_buffer(instruction_ref ins)
-{
-    auto tuple_op         = ins->get_operator();
-    auto tuple_attributes = tuple_op.to_value();
-    if(tuple_op.name() != "get_tuple_elem")
-    {
-        if(not tuple_attributes.contains("name") or not tuple_attributes.contains("operator"))
-            return nullopt;
-        const auto& wrapped_name = tuple_attributes.at("name");
-        if(not wrapped_name.is_string() or wrapped_name.get_string() != "get_tuple_elem")
-            return nullopt;
-        tuple_attributes = tuple_attributes.at("operator");
-    }
-    auto producer = ins->inputs().front();
-    if(producer->name() != "select_module")
-        return nullopt;
-    const auto& inputs = producer->inputs();
-    auto aliases       = producer->get_operator().output_alias(to_shapes(inputs));
-    auto index         = tuple_attributes.at("index").to<std::size_t>();
-    if(index >= aliases.size())
-        return nullopt;
-    return inputs.at(aliases.at(index));
-}
-
-inline std::vector<instruction_ref> resolve_output_aliases(instruction_ref ins)
-{
-    if(auto buffer = get_select_module_buffer(ins))
-        return resolve_output_aliases(*buffer);
-    auto aliases = instruction::get_output_alias(ins, true);
-    if(aliases.size() == 1 and aliases.front() == ins)
-        return {ins};
-    std::vector<instruction_ref> result;
-    for(auto alias : aliases)
-    {
-        auto resolved = resolve_output_aliases(alias);
-        result.insert(result.end(), resolved.begin(), resolved.end());
-    }
-    return result;
-}
+// The instructions that own the buffers backing `ins`. A lowered select_module returns a tuple
+// backed by one trailing buffer per element, so a get_tuple_elem resolves to that one buffer
+// rather than to every buffer backing the tuple.
+MIGRAPHX_EXPORT std::vector<instruction_ref> resolve_output_aliases(instruction_ref ins);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

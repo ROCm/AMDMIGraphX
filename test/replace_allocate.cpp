@@ -304,6 +304,23 @@ TEST_CASE(allocate_out_parameter_return_copy)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(allocate_out_implicit_parameter_return_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1("sub");
+    m1.add_parameter("input", s);
+
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2("sub");
+    auto input  = m2.add_parameter("input", s);
+    auto output = m2.add_parameter("sub:#output_0", s);
+    auto copy   = m2.add_instruction(migraphx::make_op("test_copy"), input, output);
+    m2.add_return({copy});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(allocate_out_dynamic_parameter_return_copy)
 {
     using dd = migraphx::shape::dynamic_dimension;

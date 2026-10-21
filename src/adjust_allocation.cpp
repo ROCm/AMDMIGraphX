@@ -40,6 +40,10 @@ static instruction_ref get_allocation(instruction_ref ins)
     auto alias_ins = aliases.front();
     if(alias_ins == ins)
         return ins;
+    // A tuple may alias either one tuple allocation or separate tensor buffers.
+    if(ins->get_shape().type() == shape::tuple_type and
+       alias_ins->get_shape().type() != shape::tuple_type)
+        return ins;
     if(alias_ins->outputs().size() > 1)
         return ins;
     if(alias_ins->inputs().size() == 1 and
@@ -61,11 +65,6 @@ void adjust_allocation::apply(module& m) const
             continue;
 
         auto alias_ins = get_allocation(ins);
-        // Tuple outputs use separate tensor buffers; do not resize one to the aggregate tuple
-        // shape.
-        if(ins->get_shape().type() == shape::tuple_type and
-           alias_ins->get_shape().type() != shape::tuple_type)
-            continue;
         if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
         {
             if(alias_ins != ins and alias_ins->get_shape() != ins->get_shape())

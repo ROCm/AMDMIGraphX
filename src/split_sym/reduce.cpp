@@ -23,7 +23,6 @@
  */
 #include <migraphx/split_sym/analyzer.hpp>
 #include <migraphx/make_op.hpp>
-#include <algorithm>
 #include <string>
 
 namespace migraphx {
@@ -44,17 +43,24 @@ std::optional<fill_kind> reduce_identity(const std::string& name)
     return std::nullopt;
 }
 
-std::vector<int64_t> reduce_axes(const operation& op, std::size_t ndim)
+std::optional<std::vector<std::size_t>> reduce_axes(const operation& op, std::size_t ndim)
 {
     auto attributes = op.to_value();
-    std::vector<int64_t> axes;
-    if(attributes.contains("axes"))
-        axes = attributes.at("axes").to_vector<int64_t>();
-    int64_t rank = ndim;
-    std::transform(axes.begin(), axes.end(), axes.begin(), [rank](auto axis) {
-        return axis < 0 ? axis + rank : axis;
-    });
-    return axes;
+    if(not attributes.contains("axes"))
+        return std::nullopt;
+    auto axes = attributes.at("axes").to_vector<int64_t>();
+    if(axes.empty())
+        return std::nullopt;
+    std::vector<std::size_t> result;
+    result.reserve(axes.size());
+    for(auto axis : axes)
+    {
+        auto normalized = normalize_axis(axis, ndim);
+        if(not normalized.has_value())
+            return std::nullopt;
+        result.push_back(*normalized);
+    }
+    return result;
 }
 
 struct analyze_reduce : analyzer<analyze_reduce>
@@ -64,18 +70,14 @@ struct analyze_reduce : analyzer<analyze_reduce>
     symbolic_op_info analyze(instruction_ref ins) const
     {
         const auto& op = ins->get_operator();
-        auto inputs    = to_shapes(ins->inputs());
-        std::vector<std::vector<int64_t>> reduction_axes(inputs.size());
-        std::transform(inputs.begin(),
-                       inputs.end(),
-                       reduction_axes.begin(),
-                       [&](const shape& input) { return reduce_axes(op, input.ndim()); });
+        if(ins->inputs().size() != 1)
+            return symbolic_op_info{ins};
+        auto axes = reduce_axes(op, ins->inputs().front()->get_shape().ndim());
+        if(not axes.has_value())
+            return symbolic_op_info{ins};
         auto identity = reduce_identity(op.name());
-        auto result   = analyze_axes(ins, [&](std::size_t input, std::size_t axis) {
-            const auto& axes = reduction_axes.at(input);
-            if(axes.empty())
-                return axis_desc{};
-            if(not contains(axes, axis))
+        auto result   = analyze_axes(ins, [&](std::size_t, std::size_t axis) {
+            if(not contains(*axes, axis))
                 return parallel_axis();
             return identity.has_value() ? contracted_axis(*identity) : axis_desc{};
         });
@@ -116,7 +118,7 @@ struct analyze_reduce : analyzer<analyze_reduce>
         if(not propagated.has_value())
             return std::nullopt;
         auto axes = reduce_axes(ins->get_operator(), ins->inputs().front()->get_shape().ndim());
-        if(contains(axes, propagated->front().requirement.axis))
+        if(not axes.has_value() or contains(*axes, propagated->front().requirement.axis))
             return std::nullopt;
         return propagated;
     }

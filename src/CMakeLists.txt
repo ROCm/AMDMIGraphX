@@ -93,6 +93,7 @@ add_library(migraphx
     insert_pad.cpp
     insert_select_module.cpp
     instruction.cpp
+    instruction_traversal.cpp
     json.cpp
     layout_convolution.cpp
     lexing.cpp

@@ -33,25 +33,19 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace split_sym {
 namespace {
 
-operation reshape_from_shape(const shape& target,
-                             const std::unordered_map<sym::expr, sym::expr>& substitutions)
+operation reshape_from_shape(const shape& target)
 {
     std::vector<dim_like> dims(target.ndim());
-    std::transform(
-        target.dyn_dims().begin(), target.dyn_dims().end(), dims.begin(), [&](const auto& d) {
-            return shape::dynamic_dimension{d.sym_expr.subs(substitutions)};
-        });
+    std::transform(target.dyn_dims().begin(),
+                   target.dyn_dims().end(),
+                   dims.begin(),
+                   [](const auto& d) { return shape::dynamic_dimension{d.sym_expr}; });
     return make_op("reshape", {{"dims", to_value(dims)}});
 }
 
 std::vector<sym::expr> non_unit_dims(const shape& s)
 {
-    auto symbolic = s.to_symbolic();
-    std::vector<sym::expr> result;
-    std::transform(symbolic.dyn_dims().begin(),
-                   symbolic.dyn_dims().end(),
-                   std::back_inserter(result),
-                   [](const auto& d) { return d.sym_expr; });
+    auto result = s.sym_dims();
     result.erase(std::remove(result.begin(), result.end(), sym::lit(1)), result.end());
     return result;
 }
@@ -75,7 +69,7 @@ struct analyze_shape_transform : analyzer<analyze_shape_transform>
         {
             if(inputs.size() == 2 and inputs.back().symbolic())
             {
-                auto target_reshape = reshape_from_shape(inputs.back(), {});
+                auto target_reshape = reshape_from_shape(inputs.back());
                 descriptor_op = make_op("reshape", {{"dims", to_value(inputs.back().max_lens())}});
                 auto input_elements  = inputs.front().sym_elements();
                 auto output_elements = output.sym_elements();

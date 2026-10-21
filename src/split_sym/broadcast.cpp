@@ -25,16 +25,20 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/value.hpp>
 #include <algorithm>
-#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace split_sym {
 namespace {
 
+bool is_broadcast_op(const operation& op)
+{
+    return contains({"broadcast", "multibroadcast", "broadcast_with_dims"}, op.name());
+}
+
 std::vector<shape::dynamic_dimension> symbolic_broadcast_dims(const operation& op)
 {
-    if(not contains({"broadcast", "multibroadcast", "broadcast_with_dims"}, op.name()))
+    if(not is_broadcast_op(op))
         return {};
     return from_value<std::vector<shape::dynamic_dimension>>(op.to_value().at("out_dyn_dims"));
 }
@@ -77,19 +81,16 @@ propagate_padding(instruction_ref ins, const padding_requirement& requirement)
 
 struct analyze_broadcast : analyzer<analyze_broadcast>
 {
-    bool matches(const operation& op) const
-    {
-        return contains({"broadcast", "multibroadcast", "broadcast_with_dims"}, op.name());
-    }
+    bool matches(const operation& op) const { return is_broadcast_op(op); }
 
     symbolic_op_info analyze(instruction_ref ins) const
     {
         auto input_count = ins->inputs().size();
         if(not is_symbolic_broadcast(ins->get_operator(), input_count))
             return symbolic_op_info{ins};
-        std::vector<std::size_t> shape_input_indices(input_count - 1);
-        std::iota(shape_input_indices.begin(), shape_input_indices.end(), std::size_t{1});
-        auto result              = analyze_axes(ins, std::move(shape_input_indices));
+        auto shape_inputs = range(1, input_count);
+        auto result =
+            analyze_axes(ins, std::vector<std::size_t>{shape_inputs.begin(), shape_inputs.end()});
         result.freezer           = freeze;
         result.propagate_padding = propagate_padding;
         return result;

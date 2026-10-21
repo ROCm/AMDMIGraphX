@@ -34,6 +34,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/zip_view.hpp>
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -68,7 +69,9 @@ enum class padding_semantics
 
 enum class mask_role
 {
+    // A softmax-style axis masked with -inf so the padded region contributes zeros.
     normalized,
+    // A reduction axis masked with the reduction identity.
     contracted
 };
 
@@ -83,6 +86,8 @@ struct axis_desc
 {
     axis_handling handling      = axis_handling::unsupported;
     fill_kind fill              = fill_kind::dont_care;
+    // Padded values on this axis cannot leak into the result, so a cross-block input need not be
+    // sliced back to its runtime extent.
     bool coalesce_safe          = false;
     mask_role role              = mask_role::contracted;
     padding_semantics semantics = padding_semantics::exact;
@@ -102,6 +107,13 @@ struct axis_mask
     sym::expr extent;
     fill_kind fill;
     mask_role role;
+
+    bool zeros_contracted_region(const axis_mask& consumer) const
+    {
+        return role == mask_role::normalized and fill == fill_kind::neg_inf and
+               consumer.role == mask_role::contracted and consumer.fill == fill_kind::zero and
+               axis == consumer.axis and sym::same_symbol(extent, consumer.extent);
+    }
 };
 
 struct padding_requirement
@@ -126,9 +138,18 @@ using padding_propagator = std::function<std::optional<std::vector<input_padding
 struct operand_plan
 {
     std::optional<float> pad_value;
+    // Axes where producer padding would change the result; cross-block inputs are sliced back to
+    // their runtime extent on these axes.
     std::vector<std::size_t> retained_slice_axes;
+    // Runtime masks applied inside the clone instead of relying on the pad fill.
     std::vector<axis_mask> masks;
     std::vector<padding_requirement> padding_requirements;
+
+    bool zeros_contracted_region(const axis_mask& consumer) const
+    {
+        return any_of(masks,
+                      [&](const auto& mask) { return mask.zeros_contracted_region(consumer); });
+    }
 };
 
 struct freezer_context
@@ -137,6 +158,7 @@ struct freezer_context
     const std::vector<instruction_ref>& runtime_extent_sources;
 };
 
+// Re-emits the operation in static form for the given fixed symbol values.
 using op_freezer = std::function<instruction_ref(
     module&, instruction_ref, const std::vector<instruction_ref>&, const freezer_context&)>;
 
@@ -149,6 +171,7 @@ struct symbolic_op_info
     std::vector<operand_plan> operands;
     op_freezer freezer;
     padding_propagator propagate_padding;
+    // Inputs that only carry shape metadata, such as allocate dims; they are not operands.
     std::vector<std::size_t> shape_input_indices;
     std::vector<sym::expr> runtime_extent_expressions;
     bool supported = false;
@@ -156,11 +179,39 @@ struct symbolic_op_info
     const shape& get_output_shape() const { return ins->get_shape(); }
 
     std::vector<shape> get_input_shapes() const { return to_shapes(ins->inputs()); }
+
+    bool can_specialize() const
+    {
+        const bool needs_padding =
+            any_of(operands, [](const auto& operand) { return operand.pad_value.has_value(); });
+        const bool needs_specialization =
+            needs_padding or (freezer and not output_symbolic_axes.empty());
+        return supported and ins->module_inputs().empty() and needs_specialization;
+    }
+
+    bool starts_specialization_block() const
+    {
+        return not output_symbolic_axes.empty() and can_specialize();
+    }
+
+    bool needs_deferred_specialization_block() const
+    {
+        return output_symbolic_axes.empty() and can_specialize();
+    }
+
+    bool zeros_contracted_region(const axis_mask& consumer) const
+    {
+        return any_of(operands, [&](const auto& operand) {
+            return operand.zeros_contracted_region(consumer);
+        });
+    }
 };
 
 bool is_variable_axis(const shape::dynamic_dimension& d);
 
 bool supports_fill(shape::type_t type, fill_kind fill);
+
+bool supports_mask(shape::type_t type, fill_kind fill);
 
 float fill_value(fill_kind fill);
 
@@ -239,7 +290,7 @@ symbolic_op_info analyze_axes(instruction_ref ins,
             }
             if(desc.handling == axis_handling::mask)
             {
-                if(not supports_fill(input.type(), desc.fill))
+                if(not supports_mask(input.type(), desc.fill))
                     info.supported = false;
                 operand.masks.push_back({axis, dimension.sym_expr, desc.fill, desc.role});
                 continue;

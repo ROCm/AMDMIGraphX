@@ -615,4 +615,31 @@ TEST_CASE(skip_tuple_output_tensor_allocation)
     EXPECT(p.sort() == expected.sort());
 }
 
+TEST_CASE(realloc_tuple_allocation)
+{
+    migraphx::shape allocation_shape{std::vector<migraphx::shape>{
+        {migraphx::shape::float_type, {2, 3}}, {migraphx::shape::int64_type, {2, 3}}}};
+    migraphx::shape output_shape{
+        std::vector<migraphx::shape>{{migraphx::shape::float_type, {2, 3}, {1, 2}},
+                                     {migraphx::shape::int64_type, {2, 3}, {1, 2}}}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto allocation = m1.add_instruction(test_allocate{allocation_shape});
+        auto result     = m1.add_instruction(simple_op{output_shape}, x, allocation);
+        m1.add_return({result});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x          = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto allocation = m2.add_instruction(test_allocate{output_shape});
+        auto result     = m2.add_instruction(simple_op{output_shape}, x, allocation);
+        m2.add_return({result});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

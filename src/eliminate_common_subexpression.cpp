@@ -40,8 +40,8 @@ static void cse_range(module& m, Range&& r)
     std::unordered_set<instruction_ref> processed_ins;
     for(auto ins : r)
     {
-        // Skip dead instructions and operations with side effects
-        if(ins->outputs().empty() or ins->get_operator().attributes().get("side_effect", false))
+        // Skip dead instructions
+        if(ins->outputs().empty())
             continue;
 
         // Find instruction with the same name
@@ -53,6 +53,9 @@ static void cse_range(module& m, Range&& r)
                 continue;
             if(*eq != *ins)
                 continue;
+            // Operations with side effects, such as allocations, are never merged
+            if(ins->get_operator().attributes().get("side_effect", false))
+                break;
             m.replace_instruction(ins, eq);
             processed_ins.emplace(ins);
             std::vector<instruction_ref> outputs;

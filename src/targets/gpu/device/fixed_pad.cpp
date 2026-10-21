@@ -32,6 +32,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/functional.hpp>
 #include <algorithm>
+#include <cassert>
 #include <iterator>
 #include <type_traits>
 
@@ -80,10 +81,11 @@ static bool can_use_standard_pad(const shape& output_shape, const shape& input_s
     if(not output_shape.standard() or not input_shape.standard())
         return false;
 
-    auto input_lens  = input_shape.lens();
-    auto output_lens = output_shape.lens();
+    const auto& input_lens  = input_shape.lens();
+    const auto& output_lens = output_shape.lens();
+    assert(input_lens.size() == output_lens.size());
     auto [input_mismatch, output_mismatch] =
-        std::mismatch(input_lens.begin(), input_lens.end(), output_lens.begin());
+        std::mismatch(input_lens.begin(), input_lens.end(), output_lens.begin(), output_lens.end());
     if(input_mismatch == input_lens.end())
         return true;
     if(*input_mismatch > *output_mismatch or

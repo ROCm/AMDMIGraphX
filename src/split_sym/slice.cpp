@@ -26,6 +26,7 @@
 #include <migraphx/value.hpp>
 #include <algorithm>
 #include <optional>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -44,21 +45,29 @@ find_slice_expressions(instruction_ref ins, std::size_t input_index, const std::
     return value.get().to_vector();
 }
 
-bool is_prefix_stable_dyn_slice(instruction_ref ins)
+struct dyn_slice_bounds
+{
+    std::vector<sym::expr> starts;
+    std::vector<sym::expr> ends;
+};
+
+// A dyn_slice keeps a prefix on every axis when each start is a non-negative constant and each
+// end is a non-negative constant or the full input extent.
+std::optional<dyn_slice_bounds> prefix_stable_dyn_slice_bounds(instruction_ref ins)
 {
     const auto& inputs = ins->inputs();
     if(inputs.size() != 3)
-        return false;
+        return std::nullopt;
     auto attributes = ins->get_operator().to_value();
     if(not attributes.contains("axes"))
-        return false;
+        return std::nullopt;
     auto starts = find_slice_expressions(ins, 1, "starts");
     auto ends   = find_slice_expressions(ins, 2, "ends");
     if(not starts.has_value() or not ends.has_value())
-        return false;
+        return std::nullopt;
     auto axes = attributes.at("axes").to_vector<int64_t>();
     if(axes.size() != starts->size() or axes.size() != ends->size())
-        return false;
+        return std::nullopt;
 
     const auto& input = inputs.front()->get_shape();
     auto input_dims   = input.to_symbolic().dyn_dims();
@@ -69,13 +78,13 @@ bool is_prefix_stable_dyn_slice(instruction_ref ins)
         const auto& start = starts->at(i);
         if(not axis.has_value() or not sym::find_variables(start).empty() or
            sym::strict_less(start, zero).value_or(false))
-            return false;
+            return std::nullopt;
         const auto& end = ends->at(i);
         if(sym::strict_less(end, zero).value_or(false) or
            (not sym::find_variables(end).empty() and not(end == input_dims.at(*axis).sym_expr)))
-            return false;
+            return std::nullopt;
     }
-    return true;
+    return dyn_slice_bounds{std::move(*starts), std::move(*ends)};
 }
 
 std::vector<int64_t>
@@ -84,19 +93,9 @@ evaluate_slice_expressions(const std::vector<sym::expr>& expressions,
 {
     std::vector<int64_t> result(expressions.size());
     std::transform(expressions.begin(), expressions.end(), result.begin(), [&](const auto& e) {
-        return e.eval_uint(values);
+        return static_cast<int64_t>(e.eval_uint(values));
     });
     return result;
-}
-
-std::vector<int64_t> evaluate_slice_bound(instruction_ref source,
-                                          std::size_t input_index,
-                                          const std::string& name,
-                                          const std::unordered_map<sym::expr, std::size_t>& values)
-{
-    auto expressions = find_slice_expressions(source, input_index, name);
-    assert(expressions.has_value());
-    return evaluate_slice_expressions(*expressions, values);
 }
 
 struct analyze_slice : analyzer<analyze_slice>
@@ -114,41 +113,38 @@ struct analyze_slice : analyzer<analyze_slice>
         {
             if(inputs.size() != 1)
                 return symbolic_op_info{ins};
-            auto axes = op.to_value().at("axes").to_vector<int64_t>();
-            for(auto& axis : axes)
-            {
-                auto normalized_axis = normalize_axis(axis, inputs.front().ndim());
-                if(not normalized_axis.has_value() or
-                   is_variable_axis(inputs.front().dyn_dims().at(*normalized_axis)))
-                    return symbolic_op_info{ins};
-                axis = *normalized_axis;
-            }
+            const auto& input = inputs.front();
+            auto axes         = op.to_value().at("axes").to_vector<int64_t>();
+            if(any_of(axes, [&](auto axis) {
+                   auto normalized = normalize_axis(axis, input.ndim());
+                   return not normalized.has_value() or
+                          is_variable_axis(input.dyn_dims().at(*normalized));
+               }))
+                return symbolic_op_info{ins};
             return analyze_axes(ins);
         }
 
-        if(inputs.size() != 3 or not is_prefix_stable_dyn_slice(ins))
+        auto bounds = prefix_stable_dyn_slice_bounds(ins);
+        if(not bounds.has_value())
             return symbolic_op_info{ins};
         auto attributes = op.to_value();
         auto result     = attributes.contains("starts") and attributes.contains("ends")
                               ? analyze_axes(ins, {1, 2})
                               : analyze_axes(ins);
-        result.freezer  = freeze;
+        result.freezer  = [bounds = std::move(*bounds)](module& m,
+                                                        instruction_ref source,
+                                                        const std::vector<instruction_ref>& args,
+                                                        const freezer_context& context) {
+            assert(args.size() == 1 or args.size() == 3);
+            auto attributes = source->get_operator().to_value();
+            return m.add_instruction(
+                make_op("slice",
+                        {{"axes", attributes.at("axes")},
+                         {"starts", evaluate_slice_expressions(bounds.starts, context.values)},
+                         {"ends", evaluate_slice_expressions(bounds.ends, context.values)}}),
+                args.front());
+        };
         return result;
-    }
-
-    static instruction_ref freeze(module& m,
-                                  instruction_ref source,
-                                  const std::vector<instruction_ref>& args,
-                                  const freezer_context& context)
-    {
-        assert(args.size() == 1 or args.size() == 3);
-        auto attributes = source->get_operator().to_value();
-        return m.add_instruction(
-            make_op("slice",
-                    {{"axes", attributes.at("axes")},
-                     {"starts", evaluate_slice_bound(source, 1, "starts", context.values)},
-                     {"ends", evaluate_slice_bound(source, 2, "ends", context.values)}}),
-            args.front());
     }
 };
 

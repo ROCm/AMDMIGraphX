@@ -27,6 +27,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,7 +39,8 @@ void promote_literals::apply(module_pass_manager& mpm) const
     if(m == *root_module)
     {
         // The root is visited last, after literals from every submodule have been promoted.
-        mpm.run_pass(eliminate_common_subexpression{});
+        if(any_of(iterator_for(m), [](auto ins) { return not ins->module_inputs().empty(); }))
+            mpm.run_pass(eliminate_common_subexpression{});
         return;
     }
 

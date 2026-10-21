@@ -24,7 +24,6 @@
 #include <migraphx/split_sym/analyzer.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/value.hpp>
-#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -33,8 +32,6 @@ namespace {
 
 std::optional<shape> symbolic_allocate_shape(const operation& op)
 {
-    if(op.name() != "allocate")
-        return std::nullopt;
     auto attributes    = op.to_value();
     const auto& target = attributes.at("shape");
     if(target.is_null())
@@ -66,18 +63,8 @@ struct analyze_allocate : analyzer<analyze_allocate>
     {
         auto source = symbolic_allocate_shape(source_ins->get_operator());
         assert(source.has_value());
-        std::vector<std::size_t> lens(source->ndim());
-        std::transform(source->dyn_dims().begin(),
-                       source->dyn_dims().end(),
-                       lens.begin(),
-                       [&](const auto& d) { return d.sym_expr.eval_uint(context.values); });
-        std::vector<std::size_t> strides(source->ndim());
-        std::transform(source->dyn_strides().begin(),
-                       source->dyn_strides().end(),
-                       strides.begin(),
-                       [&](const auto& stride) { return stride.eval_uint(context.values); });
-        shape target{source->type(), lens, strides};
-        return m.add_instruction(make_op("allocate", {{"shape", to_value(target)}}), args);
+        return m.add_instruction(
+            make_op("allocate", {{"shape", to_value(source->to_static(context.values))}}), args);
     }
 };
 

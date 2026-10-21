@@ -161,7 +161,7 @@ struct analyze_shape_transform : analyzer<analyze_shape_transform>
         }
         for(auto& d : source_dims)
             if(std::holds_alternative<shape::dynamic_dimension>(d))
-                d = std::get<shape::dynamic_dimension>(d).sym_expr.eval_uint(context.values);
+                d = std::get<shape::dynamic_dimension>(d).sym_expr.eval_uint(*context.values);
         return m.add_instruction(make_op("reshape", {{"dims", to_ints(source_dims)}}), args);
     }
 };

@@ -36,7 +36,7 @@ add_runtime_extent(module& m, const sym::expr& expression, const freezer_context
 {
     const auto variables = sym::find_variables(expression);
     std::unordered_set<sym::expr> direct_variables;
-    for(auto runtime_source : context.runtime_extent_sources)
+    for(auto runtime_source : *context.runtime_extent_sources)
     {
         const auto& runtime_shape = runtime_source->get_shape();
         if(not runtime_shape.symbolic())
@@ -51,8 +51,8 @@ add_runtime_extent(module& m, const sym::expr& expression, const freezer_context
     {
         if(contains(direct_variables, variable))
             continue;
-        auto value = context.values.find(variable);
-        if(value == context.values.end())
+        auto value = context.values->find(variable);
+        if(value == context.values->end())
             MIGRAPHX_THROW("SPLIT_SYM_DIM: runtime extent has no source for " +
                            variable.to_string());
         substitutions.emplace(variable, sym::lit(value->second));
@@ -62,8 +62,8 @@ add_runtime_extent(module& m, const sym::expr& expression, const freezer_context
 
     std::unordered_set<sym::expr> resolved_variables;
     std::vector<instruction_ref> expression_sources;
-    std::copy_if(context.runtime_extent_sources.begin(),
-                 context.runtime_extent_sources.end(),
+    std::copy_if(context.runtime_extent_sources->begin(),
+                 context.runtime_extent_sources->end(),
                  std::back_inserter(expression_sources),
                  [&](instruction_ref runtime_source) {
                      const auto& runtime_shape = runtime_source->get_shape();

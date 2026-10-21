@@ -67,7 +67,7 @@ struct analyze_dynamic_range : analyzer<analyze_dynamic_range>
         assert(args.size() == 3);
         auto output_dim = symbolic_range_dim(source->get_operator());
         assert(output_dim.has_value());
-        auto length = output_dim->sym_expr.eval_uint(context.values);
+        auto length = output_dim->sym_expr.eval_uint(*context.values);
         std::vector<int64_t> indices(length);
         std::iota(indices.begin(), indices.end(), int64_t{0});
         auto index = m.add_literal(literal{shape{shape::int64_type, {length}}, indices});

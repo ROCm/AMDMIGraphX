@@ -140,8 +140,8 @@ struct analyze_slice : analyzer<analyze_slice>
             return m.add_instruction(
                 make_op("slice",
                         {{"axes", attributes.at("axes")},
-                         {"starts", evaluate_slice_expressions(bounds.starts, context.values)},
-                         {"ends", evaluate_slice_expressions(bounds.ends, context.values)}}),
+                         {"starts", evaluate_slice_expressions(bounds.starts, *context.values)},
+                         {"ends", evaluate_slice_expressions(bounds.ends, *context.values)}}),
                 args.front());
         };
         return result;

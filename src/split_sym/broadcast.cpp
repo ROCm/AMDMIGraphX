@@ -105,7 +105,7 @@ struct analyze_broadcast : analyzer<analyze_broadcast>
         auto output_dims = symbolic_broadcast_dims(op);
         std::vector<std::size_t> lens(output_dims.size());
         std::transform(output_dims.begin(), output_dims.end(), lens.begin(), [&](const auto& d) {
-            return d.sym_expr.eval_uint(context.values);
+            return d.sym_expr.eval_uint(*context.values);
         });
         if(op.name() == "broadcast")
         {

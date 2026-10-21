@@ -84,8 +84,8 @@ enum class axis_handling
 
 struct axis_desc
 {
-    axis_handling handling      = axis_handling::unsupported;
-    fill_kind fill              = fill_kind::dont_care;
+    axis_handling handling = axis_handling::unsupported;
+    fill_kind fill         = fill_kind::dont_care;
     // Padded values on this axis cannot leak into the result, so a cross-block input need not be
     // sliced back to its runtime extent.
     bool coalesce_safe          = false;
@@ -154,8 +154,8 @@ struct operand_plan
 
 struct freezer_context
 {
-    const std::unordered_map<sym::expr, std::size_t>& values;
-    const std::vector<instruction_ref>& runtime_extent_sources;
+    const std::unordered_map<sym::expr, std::size_t>* values   = nullptr;
+    const std::vector<instruction_ref>* runtime_extent_sources = nullptr;
 };
 
 // Re-emits the operation in static form for the given fixed symbol values.

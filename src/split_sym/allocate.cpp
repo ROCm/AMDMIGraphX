@@ -64,7 +64,7 @@ struct analyze_allocate : analyzer<analyze_allocate>
         auto source = symbolic_allocate_shape(source_ins->get_operator());
         assert(source.has_value());
         return m.add_instruction(
-            make_op("allocate", {{"shape", to_value(source->to_static(context.values))}}), args);
+            make_op("allocate", {{"shape", to_value(source->to_static(*context.values))}}), args);
     }
 };
 

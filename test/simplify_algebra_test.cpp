@@ -513,6 +513,76 @@ TEST_CASE(simplify_dot_add)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_add_dot_common_left)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+        auto one  = m1.add_literal(get_2x2());
+        auto two  = m1.add_literal(get_2x2(1));
+        auto dot1 = m1.add_instruction(migraphx::make_op("dot"), x, one);
+        auto dot2 = m1.add_instruction(migraphx::make_op("dot"), x, two);
+        auto sum  = m1.add_instruction(migraphx::make_op("add"), dot1, dot2);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+        auto one = m2.add_literal(get_2x2());
+        auto two = m2.add_literal(get_2x2(1));
+        auto sum = m2.add_instruction(migraphx::make_op("add"), one, two);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), x, sum);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_add_dot_common_right)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+        auto one  = m1.add_literal(get_2x2());
+        auto two  = m1.add_literal(get_2x2(1));
+        auto dot1 = m1.add_instruction(migraphx::make_op("dot"), one, x);
+        auto dot2 = m1.add_instruction(migraphx::make_op("dot"), two, x);
+        auto sum  = m1.add_instruction(migraphx::make_op("add"), dot1, dot2);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+        auto one = m2.add_literal(get_2x2());
+        auto two = m2.add_literal(get_2x2(1));
+        auto sum = m2.add_instruction(migraphx::make_op("add"), one, two);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), sum, x);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_add_dot_common_non_const)
+{
+    // Factoring only pays when the other operands fold into one constant
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+        auto y    = m1.add_parameter("y", {migraphx::shape::float_type, {2, 2}});
+        auto one  = m1.add_literal(get_2x2());
+        auto dot1 = m1.add_instruction(migraphx::make_op("dot"), x, one);
+        auto dot2 = m1.add_instruction(migraphx::make_op("dot"), x, y);
+        auto sum  = m1.add_instruction(migraphx::make_op("add"), dot1, dot2);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_conv_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 32, 32}};
@@ -3325,8 +3395,7 @@ static void test_dot_horiz(migraphx::shape::type_t type, const std::string& dot_
         auto b     = m1.add_literal(migraphx::generate_literal(s, 1));
         auto x     = m1.add_instruction(migraphx::make_op(dot_type), input, a);
         auto y     = m1.add_instruction(migraphx::make_op(dot_type), input, b);
-        auto sum   = m1.add_instruction(migraphx::make_op("add"), x, y);
-        m1.add_instruction(pass_op{}, sum);
+        m1.add_instruction(pass_op{}, x, y);
     }
     run_pass(m1);
 
@@ -3341,8 +3410,7 @@ static void test_dot_horiz(migraphx::shape::type_t type, const std::string& dot_
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), dot);
         auto y = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), dot);
-        auto sum = m2.add_instruction(migraphx::make_op("add"), x, y);
-        m2.add_instruction(pass_op{}, sum);
+        m2.add_instruction(pass_op{}, x, y);
     }
     EXPECT(m1.sort() == m2.sort());
 }
@@ -3360,8 +3428,7 @@ TEST_CASE(simplify_dot_horiz_same_constant)
         auto a     = m1.add_literal(migraphx::generate_literal(s, 0));
         auto x     = m1.add_instruction(migraphx::make_op("dot"), input, a);
         auto y     = m1.add_instruction(migraphx::make_op("dot"), input, a);
-        auto sum   = m1.add_instruction(migraphx::make_op("add"), x, y);
-        m1.add_instruction(pass_op{}, sum);
+        m1.add_instruction(pass_op{}, x, y);
     }
     run_pass(m1);
 
@@ -3379,8 +3446,7 @@ TEST_CASE(simplify_dot_horiz_same_constant)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), dot);
         auto y = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), dot);
-        auto sum = m2.add_instruction(migraphx::make_op("add"), x, y);
-        m2.add_instruction(pass_op{}, sum);
+        m2.add_instruction(pass_op{}, x, y);
     }
     EXPECT(m1.sort() == m2.sort());
 }
@@ -3522,7 +3588,7 @@ TEST_CASE(simplify_conv_horiz_grouped)
         auto dotx = m1.add_instruction(migraphx::make_op("dot"), input, c);
         auto doty = m1.add_instruction(migraphx::make_op("dot"), input, d);
         auto sum1 = m1.add_instruction(migraphx::make_op("add"), convx, convy);
-        auto sum2 = m1.add_instruction(migraphx::make_op("add"), dotx, doty);
+        auto sum2 = m1.add_instruction(migraphx::make_op("sub"), dotx, doty);
         auto sum3 = m1.add_instruction(migraphx::make_op("add"), sum1, sum2);
 
         m1.add_instruction(pass_op{}, sum3);
@@ -3550,7 +3616,7 @@ TEST_CASE(simplify_conv_horiz_grouped)
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {64}}}), dot);
         auto doty = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {128}}}), dot);
-        auto sum2 = m2.add_instruction(migraphx::make_op("add"), dotx, doty);
+        auto sum2 = m2.add_instruction(migraphx::make_op("sub"), dotx, doty);
         auto sum3 = m2.add_instruction(migraphx::make_op("add"), sum1, sum2);
         m2.add_instruction(pass_op{}, sum3);
     }
@@ -3578,7 +3644,7 @@ TEST_CASE(simplify_conv_horiz_grouped_extra1)
         auto doty    = m1.add_instruction(migraphx::make_op("dot"), input, d);
         auto sqdiffx = m1.add_instruction(migraphx::make_op("sqdiff"), input, e);
         auto sum1    = m1.add_instruction(migraphx::make_op("add"), convx, convy);
-        auto sum2    = m1.add_instruction(migraphx::make_op("add"), dotx, doty);
+        auto sum2    = m1.add_instruction(migraphx::make_op("sub"), dotx, doty);
         auto sum3    = sqdiffx;
         auto sum4    = m1.add_instruction(migraphx::make_op("add"), sum1, sum2);
         auto sum5    = m1.add_instruction(migraphx::make_op("add"), sum4, sum3);
@@ -3608,7 +3674,7 @@ TEST_CASE(simplify_conv_horiz_grouped_extra1)
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {64}}}), dot);
         auto doty = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {128}}}), dot);
-        auto sum2    = m2.add_instruction(migraphx::make_op("add"), dotx, doty);
+        auto sum2    = m2.add_instruction(migraphx::make_op("sub"), dotx, doty);
         auto sqdiffx = m2.add_instruction(migraphx::make_op("sqdiff"), input, e);
         auto sum3    = sqdiffx;
         auto sum4    = m2.add_instruction(migraphx::make_op("add"), sum1, sum2);
@@ -3641,7 +3707,7 @@ TEST_CASE(simplify_conv_horiz_grouped_extra2)
         auto sqdiffx = m1.add_instruction(migraphx::make_op("sqdiff"), input, e);
         auto sqdiffy = m1.add_instruction(migraphx::make_op("sqdiff"), input, f);
         auto sum1    = m1.add_instruction(migraphx::make_op("add"), convx, convy);
-        auto sum2    = m1.add_instruction(migraphx::make_op("add"), dotx, doty);
+        auto sum2    = m1.add_instruction(migraphx::make_op("sub"), dotx, doty);
         auto sum3    = m1.add_instruction(migraphx::make_op("add"), sqdiffx, sqdiffy);
         auto sum4    = m1.add_instruction(migraphx::make_op("add"), sum1, sum2);
         auto sum5    = m1.add_instruction(migraphx::make_op("add"), sum4, sum3);
@@ -3672,7 +3738,7 @@ TEST_CASE(simplify_conv_horiz_grouped_extra2)
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {64}}}), dot);
         auto doty = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {128}}}), dot);
-        auto sum2    = m2.add_instruction(migraphx::make_op("add"), dotx, doty);
+        auto sum2    = m2.add_instruction(migraphx::make_op("sub"), dotx, doty);
         auto sqdiffx = m2.add_instruction(migraphx::make_op("sqdiff"), input, e);
         auto sqdiffy = m2.add_instruction(migraphx::make_op("sqdiff"), input, f);
         auto sum3    = m2.add_instruction(migraphx::make_op("add"), sqdiffx, sqdiffy);
@@ -5932,7 +5998,7 @@ TEST_CASE(debug_symbols_horiz_fusion_dot)
         m1.add_debug_symbols(x, {"gemm1"});
         auto y = m1.add_instruction(migraphx::make_op("dot"), input, b);
         m1.add_debug_symbols(y, {"gemm2"});
-        auto sum = m1.add_instruction(migraphx::make_op("add"), x, y);
+        auto sum = m1.add_instruction(migraphx::make_op("sub"), x, y);
         m1.add_debug_symbols(sum, {"sum"});
         m1.add_return({sum});
     }
@@ -5953,7 +6019,7 @@ TEST_CASE(debug_symbols_horiz_fusion_dot)
         auto y = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), dot);
         m2.add_debug_symbols(y, {"gemm1", "gemm2"});
-        auto sum = m2.add_instruction(migraphx::make_op("add"), x, y);
+        auto sum = m2.add_instruction(migraphx::make_op("sub"), x, y);
         m2.add_debug_symbols(sum, {"sum"});
         m2.add_return({sum});
     }

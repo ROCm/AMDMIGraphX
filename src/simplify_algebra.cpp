@@ -41,9 +41,6 @@
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
-#include <cmath>
-#include <limits>
-#include <numeric>
 #include <unordered_set>
 
 namespace migraphx {
@@ -541,45 +538,22 @@ struct find_dot_add
 };
 
 // dot(a, b) + dot(a, c) -> dot(a, b + c) when b and c are constant, so b + c
-// folds and one dot remains. `shared` is the position of a in both dots.
-static auto shared_operand_dot(std::size_t shared, const std::string& a, const std::string& b)
-{
-    return match::name("dot")(match::used_once(),
-                              match::arg(shared)(match::any().bind(a)),
-                              match::arg(1 - shared)(match::is_constant().bind(b)));
-}
-
-// b + c is formed in the type of the constants, where the original dots never
-// summed them. Narrow float types can overflow there, so fold them only when
-// literal values bound the sum.
-static bool sum_fits_type(instruction_ref b, instruction_ref c)
-{
-    auto t = b->get_shape().type();
-    if(shape::is_integral(t) or contains({shape::float_type, shape::double_type}, t))
-        return true;
-    if(b->name() != "@literal" or c->name() != "@literal")
-        return false;
-    bool fits = false;
-    visit_all(b->get_literal(), c->get_literal())([&](auto x, auto y) {
-        using type   = typename decltype(x)::value_type;
-        auto abs_max = [](auto v) {
-            return std::accumulate(v.begin(), v.end(), 0.0, [](double m, auto e) {
-                return std::max(m, std::abs(static_cast<double>(e)));
-            });
-        };
-        fits = abs_max(x) + abs_max(y) <= static_cast<double>(std::numeric_limits<type>::max());
-    });
-    return fits;
-}
-
+// folds and one dot remains. `shared_arg` is the position of a in both dots.
 struct find_add_dot_common
 {
-    std::size_t shared = 0;
+    std::size_t shared_arg = 0;
+
+    auto shared_operand_dot(const std::string& a, const std::string& b) const
+    {
+        return match::name("dot")(match::used_once(),
+                                  match::arg(shared_arg)(match::any().bind(a)),
+                                  match::arg(1 - shared_arg)(match::is_constant().bind(b)));
+    }
 
     auto matcher() const
     {
-        return match::name("add")(match::args(shared_operand_dot(shared, "a1", "b"),
-                                              shared_operand_dot(shared, "a2", "c")));
+        return match::name("add")(
+            match::args(shared_operand_dot("a1", "b"), shared_operand_dot("a2", "c")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -588,15 +562,14 @@ struct find_add_dot_common
         auto a   = r.instructions["a1"];
         auto b   = r.instructions["b"];
         auto c   = r.instructions["c"];
-        if(a != r.instructions["a2"] or not shape::same_lens(b->get_shape(), c->get_shape()) or
-           not sum_fits_type(b, c))
+        if(a != r.instructions["a2"] or not shape::same_lens(b->get_shape(), c->get_shape()))
             return;
         auto op = ins->inputs().front()->get_operator();
         if(op != ins->inputs().back()->get_operator())
             return;
         auto sum = m.insert_instruction(ins, make_op("add"), b, c);
-        auto dot = shared == 0 ? m.insert_instruction(ins, op, a, sum)
-                               : m.insert_instruction(ins, op, sum, a);
+        auto dot = shared_arg == 0 ? m.insert_instruction(ins, op, a, sum)
+                                   : m.insert_instruction(ins, op, sum, a);
         m.replace_instruction(ins, dot);
     }
 };

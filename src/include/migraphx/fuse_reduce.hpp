@@ -58,6 +58,10 @@ insert_module_in_submodule(module_ref sm,
 /// Removes the duplicate and dead instructions left by fusing into a reduce module
 MIGRAPHX_EXPORT void finalize_reduce_module(module_ref m);
 
+/// Rewrites the reshapes between fused_reduce instructions and fuses the
+/// adjacent reductions, as an iteration of the fuse_reduce pass does
+MIGRAPHX_EXPORT void fuse_adjacent_reduces(module_pass_manager& mpm);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP

@@ -41,6 +41,9 @@
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
+#include <cmath>
+#include <limits>
+#include <numeric>
 #include <unordered_set>
 
 namespace migraphx {
@@ -546,6 +549,29 @@ static auto shared_operand_dot(std::size_t shared, const std::string& a, const s
                               match::arg(1 - shared)(match::is_constant().bind(b)));
 }
 
+// b + c is formed in the type of the constants, where the original dots never
+// summed them. Narrow float types can overflow there, so fold them only when
+// literal values bound the sum.
+static bool sum_fits_type(instruction_ref b, instruction_ref c)
+{
+    auto t = b->get_shape().type();
+    if(shape::is_integral(t) or contains({shape::float_type, shape::double_type}, t))
+        return true;
+    if(b->name() != "@literal" or c->name() != "@literal")
+        return false;
+    bool fits = false;
+    visit_all(b->get_literal(), c->get_literal())([&](auto x, auto y) {
+        using type   = typename decltype(x)::value_type;
+        auto abs_max = [](auto v) {
+            return std::accumulate(v.begin(), v.end(), 0.0, [](double m, auto e) {
+                return std::max(m, std::abs(static_cast<double>(e)));
+            });
+        };
+        fits = abs_max(x) + abs_max(y) <= static_cast<double>(std::numeric_limits<type>::max());
+    });
+    return fits;
+}
+
 struct find_add_dot_common
 {
     std::size_t shared = 0;
@@ -562,7 +588,8 @@ struct find_add_dot_common
         auto a   = r.instructions["a1"];
         auto b   = r.instructions["b"];
         auto c   = r.instructions["c"];
-        if(a != r.instructions["a2"] or not shape::same_lens(b->get_shape(), c->get_shape()))
+        if(a != r.instructions["a2"] or not shape::same_lens(b->get_shape(), c->get_shape()) or
+           not sum_fits_type(b, c))
             return;
         auto op = ins->inputs().front()->get_operator();
         if(op != ins->inputs().back()->get_operator())

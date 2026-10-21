@@ -663,6 +663,66 @@ TEST_CASE(simplify_add_dot_common_transposed)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_add_dot_common_half)
+{
+    migraphx::shape s{migraphx::shape::half_type, {2, 2}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto one  = m1.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
+        auto two  = m1.add_literal(migraphx::literal{s, {5, 6, 7, 8}});
+        auto dot1 = m1.add_instruction(migraphx::make_op("dot"), x, one);
+        auto dot2 = m1.add_instruction(migraphx::make_op("dot"), x, two);
+        auto sum  = m1.add_instruction(migraphx::make_op("add"), dot1, dot2);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto one = m2.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
+        auto two = m2.add_literal(migraphx::literal{s, {5, 6, 7, 8}});
+        auto sum = m2.add_instruction(migraphx::make_op("add"), one, two);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), x, sum);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_add_dot_common_half_overflow)
+{
+    // 40000 + 40000 overflows half, so the dots are fused horizontally instead
+    migraphx::shape s{migraphx::shape::half_type, {2, 2}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto one  = m1.add_literal(migraphx::literal{s, {40000, 1, 1, 1}});
+        auto two  = m1.add_literal(migraphx::literal{s, {40000, 1, 1, 1}});
+        auto dot1 = m1.add_instruction(migraphx::make_op("dot"), x, one);
+        auto dot2 = m1.add_instruction(migraphx::make_op("dot"), x, two);
+        auto sum  = m1.add_instruction(migraphx::make_op("add"), dot1, dot2);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto one    = m2.add_literal(migraphx::literal{s, {40000, 1, 1, 1}});
+        auto two    = m2.add_literal(migraphx::literal{s, {40000, 1, 1, 1}});
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), one, two);
+        auto dot    = m2.add_instruction(migraphx::make_op("dot"), x, concat);
+        auto dot1   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), dot);
+        auto dot2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), dot);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), dot1, dot2);
+        m2.add_instruction(pass_op{}, sum);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(simplify_add_dot_common_debug_symbols)
 {
     migraphx::module m1;

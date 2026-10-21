@@ -215,6 +215,19 @@ std::vector<instruction_ref> get_lse_instructions(const std::vector<instruction_
         return lse_inss;
     auto add = log_outs.front();
     lse_inss.insert(lse_inss.end(), {*log, add});
+    // An attention-sink gate sigmoid(lse - sink) hanging off the lse is taken
+    // along as the epilogue, so the group returns the gate instead of the lse
+    auto last = add;
+    while(last->outputs().size() == 1)
+    {
+        auto next = last->outputs().front();
+        if(not contains({"sub", "add", "sigmoid", "convert"}, next->name()))
+            break;
+        if(next->inputs().front() != last)
+            break;
+        lse_inss.push_back(next);
+        last = next;
+    }
 
     return lse_inss;
 }
@@ -1261,6 +1274,11 @@ struct find_kv_cache_attention
                 if(contains(inss, input))
                     continue;
                 if(not is_valid_attn_op(input))
+                    continue;
+                // mlir only takes scalar, range and mask literals; other
+                // constants (eg a bias) stay inputs of the group
+                if(input->name() == "@literal" and not is_inlinable_constant(input) and
+                   input->get_shape().type() != shape::bool_type)
                     continue;
                 if(input->can_eval() or std::all_of(input->outputs().begin(),
                                                     input->outputs().end(),

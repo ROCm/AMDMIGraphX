@@ -72,6 +72,157 @@ template <class T>
 struct rewrite_reshapes
 {
     std::string name() const { return "rewrite_reshapes"; }
+
+    static auto shape_transforms()
+    {
+        return match::name("reshape",
+                           "squeeze",
+                           "unsqueeze",
+                           "flatten",
+                           "transpose",
+                           "contiguous",
+                           "multibroadcast",
+                           "broadcast");
+    }
+
+    /// The shape transform operators from x_ins to input_ins in order
+    static std::vector<operation> chain_ops(instruction_ref x_ins, instruction_ref input_ins)
+    {
+        std::vector<operation> ops;
+        auto next_ins = input_ins;
+        while(next_ins != x_ins)
+        {
+            ops.push_back(next_ins->get_operator());
+            next_ins = next_ins->inputs().front();
+        }
+        std::reverse(ops.begin(), ops.end());
+        return ops;
+    }
+
+    /// Whether the chain merges several non-unit common axes into one axis of
+    /// its output, which is what hides a lazy view behind a copy
+    static bool splits_axes(const shape_transform_descriptor& desc)
+    {
+        auto cdims = desc.common_dims();
+        return any_of(desc.common_axes_map_from_dst(), [&](const auto& axes) {
+            return std::count_if(axes.begin(), axes.end(), [&](auto a) { return cdims[a] != 1; }) >
+                   1;
+        });
+    }
+
+    /// Insert the shape transforms mapping input through gdesc before pos
+    static instruction_ref insert_transforms(module_pass_manager& mpm,
+                                             instruction_ref pos,
+                                             const shape_transform_descriptor& gdesc,
+                                             instruction_ref input,
+                                             bool no_broadcast)
+    {
+        auto gops = gdesc.generate(input->get_shape().lens(), no_broadcast);
+        return std::accumulate(gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+            return mpm.get_module().insert_instruction(pos, op, start);
+        });
+    }
+
+    template <class AxesMap>
+    static bool
+    supports(instruction_ref ins, const std::vector<std::size_t>& dims, const AxesMap& am)
+    {
+        if(ins->name() == "pointwise")
+            return true;
+        return T::supports(ins, dims, am);
+    }
+
+    template <class AxesMap>
+    static instruction_ref insert(module_pass_manager& mpm,
+                                  instruction_ref ins,
+                                  const std::vector<instruction_ref>& inputs,
+                                  const AxesMap& am)
+    {
+        if(ins->name() == "pointwise")
+            return mpm.get_module().insert_instruction(
+                ins, ins->get_operator(), inputs, ins->module_inputs());
+        return T::insert(mpm, ins, inputs, am);
+    }
+
+    /// Rewrite the op T into the common dims of a shape-transform chain fed by
+    /// an input that is neither a pointwise nor a shape transform (a
+    /// parameter, literal or tuple element), so a reshape that merges a
+    /// broadcast axis of that input doesnt need a contiguous copy
+    struct find_entry_reshape_op
+    {
+        auto matcher() const
+        {
+            auto reshapes = shape_transforms()(match::used_once());
+            // A pointwise or reduce base is handled by find_op_reshape_op
+            auto entry = match::none_of(
+                shape_transforms(), match::name("pointwise", T::name()), match::reduce());
+            auto reshapes_entry = reshapes(match::arg(0)(match::skip(reshapes())(entry.bind("x"))));
+            return match::name(T::name())(match::make_basic_fun_matcher(
+                [=](match::matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+                    const auto& inputs = ins->inputs();
+                    auto it =
+                        std::find_if(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+                            if(not reshapes_entry.match(ctx, input).has_value())
+                                return false;
+                            return is_viable(ins, input, ctx.instructions.at("x"));
+                        });
+                    if(it == inputs.end())
+                        return nullopt;
+                    ctx.instructions["input"] = *it;
+                    return ins;
+                }));
+        }
+
+        static bool is_viable(instruction_ref ins, instruction_ref input_ins, instruction_ref x_ins)
+        {
+            // cppcheck-suppress knownConditionTrueFalse
+            if(not T::matches(ins))
+                return false;
+            if(x_ins->get_shape().scalar() or x_ins->get_shape().dynamic())
+                return false;
+            // The chain must feed a full-size input of ins, so its common
+            // dims apply to the other inputs as well
+            if(input_ins->get_shape().lens() != T::base_dims(ins))
+                return false;
+            auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(),
+                                                           chain_ops(x_ins, input_ins));
+            if(desc.empty() or desc.elements() != input_ins->get_shape().elements())
+                return false;
+            // Only when the chain merges axes that the common dims expose
+            return splits_axes(desc);
+        }
+
+        void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+        {
+            auto ins       = r.result;
+            auto x_ins     = r.instructions["x"];
+            auto input_ins = r.instructions["input"];
+
+            auto desc  = shape_transform_descriptor::create(x_ins->get_shape().lens(),
+                                                            chain_ops(x_ins, input_ins));
+            auto cdims = desc.common_dims();
+            // cppcheck-suppress knownConditionTrueFalse
+            if(not supports(ins, cdims, desc.common_axes_map_from_dst()))
+                return;
+
+            auto new_x_ins = insert_transforms(mpm, ins, desc.to_common_from_src(), x_ins, false);
+            if(new_x_ins->get_shape().lens() != cdims)
+            {
+                new_x_ins = mpm.get_module().insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_x_ins);
+            }
+            auto inputs = ins->inputs();
+            std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+                if(input == input_ins)
+                    return new_x_ins;
+                return insert_transforms(mpm, ins, desc.to_common_from_dst(), input, true);
+            });
+            auto pw = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
+            mpm.get_module().replace_instruction(
+                ins, insert_transforms(mpm, ins, desc.to_dst_from_common(), pw, false));
+        }
+    };
+
     struct find_op_reshape_op
     {
         std::string op1;
@@ -132,7 +283,28 @@ struct rewrite_reshapes
             // its inputs, or keeps the size of the output. Anything else
             // expands elements and cant be rebased
             return broadcasts_to_inputs(input_ins, x_ins) or
-                   input_ins->get_shape().elements() == x_ins->get_shape().elements();
+                   input_ins->get_shape().elements() == x_ins->get_shape().elements() or
+                   expands_into_reduce(ins, input_ins, x_ins);
+        }
+
+        /// Whether the chain broadcasts a pointwise x into the reduce ins
+        /// through axes the reduce dims merge, so x can be moved into the
+        /// common dims of the chain and fused into the reduce there instead
+        /// of copying the broadcast with a contiguous
+        static bool
+        expands_into_reduce(instruction_ref ins, instruction_ref input_ins, instruction_ref x_ins)
+        {
+            if(T::name() == "pointwise" or ins->name() != T::name())
+                return false;
+            if(x_ins->name() != "pointwise")
+                return false;
+            if(input_ins->get_shape().elements() <= x_ins->get_shape().elements())
+                return false;
+            if(input_ins->get_shape().lens() != T::base_dims(ins))
+                return false;
+            auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(),
+                                                           chain_ops(x_ins, input_ins));
+            return not desc.empty() and splits_axes(desc);
         }
 
         /// Whether the chain ending at input_ins broadcasts the output of x
@@ -196,15 +368,7 @@ struct rewrite_reshapes
             if(not T::matches(ins))
                 return;
 
-            std::vector<operation> ops;
-            auto next_ins = input_ins;
-            while(next_ins != x_ins)
-            {
-                ops.push_back(next_ins->get_operator());
-                next_ins = next_ins->inputs().front();
-            }
-            assert(next_ins == x_ins);
-            std::reverse(ops.begin(), ops.end());
+            auto ops = chain_ops(x_ins, input_ins);
 
             // A chain that broadcasts the output of x back to the size of its
             // inputs is rebased onto those inputs. Otherwise the descriptor
@@ -219,7 +383,9 @@ struct rewrite_reshapes
             if(desc.empty())
                 return;
 
-            if(desc.elements() != (rebase ? elements(dims2) : x_ins->get_shape().elements()))
+            const bool expand = not rebase and expands_into_reduce(ins, input_ins, x_ins);
+            if(not expand and
+               desc.elements() != (rebase ? elements(dims2) : x_ins->get_shape().elements()))
                 return;
 
             auto cdims = desc.common_dims();
@@ -230,15 +396,12 @@ struct rewrite_reshapes
             if(not supports(ins, cdims, desc.common_axes_map_from_dst()))
                 return;
 
-            auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
-                return [&](auto input) {
-                    auto gops  = gdesc.generate(input->get_shape().lens());
-                    return std::accumulate(
-                        gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
-                            return mpm.get_module().insert_instruction(ins_to_insert, op, start);
-                        });
+            auto reshape_input =
+                [&](const auto& ins_to_insert, const auto& gdesc, bool no_broadcast = false) {
+                    return [&, no_broadcast](auto input) {
+                        return insert_transforms(mpm, ins_to_insert, gdesc, input, no_broadcast);
+                    };
                 };
-            };
             auto x_inputs = x_ins->inputs();
             std::transform(x_inputs.begin(),
                            x_inputs.end(),
@@ -255,7 +418,8 @@ struct rewrite_reshapes
             std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
                 if(input == input_ins)
                     return new_x_ins;
-                return reshape_input(ins, desc.to_common_from_dst())(input);
+                // The broadcasts of the chain belong to x, not the other inputs
+                return reshape_input(ins, desc.to_common_from_dst(), expand)(input);
             });
             auto pw     = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
             auto to_dst = desc.to_dst_from_common();
@@ -289,27 +453,6 @@ struct rewrite_reshapes
                 return input->get_shape().lens() == ins->get_shape().lens();
             });
         }
-
-        template <class AxesMap>
-        static bool
-        supports(instruction_ref ins, const std::vector<std::size_t>& dims, const AxesMap& am)
-        {
-            if(ins->name() == "pointwise")
-                return true;
-            return T::supports(ins, dims, am);
-        }
-
-        template <class AxesMap>
-        static instruction_ref insert(module_pass_manager& mpm,
-                                      instruction_ref ins,
-                                      const std::vector<instruction_ref>& inputs,
-                                      const AxesMap& am)
-        {
-            if(ins->name() == "pointwise")
-                return mpm.get_module().insert_instruction(
-                    ins, ins->get_operator(), inputs, ins->module_inputs());
-            return T::insert(mpm, ins, inputs, am);
-        }
     };
 
     void apply(module_pass_manager& mpm) const
@@ -324,7 +467,8 @@ struct rewrite_reshapes
             match::find_matches(mpm,
                                 find_op_reshape_op{"pointwise", T::name()},
                                 find_op_reshape_op{T::name(), "pointwise"},
-                                find_op_reshape_op{T::name(), T::name()});
+                                find_op_reshape_op{T::name(), T::name()},
+                                find_entry_reshape_op{});
         }
         mpm.run_pass(simplify_reshapes{1});
         mpm.run_pass(eliminate_common_subexpression{});

@@ -539,18 +539,21 @@ struct find_dot_add
 
 // dot(a, b) + dot(a, c) -> dot(a, b + c) when b and c are constant, so b + c
 // folds and one dot remains. `shared` is the position of a in both dots.
+static auto shared_operand_dot(std::size_t shared, const std::string& a, const std::string& b)
+{
+    return match::name("dot")(match::used_once(),
+                              match::arg(shared)(match::any().bind(a)),
+                              match::arg(1 - shared)(match::is_constant().bind(b)));
+}
+
 struct find_add_dot_common
 {
     std::size_t shared = 0;
 
     auto matcher() const
     {
-        auto dot = [&](const std::string& a, const std::string& b) {
-            return match::name("dot")(match::used_once(),
-                                      match::arg(shared)(match::any().bind(a)),
-                                      match::arg(1 - shared)(match::is_constant().bind(b)));
-        };
-        return match::name("add")(match::args(dot("a1", "b"), dot("a2", "c")));
+        return match::name("add")(match::args(shared_operand_dot(shared, "a1", "b"),
+                                              shared_operand_dot(shared, "a2", "c")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -559,7 +562,7 @@ struct find_add_dot_common
         auto a   = r.instructions["a1"];
         auto b   = r.instructions["b"];
         auto c   = r.instructions["c"];
-        if(a != r.instructions["a2"] or b->get_shape() != c->get_shape())
+        if(a != r.instructions["a2"] or not shape::same_lens(b->get_shape(), c->get_shape()))
             return;
         auto op = ins->inputs().front()->get_operator();
         if(op != ins->inputs().back()->get_operator())
@@ -2965,9 +2968,11 @@ void simplify_algebra::apply(module& m) const
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
         // Before horizontal fusion, which would merge the dots that share an input
+        auto n = m.size();
         match::find_matches(m, find_add_dot_common{0}, find_add_dot_common{1});
         // The replaced dots would still look like siblings to horizontal fusion
-        dead_code_elimination{}.apply(m);
+        if(m.size() != n)
+            dead_code_elimination{}.apply(m);
         match::find_matches(m,
                             find_conv_broadcast_input{},
                             find_inner_broadcast{},

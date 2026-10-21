@@ -538,39 +538,36 @@ struct find_dot_add
 };
 
 // dot(a, b) + dot(a, c) -> dot(a, b + c) when b and c are constant, so b + c
-// folds and one dot remains. Same for a shared right operand.
+// folds and one dot remains. `shared` is the position of a in both dots.
 struct find_add_dot_common
 {
+    std::size_t shared = 0;
+
     auto matcher() const
     {
-        auto dot = match::name("dot")(match::used_once());
-        return match::name("add")(match::args(dot.bind("d1"), dot.bind("d2")));
+        auto dot = [&](const std::string& a, const std::string& b) {
+            return match::name("dot")(match::used_once(),
+                                      match::arg(shared)(match::any().bind(a)),
+                                      match::arg(1 - shared)(match::is_constant().bind(b)));
+        };
+        return match::name("add")(match::args(dot("a1", "b"), dot("a2", "c")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        auto d1  = r.instructions["d1"];
-        auto d2  = r.instructions["d2"];
-        if(d1 == d2 or d1->get_operator() != d2->get_operator())
+        auto a   = r.instructions["a1"];
+        auto b   = r.instructions["b"];
+        auto c   = r.instructions["c"];
+        if(a != r.instructions["a2"] or b->get_shape() != c->get_shape())
             return;
-        auto factor = [&](std::size_t shared, std::size_t other) {
-            auto a = d1->inputs()[shared];
-            auto b = d1->inputs()[other];
-            auto c = d2->inputs()[other];
-            if(a != d2->inputs()[shared] or not b->can_eval() or not c->can_eval() or
-               b->get_shape() != c->get_shape())
-                return false;
-            auto sum    = m.insert_instruction(ins, make_op("add"), b, c);
-            auto inputs = shared == 0 ? std::vector{a, sum} : std::vector{sum, a};
-            m.replace_instruction(ins, d1->get_operator(), inputs);
-            // Dead dots would still look like siblings to horizontal fusion
-            m.remove_instruction(d1);
-            m.remove_instruction(d2);
-            return true;
-        };
-        if(not factor(0, 1))
-            factor(1, 0);
+        auto op = ins->inputs().front()->get_operator();
+        if(op != ins->inputs().back()->get_operator())
+            return;
+        auto sum = m.insert_instruction(ins, make_op("add"), b, c);
+        auto dot = shared == 0 ? m.insert_instruction(ins, op, a, sum)
+                               : m.insert_instruction(ins, op, sum, a);
+        m.replace_instruction(ins, dot);
     }
 };
 
@@ -2968,7 +2965,9 @@ void simplify_algebra::apply(module& m) const
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
         // Before horizontal fusion, which would merge the dots that share an input
-        match::find_matches(m, find_add_dot_common{});
+        match::find_matches(m, find_add_dot_common{0}, find_add_dot_common{1});
+        // The replaced dots would still look like siblings to horizontal fusion
+        dead_code_elimination{}.apply(m);
         match::find_matches(m,
                             find_conv_broadcast_input{},
                             find_inner_broadcast{},

@@ -261,8 +261,8 @@ struct block_assignment
 
 struct dependency_cache
 {
-    const block_assignment& assignment;
-    const symbolic_op_plans& plans;
+    const block_assignment* assignment = nullptr;
+    const symbolic_op_plans* plans     = nullptr;
     std::unordered_map<instruction_ref, std::set<std::size_t>> values;
 
     void discover(instruction_ref source)
@@ -271,8 +271,8 @@ struct dependency_cache
             return;
 
         std::set<std::size_t> dependencies;
-        const auto* source_plan = plans.find(source);
-        auto source_block       = assignment.find(source);
+        const auto* source_plan = plans->find(source);
+        auto source_block       = assignment->find(source);
         if(source_block.has_value())
         {
             dependencies.insert(*source_block);
@@ -800,7 +800,7 @@ struct block_dependency_graph
 
     void update_dependencies(const symbolic_op_plans& plans)
     {
-        dependency_cache cache{.assignment = assignment, .plans = plans};
+        dependency_cache cache{.assignment = &assignment, .plans = &plans};
         cache.values.reserve(plans.size());
         dependencies.clear();
         dependencies.reserve(blocks.size());
@@ -1321,9 +1321,9 @@ struct block_input
 
 struct replacement_context
 {
-    module& target;
-    const block_dependency_graph& graph;
-    const symbolic_op_plans& plans;
+    module_ref target                   = nullptr;
+    const block_dependency_graph* graph = nullptr;
+    const symbolic_op_plans* plans      = nullptr;
     std::unordered_map<instruction_ref, instruction_ref> values;
 
     void insert(instruction_ref source, instruction_ref replacement)
@@ -1337,8 +1337,8 @@ struct replacement_context
     {
         if(contains(values, source))
             return;
-        const auto* plan = plans.find(source);
-        if(graph.is_planned(source))
+        const auto* plan = plans->find(source);
+        if(graph->is_planned(source))
         {
             assert(plan != nullptr);
             MIGRAPHX_THROW("SPLIT_SYM_DIM: block dependency " + source->name() + " at rank " +
@@ -1356,9 +1356,10 @@ struct replacement_context
             return;
         }
 
-        auto result = target.add_instruction(source->get_operator(), args, source->module_inputs());
+        auto result =
+            target->add_instruction(source->get_operator(), args, source->module_inputs());
         if(not source->get_debug_symbols().empty())
-            target.add_debug_symbols(result, source->get_debug_symbols());
+            target->add_debug_symbols(result, source->get_debug_symbols());
         insert(source, result);
     }
 };
@@ -1401,13 +1402,13 @@ bool only_used_as_slice_metadata(instruction_ref ins)
 
 struct clone_context
 {
-    module& clone_module;
-    const block_dependency_graph& graph;
-    const symbolic_op_plans& plans;
-    cloned_values& values;
-    const std::unordered_map<sym::expr, std::size_t>& freeze;
-    const std::vector<instruction_ref>& runtime_extent_sources;
-    const std::unordered_map<sym::expr, sym::expr>& fixed_substitutions;
+    module_ref clone_module                                             = nullptr;
+    const block_dependency_graph* graph                                 = nullptr;
+    const symbolic_op_plans* plans                                      = nullptr;
+    cloned_values* values                                               = nullptr;
+    const std::unordered_map<sym::expr, std::size_t>* freeze            = nullptr;
+    const std::vector<instruction_ref>* runtime_extent_sources          = nullptr;
+    const std::unordered_map<sym::expr, sym::expr>* fixed_substitutions = nullptr;
     runtime_cache cache;
     std::unordered_map<instruction_ref, std::vector<instruction_ref>> reusable_pads;
 
@@ -1420,23 +1421,23 @@ struct clone_context
             });
         if(found != candidates.end())
             return *found;
-        auto result = clone_module.add_instruction(pad_op, input);
+        auto result = clone_module->add_instruction(pad_op, input);
         candidates.push_back(result);
         return result;
     }
 
     void emit(instruction_ref source)
     {
-        const auto* plan          = plans.find(source);
-        const bool source_planned = graph.is_planned(source);
+        const auto* plan          = plans->find(source);
+        const bool source_planned = graph->is_planned(source);
         assert(not source_planned or plan != nullptr);
         const auto* clone_info = source_planned ? plan : nullptr;
-        auto source_inputs     = plans.clone_inputs_for(source, source_planned);
+        auto source_inputs     = plans->clone_inputs_for(source, source_planned);
         std::vector<instruction_ref> args;
         std::transform(source_inputs.begin(),
                        source_inputs.end(),
                        std::back_inserter(args),
-                       [&](const sliced_value& input) { return values.at(input); });
+                       [&](const sliced_value& input) { return values->at(input); });
         if(clone_info != nullptr)
         {
             assert(clone_info->clone_inputs.size() == args.size());
@@ -1449,11 +1450,11 @@ struct clone_context
                                       input.operand.masks.end(),
                                       arg,
                                       [&](instruction_ref masked, const auto& mask) {
-                                          return cache.add_mask(clone_module,
+                                          return cache.add_mask(*clone_module,
                                                                 masked,
                                                                 mask,
-                                                                runtime_extent_sources,
-                                                                fixed_substitutions);
+                                                                *runtime_extent_sources,
+                                                                *fixed_substitutions);
                                       });
             }
         }
@@ -1464,24 +1465,24 @@ struct clone_context
 
         instruction_ref clone;
         if(freezer)
-            clone = freezer(clone_module, source, args, freeze);
+            clone = freezer(*clone_module, source, args, *freeze);
         else
         {
-            clone =
-                clone_module.add_instruction(source->get_operator(), args, source->module_inputs());
+            clone = clone_module->add_instruction(
+                source->get_operator(), args, source->module_inputs());
         }
 
         if(clone->get_shape().dynamic())
             MIGRAPHX_THROW("SPLIT_SYM_DIM: clone body is not fully static: " + source->name());
-        values.set(source, clone);
+        values->set(source, clone);
         if(not source->get_debug_symbols().empty())
-            clone_module.add_debug_symbols(clone, source->get_debug_symbols());
+            clone_module->add_debug_symbols(clone, source->get_debug_symbols());
     }
 };
 
 struct fold_fixed_clone_evaluations : match::supports_dynamic_shapes
 {
-    const std::unordered_map<sym::expr, std::size_t>& fixed_runtime_values;
+    const std::unordered_map<sym::expr, std::size_t>* fixed_runtime_values = nullptr;
 
     auto matcher() const { return match::name("eval_expr_from_shape")(); }
 
@@ -1500,7 +1501,7 @@ struct fold_fixed_clone_evaluations : match::supports_dynamic_shapes
             required.merge(variables);
         }
         if(required.empty() or any_of(required, [&](const auto& variable) {
-               return not contains(fixed_runtime_values, variable);
+               return not contains(*fixed_runtime_values, variable);
            }))
             return;
 
@@ -1510,7 +1511,7 @@ struct fold_fixed_clone_evaluations : match::supports_dynamic_shapes
                        expressions.end(),
                        std::back_inserter(values),
                        [&](const auto& expression) {
-                           return static_cast<int64_t>(expression.eval_uint(fixed_runtime_values));
+                           return static_cast<int64_t>(expression.eval_uint(*fixed_runtime_values));
                        });
         m.replace_instruction(
             ins, m.add_literal(literal{shape{shape::int64_type, {values.size()}}, values}));
@@ -1800,18 +1801,18 @@ struct block_frame
             extent_sources.end(),
             std::back_inserter(runtime_extent_inputs),
             [&](std::size_t input_index) { return values.at(inputs.at(input_index).clone_value); });
-        clone_context context{.clone_module           = clone_module,
-                              .graph                  = graph,
-                              .plans                  = plans,
-                              .values                 = values,
-                              .freeze                 = freeze,
-                              .runtime_extent_sources = runtime_extent_inputs,
-                              .fixed_substitutions    = fixed_substitutions};
+        clone_context context{.clone_module           = &clone_module,
+                              .graph                  = &graph,
+                              .plans                  = &plans,
+                              .values                 = &values,
+                              .freeze                 = &freeze,
+                              .runtime_extent_sources = &runtime_extent_inputs,
+                              .fixed_substitutions    = &fixed_substitutions};
         for(auto source : body)
             context.emit(source);
         match::find_matches(
             clone_module,
-            fold_fixed_clone_evaluations{.fixed_runtime_values = fixed_runtime_values});
+            fold_fixed_clone_evaluations{.fixed_runtime_values = &fixed_runtime_values});
 
         std::vector<instruction_ref> clone_outputs;
         std::transform(outputs.begin(),
@@ -1900,7 +1901,7 @@ void specialize_blocks(module_pass_manager& mpm,
     // select_module that dispatches to the compatible clone. The selected fixed-size outputs are
     // sliced back to their runtime extents before uses outside the block are rewired.
     module& m = mpm.get_module();
-    replacement_context replacements{.target = m, .graph = graph, .plans = plans};
+    replacement_context replacements{.target = &m, .graph = &graph, .plans = &plans};
     std::vector<std::pair<sliced_value, instruction_ref>> output_values;
     auto original_outputs = m.get_returns();
 

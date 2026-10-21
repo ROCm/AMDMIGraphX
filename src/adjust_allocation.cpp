@@ -34,14 +34,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static instruction_ref get_allocation(instruction_ref ins)
 {
-    // Tuple outputs use separate tensor buffers, so there is no single allocation to adjust.
-    if(ins->get_shape().type() == shape::tuple_type)
-        return ins;
     auto aliases = instruction::get_output_alias(ins, true);
     if(aliases.size() != 1)
         return ins;
     auto alias_ins = aliases.front();
     if(alias_ins == ins)
+        return ins;
+    // A tuple may alias either one tuple allocation or separate tensor buffers.
+    if(ins->get_shape().type() == shape::tuple_type and
+       alias_ins->get_shape().type() != shape::tuple_type)
         return ins;
     if(alias_ins->outputs().size() > 1)
         return ins;

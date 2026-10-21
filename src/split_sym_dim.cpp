@@ -1517,13 +1517,17 @@ struct clone_context
                         make_op("fixed_pad", {{"value", *input.operand.pad_value}}),
                         arg,
                         reusable_pads);
-                for(const auto& mask : input.operand.masks)
-                    arg = add_runtime_mask(clone_module,
-                                           arg,
-                                           mask,
-                                           runtime_extent_sources,
-                                           fixed_substitutions,
-                                           cache);
+                arg = std::accumulate(input.operand.masks.begin(),
+                                      input.operand.masks.end(),
+                                      arg,
+                                      [&](instruction_ref masked, const auto& mask) {
+                                          return add_runtime_mask(clone_module,
+                                                                  masked,
+                                                                  mask,
+                                                                  runtime_extent_sources,
+                                                                  fixed_substitutions,
+                                                                  cache);
+                                      });
             }
         }
 

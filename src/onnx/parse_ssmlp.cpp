@@ -33,17 +33,6 @@ namespace onnx {
 
 namespace {
 
-instruction_ref lower_matmul_nbits(
-    module& m, const std::vector<instruction_ref>& args, int n, int k, int bits, int block_size)
-{
-    value options;
-    options.insert({"N", n});
-    options.insert({"K", k});
-    options.insert({"bits", bits});
-    options.insert({"block_size", block_size});
-    return op::builder::add("matmulnbits", m, args, options).at(0);
-}
-
 // SkipSimplifiedLayerNormalization core: returns {normalized, input_skip_sum}.
 // Mean square and epsilon stay in float through rsqrt. Converting the mean square
 // to fp16 first saturates values such as 90000 to 65504.
@@ -80,6 +69,15 @@ instruction_ref silu(onnx_parser::node_info& info, instruction_ref x)
     return info.add_common_op("mul", x, sig);
 }
 
+int required_int_attr(const onnx_parser& parser,
+                      const onnx_parser::node_info& info,
+                      const std::string& name)
+{
+    if(not contains(info.attributes, name))
+        MIGRAPHX_THROW("SSMLP: Attribute " + name + " required, but is missing");
+    return parser.parse_value(info.attributes.at(name)).at<int>();
+}
+
 } // namespace
 
 // com.ryzenai.SSMLP: SkipSimplifiedLN + SwiGLU MLP (3x MatMulNBits) + next SkipSimplifiedLN.
@@ -104,33 +102,36 @@ struct parse_ssmlp : op_parser<parse_ssmlp>
         if(contains(info.attributes, "epsilon"))
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
 
-        auto get_i = [&](const std::string& name) {
-            if(not contains(info.attributes, name))
-                MIGRAPHX_THROW("SSMLP: Attribute " + name + " required, but is missing");
-            return parser.parse_value(info.attributes.at(name)).at<int>();
-        };
-
         auto [mlp_in, residual] = skip_simplified_ln(info, args[1], args[0], args[2], epsilon);
 
-        auto gate = lower_matmul_nbits(*info.mod,
-                                       {mlp_in, args[3], args[4], args[5]},
-                                       get_i("gate_N"),
-                                       get_i("gate_K"),
-                                       get_i("gate_bits"),
-                                       get_i("gate_block_size"));
-        auto up   = lower_matmul_nbits(*info.mod,
-                                       {mlp_in, args[6], args[7], args[8]},
-                                       get_i("up_N"),
-                                       get_i("up_K"),
-                                       get_i("up_bits"),
-                                       get_i("up_block_size"));
+        auto gate = op::builder::add("matmulnbits",
+                                     *info.mod,
+                                     {mlp_in, args[3], args[4], args[5]},
+                                     {{"N", required_int_attr(parser, info, "gate_N")},
+                                      {"K", required_int_attr(parser, info, "gate_K")},
+                                      {"bits", required_int_attr(parser, info, "gate_bits")},
+                                      {"block_size",
+                                       required_int_attr(parser, info, "gate_block_size")}})
+                        .at(0);
+        auto up   = op::builder::add("matmulnbits",
+                                     *info.mod,
+                                     {mlp_in, args[6], args[7], args[8]},
+                                     {{"N", required_int_attr(parser, info, "up_N")},
+                                      {"K", required_int_attr(parser, info, "up_K")},
+                                      {"bits", required_int_attr(parser, info, "up_bits")},
+                                      {"block_size",
+                                       required_int_attr(parser, info, "up_block_size")}})
+                        .at(0);
         auto mid  = info.add_common_op("mul", silu(info, gate), up);
-        auto down = lower_matmul_nbits(*info.mod,
-                                       {mid, args[9], args[10], args[11]},
-                                       get_i("down_N"),
-                                       get_i("down_K"),
-                                       get_i("down_bits"),
-                                       get_i("down_block_size"));
+        auto down = op::builder::add("matmulnbits",
+                                     *info.mod,
+                                     {mid, args[9], args[10], args[11]},
+                                     {{"N", required_int_attr(parser, info, "down_N")},
+                                      {"K", required_int_attr(parser, info, "down_K")},
+                                      {"bits", required_int_attr(parser, info, "down_bits")},
+                                      {"block_size",
+                                       required_int_attr(parser, info, "down_block_size")}})
+                        .at(0);
 
         auto [out, skip_sum] = skip_simplified_ln(info, down, residual, args[12], epsilon);
         return {out, skip_sum};

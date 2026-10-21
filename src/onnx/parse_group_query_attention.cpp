@@ -328,30 +328,6 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
     }
 };
 
-namespace {
-
-int required_int_attr(const onnx_parser& parser,
-                      const onnx_parser::node_info& info,
-                      const std::string& name)
-{
-    if(not contains(info.attributes, name))
-        MIGRAPHX_THROW("GQO: Attribute " + name + " required, but is missing");
-    return parser.parse_value(info.attributes.at(name)).at<int>();
-}
-
-instruction_ref lower_matmul_nbits(
-    module& m, const std::vector<instruction_ref>& args, int n, int k, int bits, int block_size)
-{
-    value options;
-    options.insert({"N", n});
-    options.insert({"K", k});
-    options.insert({"bits", bits});
-    options.insert({"block_size", block_size});
-    return op::builder::add("matmulnbits", m, args, options).at(0);
-}
-
-} // namespace
-
 // com.ryzenai.GQO: GroupQueryAttention fused with o_proj MatMulNBits.
 // Inputs 0-11 match microsoft GroupQueryAttention, including optional
 // position_ids, attention_bias, and head_sink. o_proj qweight/scales/qzeros
@@ -380,10 +356,10 @@ struct parse_gqo : op_parser<parse_gqo>
         auto k_out    = gqa_outs[1];
         auto v_out    = gqa_outs[2];
 
-        const int n          = required_int_attr(parser, info, "o_proj_N");
-        const int k          = required_int_attr(parser, info, "o_proj_K");
-        const int bits       = required_int_attr(parser, info, "o_proj_bits");
-        const int block_size = required_int_attr(parser, info, "o_proj_block_size");
+        if(not contains(info.attributes, "o_proj_N") or not contains(info.attributes, "o_proj_K") or
+           not contains(info.attributes, "o_proj_bits") or
+           not contains(info.attributes, "o_proj_block_size"))
+            MIGRAPHX_THROW("GQO: o_proj_N/K/bits/block_size attributes are required");
 
         std::vector<instruction_ref> mm_args{
             attn_out, args[weight_index], args[weight_index + 1], args[weight_index + 2]};
@@ -391,7 +367,17 @@ struct parse_gqo : op_parser<parse_gqo>
             mm_args.push_back(args[weight_index + 3]);
         // packed at weight_index + 4 is NPU-only and ignored.
 
-        auto o_proj = lower_matmul_nbits(*info.mod, mm_args, n, k, bits, block_size);
+        auto o_proj =
+            op::builder::add(
+                "matmulnbits",
+                *info.mod,
+                mm_args,
+                {{"N", parser.parse_value(info.attributes.at("o_proj_N")).at<int>()},
+                 {"K", parser.parse_value(info.attributes.at("o_proj_K")).at<int>()},
+                 {"bits", parser.parse_value(info.attributes.at("o_proj_bits")).at<int>()},
+                 {"block_size",
+                  parser.parse_value(info.attributes.at("o_proj_block_size")).at<int>()}})
+                .at(0);
         return {k_out, v_out, o_proj};
     }
 };

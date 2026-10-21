@@ -30,21 +30,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-namespace {
-
-instruction_ref lower_matmul_nbits(
-    module& m, const std::vector<instruction_ref>& args, int n, int k, int bits, int block_size)
-{
-    value options;
-    options.insert({"N", n});
-    options.insert({"K", k});
-    options.insert({"bits", bits});
-    options.insert({"block_size", block_size});
-    return op::builder::add("matmulnbits", m, args, options).at(0);
-}
-
-} // namespace
-
 // Parses MatMulNBits from both com.microsoft and com.ryzenai.
 // com.microsoft inputs: A, B, scales, zero_points, g_idx, bias.
 // com.ryzenai inputs:   A, B, scales, zero_points, bias, packed (NPU-only, ignored).
@@ -85,7 +70,11 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
                 weight_args.push_back(args[5]);
         }
 
-        return lower_matmul_nbits(*info.mod, weight_args, n, k, bits, block_size);
+        return op::builder::add("matmulnbits",
+                                *info.mod,
+                                weight_args,
+                                {{"N", n}, {"K", k}, {"bits", bits}, {"block_size", block_size}})
+            .at(0);
     }
 
     private:

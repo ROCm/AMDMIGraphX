@@ -30,7 +30,6 @@
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
 #include <algorithm>
-#include <cmath>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,7 +42,7 @@ instruction_ref unpack(module& m, instruction_ref ins, int n, int dim1, instruct
 {
     x = m.insert_instruction(ins, make_op("reshape", {{"dims", {n, -1}}}), x);
     x = m.insert_instruction(ins, make_op("unpack_int4"), x);
-    if(x->get_shape().lens()[1] > static_cast<std::size_t>(dim1))
+    if(x->get_shape().lens()[1] > dim1)
     {
         x = m.insert_instruction(
             ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {dim1}}}), x);
@@ -61,7 +60,7 @@ instruction_ref prepare_blockwise_dq_arg(
     x            = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", bc_lens}}), x);
     x            = m.insert_instruction(ins, make_op("reshape", {{"dims", {n, -1}}}), x);
 
-    if(x->get_shape().lens()[1] > static_cast<std::size_t>(k))
+    if(x->get_shape().lens()[1] > k)
     {
         x = m.insert_instruction(
             ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {k}}}), x);
@@ -132,16 +131,20 @@ struct matmulnbits : op_builder<matmulnbits>
             MIGRAPHX_THROW("MatMulNBits: block_size must be a power of 2 and >=16, actual value " +
                            std::to_string(block_size));
 
-        const size_t n_blocks_per_col = (k + block_size - 1) / block_size;
-        const size_t blob_size        = std::ceil(block_size * bits / 8.0f);
+        const int n_blocks_per_col = (k + block_size - 1) / block_size;
+        const int blob_size        = (block_size * bits + 7) / 8;
 
-        std::vector<size_t> expected_b_lens{static_cast<size_t>(n), n_blocks_per_col, blob_size};
+        std::vector<std::size_t> expected_b_lens(3);
+        expected_b_lens[0] = n;
+        expected_b_lens[1] = n_blocks_per_col;
+        expected_b_lens[2] = blob_size;
         if(b->get_shape().lens() != expected_b_lens)
             MIGRAPHX_THROW("MatMulNBits: Input B does not match expected dims: " +
                            to_string_range(expected_b_lens) +
                            ". Actual dims: " + to_string_range(b->get_shape().lens()));
 
-        const size_t expected_scales_lens = static_cast<size_t>(n) * n_blocks_per_col;
+        std::size_t expected_scales_lens = n;
+        expected_scales_lens *= n_blocks_per_col;
         if(scales->get_shape().elements() != expected_scales_lens)
             MIGRAPHX_THROW("MatMulNBits: Input scales does not match expected dims: " +
                            to_string(expected_scales_lens) +
@@ -149,9 +152,8 @@ struct matmulnbits : op_builder<matmulnbits>
 
         if(has_zp)
         {
-            const size_t expected_zp_elements =
-                static_cast<size_t>(n) *
-                static_cast<size_t>(std::ceil(n_blocks_per_col * bits / 8.0f));
+            std::size_t expected_zp_elements = n;
+            expected_zp_elements *= (n_blocks_per_col * bits + 7) / 8;
             if(args[3]->get_shape().elements() != expected_zp_elements)
                 MIGRAPHX_THROW("MatMulNBits: Input zero_points does not match expected dims: " +
                                to_string(expected_zp_elements) +
@@ -166,7 +168,7 @@ struct matmulnbits : op_builder<matmulnbits>
         instruction_ref dq_zp;
         if(has_zp)
         {
-            dq_zp = unpack(m, ins, n, static_cast<int>(n_blocks_per_col), args[3]);
+            dq_zp = unpack(m, ins, n, n_blocks_per_col, args[3]);
             dq_zp = prepare_blockwise_dq_arg(m, ins, n, k, block_size, dq_zp);
         }
         else

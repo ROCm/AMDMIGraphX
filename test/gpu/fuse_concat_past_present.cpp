@@ -201,6 +201,58 @@ TEST_CASE(fuse_decode_reshaped_producer)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// pointwise over {h, 2, head/2} -> reshape_lazy -> concat_past_present; the
+// slot gives the producer a non-packed leading stride that the original
+// reshape cannot alias, so the retargeted producer must not recompute it
+TEST_CASE(fuse_decode_reshaped_producer_strided)
+{
+    migraphx::shape split_shape{migraphx::shape::half_type, {2, 2, 2}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", split_shape);
+        auto y     = mm->add_parameter("y", split_shape);
+        auto slk   = mm->add_parameter("slk", index_shape());
+        auto cache = mm->add_parameter("cache", cache_shape());
+        auto* pm = create_pointwise_module(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(split_shape)}}));
+        auto pw  = mm->add_instruction(make_precompile_op("pointwise"), {x, y, alloc}, {pm});
+        auto rsp = mm->add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", present_shape(1).lens()}}), pw);
+        auto cpp = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}),
+                               cache_shape()),
+            rsp,
+            slk,
+            cache);
+        mm->add_return({cpp});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", split_shape);
+        auto y     = mm->add_parameter("y", split_shape);
+        auto slk   = mm->add_parameter("slk", index_shape());
+        auto cache = mm->add_parameter("cache", cache_shape());
+        auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
+        auto slot =
+            mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar);
+        auto split = mm->add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", {1, 2, 1, 2, 2}}}), slot);
+        auto view = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), split);
+        migraphx::shape split_slot{migraphx::shape::half_type, {2, 2, 2}, {32, 2, 1}};
+        auto pw = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("pointwise"), split_slot), {x, y, view}, {pm});
+        auto dep = mm->add_instruction(migraphx::make_op("identity"), cache, pw);
+        mm->add_return({dep});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 // pointwise in a transposed layout -> transpose -> concat_past_present; the
 // slot is transposed back so the producer writes it in its own dims
 TEST_CASE(fuse_transposed_producer)

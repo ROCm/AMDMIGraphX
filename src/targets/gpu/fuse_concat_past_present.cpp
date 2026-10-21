@@ -236,35 +236,29 @@ struct find_concat_past_present
                 cache);
         }
 
-        // The view is defined at the concat, so the producer and its view chain
-        // move down to it; both are single-use so nothing in between needs them
-        m.move_instruction(producer, ins);
-        std::for_each(chain.rbegin(), chain.rend(), [&](auto x) { m.move_instruction(x, ins); });
-
+        // A retargeted copy of the producer is inserted at the concat rather
+        // than rewriting it in place: the new strides could make the original
+        // view chain fail shape recomputation before it becomes dead
         assert(view->get_shape() == slot);
         auto inputs = producer->inputs();
         if(sink)
         {
-            std::transform(
-                inputs.begin(), std::prev(inputs.end()), inputs.begin(), [&](instruction_ref x) {
-                    return apply_views(m, producer, x, chain_ops);
-                });
+            std::transform(inputs.begin(),
+                           std::prev(inputs.end()),
+                           inputs.begin(),
+                           [&](instruction_ref x) { return apply_views(m, ins, x, chain_ops); });
         }
         else
         {
-            view = apply_views(m, producer, view, inverse->first);
+            view = apply_views(m, ins, view, inverse->first);
             assert(view->get_shape() == inverse->second);
         }
         auto v            = producer->get_operator().to_value();
         v["output_shape"] = to_value(view->get_shape());
         inputs.back()     = view;
-        m.replace_instruction(ins, make_op("identity"), {cache, producer});
-        // The sunk chain is dead and cannot view the slot dims, so it goes
-        // before the producer takes them
-        if(sink)
-            std::for_each(chain.begin(), chain.end(), [&](auto x) { m.remove_instruction(x); });
-        m.replace_instruction(
-            producer, make_op("gpu::precompile_op", v), inputs, producer->module_inputs());
+        auto fused        = m.insert_instruction(
+            ins, make_op("gpu::precompile_op", v), inputs, producer->module_inputs());
+        m.replace_instruction(ins, make_op("identity"), {cache, fused});
     }
 };
 

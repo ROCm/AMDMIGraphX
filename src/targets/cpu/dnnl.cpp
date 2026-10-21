@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/cpu/dnnl.hpp>
+#include <optional>
 
 #if defined(__GNUC__) && __GNUC__ <= 5
 namespace std {
@@ -57,7 +58,7 @@ dnnl_context& get_dnnl_context()
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wswitch-enum"
 #endif
-dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
+static std::optional<dnnl::memory::data_type> find_dnnl_memory_data_type(shape::type_t t)
 {
     using dt = dnnl::memory::data_type;
     using st = shape::type_t;
@@ -68,14 +69,23 @@ dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
     case st::int32_type: return dt::s32;
     case st::int8_type: return dt::s8;
     case st::uint8_type: return dt::u8;
-    case st::fp8e4m3fnuz_type: MIGRAPHX_THROW("fp8e4m3fnuz unsupported in DNNL");
     case st::bf16_type: return dt::bf16;
-    default: MIGRAPHX_THROW("Unsupported data type");
+    default: return std::nullopt;
     }
 }
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
+
+bool is_dnnl_supported_type(shape::type_t t) { return find_dnnl_memory_data_type(t).has_value(); }
+
+dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
+{
+    auto dt = find_dnnl_memory_data_type(t);
+    if(not dt.has_value())
+        MIGRAPHX_THROW("Unsupported data type in DNNL: " + shape::name(t));
+    return *dt;
+}
 
 dnnl::memory::format_tag to_dnnl_memory_format_tag(std::size_t n)
 {

@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/filesystem.hpp>
 #include <string>
 
 namespace migraphx {
@@ -41,6 +42,9 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
     context* ctx         = nullptr;
     bool exhaustive_tune = false;
     bool skip_benchmark  = false;
+    /// Save each benchmark candidate here as an MXR file and exit instead of compiling; empty
+    /// compiles normally.
+    fs::path dump_mxr_dir = {};
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module_pass_manager& mpm) const;
 };

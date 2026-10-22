@@ -613,9 +613,11 @@ static std::string generate_select(const instruction& ins, const std::vector<std
         MIGRAPHX_THROW(ins.name() + " expects one value tensor operand");
     if(ins.name() == "gpu::make_indices")
         return "r.make_indices_from(" + args.front() + ")";
-    bool largest = ins.get_operator().to_value().at("largest").to<bool>();
-    return interpolate_string("r.template topk<${k}>(${compare}, ${init})(${x})",
+    bool largest    = ins.get_operator().to_value().at("largest").to<bool>();
+    auto index_type = ins.get_shape().sub_shapes().back().type();
+    return interpolate_string("r.template topk<${k}, ${index_type}>(${compare}, ${init})(${x})",
                               {{"k", std::to_string(topk_k(ins))},
+                               {"index_type", shape::cpp_type(index_type)},
                                {"compare", largest ? "greater{}" : "less{}"},
                                {"init", largest ? "lowest{}" : "highest{}"},
                                {"x", args.front()}});

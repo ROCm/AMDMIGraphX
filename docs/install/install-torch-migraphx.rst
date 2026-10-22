@@ -116,21 +116,7 @@ environment.
          python -m pip install --extra-index-url |WHL_PKG_REPO| \
              |WHL|
 
-   4. If you installed ROCm using your Linux distribution's package manager,
-      complete the following post-installation step.
-
-      The ROCm libraries are installed to ``/opt/rocm/core-10.1/lib``, which
-      isn't on the default linker path. Configure environment variables so
-      that the ROCm libraries are added to ``LD_LIBRARY_PATH``, as described
-      in `Install MIGraphX using pip <install-migraphx.html?i=pip>`_.
-
-      .. note::
-
-         Skip this step if you installed ROCm using pip. In that case, the
-         MIGraphX wheel finds the ROCm libraries in the ROCm wheels already
-         installed in your virtual environment.
-
-   5. Verify your installation.
+   4. Verify your installation.
 
       Confirm that the package imports and reports the expected version.
 
@@ -140,6 +126,21 @@ environment.
          python -c "import torch, torch_migraphx; print('migraphx' in torch._dynamo.list_backends())"
 
       This prints ``True`` if the MIGraphX backend is registered as expected.
+
+      .. important::
+
+         If you installed ROCm using your Linux distribution's package manager
+         instead of pip, both commands fail with ``libhsa-runtime64.so.1:
+         cannot open shared object file``. The ROCm libraries are in
+         ``/opt/rocm/core-10.1/lib``, which isn't on the default linker path,
+         so add it before running them:
+
+         .. code-block:: bash
+
+            export ROCM_PATH=/opt/rocm/core-10.1
+            export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+
+         To make this permanent, add these lines to your shell startup script.
 
 .. _PyTorch installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver=10.1.0
 

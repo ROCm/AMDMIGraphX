@@ -1233,12 +1233,16 @@ struct find_kv_cache_attention
         // its outputs are already in the set. This pulls in constants,
         // broadcasts, and side inputs that feed exclusively into the
         // attention, while excluding ops with external consumers.
+        // Reductions are only valid on the softmax path, so an upstream
+        // reduce (e.g. a Q rmsnorm) is never absorbed as an input fusion.
         auto expand = fix([&](auto self, auto ins) {
             for(auto input : ins->inputs())
             {
                 if(contains(inss, input))
                     continue;
                 if(not is_valid_attn_op(input))
+                    continue;
+                if(input->get_operator().attributes().get("reduce", false))
                     continue;
                 if(input->can_eval() or std::all_of(input->outputs().begin(),
                                                     input->outputs().end(),

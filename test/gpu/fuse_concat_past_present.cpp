@@ -360,8 +360,8 @@ TEST_CASE(fuse_prefill_transposed_producer)
 }
 
 // The slot strides cannot merge the head and head-size axes into one, so the
-// producer cannot write it through the reshape
-TEST_CASE(skip_unmergeable_producer)
+// reshape moves onto the inputs and the producer computes in the slot dims
+TEST_CASE(fuse_flat_producer)
 {
     migraphx::shape flat_shape{migraphx::shape::half_type, {1, 8}};
     migraphx::program p1;
@@ -375,6 +375,61 @@ TEST_CASE(skip_unmergeable_producer)
         auto alloc = mm->add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(flat_shape)}}));
         auto pw  = mm->add_instruction(make_precompile_op("pointwise"), {x, y, alloc}, {pm});
+        auto rsp = mm->add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", present_shape(1).lens()}}), pw);
+        auto cpp = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}),
+                               cache_shape()),
+            rsp,
+            slk,
+            cache);
+        mm->add_return({cpp});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", flat_shape);
+        auto y     = mm->add_parameter("y", flat_shape);
+        auto slk   = mm->add_parameter("slk", index_shape());
+        auto cache = mm->add_parameter("cache", cache_shape());
+        auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
+        auto slot =
+            mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar);
+        auto xr = mm->add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", present_shape(1).lens()}}), x);
+        auto yr = mm->add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", present_shape(1).lens()}}), y);
+        auto pw =
+            mm->add_instruction(make_precompile_op(migraphx::make_op("pointwise"), slot_shape(1)),
+                                {xr, yr, slot},
+                                {pm});
+        auto dep = mm->add_instruction(migraphx::make_op("identity"), cache, pw);
+        mm->add_return({dep});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The reshape merges the head axis into the head-size axis, which neither the
+// slot strides nor a transposed input can express, so nothing is fused
+TEST_CASE(skip_unmergeable_producer)
+{
+    migraphx::shape merged_shape{migraphx::shape::half_type, {1, 4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", merged_shape);
+        auto y   = mm->add_parameter("y", {migraphx::shape::half_type, {1, 2, 4}});
+        auto yt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
+        auto slk   = mm->add_parameter("slk", index_shape());
+        auto cache = mm->add_parameter("cache", cache_shape());
+        auto* pm = create_pointwise_module(p1, "main:pointwise0", {x, yt}, single_pointwise("mul"));
+        auto alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(merged_shape)}}));
+        auto pw  = mm->add_instruction(make_precompile_op("pointwise"), {x, yt, alloc}, {pm});
         auto rsp = mm->add_instruction(
             migraphx::make_op("reshape_lazy", {{"dims", present_shape(1).lens()}}), pw);
         auto cpp = mm->add_instruction(

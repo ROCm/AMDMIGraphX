@@ -46,3 +46,4 @@ struct test_channelwise_conv_nhwc_multiplier
 };
 template struct test_channelwise_conv_nhwc_multiplier<migraphx::shape::float_type>;
 template struct test_channelwise_conv_nhwc_multiplier<migraphx::shape::half_type>;
+template struct test_channelwise_conv_nhwc_multiplier<migraphx::shape::bf16_type>;

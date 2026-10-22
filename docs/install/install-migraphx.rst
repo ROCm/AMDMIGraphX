@@ -48,7 +48,7 @@ MIGraphX |MIGRAPHX_VERSION| is currently supported on:
 
 See the `ROCm compatibility matrix`_ for more information.
 
-.. _ROCm compatibility matrix: https://rocm.docs.amd.com/en/docs-|ROCM_VERSION|/compatibility/compatibility-matrix.html
+.. _ROCm compatibility matrix: https://rocm.docs.amd.com/en/docs-10.1.0/compatibility/compatibility-matrix.html
 
 .. selected:: i=pip
 
@@ -69,7 +69,7 @@ For instructions, see `Install AMD ROCm`_ |ROCM_VERSION|. Use the selector
 panel on that page to view instructions appropriate for your system
 environment.
 
-.. _Install AMD ROCm: https://rocm.docs.amd.com/en/docs-|ROCM_VERSION|/install/rocm.html?fam=all
+.. _Install AMD ROCm: https://rocm.docs.amd.com/en/docs-10.1.0/install/rocm.html?fam=all
 
 .. selected:: i=pkgman
    :heading: Install MIGraphX via package manager
@@ -552,7 +552,7 @@ environment.
          package manager installation. To use the execution provider,
          install MIGraphX using pip instead.
 
-.. _ONNX Runtime installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html?rocm-ver=|ROCM_VERSION|
+.. _ONNX Runtime installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html?rocm-ver=10.1.0
 
 .. selected:: i=pkgman
    :heading: Uninstall MIGraphX

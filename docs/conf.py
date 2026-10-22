@@ -66,6 +66,10 @@ doxygen_project = {
 }
 
 substitutions_default_enabled = True
+# Substituting into hyperlink targets needs sphinx-substitution-extensions
+# >=2026.8.2, which requires Python >=3.11 and Sphinx >=8.1; RTD builds this
+# project on Python 3.10. Until that moves, spell the ROCm version out in
+# external URLs instead of using |ROCM_VERSION|.
 substitutions_hyperlink_targets_enabled = True
 
 # Theme-related configs

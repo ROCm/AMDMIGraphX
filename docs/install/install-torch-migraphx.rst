@@ -31,7 +31,7 @@ MIGraphX |MIGRAPHX_VERSION|. See the :doc:`MIGraphX installation page
 <install-migraphx>` for the list of supported architectures and the `ROCm
 compatibility matrix`_ for more information.
 
-.. _ROCm compatibility matrix: https://rocm.docs.amd.com/en/docs-|ROCM_VERSION|/compatibility/compatibility-matrix.html
+.. _ROCm compatibility matrix: https://rocm.docs.amd.com/en/docs-10.1.0/compatibility/compatibility-matrix.html
 
 .. selected:: i=pip
 
@@ -50,7 +50,7 @@ For instructions, see `Install AMD ROCm`_ |ROCM_VERSION|. Use the selector
 panel on that page to view instructions appropriate for your system
 environment.
 
-.. _Install AMD ROCm: https://rocm.docs.amd.com/en/docs-|ROCM_VERSION|/install/rocm.html?fam=all
+.. _Install AMD ROCm: https://rocm.docs.amd.com/en/docs-10.1.0/install/rocm.html?fam=all
 
 .. selected:: i=pip
    :heading: Install Torch-MIGraphX 1.2 using pip
@@ -141,7 +141,7 @@ environment.
 
       This prints ``True`` if the MIGraphX backend is registered as expected.
 
-.. _PyTorch installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver=|ROCM_VERSION|
+.. _PyTorch installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver=10.1.0
 
 .. selected:: i=pip
    :heading: Uninstall Torch-MIGraphX

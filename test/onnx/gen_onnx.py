@@ -13986,15 +13986,14 @@ def matmulnbits_microsoft_bias_test():
                                               [4])
     c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 4])
 
-    node = onnx.helper.make_node(
-        "MatMulNBits",
-        inputs=["a", "b", "scales", "zp", "", "bias"],
-        outputs=["c"],
-        bits=4,
-        block_size=16,
-        K=16,
-        N=4,
-        domain='com.microsoft')
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales", "zp", "", "bias"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=16,
+                                 N=4,
+                                 domain='com.microsoft')
     return ([node], [a, b, scales, zp, bias], [c])
 
 
@@ -14011,15 +14010,14 @@ def matmulnbits_g_idx_test():
                                                [16])
     c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 4])
 
-    node = onnx.helper.make_node(
-        "MatMulNBits",
-        inputs=["a", "b", "scales", "zp", "g_idx"],
-        outputs=["c"],
-        bits=4,
-        block_size=16,
-        K=16,
-        N=4,
-        domain='com.microsoft')
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales", "zp", "g_idx"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=16,
+                                 N=4,
+                                 domain='com.microsoft')
     return ([node], [a, b, scales, zp, g_idx], [c])
 
 
@@ -14037,11 +14035,11 @@ def _gqo_models(seq, with_bias, with_head_sink, with_position_ids):
                                    data_type=TensorProto.INT32,
                                    dims=[1, 1],
                                    vals=np.array([[1]], dtype=np.int32))
-    total_sequence_length = helper.make_tensor(
-        name='total_sequence_length',
-        data_type=TensorProto.INT32,
-        dims=[1, 1],
-        vals=np.array([[4]], dtype=np.int32))
+    total_sequence_length = helper.make_tensor(name='total_sequence_length',
+                                               data_type=TensorProto.INT32,
+                                               dims=[1, 1],
+                                               vals=np.array([[4]],
+                                                             dtype=np.int32))
     cache = np.ones([4, 8], dtype=np.float32)
     cos_cache = helper.make_tensor(name='cos_cache',
                                    data_type=TensorProto.FLOAT,
@@ -14055,7 +14053,8 @@ def _gqo_models(seq, with_bias, with_head_sink, with_position_ids):
                                             [4, 1, 8])
     scales = helper.make_tensor_value_info('scales', TensorProto.FLOAT, [4])
     qzeros = helper.make_tensor_value_info('qzeros', TensorProto.UINT8, [4])
-    present_key = helper.make_tensor_value_info('present_key', TensorProto.FLOAT,
+    present_key = helper.make_tensor_value_info('present_key',
+                                                TensorProto.FLOAT,
                                                 [1, 1, 4, 16])
     present_value = helper.make_tensor_value_info('present_value',
                                                   TensorProto.FLOAT,
@@ -14121,10 +14120,10 @@ def _gqo_models(seq, with_bias, with_head_sink, with_position_ids):
                           outputs=['proj'],
                           domain='com.ryzenai',
                           **mm_attrs)
-    fused = ([gqo], graph_inputs, [present_key, present_value, proj],
-             initializers)
-    unfused = ([gqa, mm], graph_inputs,
-               [present_key, present_value, proj], initializers)
+    fused = ([gqo], graph_inputs, [present_key, present_value,
+                                   proj], initializers)
+    unfused = ([gqa, mm], graph_inputs, [present_key, present_value,
+                                         proj], initializers)
     return fused, unfused, attn
 
 
@@ -14233,24 +14232,23 @@ def ssmlp_fp16_test():
     up = weight('up')
     down = weight('down')
     graph_inputs = [residual, attn, gamma1] + gate + up + down + [gamma2]
-    node = helper.make_node(
-        'SSMLP',
-        inputs=[t.name for t in graph_inputs],
-        outputs=['out', 'skip'],
-        epsilon=1e-5,
-        gate_N=16,
-        gate_K=16,
-        gate_bits=4,
-        gate_block_size=16,
-        up_N=16,
-        up_K=16,
-        up_bits=4,
-        up_block_size=16,
-        down_N=16,
-        down_K=16,
-        down_bits=4,
-        down_block_size=16,
-        domain='com.ryzenai')
+    node = helper.make_node('SSMLP',
+                            inputs=[t.name for t in graph_inputs],
+                            outputs=['out', 'skip'],
+                            epsilon=1e-5,
+                            gate_N=16,
+                            gate_K=16,
+                            gate_bits=4,
+                            gate_block_size=16,
+                            up_N=16,
+                            up_K=16,
+                            up_bits=4,
+                            up_block_size=16,
+                            down_N=16,
+                            down_K=16,
+                            down_bits=4,
+                            down_block_size=16,
+                            domain='com.ryzenai')
     return ([node], graph_inputs, [out, skip])
 
 

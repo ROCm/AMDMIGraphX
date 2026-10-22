@@ -104,34 +104,34 @@ struct parse_ssmlp : op_parser<parse_ssmlp>
 
         auto [mlp_in, residual] = skip_simplified_ln(info, args[1], args[0], args[2], epsilon);
 
-        auto gate = op::builder::add("matmulnbits",
-                                     *info.mod,
-                                     {mlp_in, args[3], args[4], args[5]},
-                                     {{"N", required_int_attr(parser, info, "gate_N")},
-                                      {"K", required_int_attr(parser, info, "gate_K")},
-                                      {"bits", required_int_attr(parser, info, "gate_bits")},
-                                      {"block_size",
-                                       required_int_attr(parser, info, "gate_block_size")}})
-                        .at(0);
-        auto up   = op::builder::add("matmulnbits",
-                                     *info.mod,
-                                     {mlp_in, args[6], args[7], args[8]},
-                                     {{"N", required_int_attr(parser, info, "up_N")},
-                                      {"K", required_int_attr(parser, info, "up_K")},
-                                      {"bits", required_int_attr(parser, info, "up_bits")},
-                                      {"block_size",
-                                       required_int_attr(parser, info, "up_block_size")}})
-                        .at(0);
-        auto mid  = info.add_common_op("mul", silu(info, gate), up);
-        auto down = op::builder::add("matmulnbits",
-                                     *info.mod,
-                                     {mid, args[9], args[10], args[11]},
-                                     {{"N", required_int_attr(parser, info, "down_N")},
-                                      {"K", required_int_attr(parser, info, "down_K")},
-                                      {"bits", required_int_attr(parser, info, "down_bits")},
-                                      {"block_size",
-                                       required_int_attr(parser, info, "down_block_size")}})
-                        .at(0);
+        auto gate =
+            op::builder::add("matmulnbits",
+                             *info.mod,
+                             {mlp_in, args[3], args[4], args[5]},
+                             {{"N", required_int_attr(parser, info, "gate_N")},
+                              {"K", required_int_attr(parser, info, "gate_K")},
+                              {"bits", required_int_attr(parser, info, "gate_bits")},
+                              {"block_size", required_int_attr(parser, info, "gate_block_size")}})
+                .at(0);
+        auto up =
+            op::builder::add("matmulnbits",
+                             *info.mod,
+                             {mlp_in, args[6], args[7], args[8]},
+                             {{"N", required_int_attr(parser, info, "up_N")},
+                              {"K", required_int_attr(parser, info, "up_K")},
+                              {"bits", required_int_attr(parser, info, "up_bits")},
+                              {"block_size", required_int_attr(parser, info, "up_block_size")}})
+                .at(0);
+        auto mid = info.add_common_op("mul", silu(info, gate), up);
+        auto down =
+            op::builder::add("matmulnbits",
+                             *info.mod,
+                             {mid, args[9], args[10], args[11]},
+                             {{"N", required_int_attr(parser, info, "down_N")},
+                              {"K", required_int_attr(parser, info, "down_K")},
+                              {"bits", required_int_attr(parser, info, "down_bits")},
+                              {"block_size", required_int_attr(parser, info, "down_block_size")}})
+                .at(0);
 
         auto [out, skip_sum] = skip_simplified_ln(info, down, residual, args[12], epsilon);
         return {out, skip_sum};

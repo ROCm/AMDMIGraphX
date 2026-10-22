@@ -131,10 +131,10 @@ static migraphx::argument run_gpu_fused(const std::vector<migraphx::shape>& para
 
     auto cw_op = migraphx::make_op("gpu::channelwise_conv",
                                    {{"num_spatial", x_shape.ndim() - 2}, {"padding", padding}});
-    auto pre   = migraphx::make_op("gpu::precompile_op",
-                                 {{"op", migraphx::to_value(cw_op)},
-                                  {"output_shape", migraphx::to_value(out_shape)}});
-    auto ins   = mm->add_instruction(pre, args, {pm});
+    auto pre   = migraphx::make_op(
+        "gpu::precompile_op",
+        {{"op", migraphx::to_value(cw_op)}, {"output_shape", migraphx::to_value(out_shape)}});
+    auto ins = mm->add_instruction(pre, args, {pm});
     mm->add_return({ins});
 
     migraphx::gpu::context ctx;
@@ -323,10 +323,7 @@ static bool verify_bool_mask(const std::string& name, std::size_t cvec)
         name, gpu_result, migraphx::verify::expected{ref_result});
 }
 
-TEST_CASE(channelwise_conv_bool_mask)
-{
-    EXPECT(verify_bool_mask("channelwise_conv_bool_mask", 1));
-}
+TEST_CASE(channelwise_conv_bool_mask) { EXPECT(verify_bool_mask("channelwise_conv_bool_mask", 1)); }
 
 TEST_CASE(channelwise_conv_bool_mask_vector)
 {
@@ -410,8 +407,8 @@ TEST_CASE(channelwise_conv_1d_channels_last)
     auto w_shape = migraphx::shape::from_permutation(migraphx::shape::float_type, {8, 1, 3}, perm);
     migraphx::value solution{
         {"tile_w", 16}, {"noutputs", 2}, {"tile_c", 8}, {"nrows", 1}, {"cvec", 4}};
-    EXPECT(verify_solution(
-        "channelwise_conv_1d_channels_last", x_shape, w_shape, {1, 1}, solution));
+    EXPECT(
+        verify_solution("channelwise_conv_1d_channels_last", x_shape, w_shape, {1, 1}, solution));
 }
 
 // tile_h has no meaning for 1-D convolutions, so compiling with it set must fail
@@ -458,8 +455,7 @@ static bool unique_solutions(const std::vector<migraphx::value>& solutions)
 TEST_CASE(channelwise_conv_1d_tuning)
 {
     migraphx::program p;
-    auto op = migraphx::make_op("gpu::channelwise_conv",
-                                {{"num_spatial", 1}, {"padding", {1, 1}}});
+    auto op = migraphx::make_op("gpu::channelwise_conv", {{"num_spatial", 1}, {"padding", {1, 1}}});
     auto ins = add_channelwise_conv_1d(p, op);
     migraphx::gpu::context ctx;
     auto wave = ctx.get_current_device().get_wavefront_size();
@@ -468,8 +464,8 @@ TEST_CASE(channelwise_conv_1d_tuning)
         auto tc = migraphx::gpu::get_tuning_config(ctx, ins, op, exhaustive);
         EXPECT(tc.has_value());
         EXPECT(not tc->solutions.empty());
-        EXPECT(std::all_of(
-            tc->solutions.begin(), tc->solutions.end(), [&](const migraphx::value& s) {
+        EXPECT(
+            std::all_of(tc->solutions.begin(), tc->solutions.end(), [&](const migraphx::value& s) {
                 auto threads = s.at("tile_w").to<std::size_t>() *
                                (s.at("tile_c").to<std::size_t>() / s.at("cvec").to<std::size_t>());
                 return s.at("tile_h").to<std::size_t>() == 1 and

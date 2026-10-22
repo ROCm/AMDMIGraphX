@@ -38,6 +38,13 @@ constexpr auto reorder_dims(const Array1& dims, const Array2& permutation)
         dims.size(), [&](auto i) { return dims[permutation[i]]; });
 }
 
+// Gather with constant indices so the result stays in registers
+template <class Array, class U, U... Ys>
+constexpr auto reorder_dims(const Array& dims, integral_const_array<U, Ys...>)
+{
+    return make_array(dims[Ys]...);
+}
+
 template <class T, T... Xs, class U, U... Ys>
 constexpr auto reorder_dims(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>)
 {
@@ -71,11 +78,9 @@ constexpr auto invert_permutation(integral_const_array<T, Xs...>)
 template <class Lens, class Permutation>
 constexpr auto multi_from_permutation(Lens lens, Permutation permutation, index_int i)
 {
-    constexpr auto ordered_lens = reorder_dims(decltype(lens){}, decltype(permutation){});
-    auto ordered                = ordered_lens.multi(i);
-    // Gather with constant indices so the result stays in registers
-    return unpack(invert_permutation(permutation),
-                  [&](auto... ps) { return make_array(ordered[ps]...); });
+    auto ordered = reorder_dims(lens, permutation).multi(i);
+    // The inverse permutation gathers the dimensions back into logical order
+    return reorder_dims(ordered, invert_permutation(permutation));
 }
 
 template <class Shape>

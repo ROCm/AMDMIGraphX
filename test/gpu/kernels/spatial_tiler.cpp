@@ -466,6 +466,30 @@ TEST_CASE(multi_from_permutation_nhwc)
     EXPECT(migraphx::multi_from_permutation(lens, perm, 31) == migraphx::index_ints<0, 1, 3, 3>{});
 }
 
+// Runtime lens must use the supplied values, not a default-constructed array
+TEST_CASE(multi_from_permutation_runtime_lens)
+{
+    migraphx::array<migraphx::index_int, 4> lens = {1, 2, 4, 4};
+    constexpr auto perm                          = migraphx::index_ints<0, 2, 3, 1>{};
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 0) == migraphx::index_ints<0, 0, 0, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 1) == migraphx::index_ints<0, 1, 0, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 2) == migraphx::index_ints<0, 0, 0, 1>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 8) == migraphx::index_ints<0, 0, 1, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 31) == migraphx::index_ints<0, 1, 3, 3>{});
+}
+
+// Both lens and permutation as runtime arrays
+TEST_CASE(multi_from_permutation_runtime)
+{
+    migraphx::array<migraphx::index_int, 4> lens = {1, 2, 4, 4};
+    migraphx::array<migraphx::index_int, 4> perm = {0, 2, 3, 1};
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 0) == migraphx::index_ints<0, 0, 0, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 1) == migraphx::index_ints<0, 1, 0, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 2) == migraphx::index_ints<0, 0, 0, 1>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 8) == migraphx::index_ints<0, 0, 1, 0>{});
+    EXPECT(migraphx::multi_from_permutation(lens, perm, 31) == migraphx::index_ints<0, 1, 3, 3>{});
+}
+
 // ======== halo span (contiguous copy rows) ========
 
 // Tile narrower than the input: each halo row is one contiguous run

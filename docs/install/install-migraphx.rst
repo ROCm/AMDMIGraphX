@@ -538,9 +538,11 @@ environment.
          previous step aren't set in your current shell. Re-run the
          ``source`` command or open a new shell session.
 
-   5. ONNX Runtime accelerates machine learning inference using the MIGraphX
-      execution provider on ROCm-supported GPUs. See the `ONNX Runtime
-      installation guide`_.
+   .. seealso::
+
+      ONNX Runtime with ``onnxruntime-ep-migraphx`` accelerates machine
+      learning inference using the MIGraphX execution provider on
+      ROCm-supported GPUs. See the `ONNX Runtime installation guide`_.
 
       .. note::
 
@@ -650,13 +652,47 @@ environment.
    1. Create and activate a virtual environment or activate an existing ROCm
       |ROCM_VERSION| environment.
 
-      .. code-block:: bash
+      .. tab-set::
 
-         python3.12 -m venv .venv
-         source .venv/bin/activate
+         .. tab-item:: Python 3.14
+            :sync: py314
 
-      Wheels are published for Python 3.10 through 3.14. Substitute the
-      interpreter you want to use, for example ``python3.14``.
+            .. code-block:: bash
+
+               python3.14 -m venv .venv
+               source .venv/bin/activate
+
+         .. tab-item:: Python 3.13
+            :sync: py313
+
+            .. code-block:: bash
+
+               python3.13 -m venv .venv
+               source .venv/bin/activate
+
+         .. tab-item:: Python 3.12
+            :sync: py312
+
+            .. code-block:: bash
+
+               python3.12 -m venv .venv
+               source .venv/bin/activate
+
+         .. tab-item:: Python 3.11
+            :sync: py311
+
+            .. code-block:: bash
+
+               python3.11 -m venv .venv
+               source .venv/bin/activate
+
+         .. tab-item:: Python 3.10
+            :sync: py310
+
+            .. code-block:: bash
+
+               python3.10 -m venv .venv
+               source .venv/bin/activate
 
    2. Install the MIGraphX and ``migraphx-libs`` wheels.
 
@@ -676,9 +712,11 @@ environment.
 
          migraphx-driver --version
 
-   4. ONNX Runtime accelerates machine learning inference using the MIGraphX
-      execution provider on ROCm-supported GPUs. See the `ONNX Runtime
-      installation guide`_.
+   .. seealso::
+
+      ONNX Runtime with ``onnxruntime-ep-migraphx`` accelerates machine
+      learning inference using the MIGraphX execution provider on
+      ROCm-supported GPUs. See the `ONNX Runtime installation guide`_.
 
 .. selected:: i=tar
    :heading: Install MIGraphX via tarball

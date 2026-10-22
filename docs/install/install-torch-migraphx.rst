@@ -62,13 +62,47 @@ environment.
    1. Create and activate a virtual environment or activate an existing ROCm
       |ROCM_VERSION| environment.
 
-      .. code-block:: bash
+      .. tab-set::
 
-         python3.12 -m venv .venv
-         source .venv/bin/activate
+         .. tab-item:: Python 3.14
+            :sync: py314
 
-      Wheels are published for Python 3.10 through 3.14. Substitute the
-      interpreter you want to use, for example ``python3.14``.
+            .. code-block:: bash
+
+               python3.14 -m venv .venv
+               source .venv/bin/activate
+
+         .. tab-item:: Python 3.13
+            :sync: py313
+
+            .. code-block:: bash
+
+               python3.13 -m venv .venv
+               source .venv/bin/activate
+
+         .. tab-item:: Python 3.12
+            :sync: py312
+
+            .. code-block:: bash
+
+               python3.12 -m venv .venv
+               source .venv/bin/activate
+
+         .. tab-item:: Python 3.11
+            :sync: py311
+
+            .. code-block:: bash
+
+               python3.11 -m venv .venv
+               source .venv/bin/activate
+
+         .. tab-item:: Python 3.10
+            :sync: py310
+
+            .. code-block:: bash
+
+               python3.10 -m venv .venv
+               source .venv/bin/activate
 
    2. Install a ROCm-enabled PyTorch release into the environment. See the
       `PyTorch installation guide`_.

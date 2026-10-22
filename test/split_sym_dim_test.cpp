@@ -2453,24 +2453,13 @@ TEST_CASE(split_sym_dim_specializes_static_output_reduce)
 
 TEST_CASE(split_sym_dim_propagates_padding_through_exp_and_squeeze)
 {
-    auto n         = var("n", {1, 4}, {2});
-    auto exp_n     = var("n", {1, 4}, {3});
-    auto squeeze_n = var("n", {1, 4}, {4});
+    auto n = var("n", {1, 4}, {2});
     migraphx::program p;
     auto& m = *p.get_main_module();
     auto data =
         m.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}});
     auto values = m.add_instruction(migraphx::make_op("exp"), data);
-    migraphx::instruction::replace(
-        values,
-        values->get_operator(),
-        migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{exp_n}}},
-        values->inputs());
-    values = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), values);
-    migraphx::instruction::replace(values,
-                                   values->get_operator(),
-                                   migraphx::shape{migraphx::shape::float_type, {dd{squeeze_n}}},
-                                   values->inputs());
+    values      = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), values);
     auto output = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), values);
     m.add_return({output});
 
@@ -2848,10 +2837,10 @@ TEST_CASE(split_sym_dim_absorbs_gather_with_compound_data_extent)
             sm.add_instruction(migraphx::make_op("where"), negative, normalized, clone_index);
         auto clone_gather = sm.add_instruction(
             migraphx::make_op("gather", {{"axis", 0}}), clone_weights, normalized);
-        migraphx::instruction::replace(clone_gather,
-                                       clone_gather->get_operator(),
-                                       clone_gather->get_shape().to_static(),
-                                       clone_gather->inputs());
+        clone_gather = sm.add_instruction(
+            migraphx::make_op(
+                "as_shape", {{"shape", migraphx::to_value(clone_gather->get_shape().to_static())}}),
+            clone_gather);
         clone_input =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_input);
         auto clone_output = sm.add_instruction(

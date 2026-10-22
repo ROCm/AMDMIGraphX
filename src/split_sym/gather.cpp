@@ -164,8 +164,8 @@ struct analyze_gather : analyzer<analyze_gather>
         auto result     = m.add_instruction(source->get_operator(), data, normalized);
         const auto& result_shape = result->get_shape();
         if(result_shape.symbolic() and result_shape.is_fixed() and result_shape.has_fixed_strides())
-            instruction::replace(
-                result, result->get_operator(), result_shape.to_static(), result->inputs());
+            result = m.add_instruction(
+                make_op("as_shape", {{"shape", to_value(result_shape.to_static())}}), result);
         return result;
     }
 };

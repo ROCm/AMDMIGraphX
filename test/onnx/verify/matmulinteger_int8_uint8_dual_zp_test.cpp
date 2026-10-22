@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <limits>
+#include <type_traits>
 #include <onnx_test.hpp>
 
 TEST_CASE(matmulinteger_int8_uint8_dual_zp_test)
@@ -48,10 +49,14 @@ TEST_CASE(matmulinteger_int8_uint8_dual_zp_test)
     EXPECT(result_vector == gold);
 }
 
-template <class A, class B>
-static void check_integer_correction(const std::string& name)
+template <class A, class B, bool Batched>
+static void matmulinteger_int32_correction_batched_extrema()
 {
-    auto p = read_onnx(name);
+    const std::string prefix =
+        Batched ? "matmulinteger_correction_batched_" : "matmulinteger_correction_";
+    const std::string a_type = std::is_same<A, int8_t>{} ? "int8" : "uint8";
+    const std::string b_type = std::is_same<B, int8_t>{} ? "int8" : "uint8";
+    auto p                   = read_onnx(prefix + a_type + "_" + b_type + ".onnx");
     p.compile(migraphx::make_target("ref"));
     auto shapes = p.get_parameter_shapes();
     std::vector<A> a(24);
@@ -91,22 +96,22 @@ static void check_integer_correction(const std::string& name)
     EXPECT(actual == expected);
 }
 
-TEST_CASE(matmulinteger_int32_correction_batched_extrema)
-{
-    check_integer_correction<int8_t, int8_t>("matmulinteger_correction_int8_int8.onnx");
-    check_integer_correction<int8_t, uint8_t>("matmulinteger_correction_int8_uint8.onnx");
-    check_integer_correction<uint8_t, int8_t>("matmulinteger_correction_uint8_int8.onnx");
-    check_integer_correction<uint8_t, uint8_t>("matmulinteger_correction_uint8_uint8.onnx");
-    check_integer_correction<int8_t, int8_t>("matmulinteger_correction_batched_int8_int8.onnx");
-    check_integer_correction<int8_t, uint8_t>("matmulinteger_correction_batched_int8_uint8.onnx");
-    check_integer_correction<uint8_t, int8_t>("matmulinteger_correction_batched_uint8_int8.onnx");
-    check_integer_correction<uint8_t, uint8_t>("matmulinteger_correction_batched_uint8_uint8.onnx");
-}
+TEST_CASE_REGISTER(matmulinteger_int32_correction_batched_extrema<int8_t, int8_t, false>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_batched_extrema<int8_t, uint8_t, false>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_batched_extrema<uint8_t, int8_t, false>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_batched_extrema<uint8_t, uint8_t, false>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_batched_extrema<int8_t, int8_t, true>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_batched_extrema<int8_t, uint8_t, true>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_batched_extrema<uint8_t, int8_t, true>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_batched_extrema<uint8_t, uint8_t, true>);
 
-template <class A, class B>
-static void check_integer_vector(const std::string& name, bool lhs)
+template <class A, class B, bool Lhs>
+static void matmulinteger_int32_correction_vectors()
 {
-    auto p = read_onnx(name);
+    const std::string prefix = Lhs ? "matmulinteger_vector_lhs_" : "matmulinteger_vector_rhs_";
+    const std::string a_type = std::is_same<A, int8_t>{} ? "int8" : "uint8";
+    const std::string b_type = std::is_same<B, int8_t>{} ? "int8" : "uint8";
+    auto p                   = read_onnx(prefix + a_type + "_" + b_type + ".onnx");
     p.compile(migraphx::make_target("ref"));
     auto shapes = p.get_parameter_shapes();
     std::vector<A> a(shapes.at("a").elements());
@@ -124,8 +129,8 @@ static void check_integer_vector(const std::string& name, bool lhs)
     std::vector<int32_t> expected(2, 0);
     for(std::size_t i = 0; i < 2; ++i)
         for(std::size_t k = 0; k < 4; ++k)
-            expected[i] += (int32_t{a[lhs ? k : i * 4 + k]} - int32_t{za}) *
-                           (int32_t{b[lhs ? k * 2 + i : k]} - int32_t{zb});
+            expected[i] += (int32_t{a[Lhs ? k : i * 4 + k]} - int32_t{za}) *
+                           (int32_t{b[Lhs ? k * 2 + i : k]} - int32_t{zb});
     auto output = p.eval(inputs).back();
     std::vector<int32_t> actual;
     output.visit([&](auto values) { actual.assign(values.begin(), values.end()); });
@@ -133,17 +138,14 @@ static void check_integer_vector(const std::string& name, bool lhs)
     EXPECT(actual == expected);
 }
 
-TEST_CASE(matmulinteger_int32_correction_vectors)
-{
-    for(bool lhs : {false, true})
-    {
-        const std::string prefix = lhs ? "matmulinteger_vector_lhs_" : "matmulinteger_vector_rhs_";
-        check_integer_vector<int8_t, int8_t>(prefix + "int8_int8.onnx", lhs);
-        check_integer_vector<int8_t, uint8_t>(prefix + "int8_uint8.onnx", lhs);
-        check_integer_vector<uint8_t, int8_t>(prefix + "uint8_int8.onnx", lhs);
-        check_integer_vector<uint8_t, uint8_t>(prefix + "uint8_uint8.onnx", lhs);
-    }
-}
+TEST_CASE_REGISTER(matmulinteger_int32_correction_vectors<int8_t, int8_t, false>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_vectors<int8_t, uint8_t, false>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_vectors<uint8_t, int8_t, false>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_vectors<uint8_t, uint8_t, false>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_vectors<int8_t, int8_t, true>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_vectors<int8_t, uint8_t, true>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_vectors<uint8_t, int8_t, true>);
+TEST_CASE_REGISTER(matmulinteger_int32_correction_vectors<uint8_t, uint8_t, true>);
 
 TEST_CASE(matmulinteger_int32_correction_boundary_test)
 {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,8 +29,6 @@ TEST_CASE(matmulinteger_one_zero_zp_vec_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    mm->add_literal(migraphx::literal(migraphx::shape{migraphx::shape::int8_type, {4, 3}},
-                                      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}));
     auto l0 = mm->add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {4, 3}});
     auto l1 = mm->add_parameter("2", migraphx::shape{migraphx::shape::uint8_type, {3, 2}});
 
@@ -45,26 +43,25 @@ TEST_CASE(matmulinteger_one_zero_zp_vec_test)
     auto mbr2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}),
                                     int8_shift2);
 
-    auto shifted_input =
-        mm->add_instruction(migraphx::make_op("sub"), wide_input, mbr2);
+    auto shifted_input = mm->add_instruction(migraphx::make_op("sub"), wide_input, mbr2);
 
     l1 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        shifted_input);
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), shifted_input);
 
     auto result = mm->add_instruction(migraphx::make_op("quant_dot"), l0, l1);
-    auto zero = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {0}});
-    auto offset = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {128}});
+    auto zero =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {0}});
+    auto offset =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {128}});
     auto zb = migraphx::add_common_op(*mm, migraphx::make_op("sub"), {zero, offset});
     auto wa = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), l0);
-    auto sum_a = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), wa);
+    auto sum_a      = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), wa);
     auto correction = migraphx::add_common_op(*mm, migraphx::make_op("mul"), {sum_a, zb});
     migraphx::add_common_op(*mm, migraphx::make_op("sub"), {result, correction});
 
     auto prog = optimize_onnx("matmulinteger_int8_uint8_one_zp_zero_vec_test.onnx");
 
-    migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
     migraphx::run_passes(prog, {migraphx::dead_code_elimination{}});
     EXPECT(p.sort() == prog.sort());
 }

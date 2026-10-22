@@ -764,6 +764,27 @@ struct find_inner_broadcast
         // there is no reason to do this transformation.
         if(iaxes.size() == ndim)
             return;
+        // `broadcast` cannot expand singleton dimensions; leave such expansion to multibroadcast.
+        auto needs_singleton_expansion = [&](instruction_ref bcast) {
+            if(bcast->name() != "multibroadcast" or
+               bcast->inputs().front()->get_shape().elements() == 1)
+                return false;
+            const auto& lens        = bcast->inputs().front()->get_shape().lens();
+            const auto shift        = ndim - lens.size();
+            const auto removed_axes = std::count_if(axes.begin(), axes.end(), [&](auto axis) {
+                return axis >= shift and axis - shift < lens.size();
+            });
+            if(lens.size() - removed_axes >= iaxes.size())
+                return false;
+            const auto input_axes = range(lens.size());
+            return std::any_of(input_axes.begin(), input_axes.end(), [&](auto input_axis) {
+                const auto output_axis = shift + input_axis;
+                return lens[input_axis] == 1 and ins->get_shape().lens()[output_axis] != 1 and
+                       not contains(axes, output_axis);
+            });
+        };
+        if(any_of(broadcasts, needs_singleton_expansion))
+            return;
         std::vector<instruction_ref> inputs;
         std::transform(
             broadcasts.begin(),
